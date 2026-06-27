@@ -38,9 +38,10 @@ interface FichaTabProps {
   reloadLista: () => void;
   preSel?: number | null;
   cmvMedias?: Record<string, number>;
+  vendasSemCadastro?: any[];
 }
 
-function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMedias }: FichaTabProps) {
+function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMedias, vendasSemCadastro }: FichaTabProps) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
@@ -193,6 +194,21 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
+  // "vendeu sem cadastro": vendido no ContaHub sem produto no Zykor → cadastra o item + mapeia o prd
+  const [semCadOpen, setSemCadOpen] = useState(false);
+  const [semCadCat, setSemCadCat] = useState<Record<string, string>>({});
+  const [semCadBusy, setSemCadBusy] = useState<string | null>(null);
+  const cadastrarDoContahub = async (item: any) => {
+    setSemCadBusy(item.prd);
+    try {
+      const r = await api.post('/api/operacional/produtos', { bar_id: barId, nome: item.desc, prefixo: semCadCat[item.prd] || 'c', cod_ch: item.prd });
+      if (!r.success) throw new Error(r.error);
+      toast({ title: `Cadastrado: ${r.produto?.codigo || ''}`, description: `${item.desc} — agora monte a ficha.` });
+      reloadLista();
+    } catch (e: any) { toast({ title: 'Erro ao cadastrar', description: e?.message, variant: 'destructive' }); }
+    finally { setSemCadBusy(null); }
+  };
+
   // editar códigos ContaHub / Yuzer do produto (finalização)
   const [editCods, setEditCods] = useState(false);
   const [chVal, setChVal] = useState('');
@@ -284,8 +300,9 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input value={buscaLista} onChange={e => setBuscaLista(e.target.value)} placeholder={kind === 'producao' ? 'Buscar produção…' : 'Buscar produto…'} className="pl-9 h-9" />
             </div>
-            {(nZero > 0 || nSemMestre > 0 || nSemCh > 0 || nItemZero > 0 || nVendeuSemFicha > 0) && (
+            {(nZero > 0 || nSemMestre > 0 || nSemCh > 0 || nItemZero > 0 || nVendeuSemFicha > 0 || (kind === 'produto' && (vendasSemCadastro?.length ?? 0) > 0)) && (
               <div className="flex flex-wrap gap-1 mt-2">
+                {kind === 'produto' && (vendasSemCadastro?.length ?? 0) > 0 && <button onClick={() => setSemCadOpen(true)} title="Vendido no ContaHub mas SEM produto cadastrado no Zykor — a venda não entra no CMV. Cadastre o item." className="text-[10px] rounded px-1.5 py-0.5 border font-medium border-red-500 text-white bg-red-600">⚠ {vendasSemCadastro!.length} vendeu sem cadastro</button>}
                 {nVendeuSemFicha > 0 && <button onClick={() => setFiltroLista(f => f === 'vendeu_sem_ficha' ? null : 'vendeu_sem_ficha')} title="Produto vendido no ContaHub (últimos 30d) mas com a ficha vazia — sai do CMV/desvio. Cadastrar a receita primeiro." className={`text-[10px] rounded px-1.5 py-0.5 border font-medium ${filtroLista === 'vendeu_sem_ficha' ? 'bg-red-600 text-white border-red-600' : 'border-red-400 text-red-600 bg-red-50 dark:bg-red-900/20'}`}>⚠ {nVendeuSemFicha} vendeu sem ficha</button>}
                 {nZero > 0 && <button onClick={() => setFiltroLista(f => f === 'zero' ? null : 'zero')} title="Ficha criada mas sem nenhum componente — falta montar a receita" className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'zero' ? 'bg-red-600 text-white border-red-600' : 'border-red-300 text-red-600'}`}>{nZero} ficha vazia</button>}
                 {nItemZero > 0 && <button onClick={() => setFiltroLista(f => f === 'item_zerado' ? null : 'item_zerado')} title="Fichas com algum insumo sem preço (R$0) — revisar" className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'item_zerado' ? 'bg-purple-600 text-white border-purple-600' : 'border-purple-300 text-purple-600'}`}>{nItemZero} item R$0</button>}
@@ -639,6 +656,37 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
           )}
         </CardContent>
       </Card>
+
+      {/* Modal: vendeu sem cadastro (ContaHub vendeu mas não tem produto no Zykor) */}
+      {semCadOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setSemCadOpen(false); }}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h4 className="font-semibold text-gray-900 dark:text-white">Vendeu sem cadastro · {vendasSemCadastro?.length ?? 0} itens</h4>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Itens vendidos no ContaHub (últimos 30d) sem produto cadastrado no Zykor — a venda não entra no CMV. Escolha a categoria e clique em <b>Cadastrar</b> (depois monte a ficha). Ignore os que não são item de cardápio (ingresso, taxa, vale…).</p>
+            <table className="w-full text-sm">
+              <thead className="text-xs text-gray-400 border-b"><tr><th className="text-left py-1">Item (ContaHub)</th><th className="text-right py-1">Qtd</th><th className="text-right py-1">Valor</th><th className="text-center py-1">Categoria</th><th></th></tr></thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {(vendasSemCadastro || []).map((it: any) => (
+                  <tr key={it.prd}>
+                    <td className="py-1.5 text-gray-900 dark:text-gray-100">{it.desc}<span className="text-xs text-gray-400 font-mono ml-1">#{it.prd}</span></td>
+                    <td className="py-1.5 text-right tabular-nums text-gray-500">{Number(it.qtd).toLocaleString('pt-BR')}</td>
+                    <td className="py-1.5 text-right tabular-nums font-medium">{fmtBRL(it.valor)}</td>
+                    <td className="py-1.5 text-center">
+                      <select value={semCadCat[it.prd] || 'c'} onChange={e => setSemCadCat(m => ({ ...m, [it.prd]: e.target.value }))} className="text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-1 py-0.5">
+                        <option value="c">Comida</option><option value="b">Bebida</option><option value="d">Drink</option><option value="o">Outros</option>
+                      </select>
+                    </td>
+                    <td className="py-1.5 text-right">
+                      <Button size="sm" variant="outline" disabled={semCadBusy === it.prd} onClick={() => cadastrarDoContahub(it)}>{semCadBusy === it.prd ? '…' : 'Cadastrar'}</Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="flex justify-end mt-4"><Button variant="outline" onClick={() => setSemCadOpen(false)}>Fechar</Button></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -653,12 +701,13 @@ function FichasInner() {
   const [aba, setAba] = useState<'producao' | 'finalizacao'>('producao');
   const [producoes, setProducoes] = useState<any[]>([]);
   const [produtos, setProdutos] = useState<any[]>([]);
+  const [vendasSemCadastro, setVendasSemCadastro] = useState<any[]>([]);
   const [insumos, setInsumos] = useState<any[]>([]);
   const [cmvMedias, setCmvMedias] = useState<Record<string, number>>({});
   const [importando, setImportando] = useState(false);
 
   const loadProducoes = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/producoes?bar_id=${barId}`); if (r.success) setProducoes(r.producoes || []); }, [barId]);
-  const loadProdutos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/produtos?bar_id=${barId}`); if (r.success) setProdutos(r.produtos || []); }, [barId]);
+  const loadProdutos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/produtos?bar_id=${barId}`); if (r.success) { setProdutos(r.produtos || []); setVendasSemCadastro(r.vendas_sem_cadastro || []); } }, [barId]);
   const loadInsumos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/insumos?bar_id=${barId}`); if (r.success) setInsumos(r.insumos || []); }, [barId]);
   const loadCmvMedias = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/producoes/cmv-categoria?bar_id=${barId}`); if (r.success) setCmvMedias(r.medias || {}); }, [barId]);
   useEffect(() => { loadProducoes(); loadProdutos(); loadInsumos(); loadCmvMedias(); }, [loadProducoes, loadProdutos, loadInsumos, loadCmvMedias]);
@@ -742,7 +791,7 @@ function FichasInner() {
       </div>
       {aba === 'producao'
         ? <FichaTab kind="producao" lista={producoes} insumos={insumos} producoes={producoes} reloadLista={loadProducoes} preSel={preSel} />
-        : <FichaTab kind="produto" lista={produtos} insumos={insumos} producoes={producoes} reloadLista={loadProdutos} cmvMedias={cmvMedias} />}
+        : <FichaTab kind="produto" lista={produtos} insumos={insumos} producoes={producoes} reloadLista={loadProdutos} cmvMedias={cmvMedias} vendasSemCadastro={vendasSemCadastro} />}
 
       {createOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setCreateOpen(false); }}>

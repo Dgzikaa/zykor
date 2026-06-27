@@ -68,9 +68,17 @@ export async function GET(request: NextRequest) {
     const yzPrecos = await selectAll((from, to) => (supabase as any).schema('gold').from('produto_preco_yuzer').select('cod_interno, preco_yuzer').eq('bar_id', barId).range(from, to));
     yzPrecos.forEach((r: any) => { if (r.cod_interno && r.preco_yuzer != null) yzPrecoMap[r.cod_interno] = Number(r.preco_yuzer); });
 
+    // vendido no ContaHub (30d) mas SEM produto cadastrado/mapeado (exclui [IN]/ajuste de estoque)
+    let vendasSemCadastro: any[] = [];
+    try {
+      const { data: vsc } = await (supabase as any).schema('operations').rpc('fn_vendas_sem_cadastro', { p_bar: barId, p_dias: 30 });
+      vendasSemCadastro = (vsc || []).map((r: any) => ({ prd: String(r.prd), desc: r.prd_desc || `prd ${r.prd}`, qtd: Number(r.qtd || 0), valor: Number(r.valor || 0) }));
+    } catch { /* sem dado = lista vazia */ }
+
     return NextResponse.json({
       success: true,
       produtos: data.map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [], cods_yuzer: yzMap[p.codigo] || [], preco_venda: precoVendaMap[p.codigo] ?? null, preco_yuzer: yzPrecoMap[p.codigo] ?? null, tem_venda: vendaCods.has(p.codigo) })),
+      vendas_sem_cadastro: vendasSemCadastro,
     });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || String(e) }, { status: 500 });
