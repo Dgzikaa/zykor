@@ -91,6 +91,31 @@ function buildAnalise(
   return { level, insights, anterior: prev.prevDate };
 }
 
+// análise enxuta p/ Produções e Proteínas: perda vs período anterior + maiores perdas.
+function buildAnaliseSimples(
+  itens: { desvio_rs: number; nome: string }[],
+  head: { perdas: number; sobras: number },
+  prev: { prevDate: string | null; prevPerdas: number },
+  labelTipo: string,
+): { level: 'alert' | 'warn' | 'info'; insights: { level: string; texto: string }[]; anterior: string | null } {
+  const insights: { level: string; texto: string }[] = [];
+  const per = labelTipo === 'diaria' ? 'dia' : labelTipo === 'semanal' ? 'semana' : 'mês';
+  const perda = Math.abs(head.perdas);
+  let level: 'alert' | 'warn' | 'info' = 'info';
+  if (prev.prevDate && Math.abs(prev.prevPerdas) > 0.01) {
+    const prevAbs = Math.abs(prev.prevPerdas);
+    const d = (perda - prevAbs) / prevAbs;
+    const txt = d > 0.05 ? `${Math.round(d * 100)}% maior` : d < -0.05 ? `${Math.round(Math.abs(d) * 100)}% menor` : 'no mesmo nível';
+    if (d > 0.15) level = 'warn';
+    insights.push({ level: d > 0.15 ? 'warn' : 'info', texto: `Perda de ${fmtRS(perda)} neste ${per} — ${txt} que o período anterior (${fmtRS(prevAbs)}).` });
+  } else {
+    insights.push({ level: 'info', texto: `Perda de ${fmtRS(perda)} neste ${per}${head.sobras > 0.01 ? ` · sobras de ${fmtRS(head.sobras)}` : ''}.` });
+  }
+  const top = itens.filter((i) => i.desvio_rs < -1).sort((a, b) => a.desvio_rs - b.desvio_rs).slice(0, 3);
+  if (top.length) insights.push({ level: 'info', texto: `Maiores perdas: ${top.map((p) => `${p.nome} (${fmtRS(Math.abs(p.desvio_rs))})`).join(', ')}.` });
+  return { level, insights, anterior: prev.prevDate };
+}
+
 /**
  * GET /api/operacional/desvios
  *  - sem ?ini&fim → datas de contagem do tipo (?tipo=diaria|semanal|mensal) p/ o seletor.
@@ -119,7 +144,26 @@ export async function GET(request: NextRequest) {
   if (sp.get('aba') === 'proteina') {
     const { data, error } = await (sb() as any).schema('gold').rpc('fn_desvios_proteina', { p_bar: user.bar_id, p_ini: ini, p_fim: fim });
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, itens: data || [] });
+    const rows = (data || []) as any[];
+    const headline = {
+      desvio_total: rows.reduce((s, i) => s + Number(i.desvio_rs || 0), 0),
+      perdas: rows.reduce((s, i) => s + (Number(i.desvio_rs || 0) < 0 ? Number(i.desvio_rs) : 0), 0),
+      sobras: rows.reduce((s, i) => s + (Number(i.desvio_rs || 0) > 0 ? Number(i.desvio_rs) : 0), 0),
+    };
+    let analise: any = null;
+    try {
+      const { data: datasRaw } = await (sb() as any).schema('operations').rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo });
+      const ds: string[] = (datasRaw || []).map((d: any) => d.data_contagem);
+      const idx = ds.indexOf(ini);
+      const prevDate = idx >= 0 && idx < ds.length - 1 ? ds[idx + 1] : null;
+      let prevPerdas = 0;
+      if (prevDate) {
+        const { data: pdata } = await (sb() as any).schema('gold').rpc('fn_desvios_proteina', { p_bar: user.bar_id, p_ini: prevDate, p_fim: ini });
+        for (const r of (pdata || [])) { const v = Number(r.desvio_rs || 0); if (v < 0) prevPerdas += v; }
+      }
+      analise = buildAnaliseSimples(rows.map((i) => ({ desvio_rs: Number(i.desvio_rs || 0), nome: i.insumo_nome })), headline, { prevDate, prevPerdas }, tipo || 'semanal');
+    } catch { analise = null; }
+    return NextResponse.json({ success: true, itens: rows, headline, analise });
   }
 
   const { data, error } = await (sb() as any).schema('gold')
@@ -213,8 +257,17 @@ export async function GET(request: NextRequest) {
   const perdas = itensValidos.reduce((s: number, i: any) => s + (i.desvio_rs < 0 ? i.desvio_rs : 0), 0);
   const sobras = itensValidos.reduce((s: number, i: any) => s + (i.desvio_rs > 0 ? i.desvio_rs : 0), 0);
 
+  // PRODUÇÕES: headline próprio (mesmo balanço, linhas is_producao)
+  const prodRows = itens.filter((i: any) => i.is_producao && !i.pendente && (tipo !== 'diaria' || i.curva_a === true));
+  const headlineProducao = {
+    desvio_total: prodRows.reduce((s: number, i: any) => s + i.desvio_rs, 0),
+    perdas: prodRows.reduce((s: number, i: any) => s + (i.desvio_rs < 0 ? i.desvio_rs : 0), 0),
+    sobras: prodRows.reduce((s: number, i: any) => s + (i.desvio_rs > 0 ? i.desvio_rs : 0), 0),
+  };
+
   // análise: compara a perda deste período com a do período anterior do mesmo tipo
   let analise: any = null;
+  let analiseProducao: any = null;
   try {
     const { data: datasRaw } = await (sb() as any).schema('operations')
       .rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo });
@@ -222,13 +275,22 @@ export async function GET(request: NextRequest) {
     const idx = ds.indexOf(ini);
     const prevDate = idx >= 0 && idx < ds.length - 1 ? ds[idx + 1] : null; // contagem imediatamente anterior a `ini`
     let prevPerdas = 0;
+    let prevPerdasProd = 0;
     if (prevDate) {
       const { data: pdata } = await (sb() as any).schema('gold')
         .rpc('fn_desvios', { p_bar: user.bar_id, p_ini: prevDate, p_fim: ini });
       const pbase = tipo === 'diaria' ? (pdata || []).filter((r: any) => r.curva_a === true) : (pdata || []);
-      for (const r of pbase) { const v = Number(r.desvio_rs || 0); if (v < 0) prevPerdas += v; }
+      for (const r of pbase) {
+        const v = Number(r.desvio_rs || 0);
+        if (r.is_producao) { if (v < 0) prevPerdasProd += v; }
+        else if (v < 0) prevPerdas += v;
+      }
     }
     analise = buildAnalise(itensValidos, { perdas, sobras }, { prevDate, prevPerdas }, tipo || 'semanal');
+    analiseProducao = buildAnaliseSimples(
+      prodRows.map((i: any) => ({ desvio_rs: i.desvio_rs, nome: i.insumo_nome })),
+      { perdas: headlineProducao.perdas, sobras: headlineProducao.sobras },
+      { prevDate, prevPerdas: prevPerdasProd }, tipo || 'semanal');
   } catch { analise = null; }
 
   return NextResponse.json({
@@ -237,6 +299,8 @@ export async function GET(request: NextRequest) {
     itens: itens.sort((a: any, b: any) => Math.abs(b.desvio_rs) - Math.abs(a.desvio_rs)),
     headline: { desvio_total, perdas, sobras },
     analise,
+    headline_producao: headlineProducao,
+    analise_producao: analiseProducao,
   });
 }
 

@@ -40,6 +40,54 @@ const fmtData = (d: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDate
 
 const TIPOS = [{ k: 'diaria', l: 'Diária' }, { k: 'semanal', l: 'Semanal' }, { k: 'mensal', l: 'Mensal' }];
 
+// 3 cards de headline (Desvio total / Perdas / Sobras) — reusado nas 3 abas
+function HeadCards({ head }: { head: any }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <Card className="card-dark"><CardContent className="py-3">
+        <div className="text-xs text-muted-foreground uppercase tracking-wide">Desvio total</div>
+        <div className={`text-2xl font-bold ${(head?.desvio_total ?? 0) < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{fmtBRL(head?.desvio_total)}</div>
+        <div className="text-[11px] text-gray-400">estoque real − teórico no período</div>
+      </CardContent></Card>
+      <Card className="card-dark"><CardContent className="py-3">
+        <div className="text-xs text-muted-foreground uppercase tracking-wide">Perdas (faltou estoque)</div>
+        <div className="text-2xl font-bold text-red-600 dark:text-red-400">{fmtBRL(head?.perdas)}</div>
+        <div className="text-[11px] text-gray-400">sobrou menos do que as vendas explicam</div>
+      </CardContent></Card>
+      <Card className="card-dark"><CardContent className="py-3">
+        <div className="text-xs text-muted-foreground uppercase tracking-wide">Sobras (sobrou estoque)</div>
+        <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{fmtBRL(head?.sobras)}</div>
+        <div className="text-[11px] text-gray-400">restou mais do que as vendas explicam</div>
+      </CardContent></Card>
+    </div>
+  );
+}
+
+// caixa de análise (perda vs período anterior + drivers) — reusado nas 3 abas
+function AnaliseBlock({ analise, tipo }: { analise: any; tipo: string | null }) {
+  if (!(analise?.insights?.length > 0)) return null;
+  const lv = analise.level as 'alert' | 'warn' | 'info';
+  const cls = lv === 'alert' ? 'border-rose-300 bg-rose-50 dark:border-rose-800 dark:bg-rose-900/15'
+    : lv === 'warn' ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/15'
+      : 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/15';
+  const labelTipo = tipo === 'diaria' ? 'diária' : tipo === 'semanal' ? 'semanal' : 'mensal';
+  const bullet = (l: string) => l === 'alert' ? '⚠️' : l === 'warn' ? '⚠' : '•';
+  return (
+    <div className={`rounded-lg border px-4 py-3 ${cls}`}>
+      <div className="flex items-center gap-2 mb-1.5">
+        <AlertTriangle className={`w-4 h-4 ${lv === 'alert' ? 'text-rose-600 dark:text-rose-400' : lv === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'}`} />
+        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Análise de desvios — contagem {labelTipo}</span>
+        {analise.anterior && <span className="text-xs text-gray-500">vs {fmtData(analise.anterior)}</span>}
+      </div>
+      <ul className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+        {analise.insights.map((ins: any, i: number) => (
+          <li key={i} className="flex gap-1.5"><span className="shrink-0">{bullet(ins.level)}</span><span>{ins.texto}</span></li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function DesviosPage() {
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
@@ -53,6 +101,8 @@ export default function DesviosPage() {
   const [aba, setAba] = useState('insumos');
   const [soCurvaA, setSoCurvaA] = useState(false);
   const [rowsProt, setRowsProt] = useState<any[]>([]);
+  const [protHead, setProtHead] = useState<any>(null);
+  const [protAnalise, setProtAnalise] = useState<any>(null);
   const [loadingAba, setLoadingAba] = useState(false);
 
   // carrega datas do tipo selecionado e pré-seleciona as 2 mais recentes
@@ -85,7 +135,7 @@ export default function DesviosPage() {
     setLoadingAba(true);
     try {
       const r = await api.get(`/api/operacional/desvios?ini=${ini}&fim=${fim}&aba=proteina&tipo=${tipo}`);
-      if (r.success) setRowsProt(r.itens || []);
+      if (r.success) { setRowsProt(r.itens || []); setProtHead(r.headline || null); setProtAnalise(r.analise || null); }
     } finally { setLoadingAba(false); }
   }, [barId, ini, fim, aba, tipo]);
   useEffect(() => { carregarAba(); }, [carregarAba]);
@@ -193,56 +243,8 @@ export default function DesviosPage() {
           {/* ===== INSUMOS (VMarket → ContaHub, estoque âncora) ===== */}
           <TabsContent value="insumos" className="space-y-4 mt-3">
 
-        {/* Headline */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <Card className="card-dark"><CardContent className="py-3">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">Desvio total</div>
-            <div className={`text-2xl font-bold ${(h?.desvio_total ?? 0) < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{fmtBRL(h?.desvio_total)}</div>
-            <div className="text-[11px] text-gray-400">estoque real − teórico no período</div>
-          </CardContent></Card>
-          <Card className="card-dark"><CardContent className="py-3">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">Perdas (faltou estoque)</div>
-            <div className="text-2xl font-bold text-red-600 dark:text-red-400">{fmtBRL(h?.perdas)}</div>
-            <div className="text-[11px] text-gray-400">sobrou menos do que as vendas explicam</div>
-          </CardContent></Card>
-          <Card className="card-dark"><CardContent className="py-3">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">Sobras (sobrou estoque)</div>
-            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{fmtBRL(h?.sobras)}</div>
-            <div className="text-[11px] text-gray-400">restou mais do que as vendas explicam</div>
-          </CardContent></Card>
-        </div>
-
-        {/* Análise de desvios */}
-        {res?.analise?.insights?.length > 0 && (() => {
-          const lv = res.analise.level as 'alert' | 'warn' | 'info';
-          const cls = lv === 'alert'
-            ? 'border-rose-300 bg-rose-50 dark:border-rose-800 dark:bg-rose-900/15'
-            : lv === 'warn'
-              ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/15'
-              : 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/15';
-          const labelTipo = tipo === 'diaria' ? 'diária' : tipo === 'semanal' ? 'semanal' : 'mensal';
-          const bullet = (l: string) => l === 'alert' ? '⚠️' : l === 'warn' ? '⚠' : '•';
-          return (
-            <div className={`rounded-lg border px-4 py-3 ${cls}`}>
-              <div className="flex items-center gap-2 mb-1.5">
-                <AlertTriangle className={`w-4 h-4 ${lv === 'alert' ? 'text-rose-600 dark:text-rose-400' : lv === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'}`} />
-                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Análise de desvios — contagem {labelTipo}</span>
-                {res.analise.anterior && <span className="text-xs text-gray-500">vs {fmtData(res.analise.anterior)}</span>}
-              </div>
-              <ul className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
-                {res.analise.insights.map((ins: any, i: number) => (
-                  <li key={i} className="flex gap-1.5"><span className="shrink-0">{bullet(ins.level)}</span><span>{ins.texto}</span></li>
-                ))}
-              </ul>
-            </div>
-          );
-        })()}
-
-        {editavel && (
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            ✏️ Clique no <b>lápis</b> pra lançar o <b>Desperdício</b> (item que estourou/deu problema). O <b>Produzido</b> das produções fica na aba <b>Produções</b>.
-          </p>
-        )}
+        <HeadCards head={h} />
+        <AnaliseBlock analise={res?.analise} tipo={tipo} />
 
         {/* Tabela */}
         <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
@@ -289,6 +291,8 @@ export default function DesviosPage() {
 
           {/* ===== PRODUÇÕES (Controle de Produção → ContaHub) ===== */}
           <TabsContent value="producoes" className="space-y-3 mt-3">
+            <HeadCards head={res?.headline_producao} />
+            <AnaliseBlock analise={res?.analise_producao} tipo={tipo} />
             <p className="text-xs text-gray-500 dark:text-gray-400">Balanço da produção: estoque ini + <b>Produzido</b> (fornadas na diária) − saída teórica (vendas×ficha) − desperdício. {editavel ? 'Na diária você lança as fornadas.' : 'Semanal/mensal somam as fornadas do dia.'} Diária só Curva A.</p>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -326,6 +330,8 @@ export default function DesviosPage() {
 
           {/* ===== PROTEÍNAS (VMarket → Utilizado Produção) ===== */}
           <TabsContent value="proteinas" className="space-y-3 mt-3">
+            <HeadCards head={protHead} />
+            <AnaliseBlock analise={protAnalise} tipo={tipo} />
             <p className="text-xs text-gray-500 dark:text-gray-400">Balanço da proteína: estoque ini + <b>Compras</b> (VMarket) − <b>Utilizado Produção</b> (fornadas × proteína na ficha — automático) − desperdício. Desvio negativo = faltou (perda/furo). Em kg.</p>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
