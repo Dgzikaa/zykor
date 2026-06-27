@@ -43,7 +43,7 @@ function CellEdit({ value, readOnly, onSave, title, placeholder }: { value: numb
 export default function DesviosPage() {
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
-  const [tipo, setTipo] = useState('semanal');
+  const [tipo, setTipo] = useState('diaria');
   const [datas, setDatas] = useState<string[]>([]);
   const [ini, setIni] = useState<string | null>(null);
   const [fim, setFim] = useState<string | null>(null);
