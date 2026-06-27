@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 const sb = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
-// mesma regra de área da tela de estoque (categoria → área)
 const DRINK_NAOALC = new Set(['i0298', 'i0085', 'i0328', 'i0191', 'i0563']);
 function areaDe(categoria: string | null, cod: string | null): string {
   const c = (categoria || '').toUpperCase();
@@ -22,8 +21,8 @@ function areaDe(categoria: string | null, cod: string | null): string {
 
 /**
  * GET /api/operacional/desvios
- *  - sem ?ini&fim → retorna as datas de contagem (semanal) disponíveis p/ escolher o período.
- *  - com ?ini&fim → desvio por insumo no período: real (estoque+compras) × teórico (vendas×ficha).
+ *  - sem ?ini&fim → datas de contagem do tipo (?tipo=diaria|semanal|mensal) p/ o seletor.
+ *  - com ?ini&fim → desvio por insumo: Saída Real (estoque_ini+compras−estoque_fim) × Saída Teórica (vendas×ficha).
  */
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
@@ -33,11 +32,11 @@ export async function GET(request: NextRequest) {
   const sp = new URL(request.url).searchParams;
   const ini = sp.get('ini');
   const fim = sp.get('fim');
+  const tipo = ['diaria', 'semanal', 'mensal'].includes(sp.get('tipo') || '') ? sp.get('tipo') : 'semanal';
 
-  // sem período → lista de datas de contagem (semanal) p/ o seletor
   if (!ini || !fim) {
     const { data: datas, error } = await (sb() as any).schema('operations')
-      .rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: 'semanal' });
+      .rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo });
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, datas: (datas || []).map((d: any) => d.data_contagem) });
   }
@@ -47,38 +46,34 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
   const itens = (data || []).map((r: any) => {
-    const teorico = Number(r.teorico_rs || 0);
-    const real = Number(r.real_rs || 0);
-    // suspeita de unidade errada: teórico absurdo vs real (≥10x e diferença grande)
-    const unidade_suspeita = teorico > 200 && (real === 0 ? teorico > 1000 : teorico / Math.abs(real) >= 10);
+    const real = Number(r.saida_real || 0);
+    const teorica = Number(r.saida_teorica || 0);
+    // suspeita de ficha/unidade: saída teórica muito acima da real (mas já não distorce, pois é por qtd)
+    const suspeita = Math.abs(teorica) > Math.abs(real) * 5 && Math.abs(Number(r.desvio_rs || 0)) > 200;
     return {
       insumo_codigo: r.insumo_codigo,
       insumo_nome: r.insumo_nome,
       area: areaDe(r.categoria, r.insumo_codigo),
-      valor_ini: Number(r.valor_ini || 0),
-      valor_fim: Number(r.valor_fim || 0),
-      compras_rs: Number(r.compras_rs || 0),
-      real_rs: real,
-      teorico_rs: teorico,
+      estoque_ini: Number(r.estoque_ini || 0),
+      compra: Number(r.compra || 0),
+      estoque_fim: Number(r.estoque_fim || 0),
+      saida_real: real,
+      saida_teorica: teorica,
+      desvio_qtd: Number(r.desvio_qtd || 0),
+      preco: r.preco == null ? null : Number(r.preco),
       desvio_rs: Number(r.desvio_rs || 0),
-      unidade_suspeita,
+      suspeita,
     };
   });
 
-  // headline ignora os suspeitos de unidade (senão o limão distorce tudo)
-  const limpos = itens.filter((i: any) => !i.unidade_suspeita);
-  const head = (arr: any[]) => ({
-    real: arr.reduce((s, i) => s + i.real_rs, 0),
-    teorico: arr.reduce((s, i) => s + i.teorico_rs, 0),
-    desvio: arr.reduce((s, i) => s + i.desvio_rs, 0),
-  });
+  const desvio_total = itens.reduce((s: number, i: any) => s + i.desvio_rs, 0);
+  const perdas = itens.reduce((s: number, i: any) => s + (i.desvio_rs > 0 ? i.desvio_rs : 0), 0);
+  const sobras = itens.reduce((s: number, i: any) => s + (i.desvio_rs < 0 ? i.desvio_rs : 0), 0);
 
   return NextResponse.json({
     success: true,
     ini, fim,
     itens: itens.sort((a: any, b: any) => Math.abs(b.desvio_rs) - Math.abs(a.desvio_rs)),
-    headline: head(itens),
-    headline_sem_suspeitos: head(limpos),
-    n_suspeitos: itens.length - limpos.length,
+    headline: { desvio_total, perdas, sobras },
   });
 }
