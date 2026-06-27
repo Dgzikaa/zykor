@@ -42,7 +42,6 @@ type Aba = 'insumo' | 'producao' | 'geral';
 const ABAS: { id: Aba; label: string }[] = [
   { id: 'insumo', label: 'Insumos' },
   { id: 'producao', label: 'Produções' },
-  { id: 'geral', label: 'Geral' },
 ];
 
 export default function SaidasPage() {
