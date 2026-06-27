@@ -231,14 +231,14 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   const [addQtd, setAddQtd] = useState('1');
   const addOpcoes = useMemo(() => {
     const q = addBusca.trim().toLowerCase();
-    if (addTipo === 'insumo') return insumos.filter(i => !q || (i.nome || '').toLowerCase().includes(q) || (i.cod_interno || '').toLowerCase().includes(q)).slice(0, 30);
+    if (addTipo === 'insumo') return insumos.filter(i => !q || (i.nome || '').toLowerCase().includes(q) || (i.codigo || '').toLowerCase().includes(q)).slice(0, 30);
     return producoes.filter(p => p.id !== sel && (!q || (p.nome || '').toLowerCase().includes(q))).slice(0, 30);
   }, [addTipo, addBusca, insumos, producoes, sel]);
   const adicionar = async () => {
     if (!sel || !addEscolhido) { toast({ title: 'Escolha o componente', variant: 'destructive' }); return; }
     // unidade NÃO é escolhida — segue o cadastro do insumo (base) / preparo (rendimento)
     const payload: any = { [parentParam]: sel, componente_tipo: addTipo, quantidade: Number(addQtd) || 0, unidade: null };
-    if (addTipo === 'insumo') { payload.insumo_codigo = addEscolhido.cod_interno; payload.insumo_id_vmarket = addEscolhido.id_produto_sisfood_cotacao; payload.nome_componente = addEscolhido.nome; }
+    if (addTipo === 'insumo') { payload.insumo_codigo = addEscolhido.codigo; payload.nome_componente = addEscolhido.nome; }
     else { payload.producao_ref = addEscolhido.id; payload.nome_componente = addEscolhido.nome; }
     try {
       const r = await api.post('/api/operacional/producoes/ficha', payload);
@@ -419,7 +419,6 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                         <td className="px-2 py-1.5 font-mono text-xs text-gray-500">{it.componente_codigo || '—'}</td>
                         <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">
                           {it.nome_componente || it.componente_codigo || `#${it.producao_ref}`}
-                          {it.sku_nome && it.sku_nome !== it.nome_componente && <span className="block text-[10px] text-gray-400" title="Produto (SKU) exato do VMarket usado neste item">↳ {it.sku_nome}</span>}
                         </td>
                         <td className="px-2 py-1.5"><span className={`text-[10px] rounded px-1.5 py-0.5 ${it.componente_tipo === 'producao' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>{it.componente_tipo === 'producao' ? 'Produção' : 'Insumo'}</span></td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{fmtPeso(it.quantidade, it.unidade_exib)}</td>
@@ -584,7 +583,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                             <div className="max-h-48 overflow-y-auto rounded border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
                               {addOpcoes.length === 0 ? <div className="px-3 py-3 text-xs text-gray-400">Nada encontrado.</div>
                               : addOpcoes.map((o: any) => (
-                                <button key={addTipo === 'insumo' ? o.id_produto_sisfood_cotacao : o.id} onClick={() => setAddEscolhido(o)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/40">{o.nome}{addTipo === 'insumo' && o.cod_interno && <span className="text-xs text-gray-400 font-mono"> · {o.cod_interno}</span>}</button>
+                                <button key={o.id} onClick={() => setAddEscolhido(o)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/40">{o.nome}{addTipo === 'insumo' && o.codigo && <span className="text-xs text-gray-400 font-mono"> · {o.codigo}</span>}</button>
                               ))}
                             </div>
                           )}
@@ -622,7 +621,7 @@ function FichasInner() {
 
   const loadProducoes = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/producoes?bar_id=${barId}`); if (r.success) setProducoes(r.producoes || []); }, [barId]);
   const loadProdutos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/produtos?bar_id=${barId}`); if (r.success) setProdutos(r.produtos || []); }, [barId]);
-  const loadInsumos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/insumos?bar_id=${barId}`); if (r.success) setInsumos(r.produtos || []); }, [barId]);
+  const loadInsumos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/insumos?bar_id=${barId}`); if (r.success) setInsumos(r.insumos || []); }, [barId]);
   const loadCmvMedias = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/producoes/cmv-categoria?bar_id=${barId}`); if (r.success) setCmvMedias(r.medias || {}); }, [barId]);
   useEffect(() => { loadProducoes(); loadProdutos(); loadInsumos(); loadCmvMedias(); }, [loadProducoes, loadProdutos, loadInsumos, loadCmvMedias]);
 
