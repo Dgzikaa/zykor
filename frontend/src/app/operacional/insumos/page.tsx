@@ -159,16 +159,6 @@ export default function InsumosPage() {
     try { await api.post('/api/operacional/insumos', { bar_id: barId, action: 'editar', id: i.id, fator_correcao: valor }); }
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
-  const salvarCurvaA = async (i: Insumo, valor: boolean) => {
-    setInsumos(prev => prev.map(x => x.id === i.id ? { ...x, curva_a: valor } : x));
-    try { await api.post('/api/operacional/insumos', { bar_id: barId, action: 'editar', id: i.id, curva_a: valor }); }
-    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
-  };
-  const salvarProteina = async (i: Insumo, valor: boolean) => {
-    setInsumos(prev => prev.map(x => x.id === i.id ? { ...x, curva_a_proteina: valor } : x));
-    try { await api.post('/api/operacional/insumos', { bar_id: barId, action: 'editar', id: i.id, curva_a_proteina: valor }); }
-    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
-  };
 
   // ---------- excluir insumo ----------
   const [delConfirm, setDelConfirm] = useState<Insumo | null>(null);
@@ -381,12 +371,8 @@ export default function InsumosPage() {
                             <div className="flex items-center gap-2">
                               <span>{i.nome}</span>
                               <button onClick={() => abrirFichas(i.codigo, i.nome)} className={`shrink-0 ${!i.tem_ficha ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-indigo-600'}`} title={!i.tem_ficha ? 'Não está em nenhuma ficha técnica' : 'Ver fichas que usam este insumo'}><Utensils className="w-3.5 h-3.5" /></button>
-                              <button onClick={() => salvarCurvaA(i, !i.curva_a)} className="shrink-0" title={i.curva_a ? 'Curva A — entra na contagem diária. Clique para remover.' : 'Marcar como Curva A (contagem diária)'}>
-                                <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold transition ${i.curva_a ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-gray-100 text-gray-300 hover:text-indigo-400 dark:bg-gray-800 dark:text-gray-600'}`}>A</span>
-                              </button>
-                              <button onClick={() => salvarProteina(i, !i.curva_a_proteina)} className="shrink-0" title={i.curva_a_proteina ? 'Curva A Proteína — entra no desvio diário de proteínas. Clique para remover.' : 'Marcar como Curva A Proteína'}>
-                                <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold transition ${i.curva_a_proteina ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' : 'bg-gray-100 text-gray-300 hover:text-rose-400 dark:bg-gray-800 dark:text-gray-600'}`}>P</span>
-                              </button>
+                              {i.curva_a && <span className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300" title="Curva A (contagem diária). Edite no lápis.">A</span>}
+                              {i.curva_a_proteina && <span className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300" title="Curva A Proteína (desvio diário de proteínas). Edite no lápis.">P</span>}
                             </div>
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{i.categoria || '—'}</td>
