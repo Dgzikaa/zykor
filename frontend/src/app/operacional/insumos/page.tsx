@@ -275,7 +275,7 @@ export default function InsumosPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <button onClick={() => setFiltro(null)}><Badge variant="outline" className={`cursor-pointer ${!filtro ? 'ring-1 ring-emerald-400' : ''}`}>{insumos.length} insumos</Badge></button>
-              {nVendeSemFicha > 0 && <button onClick={() => setFiltro(f => f === 'vende_sem_ficha' ? null : 'vende_sem_ficha')} title="Insumos que giram na contagem (vendem) mas não estão em nenhuma ficha — distorcem o desvio/CMV. Corrigir primeiro."><Badge variant="outline" className={`cursor-pointer text-red-600 border-red-300 ${filtro === 'vende_sem_ficha' ? 'ring-1 ring-red-400' : ''}`}>⚠ {nVendeSemFicha} vende sem ficha</Badge></button>}
+              {nVendeSemFicha > 0 && <button onClick={() => setFiltro(f => f === 'vende_sem_ficha' ? null : 'vende_sem_ficha')} title="Insumos cujo estoque CAI na contagem (são consumidos) mas não estão em nenhuma ficha — distorcem o desvio/CMV. Clique no ícone de queda pra ver o movimento."><Badge variant="outline" className={`cursor-pointer text-red-600 border-red-300 ${filtro === 'vende_sem_ficha' ? 'ring-1 ring-red-400' : ''}`}>⚠ {nVendeSemFicha} consome sem ficha</Badge></button>}
               {nSemFicha > 0 && <button onClick={() => setFiltro(f => f === 'sem_ficha' ? null : 'sem_ficha')} title="Todos os insumos sem ficha técnica (inclui itens parados que não precisam de ficha)"><Badge variant="outline" className={`cursor-pointer text-orange-600 border-orange-300 ${filtro === 'sem_ficha' ? 'ring-1 ring-orange-400' : ''}`}>{nSemFicha} sem ficha técnica</Badge></button>}
               {nCurvaA > 0 && <button onClick={() => setFiltro(f => f === 'curva_a' ? null : 'curva_a')}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${filtro === 'curva_a' ? 'ring-1 ring-indigo-400' : ''}`}>{nCurvaA} curva A</Badge></button>}
               {/* legenda dos ícones da coluna nome */}
@@ -721,7 +721,7 @@ export default function InsumosPage() {
             <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><TrendingDown className="w-4 h-4 text-red-500" />Movimento da contagem · {giroIns.nome}</h4>
               <p className="text-xs text-gray-400 mb-1 font-mono">{giroIns.codigo}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Esse item entrou em <b>&ldquo;vende sem ficha&rdquo;</b> porque o estoque <b>caiu</b> na contagem (consumo), mas não há venda mapeada por ficha. Abaixo, as quedas que somam esse consumo.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Esse item entrou em <b>&ldquo;consome sem ficha&rdquo;</b> porque o estoque <b>caiu</b> na contagem (consumo), mas não está em nenhuma ficha. Abaixo, as quedas que somam esse consumo.</p>
               {giroData == null ? <div className="py-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-400" /></div>
               : (giroData.movimentos || []).length === 0 ? <div className="py-6 text-center text-sm text-gray-400">Sem contagens recentes.</div>
               : (

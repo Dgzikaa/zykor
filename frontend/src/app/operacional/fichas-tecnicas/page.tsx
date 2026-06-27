@@ -48,7 +48,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
 
   const [sel, setSel] = useState<number | null>(preSel ?? null);
   const [buscaLista, setBuscaLista] = useState('');
-  const [filtroLista, setFiltroLista] = useState<'zero' | 'sem_mestre' | 'sem_ch' | 'item_zerado' | 'curva_a' | null>(null);
+  const [filtroLista, setFiltroLista] = useState<'zero' | 'sem_mestre' | 'sem_ch' | 'item_zerado' | 'curva_a' | 'vendeu_sem_ficha' | null>(null);
   const [statusFiltro, setStatusFiltro] = useState<'todos' | 'ativo' | 'inativo'>('todos');
   const [itens, setItens] = useState<any[]>([]);
   const [loadingItens, setLoadingItens] = useState(false);
@@ -87,6 +87,8 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   const baseCat = useMemo(() => catFiltro ? lista.filter(p => catDe(p) === catFiltro) : lista, [lista, catFiltro]); // eslint-disable-line react-hooks/exhaustive-deps
   const baseStat = useMemo(() => baseCat.filter(p => kind !== 'produto' || statusFiltro === 'todos' || (statusFiltro === 'ativo' ? !!p.ativo : !p.ativo)), [baseCat, statusFiltro, kind]);
   const nZero = baseStat.filter(p => (p.qtd_componentes ?? 0) === 0).length;
+  // vendeu sem ficha = produto com venda no ContaHub mas ficha vazia → falta cadastrar a receita (grave p/ CMV/desvio)
+  const nVendeuSemFicha = kind === 'produto' ? baseStat.filter(p => (p.qtd_componentes ?? 0) === 0 && p.tem_venda).length : 0;
   const nItemZero = baseStat.filter(p => zeradoCods.has(p.codigo)).length;
   const nSemMestre = kind === 'producao' ? baseStat.filter(p => (p.qtd_componentes ?? 0) > 0 && !p.tem_mestre).length : 0;
   const nSemCh = kind === 'produto' ? baseStat.filter(p => (p.cods_ch?.length ?? 0) === 0 && !p.agrupado_em).length : 0;
@@ -98,6 +100,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     return lista.filter(p => {
       if (catFiltro && catDe(p) !== catFiltro) return false;
       if (filtroLista === 'zero' && (p.qtd_componentes ?? 0) !== 0) return false;
+      if (filtroLista === 'vendeu_sem_ficha' && !((p.qtd_componentes ?? 0) === 0 && p.tem_venda)) return false;
       if (filtroLista === 'sem_mestre' && !((p.qtd_componentes ?? 0) > 0 && !p.tem_mestre)) return false;
       if (filtroLista === 'sem_ch' && ((p.cods_ch?.length ?? 0) !== 0 || p.agrupado_em)) return false;
       if (filtroLista === 'item_zerado' && !zeradoCods.has(p.codigo)) return false;
@@ -281,8 +284,9 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input value={buscaLista} onChange={e => setBuscaLista(e.target.value)} placeholder={kind === 'producao' ? 'Buscar produção…' : 'Buscar produto…'} className="pl-9 h-9" />
             </div>
-            {(nZero > 0 || nSemMestre > 0 || nSemCh > 0 || nItemZero > 0) && (
+            {(nZero > 0 || nSemMestre > 0 || nSemCh > 0 || nItemZero > 0 || nVendeuSemFicha > 0) && (
               <div className="flex flex-wrap gap-1 mt-2">
+                {nVendeuSemFicha > 0 && <button onClick={() => setFiltroLista(f => f === 'vendeu_sem_ficha' ? null : 'vendeu_sem_ficha')} title="Produto vendido no ContaHub (últimos 30d) mas com a ficha vazia — sai do CMV/desvio. Cadastrar a receita primeiro." className={`text-[10px] rounded px-1.5 py-0.5 border font-medium ${filtroLista === 'vendeu_sem_ficha' ? 'bg-red-600 text-white border-red-600' : 'border-red-400 text-red-600 bg-red-50 dark:bg-red-900/20'}`}>⚠ {nVendeuSemFicha} vendeu sem ficha</button>}
                 {nZero > 0 && <button onClick={() => setFiltroLista(f => f === 'zero' ? null : 'zero')} title="Ficha criada mas sem nenhum componente — falta montar a receita" className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'zero' ? 'bg-red-600 text-white border-red-600' : 'border-red-300 text-red-600'}`}>{nZero} ficha vazia</button>}
                 {nItemZero > 0 && <button onClick={() => setFiltroLista(f => f === 'item_zerado' ? null : 'item_zerado')} title="Fichas com algum insumo sem preço (R$0) — revisar" className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'item_zerado' ? 'bg-purple-600 text-white border-purple-600' : 'border-purple-300 text-purple-600'}`}>{nItemZero} item R$0</button>}
                 {nSemMestre > 0 && <button onClick={() => setFiltroLista(f => f === 'sem_mestre' ? null : 'sem_mestre')} className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'sem_mestre' ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-300 text-amber-600'}`}>{nSemMestre} sem mestre</button>}
