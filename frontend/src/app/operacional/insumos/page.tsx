@@ -89,6 +89,11 @@ export default function InsumosPage() {
   };
 
   const catList = useMemo(() => Array.from(new Set(insumos.map(i => i.categoria).filter(Boolean))).sort() as string[], [insumos]);
+  // próximo código na sequência (maior i0XXX + 1) — pré-preenche o cadastro manual
+  const proximoCodigo = useMemo(() => {
+    const maxn = insumos.reduce((m, i) => Math.max(m, Number(String(i.codigo || '').replace(/\D/g, '')) || 0), 0);
+    return `i${String(maxn + 1).padStart(4, '0')}`;
+  }, [insumos]);
   const nSemFicha = useMemo(() => insumos.filter(i => !i.tem_ficha).length, [insumos]);
   const nCurvaA = useMemo(() => insumos.filter(i => i.curva_a).length, [insumos]);
   const nProteina = useMemo(() => insumos.filter(i => i.curva_a_proteina).length, [insumos]);
@@ -110,7 +115,7 @@ export default function InsumosPage() {
   const [nCod, setNCod] = useState(''); const [nNome, setNNome] = useState(''); const [nCat, setNCat] = useState('');
   const [nUnid, setNUnid] = useState('un'); const [nEmb, setNEmb] = useState(''); const [nPreco, setNPreco] = useState('');
   const [nFc, setNFc] = useState(false); const [nVmId, setNVmId] = useState<number | null>(null); const [criando, setCriando] = useState(false);
-  const abrirNovoBlank = () => { setNCod(''); setNNome(''); setNCat(''); setNUnid('un'); setNEmb(''); setNPreco(''); setNFc(false); setNVmId(null); setNovoOpen(true); };
+  const abrirNovoBlank = () => { setNCod(proximoCodigo); setNNome(''); setNCat(''); setNUnid('un'); setNEmb(''); setNPreco(''); setNFc(false); setNVmId(null); setNovoOpen(true); };
   const cadastrarDoSemCadastro = (sc: SemCadastro) => {
     setNCod(sc.cod_interno || ''); // puxa o código interno da compra (mesmo se errado — você revisa)
     setNNome(sc.nome || ''); setNCat(sc.nome_secao || ''); setNUnid('un'); setNEmb('');
