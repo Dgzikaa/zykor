@@ -309,8 +309,8 @@ export default function InsumosPage() {
                           <td className="px-3 py-2 text-right">
                             <div className="flex items-center justify-end gap-2">
                               <button onClick={() => abrirEditIns(i)} className="text-gray-400 hover:text-indigo-600" title="Editar insumo"><Pencil className="w-4 h-4" /></button>
-                              {i.tem_ficha
-                                ? <span className="text-gray-200 dark:text-gray-700" title="Em ficha técnica — não pode excluir"><Trash2 className="w-4 h-4" /></span>
+                              {(i.tem_ficha || i.tem_compra)
+                                ? <span className="text-gray-200 dark:text-gray-700" title={i.tem_ficha ? 'Em ficha técnica — não pode excluir' : 'Tem compra vinculada no VMarket — não pode excluir'}><Trash2 className="w-4 h-4" /></span>
                                 : <button onClick={() => setDelConfirm(i)} className="text-gray-400 hover:text-red-600" title="Excluir insumo"><Trash2 className="w-4 h-4" /></button>}
                             </div>
                           </td>

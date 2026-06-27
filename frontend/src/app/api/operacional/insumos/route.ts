@@ -156,6 +156,9 @@ export async function POST(request: NextRequest) {
     if (codigo) {
       const { count } = await supabase.from('producao_ficha_item').select('id', { count: 'exact', head: true }).eq('componente_tipo', 'insumo').eq('insumo_codigo', codigo);
       if ((count || 0) > 0) return NextResponse.json({ success: false, error: 'Insumo está em ficha técnica — não pode excluir.' }, { status: 409 });
+      // bloqueia se tem compra vinculada no VMarket
+      const { data: cat } = await (supabase as any).schema('silver').from('insumo_catalogo').select('tem_compra').eq('bar_id', barId).eq('codigo', codigo).maybeSingle();
+      if (cat?.tem_compra) return NextResponse.json({ success: false, error: 'Insumo tem compra vinculada no VMarket — não pode excluir.' }, { status: 409 });
     }
     if (id) await ops.from('insumos').delete().eq('bar_id', barId).eq('id', id);
     else await ops.from('insumos').delete().eq('bar_id', barId).eq('codigo', codigo);
