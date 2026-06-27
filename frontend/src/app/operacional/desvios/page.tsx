@@ -34,36 +34,11 @@ function PencilCell({ value, fmt, onSave, disabled }: { value: number | null; fm
   );
 }
 
-// quantidade com unidade, arredondando g→kg e ml→L quando grande
-const fmtQU = (v: any, u: any) => {
-  if (v == null) return '—';
-  const n = Number(v); const un = String(u || '').toLowerCase();
-  if (un === 'g' && Math.abs(n) >= 1000) return `${(n / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg`;
-  if (un === 'ml' && Math.abs(n) >= 1000) return `${(n / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} L`;
-  const num = n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
-  return un ? `${num} ${un}` : num;
-};
-
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtQtd = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const fmtData = (d: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
 
 const TIPOS = [{ k: 'diaria', l: 'Diária' }, { k: 'semanal', l: 'Semanal' }, { k: 'mensal', l: 'Mensal' }];
-
-// célula editável (salva no blur/Enter). Mostra "—" quando vazia. `readOnly` mostra só o valor.
-function CellEdit({ value, readOnly, onSave, title, placeholder }: { value: number | null; readOnly?: boolean; onSave: (v: number | null) => void; title?: string; placeholder?: string }) {
-  const [v, setV] = useState(value != null ? String(value) : '');
-  const [foc, setFoc] = useState(false);
-  useEffect(() => { setV(value != null ? String(value) : ''); }, [value]);
-  if (readOnly) return <span className="tabular-nums text-gray-400">{value ? fmtQtd(value) : '—'}</span>;
-  const commit = () => { setFoc(false); const n = v.trim() === '' ? null : Number(v.replace(',', '.')); if ((n ?? 0) !== (value ?? 0)) onSave(n); };
-  return (
-    <input value={v} title={title} placeholder={placeholder || '—'} inputMode="decimal"
-      onChange={e => setV(e.target.value)} onFocus={() => setFoc(true)} onBlur={commit}
-      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-      className={`w-14 text-right tabular-nums rounded px-1 py-0.5 text-sm border bg-transparent ${foc ? 'border-indigo-400 ring-1 ring-indigo-300' : 'border-gray-200/70 dark:border-gray-700/60 hover:border-indigo-300'}`} />
-  );
-}
 
 export default function DesviosPage() {
   const { selectedBar } = useBar();
@@ -191,15 +166,17 @@ export default function DesviosPage() {
             <TabsTrigger value="proteinas"><Drumstick className="w-4 h-4 mr-1.5" />Proteínas</TabsTrigger>
           </TabsList>
 
-          {/* Busca + filtro Curva A (some na aba Proteínas, que já é curva A proteína) */}
+          {/* Busca + filtro Curva A (some na diária — já é só Curva A — e na aba Proteínas) */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9" />
             </div>
-            {aba !== 'proteinas' && (
-              <button onClick={() => setSoCurvaA(v => !v)} title="Mostrar só itens Curva A (vale no semanal/mensal também)">
-                <Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${soCurvaA ? 'ring-1 ring-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>{soCurvaA ? '✓ ' : ''}Só Curva A</Badge>
+            {aba !== 'proteinas' && tipo !== 'diaria' && (
+              <button onClick={() => setSoCurvaA(v => !v)} title="Mostrar só itens Curva A"
+                className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 h-10 text-sm font-medium transition ${soCurvaA ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-indigo-300'}`}>
+                <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold ${soCurvaA ? 'bg-white/25' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'}`}>A</span>
+                Só Curva A
               </button>
             )}
           </div>
@@ -287,10 +264,7 @@ export default function DesviosPage() {
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.compra)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
-                  <td className="px-3 py-2 text-right">
-                    <CellEdit value={it.desperdicio || null} readOnly={!editavel}
-                      onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} />
-                  </td>
+                  <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${it.pendente ? 'text-gray-300' : it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : `${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
