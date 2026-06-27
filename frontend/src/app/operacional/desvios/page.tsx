@@ -107,6 +107,32 @@ export default function DesviosPage() {
           </CardContent></Card>
         </div>
 
+        {/* Análise de desvios */}
+        {res?.analise?.insights?.length > 0 && (() => {
+          const lv = res.analise.level as 'alert' | 'warn' | 'info';
+          const cls = lv === 'alert'
+            ? 'border-rose-300 bg-rose-50 dark:border-rose-800 dark:bg-rose-900/15'
+            : lv === 'warn'
+              ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/15'
+              : 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/15';
+          const labelTipo = tipo === 'diaria' ? 'diária' : tipo === 'semanal' ? 'semanal' : 'mensal';
+          const bullet = (l: string) => l === 'alert' ? '⚠️' : l === 'warn' ? '⚠' : '•';
+          return (
+            <div className={`rounded-lg border px-4 py-3 ${cls}`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <AlertTriangle className={`w-4 h-4 ${lv === 'alert' ? 'text-rose-600 dark:text-rose-400' : lv === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'}`} />
+                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Análise de desvios — contagem {labelTipo}</span>
+                {res.analise.anterior && <span className="text-xs text-gray-500">vs {fmtData(res.analise.anterior)}</span>}
+              </div>
+              <ul className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+                {res.analise.insights.map((ins: any, i: number) => (
+                  <li key={i} className="flex gap-1.5"><span className="shrink-0">{bullet(ins.level)}</span><span>{ins.texto}</span></li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
+
         {/* Busca */}
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
