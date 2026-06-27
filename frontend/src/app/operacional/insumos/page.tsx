@@ -80,7 +80,7 @@ export default function InsumosPage() {
   const [nFc, setNFc] = useState(false); const [nVmId, setNVmId] = useState<number | null>(null); const [criando, setCriando] = useState(false);
   const abrirNovoBlank = () => { setNCod(''); setNNome(''); setNCat(''); setNUnid('un'); setNEmb(''); setNPreco(''); setNFc(false); setNVmId(null); setNovoOpen(true); };
   const cadastrarDoSemCadastro = (sc: SemCadastro) => {
-    setNCod(/^i\d+$/.test(sc.codigo_vmarket || '') ? sc.codigo_vmarket! : '');
+    setNCod(sc.codigo_vmarket || ''); // puxa o código interno da compra (mesmo se errado — você revisa)
     setNNome(sc.nome || ''); setNCat(sc.nome_secao || ''); setNUnid('un'); setNEmb('');
     setNPreco(sc.preco != null ? String(sc.preco) : ''); setNFc(false); setNVmId(sc.id_vmarket); setNovoOpen(true);
   };
@@ -243,18 +243,23 @@ export default function InsumosPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
                     <th className="text-left font-medium px-3 py-2">Comprado no VMarket</th>
+                    <th className="text-left font-medium px-3 py-2" title="Código interno que veio na compra do VMarket (mesmo que esteja errado)">Cód. VMarket</th>
                     <th className="text-left font-medium px-3 py-2">Seção</th>
                     <th className="text-right font-medium px-3 py-2">Última compra</th>
                     <th className="text-left font-medium px-3 py-2">Fornecedor</th>
                     <th className="w-24 px-3 py-2"></th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {semCadastro.length === 0 ? <tr><td colSpan={5} className="px-3 py-10 text-center text-gray-400">Tudo cadastrado 🎉</td></tr>
+                    {semCadastro.length === 0 ? <tr><td colSpan={6} className="px-3 py-10 text-center text-gray-400">Tudo cadastrado 🎉</td></tr>
                     : semCadastro.map(sc => (
                       <tr key={sc.id_vmarket} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                         <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{sc.nome}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-gray-500">{sc.codigo_vmarket || '—'}</td>
                         <td className="px-3 py-2 text-gray-500">{sc.nome_secao || '—'}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{fmtBRL(sc.preco)}</td>
+                        <td className="px-3 py-2 text-right">
+                          <div className="tabular-nums font-medium">{fmtBRL(sc.preco)}</div>
+                          {sc.preco_data && <div className="text-[11px] text-gray-400">{fmtData(sc.preco_data)}</div>}
+                        </td>
                         <td className="px-3 py-2 text-gray-500">{sc.fornecedor || '—'}</td>
                         <td className="px-3 py-2 text-right"><Button size="sm" onClick={() => cadastrarDoSemCadastro(sc)}><Plus className="w-3.5 h-3.5 mr-1" />cadastrar</Button></td>
                       </tr>
