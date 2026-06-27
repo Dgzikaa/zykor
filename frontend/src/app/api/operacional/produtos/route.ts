@@ -51,13 +51,6 @@ export async function GET(request: NextRequest) {
       if (pv > 0) precoVendaMap[r.cod_interno] = Math.max(precoVendaMap[r.cod_interno] || 0, pv);
     });
 
-    // produtos com venda no ContaHub (últimos 30d) — p/ flag "vendeu sem ficha"
-    const vendaCods = new Set<string>();
-    try {
-      const { data: vc } = await (supabase as any).schema('operations').rpc('fn_produtos_com_venda', { p_bar: barId, p_dias: 30 });
-      for (const r of (vc || [])) if (r.cod_interno) vendaCods.add(String(r.cod_interno));
-    } catch { /* sem venda = trata como não vendido */ }
-
     // ID Yuzer (produto_id real da Yuzer) por cod_interno
     const yzMap: Record<string, string[]> = {};
     const yzRows = await selectAll((from, to) => supabase.from('produto_yuzer_map').select('yuzer_produto_id, cod_interno').eq('bar_id', barId).not('yuzer_produto_id', 'is', null).range(from, to));
@@ -77,7 +70,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      produtos: data.map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [], cods_yuzer: yzMap[p.codigo] || [], preco_venda: precoVendaMap[p.codigo] ?? null, preco_yuzer: yzPrecoMap[p.codigo] ?? null, tem_venda: vendaCods.has(p.codigo) })),
+      produtos: data.map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [], cods_yuzer: yzMap[p.codigo] || [], preco_venda: precoVendaMap[p.codigo] ?? null, preco_yuzer: yzPrecoMap[p.codigo] ?? null })),
       vendas_sem_cadastro: vendasSemCadastro,
     });
   } catch (e: any) {

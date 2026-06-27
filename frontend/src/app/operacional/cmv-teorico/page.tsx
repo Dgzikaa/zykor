@@ -35,7 +35,7 @@ export default function CmvTeoricoPage() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
-  const [modo, setModo] = useState<'cardapio' | 'periodo' | 'vs_real'>('cardapio');
+  const [modo, setModo] = useState<'cardapio' | 'periodo' | 'vs_real'>('periodo');
 
   // ---------- CARDÁPIO (catálogo) ----------
   const [produtos, setProdutos] = useState<any[]>([]);
