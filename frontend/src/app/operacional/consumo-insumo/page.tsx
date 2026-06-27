@@ -60,6 +60,7 @@ export default function SaidasPage() {
   const [cat, setCat] = useState<string | null>(null);
   const [aberto, setAberto] = useState<string | null>(null);
   const [breakdown, setBreakdown] = useState<any[] | null>(null);
+  const [breakPorDia, setBreakPorDia] = useState(false);
   const [loadingBreak, setLoadingBreak] = useState(false);
 
   const temDrill = aba !== 'geral'; // Geral não abre quebra por produto
@@ -79,14 +80,17 @@ export default function SaidasPage() {
   const abrirBreak = async (codigo: string) => {
     if (!temDrill) return;
     if (aberto === codigo) { setAberto(null); setBreakdown(null); return; }
-    setAberto(codigo); setBreakdown(null); setLoadingBreak(true);
+    // na aba Insumos, com período de +1 dia (semana/mês), quebra por DIA; senão por produto
+    const porDia = aba === 'insumo' && gran !== 'dia';
+    setAberto(codigo); setBreakdown(null); setBreakPorDia(porDia); setLoadingBreak(true);
     try {
-      const r = await api.get(`/api/operacional/consumo-insumo?bar_id=${barId}&ini=${range.ini}&fim=${range.fim}&aba=${aba}&codigo=${encodeURIComponent(codigo)}`);
+      const r = await api.get(`/api/operacional/consumo-insumo?bar_id=${barId}&ini=${range.ini}&fim=${range.fim}&aba=${aba}&codigo=${encodeURIComponent(codigo)}${porDia ? '&por_dia=1' : ''}`);
       if (!r.success) throw new Error(r.error);
       setBreakdown(r.breakdown || []);
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
     finally { setLoadingBreak(false); }
   };
+  const fmtDiaSem = (d: string) => { const dt = new Date(d + 'T00:00:00'); return dt.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }); };
 
   const cats = useMemo(() => Array.from(new Set(rows.map(i => i.categoria || 'Outros'))).sort(), [rows]);
   const abertoUnidade = rows.find((r: any) => r.codigo === aberto)?.unidade ?? null; // unidade do item expandido (pro drill)
@@ -185,7 +189,33 @@ export default function SaidasPage() {
                           <td colSpan={5} className="px-3 py-3">
                             {loadingBreak ? <Loader2 className="w-4 h-4 animate-spin" />
                             : !breakdown || breakdown.length === 0 ? <span className="text-xs text-gray-400">Sem produtos no período.</span>
-                            : (
+                            : breakPorDia ? (
+                              <div className="space-y-2">
+                                <div className="text-[11px] uppercase tracking-wide text-gray-400">Saída por dia do período</div>
+                                {Object.entries((breakdown as any[]).reduce((acc: Record<string, any[]>, p: any) => { (acc[p.data] ??= []).push(p); return acc; }, {})).map(([dia, prods]: [string, any]) => {
+                                  const total = (prods as any[]).reduce((s, p) => s + Number(p.qtd || 0), 0);
+                                  return (
+                                    <div key={dia}>
+                                      <div className="flex justify-between items-baseline text-xs font-semibold text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700 pb-0.5">
+                                        <span className="capitalize">{fmtDiaSem(dia)}</span>
+                                        <span className="tabular-nums">{fmtQtdUnidade(total, abertoUnidade)}</span>
+                                      </div>
+                                      <table className="w-full text-xs mt-0.5">
+                                        <tbody>
+                                          {(prods as any[]).map((p: any) => (
+                                            <tr key={p.produto_cod}>
+                                              <td className="py-0.5 pl-2 text-gray-600 dark:text-gray-300">{p.produto_nome || p.produto_cod}</td>
+                                              <td className="py-0.5 text-right tabular-nums text-gray-400 w-24">{fmtNum(p.qtd_venda)} vd</td>
+                                              <td className="py-0.5 text-right tabular-nums w-32">{fmtQtdUnidade(p.qtd, abertoUnidade)}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
                               <div className="space-y-0.5">
                                 <div className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Puxado por cada produto vendido</div>
                                 <table className="w-full text-xs">

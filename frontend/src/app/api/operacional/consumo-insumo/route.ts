@@ -44,6 +44,12 @@ export async function GET(request: NextRequest) {
 
     // aba=insumo (default)
     if (codigo) {
+      // ?por_dia=1 → quebra por dia (×produto) p/ ver a saída de cada dia da semana/mês
+      if (sp.get('por_dia')) {
+        const { data, error } = await silver.rpc('fn_consumo_insumo_por_dia', { p_bar_id: barId, p_codigo: codigo, p_ini: ini, p_fim: fim });
+        if (error) throw error;
+        return NextResponse.json({ success: true, por_dia: true, breakdown: (data || []).map((p: any) => ({ data: p.data, produto_cod: p.produto_cod, produto_nome: p.produto_nome, qtd_venda: p.qtd_produto, qtd: p.qtd_insumo })) });
+      }
       const { data, error } = await silver.rpc('fn_consumo_insumo_por_produto', { p_bar_id: barId, p_codigo: codigo, p_ini: ini, p_fim: fim });
       if (error) throw error;
       return NextResponse.json({ success: true, breakdown: (data || []).map((p: any) => ({ produto_cod: p.produto_cod, produto_nome: p.produto_nome, qtd_venda: p.qtd_produto, qtd: p.qtd_insumo })) });
