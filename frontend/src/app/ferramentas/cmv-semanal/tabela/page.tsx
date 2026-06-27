@@ -300,7 +300,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
           { key: 'cmv_percentual', label: 'CMV Real (%)', status: 'calculado', fonte: 'Calculado', calculo: 'CMV R$ / Faturamento Bruto × 100', formato: 'percentual' },
           { key: 'cmv_limpo_percentual', label: 'CMV Limpo (%)', status: 'calculado', fonte: 'Calculado', calculo: '(CMV R$ / Fat. Líquido) × 100', formato: 'percentual' },
           { key: 'gap_cmv', label: 'GAP CMV', status: 'calculado', fonte: 'Calculado', calculo: 'CMV Limpo (%) − CMV Teórico (%), em pontos percentuais', formato: 'gap' },
-          { key: 'cmv_teorico_percentual', label: 'CMV Teórico (%)', status: 'manual', fonte: 'Manual ou Meta', calculo: 'Valor manual da semana/mês (clique pra editar). Se vazio, espelha a meta global.', formato: 'percentual', editavel: true },
+          { key: 'cmv_teorico_percentual', label: 'CMV Teórico (%)', status: 'calculado', fonte: 'Automático (fichas)', calculo: 'Automático: custo da ficha técnica × vendas ÷ faturamento (gold.cmv_teorico_dia), da semana/mês atual pra frente. Passado: valor preenchido na mão.', formato: 'percentual', editavel: true },
         ]
       }
     ]
@@ -972,7 +972,13 @@ export default function CMVSemanalTabelaPage() {
     // Sem fallback pra meta global - ela é apenas referência exibida na linha "Meta"
     // pra comparar gap. Sem manual preenchido = celula mostra "—".
     if (key === 'cmv_teorico_percentual') {
-      const manual = (semana as unknown as Record<string, unknown>).cmv_teorico_percentual_manual;
+      const rec = (semana as unknown as Record<string, unknown>);
+      // Automático (gold.cmv_teorico_dia) tem prioridade na semana/mês atual pra frente
+      if (rec.cmv_teorico_auto) {
+        const auto = parseFloat(String(rec.cmv_teorico_percentual));
+        if (Number.isFinite(auto) && auto > 0) return auto;
+      }
+      const manual = rec.cmv_teorico_percentual_manual;
       const manualNum = manual !== undefined && manual !== null
         ? parseFloat(String(manual))
         : null;
@@ -988,8 +994,10 @@ export default function CMVSemanalTabelaPage() {
     // GAP CMV = CMV Limpo (%) − CMV Teórico (%). Null se teórico não preenchido.
     if (key === 'gap_cmv') {
       const limpo = semana.cmv_limpo_percentual ? parseFloat(String(semana.cmv_limpo_percentual)) : null;
-      const manual = (semana as unknown as Record<string, unknown>).cmv_teorico_percentual_manual;
-      const teorico = manual !== undefined && manual !== null ? parseFloat(String(manual)) : null;
+      const rec = (semana as unknown as Record<string, unknown>);
+      let teorico: number | null = null;
+      if (rec.cmv_teorico_auto) { const a = parseFloat(String(rec.cmv_teorico_percentual)); if (Number.isFinite(a) && a > 0) teorico = a; }
+      if (teorico === null) { const manual = rec.cmv_teorico_percentual_manual; teorico = manual !== undefined && manual !== null ? parseFloat(String(manual)) : null; }
       if (limpo === null || teorico === null || !Number.isFinite(teorico) || teorico <= 0) return null;
       return limpo - teorico;
     }

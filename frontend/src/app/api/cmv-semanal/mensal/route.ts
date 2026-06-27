@@ -187,6 +187,18 @@ export async function GET(request: NextRequest) {
     const anoAtual = new Date().getFullYear();
     const isMesAtual = (ano === anoAtual && mes === mesAtual);
 
+    // CMV teórico AUTOMÁTICO do mês (gold.cmv_teorico_dia) — só mês atual pra frente.
+    // O passado preenchido na mão fica intocado.
+    const mesAtualOuFuturo = ano > anoAtual || (ano === anoAtual && mes >= mesAtual);
+    let cmvTeoricoAuto: number | null = null;
+    if (mesAtualOuFuturo) {
+      const { data: cdMes } = await (supabase as any).schema('gold').from('cmv_teorico_dia')
+        .select('custo, faturamento').eq('bar_id', barId).gte('data', dataInicio).lte('data', dataFim);
+      let c = 0, f = 0;
+      (cdMes || []).forEach((r: any) => { c += Number(r.custo) || 0; f += Number(r.faturamento) || 0; });
+      cmvTeoricoAuto = f > 0 ? Number((c / f * 100).toFixed(2)) : null;
+    }
+
     const { data: cmvMensal, error: errMensal } = await tbl(supabase, 'cmv_mensal')
       .select('*')
       .eq('bar_id', barId)
@@ -250,7 +262,8 @@ export async function GET(request: NextRequest) {
           : (parseFloat(String(cmvMensal.bonificacao_contrato_anual || 0)) + parseFloat(String(cmvMensal.bonificacao_cashback_mensal || 0))),
         cmv_real: cmvRealEfetivo,
         cmv_limpo_percentual: cmvLimpoPctEfetivo,
-        cmv_teorico_percentual: parseFloat(String(cmvMensal.cmv_teorico_percentual || 0)),
+        cmv_teorico_percentual: cmvTeoricoAuto != null ? cmvTeoricoAuto : parseFloat(String(cmvMensal.cmv_teorico_percentual || 0)),
+        cmv_teorico_auto: cmvTeoricoAuto != null,
         cmv_teorico_percentual_manual: cmvMensal.cmv_teorico_percentual_manual !== null && cmvMensal.cmv_teorico_percentual_manual !== undefined
           ? parseFloat(String(cmvMensal.cmv_teorico_percentual_manual))
           : null,

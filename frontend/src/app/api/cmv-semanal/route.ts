@@ -77,15 +77,40 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // CMV teórico AUTOMÁTICO (gold.cmv_teorico_dia) — overlay só da semana atual pra frente.
+    // O passado preenchido na mão (cmv_teorico_percentual_manual) fica intocado.
+    let cmvDiaRows: Array<{ data: string; custo: number; faturamento: number }> = [];
+    const datasIni = (data || []).map(d => d.data_inicio).filter(Boolean).sort();
+    const datasFim = (data || []).map(d => d.data_fim).filter(Boolean).sort();
+    if (datasIni.length && datasFim.length) {
+      const { data: cd } = await (supabase as any).schema('gold').from('cmv_teorico_dia')
+        .select('data, custo, faturamento').eq('bar_id', barId)
+        .gte('data', datasIni[0]).lte('data', datasFim[datasFim.length - 1]);
+      cmvDiaRows = cd || [];
+    }
+    // segunda-feira da semana atual (America/Sao_Paulo) = corte do "atual pra frente"
+    const hojeBRT = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const dHoje = new Date(hojeBRT + 'T00:00:00');
+    const segDate = new Date(dHoje); segDate.setDate(dHoje.getDate() - ((dHoje.getDay() + 6) % 7));
+    const segStr = `${segDate.getFullYear()}-${String(segDate.getMonth() + 1).padStart(2, '0')}-${String(segDate.getDate()).padStart(2, '0')}`;
+    const cmvTeoricoDe = (ini: string, fim: string): number | null => {
+      let c = 0, f = 0;
+      for (const r of cmvDiaRows) if (r.data >= ini && r.data <= fim) { c += Number(r.custo) || 0; f += Number(r.faturamento) || 0; }
+      return f > 0 ? Number((c / f * 100).toFixed(2)) : null;
+    };
+
     // Enriquecer dados do CMV com comissão, couvert e faturamento_entrada
     const dataEnriquecida = data?.map(item => {
       const key = `${item.ano}-${item.semana}`;
       const desempenho = desempenhoMap[key] || { comissao: 0, couvert_atracoes: 0, faturamento_entrada: 0 };
+      const cmvAuto = (item.data_fim && item.data_fim >= segStr) ? cmvTeoricoDe(item.data_inicio, item.data_fim) : null;
       return {
         ...item,
         comissao: desempenho.comissao,
         couvert_atracoes: desempenho.couvert_atracoes,
-        faturamento_entrada: desempenho.faturamento_entrada
+        faturamento_entrada: desempenho.faturamento_entrada,
+        cmv_teorico_percentual: cmvAuto != null ? cmvAuto : item.cmv_teorico_percentual,
+        cmv_teorico_auto: cmvAuto != null,
       };
     }) || [];
 
