@@ -86,6 +86,9 @@ export async function GET(request: NextRequest) {
   for (const i of (contagemIns || [])) { const pv = Number(i.custo_unitario) || 0; if (i.codigo && pv > 0 && !planilhaMap.has(i.codigo)) planilhaMap.set(i.codigo, pv); }
   // cadastro mestre = operations.insumos. Um produto VMarket é "cadastrado" se o código efetivo está no mestre.
   const masterSet = new Set<string>((contagemIns || []).map((i: any) => i.codigo).filter(Boolean));
+  // nome CANÔNICO do mestre por código (é o que vai pra ficha; as grafias do VMarket são só variações de compra)
+  const masterNome = new Map<string, string>();
+  for (const i of (contagemIns || [])) { if (i.codigo && i.nome && !masterNome.has(i.codigo)) masterNome.set(i.codigo, i.nome); }
 
   // quais insumos estão em ALGUMA ficha técnica (por código i0XXX ou por id do VMarket)
   const fichaCods = new Set<string>();
@@ -111,6 +114,7 @@ export async function GET(request: NextRequest) {
       cod_invalido: !valido(cEf),
       tem_ficha: temFicha(cEf, p.id_produto_sisfood_cotacao),
       cadastrado: !!(cEf && masterSet.has(cEf)),
+      nome_mestre: cEf ? (masterNome.get(cEf) ?? null) : null,
       tem_compra: vmPreco != null,
       base: unidMap.get(p.id_produto_sisfood_cotacao)?.base ?? null,
       embalagem: unidMap.get(p.id_produto_sisfood_cotacao)?.embalagem ?? null,

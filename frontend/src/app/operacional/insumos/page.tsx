@@ -18,7 +18,7 @@ interface Produto {
   id_produto_sisfood_cotacao: number; cod_interno: string | null; codigo_planilha?: string | null; fator_correcao?: boolean; nome: string | null; marca: string | null;
   gramatura: string | null; estoque: number | null; nome_secao: string | null; id_secao_cotacao: number | null;
   nome_fornecedor: string | null; fornecedor_ultimo: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
-  cod_duplicado?: boolean; cod_invalido?: boolean; tem_ficha?: boolean; cadastrado?: boolean; base?: string | null; embalagem?: number | null; fonte?: string;
+  cod_duplicado?: boolean; cod_invalido?: boolean; tem_ficha?: boolean; cadastrado?: boolean; nome_mestre?: string | null; base?: string | null; embalagem?: number | null; fonte?: string;
 }
 interface Secao { id_secao_cotacao: number; nome: string | null; }
 
@@ -182,8 +182,9 @@ export default function CadastrosPage() {
     }
     return Array.from(m.entries()).map(([key, prods]) => {
       const rep = [...prods].sort((a, b) => String(b.preco_data || '').localeCompare(String(a.preco_data || '')))[0];
-      return { key, rep, produtos: prods, nVar: prods.length, isMaterial: ehMaterial(rep.nome_secao), temFicha: prods.some(p => p.tem_ficha), semCadastro: !ehMaterial(rep.nome_secao) && prods.some(p => p.id_produto_sisfood_cotacao >= 0) && !prods.some(p => p.cadastrado) };
-    }).sort((a, b) => String(a.rep.nome || '').localeCompare(String(b.rep.nome || '')));
+      const nomeCanonico = (prods.map(p => p.nome_mestre).find(Boolean) as string | undefined) || rep.nome;
+      return { key, rep, nomeCanonico, produtos: prods, nVar: prods.length, isMaterial: ehMaterial(rep.nome_secao), temFicha: prods.some(p => p.tem_ficha), semCadastro: !ehMaterial(rep.nome_secao) && prods.some(p => p.id_produto_sisfood_cotacao >= 0) && !prods.some(p => p.cadastrado) };
+    }).sort((a, b) => String(a.nomeCanonico || '').localeCompare(String(b.nomeCanonico || '')));
   }, [filtrados]);
   const nInsumos = grupos.filter(g => !g.isMaterial).length;
   const nMateriais = grupos.filter(g => g.isMaterial).length;
@@ -419,9 +420,9 @@ export default function CadastrosPage() {
                               {g.nVar > 1 ? (
                                 <button onClick={() => setCodAberto(aberto ? null : g.key)} className="flex items-center gap-1 text-left hover:text-indigo-600">
                                   <ChevronDown className={`w-3.5 h-3.5 transition-transform ${aberto ? 'rotate-180' : ''}`} />
-                                  {p.nome} <span className="text-[10px] rounded-full px-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{g.nVar} variações</span>
+                                  {g.nomeCanonico} <span className="text-[10px] rounded-full px-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{g.nVar} variações (compra)</span>
                                 </button>
-                              ) : <span>{p.nome}</span>}
+                              ) : <span>{g.nomeCanonico}</span>}
                               <button onClick={() => abrirFichas(codShow(p), p.nome)} className={`shrink-0 ${!g.isMaterial && !g.temFicha ? 'text-red-500 hover:text-red-700' : 'text-gray-400 hover:text-indigo-600'}`} title={!g.isMaterial && !g.temFicha ? 'Não está em nenhuma ficha técnica' : 'Ver fichas técnicas que usam este insumo'}><Utensils className="w-3.5 h-3.5" /></button>
                             </div>
                           </td>
