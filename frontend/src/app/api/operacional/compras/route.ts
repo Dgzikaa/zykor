@@ -28,7 +28,21 @@ export async function GET(request: NextRequest) {
       .eq('bar_id', barId).eq('id_pedido', Number(idPedido))
       .order('total', { ascending: false });
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, itens: data ?? [] });
+
+    // o VMarket manda nome_cotacao em branco em ~70% dos itens — resolve pelo código do cadastro (cod_interno → insumo)
+    const itens = data ?? [];
+    const cods = Array.from(new Set(itens.map((i: any) => (i.cod_interno || '').toUpperCase()).filter(Boolean)));
+    const nomeMap = new Map<string, string>();
+    if (cods.length) {
+      const { data: ins } = await (supabase as any).schema('operations').from('insumos')
+        .select('codigo,nome').eq('bar_id', barId);
+      for (const r of (ins || []) as any[]) if (r.codigo) nomeMap.set(String(r.codigo).toUpperCase(), r.nome);
+    }
+    const out = itens.map((i: any) => ({
+      ...i,
+      nome: (i.nome_cotacao && String(i.nome_cotacao).trim()) || nomeMap.get((i.cod_interno || '').toUpperCase()) || i.cod_interno || '—',
+    }));
+    return NextResponse.json({ success: true, itens: out });
   }
 
   // --- lista do período ---

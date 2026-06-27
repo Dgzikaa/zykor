@@ -226,7 +226,7 @@ export default function ComprasPage() {
                                         {(itens[p.id_pedido] || []).map((it) => (
                                           <tr key={it.id_pedido_item} className="border-t border-gray-100 dark:border-gray-800">
                                             <td className="px-2 py-1 font-mono">{it.cod_interno || <span className="text-amber-500">—</span>}</td>
-                                            <td className="px-2 py-1">{it.nome_cotacao}{it.marca_cotacao ? <span className="text-gray-400"> · {it.marca_cotacao}</span> : ''}</td>
+                                            <td className="px-2 py-1">{it.nome || it.nome_cotacao || '—'}{it.marca_cotacao ? <span className="text-gray-400"> · {it.marca_cotacao}</span> : ''}</td>
                                             <td className="px-2 py-1 text-gray-500">{it.nome_secao || '—'}</td>
                                             <td className="px-2 py-1 text-right tabular-nums">{Number(it.quantidade || 0).toLocaleString('pt-BR')}{it.gramatura_cotacao ? ` ${it.gramatura_cotacao}` : ''}</td>
                                             <td className="px-2 py-1 text-right tabular-nums">{fmtBRL(it.preco)}</td>
