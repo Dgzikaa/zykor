@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient, selectAll } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { recalcCmvTeorico } from '@/lib/cmv-recalc';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,6 +85,12 @@ export async function POST(request: NextRequest) {
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
   const supabase = await getAdminClient();
   const ops = (supabase as any).schema('operations');
+  // toda edição de insumo (preço/embalagem/código/cadastro/exclusão/sync) muda o custo da ficha →
+  // recalcula o CMV teórico na hora pra refletir na tela sem depender do botão Recalcular.
+  const ok = async (extra: Record<string, any> = {}) => {
+    await recalcCmvTeorico(supabase, barId);
+    return NextResponse.json({ success: true, ...extra });
+  };
 
   // Editar insumo do cadastro (operations.insumos por id) — nome/categoria/unidade/FC + base/embalagem
   if (body.action === 'editar') {
@@ -118,7 +125,7 @@ export async function POST(request: NextRequest) {
         embalagem: Math.max(Number(body.embalagem) || 1, 0.0001), origem: 'manual', atualizado_em: new Date().toISOString(),
       }, { onConflict: 'bar_id,id_prod' });
     }
-    return NextResponse.json({ success: true });
+    return ok();
   }
 
   // Vincular um SKU comprado no VMarket a um insumo JÁ cadastrado (sem criar novo)
@@ -130,7 +137,7 @@ export async function POST(request: NextRequest) {
     if (!ins) return NextResponse.json({ success: false, error: `Insumo ${codigo} não existe no cadastro` }, { status: 404 });
     const { error } = await supabase.from('bronze_vmarket_produtos').update({ codigo_planilha: codigo }).eq('bar_id', barId).eq('id_produto_sisfood_cotacao', idVm);
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, codigo });
+    return ok({ codigo });
   }
 
   // Cadastrar insumo no mestre (operations.insumos). Opcional id_prod_vmarket: liga o SKU comprado a esse código.
@@ -155,7 +162,7 @@ export async function POST(request: NextRequest) {
         await ops.from('insumos').update({ ativo: false }).eq('bar_id', barId).eq('codigo', dup.codigo);
       } else if (vmId > 0) {
         await supabase.from('bronze_vmarket_produtos').update({ codigo_planilha: dup.codigo }).eq('bar_id', barId).eq('id_produto_sisfood_cotacao', vmId);
-        return NextResponse.json({ success: true, codigo: dup.codigo, ligado: true });
+        return ok({ codigo: dup.codigo, ligado: true });
       } else {
         return NextResponse.json({ success: false, error: `Já existe o insumo "${dup.nome}" (${dup.codigo}). Use esse código.` }, { status: 409 });
       }
@@ -172,7 +179,7 @@ export async function POST(request: NextRequest) {
       if (emb) await supabase.from('insumo_unidade').upsert({ bar_id: barId, id_prod: vmId, cod_interno: codigo, base, embalagem: emb, origem: 'manual', atualizado_em: new Date().toISOString() }, { onConflict: 'bar_id,id_prod' });
     }
     if (novo?.id && emb) await supabase.from('insumo_unidade').upsert({ bar_id: barId, id_prod: -Number(novo.id), cod_interno: codigo, base, embalagem: emb, origem: 'manual', atualizado_em: new Date().toISOString() }, { onConflict: 'bar_id,id_prod' });
-    return NextResponse.json({ success: true, codigo });
+    return ok({ codigo });
   }
 
   // Excluir insumo do cadastro — SÓ se não estiver em ficha. Desvincula as compras VMarket (não apaga o bronze).
@@ -194,7 +201,7 @@ export async function POST(request: NextRequest) {
       await supabase.from('insumo_unidade').delete().eq('bar_id', barId).eq('cod_interno', codigo);
     }
     if (id) await supabase.from('insumo_unidade').delete().eq('bar_id', barId).eq('id_prod', -id);
-    return NextResponse.json({ success: true });
+    return ok();
   }
 
   // Sincronizar VMarket (compras): atualiza bronze + reconcilia de-para
@@ -203,5 +210,5 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   await supabase.rpc('fn_vmarket_seed_unidades', { p_bar_id: barId });
   await supabase.rpc('fn_vmarket_reconciliar_codigos', { p_bar_id: barId });
-  return NextResponse.json({ success: true, resultado: data });
+  return ok({ resultado: data });
 }

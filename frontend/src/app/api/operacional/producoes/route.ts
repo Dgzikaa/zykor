@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { recalcCmvTeorico } from '@/lib/cmv-recalc';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -133,6 +134,8 @@ export async function PUT(request: NextRequest) {
   if ('rendimento' in body) patch.rendimento = Number(body.rendimento);
   const { data, error } = await supabase.from('producao_base').update(patch).eq('id', id).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  // rendimento muda o custo da produção (e dos produtos que a usam) → recalcula o CMV teórico
+  if ('rendimento' in body && data?.bar_id) await recalcCmvTeorico(supabase, data.bar_id);
   return NextResponse.json({ success: true, producao: data });
 }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { recalcCmvFromFichaParent } from '@/lib/cmv-recalc';
 
 export const dynamic = 'force-dynamic';
 
@@ -167,6 +168,7 @@ export async function POST(request: NextRequest) {
   };
   const { data, error } = await supabase.from('producao_ficha_item').insert(payload).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  await recalcCmvFromFichaParent(supabase, { producao_id: producaoId, produto_id: produtoId });
   return NextResponse.json({ success: true, item: data });
 }
 
@@ -199,6 +201,7 @@ export async function PUT(request: NextRequest) {
   }
   const { data, error } = await supabase.from('producao_ficha_item').update(patch).eq('id', id).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  await recalcCmvFromFichaParent(supabase, { producao_id: data?.producao_id, produto_id: data?.produto_id });
   return NextResponse.json({ success: true, item: data });
 }
 
@@ -208,7 +211,9 @@ export async function DELETE(request: NextRequest) {
   const id = Number(new URL(request.url).searchParams.get('id'));
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
   const supabase = await getAdminClient();
+  const { data: alvo } = await supabase.from('producao_ficha_item').select('producao_id,produto_id').eq('id', id).single();
   const { error } = await supabase.from('producao_ficha_item').delete().eq('id', id);
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (alvo) await recalcCmvFromFichaParent(supabase, { producao_id: alvo.producao_id, produto_id: alvo.produto_id });
   return NextResponse.json({ success: true });
 }
