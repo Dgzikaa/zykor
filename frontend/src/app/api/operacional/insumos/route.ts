@@ -89,6 +89,19 @@ export async function POST(request: NextRequest) {
   if (body.action === 'editar') {
     const id = Number(body.id);
     if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
+    // troca de código (corrige de-para errado / código feio): valida + renomeia em cascata (cadastro, fichas, de-para, unidade)
+    if ('codigo' in body) {
+      const novoCod = String(body.codigo || '').trim().toLowerCase();
+      const { data: atual } = await ops.from('insumos').select('codigo').eq('bar_id', barId).eq('id', id).maybeSingle();
+      const oldCod = atual?.codigo;
+      if (novoCod && oldCod && novoCod !== oldCod) {
+        if (!/^i\d{2,}$/.test(novoCod)) return NextResponse.json({ success: false, error: 'Código deve ser i + números (ex.: i0084)' }, { status: 400 });
+        const { data: ja } = await ops.from('insumos').select('id').eq('bar_id', barId).eq('codigo', novoCod).maybeSingle();
+        if (ja) return NextResponse.json({ success: false, error: `Código ${novoCod} já existe em outro insumo` }, { status: 409 });
+        const { error: rErr } = await supabase.rpc('fn_renomear_insumo_codigo', { p_bar: barId, p_old: oldCod, p_new: novoCod });
+        if (rErr) return NextResponse.json({ success: false, error: rErr.message }, { status: 500 });
+      }
+    }
     const patch: any = {};
     if ('nome' in body) patch.nome = String(body.nome || '').trim();
     if ('categoria' in body) patch.categoria = String(body.categoria || '').trim() || null;

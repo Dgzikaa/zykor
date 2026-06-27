@@ -101,17 +101,18 @@ export default function InsumosPage() {
 
   // ---------- editar insumo ----------
   const [editIns, setEditIns] = useState<Insumo | null>(null);
-  const [fNome, setFNome] = useState(''); const [fCat, setFCat] = useState(''); const [fFc, setFFc] = useState(false);
+  const [fCod, setFCod] = useState(''); const [fNome, setFNome] = useState(''); const [fCat, setFCat] = useState(''); const [fFc, setFFc] = useState(false);
   const [fCurvaA, setFCurvaA] = useState(false);
   const [fBase, setFBase] = useState('g'); const [fEmb, setFEmb] = useState('1');
-  const abrirEditIns = (i: Insumo) => { setEditIns(i); setFNome(i.nome || ''); setFCat(i.categoria || ''); setFFc(!!i.fator_correcao); setFCurvaA(!!i.curva_a); setFBase(i.base || 'g'); setFEmb(String(i.embalagem ?? 1)); };
+  const abrirEditIns = (i: Insumo) => { setEditIns(i); setFCod(i.codigo || ''); setFNome(i.nome || ''); setFCat(i.categoria || ''); setFFc(!!i.fator_correcao); setFCurvaA(!!i.curva_a); setFBase(i.base || 'g'); setFEmb(String(i.embalagem ?? 1)); };
   const salvarEditIns = async () => {
     if (!editIns) return;
     try {
-      await api.post('/api/operacional/insumos', {
-        bar_id: barId, action: 'editar', id: editIns.id, nome: fNome.trim(), categoria: fCat.trim(),
+      const r = await api.post('/api/operacional/insumos', {
+        bar_id: barId, action: 'editar', id: editIns.id, codigo: fCod.trim().toLowerCase(), nome: fNome.trim(), categoria: fCat.trim(),
         fator_correcao: fFc, curva_a: fCurvaA, unidade_medida: fBase, base: fBase, embalagem: Number(String(fEmb).replace(',', '.')) || 1,
       });
+      if (!r.success) throw new Error(r.error);
       setEditIns(null); await carregar();
     } catch (e: any) { toast({ title: 'Erro ao salvar', description: e?.message, variant: 'destructive' }); }
   };
@@ -518,8 +519,11 @@ export default function InsumosPage() {
         {editIns && (
           <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditIns(null)}>
             <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
-              <h4 className="font-semibold text-gray-900 dark:text-white">Editar insumo <span className="text-xs text-gray-400 font-mono">{editIns.codigo}</span></h4>
-              <div><label className="text-xs text-gray-500">Nome</label><Input value={fNome} onChange={e => setFNome(e.target.value)} /></div>
+              <h4 className="font-semibold text-gray-900 dark:text-white">Editar insumo</h4>
+              <div className="flex gap-2">
+                <div className="w-32"><label className="text-xs text-gray-500" title="Código do insumo (i0XXX). Trocar aqui corrige de-para errado e renomeia em cascata (fichas, compras, unidade).">Código</label><Input value={fCod} onChange={e => setFCod(e.target.value)} placeholder="i0084" /></div>
+                <div className="flex-1"><label className="text-xs text-gray-500">Nome</label><Input value={fNome} onChange={e => setFNome(e.target.value)} /></div>
+              </div>
               <div><label className="text-xs text-gray-500">Seção</label>
                 <select value={fCat} onChange={e => setFCat(e.target.value)} className="w-full h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent px-2 text-sm">
                   <option value="">— selecione —</option>
