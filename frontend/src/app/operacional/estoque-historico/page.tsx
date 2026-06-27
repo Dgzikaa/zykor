@@ -9,6 +9,7 @@ import { Boxes, Loader2, Search, CalendarDays, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { FazerContagem } from '@/components/estoque/FazerContagem';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
@@ -124,9 +125,12 @@ export default function EstoqueHistoricoPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Estoque — Histórico de Contagens</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Valor em estoque por área e por contagem · {selectedBar?.nome || `Bar ${barId ?? ''}`}</p>
           </div>
-          <Button onClick={sincronizar} disabled={sincronizando} variant="outline" className="shrink-0" title="Buscar o estoque dos últimos 14 dias da planilha de contagem (aba INSUMOS)">
-            <RefreshCw className={`w-4 h-4 mr-1.5 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Sincronizando…' : 'Sincronizar planilha'}
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <FazerContagem onSaved={() => carregar(tipo, null)} />
+            <Button onClick={sincronizar} disabled={sincronizando} variant="outline" title="Buscar o estoque dos últimos 14 dias da planilha de contagem (aba INSUMOS)">
+              <RefreshCw className={`w-4 h-4 mr-1.5 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Sincronizando…' : 'Sincronizar planilha'}
+            </Button>
+          </div>
         </div>
 
         {/* Tipo de contagem */}

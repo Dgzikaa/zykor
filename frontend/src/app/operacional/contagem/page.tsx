@@ -1,38 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { useState } from 'react';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { EstoqueContagem } from '@/components/estoque/EstoqueContagem';
-import { SugestaoCompras } from '@/components/estoque/SugestaoCompras';
-import { Categorizacao } from '@/components/estoque/Categorizacao';
-import { ComparativoContagem } from '@/components/estoque/ComparativoContagem';
-import { Boxes } from 'lucide-react';
-
-type Aba = 'contagem' | 'comparativo' | 'compras' | 'categorizacao';
-
-export default function EstoqueHubPage() {
-  const [aba, setAba] = useState<Aba>('contagem');
-  return (
-    <ProtectedRoute>
-      <div className="w-full px-3 py-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Boxes className="w-5 h-5" /><h1 className="text-xl font-bold">Estoque</h1>
-        </div>
-        <Tabs value={aba} onValueChange={(v) => setAba(v as Aba)} className="mb-4">
-          <TabsList>
-            <TabsTrigger value="contagem">Contagem</TabsTrigger>
-            <TabsTrigger value="comparativo">Comparativo</TabsTrigger>
-            <TabsTrigger value="compras">Pedido de Compra</TabsTrigger>
-            <TabsTrigger value="categorizacao">Categorização</TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        {aba === 'contagem' && <EstoqueContagem />}
-        {aba === 'comparativo' && <ComparativoContagem />}
-        {aba === 'compras' && <SugestaoCompras />}
-        {aba === 'categorizacao' && <Categorizacao />}
-      </div>
-    </ProtectedRoute>
-  );
+// Tela de contagem antiga descontinuada: o "Fazer contagem" agora vive em Estoque — Histórico.
+export default function ContagemRedirect() {
+  redirect('/operacional/estoque-historico');
 }
