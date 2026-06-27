@@ -20,7 +20,7 @@ interface Insumo {
   fator_correcao?: boolean; curva_a?: boolean; frequencia?: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
   fornecedor: string | null; tem_compra?: boolean; tem_ficha?: boolean; base?: string | null; embalagem?: number | null;
 }
-interface SemCadastro { id_vmarket: number; codigo_vmarket: string | null; nome: string; nome_secao: string | null; preco: number | null; preco_data: string | null; fornecedor: string | null; }
+interface SemCadastro { id_vmarket: number; cod_interno: string | null; codigo_vmarket: string | null; nome: string; nome_secao: string | null; preco: number | null; preco_data: string | null; fornecedor: string | null; }
 
 export default function InsumosPage() {
   const { selectedBar } = useBar();
@@ -36,6 +36,17 @@ export default function InsumosPage() {
   const [catSel, setCatSel] = useState('todas');
   const [filtro, setFiltro] = useState<'sem_ficha' | 'sem_cadastro' | null>(null);
   const [tab, setTab] = useState('insumos');
+  // expandir compras de um item sem cadastro
+  const [compraAberto, setCompraAberto] = useState<number | null>(null);
+  const [comprasMap, setComprasMap] = useState<Record<number, any[]>>({});
+  const abrirCompras = async (sc: SemCadastro) => {
+    if (compraAberto === sc.id_vmarket) { setCompraAberto(null); return; }
+    setCompraAberto(sc.id_vmarket);
+    if (!comprasMap[sc.id_vmarket]) {
+      try { const r = await api.get(`/api/operacional/insumos/compras?bar_id=${barId}&id_vmarket=${sc.id_vmarket}`); setComprasMap(m => ({ ...m, [sc.id_vmarket]: r.success ? (r.compras || []) : [] })); }
+      catch { setComprasMap(m => ({ ...m, [sc.id_vmarket]: [] })); }
+    }
+  };
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -80,7 +91,7 @@ export default function InsumosPage() {
   const [nFc, setNFc] = useState(false); const [nVmId, setNVmId] = useState<number | null>(null); const [criando, setCriando] = useState(false);
   const abrirNovoBlank = () => { setNCod(''); setNNome(''); setNCat(''); setNUnid('un'); setNEmb(''); setNPreco(''); setNFc(false); setNVmId(null); setNovoOpen(true); };
   const cadastrarDoSemCadastro = (sc: SemCadastro) => {
-    setNCod(sc.codigo_vmarket || ''); // puxa o código interno da compra (mesmo se errado — você revisa)
+    setNCod(sc.cod_interno || ''); // puxa o código interno da compra (mesmo se errado — você revisa)
     setNNome(sc.nome || ''); setNCat(sc.nome_secao || ''); setNUnid('un'); setNEmb('');
     setNPreco(sc.preco != null ? String(sc.preco) : ''); setNFc(false); setNVmId(sc.id_vmarket); setNovoOpen(true);
   };
@@ -243,7 +254,7 @@ export default function InsumosPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
                     <th className="text-left font-medium px-3 py-2">Comprado no VMarket</th>
-                    <th className="text-left font-medium px-3 py-2" title="Código interno que veio na compra do VMarket (mesmo que esteja errado)">Cód. VMarket</th>
+                    <th className="text-left font-medium px-3 py-2" title="Código interno cadastrado na compra do VMarket (mesmo que esteja errado)">Cód. interno</th>
                     <th className="text-left font-medium px-3 py-2">Seção</th>
                     <th className="text-right font-medium px-3 py-2">Última compra</th>
                     <th className="text-left font-medium px-3 py-2">Fornecedor</th>
@@ -252,17 +263,47 @@ export default function InsumosPage() {
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                     {semCadastro.length === 0 ? <tr><td colSpan={6} className="px-3 py-10 text-center text-gray-400">Tudo cadastrado 🎉</td></tr>
                     : semCadastro.map(sc => (
-                      <tr key={sc.id_vmarket} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                        <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{sc.nome}</td>
-                        <td className="px-3 py-2 font-mono text-xs text-gray-500">{sc.codigo_vmarket || '—'}</td>
-                        <td className="px-3 py-2 text-gray-500">{sc.nome_secao || '—'}</td>
-                        <td className="px-3 py-2 text-right">
-                          <div className="tabular-nums font-medium">{fmtBRL(sc.preco)}</div>
-                          {sc.preco_data && <div className="text-[11px] text-gray-400">{fmtData(sc.preco_data)}</div>}
-                        </td>
-                        <td className="px-3 py-2 text-gray-500">{sc.fornecedor || '—'}</td>
-                        <td className="px-3 py-2 text-right"><Button size="sm" onClick={() => cadastrarDoSemCadastro(sc)}><Plus className="w-3.5 h-3.5 mr-1" />cadastrar</Button></td>
-                      </tr>
+                      <Fragment key={sc.id_vmarket}>
+                        <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                          <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
+                            <button onClick={() => abrirCompras(sc)} className="flex items-center gap-1 text-left hover:text-indigo-600" title="Ver as compras desse item no VMarket">
+                              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${compraAberto === sc.id_vmarket ? 'rotate-180' : ''}`} />{sc.nome}
+                            </button>
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-gray-500">{sc.cod_interno || '—'}</td>
+                          <td className="px-3 py-2 text-gray-500">{sc.nome_secao || '—'}</td>
+                          <td className="px-3 py-2 text-right">
+                            <div className="tabular-nums font-medium">{fmtBRL(sc.preco)}</div>
+                            {sc.preco_data && <div className="text-[11px] text-gray-400">{fmtData(sc.preco_data)}</div>}
+                          </td>
+                          <td className="px-3 py-2 text-gray-500">{sc.fornecedor || '—'}</td>
+                          <td className="px-3 py-2 text-right"><Button size="sm" onClick={() => cadastrarDoSemCadastro(sc)}><Plus className="w-3.5 h-3.5 mr-1" />cadastrar</Button></td>
+                        </tr>
+                        {compraAberto === sc.id_vmarket && (
+                          <tr className="bg-gray-50/60 dark:bg-gray-800/30"><td colSpan={6} className="px-3 py-2">
+                            {!comprasMap[sc.id_vmarket] ? <div className="py-3 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-400" /></div>
+                            : comprasMap[sc.id_vmarket].length === 0 ? <div className="py-2 text-center text-xs text-gray-400">Sem compras registradas.</div>
+                            : (
+                              <table className="w-full text-xs">
+                                <thead className="text-gray-400"><tr><th className="text-left px-2 py-1">Data</th><th className="text-left px-2 py-1">Pedido</th><th className="text-left px-2 py-1">Status</th><th className="text-right px-2 py-1">Qtd</th><th className="text-right px-2 py-1">Preço</th><th className="text-right px-2 py-1">Total</th><th className="text-left px-2 py-1">Fornecedor</th></tr></thead>
+                                <tbody>
+                                  {comprasMap[sc.id_vmarket].map((c: any, idx: number) => (
+                                    <tr key={idx} className="border-t border-gray-100 dark:border-gray-800">
+                                      <td className="px-2 py-1 whitespace-nowrap">{fmtData(c.data)}</td>
+                                      <td className="px-2 py-1 text-gray-500">#{c.id_pedido}</td>
+                                      <td className="px-2 py-1 text-gray-500">{c.status || '—'}</td>
+                                      <td className="px-2 py-1 text-right tabular-nums">{c.quantidade.toLocaleString('pt-BR')}{c.gramatura ? ` ${c.gramatura}` : ''}</td>
+                                      <td className="px-2 py-1 text-right tabular-nums">{fmtBRL(c.preco)}</td>
+                                      <td className="px-2 py-1 text-right tabular-nums font-medium">{fmtBRL(c.total)}</td>
+                                      <td className="px-2 py-1 text-gray-500">{c.fornecedor || '—'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </td></tr>
+                        )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
