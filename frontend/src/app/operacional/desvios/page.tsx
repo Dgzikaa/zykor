@@ -7,7 +7,31 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
-import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick } from 'lucide-react';
+import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick, Pencil, Check, X } from 'lucide-react';
+
+// célula com lápis (padrão Orçamentação): mostra valor + lápis no hover; clica → input com ✓/✕; salva e recalcula.
+function PencilCell({ value, fmt, onSave, disabled }: { value: number | null; fmt: (v: any) => string; onSave: (v: number | null) => void; disabled?: boolean }) {
+  const [editing, setEditing] = useState(false);
+  const [v, setV] = useState('');
+  if (disabled) return <span className="tabular-nums text-gray-400">{value ? fmt(value) : '—'}</span>;
+  const commit = () => { setEditing(false); const n = v.trim() === '' ? null : Number(v.replace(',', '.')); if ((n ?? 0) !== (value ?? 0)) onSave(n); };
+  if (editing) return (
+    <span className="inline-flex items-center gap-0.5 justify-end">
+      <input autoFocus value={v} inputMode="decimal" onChange={e => setV(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
+        className="w-16 text-right tabular-nums rounded px-1 py-0.5 text-sm border border-indigo-400 ring-1 ring-indigo-300 bg-transparent" />
+      <button onClick={commit} className="text-emerald-600 hover:text-emerald-700"><Check className="w-3.5 h-3.5" /></button>
+      <button onClick={() => setEditing(false)} className="text-red-500 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
+    </span>
+  );
+  return (
+    <span onClick={() => { setV(value != null ? String(value) : ''); setEditing(true); }}
+      className="group/cell inline-flex items-center gap-1 justify-end cursor-pointer rounded px-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+      <span className="tabular-nums">{value ? fmt(value) : <span className="text-gray-300">—</span>}</span>
+      <Pencil className="w-3 h-3 text-indigo-400 opacity-0 group-hover/cell:opacity-100" />
+    </span>
+  );
+}
 
 // quantidade com unidade, arredondando g→kg e ml→L quando grande
 const fmtQU = (v: any, u: any) => {
@@ -89,6 +113,8 @@ export default function DesviosPage() {
     } finally { setLoadingAba(false); }
   }, [barId, ini, fim, aba, tipo]);
   useEffect(() => { carregarAba(); }, [carregarAba]);
+  // após salvar (res muda), recarrega a aba Proteínas pra refletir utilizado/desperdício
+  useEffect(() => { if (aba === 'proteinas' && res) carregarAba(); }, [res]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Produções = linhas is_producao do fn_desvios (balanço ancorado no estoque, com Produzido)
   const prodView = useMemo(() => {
@@ -105,7 +131,7 @@ export default function DesviosPage() {
 
   // só edita produzido/desperdício na DIÁRIA (1 dia); semanal/mensal somam os lançamentos diários (read-only)
   const editavel = tipo === 'diaria' && !!ini;
-  const salvar = useCallback(async (kind: 'produzido' | 'desperdicio', codigo: string, payload: { fornadas?: number | null; qtd?: number | null }) => {
+  const salvar = useCallback(async (kind: 'produzido' | 'desperdicio' | 'utilizado', codigo: string, payload: { fornadas?: number | null; qtd?: number | null }) => {
     if (!ini || !fim) return;
     try {
       await api.post('/api/operacional/desvios', { tipo: kind, codigo, data: ini, ...payload });
@@ -300,23 +326,9 @@ export default function DesviosPage() {
                     <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${it.pendente ? 'bg-amber-50/60 dark:bg-amber-900/15' : ''}`}>
                       <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.pendente && <span title="Produção sem o 'produzido' informado — desvio não confiável"><AlertTriangle className="w-3.5 h-3.5 inline text-amber-500 mr-1" /></span>}{it.insumo_nome}<span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_codigo}</span></td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
-                      <td className="px-3 py-2 text-right">
-                        {editavel
-                          ? <span className="inline-flex items-center gap-1 justify-end">
-                              <CellEdit value={it.fornadas} placeholder="forn." title={it.rend_contagem ? `1 fornada = ${fmtQtd(it.rend_contagem)} ${it.unidade_contagem || ''}` : 'rendimento não cadastrado'}
-                                onSave={(v) => salvar('produzido', it.insumo_codigo, { fornadas: v })} />
-                              {it.produzido > 0
-                                ? <span className="text-[10px] text-gray-400">={fmtQtd(it.produzido)}</span>
-                                : (!it.fornadas && it.fornadas_sugerido
-                                    ? <button onClick={() => salvar('produzido', it.insumo_codigo, { fornadas: it.fornadas_sugerido })}
-                                        title={`Estimativa: ~${fmtQtd(it.produzido_sugerido)} ${it.unidade_contagem || ''}. Clique p/ preencher.`}
-                                        className="text-[10px] text-indigo-500 hover:text-indigo-700 underline">sug. {fmtQtd(it.fornadas_sugerido)}</button>
-                                    : null)}
-                            </span>
-                          : <span className="tabular-nums">{it.produzido ? fmtQtd(it.produzido) : '—'}</span>}
-                      </td>
+                      <td className="px-3 py-2 text-right"><PencilCell value={it.produzido} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('produzido', it.insumo_codigo, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
-                      <td className="px-3 py-2 text-right"><CellEdit value={it.desperdicio || null} readOnly={!editavel} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
+                      <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
                       <td className={`px-3 py-2 text-right tabular-nums ${it.pendente ? 'text-gray-300' : it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : `${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
@@ -352,8 +364,8 @@ export default function DesviosPage() {
                       <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}<span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_cod}</span></td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.comprou)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{it.utilizado_producao > 0 ? fmtQtd(it.utilizado_producao) : <span className="text-gray-300">—</span>}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-gray-500">{it.desperdicio > 0 ? fmtQtd(it.desperdicio) : '—'}</td>
+                      <td className="px-3 py-2 text-right"><PencilCell value={it.utilizado_producao} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('utilizado', it.insumo_cod, { qtd: v })} /></td>
+                      <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('desperdicio', it.insumo_cod, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
                       <td className={`px-3 py-2 text-right tabular-nums ${it.desvio_qtd < -0.05 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0.05 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.desvio_qtd > 0 ? '+' : ''}{fmtQtd(it.desvio_qtd)}</td>

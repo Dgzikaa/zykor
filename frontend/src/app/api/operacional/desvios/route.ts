@@ -302,5 +302,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, qtd });
   }
 
+  if (body.tipo === 'utilizado') {
+    const qtd = Number(body.qtd);
+    if (!Number.isFinite(qtd) || qtd <= 0) {
+      const { error } = await ops.from('proteina_utilizado_manual').delete().eq('bar_id', user.bar_id).eq('insumo_codigo', codigo).eq('data', data);
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true, removido: true });
+    }
+    const { error } = await ops.from('proteina_utilizado_manual').upsert({
+      bar_id: user.bar_id, insumo_codigo: codigo, data, qtd, atualizado_em: new Date().toISOString(),
+    }, { onConflict: 'bar_id,insumo_codigo,data' });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, qtd });
+  }
+
   return NextResponse.json({ success: false, error: 'tipo inválido' }, { status: 400 });
 }
