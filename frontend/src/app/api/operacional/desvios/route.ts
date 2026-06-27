@@ -22,7 +22,9 @@ function areaDe(categoria: string | null, cod: string | null): string {
 /**
  * GET /api/operacional/desvios
  *  - sem ?ini&fim → datas de contagem do tipo (?tipo=diaria|semanal|mensal) p/ o seletor.
- *  - com ?ini&fim → desvio por insumo: Saída Real (estoque_ini+compras−estoque_fim) × Saída Teórica (vendas×ficha).
+ *  - com ?ini&fim → desvio por insumo:
+ *      Estoque fim teórico = estoque_ini + compras − Saída Teórica (vendas×ficha do período [ini, fim)).
+ *      Desvio = Estoque real (contagem do fim) − Estoque fim teórico. Negativo = faltou (perda).
  */
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
@@ -49,20 +51,24 @@ export async function GET(request: NextRequest) {
   const base = tipo === 'diaria' ? (data || []).filter((r: any) => r.curva_a === true) : (data || []);
 
   const itens = base.map((r: any) => {
-    const real = Number(r.saida_real || 0);
+    const estoque_ini = Number(r.estoque_ini || 0);
+    const compra = Number(r.compra || 0);
+    const estoque_fim_real = Number(r.estoque_fim_real || 0);
     const teorica = Number(r.saida_teorica || 0);
-    // suspeita de ficha/unidade: saída teórica muito acima da real (mas já não distorce, pois é por qtd)
-    const suspeita = Math.abs(teorica) > Math.abs(real) * 5 && Math.abs(Number(r.desvio_rs || 0)) > 200;
+    // consumo físico = quanto saiu de fato do estoque (ini + compras − fim real)
+    const consumo_fisico = estoque_ini + compra - estoque_fim_real;
+    // suspeita de ficha/unidade: saída teórica muito acima do consumo físico + impacto alto
+    const suspeita = Math.abs(teorica) > Math.abs(consumo_fisico) * 5 && Math.abs(Number(r.desvio_rs || 0)) > 200;
     return {
       insumo_codigo: r.insumo_codigo,
       insumo_nome: r.insumo_nome,
       curva_a: r.curva_a,
       area: areaDe(r.categoria, r.insumo_codigo),
-      estoque_ini: Number(r.estoque_ini || 0),
-      compra: Number(r.compra || 0),
-      estoque_fim: Number(r.estoque_fim || 0),
-      saida_real: real,
+      estoque_ini,
+      compra,
       saida_teorica: teorica,
+      estoque_fim_teorico: Number(r.estoque_fim_teorico || 0),
+      estoque_fim_real,
       desvio_qtd: Number(r.desvio_qtd || 0),
       preco: r.preco == null ? null : Number(r.preco),
       desvio_rs: Number(r.desvio_rs || 0),
@@ -70,9 +76,10 @@ export async function GET(request: NextRequest) {
     };
   });
 
+  // desvio = real − teórico. Negativo = faltou estoque (perda); positivo = sobrou (sobra).
   const desvio_total = itens.reduce((s: number, i: any) => s + i.desvio_rs, 0);
-  const perdas = itens.reduce((s: number, i: any) => s + (i.desvio_rs > 0 ? i.desvio_rs : 0), 0);
-  const sobras = itens.reduce((s: number, i: any) => s + (i.desvio_rs < 0 ? i.desvio_rs : 0), 0);
+  const perdas = itens.reduce((s: number, i: any) => s + (i.desvio_rs < 0 ? i.desvio_rs : 0), 0);
+  const sobras = itens.reduce((s: number, i: any) => s + (i.desvio_rs > 0 ? i.desvio_rs : 0), 0);
 
   return NextResponse.json({
     success: true,

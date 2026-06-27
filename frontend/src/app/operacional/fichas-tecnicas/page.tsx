@@ -48,7 +48,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
 
   const [sel, setSel] = useState<number | null>(preSel ?? null);
   const [buscaLista, setBuscaLista] = useState('');
-  const [filtroLista, setFiltroLista] = useState<'zero' | 'sem_mestre' | 'sem_ch' | 'item_zerado' | null>(null);
+  const [filtroLista, setFiltroLista] = useState<'zero' | 'sem_mestre' | 'sem_ch' | 'item_zerado' | 'curva_a' | null>(null);
   const [statusFiltro, setStatusFiltro] = useState<'todos' | 'ativo' | 'inativo'>('todos');
   const [itens, setItens] = useState<any[]>([]);
   const [loadingItens, setLoadingItens] = useState(false);
@@ -90,6 +90,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   const nItemZero = baseStat.filter(p => zeradoCods.has(p.codigo)).length;
   const nSemMestre = kind === 'producao' ? baseStat.filter(p => (p.qtd_componentes ?? 0) > 0 && !p.tem_mestre).length : 0;
   const nSemCh = kind === 'produto' ? baseStat.filter(p => (p.cods_ch?.length ?? 0) === 0 && !p.agrupado_em).length : 0;
+  const nCurvaA = kind === 'producao' ? baseStat.filter(p => p.curva_a).length : 0;
   const nAtivos = kind === 'produto' ? baseCat.filter(p => p.ativo).length : 0;
   const nInativos = kind === 'produto' ? baseCat.filter(p => !p.ativo).length : 0;
   const listaView = useMemo(() => {
@@ -100,6 +101,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
       if (filtroLista === 'sem_mestre' && !((p.qtd_componentes ?? 0) > 0 && !p.tem_mestre)) return false;
       if (filtroLista === 'sem_ch' && ((p.cods_ch?.length ?? 0) !== 0 || p.agrupado_em)) return false;
       if (filtroLista === 'item_zerado' && !zeradoCods.has(p.codigo)) return false;
+      if (filtroLista === 'curva_a' && !p.curva_a) return false;
       if (kind === 'produto' && statusFiltro !== 'todos' && (statusFiltro === 'ativo' ? !p.ativo : !!p.ativo)) return false;
       return !q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q)
         || (p.cods_ch || []).some((c: any) => String(c).toLowerCase().includes(q));
@@ -179,6 +181,12 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   // marca/desmarca a produção pra aparecer no Controle de Produção (curadoria)
   const toggleControle = async (p: any) => {
     try { await api.put('/api/operacional/producoes', { id: p.id, controle_producao: !p.controle_producao }); reloadLista(); }
+    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+
+  // marca/desmarca a produção como Curva A (entra na contagem diária do estoque)
+  const toggleCurvaA = async (p: any) => {
+    try { await api.put('/api/operacional/producoes', { id: p.id, curva_a: !p.curva_a }); reloadLista(); }
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
@@ -279,6 +287,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                 {nItemZero > 0 && <button onClick={() => setFiltroLista(f => f === 'item_zerado' ? null : 'item_zerado')} title="Fichas com algum insumo sem preço (R$0) — revisar" className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'item_zerado' ? 'bg-purple-600 text-white border-purple-600' : 'border-purple-300 text-purple-600'}`}>{nItemZero} item R$0</button>}
                 {nSemMestre > 0 && <button onClick={() => setFiltroLista(f => f === 'sem_mestre' ? null : 'sem_mestre')} className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'sem_mestre' ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-300 text-amber-600'}`}>{nSemMestre} sem mestre</button>}
                 {nSemCh > 0 && <button onClick={() => setFiltroLista(f => f === 'sem_ch' ? null : 'sem_ch')} className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'sem_ch' ? 'bg-orange-500 text-white border-orange-500' : 'border-orange-300 text-orange-600'}`}>{nSemCh} sem cód CH</button>}
+                {nCurvaA > 0 && <button onClick={() => setFiltroLista(f => f === 'curva_a' ? null : 'curva_a')} title="Produções marcadas como Curva A (entram na contagem diária do estoque)" className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'curva_a' ? 'bg-indigo-600 text-white border-indigo-600' : 'border-indigo-300 text-indigo-600'}`}>{nCurvaA} curva A</button>}
                 {filtroLista && <button onClick={() => setFiltroLista(null)} className="text-[10px] text-gray-400 underline px-1">limpar</button>}
               </div>
             )}
@@ -304,7 +313,10 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
             ) : listaView.map(p => (
               <button key={p.id} onClick={() => setSel(p.id)}
                 className={`w-full text-left px-3 py-2 text-sm transition ${sel === p.id ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-medium' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
-                {p.nome}
+                <span className="inline-flex items-center gap-1.5">
+                  {p.nome}
+                  {kind === 'producao' && p.curva_a && <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-[9px] font-bold shrink-0" title="Curva A — entra na contagem diária do estoque">A</span>}
+                </span>
                 <span className="block text-xs text-gray-400">{p.codigo ? `${p.codigo} · ` : ''}{p.qtd_componentes ?? 0} itens{kind === 'produto' && (p.cods_ch?.length ?? 0) > 0 ? ` · ch: ${p.cods_ch.join(', ')}` : ''}{kind === 'producao' && p.controle_producao ? ' · no controle' : ''}</span>
               </button>
             ))}
@@ -329,10 +341,16 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{selObj.codigo ? `${selObj.codigo} · ` : ''}{itens.length} componentes</p>
                   {kind === 'producao' && (
-                    <label className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
-                      <input type="checkbox" checked={!!selObj.controle_producao} onChange={() => toggleControle(selObj)} className="w-4 h-4 accent-indigo-600" />
-                      Aparece no Controle de Produção
-                    </label>
+                    <div className="mt-1.5 flex flex-col gap-1">
+                      <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                        <input type="checkbox" checked={!!selObj.controle_producao} onChange={() => toggleControle(selObj)} className="w-4 h-4 accent-indigo-600" />
+                        Aparece no Controle de Produção
+                      </label>
+                      <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 cursor-pointer" title="Entra na contagem diária do estoque (Curva A). Semanal e mensal sempre incluem.">
+                        <input type="checkbox" checked={!!selObj.curva_a} onChange={() => toggleCurvaA(selObj)} className="w-4 h-4 accent-indigo-600" />
+                        Curva A (contagem diária)
+                      </label>
+                    </div>
                   )}
                   {kind === 'produto' && (
                     <div className="flex flex-wrap items-center gap-1.5 mt-1.5">

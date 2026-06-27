@@ -49,10 +49,13 @@ export async function GET(request: NextRequest) {
   if (!dataSel) return NextResponse.json({ success: true, tipo, datas, data: null, itens: [], totais_area: [], total_geral: 0 });
 
   // itens da contagem selecionada — da SILVER (valorizada pelo preço do VMarket NA DATA da contagem)
-  const { data: rows, error: e2 } = await silver
+  // Diária = Curva A: só os itens (insumo OU produção) marcados com o checkbox curva_a entram.
+  let qItens = silver
     .from('estoque_contagem')
-    .select('insumo_codigo, insumo_nome, tipo_local, categoria, unidade_medida, estoque_final, preco_vmarket, preco_fonte, valor')
-    .eq('bar_id', user.bar_id).eq('tipo_contagem', tipo).eq('data_contagem', dataSel)
+    .select('insumo_codigo, insumo_nome, tipo_local, categoria, unidade_medida, estoque_final, preco_vmarket, preco_fonte, valor, curva_a')
+    .eq('bar_id', user.bar_id).eq('tipo_contagem', tipo).eq('data_contagem', dataSel);
+  if (tipo === 'diaria') qItens = qItens.eq('curva_a', true);
+  const { data: rows, error: e2 } = await qItens
     .order('tipo_local', { ascending: true }).order('insumo_nome', { ascending: true });
   if (e2) return NextResponse.json({ success: false, error: e2.message }, { status: 500 });
 

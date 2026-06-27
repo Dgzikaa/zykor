@@ -63,7 +63,7 @@ export default function DesviosPage() {
           <div className="p-2.5 bg-rose-100 dark:bg-rose-900/30 rounded-xl"><Scale className="w-6 h-6 text-rose-600 dark:text-rose-400" /></div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Desvios de Consumo</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Saída Real (estoque + compras) × Saída Teórica (vendas × ficha) · {selectedBar?.nome || ''}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Estoque real (contagem) × Estoque teórico (inicial + compras − vendas×ficha) · {selectedBar?.nome || ''}</p>
           </div>
         </div>
 
@@ -92,18 +92,18 @@ export default function DesviosPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <Card className="card-dark"><CardContent className="py-3">
             <div className="text-xs text-muted-foreground uppercase tracking-wide">Desvio total</div>
-            <div className={`text-2xl font-bold ${(h?.desvio_total ?? 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{fmtBRL(h?.desvio_total)}</div>
-            <div className="text-[11px] text-gray-400">real − teórico no período</div>
+            <div className={`text-2xl font-bold ${(h?.desvio_total ?? 0) < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{fmtBRL(h?.desvio_total)}</div>
+            <div className="text-[11px] text-gray-400">estoque real − teórico no período</div>
           </CardContent></Card>
           <Card className="card-dark"><CardContent className="py-3">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">Perdas (consumiu a mais)</div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">Perdas (faltou estoque)</div>
             <div className="text-2xl font-bold text-red-600 dark:text-red-400">{fmtBRL(h?.perdas)}</div>
-            <div className="text-[11px] text-gray-400">saiu mais do que vendeu</div>
+            <div className="text-[11px] text-gray-400">sobrou menos do que as vendas explicam</div>
           </CardContent></Card>
           <Card className="card-dark"><CardContent className="py-3">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">Sobras (consumiu a menos)</div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">Sobras (sobrou estoque)</div>
             <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{fmtBRL(h?.sobras)}</div>
-            <div className="text-[11px] text-gray-400">saiu menos do que vendeu</div>
+            <div className="text-[11px] text-gray-400">restou mais do que as vendas explicam</div>
           </CardContent></Card>
         </div>
 
@@ -119,12 +119,12 @@ export default function DesviosPage() {
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
               <th className="text-left font-medium px-3 py-2">Insumo</th>
               <th className="text-left font-medium px-3 py-2">Área</th>
-              <th className="text-right font-medium px-3 py-2" title="Estoque no início do período">Estoque ini</th>
+              <th className="text-right font-medium px-3 py-2" title="Contagem no início do período">Estoque ini</th>
               <th className="text-right font-medium px-3 py-2">Compras</th>
-              <th className="text-right font-medium px-3 py-2" title="Estoque no fim do período">Estoque fim</th>
-              <th className="text-right font-medium px-3 py-2" title="Estoque ini + compras − estoque fim">Saída real</th>
-              <th className="text-right font-medium px-3 py-2" title="Vendas × ficha técnica">Saída teórica</th>
-              <th className="text-right font-medium px-3 py-2" title="Saída real − saída teórica">Desvio (qtd)</th>
+              <th className="text-right font-medium px-3 py-2" title="Vendas × ficha técnica (consumo esperado)">Saída teórica</th>
+              <th className="text-right font-medium px-3 py-2" title="Estoque ini + compras − saída teórica">Estoque fim teórico</th>
+              <th className="text-right font-medium px-3 py-2" title="Contagem do dia seguinte (estoque que sobrou de fato)">Estoque real</th>
+              <th className="text-right font-medium px-3 py-2" title="Estoque real − estoque fim teórico (negativo = faltou)">Desvio (qtd)</th>
               <th className="text-right font-medium px-3 py-2">Desvio (R$)</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -139,12 +139,12 @@ export default function DesviosPage() {
                   <td className="px-3 py-2"><Badge variant="outline">{it.area}</Badge></td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.compra)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_fim)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.saida_real)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${it.desvio_qtd > 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.desvio_qtd > 0 ? '+' : ''}{fmtQtd(it.desvio_qtd)}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.desvio_rs > 1 ? 'text-red-600 dark:text-red-400' : it.desvio_rs < -1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
-                    {it.desvio_rs > 0 ? <TrendingUp className="w-3 h-3 inline mr-0.5" /> : it.desvio_rs < 0 ? <TrendingDown className="w-3 h-3 inline mr-0.5" /> : null}
+                  <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.desvio_qtd > 0 ? '+' : ''}{fmtQtd(it.desvio_qtd)}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.desvio_rs < -1 ? 'text-red-600 dark:text-red-400' : it.desvio_rs > 1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
+                    {it.desvio_rs < 0 ? <TrendingDown className="w-3 h-3 inline mr-0.5" /> : it.desvio_rs > 0 ? <TrendingUp className="w-3 h-3 inline mr-0.5" /> : null}
                     {fmtBRL(it.desvio_rs)}
                   </td>
                 </tr>
