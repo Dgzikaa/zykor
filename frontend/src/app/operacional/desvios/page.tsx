@@ -17,6 +17,7 @@ function PencilCell({ value, fmt, onSave, disabled }: { value: number | null; fm
   const commit = () => { setEditing(false); const n = v.trim() === '' ? null : Number(v.replace(',', '.')); if ((n ?? 0) !== (value ?? 0)) onSave(n); };
   if (editing) return (
     <span className="inline-flex items-center gap-0.5 justify-end">
+      {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
       <input autoFocus value={v} inputMode="decimal" onChange={e => setV(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
         className="w-16 text-right tabular-nums rounded px-1 py-0.5 text-sm border border-indigo-400 ring-1 ring-indigo-300 bg-transparent" />
