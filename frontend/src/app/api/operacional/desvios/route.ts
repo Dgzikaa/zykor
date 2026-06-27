@@ -185,8 +185,15 @@ export async function GET(request: NextRequest) {
     const is_producao = r.is_producao === true;
     const produzido = Number(r.produzido || 0);
     const desperdicio = Number(r.desperdicio || 0);
-    // produção em que o estoque SUBIU (produziu no período) sem o "produzido" informado → desvio não confiável
-    const pendente = is_producao && !r.produzido_informado && estoque_fim_real > estoque_ini;
+    // produção consumida (vendas×ficha) sem o "produzido" informado → balanço sem âncora, desvio não confiável.
+    // (antes exigia estoque subir; itens sem contagem nenhuma — ini/fim = 0 — escapavam e davam desvio gigante falso)
+    const pendente = is_producao && !r.produzido_informado && teorica > 0;
+    // motivo de dado faltando (p/ o usuário ver QUAIS itens distorcem a perda) — só insumos
+    const dvrs = Number(r.desvio_rs || 0);
+    const dado_faltando = !is_producao
+      ? (estoque_fim_real === 0 && (estoque_ini > 0 || compra > 0) && dvrs < 0 ? 'sem_contagem'
+        : (estoque_fim_real > 0 && teorica === 0 && consumo_fisico > 0 && dvrs < 0 ? 'sem_ficha' : null))
+      : null;
     return {
       insumo_codigo: r.insumo_codigo,
       insumo_nome: r.insumo_nome,
@@ -207,6 +214,7 @@ export async function GET(request: NextRequest) {
       produzido_informado: !!r.produzido_informado,
       pendente,
       suspeita,
+      dado_faltando,
     };
   });
 

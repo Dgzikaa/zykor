@@ -100,6 +100,7 @@ export default function DesviosPage() {
   const [busca, setBusca] = useState('');
   const [aba, setAba] = useState('insumos');
   const [soCurvaA, setSoCurvaA] = useState(false);
+  const [filtroDado, setFiltroDado] = useState<'sem_contagem' | 'sem_ficha' | null>(null);
   const [rowsProt, setRowsProt] = useState<any[]>([]);
   const [protHead, setProtHead] = useState<any>(null);
   const [protAnalise, setProtAnalise] = useState<any>(null);
@@ -172,8 +173,9 @@ export default function DesviosPage() {
     return (res?.itens || []).filter((i: any) => !i.is_producao && !i.is_proteina
       && (tipo === 'diaria' || i.tem_ficha)
       && (!soCurvaA || i.curva_a === true)
+      && (!filtroDado || i.dado_faltando === filtroDado)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
-  }, [res, busca, tipo, soCurvaA]);
+  }, [res, busca, tipo, soCurvaA, filtroDado]);
 
   // contadores dos chips de filtro (igual /operacional/insumos) — base = aba ativa sem o filtro Curva A
   const baseRows = useMemo(() => {
@@ -185,6 +187,8 @@ export default function DesviosPage() {
   }, [res, busca, aba]);
   const cntTotal = baseRows.length;
   const cntCurvaA = baseRows.filter((i: any) => i.curva_a === true).length;
+  const cntSemContagem = baseRows.filter((i: any) => i.dado_faltando === 'sem_contagem').length;
+  const cntSemFicha = baseRows.filter((i: any) => i.dado_faltando === 'sem_ficha').length;
 
   const h = res?.headline;
 
@@ -232,11 +236,13 @@ export default function DesviosPage() {
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9" />
           </div>
-          {/* Filtros (contadores clicáveis, igual /operacional/insumos) — só semanal/mensal */}
-          {aba !== 'proteinas' && tipo !== 'diaria' && (
+          {/* Filtros (contadores clicáveis, igual /operacional/insumos). Curva A no semanal/mensal; "dado faltando" sempre que houver */}
+          {aba !== 'proteinas' && (tipo !== 'diaria' || cntSemContagem > 0 || cntSemFicha > 0) && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button onClick={() => setSoCurvaA(false)}><Badge variant="outline" className={`cursor-pointer ${!soCurvaA ? 'ring-1 ring-emerald-400' : ''}`}>{cntTotal} {aba === 'producoes' ? 'produções' : 'insumos'}</Badge></button>
-              {cntCurvaA > 0 && <button onClick={() => setSoCurvaA(true)}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${soCurvaA ? 'ring-1 ring-indigo-400' : ''}`}>{cntCurvaA} curva A</Badge></button>}
+              {tipo !== 'diaria' && <button onClick={() => { setSoCurvaA(false); setFiltroDado(null); }}><Badge variant="outline" className={`cursor-pointer ${!soCurvaA && !filtroDado ? 'ring-1 ring-emerald-400' : ''}`}>{cntTotal} {aba === 'producoes' ? 'produções' : 'insumos'}</Badge></button>}
+              {tipo !== 'diaria' && cntCurvaA > 0 && <button onClick={() => { setSoCurvaA(true); setFiltroDado(null); }}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${soCurvaA ? 'ring-1 ring-indigo-400' : ''}`}>{cntCurvaA} curva A</Badge></button>}
+              {aba === 'insumos' && cntSemContagem > 0 && <button onClick={() => setFiltroDado(f => f === 'sem_contagem' ? null : 'sem_contagem')}><Badge variant="outline" className={`cursor-pointer text-amber-700 dark:text-amber-400 border-amber-300 ${filtroDado === 'sem_contagem' ? 'ring-1 ring-amber-400 bg-amber-50 dark:bg-amber-900/20' : ''}`}>⚠ {cntSemContagem} sem contagem final</Badge></button>}
+              {aba === 'insumos' && cntSemFicha > 0 && <button onClick={() => setFiltroDado(f => f === 'sem_ficha' ? null : 'sem_ficha')}><Badge variant="outline" className={`cursor-pointer text-amber-700 dark:text-amber-400 border-amber-300 ${filtroDado === 'sem_ficha' ? 'ring-1 ring-amber-400 bg-amber-50 dark:bg-amber-900/20' : ''}`}>⚠ {cntSemFicha} sem ficha</Badge></button>}
             </div>
           )}
 
