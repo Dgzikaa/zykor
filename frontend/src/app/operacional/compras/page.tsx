@@ -316,6 +316,13 @@ export default function ComprasPage() {
 
 const fmtNum = (v: any) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
+// badge igual /operacional/insumos: A = Curva A; "fora curva A" = insumo cadastrado mas não-curva; "sem cadastro" = nem insumo é
+function BadgeCurva({ curva, cadastrado }: { curva?: boolean; cadastrado?: boolean }) {
+  if (curva) return <span title="Está na Curva A" className="shrink-0 text-[9px] font-bold text-indigo-700 bg-indigo-100 dark:bg-indigo-900/40 dark:text-indigo-300 rounded px-1 py-0.5">A</span>;
+  if (cadastrado) return <span title="Insumo cadastrado, mas FORA da Curva A — avaliar incluir" className="shrink-0 text-[9px] text-amber-700 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 rounded px-1 py-0.5">fora curva A</span>;
+  return <span title="Não está cadastrado como insumo Zykor" className="shrink-0 text-[9px] text-gray-500 bg-gray-100 dark:bg-gray-800 rounded px-1 py-0.5">sem cadastro</span>;
+}
+
 function AnalisesCompras({ a }: { a: any }) {
   const h = a?.headline || {};
   const topForn: any[] = a?.top_fornecedores || [];
@@ -324,6 +331,8 @@ function AnalisesCompras({ a }: { a: any }) {
   const comp: any[] = a?.comparativo_fornecedor || [];
   const maxForn = Math.max(1, ...topForn.map((f) => Number(f.valor) || 0));
   const maxProd = Math.max(1, ...topProd.map((p) => Number(p.valor) || 0));
+  const [soCurvaA, setSoCurvaA] = useState(false);
+  const subiuView = soCurvaA ? subiu.filter((s) => s.curva_a) : subiu;
 
   return (
     <div className="space-y-4">
@@ -356,14 +365,20 @@ function AnalisesCompras({ a }: { a: any }) {
 
         {/* Top Produtos */}
         <Card><CardContent className="p-0">
-          <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2 text-sm font-semibold"><Package className="w-4 h-4 text-violet-500" />Top 10 produtos</div>
-          <div className="divide-y divide-gray-50 dark:divide-gray-800/50">
+          <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2 text-sm font-semibold"><Package className="w-4 h-4 text-violet-500" />Top produtos<span className="text-xs font-normal text-gray-400">({topProd.length} · role pra ver tudo · badge mostra se está na Curva A)</span></div>
+          <div className="divide-y divide-gray-50 dark:divide-gray-800/50 max-h-[26rem] overflow-y-auto">
             {topProd.length === 0 ? <div className="px-4 py-6 text-center text-sm text-gray-400">Sem dados.</div> : topProd.map((p, i) => (
               <div key={p.nome + i} className="px-4 py-2 relative">
                 <div className="absolute inset-y-0 left-0 bg-violet-50 dark:bg-violet-900/10" style={{ width: `${(Number(p.valor) / maxProd) * 100}%` }} />
                 <div className="relative flex items-center justify-between gap-2">
-                  <div className="min-w-0"><span className="text-gray-400 text-xs mr-1.5">{i + 1}.</span><span className="text-sm text-gray-800 dark:text-gray-100 truncate">{p.nome}</span>
-                    <span className="block text-[11px] text-gray-400">{fmtNum(p.qtd)} un · {p.n_compras} compras · méd {fmtBRL(p.preco_medio)}</span></div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-gray-400 text-xs">{i + 1}.</span>
+                      <span className="text-sm text-gray-800 dark:text-gray-100 truncate">{p.nome}</span>
+                      <BadgeCurva curva={p.curva_a} cadastrado={p.cadastrado} />
+                    </div>
+                    <span className="block text-[11px] text-gray-400">{fmtNum(p.qtd)} un · {p.n_compras} compras · méd {fmtBRL(p.preco_medio)}</span>
+                  </div>
                   <span className="text-sm font-semibold tabular-nums whitespace-nowrap">{fmtBRL(p.valor)}</span>
                 </div>
               </div>
@@ -374,8 +389,11 @@ function AnalisesCompras({ a }: { a: any }) {
 
       {/* Subiu de preço */}
       <Card><CardContent className="p-0">
-        <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2 text-sm font-semibold"><TrendingUp className="w-4 h-4 text-red-500" />Produtos que subiram de preço<span className="text-xs font-normal text-gray-400">(1ª × última compra no período · exclui troca de unidade)</span></div>
-        {subiu.length === 0 ? <div className="px-4 py-6 text-center text-sm text-gray-400">Nenhuma alta de preço relevante no período.</div> : (
+        <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center gap-2 text-sm font-semibold"><TrendingUp className="w-4 h-4 text-red-500" />Produtos que subiram de preço<span className="text-xs font-normal text-gray-400">(1ª × última compra no período · exclui troca de unidade)</span>
+          <button onClick={() => setSoCurvaA(v => !v)} title="Mostrar só insumos da Curva A (o que pesa de verdade)"
+            className={`ml-auto text-xs rounded-full border px-2.5 py-1 font-medium ${soCurvaA ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>Só Curva A</button>
+        </div>
+        {subiuView.length === 0 ? <div className="px-4 py-6 text-center text-sm text-gray-400">{soCurvaA ? 'Nenhum insumo Curva A subiu de preço no período.' : 'Nenhuma alta de preço relevante no período.'}</div> : (
           <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead className="text-xs text-gray-500 border-b border-gray-100 dark:border-gray-800"><tr>
               <th className="text-left font-medium px-4 py-2">Produto</th>
@@ -384,9 +402,9 @@ function AnalisesCompras({ a }: { a: any }) {
               <th className="text-right font-medium px-4 py-2">Variação</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
-              {subiu.map((s, i) => (
+              {subiuView.map((s, i) => (
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                  <td className="px-4 py-2 text-gray-800 dark:text-gray-100">{s.nome}<span className="block text-[11px] text-gray-400">{fmtData(s.data_ini)} → {fmtData(s.data_fim)}</span></td>
+                  <td className="px-4 py-2 text-gray-800 dark:text-gray-100"><span className="inline-flex items-center gap-1.5">{s.nome}<BadgeCurva curva={s.curva_a} cadastrado={s.cadastrado} /></span><span className="block text-[11px] text-gray-400">{fmtData(s.data_ini)} → {fmtData(s.data_fim)}</span></td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtBRL(s.preco_ini)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmtBRL(s.preco_fim)}</td>
                   <td className="px-4 py-2 text-right tabular-nums font-semibold text-red-600 dark:text-red-400">+{fmtNum(s.var_pct)}%</td>
