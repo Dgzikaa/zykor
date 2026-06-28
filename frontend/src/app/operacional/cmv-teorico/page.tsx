@@ -30,12 +30,13 @@ function calcRange(gran: 'dia' | 'semana' | 'mes', ref: string): { ini: string; 
   return { ini: isoDate(ini), fim: isoDate(fim) };
 }
 const fmtDataBR = (s: string) => s.split('-').reverse().join('/');
+const ddmm = (s: string) => s.split('-').reverse().slice(0, 2).join('/');
 
 export default function CmvTeoricoPage() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
-  const [modo, setModo] = useState<'cardapio' | 'periodo' | 'vs_real'>('periodo');
+  const [modo, setModo] = useState<'cardapio' | 'periodo' | 'comparativo'>('periodo');
 
   // ---------- CARDÁPIO (catálogo) ----------
   const [produtos, setProdutos] = useState<any[]>([]);
@@ -76,21 +77,21 @@ export default function CmvTeoricoPage() {
   }, [barId, range, gran, toast]);
   useEffect(() => { if (modo === 'periodo') carregarPeriodo(); }, [modo, carregarPeriodo]);
 
-  // ---------- TEÓRICO × REAL ----------
-  const anoAtual = useMemo(() => new Date().getFullYear(), []);
-  const [ano, setAno] = useState(anoAtual);
-  const [vsReal, setVsReal] = useState<any[]>([]);
-  const [loadingVs, setLoadingVs] = useState(false);
-  const carregarVsReal = useCallback(async () => {
-    if (!barId) return; setLoadingVs(true);
+  // ---------- COMPARATIVO TEMPORAL (semana×semana / mês×mês, por categoria) ----------
+  const [granComp, setGranComp] = useState<'semana' | 'mes'>('semana');
+  const [refComp, setRefComp] = useState(yest);
+  const rangeComp = useMemo(() => calcRange(granComp, refComp), [granComp, refComp]);
+  const [comp, setComp] = useState<any>(null);
+  const [loadingComp, setLoadingComp] = useState(false);
+  const carregarComp = useCallback(async () => {
+    if (!barId) return; setLoadingComp(true);
     try {
-      const r = await api.get(`/api/operacional/cmv-teorico?bar_id=${barId}&vs_real=${ano}`);
-      if (r.success) setVsReal(r.meses || []);
+      const r = await api.get(`/api/operacional/cmv-teorico?bar_id=${barId}&comparativo=1&ini=${rangeComp.ini}&fim=${rangeComp.fim}&gran=${granComp}`);
+      if (r.success) setComp(r);
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
-    finally { setLoadingVs(false); }
-  }, [barId, ano, toast]);
-  useEffect(() => { if (modo === 'vs_real') carregarVsReal(); }, [modo, carregarVsReal]);
-  const MESES = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    finally { setLoadingComp(false); }
+  }, [barId, rangeComp, granComp, toast]);
+  useEffect(() => { if (modo === 'comparativo') carregarComp(); }, [modo, carregarComp]);
 
   const recalcular = async () => {
     if (!barId) return; setRecalc(true);
@@ -162,7 +163,7 @@ export default function CmvTeoricoPage() {
             <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
               <button onClick={() => setModo('cardapio')} className={`text-xs px-3 py-2 flex items-center gap-1.5 ${modo === 'cardapio' ? 'bg-amber-500 text-white' : 'text-gray-600 dark:text-gray-300'}`}><ListChecks className="w-4 h-4" />Cardápio</button>
               <button onClick={() => setModo('periodo')} className={`text-xs px-3 py-2 flex items-center gap-1.5 ${modo === 'periodo' ? 'bg-amber-500 text-white' : 'text-gray-600 dark:text-gray-300'}`}><CalendarDays className="w-4 h-4" />Por período</button>
-              <button onClick={() => setModo('vs_real')} className={`text-xs px-3 py-2 flex items-center gap-1.5 ${modo === 'vs_real' ? 'bg-amber-500 text-white' : 'text-gray-600 dark:text-gray-300'}`}><TrendingUp className="w-4 h-4" />Teórico × Real</button>
+              <button onClick={() => setModo('comparativo')} className={`text-xs px-3 py-2 flex items-center gap-1.5 ${modo === 'comparativo' ? 'bg-amber-500 text-white' : 'text-gray-600 dark:text-gray-300'}`}><TrendingUp className="w-4 h-4" />Comparativo</button>
             </div>
             <Button onClick={recalcular} disabled={recalc} variant="outline"><RefreshCw className={`w-4 h-4 mr-2 ${recalc ? 'animate-spin' : ''}`} />{recalc ? 'Recalculando…' : 'Recalcular'}</Button>
           </div>
@@ -384,39 +385,58 @@ export default function CmvTeoricoPage() {
             </div></CardContent></Card>
           </>)}
         </>) : (<>
-          {/* ===== TEÓRICO × REAL ===== */}
+          {/* ===== COMPARATIVO TEMPORAL (por categoria) ===== */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-gray-500 dark:text-gray-400">Ano:</span>
-            {[anoAtual - 1, anoAtual].map(a => (
-              <button key={a} onClick={() => setAno(a)} className={`text-xs rounded px-3 py-1.5 border ${ano === a ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>{a}</button>
-            ))}
-            <span className="text-xs text-gray-400">CMV teórico (fichas × vendas) × CMV real (financeiro). Gap = perda/quebra/consumo não-mapeado.</span>
+            <div className="flex gap-1">
+              <button onClick={() => setGranComp('semana')} className={`text-xs rounded px-3 py-1.5 border ${granComp === 'semana' ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>Semana</button>
+              <button onClick={() => setGranComp('mes')} className={`text-xs rounded px-3 py-1.5 border ${granComp === 'mes' ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>Mês</button>
+            </div>
+            <Input type="date" value={refComp} onChange={e => setRefComp(e.target.value)} className="w-auto h-8" />
+            {comp && <span className="text-xs text-gray-500 dark:text-gray-400">{ddmm(comp.atual.ini)}–{ddmm(comp.atual.fim)} <span className="text-gray-400">vs</span> {ddmm(comp.anterior.ini)}–{ddmm(comp.anterior.fim)}</span>}
+            <span className="text-xs text-gray-400">Custo constante (atual) nos dois → isola o efeito <b>mix/volume</b>. O efeito preço entra quando o histórico de custo acumular.</span>
           </div>
-          {loadingVs ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
-          : (
-            <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
-                  <th className="text-left font-medium px-3 py-2">Mês</th>
-                  <th className="text-right font-medium px-3 py-2">Faturamento</th>
-                  <th className="text-right font-medium px-3 py-2" title="Nosso, das fichas × vendas">CMV teórico</th>
-                  <th className="text-right font-medium px-3 py-2" title="Do financeiro (compras/estoque)">CMV real</th>
-                  <th className="text-right font-medium px-3 py-2" title="Real − Teórico = perda/quebra/consumo">Gap</th>
-                </tr></thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {vsReal.filter((m: any) => m.cmv_teorico_pct != null || (m.cmv_real_pct != null && Number(m.cmv_real_pct) > 0)).map((m: any) => (
-                    <tr key={m.mes} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                      <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">{MESES[m.mes]}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(m.fat_cmvivel ?? m.fat_teorico)}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums font-medium ${corCmv(m.cmv_teorico_pct)}`}>{fmtPct(m.cmv_teorico_pct)}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums font-medium ${corCmv(m.cmv_real_pct)}`}>{fmtPct(m.cmv_real_pct)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums font-bold">{m.gap_pp == null ? '—' : <span className={Number(m.gap_pp) > 1 ? 'text-red-600 dark:text-red-400' : Number(m.gap_pp) < -1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500'}>{Number(m.gap_pp) > 0 ? '+' : ''}{Number(m.gap_pp).toFixed(2)}pp</span>}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div></CardContent></Card>
-          )}
+          {loadingComp ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+          : comp && (() => {
+            const a = comp.atual, b = comp.anterior;
+            const dTot = (a.cmv_pct ?? 0) - (b.cmv_pct ?? 0);
+            const corDelta = (d: number) => d > 0.1 ? 'text-red-600 dark:text-red-400' : d < -0.1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500';
+            const pp = (d: number) => `${d > 0 ? '+' : ''}${d.toFixed(2)}pp`;
+            const cats = Array.from(new Set([...a.categorias.map((c: any) => c.categoria), ...b.categorias.map((c: any) => c.categoria)]));
+            const fc = (arr: any[], k: string) => arr.find((c: any) => c.categoria === k);
+            const rows = cats.map((k) => ({ k, at: fc(a.categorias, k), an: fc(b.categorias, k) })).sort((x, y) => (y.at?.faturamento || 0) - (x.at?.faturamento || 0));
+            return (<>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">CMV teórico — atual</div><div className={`text-2xl font-bold ${corCmv(a.cmv_pct)}`}>{fmtPct(a.cmv_pct)}</div><div className="text-[11px] text-gray-400">{fmtBRL(a.custo_total)} / {fmtBRL(a.faturamento)}</div></CardContent></Card>
+                <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">CMV teórico — anterior</div><div className={`text-2xl font-bold ${corCmv(b.cmv_pct)}`}>{fmtPct(b.cmv_pct)}</div><div className="text-[11px] text-gray-400">{fmtBRL(b.custo_total)} / {fmtBRL(b.faturamento)}</div></CardContent></Card>
+                <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Variação</div><div className={`text-2xl font-bold ${corDelta(dTot)}`}>{pp(dTot)}</div><div className="text-[11px] text-gray-400">{dTot > 0.1 ? 'CMV piorou (subiu)' : dTot < -0.1 ? 'CMV melhorou (caiu)' : 'estável'}</div></CardContent></Card>
+              </div>
+              <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
+                    <th className="text-left font-medium px-3 py-2">Categoria</th>
+                    <th className="text-right font-medium px-3 py-2">Faturamento atual</th>
+                    <th className="text-right font-medium px-3 py-2">CMV atual</th>
+                    <th className="text-right font-medium px-3 py-2">CMV anterior</th>
+                    <th className="text-right font-medium px-3 py-2">Variação</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {rows.map(({ k, at, an }) => {
+                      const d = (at?.cmv_pct ?? 0) - (an?.cmv_pct ?? 0);
+                      return (
+                        <tr key={k} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                          <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">{k}</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(at?.faturamento)}</td>
+                          <td className={`px-3 py-2 text-right tabular-nums font-medium ${corCmv(at?.cmv_pct)}`}>{fmtPct(at?.cmv_pct)}</td>
+                          <td className={`px-3 py-2 text-right tabular-nums font-medium ${corCmv(an?.cmv_pct)}`}>{fmtPct(an?.cmv_pct)}</td>
+                          <td className={`px-3 py-2 text-right tabular-nums font-bold ${corDelta(d)}`}>{at && an ? pp(d) : '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div></CardContent></Card>
+            </>);
+          })()}
         </>)}
       </div>
     </div>

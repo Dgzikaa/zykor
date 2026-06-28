@@ -20,6 +20,29 @@ export async function GET(request: NextRequest) {
   // MODO PERÍODO: ?ini&fim → CMV teórico ponderado pelas vendas do período (por produto + por categoria)
   const sp = new URL(request.url).searchParams;
   const ini = sp.get('ini'); const fim = sp.get('fim');
+
+  // MODO COMPARATIVO: ?comparativo=1&ini&fim&gran=semana|mes → CMV teórico por categoria, período atual × anterior.
+  // custo é o atual (produto_cmv) nos dois → a variação isola o efeito MIX/volume (preço congelado).
+  if (sp.get('comparativo') === '1' && ini && fim) {
+    const num = (v: any) => Number(v || 0);
+    const catDe = (r: any) => { const c = (r.codigo || '')[0]?.toLowerCase(); return c === 'b' ? 'Bebida' : c === 'd' ? 'Drink' : c === 'c' ? 'Comida' : c === 'o' ? 'Outros' : (r.categoria || '—'); };
+    const isoD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const gran = sp.get('gran') || 'semana';
+    const di = new Date(ini + 'T00:00:00'); const df = new Date(fim + 'T00:00:00');
+    let pIni: Date, pFim: Date;
+    if (gran === 'mes') { pIni = new Date(di.getFullYear(), di.getMonth() - 1, 1); pFim = new Date(di.getFullYear(), di.getMonth(), 0); }
+    else { const dias = Math.round((df.getTime() - di.getTime()) / 86400000) + 1; pIni = new Date(di); pIni.setDate(di.getDate() - dias); pFim = new Date(df); pFim.setDate(df.getDate() - dias); }
+    const breakdown = async (i: string, f: string) => {
+      const { data } = await gold.rpc('fn_cmv_teorico_periodo', { p_bar_id: barId, p_ini: i, p_fim: f });
+      const rows = (data || []) as any[]; const m = new Map<string, any>(); let fat = 0, custo = 0;
+      for (const r of rows) { const k = catDe(r); fat += num(r.faturamento); custo += num(r.custo_total); const c = m.get(k) || { categoria: k, faturamento: 0, custo_total: 0 }; c.faturamento += num(r.faturamento); c.custo_total += num(r.custo_total); m.set(k, c); }
+      const categorias = Array.from(m.values()).map((c: any) => ({ ...c, cmv_pct: c.faturamento > 0 ? Number((c.custo_total / c.faturamento * 100).toFixed(2)) : null })).sort((a, b) => b.faturamento - a.faturamento);
+      return { ini: i, fim: f, faturamento: Number(fat.toFixed(2)), custo_total: Number(custo.toFixed(2)), cmv_pct: fat > 0 ? Number((custo / fat * 100).toFixed(2)) : null, categorias };
+    };
+    const [atual, anterior] = await Promise.all([breakdown(ini, fim), breakdown(isoD(pIni), isoD(pFim))]);
+    return NextResponse.json({ success: true, modo: 'comparativo', gran, atual, anterior });
+  }
+
   if (ini && fim) {
     const { data: rows, error: errP } = await gold.rpc('fn_cmv_teorico_periodo', { p_bar_id: barId, p_ini: ini, p_fim: fim });
     if (errP) return NextResponse.json({ success: false, error: errP.message }, { status: 500 });
