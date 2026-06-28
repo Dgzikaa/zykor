@@ -22,7 +22,9 @@ function calcular(it: any) {
   const pr = it.media6 + it.desvpad * zDe(it.nivel_servico);
   const gap = Math.max(0, pr - it.estoque);
   const naoProduzir = gap <= 0;
-  const receitas = !naoProduzir && it.rend_contagem > 0 ? Math.ceil((gap / it.rend_contagem) * (it.semanas_receita || 1)) : 0;
+  // arredonda pra cima por receita (1 ciclo) e só então aplica as Semanas de Receita — igual à planilha
+  const base = !naoProduzir && it.rend_contagem > 0 ? Math.ceil(gap / it.rend_contagem) : 0;
+  const receitas = Math.ceil(base * (it.semanas_receita || 1));
   const sugestaoQtd = receitas * it.rend_contagem;
   const diasEstoque = it.media6 > 0 ? it.estoque / (it.media6 / 6) : null; // ÷6, igual à planilha
   return { pr, naoProduzir, receitas, sugestaoQtd, diasEstoque };
@@ -84,7 +86,8 @@ export default function PlanoProducaoPage() {
       media6: it.media6, desvpad: it.desvpad, nivel_servico: it.nivel_servico, ponto_ressupr: c.pr, estoque: it.estoque,
       sugestao_qtd: c.sugestaoQtd, sugestao_receitas: c.receitas,
       decidido_receitas: decididoReceitas, decidido_qtd: decididoReceitas * it.rend_contagem,
-      seguiu_sugestao: decididoReceitas === c.receitas, dia_producao: novaDec.dia_producao ?? null,
+      seguiu_sugestao: decididoReceitas === c.receitas, motivo_override: novaDec.motivo_override ?? null,
+      dia_producao: novaDec.dia_producao ?? null,
     });
   };
   const acao = async (action: string, extra: any = {}) => {
@@ -207,6 +210,11 @@ export default function PlanoProducaoPage() {
                       onChange={e => patchItem(it.producao_id, { decisao: { ...(it.decisao || {}), decidido_receitas: e.target.value === '' ? null : Number(e.target.value) } })}
                       onBlur={e => salvarDecisao(it, { decidido_receitas: e.target.value === '' ? null : Number(e.target.value) })}
                       className={`w-16 bg-transparent text-right tabular-nums outline-none rounded border px-1 ${override ? 'border-amber-400 text-amber-600 dark:text-amber-400 font-medium' : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'}`} title={override ? 'Diferente da sugestão (override registrado)' : ''} />
+                    {override && <input disabled={encerrado} type="text" placeholder="motivo do override…"
+                      value={it.decisao?.motivo_override ?? ''}
+                      onChange={e => patchItem(it.producao_id, { decisao: { ...(it.decisao || {}), motivo_override: e.target.value } })}
+                      onBlur={e => salvarDecisao(it, { motivo_override: e.target.value || null })}
+                      className="block mt-1 w-32 ml-auto bg-transparent text-[11px] text-right outline-none rounded border border-amber-300 dark:border-amber-700/60 px-1 py-0.5 placeholder:text-amber-400/60" />}
                   </td>}
                   {planejando && <td className="px-3 py-2 text-center">
                     <select disabled={encerrado} value={it.decisao?.dia_producao ?? ''} onChange={e => salvarDecisao(it, { dia_producao: e.target.value || null })} className="bg-transparent text-xs outline-none cursor-pointer disabled:cursor-default rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 px-1">

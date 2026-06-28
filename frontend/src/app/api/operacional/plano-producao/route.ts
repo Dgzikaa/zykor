@@ -22,7 +22,9 @@ function calcular(media6: number, desvpad: number, estoque: number, rendContagem
   const pr = media6 + desvpad * zDe(nivel);
   const gap = Math.max(0, pr - estoque);
   const naoProduzir = gap <= 0;
-  const receitas = !naoProduzir && rendContagem > 0 ? Math.ceil((gap / rendContagem) * (semanas || 1)) : 0;
+  // arredonda pra cima por receita (1 ciclo) e só então aplica as Semanas de Receita — igual à planilha
+  const base = !naoProduzir && rendContagem > 0 ? Math.ceil(gap / rendContagem) : 0;
+  const receitas = Math.ceil(base * (semanas || 1));
   const sugestaoQtd = receitas * rendContagem;
   return { pr: r2(pr), gap: r2(gap), naoProduzir, receitas, sugestaoQtd: r2(sugestaoQtd) };
 }
