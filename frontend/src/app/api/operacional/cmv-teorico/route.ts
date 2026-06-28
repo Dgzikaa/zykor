@@ -71,7 +71,38 @@ export async function GET(request: NextRequest) {
       efeito_mix: r2(mixFrac * 100),
       efeito_intramix: r2(intraFrac * 100),
     };
-    return NextResponse.json({ success: true, modo: 'comparativo', gran, atual, anterior, decomposicao });
+
+    // DRILL POR PRODUTO: quais itens puxaram cada efeito (preço × volume[mix+intramix])
+    const prodCen = async (i: string, f: string, ref: string) => {
+      const { data } = await gold.rpc('fn_cmv_teorico_produto_preco', { p_bar: barId, p_ini: i, p_fim: f, p_ref: ref });
+      return (data || []) as any[];
+    };
+    const P11 = await prodCen(ini, fim, fim), P10 = await prodCen(ini, fim, pf), P00 = await prodCen(pi, pf, pf);
+    const idx = (rows: any[]) => { const m = new Map<string, any>(); for (const r of rows) m.set(r.codigo, r); return m; };
+    const m11 = idx(P11), m10 = idx(P10), m00 = idx(P00);
+    const fatA = P11.reduce((s, r) => s + num(r.faturamento), 0), fatB = P00.reduce((s, r) => s + num(r.faturamento), 0);
+    const drivers: any[] = [];
+    for (const cod of new Set([...m11.keys(), ...m00.keys()])) {
+      const a = m11.get(cod), a0 = m10.get(cod), b = m00.get(cod);
+      const pv1 = num(a?.preco_venda), pv0 = num(b?.preco_venda);
+      const share1 = fatA > 0 ? num(a?.faturamento) / fatA : 0, share0 = fatB > 0 ? num(b?.faturamento) / fatB : 0;
+      const cmv1 = pv1 > 0 ? num(a?.custo_unit) / pv1 : 0, cmv1p0 = pv1 > 0 ? num(a0?.custo_unit) / pv1 : 0, cmv0 = pv0 > 0 ? num(b?.custo_unit) / pv0 : 0;
+      const preco = share1 * (cmv1 - cmv1p0) * 100, volume = (share1 - share0) * cmv0 * 100;
+      if (Math.abs(preco) > 0.005 || Math.abs(volume) > 0.005) drivers.push({ codigo: cod, nome: a?.nome || b?.nome || cod, categoria: a?.categoria || b?.categoria || '—', preco: r2(preco), volume: r2(volume) });
+    }
+    const topVolume = [...drivers].sort((x, y) => Math.abs(y.volume) - Math.abs(x.volume)).slice(0, 8);
+    const topPreco = [...drivers].sort((x, y) => Math.abs(y.preco) - Math.abs(x.preco)).slice(0, 8);
+
+    // NARRATIVA automática: efeito dominante + maior item
+    const ppTxt = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(2)}pp`;
+    const efs = [{ k: 'preço', v: decomposicao.efeito_preco, list: topPreco, campo: 'preco' }, { k: 'mix', v: decomposicao.efeito_mix, list: topVolume, campo: 'volume' }, { k: 'intramix', v: decomposicao.efeito_intramix, list: topVolume, campo: 'volume' }];
+    const dom = [...efs].sort((a, b) => Math.abs(b.v) - Math.abs(a.v))[0];
+    const subiu = (decomposicao.delta ?? 0) >= 0;
+    let narrativa = `CMV ${subiu ? 'subiu' : 'caiu'} ${ppTxt(decomposicao.delta ?? 0)} vs período anterior — efeito dominante: ${dom.k} (${ppTxt(dom.v)}).`;
+    const topItem = dom.list.filter((d: any) => Math.sign(d[dom.campo]) === Math.sign(dom.v))[0];
+    if (topItem) narrativa += ` Maior item: ${topItem.nome}${topItem.categoria ? ` (${topItem.categoria})` : ''} ${ppTxt(topItem[dom.campo])}.`;
+
+    return NextResponse.json({ success: true, modo: 'comparativo', gran, atual, anterior, decomposicao, drivers: { volume: topVolume, preco: topPreco }, narrativa });
   }
 
   if (ini && fim) {

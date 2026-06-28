@@ -418,13 +418,32 @@ export default function CmvTeoricoPage() {
                     <div className="text-[10px] text-gray-400 mt-0.5 leading-tight">{desc}</div>
                   </div>
                 );
+                const drv = comp.drivers || {};
+                const listaItens = (titulo: string, itens: any[], campo: string) => (
+                  <div>
+                    <div className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">{titulo}</div>
+                    <div className="space-y-0.5">
+                      {(itens || []).filter((d: any) => Math.abs(d[campo]) >= 0.01).slice(0, 6).map((d: any) => (
+                        <div key={d.codigo} className="flex items-center justify-between gap-2 text-xs">
+                          <span className="truncate text-gray-700 dark:text-gray-200">{d.nome} <span className="text-gray-400">{d.categoria}</span></span>
+                          <span className={`shrink-0 tabular-nums font-medium ${corDelta(d[campo])}`}>{pp(d[campo])}</span>
+                        </div>
+                      ))}
+                      {(!itens || itens.filter((d: any) => Math.abs(d[campo]) >= 0.01).length === 0) && <div className="text-[11px] text-gray-400">— sem item relevante</div>}
+                    </div>
+                  </div>
+                );
                 return (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-900/15 px-4 py-3 space-y-2">
-                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Por que o CMV mudou {pp(dec.delta ?? 0)}? — preço × mix × intramix</div>
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-900/15 px-4 py-3 space-y-2.5">
+                    {comp.narrativa && <div className="text-sm text-gray-900 dark:text-gray-100"><span className="font-semibold">💡 </span>{comp.narrativa}</div>}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       {efeito('Preço (compras)', dec.efeito_preco, 'paguei mais/menos caro nos insumos (preço VMarket histórico)')}
                       {efeito('Mix (entre categorias)', dec.efeito_mix, 'mudei a proporção: + drink / − cerveja, etc.')}
                       {efeito('Intramix (dentro)', dec.efeito_intramix, 'dentro de cada categoria, vendi itens de CMV melhor/pior')}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-amber-100 dark:border-amber-900/30">
+                      {listaItens('Itens que mais puxaram o mix/intramix', drv.volume, 'volume')}
+                      {listaItens('Itens mais afetados por preço', drv.preco, 'preco')}
                     </div>
                     <div className="text-[10px] text-gray-400">Positivo = CMV piorou (subiu) · negativo = melhorou. A soma dos 3 efeitos = a variação total.</div>
                   </div>
