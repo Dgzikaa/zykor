@@ -10,7 +10,7 @@ import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import {
   Timer, Play, Pause, RotateCcw, Save, Search, Plus, Trash2, User,
-  Loader2, History, Package, Clock, TrendingDown, DollarSign, X, Scale, AlertTriangle,
+  Loader2, History, Package, Clock, TrendingDown, DollarSign, X, Scale, AlertTriangle, CalendarCheck,
 } from 'lucide-react';
 
 // ---------- helpers ----------
@@ -82,6 +82,13 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
     }, 1000);
     return () => clearInterval(t);
   }, []);
+
+  // calendarização do dia: o que o planejamento encerrado mandou produzir hoje
+  const [planHoje, setPlanHoje] = useState<any[]>([]);
+  useEffect(() => {
+    if (!barId) return;
+    api.get('/api/operacional/plano-producao?hoje=1').then(r => { if (r?.success) setPlanHoje(r.itens || []); }).catch(() => {});
+  }, [barId]);
 
   const secaoDe = (f: any) => (f.codigo || '').toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha';
   const fichasControle = useMemo(() => fichas.filter(f => f.controle_producao), [fichas]);
@@ -220,6 +227,32 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
 
   return (
     <div className="space-y-4">
+      {/* Planejado para hoje (calendarização do planejamento encerrado) */}
+      {planHoje.length > 0 && (
+        <Card className="card-dark border-violet-200 dark:border-violet-900/40">
+          <CardContent className="py-3 space-y-2">
+            <div className="text-sm font-medium text-violet-700 dark:text-violet-300 flex items-center gap-1.5">
+              <CalendarCheck className="w-4 h-4" />Planejado para hoje ({planHoje.length})
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {planHoje.map((it: any) => {
+                const f = fichas.find(x => x.id === it.producao_id);
+                const qtdRec = it.decidido_receitas ?? null;
+                return (
+                  <button key={it.producao_id} onMouseDown={() => f && adicionar(f)} disabled={!f}
+                    title={f ? 'Adicionar ao cronômetro' : 'Ficha indisponível para esse bar'}
+                    className="inline-flex items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20 px-3 py-1.5 text-sm hover:bg-violet-100 dark:hover:bg-violet-900/40 disabled:opacity-50">
+                    <Plus className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+                    <span className="text-gray-900 dark:text-gray-100">{it.producao_nome}</span>
+                    {qtdRec != null && <span className="text-[11px] text-violet-600 dark:text-violet-400">{fmtNum(qtdRec, 0)} rec.</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Adicionar produção */}
       <Card className="card-dark">
         <CardContent className="py-3 space-y-2">

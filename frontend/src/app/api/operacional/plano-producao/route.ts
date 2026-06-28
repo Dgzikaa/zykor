@@ -5,55 +5,201 @@ import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 const sb = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+const ops = () => (sb() as any).schema('operations');
 const isoD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const num = (v: any) => Number(v || 0);
-const r1 = (v: number) => Number(v.toFixed(1));
+const r2 = (v: number) => Number(v.toFixed(2));
 
-// Planejamento Semanal da Produção: sugere quantas porções/fornadas fazer na próxima semana,
-// a partir da saída média das últimas 6 semanas (vendas×ficha) + tendência + eventos − estoque atual.
-export async function GET(request: NextRequest) {
-  const user = await authenticateUser(request);
-  if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
+// De/para Nível de Serviço → Fator de Serviço (z-score da normal), igual à planilha do sócio.
+const NIVEL_Z: Record<number, number> = {
+  50: 0, 60: 0.254, 70: 0.525, 80: 0.842, 85: 1.037, 90: 1.282,
+  95: 1.645, 96: 1.751, 97: 1.88, 98: 2.055, 99: 2.325, 99.9: 3.1,
+};
+const zDe = (nivel: number) => NIVEL_Z[nivel] ?? 1.645;
 
-  const gold = (sb() as any).schema('gold');
-  const { data, error } = await gold.rpc('fn_plano_producao', { p_bar: user.bar_id });
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+// Ponto de Ressuprimento + Sugestão de Produção (mesma regra do client).
+function calcular(media6: number, desvpad: number, estoque: number, rendContagem: number, nivel: number, semanas: number) {
+  const pr = media6 + desvpad * zDe(nivel);
+  const gap = Math.max(0, pr - estoque);
+  const naoProduzir = gap <= 0;
+  const receitas = !naoProduzir && rendContagem > 0 ? Math.ceil((gap / rendContagem) * (semanas || 1)) : 0;
+  const sugestaoQtd = receitas * rendContagem;
+  return { pr: r2(pr), gap: r2(gap), naoProduzir, receitas, sugestaoQtd: r2(sugestaoQtd) };
+}
 
-  // próxima semana (segunda → domingo)
+// próxima semana (segunda → domingo)
+function proximaSemana() {
   const hoje = new Date();
   const dow = (hoje.getDay() + 6) % 7;
   const ini = new Date(hoje); ini.setDate(hoje.getDate() - dow + 7);
   const fim = new Date(ini); fim.setDate(ini.getDate() + 6);
+  return { ini: isoD(ini), fim: isoD(fim) };
+}
 
-  // eventos na próxima semana → maior ajuste (multiplicador) do bar
-  const { data: evs } = await (sb() as any).schema('operations').from('feriados_eventos')
-    .select('data,nome,ajuste_ord,ajuste_deb').gte('data', isoD(ini)).lte('data', isoD(fim));
-  const col = user.bar_id === 4 ? 'ajuste_deb' : 'ajuste_ord';
-  const fatorEvento = (evs || []).reduce((m: number, e: any) => Math.max(m, Number(e[col] || 1)), 1);
+// ---------------------------------------------------------------------------
+// GET: planejamento da próxima semana (sugestões ao vivo) + config + sessão.
+//   ?hoje=1  → planejado para HOJE (calendarização do plano encerrado) p/ o Controle de Produção.
+// ---------------------------------------------------------------------------
+export async function GET(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const barId = Number(new URL(request.url).searchParams.get('bar_id')) || user.bar_id;
+  if (!barId) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
+
+  // ---- planejado para hoje (Controle de Produção) ----
+  if (new URL(request.url).searchParams.get('hoje')) {
+    const hoje = isoD(new Date());
+    const { data: planos } = await ops().from('producao_plano')
+      .select('id, semana_ini').eq('bar_id', barId).eq('status', 'encerrado')
+      .order('semana_ini', { ascending: false }).limit(4);
+    const ids = (planos || []).map((p: any) => p.id);
+    if (!ids.length) return NextResponse.json({ success: true, data: hoje, itens: [] });
+    const { data: itens } = await ops().from('producao_plano_item')
+      .select('producao_id, producao_cod, producao_nome, decidido_receitas, decidido_qtd, sugestao_qtd, dia_producao')
+      .in('plano_id', ids).eq('dia_producao', hoje);
+    return NextResponse.json({ success: true, data: hoje, itens: itens || [] });
+  }
+
+  const gold = (sb() as any).schema('gold');
+  const { data, error } = await gold.rpc('fn_plano_producao', { p_bar: barId });
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+
+  const semana = proximaSemana();
+
+  // contexto: eventos + última contagem (gate de início)
+  const [{ data: evs }, { data: cont }, { data: cfgs }, { data: plano }] = await Promise.all([
+    ops().from('feriados_eventos').select('data,nome').gte('data', semana.ini).lte('data', semana.fim),
+    (sb() as any).schema('silver').from('estoque_contagem').select('data_contagem').eq('bar_id', barId)
+      .order('data_contagem', { ascending: false }).limit(1),
+    ops().from('producao_plano_config').select('producao_id, nivel_servico, semanas_receita').eq('bar_id', barId),
+    ops().from('producao_plano').select('*').eq('bar_id', barId).eq('semana_ini', semana.ini).maybeSingle(),
+  ]);
+
+  const cfgMap = new Map((cfgs || []).map((c: any) => [Number(c.producao_id), c]));
+
+  // decisões já salvas na sessão (se houver plano)
+  let decMap = new Map<number, any>();
+  if (plano?.id) {
+    const { data: items } = await ops().from('producao_plano_item').select('*').eq('plano_id', plano.id);
+    decMap = new Map((items || []).map((it: any) => [Number(it.producao_id), it]));
+  }
 
   const itens = ((data || []) as any[]).map((r) => {
     const saidas = (r.saidas || []).map(num);
-    const n = saidas.length || 1;
-    const media6 = saidas.reduce((s: number, v: number) => s + v, 0) / n;
-    const last2 = saidas.length >= 2 ? (saidas[saidas.length - 1] + saidas[saidas.length - 2]) / 2 : media6;
-    const trend = media6 > 0 ? last2 / media6 : 1;
-    const trendAdj = Math.max(-0.3, Math.min(0.5, 0.5 * (trend - 1))); // recência moderada (cap −30%/+50%)
-    const projetada = media6 * (1 + trendAdj) * fatorEvento;
-    const estoque = num(r.estoque_atual);
-    const aProduzir = Math.max(0, projetada * 1.15 - estoque); // 15% de segurança
+    const n = saidas.length;
+    const media6 = n > 0 ? saidas.reduce((s: number, v: number) => s + v, 0) / n : 0;
+    const desvpad = n > 1
+      ? Math.sqrt(saidas.reduce((s: number, v: number) => s + (v - media6) ** 2, 0) / (n - 1)) : 0;
     const fator = num(r.fator_contagem) || 1;
-    const rendContagem = num(r.rendimento) / fator; // rendimento na unidade de contagem (igual estoque)
-    const fornadas = rendContagem > 0 ? Math.ceil(aProduzir / rendContagem) : null;
-    const coberturaDias = media6 > 0 ? r1(estoque / (media6 / 7)) : null;
+    const rendContagem = r2(num(r.rendimento) / fator);
+    const cfg = cfgMap.get(Number(r.producao_id)) as any;
+    const nivel = cfg ? Number(cfg.nivel_servico) : 95;
+    const semanas = cfg ? Number(cfg.semanas_receita) : 1;
+    const c = calcular(media6, desvpad, num(r.estoque_atual), rendContagem, nivel, semanas);
     return {
-      codigo: r.producao_cod, nome: r.producao_nome, unidade: r.unidade, curva_a: r.curva_a === true,
-      rendimento: num(r.rendimento), fator,
-      media6: r1(media6), tendencia_pct: Math.round((trend - 1) * 100),
-      estoque, projetada: r1(projetada), a_produzir: r1(aProduzir), fornadas,
-      cobertura_dias: coberturaDias, saidas,
+      producao_id: Number(r.producao_id), codigo: r.producao_cod, nome: r.producao_nome,
+      unidade: r.unidade, curva_a: r.curva_a === true, controle_producao: r.controle_producao === true,
+      rendimento: num(r.rendimento), fator, rend_contagem: rendContagem,
+      estoque: num(r.estoque_atual), media6: r2(media6), desvpad: r2(desvpad), saidas,
+      nivel_servico: nivel, semanas_receita: semanas,
+      pr: c.pr, sugestao_qtd: c.sugestaoQtd, sugestao_receitas: c.receitas, nao_produzir: c.naoProduzir,
+      decisao: decMap.get(Number(r.producao_id)) || null,
     };
-  }).sort((a, b) => (b.fornadas || 0) - (a.fornadas || 0));
+  });
 
-  return NextResponse.json({ success: true, semana: { ini: isoD(ini), fim: isoD(fim) }, eventos: evs || [], fator_evento: fatorEvento, itens });
+  return NextResponse.json({
+    success: true,
+    semana,
+    contagem: { data: cont?.[0]?.data_contagem || null },
+    plano: plano || null,
+    eventos: (evs || []).map((e: any) => ({ data: e.data, nome: e.nome })),
+    itens,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// POST: ações do ciclo de planejamento.
+//   action='config'   → salva Nível de Serviço / Semanas de Receita por produção
+//   action='flag'     → liga/desliga "entra no controle de produção" (producao_base)
+//   action='iniciar'  → abre a sessão da próxima semana (gate: contagem feita)
+//   action='decidir'  → salva a decisão de um item (snapshot + decidido + dia de produção)
+//   action='encerrar' → fecha o planejamento (gera a calendarização)
+//   action='reabrir'  → volta pra rascunho
+// ---------------------------------------------------------------------------
+export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const barId = Number(user.bar_id);
+  if (!barId) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
+  const body = await request.json().catch(() => ({}));
+  const quem = user.email ?? user.nome ?? null;
+
+  switch (body.action) {
+    case 'config': {
+      const producaoId = Number(body.producao_id);
+      if (!producaoId) return NextResponse.json({ success: false, error: 'producao_id obrigatório' }, { status: 400 });
+      const patch: any = { bar_id: barId, producao_id: producaoId, producao_cod: body.producao_cod ?? null, atualizado_em: new Date().toISOString(), atualizado_por: quem };
+      if (body.nivel_servico != null) patch.nivel_servico = Number(body.nivel_servico);
+      if (body.semanas_receita != null) patch.semanas_receita = Number(body.semanas_receita);
+      const { error } = await ops().from('producao_plano_config').upsert(patch, { onConflict: 'bar_id,producao_id' });
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true });
+    }
+    case 'flag': {
+      const id = Number(body.producao_id);
+      if (!id) return NextResponse.json({ success: false, error: 'producao_id obrigatório' }, { status: 400 });
+      const { error } = await sb().from('producao_base').update({ controle_producao: !!body.controle_producao, atualizado_em: new Date().toISOString() }).eq('id', id);
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true });
+    }
+    case 'iniciar': {
+      const semana = proximaSemana();
+      const { data: cont } = await (sb() as any).schema('silver').from('estoque_contagem')
+        .select('data_contagem').eq('bar_id', barId).order('data_contagem', { ascending: false }).limit(1);
+      const contagemData = cont?.[0]?.data_contagem || null;
+      if (!contagemData) return NextResponse.json({ success: false, error: 'Faça a contagem das produções antes de iniciar o planejamento.' }, { status: 409 });
+      const { data: plano, error } = await ops().from('producao_plano')
+        .upsert({ bar_id: barId, semana_ini: semana.ini, status: 'rascunho', contagem_data: contagemData, iniciado_por: quem }, { onConflict: 'bar_id,semana_ini' })
+        .select().single();
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true, plano });
+    }
+    case 'decidir': {
+      const planoId = Number(body.plano_id);
+      const producaoId = Number(body.producao_id);
+      if (!planoId || !producaoId) return NextResponse.json({ success: false, error: 'plano_id e producao_id obrigatórios' }, { status: 400 });
+      const row: any = {
+        plano_id: planoId, producao_id: producaoId,
+        producao_cod: body.producao_cod ?? null, producao_nome: body.producao_nome ?? null,
+        media6: body.media6 ?? null, desvpad: body.desvpad ?? null,
+        nivel_servico: body.nivel_servico ?? null, fator_servico: body.nivel_servico != null ? zDe(Number(body.nivel_servico)) : null,
+        ponto_ressupr: body.ponto_ressupr ?? null, estoque: body.estoque ?? null,
+        sugestao_qtd: body.sugestao_qtd ?? null, sugestao_receitas: body.sugestao_receitas ?? null,
+        decidido_receitas: body.decidido_receitas != null ? Number(body.decidido_receitas) : null,
+        decidido_qtd: body.decidido_qtd != null ? Number(body.decidido_qtd) : null,
+        seguiu_sugestao: body.seguiu_sugestao != null ? !!body.seguiu_sugestao : true,
+        motivo_override: body.motivo_override ?? null,
+        dia_producao: body.dia_producao ?? null,
+        atualizado_em: new Date().toISOString(),
+      };
+      const { error } = await ops().from('producao_plano_item').upsert(row, { onConflict: 'plano_id,producao_id' });
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true });
+    }
+    case 'encerrar':
+    case 'reabrir': {
+      const planoId = Number(body.plano_id);
+      if (!planoId) return NextResponse.json({ success: false, error: 'plano_id obrigatório' }, { status: 400 });
+      const encerrar = body.action === 'encerrar';
+      const { error } = await ops().from('producao_plano').update(
+        encerrar
+          ? { status: 'encerrado', encerrado_por: quem, encerrado_em: new Date().toISOString() }
+          : { status: 'rascunho', encerrado_por: null, encerrado_em: null }
+      ).eq('id', planoId).eq('bar_id', barId);
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true });
+    }
+    default:
+      return NextResponse.json({ success: false, error: 'Ação inválida' }, { status: 400 });
+  }
 }
