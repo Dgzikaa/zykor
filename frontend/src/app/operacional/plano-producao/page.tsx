@@ -197,7 +197,7 @@ export default function PlanoProducaoPage() {
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
               <th className="text-left font-medium px-3 py-2">Produção</th>
               <th className="text-right font-medium px-3 py-2" title="Uso indireto da última semana (clique p/ abrir as 6 semanas)">Uso Indireto</th>
-              <th className="text-right font-medium px-3 py-2" title="Média ponderada do uso indireto das últimas 6 semanas">Média 6s</th>
+              <th className="text-right font-medium px-3 py-2" title="Média ponderada do uso indireto das últimas 6 semanas — peso maior para a semana mais recente; semana em branco fica fora. Clique no valor para ver as semanas.">Média 6s</th>
               <th className="text-right font-medium px-3 py-2" title="Desvio padrão amostral das 6 semanas">Desv. padrão</th>
               <th className="text-center font-medium px-3 py-2" title="Define o fator de segurança do Ponto de Ressuprimento">Nível de Serviço</th>
               <th className="text-center font-medium px-3 py-2" title="Quantas semanas de receita produzir de uma vez">Qtde x Semanas</th>
@@ -286,7 +286,6 @@ export default function PlanoProducaoPage() {
                         return <span key={wk} className={`inline-flex items-center gap-1 rounded px-2 py-0.5 ${v > 0 ? 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 line-through'}`} title={v > 0 ? `peso ${i + 1}` : 'Semana em branco — desconsiderada na média'}>{fmtDM(wk)}: <b>{comUni(v, it.unidade)}</b> <span className="opacity-60">×{i + 1}</span></span>;
                       })}
                       <span className="text-gray-600 dark:text-gray-300">= média <b>{comUni(it.media6, it.unidade)}</b></span>
-                      <span className="text-gray-400">(peso maior p/ semana mais recente; branco fica fora)</span>
                     </div>
                   </td>
                 </tr>}
