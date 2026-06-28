@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
       return {
         id: i.id, codigo: i.codigo, nome: i.nome, categoria: i.categoria, unidade_medida: i.unidade_medida,
         fator_correcao: !!i.fator_correcao,
-        curva_a: !!i.curva_a, frequencia: i.frequencia,
+        curva_a: !!i.curva_a, curva_a_proteina: !!i.curva_a_proteina, frequencia: i.frequencia,
         preco_atual: i.preco != null ? Number(i.preco) : null,
         preco_anterior: i.preco_anterior != null ? Number(i.preco_anterior) : null,
         preco_data: i.preco_data,
