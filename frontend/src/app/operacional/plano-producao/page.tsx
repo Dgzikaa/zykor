@@ -17,14 +17,13 @@ const NIVEL_Z: Record<number, number> = { 50: 0, 60: 0.254, 70: 0.525, 80: 0.842
 const zDe = (n: number) => NIVEL_Z[n] ?? 1.645;
 const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
-// Ponto de Ressuprimento + Sugestão (mesma regra do servidor).
+// Ponto de Ressuprimento + Sugestão (fórmulas exatas da planilha do sócio).
 function calcular(it: any) {
-  const pr = it.media6 + it.desvpad * zDe(it.nivel_servico);
-  const gap = Math.max(0, pr - it.estoque);
-  const naoProduzir = gap <= 0;
-  // arredonda pra cima por receita (1 ciclo) e só então aplica as Semanas de Receita — igual à planilha
-  const base = !naoProduzir && it.rend_contagem > 0 ? Math.ceil(gap / it.rend_contagem) : 0;
-  const receitas = Math.ceil(base * (it.semanas_receita || 1));
+  const pr = it.media6 + it.desvpad * zDe(it.nivel_servico); // média já vem ponderada do servidor
+  const gap = pr - it.estoque;
+  const ae = gap < 0 ? gap : gap + pr * ((it.semanas_receita || 1) - 1); // cada semana extra repõe um PR cheio
+  const naoProduzir = ae <= 0;
+  const receitas = !naoProduzir && it.rend_contagem > 0 ? Math.ceil(ae / it.rend_contagem) : 0;
   const sugestaoQtd = receitas * it.rend_contagem;
   const diasEstoque = it.media6 > 0 ? it.estoque / (it.media6 / 6) : null; // ÷6, igual à planilha
   return { pr, naoProduzir, receitas, sugestaoQtd, diasEstoque };
@@ -96,16 +95,39 @@ export default function PlanoProducaoPage() {
     finally { setSalvando(false); }
   };
 
+  // Cascata de demanda dependente ("massa baseada na sugestão da porção"):
+  // consumo planejado de cada preparo = Σ (receitas planejadas do pai × qtd do filho por receita).
+  // Receitas do pai = o que foi decidido (senão a sugestão). Um nível por vez — recalcula
+  // ao vivo conforme as decisões mudam, então a cadeia croquete→massa→carne converge na reunião.
+  const consumoMap = useMemo(() => {
+    const m = new Map<number, number>();
+    const recById = new Map<number, number>(itens.map((it) => {
+      const dec = it.decisao?.decidido_receitas;
+      return [it.producao_id, dec != null ? Number(dec) : calcular(it).receitas];
+    }));
+    (res?.bom || []).forEach((b: any) => {
+      const rec = recById.get(b.pai) || 0;
+      if (rec > 0) m.set(b.filho, (m.get(b.filho) || 0) + rec * b.qtd_receita);
+    });
+    return m;
+  }, [itens, res]);
+
   // recalcula derivados + aplica filtros/ordenação
   const linhas = useMemo(() => {
     const s = busca.trim().toLowerCase();
     return itens
-      .map((it) => ({ ...it, ...calcular(it) }))
+      .map((it) => {
+        const calc = calcular(it);
+        const consumo = consumoMap.get(it.producao_id) || 0;
+        const planejadoQtd = it.decisao?.decidido_receitas != null ? Number(it.decisao.decidido_receitas) * it.rend_contagem : calc.sugestaoQtd;
+        const falta = consumo > 0 ? Math.max(0, consumo - (it.estoque + planejadoQtd)) : 0; // não cobre a produção dos pais
+        return { ...it, ...calc, consumo, falta };
+      })
       .filter((i) => (!soControle || i.controle_producao)
         && (!soFazer || !i.naoProduzir)
         && (!s || (i.nome || '').toLowerCase().includes(s) || (i.codigo || '').toLowerCase().includes(s)))
       .sort((a, b) => b.sugestaoQtd - a.sugestaoQtd);
-  }, [itens, busca, soControle, soFazer]);
+  }, [itens, busca, soControle, soFazer, consumoMap]);
 
   const totProduzir = useMemo(() => linhas.filter((i) => !i.naoProduzir).length, [linhas]);
   const totReceitas = useMemo(() => linhas.reduce((s, i) => s + (emRascunho || encerrado ? Number(i.decisao?.decidido_receitas ?? i.receitas) : i.receitas), 0), [linhas, emRascunho, encerrado]);
@@ -164,13 +186,14 @@ export default function PlanoProducaoPage() {
               <th className="text-right font-medium px-3 py-2" title="Ponto de Ressuprimento = média + desvio × fator de serviço">PR</th>
               <th className="text-right font-medium px-3 py-2">Estoque</th>
               <th className="text-right font-medium px-3 py-2" title="Estoque ÷ ritmo diário (÷6)">Dias</th>
+              <th className="text-right font-medium px-3 py-2" title="Quanto deste preparo a produção planejada dos pais (porções) vai consumir — cascata">p/ Produção</th>
               <th className="text-right font-medium px-3 py-2">Sugestão</th>
               {planejando && <th className="text-right font-medium px-3 py-2" title="O que foi decidido na reunião (receitas)">Decidido</th>}
               {planejando && <th className="text-center font-medium px-3 py-2">Dia</th>}
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {loading ? <tr><td colSpan={11} className="px-3 py-12 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-              : linhas.length === 0 ? <tr><td colSpan={11} className="px-3 py-12 text-center text-gray-400">Sem produções no filtro.</td></tr>
+              {loading ? <tr><td colSpan={12} className="px-3 py-12 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              : linhas.length === 0 ? <tr><td colSpan={12} className="px-3 py-12 text-center text-gray-400">Sem produções no filtro.</td></tr>
               : linhas.map((it) => {
                 const decidido = it.decisao?.decidido_receitas;
                 const override = decidido != null && Number(decidido) !== it.receitas;
@@ -199,6 +222,11 @@ export default function PlanoProducaoPage() {
                   <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-200 font-medium">{fmtN(it.pr)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtN(it.estoque)}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${(it.diasEstoque ?? 99) < 3 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'}`}>{it.diasEstoque == null ? '—' : `${fmtN(it.diasEstoque)}d`}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {it.consumo > 0
+                      ? <span className={it.falta > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'} title={it.falta > 0 ? `Faltam ${fmtN(it.falta)} ${it.unidade || ''} p/ cobrir a produção planejada dos pais` : 'Coberto pelo estoque + plano'}>{fmtN(it.consumo)}{it.falta > 0 ? ' ⚠' : ''}</span>
+                      : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                  </td>
                   <td className="px-3 py-2 text-right">
                     {it.naoProduzir
                       ? <span className="text-emerald-600 dark:text-emerald-400 text-xs">Não produzir</span>

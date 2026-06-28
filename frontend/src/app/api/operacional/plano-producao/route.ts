@@ -17,16 +17,31 @@ const NIVEL_Z: Record<number, number> = {
 };
 const zDe = (nivel: number) => NIVEL_Z[nivel] ?? 1.645;
 
-// Ponto de Ressuprimento + Sugestão de Produção (mesma regra do client).
+// Ponto de Ressuprimento + Sugestão de Produção (fórmulas exatas da planilha do sócio).
+// AE (Sugestão Produção) = IF((PR−Estoque)<0; PR−Estoque; (PR−Estoque) + PR×(Semanas−1))
+// AF (Sug Receitas)      = ROUNDUP(AE / rendimento)   [<=0 → "Não Produzir"]
 function calcular(media6: number, desvpad: number, estoque: number, rendContagem: number, nivel: number, semanas: number) {
   const pr = media6 + desvpad * zDe(nivel);
-  const gap = Math.max(0, pr - estoque);
-  const naoProduzir = gap <= 0;
-  // arredonda pra cima por receita (1 ciclo) e só então aplica as Semanas de Receita — igual à planilha
-  const base = !naoProduzir && rendContagem > 0 ? Math.ceil(gap / rendContagem) : 0;
-  const receitas = Math.ceil(base * (semanas || 1));
+  const gap = pr - estoque;
+  const ae = gap < 0 ? gap : gap + pr * ((semanas || 1) - 1); // cada semana extra repõe um PR cheio
+  const naoProduzir = ae <= 0;
+  const receitas = !naoProduzir && rendContagem > 0 ? Math.ceil(ae / rendContagem) : 0;
   const sugestaoQtd = receitas * rendContagem;
-  return { pr: r2(pr), gap: r2(gap), naoProduzir, receitas, sugestaoQtd: r2(sugestaoQtd) };
+  return { pr: r2(pr), naoProduzir, receitas, sugestaoQtd: r2(sugestaoQtd) };
+}
+
+// Média 6 semanas PONDERADA por recência (pesos 1..6, oldest→newest), só semanas >0 — igual à planilha.
+function mediaPonderada(saidas: number[]) {
+  let num = 0, den = 0;
+  saidas.forEach((v, i) => { if (v > 0) { num += v * (i + 1); den += (i + 1); } });
+  return den > 0 ? num / den : 0;
+}
+// Desvio padrão amostral (n−1) com média SIMPLES = STDEV(T:Y) da planilha (independe da média ponderada).
+function desvioPadrao(saidas: number[]) {
+  const n = saidas.length;
+  if (n < 2) return 0;
+  const m = saidas.reduce((s, v) => s + v, 0) / n;
+  return Math.sqrt(saidas.reduce((s, v) => s + (v - m) ** 2, 0) / (n - 1));
 }
 
 // próxima semana (segunda → domingo)
@@ -88,10 +103,8 @@ export async function GET(request: NextRequest) {
 
   const itens = ((data || []) as any[]).map((r) => {
     const saidas = (r.saidas || []).map(num);
-    const n = saidas.length;
-    const media6 = n > 0 ? saidas.reduce((s: number, v: number) => s + v, 0) / n : 0;
-    const desvpad = n > 1
-      ? Math.sqrt(saidas.reduce((s: number, v: number) => s + (v - media6) ** 2, 0) / (n - 1)) : 0;
+    const media6 = mediaPonderada(saidas);
+    const desvpad = desvioPadrao(saidas);
     const fator = num(r.fator_contagem) || 1;
     const rendContagem = r2(num(r.rendimento) / fator);
     const cfg = cfgMap.get(Number(r.producao_id)) as any;
@@ -109,12 +122,23 @@ export async function GET(request: NextRequest) {
     };
   });
 
+  // BOM (pai → filho) p/ a cascata de demanda dependente ("massa baseada na sugestão da porção").
+  // qtd_receita = quantidade do filho (na unidade de contagem do filho) consumida por 1 receita/fornada do pai.
+  const idFator = new Map(itens.map((i) => [i.producao_id, i.fator]));
+  const ids = new Set(itens.map((i) => i.producao_id));
+  const { data: fichaProd } = await sb().from('producao_ficha_item')
+    .select('producao_id, producao_ref, quantidade').eq('componente_tipo', 'producao').not('producao_ref', 'is', null);
+  const bom = ((fichaProd || []) as any[])
+    .filter((f) => ids.has(Number(f.producao_id)) && ids.has(Number(f.producao_ref)))
+    .map((f) => ({ pai: Number(f.producao_id), filho: Number(f.producao_ref), qtd_receita: r2(num(f.quantidade) / (Number(idFator.get(Number(f.producao_ref))) || 1)) }));
+
   return NextResponse.json({
     success: true,
     semana,
     contagem: { data: cont?.[0]?.data_contagem || null },
     plano: plano || null,
     eventos: (evs || []).map((e: any) => ({ data: e.data, nome: e.nome })),
+    bom,
     itens,
   });
 }
