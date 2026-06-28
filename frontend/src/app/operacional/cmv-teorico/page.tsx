@@ -393,7 +393,7 @@ export default function CmvTeoricoPage() {
             </div>
             <Input type="date" value={refComp} onChange={e => setRefComp(e.target.value)} className="w-auto h-8" />
             {comp && <span className="text-xs text-gray-500 dark:text-gray-400">{ddmm(comp.atual.ini)}–{ddmm(comp.atual.fim)} <span className="text-gray-400">vs</span> {ddmm(comp.anterior.ini)}–{ddmm(comp.anterior.fim)}</span>}
-            <span className="text-xs text-gray-400">Custo constante (atual) nos dois → isola o efeito <b>mix/volume</b>. O efeito preço entra quando o histórico de custo acumular.</span>
+            <span className="text-xs text-gray-400">CMV real de cada período + decomposição da variação em <b>preço × mix × intramix</b> (preço usa o histórico de compras VMarket).</span>
           </div>
           {loadingComp ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
           : comp && (() => {
@@ -410,6 +410,26 @@ export default function CmvTeoricoPage() {
                 <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">CMV teórico — anterior</div><div className={`text-2xl font-bold ${corCmv(b.cmv_pct)}`}>{fmtPct(b.cmv_pct)}</div><div className="text-[11px] text-gray-400">{fmtBRL(b.custo_total)} / {fmtBRL(b.faturamento)}</div></CardContent></Card>
                 <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Variação</div><div className={`text-2xl font-bold ${corDelta(dTot)}`}>{pp(dTot)}</div><div className="text-[11px] text-gray-400">{dTot > 0.1 ? 'CMV piorou (subiu)' : dTot < -0.1 ? 'CMV melhorou (caiu)' : 'estável'}</div></CardContent></Card>
               </div>
+              {comp.decomposicao && (() => {
+                const dec = comp.decomposicao;
+                const efeito = (label: string, val: number, desc: string) => (
+                  <div className="rounded-md border border-gray-100 dark:border-gray-800 px-3 py-2 bg-white/70 dark:bg-gray-900/40">
+                    <div className="flex items-center justify-between gap-2"><span className="text-xs font-medium text-gray-700 dark:text-gray-200">{label}</span><span className={`text-sm font-bold tabular-nums ${corDelta(val)}`}>{pp(val)}</span></div>
+                    <div className="text-[10px] text-gray-400 mt-0.5 leading-tight">{desc}</div>
+                  </div>
+                );
+                return (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-900/15 px-4 py-3 space-y-2">
+                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Por que o CMV mudou {pp(dec.delta ?? 0)}? — preço × mix × intramix</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {efeito('Preço (compras)', dec.efeito_preco, 'paguei mais/menos caro nos insumos (preço VMarket histórico)')}
+                      {efeito('Mix (entre categorias)', dec.efeito_mix, 'mudei a proporção: + drink / − cerveja, etc.')}
+                      {efeito('Intramix (dentro)', dec.efeito_intramix, 'dentro de cada categoria, vendi itens de CMV melhor/pior')}
+                    </div>
+                    <div className="text-[10px] text-gray-400">Positivo = CMV piorou (subiu) · negativo = melhorou. A soma dos 3 efeitos = a variação total.</div>
+                  </div>
+                );
+              })()}
               <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
