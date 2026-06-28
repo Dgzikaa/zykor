@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
       producao_id: Number(r.producao_id), codigo: r.producao_cod, nome: r.producao_nome,
       unidade: r.unidade, curva_a: r.curva_a === true, controle_producao: r.controle_producao === true,
       rendimento: num(r.rendimento), fator, rend_contagem: rendContagem,
-      estoque: num(r.estoque_atual), media6: r2(media6), desvpad: r2(desvpad), saidas,
+      estoque: num(r.estoque_atual), media6: r2(media6), desvpad: r2(desvpad), saidas, semanas: r.semanas || [],
       nivel_servico: nivel, semanas_receita: semanas,
       pr: c.pr, sugestao_qtd: c.sugestaoQtd, sugestao_receitas: c.receitas, nao_produzir: c.naoProduzir,
       decisao: decMap.get(Number(r.producao_id)) || null,
