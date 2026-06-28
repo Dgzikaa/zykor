@@ -79,19 +79,29 @@ export default function CmvTeoricoPage() {
 
   // ---------- COMPARATIVO TEMPORAL (semana×semana / mês×mês, por categoria) ----------
   const [granComp, setGranComp] = useState<'semana' | 'mes'>('semana');
-  const [refComp, setRefComp] = useState(yest);
-  const rangeComp = useMemo(() => calcRange(granComp, refComp), [granComp, refComp]);
+  const semanaPassada = useMemo(() => { const d = new Date(); d.setDate(d.getDate() - 7); return isoDate(d); }, []);
+  const mesPassado = useMemo(() => { const d = new Date(); d.setDate(d.getDate() - 35); return isoDate(d); }, []);
+  const [refA, setRefA] = useState(yest);   // período A (selecionável)
+  const [refB, setRefB] = useState(semanaPassada); // período B (comparado, selecionável)
+  const rangeA = useMemo(() => calcRange(granComp, refA), [granComp, refA]);
+  const rangeB = useMemo(() => calcRange(granComp, refB), [granComp, refB]);
+  // opções dos seletores (12 meses / 16 semanas)
+  const mesOptions = useMemo(() => { const o: { val: string; label: string }[] = []; const t = new Date(); for (let i = 0; i < 12; i++) { const d = new Date(t.getFullYear(), t.getMonth() - i, 1); o.push({ val: isoDate(d), label: d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) }); } return o; }, []);
+  const semanaOptions = useMemo(() => { const o: { val: string; label: string }[] = []; const t = new Date(); const dw = (t.getDay() + 6) % 7; const cur = new Date(t); cur.setDate(t.getDate() - dw); for (let i = 0; i < 16; i++) { const m = new Date(cur); m.setDate(cur.getDate() - i * 7); const s = new Date(m); s.setDate(m.getDate() + 6); o.push({ val: isoDate(m), label: `${ddmm(isoDate(m))}–${ddmm(isoDate(s))}` }); } return o; }, []);
+  const refSelVal = (ref: string) => granComp === 'mes' ? `${ref.slice(0, 7)}-01` : (() => { const d = new Date(ref + 'T00:00:00'); const dw = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dw); return isoDate(d); })();
   const [comp, setComp] = useState<any>(null);
   const [loadingComp, setLoadingComp] = useState(false);
   const carregarComp = useCallback(async () => {
     if (!barId) return; setLoadingComp(true);
     try {
-      const r = await api.get(`/api/operacional/cmv-teorico?bar_id=${barId}&comparativo=1&ini=${rangeComp.ini}&fim=${rangeComp.fim}&gran=${granComp}`);
+      const r = await api.get(`/api/operacional/cmv-teorico?bar_id=${barId}&comparativo=1&ini=${rangeA.ini}&fim=${rangeA.fim}&pini=${rangeB.ini}&pfim=${rangeB.fim}&gran=${granComp}`);
       if (r.success) setComp(r);
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
     finally { setLoadingComp(false); }
-  }, [barId, rangeComp, granComp, toast]);
+  }, [barId, rangeA, rangeB, granComp, toast]);
   useEffect(() => { if (modo === 'comparativo') carregarComp(); }, [modo, carregarComp]);
+  // ao trocar semana↔mês, reposiciona B pra um período anterior coerente
+  useEffect(() => { setRefB(granComp === 'mes' ? mesPassado : semanaPassada); }, [granComp, mesPassado, semanaPassada]);
 
   const recalcular = async () => {
     if (!barId) return; setRecalc(true);
@@ -391,9 +401,16 @@ export default function CmvTeoricoPage() {
               <button onClick={() => setGranComp('semana')} className={`text-xs rounded px-3 py-1.5 border ${granComp === 'semana' ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>Semana</button>
               <button onClick={() => setGranComp('mes')} className={`text-xs rounded px-3 py-1.5 border ${granComp === 'mes' ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>Mês</button>
             </div>
-            <Input type="date" value={refComp} onChange={e => setRefComp(e.target.value)} className="w-auto h-8" />
-            {comp && <span className="text-xs text-gray-500 dark:text-gray-400">{ddmm(comp.atual.ini)}–{ddmm(comp.atual.fim)} <span className="text-gray-400">vs</span> {ddmm(comp.anterior.ini)}–{ddmm(comp.anterior.fim)}</span>}
-            <span className="text-xs text-gray-400">CMV real de cada período + decomposição da variação em <b>preço × mix × intramix</b> (preço usa o histórico de compras VMarket).</span>
+            {/* período A vs período B — ambos selecionáveis */}
+            {([['A', refA, setRefA, 'text-amber-700 dark:text-amber-400'], ['B', refB, setRefB, 'text-gray-600 dark:text-gray-300']] as const).map(([lbl, ref, setRef, cor], i) => (
+              <span key={lbl} className="inline-flex items-center gap-1">
+                {i === 1 && <span className="text-xs text-gray-400 font-medium px-0.5">vs</span>}
+                <select value={refSelVal(ref)} onChange={e => setRef(e.target.value)} className={`h-8 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm px-2 capitalize ${cor}`}>
+                  {(granComp === 'mes' ? mesOptions : semanaOptions).map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
+                </select>
+              </span>
+            ))}
+            <span className="text-xs text-gray-400">Escolha os 2 períodos (ex.: junho × abril). Decompõe a variação em <b>preço × mix × intramix</b> (preço = histórico VMarket).</span>
           </div>
           {loadingComp ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
           : comp && (() => {

@@ -26,79 +26,70 @@ export async function GET(request: NextRequest) {
   if (sp.get('comparativo') === '1' && ini && fim) {
     const num = (v: any) => Number(v || 0);
     const isoD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const ddmm = (s: string) => s.split('-').reverse().slice(0, 2).join('/');
     const gran = sp.get('gran') || 'semana';
-    const di = new Date(ini + 'T00:00:00'); const df = new Date(fim + 'T00:00:00');
-    let pIni: Date, pFim: Date;
-    if (gran === 'mes') { pIni = new Date(di.getFullYear(), di.getMonth() - 1, 1); pFim = new Date(di.getFullYear(), di.getMonth(), 0); }
-    else { const dias = Math.round((df.getTime() - di.getTime()) / 86400000) + 1; pIni = new Date(di); pIni.setDate(di.getDate() - dias); pFim = new Date(df); pFim.setDate(df.getDate() - dias); }
-    const pi = isoD(pIni), pf = isoD(pFim);
-    // 3 cenários para decompor a variação do CMV (Laspeyres): preço × mix × intramix.
-    //  Q1P1 = vendas atuais × preço atual (real atual) · Q1P0 = vendas atuais × preço antigo (congela preço)
-    //  Q0P0 = vendas antigas × preço antigo (real anterior). p_ref = fim do período = "preço daquele período".
-    const cenario = async (i: string, f: string, ref: string) => {
-      const { data } = await gold.rpc('fn_cmv_teorico_periodo_preco', { p_bar: barId, p_ini: i, p_fim: f, p_ref: ref });
-      return (data || []) as any[];
-    };
-    const q1p1 = await cenario(ini, fim, fim);
-    const q1p0 = await cenario(ini, fim, pf);
-    const q0p0 = await cenario(pi, pf, pf);
-    const pack = (rows: any[], i: string, f: string) => {
-      const fat = rows.reduce((s, r) => s + num(r.faturamento), 0);
-      const custo = rows.reduce((s, r) => s + num(r.custo_total), 0);
-      const categorias = rows.map((r: any) => ({ categoria: r.categoria, faturamento: num(r.faturamento), custo_total: num(r.custo_total), cmv_pct: r.cmv_pct == null ? null : num(r.cmv_pct) })).sort((a, b) => b.faturamento - a.faturamento);
-      return { ini: i, fim: f, faturamento: Number(fat.toFixed(2)), custo_total: Number(custo.toFixed(2)), cmv_pct: fat > 0 ? Number((custo / fat * 100).toFixed(2)) : null, categorias };
-    };
-    const atual = pack(q1p1, ini, fim), anterior = pack(q0p0, pi, pf), congeladoPreco = pack(q1p0, ini, fim);
-    // decomposição (em pontos percentuais)
-    const cmv = (p: any) => p.cmv_pct ?? 0;
-    const byCat = (rows: any[]) => { const m = new Map<string, any>(); for (const r of rows) m.set(r.categoria, { fat: num(r.faturamento), custo: num(r.custo_total) }); return m; };
-    const m0 = byCat(q0p0), m1 = byCat(q1p0);
-    const fat0 = anterior.faturamento, fat1 = congeladoPreco.faturamento;
-    let mixFrac = 0, intraFrac = 0;
-    for (const k of new Set([...m0.keys(), ...m1.keys()])) {
-      const f0 = m0.get(k)?.fat || 0, c0 = m0.get(k)?.custo || 0;
-      const f1 = m1.get(k)?.fat || 0, c1 = m1.get(k)?.custo || 0;
-      const sh0 = fat0 > 0 ? f0 / fat0 : 0, sh1 = fat1 > 0 ? f1 / fat1 : 0;
-      const cmv0 = f0 > 0 ? c0 / f0 : 0, cmv1 = f1 > 0 ? c1 / f1 : 0;
-      mixFrac += (sh1 - sh0) * cmv0;        // troca de proporção ENTRE categorias
-      intraFrac += sh1 * (cmv1 - cmv0);     // troca de composição DENTRO da categoria
+    // período B = comparado. Explícito (?pini&pfim, escolhido pelo usuário) ou derivado (imediatamente anterior).
+    let pi = sp.get('pini') || '', pf = sp.get('pfim') || '';
+    if (!pi || !pf) {
+      const di = new Date(ini + 'T00:00:00'); const df = new Date(fim + 'T00:00:00');
+      let pIni: Date, pFim: Date;
+      if (gran === 'mes') { pIni = new Date(di.getFullYear(), di.getMonth() - 1, 1); pFim = new Date(di.getFullYear(), di.getMonth(), 0); }
+      else { const dias = Math.round((df.getTime() - di.getTime()) / 86400000) + 1; pIni = new Date(di); pIni.setDate(di.getDate() - dias); pFim = new Date(df); pFim.setDate(df.getDate() - dias); }
+      pi = isoD(pIni); pf = isoD(pFim);
     }
-    const r2 = (v: number) => Number(v.toFixed(2));
-    const decomposicao = {
-      cmv_atual: atual.cmv_pct, cmv_anterior: anterior.cmv_pct,
-      delta: atual.cmv_pct != null && anterior.cmv_pct != null ? r2(atual.cmv_pct - anterior.cmv_pct) : null,
-      efeito_preco: r2(cmv(atual) - cmv(congeladoPreco)),
-      efeito_mix: r2(mixFrac * 100),
-      efeito_intramix: r2(intraFrac * 100),
-    };
-
-    // DRILL POR PRODUTO: quais itens puxaram cada efeito (preço × volume[mix+intramix])
-    const prodCen = async (i: string, f: string, ref: string) => {
+    // 3 cenários POR PRODUTO (1 função só): A@precoA, A@precoB (congela preço = efeito mix), B@precoB.
+    const prod = async (i: string, f: string, ref: string) => {
       const { data } = await gold.rpc('fn_cmv_teorico_produto_preco', { p_bar: barId, p_ini: i, p_fim: f, p_ref: ref });
       return (data || []) as any[];
     };
-    const P11 = await prodCen(ini, fim, fim), P10 = await prodCen(ini, fim, pf), P00 = await prodCen(pi, pf, pf);
+    const P11 = await prod(ini, fim, fim);   // período A, preço A
+    const P10 = await prod(ini, fim, pf);    // período A, preço B → CMV de A com preço de B (efeito mix)
+    const P00 = await prod(pi, pf, pf);      // período B, preço B
+    const ct = (r: any) => num(r.qtd) * num(r.custo_unit);
+    const catAgg = (rows: any[]) => {
+      const m = new Map<string, any>(); let fat = 0, custo = 0;
+      for (const r of rows) { const c = ct(r); fat += num(r.faturamento); custo += c; const e = m.get(r.categoria) || { categoria: r.categoria, faturamento: 0, custo_total: 0 }; e.faturamento += num(r.faturamento); e.custo_total += c; m.set(r.categoria, e); }
+      const categorias = Array.from(m.values()).map((c: any) => ({ ...c, faturamento: Number(c.faturamento.toFixed(2)), custo_total: Number(c.custo_total.toFixed(2)), cmv_pct: c.faturamento > 0 ? Number((c.custo_total / c.faturamento * 100).toFixed(2)) : null })).sort((a, b) => b.faturamento - a.faturamento);
+      return { faturamento: Number(fat.toFixed(2)), custo_total: Number(custo.toFixed(2)), cmv_pct: fat > 0 ? Number((custo / fat * 100).toFixed(2)) : null, categorias };
+    };
+    const A = catAgg(P11), B = catAgg(P00), Acong = catAgg(P10);
+    const atual = { ini, fim, ...A }, anterior = { ini: pi, fim: pf, ...B };
+    const r2 = (v: number) => Number(v.toFixed(2));
+    const cmv = (p: any) => p.cmv_pct ?? 0;
+    // decomposição: mix (entre categorias) + intramix (dentro) usando preço B; preço = A − Acong.
+    const byCat = (agg: any) => { const m = new Map<string, any>(); for (const c of agg.categorias) m.set(c.categoria, { fat: c.faturamento, custo: c.custo_total }); return m; };
+    const m0 = byCat(B), m1 = byCat(Acong);
+    const fat0 = B.faturamento, fat1 = Acong.faturamento;
+    let mixFrac = 0, intraFrac = 0;
+    for (const k of new Set([...m0.keys(), ...m1.keys()])) {
+      const f0 = m0.get(k)?.fat || 0, c0 = m0.get(k)?.custo || 0, f1 = m1.get(k)?.fat || 0, c1 = m1.get(k)?.custo || 0;
+      const sh0 = fat0 > 0 ? f0 / fat0 : 0, sh1 = fat1 > 0 ? f1 / fat1 : 0, cmv0 = f0 > 0 ? c0 / f0 : 0, cmv1 = f1 > 0 ? c1 / f1 : 0;
+      mixFrac += (sh1 - sh0) * cmv0; intraFrac += sh1 * (cmv1 - cmv0);
+    }
+    const decomposicao = {
+      cmv_atual: A.cmv_pct, cmv_anterior: B.cmv_pct,
+      delta: A.cmv_pct != null && B.cmv_pct != null ? r2(A.cmv_pct - B.cmv_pct) : null,
+      efeito_preco: r2(cmv(A) - cmv(Acong)), efeito_mix: r2(mixFrac * 100), efeito_intramix: r2(intraFrac * 100),
+    };
+    // drill por produto (reusa os 3 cenários)
     const idx = (rows: any[]) => { const m = new Map<string, any>(); for (const r of rows) m.set(r.codigo, r); return m; };
     const m11 = idx(P11), m10 = idx(P10), m00 = idx(P00);
-    const fatA = P11.reduce((s, r) => s + num(r.faturamento), 0), fatB = P00.reduce((s, r) => s + num(r.faturamento), 0);
     const drivers: any[] = [];
     for (const cod of new Set([...m11.keys(), ...m00.keys()])) {
       const a = m11.get(cod), a0 = m10.get(cod), b = m00.get(cod);
       const pv1 = num(a?.preco_venda), pv0 = num(b?.preco_venda);
-      const share1 = fatA > 0 ? num(a?.faturamento) / fatA : 0, share0 = fatB > 0 ? num(b?.faturamento) / fatB : 0;
+      const share1 = A.faturamento > 0 ? num(a?.faturamento) / A.faturamento : 0, share0 = B.faturamento > 0 ? num(b?.faturamento) / B.faturamento : 0;
       const cmv1 = pv1 > 0 ? num(a?.custo_unit) / pv1 : 0, cmv1p0 = pv1 > 0 ? num(a0?.custo_unit) / pv1 : 0, cmv0 = pv0 > 0 ? num(b?.custo_unit) / pv0 : 0;
       const preco = share1 * (cmv1 - cmv1p0) * 100, volume = (share1 - share0) * cmv0 * 100;
       if (Math.abs(preco) > 0.005 || Math.abs(volume) > 0.005) drivers.push({ codigo: cod, nome: a?.nome || b?.nome || cod, categoria: a?.categoria || b?.categoria || '—', preco: r2(preco), volume: r2(volume) });
     }
     const topVolume = [...drivers].sort((x, y) => Math.abs(y.volume) - Math.abs(x.volume)).slice(0, 8);
     const topPreco = [...drivers].sort((x, y) => Math.abs(y.preco) - Math.abs(x.preco)).slice(0, 8);
-
-    // NARRATIVA automática: efeito dominante + maior item
     const ppTxt = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(2)}pp`;
     const efs = [{ k: 'preço', v: decomposicao.efeito_preco, list: topPreco, campo: 'preco' }, { k: 'mix', v: decomposicao.efeito_mix, list: topVolume, campo: 'volume' }, { k: 'intramix', v: decomposicao.efeito_intramix, list: topVolume, campo: 'volume' }];
     const dom = [...efs].sort((a, b) => Math.abs(b.v) - Math.abs(a.v))[0];
     const subiu = (decomposicao.delta ?? 0) >= 0;
-    let narrativa = `CMV ${subiu ? 'subiu' : 'caiu'} ${ppTxt(decomposicao.delta ?? 0)} vs período anterior — efeito dominante: ${dom.k} (${ppTxt(dom.v)}).`;
+    let narrativa = `CMV ${subiu ? 'subiu' : 'caiu'} ${ppTxt(decomposicao.delta ?? 0)} (${ddmm(ini)} vs ${ddmm(pi)}) — efeito dominante: ${dom.k} (${ppTxt(dom.v)}).`;
     const topItem = dom.list.filter((d: any) => Math.sign(d[dom.campo]) === Math.sign(dom.v))[0];
     if (topItem) narrativa += ` Maior item: ${topItem.nome}${topItem.categoria ? ` (${topItem.categoria})` : ''} ${ppTxt(topItem[dom.campo])}.`;
 
