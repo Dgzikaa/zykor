@@ -227,12 +227,12 @@ export default function PlanoProducaoPage() {
                     </span>
                     <span className="block text-[11px] text-gray-400 pl-4">rende {comUni(it.rend_contagem, it.unidade)}/receita</span>
                   </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{comUni(ultima, it.unidade)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">
-                    <button onClick={() => setAberto(expandido ? null : it.producao_id)} className="inline-flex items-center gap-1 hover:text-violet-600 dark:hover:text-violet-400" title="Ver as 6 semanas">
-                      {expandido ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}{comUni(ultima, it.unidade)}
+                    <button onClick={() => setAberto(expandido ? null : it.producao_id)} className="inline-flex items-center gap-1 hover:text-violet-600 dark:hover:text-violet-400" title="Ver as 6 semanas que formam a média">
+                      {expandido ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}{comUni(it.media6, it.unidade)}
                     </button>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{comUni(it.media6, it.unidade)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtN(it.desvpad)}</td>
                   <td className="px-3 py-2 text-center">
                     <select disabled={encerrado} value={it.nivel_servico} onChange={e => salvarConfig(it, 'nivel_servico', Number(e.target.value))} className="bg-transparent text-xs outline-none cursor-pointer disabled:cursor-default rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 px-1">
@@ -280,12 +280,13 @@ export default function PlanoProducaoPage() {
                 {expandido && <tr className="bg-gray-50/60 dark:bg-gray-800/30">
                   <td colSpan={nCols} className="px-3 py-2">
                     <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400 pl-4">
-                      <span className="font-medium text-gray-600 dark:text-gray-300">Uso indireto por semana:</span>
+                      <span className="font-medium text-gray-600 dark:text-gray-300">Semanas que formam a média (ponderada por recência):</span>
                       {(it.semanas || []).map((wk: string, i: number) => {
                         const v = it.saidas?.[i] ?? 0;
-                        return <span key={wk} className={`inline-flex items-center gap-1 rounded px-2 py-0.5 ${v > 0 ? 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 line-through'}`} title={v > 0 ? '' : 'Semana em branco — desconsiderada na média'}>{fmtDM(wk)}: <b>{comUni(v, it.unidade)}</b></span>;
+                        return <span key={wk} className={`inline-flex items-center gap-1 rounded px-2 py-0.5 ${v > 0 ? 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 line-through'}`} title={v > 0 ? `peso ${i + 1}` : 'Semana em branco — desconsiderada na média'}>{fmtDM(wk)}: <b>{comUni(v, it.unidade)}</b> <span className="opacity-60">×{i + 1}</span></span>;
                       })}
-                      <span className="text-gray-400">· pesos 1→6 (recência), branco fora da média</span>
+                      <span className="text-gray-600 dark:text-gray-300">= média <b>{comUni(it.media6, it.unidade)}</b></span>
+                      <span className="text-gray-400">(peso maior p/ semana mais recente; branco fica fora)</span>
                     </div>
                   </td>
                 </tr>}
