@@ -50,7 +50,7 @@ export default function PlanoProducaoPage() {
   }, [barId]);
   useEffect(() => { carregar(); }, [carregar]);
 
-  const plano = res?.plano || null;
+  const plano = res?.planos?.[aba] || null; // sessão da aba atual (Cozinha × Bar são independentes)
   const emRascunho = plano?.status === 'rascunho';
   const encerrado = plano?.status === 'encerrado';
 
@@ -160,8 +160,8 @@ export default function PlanoProducaoPage() {
 
           <div className="flex-1" />
 
-          {!plano && <button disabled={!contagemOk || salvando} onClick={() => acao('iniciar')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"><Play className="w-4 h-4" />Iniciar planejamento</button>}
-          {emRascunho && <><span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-3 py-1">Em planejamento (rascunho)</span><button disabled={salvando} onClick={() => acao('encerrar', { plano_id: plano.id })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"><Lock className="w-4 h-4" />Encerrar e calendarizar</button></>}
+          {!plano && <button disabled={!contagemOk || salvando} onClick={() => acao('iniciar', { area: aba })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"><Play className="w-4 h-4" />Iniciar planejamento ({aba})</button>}
+          {emRascunho && <><span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-3 py-1">{aba} em planejamento (rascunho)</span><button disabled={salvando} onClick={() => acao('encerrar', { plano_id: plano.id })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"><Lock className="w-4 h-4" />Encerrar e calendarizar</button></>}
           {encerrado && <><span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 px-3 py-1"><CheckCircle2 className="w-4 h-4" />Encerrado — foi pro Controle de Produção</span><button disabled={salvando} onClick={() => acao('reabrir', { plano_id: plano.id })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"><Unlock className="w-4 h-4" />Reabrir</button></>}
         </div>
 

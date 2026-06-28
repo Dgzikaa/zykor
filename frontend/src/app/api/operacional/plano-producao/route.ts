@@ -84,21 +84,26 @@ export async function GET(request: NextRequest) {
   const { data, error } = await gold.rpc('fn_plano_producao', { p_bar: barId, p_estoque_desde: semana.ini });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-  // contexto: eventos + contagem da semana planejada (gate de início)
-  const [{ data: evs }, { data: cont }, { data: cfgs }, { data: plano }] = await Promise.all([
+  // contexto: eventos + contagem da semana planejada (gate de início) + sessões por área
+  const [{ data: evs }, { data: cont }, { data: cfgs }, { data: planosRows }] = await Promise.all([
     ops().from('feriados_eventos').select('data,nome').gte('data', semana.ini).lte('data', semana.fim),
     (sb() as any).schema('silver').from('estoque_contagem').select('data_contagem').eq('bar_id', barId)
       .gte('data_contagem', semana.ini).order('data_contagem', { ascending: false }).limit(1),
     ops().from('producao_plano_config').select('producao_id, nivel_servico, semanas_receita').eq('bar_id', barId),
-    ops().from('producao_plano').select('*').eq('bar_id', barId).eq('semana_ini', semana.ini).maybeSingle(),
+    ops().from('producao_plano').select('*').eq('bar_id', barId).eq('semana_ini', semana.ini),
   ]);
 
   const cfgMap = new Map((cfgs || []).map((c: any) => [Number(c.producao_id), c]));
 
-  // decisões já salvas na sessão (se houver plano)
+  // sessões separadas Cozinha × Bar (ciclo independente)
+  const planos: Record<string, any> = { Cozinha: null, Bar: null };
+  (planosRows || []).forEach((p: any) => { planos[p.area || 'Cozinha'] = p; });
+
+  // decisões já salvas (de qualquer uma das sessões — cada produção é de uma área só)
   let decMap = new Map<number, any>();
-  if (plano?.id) {
-    const { data: items } = await ops().from('producao_plano_item').select('*').eq('plano_id', plano.id);
+  const planoIds = (planosRows || []).map((p: any) => p.id);
+  if (planoIds.length) {
+    const { data: items } = await ops().from('producao_plano_item').select('*').in('plano_id', planoIds);
     decMap = new Map((items || []).map((it: any) => [Number(it.producao_id), it]));
   }
 
@@ -137,7 +142,7 @@ export async function GET(request: NextRequest) {
     success: true,
     semana,
     contagem: { data: cont?.[0]?.data_contagem || null },
-    plano: plano || null,
+    planos,
     eventos: (evs || []).map((e: any) => ({ data: e.data, nome: e.nome })),
     bom,
     itens,
@@ -180,6 +185,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
     case 'iniciar': {
+      const area = body.area === 'Bar' ? 'Bar' : 'Cozinha';
       const semana = proximaSemana();
       const { data: cont } = await (sb() as any).schema('silver').from('estoque_contagem')
         .select('data_contagem').eq('bar_id', barId).gte('data_contagem', semana.ini)
@@ -187,7 +193,7 @@ export async function POST(request: NextRequest) {
       const contagemData = cont?.[0]?.data_contagem || null;
       if (!contagemData) return NextResponse.json({ success: false, error: `Faça a contagem das produções de ${semana.ini.split('-').reverse().join('/')} (início da semana) antes de iniciar o planejamento.` }, { status: 409 });
       const { data: plano, error } = await ops().from('producao_plano')
-        .upsert({ bar_id: barId, semana_ini: semana.ini, status: 'rascunho', contagem_data: contagemData, iniciado_por: quem }, { onConflict: 'bar_id,semana_ini' })
+        .upsert({ bar_id: barId, semana_ini: semana.ini, area, status: 'rascunho', contagem_data: contagemData, iniciado_por: quem }, { onConflict: 'bar_id,semana_ini,area' })
         .select().single();
       if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
       return NextResponse.json({ success: true, plano });
