@@ -77,17 +77,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, data: hoje, itens: itens || [] });
   }
 
-  const gold = (sb() as any).schema('gold');
-  const { data, error } = await gold.rpc('fn_plano_producao', { p_bar: barId });
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-
   const semana = proximaSemana();
 
-  // contexto: eventos + última contagem (gate de início)
+  // Estoque vem da contagem do INÍCIO da semana planejada (>= segunda). Sem ela, estoque = 0.
+  const gold = (sb() as any).schema('gold');
+  const { data, error } = await gold.rpc('fn_plano_producao', { p_bar: barId, p_estoque_desde: semana.ini });
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+
+  // contexto: eventos + contagem da semana planejada (gate de início)
   const [{ data: evs }, { data: cont }, { data: cfgs }, { data: plano }] = await Promise.all([
     ops().from('feriados_eventos').select('data,nome').gte('data', semana.ini).lte('data', semana.fim),
     (sb() as any).schema('silver').from('estoque_contagem').select('data_contagem').eq('bar_id', barId)
-      .order('data_contagem', { ascending: false }).limit(1),
+      .gte('data_contagem', semana.ini).order('data_contagem', { ascending: false }).limit(1),
     ops().from('producao_plano_config').select('producao_id, nivel_servico, semanas_receita').eq('bar_id', barId),
     ops().from('producao_plano').select('*').eq('bar_id', barId).eq('semana_ini', semana.ini).maybeSingle(),
   ]);
@@ -181,9 +182,10 @@ export async function POST(request: NextRequest) {
     case 'iniciar': {
       const semana = proximaSemana();
       const { data: cont } = await (sb() as any).schema('silver').from('estoque_contagem')
-        .select('data_contagem').eq('bar_id', barId).order('data_contagem', { ascending: false }).limit(1);
+        .select('data_contagem').eq('bar_id', barId).gte('data_contagem', semana.ini)
+        .order('data_contagem', { ascending: false }).limit(1);
       const contagemData = cont?.[0]?.data_contagem || null;
-      if (!contagemData) return NextResponse.json({ success: false, error: 'Faça a contagem das produções antes de iniciar o planejamento.' }, { status: 409 });
+      if (!contagemData) return NextResponse.json({ success: false, error: `Faça a contagem das produções de ${semana.ini.split('-').reverse().join('/')} (início da semana) antes de iniciar o planejamento.` }, { status: 409 });
       const { data: plano, error } = await ops().from('producao_plano')
         .upsert({ bar_id: barId, semana_ini: semana.ini, status: 'rascunho', contagem_data: contagemData, iniciado_por: quem }, { onConflict: 'bar_id,semana_ini' })
         .select().single();
