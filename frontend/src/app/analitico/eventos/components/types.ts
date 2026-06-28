@@ -41,6 +41,63 @@ export interface Insight {
 
 export type Gran = 'dia' | 'semana' | 'mes';
 
+// ---- Planejado vs Realizado ----
+export interface PlanoLado {
+  faturamento: number;
+  c_art: number;
+  c_prod: number;
+  pct_art_fat: number | null;
+  pct_prod_fat: number | null;
+}
+
+export interface PlanoEventoRow {
+  evento_id: number;
+  data_evento: string;
+  nome: string | null;
+  fat_planejado: number | null;
+  c_art_planejado: number | null;
+  c_prod_planejado: number | null;
+  pct_art_planejado: number | null;
+  fat_realizado: number | null;
+  c_art_realizado: number | null;
+  c_prod_realizado: number | null;
+  pct_art_realizado: number | null;
+  delta_fat_pct: number | null;
+  n_revisoes: number;
+}
+
+export interface PlanoSnapshot {
+  tipo: 'inicial' | 'revisao' | 'final';
+  versao: number;
+  faturamento: number;
+  c_art: number;
+  c_prod: number;
+  pct_art_fat: number | null;
+  pct_prod_fat: number | null;
+  fonte: 'projecao' | 'real';
+  criado_em: string;
+}
+
+export interface ContextoData {
+  data: string;
+  nome: string;
+  tipo: string | null;
+  /** fator histórico de ajuste do bar p/ esta data (1.0 = normal; <1 fatura menos) */
+  ajuste: number;
+  observacao: string | null;
+}
+
+export interface PlanoBloco {
+  plano: PlanoLado;
+  realizado: PlanoLado;
+  delta: { faturamento: number; faturamento_pct: number | null; c_art: number; c_prod: number };
+  n_eventos: number;
+  n_realizados: number;
+  eventos: PlanoEventoRow[];
+  snapshots: PlanoSnapshot[];
+  contexto_datas: ContextoData[];
+}
+
 export interface Periodo {
   inicio: string;
   fim: string;
@@ -94,6 +151,8 @@ export interface EventoResponse {
   nps_diario?: NpsDia[];
   /** fonte dos dados agregados (gold.desempenho ou planejamento) */
   fonte?: string;
+  /** Planejado vs Realizado (fotos do plano: inicial/revisão/final) */
+  planejado?: PlanoBloco;
   /** Perfil de clientes do dia: novos x recorrentes + retorno (só na visão de dia) */
   clientes_perfil?: {
     total: number;

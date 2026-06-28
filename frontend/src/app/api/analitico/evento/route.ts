@@ -410,6 +410,102 @@ async function lerContaAssinadaPorDia(
 const somaMapa = (m: Record<string, number>) =>
   Object.values(m).reduce((s, v) => s + v, 0);
 
+// ---------------------------------------------------------------------------
+// Planejado vs Realizado — lê as "fotos" do plano (operations.evento_plano_snapshots)
+// e a view consolidada por evento. Plano = foto inicial (meta + projeção congeladas);
+// Realizado = foto final (real_r + custos do Conta Azul). Funciona pra dia/semana/mês
+// somando todos os eventos do período. No dia (inicio===fim) traz a linha do tempo
+// completa de snapshots (inicial -> revisões -> final).
+// ---------------------------------------------------------------------------
+interface PlanoLado {
+  faturamento: number; c_art: number; c_prod: number;
+  pct_art_fat: number | null; pct_prod_fat: number | null;
+}
+interface PlanoBloco {
+  plano: PlanoLado;
+  realizado: PlanoLado;
+  delta: { faturamento: number; faturamento_pct: number | null; c_art: number; c_prod: number };
+  n_eventos: number;
+  n_realizados: number;
+  eventos: Row[];
+  snapshots: Row[];
+  contexto_datas: Row[];
+}
+async function lerPlanoVsReal(barId: number, inicio: string, fim: string): Promise<PlanoBloco> {
+  const ops = (supabase as any).schema('operations');
+  const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 1000) / 10 : null);
+
+  const { data: vRows } = await ops
+    .from('v_evento_plano_vs_real')
+    .select(
+      'evento_id, data_evento, nome, fat_planejado, c_art_planejado, c_prod_planejado, ' +
+        'pct_art_planejado, fat_realizado, c_art_realizado, c_prod_realizado, ' +
+        'pct_art_realizado, delta_fat_pct, n_revisoes'
+    )
+    .eq('bar_id', barId)
+    .gte('data_evento', inicio)
+    .lte('data_evento', fim)
+    .order('data_evento', { ascending: true });
+
+  const eventos = (vRows || []) as Row[];
+  let planoFat = 0, planoArt = 0, planoProd = 0, realFat = 0, realArt = 0, realProd = 0;
+  let nPlan = 0, nReal = 0;
+  for (const e of eventos) {
+    if (e.fat_planejado != null) {
+      planoFat += num(e.fat_planejado); planoArt += num(e.c_art_planejado); planoProd += num(e.c_prod_planejado); nPlan++;
+    }
+    if (e.fat_realizado != null) {
+      realFat += num(e.fat_realizado); realArt += num(e.c_art_realizado); realProd += num(e.c_prod_realizado); nReal++;
+    }
+  }
+
+  const plano: PlanoLado = {
+    faturamento: planoFat, c_art: planoArt, c_prod: planoProd,
+    pct_art_fat: pct(planoArt, planoFat), pct_prod_fat: pct(planoProd, planoFat),
+  };
+  const realizado: PlanoLado = {
+    faturamento: realFat, c_art: realArt, c_prod: realProd,
+    pct_art_fat: pct(realArt, realFat), pct_prod_fat: pct(realProd, realFat),
+  };
+  const delta = {
+    faturamento: realFat - planoFat,
+    faturamento_pct: planoFat > 0 ? Math.round(((realFat - planoFat) / planoFat) * 1000) / 10 : null,
+    c_art: realArt - planoArt,
+    c_prod: realProd - planoProd,
+  };
+
+  // Linha do tempo de snapshots (só detalha quando é um único dia)
+  let snapshots: Row[] = [];
+  if (inicio === fim) {
+    const { data: snapRows } = await ops
+      .from('evento_plano_snapshots')
+      .select('tipo, versao, faturamento, c_art, c_prod, pct_art_fat, pct_prod_fat, fonte, criado_em')
+      .eq('bar_id', barId)
+      .eq('data_evento', inicio)
+      .order('criado_em', { ascending: true });
+    snapshots = (snapRows || []) as Row[];
+  }
+
+  // Contexto de datas: feriados/datas especiais no período, com o fator de ajuste
+  // histórico do bar (derivado de backtest) — ajuda a avaliar se a meta foi
+  // otimista para a data (ex.: Dia das Mães o Ordinário costuma faturar menos).
+  const { data: ferRows } = await ops
+    .from('feriados_eventos')
+    .select('data, nome, tipo, ajuste_ord, ajuste_deb, observacao')
+    .gte('data', inicio)
+    .lte('data', fim)
+    .order('data', { ascending: true });
+  const contexto_datas: Row[] = (ferRows || []).map((r: Row) => ({
+    data: r.data,
+    nome: r.nome,
+    tipo: r.tipo,
+    ajuste: num(barId === 4 ? r.ajuste_deb : r.ajuste_ord),
+    observacao: r.observacao,
+  }));
+
+  return { plano, realizado, delta, n_eventos: nPlan, n_realizados: nReal, eventos, snapshots, contexto_datas };
+}
+
 // Breakdown consolidado (ContaHub + Yuzer + Sympla) por evento.
 // gold.planejamento guarda só o total consolidado (faturamento_total_consolidado);
 // a separação entrada/couvert/bar e o ticket corretos vivem em operations.eventos_base,
@@ -873,9 +969,10 @@ export async function GET(request: NextRequest) {
       const diaLabel = DIAS_SEMANA[new Date(Date.UTC(dy, dmo - 1, dd)).getUTCDay()];
 
       // Cancelamento e conta assinada DO DIA (fonte autoritativa, não do gold que vem 0)
-      const [cancelDiaMapa, contaDiaMapa] = await Promise.all([
+      const [cancelDiaMapa, contaDiaMapa, planejado] = await Promise.all([
         lerCancelamentosPorDia(barId, data, data),
         lerContaAssinadaPorDia(barId, data, data),
+        lerPlanoVsReal(barId, data, data),
       ]);
 
       return NextResponse.json({
@@ -883,6 +980,7 @@ export async function GET(request: NextRequest) {
         encontrado: true,
         gran,
         periodo: { inicio: data, fim: data, label: diaLabel },
+        planejado,
         evento: {
           ...evento,
           cancelamentos: cancelDiaMapa[data] || 0,
@@ -996,10 +1094,11 @@ export async function GET(request: NextRequest) {
 
     const deltas = deltasDe(m, baseMedia);
     const { veredito, insights } = diagnosticar(m, baseMedia, ctx, p.compLabel);
-    const [npsDiario, cancelMapa, contaMapa] = await Promise.all([
+    const [npsDiario, cancelMapa, contaMapa, planejado] = await Promise.all([
       lerNpsDiario(barId, p.inicio, p.fim),
       lerCancelamentosPorDia(barId, p.inicio, p.fim),
       lerContaAssinadaPorDia(barId, p.inicio, p.fim),
+      lerPlanoVsReal(barId, p.inicio, p.fim),
     ]);
     // cancelamento/conta assinada do PERÍODO inteiro, da fonte autoritativa
     extras.cancelamentos = somaMapa(cancelMapa);
@@ -1011,6 +1110,7 @@ export async function GET(request: NextRequest) {
       gran,
       fonte,
       periodo: { inicio: p.inicio, fim: p.fim, label: p.label },
+      planejado,
       evento: {
         ...extras,
         dia_semana_label: p.label,

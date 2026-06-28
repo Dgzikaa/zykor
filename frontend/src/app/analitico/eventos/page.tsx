@@ -12,6 +12,7 @@ import {
   BarChart3,
   ClipboardList,
   LayoutDashboard,
+  Target,
   Users,
 } from 'lucide-react';
 import { EventoResponse } from './components/types';
@@ -20,6 +21,7 @@ import { TabVisaoGeral } from './components/TabVisaoGeral';
 import { TabRelatorios } from './components/TabRelatorios';
 import { TabPublico } from './components/TabPublico';
 import { TabQualidade } from './components/TabQualidade';
+import { TabPlanejado } from './components/TabPlanejado';
 
 function ontem() {
   const d = new Date();
@@ -179,10 +181,14 @@ function EventosAnaliticoInner() {
             <EventoContexto data={evento} dataSelecionada={dataSelecionada} />
 
             <Tabs defaultValue="visao" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-grid md:grid-cols-4">
+              <TabsList className="grid w-full grid-cols-3 md:w-auto md:inline-grid md:grid-cols-5">
                 <TabsTrigger value="visao" className="gap-1.5">
                   <LayoutDashboard className="w-4 h-4" />
                   <span className="hidden sm:inline">Visão Geral</span>
+                </TabsTrigger>
+                <TabsTrigger value="planejado" className="gap-1.5">
+                  <Target className="w-4 h-4" />
+                  <span className="hidden sm:inline">Planejado vs Real</span>
                 </TabsTrigger>
                 <TabsTrigger value="relatorios" className="gap-1.5">
                   <BarChart3 className="w-4 h-4" />
@@ -200,6 +206,9 @@ function EventosAnaliticoInner() {
 
               <TabsContent value="visao" className="mt-4">
                 <TabVisaoGeral data={evento} />
+              </TabsContent>
+              <TabsContent value="planejado" className="mt-4">
+                <TabPlanejado data={evento} gran={granularidade} />
               </TabsContent>
               <TabsContent value="relatorios" className="mt-4">
                 <TabRelatorios
