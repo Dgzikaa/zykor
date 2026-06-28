@@ -101,8 +101,8 @@ export default function DesviosPage() {
   const [aba, setAba] = useState('insumos');
   const [soCurvaA, setSoCurvaA] = useState(false);
   const [filtroDado, setFiltroDado] = useState<'sem_contagem' | 'sem_ficha' | null>(null);
+  const [filtroArea, setFiltroArea] = useState<string | null>(null);
   const [rowsProt, setRowsProt] = useState<any[]>([]);
-  const [protHead, setProtHead] = useState<any>(null);
   const [protAnalise, setProtAnalise] = useState<any>(null);
   const [loadingAba, setLoadingAba] = useState(false);
 
@@ -136,7 +136,7 @@ export default function DesviosPage() {
     setLoadingAba(true);
     try {
       const r = await api.get(`/api/operacional/desvios?ini=${ini}&fim=${fim}&aba=proteina&tipo=${tipo}`);
-      if (r.success) { setRowsProt(r.itens || []); setProtHead(r.headline || null); setProtAnalise(r.analise || null); }
+      if (r.success) { setRowsProt(r.itens || []); setProtAnalise(r.analise || null); }
     } finally { setLoadingAba(false); }
   }, [barId, ini, fim, aba, tipo]);
   useEffect(() => { carregarAba(); }, [carregarAba]);
@@ -174,8 +174,9 @@ export default function DesviosPage() {
       && (tipo === 'diaria' || i.tem_ficha)
       && (!soCurvaA || i.curva_a === true)
       && (!filtroDado || i.dado_faltando === filtroDado)
+      && (!filtroArea || i.area === filtroArea)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
-  }, [res, busca, tipo, soCurvaA, filtroDado]);
+  }, [res, busca, tipo, soCurvaA, filtroDado, filtroArea]);
 
   // contadores dos chips de filtro (igual /operacional/insumos) — base = aba ativa sem o filtro Curva A
   const baseRows = useMemo(() => {
@@ -189,8 +190,21 @@ export default function DesviosPage() {
   const cntCurvaA = baseRows.filter((i: any) => i.curva_a === true).length;
   const cntSemContagem = baseRows.filter((i: any) => i.dado_faltando === 'sem_contagem').length;
   const cntSemFicha = baseRows.filter((i: any) => i.dado_faltando === 'sem_ficha').length;
+  // contagem por área (chips de filtro por área) — só Insumos
+  const areaList = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const i of baseRows) m[i.area] = (m[i.area] || 0) + 1;
+    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+  }, [baseRows]);
 
-  const h = res?.headline;
+  // headline acompanha o filtro: soma o desvio_rs da view atual de cada aba (exclui pendente)
+  const headFrom = (rows: any[]) => rows.reduce((a: any, i: any) => {
+    if (i.pendente) return a; const v = Number(i.desvio_rs || 0);
+    a.desvio_total += v; if (v < 0) a.perdas += v; else a.sobras += v; return a;
+  }, { desvio_total: 0, perdas: 0, sobras: 0 });
+  const h = useMemo(() => headFrom(itensView), [itensView]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hProd = useMemo(() => headFrom(prodView), [prodView]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hProt = useMemo(() => headFrom(protView), [protView]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
@@ -236,11 +250,14 @@ export default function DesviosPage() {
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9" />
           </div>
-          {/* Filtros (contadores clicáveis, igual /operacional/insumos). Curva A no semanal/mensal; "dado faltando" sempre que houver */}
-          {aba !== 'proteinas' && (tipo !== 'diaria' || cntSemContagem > 0 || cntSemFicha > 0) && (
+          {/* Filtros (contadores clicáveis, igual /operacional/insumos): total, Curva A, área, dado faltando */}
+          {(aba === 'insumos' || (aba === 'producoes' && tipo !== 'diaria')) && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              {tipo !== 'diaria' && <button onClick={() => { setSoCurvaA(false); setFiltroDado(null); }}><Badge variant="outline" className={`cursor-pointer ${!soCurvaA && !filtroDado ? 'ring-1 ring-emerald-400' : ''}`}>{cntTotal} {aba === 'producoes' ? 'produções' : 'insumos'}</Badge></button>}
-              {tipo !== 'diaria' && cntCurvaA > 0 && <button onClick={() => { setSoCurvaA(true); setFiltroDado(null); }}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${soCurvaA ? 'ring-1 ring-indigo-400' : ''}`}>{cntCurvaA} curva A</Badge></button>}
+              <button onClick={() => { setSoCurvaA(false); setFiltroDado(null); setFiltroArea(null); }}><Badge variant="outline" className={`cursor-pointer ${!soCurvaA && !filtroDado && !filtroArea ? 'ring-1 ring-emerald-400' : ''}`}>{cntTotal} {aba === 'producoes' ? 'produções' : 'insumos'}</Badge></button>
+              {tipo !== 'diaria' && cntCurvaA > 0 && <button onClick={() => { setSoCurvaA(true); setFiltroDado(null); setFiltroArea(null); }}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${soCurvaA ? 'ring-1 ring-indigo-400' : ''}`}>{cntCurvaA} curva A</Badge></button>}
+              {aba === 'insumos' && areaList.length > 1 && areaList.map(([a, n]) => (
+                <button key={a} onClick={() => setFiltroArea(f => f === a ? null : a)}><Badge variant="outline" className={`cursor-pointer ${filtroArea === a ? 'ring-1 ring-violet-400 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300' : 'text-gray-600 dark:text-gray-300'}`}>{n} {a}</Badge></button>
+              ))}
               {aba === 'insumos' && cntSemContagem > 0 && <button onClick={() => setFiltroDado(f => f === 'sem_contagem' ? null : 'sem_contagem')}><Badge variant="outline" className={`cursor-pointer text-amber-700 dark:text-amber-400 border-amber-300 ${filtroDado === 'sem_contagem' ? 'ring-1 ring-amber-400 bg-amber-50 dark:bg-amber-900/20' : ''}`}>⚠ {cntSemContagem} sem contagem final</Badge></button>}
               {aba === 'insumos' && cntSemFicha > 0 && <button onClick={() => setFiltroDado(f => f === 'sem_ficha' ? null : 'sem_ficha')}><Badge variant="outline" className={`cursor-pointer text-amber-700 dark:text-amber-400 border-amber-300 ${filtroDado === 'sem_ficha' ? 'ring-1 ring-amber-400 bg-amber-50 dark:bg-amber-900/20' : ''}`}>⚠ {cntSemFicha} sem ficha</Badge></button>}
             </div>
@@ -285,8 +302,8 @@ export default function DesviosPage() {
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${it.pendente ? 'text-gray-300' : it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : `${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.pendente ? 'text-gray-300' : it.desvio_rs < -1 ? 'text-red-600 dark:text-red-400' : it.desvio_rs > 1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
-                    {it.pendente ? '—' : <>{it.desvio_rs < 0 ? <TrendingDown className="w-3 h-3 inline mr-0.5" /> : it.desvio_rs > 0 ? <TrendingUp className="w-3 h-3 inline mr-0.5" /> : null}{fmtBRL(it.desvio_rs)}</>}
+                  <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.pendente ? 'text-gray-300' : it.desvio_rs < -10 ? 'text-red-600 dark:text-red-400' : it.desvio_rs > 10 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
+                    {it.pendente ? '—' : <>{it.desvio_rs < -10 ? <TrendingDown className="w-3 h-3 inline mr-0.5" /> : it.desvio_rs > 10 ? <TrendingUp className="w-3 h-3 inline mr-0.5" /> : null}{fmtBRL(it.desvio_rs)}</>}
                   </td>
                 </tr>
               ))}
@@ -297,7 +314,7 @@ export default function DesviosPage() {
 
           {/* ===== PRODUÇÕES (Controle de Produção → ContaHub) ===== */}
           <TabsContent value="producoes" className="space-y-3 mt-3">
-            <HeadCards head={res?.headline_producao} />
+            <HeadCards head={hProd} />
             <AnaliseBlock analise={res?.analise_producao} tipo={tipo} />
             <p className="text-xs text-gray-500 dark:text-gray-400">Balanço da produção: estoque ini + <b>Produzido</b> (fornadas na diária) − saída teórica (vendas×ficha) − desperdício. {editavel ? 'Na diária você lança as fornadas.' : 'Semanal/mensal somam as fornadas do dia.'} Diária só Curva A.</p>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
@@ -326,7 +343,7 @@ export default function DesviosPage() {
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
                       <td className={`px-3 py-2 text-right tabular-nums ${it.pendente ? 'text-gray-300' : it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : `${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.pendente ? 'text-gray-300' : it.desvio_rs < -1 ? 'text-red-600 dark:text-red-400' : it.desvio_rs > 1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : fmtBRL(it.desvio_rs)}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.pendente ? 'text-gray-300' : it.desvio_rs < -10 ? 'text-red-600 dark:text-red-400' : it.desvio_rs > 10 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : fmtBRL(it.desvio_rs)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -336,7 +353,7 @@ export default function DesviosPage() {
 
           {/* ===== PROTEÍNAS (VMarket → Utilizado Produção) ===== */}
           <TabsContent value="proteinas" className="space-y-3 mt-3">
-            <HeadCards head={protHead} />
+            <HeadCards head={hProt} />
             <AnaliseBlock analise={protAnalise} tipo={tipo} />
             <p className="text-xs text-gray-500 dark:text-gray-400">Balanço da proteína: estoque ini + <b>Compras</b> (VMarket) − <b>Utilizado Produção</b> (fornadas × proteína na ficha — automático) − desperdício. Desvio negativo = faltou (perda/furo). Em kg.</p>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
@@ -365,7 +382,7 @@ export default function DesviosPage() {
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
                       <td className={`px-3 py-2 text-right tabular-nums ${it.desvio_qtd < -0.05 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0.05 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.desvio_qtd > 0 ? '+' : ''}{fmtQtd(it.desvio_qtd)}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.desvio_rs < -1 ? 'text-red-600 dark:text-red-400' : it.desvio_rs > 1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{fmtBRL(it.desvio_rs)}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.desvio_rs < -10 ? 'text-red-600 dark:text-red-400' : it.desvio_rs > 10 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{fmtBRL(it.desvio_rs)}</td>
                     </tr>
                   ))}
                 </tbody>
