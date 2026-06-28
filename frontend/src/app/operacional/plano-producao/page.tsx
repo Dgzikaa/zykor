@@ -195,19 +195,19 @@ export default function PlanoProducaoPage() {
         <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
-              <th className="text-left font-medium px-3 py-2 whitespace-nowrap">Produção</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap" title="Uso indireto da última semana (clique p/ abrir as 6 semanas)">Uso Indireto</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap" title="Média ponderada do uso indireto das últimas 6 semanas — peso maior para a semana mais recente; semana em branco fica fora. Clique no valor para ver as semanas.">Média 6s</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap" title="Desvio padrão amostral das 6 semanas">Desv. padrão</th>
-              <th className="text-center font-medium px-3 py-2 whitespace-nowrap" title="Define o fator de segurança do Ponto de Ressuprimento">Nível de Serviço</th>
-              <th className="text-center font-medium px-3 py-2 whitespace-nowrap" title="Quantas semanas de receita produzir de uma vez">Qtde x Semanas</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap" title="Ponto de Ressuprimento = média + desvio × fator de serviço">PR</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap" title="Última contagem (início da semana planejada)">Estoque Atual</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap" title="Estoque ÷ ritmo diário (÷6)">Dias de Estoque</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap" title="Aviso (não muda a sugestão): quanto deste preparo a produção planejada dos pais vai consumir">Qtde p/ pais</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap">Sugestão</th>
-              {planejando && <th className="text-right font-medium px-3 py-2 whitespace-nowrap" title="O que foi decidido na reunião (receitas)">Decidido</th>}
-              {planejando && <th className="text-center font-medium px-3 py-2 whitespace-nowrap">Dia</th>}
+              <th className="text-left font-medium px-3 py-2">Produção</th>
+              <th className="text-right font-medium px-3 py-2" title="Uso indireto da última semana (clique p/ abrir as 6 semanas)">Uso Indireto</th>
+              <th className="text-right font-medium px-3 py-2" title="Média ponderada do uso indireto das últimas 6 semanas — peso maior para a semana mais recente; semana em branco fica fora. Clique no valor para ver as semanas.">Média 6s</th>
+              <th className="text-right font-medium px-3 py-2" title="Desvio padrão amostral das 6 semanas">Desv. padrão</th>
+              <th className="text-center font-medium px-3 py-2" title="Define o fator de segurança do Ponto de Ressuprimento">Nível de Serviço</th>
+              <th className="text-center font-medium px-3 py-2" title="Quantas semanas de receita produzir de uma vez">Qtde x Semanas</th>
+              <th className="text-right font-medium px-3 py-2" title="Ponto de Ressuprimento = média + desvio × fator de serviço">PR</th>
+              <th className="text-right font-medium px-3 py-2" title="Última contagem (início da semana planejada)">Estoque Atual</th>
+              <th className="text-right font-medium px-3 py-2" title="Estoque ÷ ritmo diário (÷6)">Dias de Estoque</th>
+              <th className="text-right font-medium px-3 py-2" title="Aviso (não muda a sugestão): quanto deste preparo a produção planejada dos pais vai consumir">Qtde p/ pais</th>
+              <th className="text-right font-medium px-3 py-2">Sugestão</th>
+              {planejando && <th className="text-right font-medium px-3 py-2" title="O que foi decidido na reunião (receitas)">Decidido</th>}
+              {planejando && <th className="text-center font-medium px-3 py-2">Dia</th>}
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading ? <tr><td colSpan={nCols} className="px-3 py-12 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
@@ -220,7 +220,7 @@ export default function PlanoProducaoPage() {
                 return (
                 <Fragment key={it.producao_id}>
                 <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
+                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">
                       <button onClick={() => toggleFlag(it)} title={it.controle_producao ? 'Sai do controle de produção' : 'Entra no controle de produção'} className={`w-2.5 h-2.5 rounded-full ${it.controle_producao ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
                       {it.nome}{it.curva_a && <Badge variant="outline" className="text-[10px] text-indigo-600 border-indigo-300">A</Badge>}
