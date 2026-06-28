@@ -24,6 +24,9 @@ const isoDate = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).p
 // padrão = ontem (o dia atual ainda não tem dado consolidado)
 const ontemISO = () => { const d = new Date(); d.setDate(d.getDate() - 1); return isoDate(d); };
 const fmtDataBR = (s: string) => s.split('-').reverse().join('/');
+const fmtDM = (dt: Date) => `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`;
+// segunda-feira da semana de uma data ISO
+const mondayOfISO = (iso: string) => { const d = new Date(iso + 'T00:00:00'); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return isoDate(d); };
 function calcRange(gran: 'dia' | 'semana' | 'mes', ref: string): { ini: string; fim: string } {
   const dt = new Date(ref + 'T00:00:00');
   if (gran === 'dia') return { ini: ref, fim: ref };
@@ -53,6 +56,18 @@ export default function SaidasPage() {
   const [gran, setGran] = useState<'dia' | 'semana' | 'mes'>('dia');
   const [dataRef, setDataRef] = useState(ontemISO());
   const range = useMemo(() => calcRange(gran, dataRef), [gran, dataRef]);
+  // opções de mês (12 últimos) e semana (16 últimas, seg→dom) pro seletor
+  const mesOptions = useMemo(() => {
+    const out: { val: string; label: string }[] = []; const t = new Date();
+    for (let i = 0; i < 12; i++) { const d = new Date(t.getFullYear(), t.getMonth() - i, 1); out.push({ val: isoDate(d), label: d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) }); }
+    return out;
+  }, []);
+  const semanaOptions = useMemo(() => {
+    const out: { val: string; label: string }[] = []; const t = new Date();
+    const dow = (t.getDay() + 6) % 7; const cur = new Date(t); cur.setDate(t.getDate() - dow);
+    for (let i = 0; i < 16; i++) { const m = new Date(cur); m.setDate(cur.getDate() - i * 7); const s = new Date(m); s.setDate(m.getDate() + 6); out.push({ val: isoDate(m), label: `${fmtDM(m)} – ${fmtDM(s)}` }); }
+    return out;
+  }, []);
 
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -141,7 +156,17 @@ export default function SaidasPage() {
 
         <div className="flex flex-wrap items-center gap-2">
           {btnGran('dia', 'Dia')}{btnGran('semana', 'Semana')}{btnGran('mes', 'Mês')}
-          <Input type="date" value={dataRef} onChange={e => setDataRef(e.target.value)} className="w-auto h-8" />
+          {gran === 'dia' && <Input type="date" value={dataRef} onChange={e => setDataRef(e.target.value)} className="w-auto h-8" />}
+          {gran === 'mes' && (
+            <select value={`${dataRef.slice(0, 7)}-01`} onChange={e => setDataRef(e.target.value)} className="h-8 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm px-2 capitalize">
+              {mesOptions.map(o => <option key={o.val} value={o.val} className="capitalize">{o.label}</option>)}
+            </select>
+          )}
+          {gran === 'semana' && (
+            <select value={mondayOfISO(dataRef)} onChange={e => setDataRef(e.target.value)} className="h-8 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm px-2">
+              {semanaOptions.map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
+            </select>
+          )}
           <span className="text-sm text-gray-500 dark:text-gray-400">{range.ini === range.fim ? fmtDataBR(range.ini) : `${fmtDataBR(range.ini)} → ${fmtDataBR(range.fim)}`}</span>
           <div className="relative ml-auto"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9 h-8 w-56" /></div>
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={!view.length}><Download className="w-4 h-4 mr-1.5" />CSV</Button>
