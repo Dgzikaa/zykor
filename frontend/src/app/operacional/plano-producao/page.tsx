@@ -204,7 +204,7 @@ export default function PlanoProducaoPage() {
               <th className="text-right font-medium px-3 py-2" title="Ponto de Ressuprimento = média + desvio × fator de serviço">PR</th>
               <th className="text-right font-medium px-3 py-2" title="Última contagem (início da semana planejada)">Estoque Atual</th>
               <th className="text-right font-medium px-3 py-2" title="Estoque ÷ ritmo diário (÷6)">Dias de Estoque</th>
-              <th className="text-right font-medium px-3 py-2" title="Quanto deste preparo a produção planejada dos pais (porções) vai consumir — cascata">Consumo Interno</th>
+              <th className="text-right font-medium px-3 py-2" title="Aviso (não muda a sugestão): quanto deste preparo a produção planejada dos pais vai consumir">Qtde p/ pais</th>
               <th className="text-right font-medium px-3 py-2">Sugestão</th>
               {planejando && <th className="text-right font-medium px-3 py-2" title="O que foi decidido na reunião (receitas)">Decidido</th>}
               {planejando && <th className="text-center font-medium px-3 py-2">Dia</th>}
