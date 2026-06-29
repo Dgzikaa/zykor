@@ -138,6 +138,27 @@ export async function GET(request: NextRequest) {
   const semanaSel = pedida && comContagem.includes(pedida) ? pedida : latest;
   const semana = { ini: semanaSel, fim: addDias(semanaSel, 6) };
 
+  // Calendarização da semana p/ o Controle de Produção: itens dos planos ENCERRADOS
+  // (o que foi finalizado e mandado produzir), com o dia e a quantidade decidida.
+  if (sp.get('calendario')) {
+    const { data: planos } = await ops().from('producao_plano')
+      .select('id, area').eq('bar_id', barId).eq('semana_ini', semanaSel).eq('status', 'encerrado');
+    const ids = (planos || []).map((p: any) => p.id);
+    const areaDeId = new Map((planos || []).map((p: any) => [p.id, p.area]));
+    let itensCal: any[] = [];
+    if (ids.length) {
+      const { data: its } = await ops().from('producao_plano_item')
+        .select('plano_id, producao_id, producao_cod, producao_nome, decidido_receitas, decidido_qtd, dia_producao, unidade')
+        .in('plano_id', ids);
+      itensCal = (its || []).filter((it: any) => Number(it.decidido_receitas) > 0)
+        .map((it: any) => ({ ...it, area: areaDeId.get(it.plano_id) || 'Cozinha' }));
+    }
+    return NextResponse.json({
+      success: true, semana, semana_sel: semanaSel, semana_ativa: latest,
+      semanas_disponiveis: semanasDisponiveis, itens: itensCal,
+    });
+  }
+
   const [{ data: evs }, { data: planosRows }] = await Promise.all([
     ops().from('feriados_eventos').select('data,nome').gte('data', semana.ini).lte('data', semana.fim),
     ops().from('producao_plano').select('*').eq('bar_id', barId).eq('semana_ini', semanaSel),

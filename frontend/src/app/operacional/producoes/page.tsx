@@ -83,12 +83,28 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
     return () => clearInterval(t);
   }, []);
 
-  // calendarização do dia: o que o planejamento encerrado mandou produzir hoje
-  const [planHoje, setPlanHoje] = useState<any[]>([]);
+  // calendarização da semana: conversa com o Planejamento da Produção (mesmo time-frame).
+  // Mostra o que/quanto foi planejado por dia (planos encerrados) p/ a semana selecionada.
+  const [planSemana, setPlanSemana] = useState<any | null>(null);
+  const [semanaSel, setSemanaSel] = useState<string | null>(null);
   useEffect(() => {
     if (!barId) return;
-    api.get('/api/operacional/plano-producao?hoje=1').then(r => { if (r?.success) setPlanHoje(r.itens || []); }).catch(() => {});
-  }, [barId]);
+    const qs = semanaSel ? `?calendario=1&semana=${encodeURIComponent(semanaSel)}` : '?calendario=1';
+    api.get(`/api/operacional/plano-producao${qs}`).then(r => { if (r?.success) setPlanSemana(r); }).catch(() => {});
+  }, [barId, semanaSel]);
+
+  const DIAS_LBL = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  const hojeIso = new Date().toISOString().slice(0, 10);
+  const diasPlano = useMemo(() => {
+    const ini = planSemana?.semana?.ini;
+    if (!ini) return [];
+    const [y, m, d] = ini.split('-').map(Number);
+    return Array.from({ length: 7 }, (_, i) => {
+      const iso = new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10);
+      return { iso, label: `${DIAS_LBL[i]} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`, itens: (planSemana.itens || []).filter((it: any) => it.dia_producao === iso) };
+    });
+  }, [planSemana]);
+  const semDia = useMemo(() => (planSemana?.itens || []).filter((it: any) => !it.dia_producao), [planSemana]);
 
   const secaoDe = (f: any) => (f.codigo || '').toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha';
   const fichasControle = useMemo(() => fichas.filter(f => f.controle_producao), [fichas]);
@@ -227,28 +243,53 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
 
   return (
     <div className="space-y-4">
-      {/* Planejado para hoje (calendarização do planejamento encerrado) */}
-      {planHoje.length > 0 && (
+      {/* Calendário do Planejamento da Produção (mesma semana do Planejamento) */}
+      {planSemana && (
         <Card className="card-dark border-violet-200 dark:border-violet-900/40">
-          <CardContent className="py-3 space-y-2">
-            <div className="text-sm font-medium text-violet-700 dark:text-violet-300 flex items-center gap-1.5">
-              <CalendarCheck className="w-4 h-4" />Planejado para hoje ({planHoje.length})
+          <CardContent className="py-3 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-sm font-medium text-violet-700 dark:text-violet-300 flex items-center gap-1.5">
+                <CalendarCheck className="w-4 h-4" />Planejamento da produção
+              </div>
+              <select value={semanaSel ?? planSemana.semana_sel ?? ''} onChange={e => setSemanaSel(e.target.value)}
+                className="text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent px-2 py-1 cursor-pointer">
+                {(planSemana.semanas_disponiveis || []).map((s: any) => {
+                  const dm = (x: string) => x.split('-').reverse().slice(0, 2).join('/');
+                  return <option key={s.ini} value={s.ini} disabled={!s.tem_contagem} className="text-gray-900">{dm(s.ini)} – {dm(s.fim)}{s.tem_contagem ? '' : ' (aguardando contagem)'}</option>;
+                })}
+              </select>
+              <span className="text-xs text-gray-400">clique numa produção pra iniciar (ou faça outra coisa)</span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {planHoje.map((it: any) => {
-                const f = fichas.find(x => x.id === it.producao_id);
-                const qtdRec = it.decidido_receitas ?? null;
-                return (
-                  <button key={it.producao_id} onMouseDown={() => f && adicionar(f)} disabled={!f}
-                    title={f ? 'Adicionar ao cronômetro' : 'Ficha indisponível para esse bar'}
-                    className="inline-flex items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20 px-3 py-1.5 text-sm hover:bg-violet-100 dark:hover:bg-violet-900/40 disabled:opacity-50">
-                    <Plus className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
-                    <span className="text-gray-900 dark:text-gray-100">{it.producao_nome}</span>
-                    {qtdRec != null && <span className="text-[11px] text-violet-600 dark:text-violet-400">{fmtNum(qtdRec, 0)} rec.</span>}
-                  </button>
-                );
-              })}
-            </div>
+
+            {(planSemana.itens || []).length === 0 ? (
+              <p className="text-xs text-gray-500 dark:text-gray-400">Nenhum planejamento encerrado para esta semana. Finalize o planejamento em <b>Planejamento da Produção</b> pra a calendarização aparecer aqui.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                {diasPlano.map((d) => (
+                  <div key={d.iso} className={`rounded-lg border p-2 min-h-[64px] ${d.iso === hojeIso ? 'border-violet-400 bg-violet-50/60 dark:bg-violet-900/20' : 'border-gray-200 dark:border-gray-700'}`}>
+                    <div className={`text-[11px] font-medium mb-1.5 ${d.iso === hojeIso ? 'text-violet-700 dark:text-violet-300' : 'text-gray-500 dark:text-gray-400'}`}>{d.label}{d.iso === hojeIso ? ' · hoje' : ''}</div>
+                    <div className="space-y-1">
+                      {d.itens.length === 0 ? <span className="text-[11px] text-gray-300 dark:text-gray-600">—</span>
+                        : d.itens.map((it: any) => {
+                          const f = fichas.find(x => x.id === it.producao_id);
+                          return (
+                            <button key={it.producao_id} onMouseDown={() => f && adicionar(f)} disabled={!f}
+                              title={f ? 'Adicionar ao cronômetro' : 'Ficha indisponível p/ este bar'}
+                              className="w-full text-left inline-flex items-center gap-1 rounded border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20 px-1.5 py-1 text-[11px] hover:bg-violet-100 dark:hover:bg-violet-900/40 disabled:opacity-50">
+                              <Plus className="w-3 h-3 text-violet-600 dark:text-violet-400 shrink-0" />
+                              <span className="text-gray-900 dark:text-gray-100 truncate">{it.producao_nome}</span>
+                              <span className="ml-auto text-violet-600 dark:text-violet-400 shrink-0">{fmtNum(it.decidido_receitas, 0)}</span>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {semDia.length > 0 && (
+              <div className="text-[11px] text-amber-600 dark:text-amber-400">⚠ {semDia.length} produç{semDia.length > 1 ? 'ões' : 'ão'} planejada{semDia.length > 1 ? 's' : ''} sem dia definido (defina o dia no Planejamento p/ aparecer no calendário).</div>
+            )}
           </CardContent>
         </Card>
       )}
