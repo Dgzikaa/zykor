@@ -118,6 +118,45 @@ function parse(rows: unknown[][], fromISO: string, toISODate: string): BronzeRec
   return [...agg.values()]
 }
 
+/**
+ * Parser da aba "LIMPEZA E DESCARTÁVEIS" (modelo enxuto): linha 1 = datas (na coluna
+ * ESTOQUE de cada semana), linha 2 = cabeçalho, dados a partir da linha 3. Código na
+ * col 1 (d0XXX), item na col 4, preço na col 0. Por semana só há ESTOQUE (sem flutuante).
+ */
+function parseLimpeza(rows: unknown[][], fromISO: string, toISODate: string): BronzeRec[] {
+  const dateRow = (rows[1] || []) as unknown[]
+  const header = (rows[2] || []) as unknown[]
+  const precoCol = findPrecoCol(rows)
+  const dcols: { c: number; iso: string }[] = []
+  for (let c = 0; c < dateRow.length; c++) {
+    const iso = toISO(dateRow[c])
+    if (iso && iso >= fromISO && iso <= toISODate) {
+      const h = String(header[c] || '').toUpperCase()
+      // coluna ESTOQUE da semana (não confundir com "Estoque Ideal" nem "Sug PEDIDO")
+      if (h.includes('ESTOQUE') && !h.includes('IDEAL')) dcols.push({ c, iso })
+    }
+  }
+  const agg = new Map<string, BronzeRec>()
+  for (const { c, iso } of dcols) {
+    for (let i = 3; i < rows.length; i++) {
+      const row = rows[i] as unknown[]
+      if (!row) continue
+      const cod = String(row[1] || '').trim().toUpperCase()
+      const nome = String(row[4] || '').trim()
+      if (!cod || !nome || !/^D\d/.test(cod)) continue // só códigos d0XXX
+      const v = row[c]
+      const fechado = typeof v === 'number' ? v : null
+      if (fechado === null) continue // semana sem contagem (célula vazia) → ignora
+      const preco = precoCol >= 0 ? toNum(row[precoCol]) : null
+      const key = `${iso}|${cod}`
+      if (!agg.has(key)) {
+        agg.set(key, { data_contagem: iso, insumo_codigo: cod, insumo_nome: nome, estoque_fechado: fechado, estoque_flutuante: null, preco_planilha: preco })
+      }
+    }
+  }
+  return [...agg.values()]
+}
+
 async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtras: number) {
   const sheetId = SHEETS[bar]
   if (!sheetId) throw new Error(`sem planilha para bar ${bar}`)
@@ -125,7 +164,19 @@ async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtr
   const from = new Date(Date.now() - diasAtras * 86400000).toISOString().slice(0, 10)
 
   const rows = await fetchSheet(sheetId)
-  const recs = parse(rows, from, today)
+  const recsInsumos = parse(rows, from, today)
+
+  // Aba LIMPEZA E DESCARTÁVEIS (classe=limpeza). Códigos d0XXX, sem flutuante.
+  // Pode não existir em todo bar → try/catch pra não derrubar o sync de insumos.
+  let recsLimpeza: BronzeRec[] = []
+  try {
+    const limpezaRows = await fetchSheet(sheetId, 'LIMPEZA E DESCARTÁVEIS!A1:CZ200')
+    recsLimpeza = parseLimpeza(limpezaRows, from, today)
+  } catch (e) {
+    console.log(`[sync] aba LIMPEZA indisponível p/ bar ${bar}: ${String((e as Error)?.message ?? e)}`)
+  }
+
+  const recs = [...recsInsumos, ...recsLimpeza]
 
   // BRONZE: linhas cruas (tidy) da planilha
   const now = new Date().toISOString()
@@ -159,7 +210,7 @@ async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtr
     .rpc('fn_refresh_contagem_estoque', { p_bar: bar, p_dias: diasAtras })
   if (re) throw re
 
-  return { bar, janela: { from, to: today }, bronze: landed, upserted }
+  return { bar, janela: { from, to: today }, bronze: landed, limpeza: recsLimpeza.length, upserted }
 }
 
 Deno.serve(async (req: Request) => {
