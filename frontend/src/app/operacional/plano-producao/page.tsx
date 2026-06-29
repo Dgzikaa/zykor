@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
-import { ChefHat, Search, Loader2, CalendarDays, Sparkles, RefreshCw, Play, Lock, Unlock, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Beer } from 'lucide-react';
+import { ChefHat, Search, Loader2, CalendarDays, Sparkles, RefreshCw, Play, Lock, Unlock, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Beer, X } from 'lucide-react';
 
 const fmtN = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const comUni = (v: any, un?: string) => v == null ? '—' : `${fmtN(v)}${un ? ` ${un}` : ''}`; // número com unidade de medida
@@ -149,6 +149,13 @@ export default function PlanoProducaoPage() {
   const contagemOk = !!res?.contagem?.data;
   const planejando = emRascunho || encerrado;
   const nCols = planejando ? 13 : 11; // colunas da tabela (com/sem Decidido+Dia)
+  const semanaEhAtiva = !!semanaAtual && semanaAtual === res?.semana_ativa; // só a semana ativa é planejável; anteriores = consulta
+
+  const cancelar = async () => {
+    if (!plano?.id) return;
+    if (!window.confirm(`Cancelar o planejamento de ${aba} desta semana? Tudo que foi decidido será apagado.`)) return;
+    await acao('cancelar', { plano_id: plano.id });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
@@ -174,9 +181,15 @@ export default function PlanoProducaoPage() {
 
           <div className="flex-1" />
 
-          {!plano && <button disabled={!contagemOk || salvando} onClick={() => acao('iniciar', { area: aba, semana: semanaAtual })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"><Play className="w-4 h-4" />Iniciar planejamento ({aba})</button>}
-          {emRascunho && <><span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-3 py-1">{aba} em planejamento (rascunho)</span><button disabled={salvando} onClick={() => acao('encerrar', { plano_id: plano.id })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"><Lock className="w-4 h-4" />Encerrar e calendarizar</button></>}
-          {encerrado && <><span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 px-3 py-1"><CheckCircle2 className="w-4 h-4" />Encerrado — foi pro Controle de Produção</span><button disabled={salvando} onClick={() => acao('reabrir', { plano_id: plano.id })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"><Unlock className="w-4 h-4" />Reabrir</button></>}
+          {!plano && (semanaEhAtiva
+            ? <button disabled={!contagemOk || salvando} onClick={() => acao('iniciar', { area: aba, semana: semanaAtual })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"><Play className="w-4 h-4" />Iniciar planejamento ({aba})</button>
+            : <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 px-3 py-1">Semana anterior — só consulta</span>)}
+          {emRascunho && <>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-3 py-1">{aba} em planejamento (rascunho){!semanaEhAtiva && ' — semana anterior'}</span>
+            {semanaEhAtiva && <button disabled={salvando} onClick={() => acao('encerrar', { plano_id: plano.id })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"><Lock className="w-4 h-4" />Encerrar e calendarizar</button>}
+            <button disabled={salvando} onClick={cancelar} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"><X className="w-4 h-4" />Cancelar planejamento</button>
+          </>}
+          {encerrado && <><span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 px-3 py-1"><CheckCircle2 className="w-4 h-4" />Encerrado — foi pro Controle de Produção</span>{semanaEhAtiva && <button disabled={salvando} onClick={() => acao('reabrir', { plano_id: plano.id })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"><Unlock className="w-4 h-4" />Reabrir</button>}</>}
         </div>
 
         {/* Resumo */}

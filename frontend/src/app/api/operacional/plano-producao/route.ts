@@ -168,7 +168,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    semana, semana_sel: semanaSel, semanas_disponiveis: semanasDisponiveis,
+    semana, semana_sel: semanaSel, semana_ativa: latest, semanas_disponiveis: semanasDisponiveis,
     contagem: { data: comContagem.includes(semanaSel) ? semanaSel : null },
     planos,
     eventos: (evs || []).map((e: any) => ({ data: e.data, nome: e.nome })),
@@ -209,10 +209,11 @@ export async function POST(request: NextRequest) {
       const area = body.area === 'Bar' ? 'Bar' : 'Cozinha';
       const semanaIni = String(body.semana || '');
       if (!semanaIni) return NextResponse.json({ success: false, error: 'semana obrigatória' }, { status: 400 });
-      // gate: a semana precisa ter contagem
+      // gate: só dá pra planejar a semana ATIVA (a mais recente com contagem). Anteriores = só consulta.
       const { data: sem } = await (sb() as any).schema('gold').rpc('fn_semanas_com_contagem', { p_bar: barId });
-      const tem = (sem || []).some((s: any) => s.semana_ini === semanaIni);
-      if (!tem) return NextResponse.json({ success: false, error: `A semana ${semanaIni.split('-').reverse().join('/')} ainda não fechou (sem contagem).` }, { status: 409 });
+      const weeks = (sem || []).map((s: any) => s.semana_ini);
+      if (!weeks.includes(semanaIni)) return NextResponse.json({ success: false, error: `A semana ${semanaIni.split('-').reverse().join('/')} ainda não fechou (sem contagem).` }, { status: 409 });
+      if (semanaIni !== weeks[0]) return NextResponse.json({ success: false, error: `Só dá pra planejar a semana mais recente (${String(weeks[0]).split('-').reverse().join('/')}). Semanas anteriores são só consulta.` }, { status: 409 });
       const { data: plano, error } = await ops().from('producao_plano')
         .upsert({ bar_id: barId, semana_ini: semanaIni, area, status: 'rascunho', contagem_data: semanaIni, iniciado_por: quem }, { onConflict: 'bar_id,semana_ini,area' })
         .select().single();
@@ -278,6 +279,14 @@ export async function POST(request: NextRequest) {
       const planoId = Number(body.plano_id);
       if (!planoId) return NextResponse.json({ success: false, error: 'plano_id obrigatório' }, { status: 400 });
       const { error } = await ops().from('producao_plano').update({ status: 'rascunho', encerrado_por: null, encerrado_em: null }).eq('id', planoId).eq('bar_id', barId);
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true });
+    }
+    case 'cancelar': {
+      const planoId = Number(body.plano_id);
+      if (!planoId) return NextResponse.json({ success: false, error: 'plano_id obrigatório' }, { status: 400 });
+      // apaga o plano e seus itens (cascade); usado p/ descartar um planejamento iniciado por engano
+      const { error } = await ops().from('producao_plano').delete().eq('id', planoId).eq('bar_id', barId);
       if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
       return NextResponse.json({ success: true });
     }
