@@ -40,7 +40,8 @@ export function CadastrarItemModal({
     setLoading(true);
     try {
       const r = await api.get(`/api/operacional/estoque-cadastro?classe=${classe}`);
-      const it: CatalogoItem | undefined = (r.itens || []).find((i: CatalogoItem) => i.codigo === editCodigo);
+      const alvo = editCodigo.toUpperCase();
+      const it: CatalogoItem | undefined = (r.itens || []).find((i: CatalogoItem) => String(i.codigo).toUpperCase() === alvo);
       if (it) {
         setEditId(it.id); setEditNome(it.nome);
         setForm({
