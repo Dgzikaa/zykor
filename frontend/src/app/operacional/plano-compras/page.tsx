@@ -106,15 +106,15 @@ export default function PlanoComprasPage() {
         <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
-              <th className="text-left font-medium px-3 py-2 whitespace-nowrap">Insumo</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap" title="Uso direto da última semana (clique p/ as 6 semanas)">Uso Direto</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap" title="Média ponderada do uso direto das 6 semanas">Média 6s</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap">Desv. padrão</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap" title="Ponto de Ressuprimento = média + desvio × fator de serviço">PR</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap">Estoque Atual</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap" title="Necessidade da produção planejada (plano encerrado da semana)">p/ Produção</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap">Sugestão de Compra</th>
-              <th className="text-right font-medium px-3 py-2 whitespace-nowrap" title="O que apareceu de compra no Vmarket nesta semana">Comprado</th>
+              <th className="text-left font-medium px-2 py-2 w-px">Insumo</th>
+              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="Uso direto da última semana">Uso Direto</th>
+              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="Média ponderada do uso direto das 6 semanas">Média 6s</th>
+              <th className="text-right font-medium px-2 py-2 whitespace-nowrap">Desv. padrão</th>
+              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="Ponto de Ressuprimento = média + desvio × fator de serviço">PR</th>
+              <th className="text-right font-medium px-2 py-2 whitespace-nowrap">Estoque Atual</th>
+              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="Necessidade da produção planejada (plano encerrado da semana)">p/ Produção</th>
+              <th className="text-right font-medium px-2 py-2 whitespace-nowrap">Sugestão de Compra</th>
+              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="O que apareceu de compra no Vmarket nesta semana">Comprado</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading ? <tr><td colSpan={9} className="px-3 py-12 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
@@ -124,30 +124,30 @@ export default function PlanoComprasPage() {
                 return (
                 <Fragment key={it.codigo}>
                 <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap">
-                    {it.nome}{it.curva_a && <Badge variant="outline" className="ml-1.5 text-[10px] text-indigo-600 border-indigo-300">A</Badge>}
+                  <td className="px-2 py-2 text-gray-900 dark:text-gray-100 max-w-[230px] leading-tight">
+                    <span className="break-words">{it.nome}</span>{it.curva_a && <Badge variant="outline" className="ml-1.5 text-[10px] text-indigo-600 border-indigo-300">A</Badge>}
                     <span className="block text-[11px] text-gray-500 dark:text-gray-400 font-mono">{it.codigo}</span>
-                    <span className="block text-[11px] text-gray-400">{it.fornecedor || ''} · emb. {fmtMedida(it.embalagem, it.base)}</span>
+                    <span className="block text-[11px] text-gray-400 break-words">{it.fornecedor || ''} · emb. {fmtMedida(it.embalagem, it.base)}</span>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{fmtMedida(it.ultima, it.base)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{fmtMedida(it.ultima, it.base)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
                     <button onClick={() => setAberto(expandido ? null : it.codigo)} className="inline-flex items-center gap-1 hover:text-emerald-600 dark:hover:text-emerald-400" title="Ver as 6 semanas que formam a média">
                       {expandido ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}{fmtMedida(it.media6, it.base)}
                     </button>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmtN(it.desvpad)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-200 font-medium whitespace-nowrap">{fmtMedida(it.pr, it.base)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmtMedida(it.estoque, it.base)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{it.ab > 0 ? <span className="text-indigo-600 dark:text-indigo-400">{fmtMedida(it.ab, it.base)}</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                  <td className="px-2 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmtN(it.desvpad)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-gray-700 dark:text-gray-200 font-medium whitespace-nowrap">{fmtMedida(it.pr, it.base)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmtMedida(it.estoque, it.base)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{it.ab > 0 ? <span className="text-indigo-600 dark:text-indigo-400">{fmtMedida(it.ab, it.base)}</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
+                  <td className="px-2 py-2 text-right whitespace-nowrap">
                     {it.nao_comprar
                       ? <span className="text-gray-400 text-xs">Não comprar</span>
                       : <span className="inline-flex flex-col items-end"><span className="font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{fmtI(it.sugestao_qtd)} emb.</span><span className="text-[10px] text-gray-400">≈ {fmtMedida(it.sugestao_base, it.base)}</span></span>}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{it.comprado > 0 ? <span className="text-gray-700 dark:text-gray-200">{fmtI(it.comprado)} emb.</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
+                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{it.comprado > 0 ? <span className="text-gray-700 dark:text-gray-200">{fmtI(it.comprado)} emb.</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
                 </tr>
                 {expandido && <tr className="bg-gray-50/60 dark:bg-gray-800/30">
-                  <td colSpan={9} className="px-3 py-2">
+                  <td colSpan={9} className="px-2 py-2">
                     <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
                       <span className="font-medium text-gray-600 dark:text-gray-300">Uso direto por semana:</span>
                       {(it.semanas || []).map((wk: string, i: number) => {
