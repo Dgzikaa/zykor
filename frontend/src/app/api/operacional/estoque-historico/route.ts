@@ -38,34 +38,48 @@ export async function GET(request: NextRequest) {
   if (!['diaria', 'semanal', 'mensal'].includes(tipo)) {
     return NextResponse.json({ success: false, error: 'tipo inválido' }, { status: 400 });
   }
+  // Classe = tipo de item: insumo (padrão) | limpeza | utensilio.
+  const classe = spar.get('classe') || 'insumo';
+  if (!['insumo', 'limpeza', 'utensilio'].includes(classe)) {
+    return NextResponse.json({ success: false, error: 'classe inválida' }, { status: 400 });
+  }
+  const isLimpeza = classe === 'limpeza';
   const ops = (sb() as any).schema('operations');
   const silver = (sb() as any).schema('silver');
 
-  // histórico de datas desse tipo (datas vêm do operations; a silver espelha)
-  const { data: datasRaw, error: e1 } = await ops.rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo });
+  // histórico de datas desse tipo+classe (datas vêm do operations; a silver espelha)
+  const { data: datasRaw, error: e1 } = await ops.rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo, p_classe: classe });
   if (e1) return NextResponse.json({ success: false, error: e1.message }, { status: 500 });
   const datas = (datasRaw || []).map((d: any) => ({ data: d.data_contagem, itens: Number(d.itens || 0) }));
   const dataSel = spar.get('data') || datas[0]?.data || null;
-  if (!dataSel) return NextResponse.json({ success: true, tipo, datas, data: null, itens: [], totais_area: [], total_geral: 0 });
+  if (!dataSel) return NextResponse.json({ success: true, tipo, classe, datas, data: null, itens: [], totais_area: [], total_geral: 0 });
 
   // itens da contagem selecionada — da SILVER (valorizada pelo preço do VMarket NA DATA da contagem)
   // Diária = Curva A: só os itens (insumo OU produção) marcados com o checkbox curva_a entram.
   let qItens = silver
     .from('estoque_contagem')
-    .select('insumo_codigo, insumo_nome, tipo_local, categoria, unidade_medida, estoque_final, preco_vmarket, preco_fonte, valor, curva_a')
-    .eq('bar_id', user.bar_id).eq('tipo_contagem', tipo).eq('data_contagem', dataSel);
+    .select('insumo_codigo, insumo_nome, tipo_local, categoria, unidade_medida, estoque_final, estoque_ideal, preco_vmarket, preco_fonte, valor, curva_a')
+    .eq('bar_id', user.bar_id).eq('tipo_contagem', tipo).eq('data_contagem', dataSel).eq('classe', classe);
   if (tipo === 'diaria') qItens = qItens.eq('curva_a', true);
   const { data: rows, error: e2 } = await qItens
-    .order('tipo_local', { ascending: true }).order('insumo_nome', { ascending: true });
+    .order('categoria', { ascending: true }).order('insumo_nome', { ascending: true });
   if (e2) return NextResponse.json({ success: false, error: e2.message }, { status: 500 });
 
-  const itens = (rows || []).map((r: any) => ({
-    ...r,
-    estoque_final: Number(r.estoque_final ?? 0),
-    custo_unitario: Number(r.preco_vmarket ?? 0), // coluna "Preço (na data)" = preço VMarket na data da contagem
-    valor: Number(r.valor ?? 0),
-    area: areaDe(r.categoria, r.insumo_codigo),
-  }));
+  const itens = (rows || []).map((r: any) => {
+    const estoque_final = Number(r.estoque_final ?? 0);
+    const estoque_ideal = r.estoque_ideal == null ? null : Number(r.estoque_ideal);
+    return {
+      ...r,
+      estoque_final,
+      estoque_ideal,
+      // Limpeza: Sug. Pedido = repor até o ideal (nunca negativo).
+      sug_pedido: isLimpeza && estoque_ideal != null ? Math.max(0, estoque_ideal - estoque_final) : null,
+      custo_unitario: Number(r.preco_vmarket ?? 0), // "Preço (na data)" = VMarket na data; fallback cadastro no valor
+      valor: Number(r.valor ?? 0),
+      // Insumo agrupa por área derivada; limpeza/utensílio agrupam pela própria categoria.
+      area: isLimpeza ? (r.categoria || 'Outros') : areaDe(r.categoria, r.insumo_codigo),
+    };
+  });
 
   // total em estoque por área (Comidas / Salão / Drinks / Alimentação)
   const areaMap: Record<string, { area: string; itens: number; valor: number }> = {};
@@ -80,7 +94,7 @@ export async function GET(request: NextRequest) {
   const ordem = ['Comidas', 'Salão', 'Drinks', 'Alimentação'];
   const totais_area = Object.values(areaMap).sort((a, b) => (ordem.indexOf(a.area) - ordem.indexOf(b.area)));
 
-  return NextResponse.json({ success: true, tipo, datas, data: dataSel, itens, totais_area, total_geral });
+  return NextResponse.json({ success: true, tipo, classe, datas, data: dataSel, itens, totais_area, total_geral });
 }
 
 /**

@@ -21,10 +21,19 @@ const TIPOS = [
   { key: 'mensal', label: 'Mensal', sub: 'Inventário' },
 ];
 
+// Classe = tipo de item. Insumo (atual) · Limpeza (estoque ideal + sug. pedido) ·
+// Utensílio (modelo de quebra — Fase 2).
+const CLASSES = [
+  { key: 'insumo', label: 'Insumo' },
+  { key: 'limpeza', label: 'Limpeza' },
+  { key: 'utensilio', label: 'Utensílio' },
+];
+
 export default function EstoqueHistoricoPage() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
+  const [classe, setClasse] = useState('insumo');
   const [tipo, setTipo] = useState('semanal');
   const [sincronizando, setSincronizando] = useState(false);
   const [data, setData] = useState<string | null>(null);
@@ -45,13 +54,13 @@ export default function EstoqueHistoricoPage() {
     setLoadingComp(true);
     try {
       const [ra, rb] = await Promise.all([
-        api.get(`/api/operacional/estoque-historico?tipo=${t}&data=${a}`),
-        api.get(`/api/operacional/estoque-historico?tipo=${t}&data=${b}`),
+        api.get(`/api/operacional/estoque-historico?tipo=${t}&classe=${classe}&data=${a}`),
+        api.get(`/api/operacional/estoque-historico?tipo=${t}&classe=${classe}&data=${b}`),
       ]);
       const chave = (i: any) => i.insumo_codigo || i.insumo_nome;
       const mapA = new Map<string, any>((ra.itens || []).map((i: any) => [chave(i), i]));
       const mapB = new Map<string, any>((rb.itens || []).map((i: any) => [chave(i), i]));
-      const keys = Array.from(new Set([...mapA.keys(), ...mapB.keys()]));
+      const keys = Array.from(new Set([...mapA.keys(), ...mapB.keys()])) as string[];
       let va = 0, vb = 0;
       const itens = keys.map((k) => {
         const A = mapA.get(k), B = mapB.get(k);
@@ -62,7 +71,7 @@ export default function EstoqueHistoricoPage() {
       }).sort((x, y) => Math.abs(y.delta_valor) - Math.abs(x.delta_valor));
       setComp({ data_a: a, data_b: b, itens, resumo: { valor_a: va, valor_b: vb, delta_valor: vb - va } });
     } finally { setLoadingComp(false); }
-  }, []);
+  }, [classe]);
   const toggleComparar = () => {
     if (comparar) { setComparar(false); return; }
     const segunda = (datas.find((d: any) => d.data !== data)?.data) || null;
@@ -74,7 +83,7 @@ export default function EstoqueHistoricoPage() {
     if (!barId) return;
     setLoading(true);
     try {
-      const q = `tipo=${t}${d ? `&data=${d}` : ''}`;
+      const q = `tipo=${t}&classe=${classe}${d ? `&data=${d}` : ''}`;
       const r = await api.get(`/api/operacional/estoque-historico?${q}`);
       if (r.success) {
         setDatas(r.datas || []);
@@ -84,10 +93,10 @@ export default function EstoqueHistoricoPage() {
         setTotalGeral(r.total_geral || 0);
       }
     } finally { setLoading(false); }
-  }, [barId]);
+  }, [barId, classe]);
 
-  // ao trocar de tipo, recarrega da data mais recente
-  useEffect(() => { carregar(tipo, null); }, [tipo, carregar]);
+  // ao trocar de tipo/classe, recarrega da data mais recente
+  useEffect(() => { carregar(tipo, null); }, [tipo, classe, carregar]);
 
   // roda o sync da planilha de contagem (aba INSUMOS) pro bar atual e recarrega
   const sincronizar = async () => {
@@ -131,6 +140,16 @@ export default function EstoqueHistoricoPage() {
               <RefreshCw className={`w-4 h-4 mr-1.5 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Sincronizando…' : 'Sincronizar planilha'}
             </Button>
           </div>
+        </div>
+
+        {/* Classe de item: Insumo · Limpeza · Utensílio */}
+        <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1 gap-1">
+          {CLASSES.map(c => (
+            <button key={c.key} onClick={() => { setClasse(c.key); if (c.key !== 'insumo') setTipo('semanal'); setComparar(false); setComp(null); }}
+              className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${classe === c.key ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+              {c.label}
+            </button>
+          ))}
         </div>
 
         {/* Tipo de contagem */}
@@ -195,28 +214,38 @@ export default function EstoqueHistoricoPage() {
         )}
 
         {/* Tabela */}
-        {!comparar ? (
+        {classe === 'utensilio' ? (
+        <Card className="card-dark"><CardContent className="py-12 text-center text-sm text-gray-400">
+          Aba de <b>Utensílios</b> — modelo de quebra (estoque + compra → quebra). Em construção (Fase 2).
+        </CardContent></Card>
+        ) : !comparar ? (
         <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
               <th className="text-left font-medium px-3 py-2">Cód.</th>
-              <th className="text-left font-medium px-3 py-2">Insumo</th>
-              <th className="text-left font-medium px-3 py-2">Área</th>
-              <th className="text-left font-medium px-3 py-2">Categoria</th>
+              <th className="text-left font-medium px-3 py-2">{classe === 'limpeza' ? 'Item' : 'Insumo'}</th>
+              {classe === 'limpeza'
+                ? <th className="text-left font-medium px-3 py-2">Categoria</th>
+                : <><th className="text-left font-medium px-3 py-2">Área</th><th className="text-left font-medium px-3 py-2">Categoria</th></>}
+              {classe === 'limpeza' && <th className="text-right font-medium px-3 py-2">Estoque Ideal</th>}
               <th className="text-right font-medium px-3 py-2">Qtd. contada</th>
-              <th className="text-right font-medium px-3 py-2">Preço VMarket (na data)</th>
+              {classe === 'limpeza' && <th className="text-right font-medium px-3 py-2">Sug. Pedido</th>}
+              <th className="text-right font-medium px-3 py-2">{classe === 'limpeza' ? 'Preço' : 'Preço VMarket (na data)'}</th>
               <th className="text-right font-medium px-3 py-2">Valor</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {loading ? <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-              : itensView.length === 0 ? <tr><td colSpan={7} className="px-3 py-10 text-center text-gray-400">Nenhuma contagem nessa data.</td></tr>
+              {loading ? <tr><td colSpan={classe === 'limpeza' ? 8 : 7} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              : itensView.length === 0 ? <tr><td colSpan={classe === 'limpeza' ? 8 : 7} className="px-3 py-10 text-center text-gray-400">Nenhuma contagem nessa data.</td></tr>
               : itensView.map((it: any, i: number) => (
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                   <td className="px-3 py-2 font-mono text-xs text-gray-500">{it.insumo_codigo || '—'}</td>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}</td>
-                  <td className="px-3 py-2"><Badge variant="outline">{it.area || '—'}</Badge></td>
-                  <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{it.categoria || '—'}</td>
+                  {classe === 'limpeza'
+                    ? <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{it.categoria || '—'}</td>
+                    : <><td className="px-3 py-2"><Badge variant="outline">{it.area || '—'}</Badge></td><td className="px-3 py-2 text-gray-500 dark:text-gray-400">{it.categoria || '—'}</td></>}
+                  {classe === 'limpeza' && <td className="px-3 py-2 text-right tabular-nums text-gray-500">{it.estoque_ideal == null ? '—' : fmtQtd(it.estoque_ideal, it.unidade_medida)}</td>}
                   <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.estoque_final, it.unidade_medida)}</td>
+                  {classe === 'limpeza' && <td className={`px-3 py-2 text-right tabular-nums ${Number(it.sug_pedido) > 0 ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-gray-400'}`}>{it.sug_pedido == null ? '—' : fmtQtd(it.sug_pedido, it.unidade_medida)}</td>}
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{it.custo_unitario ? fmtBRL(it.custo_unitario) : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{it.valor ? fmtBRL(it.valor) : '—'}</td>
                 </tr>
