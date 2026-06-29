@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { FazerContagem } from '@/components/estoque/FazerContagem';
+import { GerenciarItensModal } from './GerenciarItensModal';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
@@ -34,6 +35,7 @@ export default function EstoqueHistoricoPage() {
   const { toast } = useToast();
   const barId = selectedBar?.id;
   const [classe, setClasse] = useState('insumo');
+  const [gerenciarOpen, setGerenciarOpen] = useState(false);
   const [tipo, setTipo] = useState('semanal');
   const [sincronizando, setSincronizando] = useState(false);
   const [data, setData] = useState<string | null>(null);
@@ -135,12 +137,22 @@ export default function EstoqueHistoricoPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400">Valor em estoque por área e por contagem · {selectedBar?.nome || `Bar ${barId ?? ''}`}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {classe !== 'insumo' && (
+              <Button onClick={() => setGerenciarOpen(true)} variant="outline" title="Cadastrar / editar itens desta classe">
+                <Boxes className="w-4 h-4 mr-1.5" />Gerenciar itens
+              </Button>
+            )}
             <FazerContagem onSaved={() => carregar(tipo, null)} />
             <Button onClick={sincronizar} disabled={sincronizando} variant="outline" title="Buscar o estoque dos últimos 14 dias da planilha de contagem (aba INSUMOS)">
               <RefreshCw className={`w-4 h-4 mr-1.5 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Sincronizando…' : 'Sincronizar planilha'}
             </Button>
           </div>
         </div>
+
+        {(classe === 'limpeza' || classe === 'utensilio') && (
+          <GerenciarItensModal classe={classe} open={gerenciarOpen}
+            onClose={() => setGerenciarOpen(false)} onChanged={() => carregar(tipo, null)} />
+        )}
 
         {/* Classe de item: Insumo · Limpeza · Utensílio */}
         <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1 gap-1">
