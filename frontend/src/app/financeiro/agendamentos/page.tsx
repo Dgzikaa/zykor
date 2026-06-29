@@ -35,6 +35,7 @@ import type {
   InterCredencial,
 } from './types';
 
+import { listarPendentes, salvarPendentes, removerPendentes } from './services/agendamento-service';
 import { AgendamentoCredenciais } from './components/AgendamentoCredenciais';
 import { AgendamentoStatusCA } from './components/AgendamentoStatusCA';
 import { PagamentosList } from './components/PagamentosList';
@@ -212,50 +213,74 @@ export default function AgendamentoPage() {
     }
   }, [pagamentos, saveToLocalStorage]);
 
-  const loadSavedData = useCallback(() => {
-    if (!barId) return;
+  // Lê a lista do cache local (por bar), com migração da chave legada global.
+  // Usado como fallback offline e para migrar dados antigos pro banco.
+  const lerPagamentosLocais = useCallback((bid: number): PagamentoAgendamento[] => {
     try {
-      let lista: PagamentoAgendamento[] = [];
-      let ts: string | null = null;
-
-      const perBarRaw = localStorage.getItem(`${STORAGE_KEYS.PAGAMENTOS}_bar_${barId}`);
+      const perBarRaw = localStorage.getItem(`${STORAGE_KEYS.PAGAMENTOS}_bar_${bid}`);
       if (perBarRaw) {
         const parsed = JSON.parse(perBarRaw);
         if (parsed?.pagamentos && Array.isArray(parsed.pagamentos)) {
-          lista = parsed.pagamentos;
-          ts = parsed.timestamp ?? null;
-        }
-      } else {
-        // Migração da chave legada (global, não separada por bar): traz só os
-        // pagamentos deste bar pra nunca misturar bar 3 com bar 4.
-        const legacyRaw = localStorage.getItem(STORAGE_KEYS.PAGAMENTOS);
-        if (legacyRaw) {
-          const parsed = JSON.parse(legacyRaw);
-          if (parsed?.pagamentos && Array.isArray(parsed.pagamentos)) {
-            lista = parsed.pagamentos.filter(
-              (p: PagamentoAgendamento) => !p.bar_id || p.bar_id === barId
-            );
-            ts = parsed.timestamp ?? null;
-          }
+          return parsed.pagamentos.filter(
+            (p: PagamentoAgendamento) => !p.bar_id || p.bar_id === bid
+          );
         }
       }
-
-      // Defesa final: a lista visível é sempre de um único bar.
-      lista = lista.filter(p => !p.bar_id || p.bar_id === barId);
-      loadedBarRef.current = barId;
-      setPagamentos(lista);
-      if (ts) setLastSave(new Date(ts).toLocaleString('pt-BR'));
+      const legacyRaw = localStorage.getItem(STORAGE_KEYS.PAGAMENTOS);
+      if (legacyRaw) {
+        const parsed = JSON.parse(legacyRaw);
+        if (parsed?.pagamentos && Array.isArray(parsed.pagamentos)) {
+          return parsed.pagamentos.filter(
+            (p: PagamentoAgendamento) => !p.bar_id || p.bar_id === bid
+          );
+        }
+      }
     } catch (error) {
-      console.error('Erro ao carregar dados salvos:', error);
-      loadedBarRef.current = barId;
-      setPagamentos([]);
+      console.error('Erro ao ler cache local:', error);
     }
-  }, [barId]);
+    return [];
+  }, []);
+
+  const loadSavedData = useCallback(async () => {
+    if (!barId) return;
+    const bid = barId;
+    // 1) Banco = fonte da verdade, compartilhada por bar (quem subiu, todos veem).
+    const res = await listarPendentes(bid);
+    if (res.ok) {
+      let lista = res.data.filter(p => !p.bar_id || p.bar_id === bid);
+      // Banco vazio + dados locais antigos? Migra: o efeito de sync sobe pro banco.
+      if (lista.length === 0) {
+        const locais = lerPagamentosLocais(bid);
+        if (locais.length > 0) lista = locais;
+      }
+      loadedBarRef.current = bid;
+      setPagamentos(lista);
+      setLastSave(new Date().toLocaleString('pt-BR'));
+      return;
+    }
+    // 2) Fallback offline: cache local (não perde o trabalho se a API cair).
+    loadedBarRef.current = bid;
+    setPagamentos(lerPagamentosLocais(bid));
+  }, [barId, lerPagamentosLocais]);
 
   useEffect(() => {
     loadCategoriasECentrosCusto();
     loadSavedData();
   }, [loadCategoriasECentrosCusto, loadSavedData]);
+
+  // Sincroniza a lista pro banco (debounced) — torna a lista visível pro resto
+  // do bar e sobrevive à limpeza do navegador. Upsert idempotente; remoção é só
+  // via DELETE explícito (não apaga aqui pra não dar clobber entre usuários).
+  useEffect(() => {
+    if (!barId || loadedBarRef.current !== barId) return;
+    if (pagamentos.length === 0) return;
+    const bid = barId;
+    const snapshot = pagamentos;
+    const t = setTimeout(() => {
+      salvarPendentes(bid, snapshot).catch(() => {});
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [pagamentos, barId]);
 
   // Carrega vínculos de contas CA <-> credencial Inter (por bar + cred)
   useEffect(() => {
@@ -707,6 +732,7 @@ export default function AgendamentoPage() {
   const handleExcluir = (id: string) => {
     const pagamento = pagamentos.find(p => p.id === id);
     setPagamentos(prev => prev.filter(p => p.id !== id));
+    if (barId) removerPendentes(barId, { ids: [id] }).catch(() => {});
     toast({ title: '🗑️ Excluído', description: `${pagamento?.nome_beneficiario || 'Pagamento'} removido` });
   };
 
@@ -714,6 +740,7 @@ export default function AgendamentoPage() {
     if (ids.length === 0) return;
     const idSet = new Set(ids);
     setPagamentos(prev => prev.filter(p => !idSet.has(p.id)));
+    if (barId) removerPendentes(barId, { ids }).catch(() => {});
     toast({
       title: '🗑️ Excluídos',
       description: `${ids.length} pagamento${ids.length > 1 ? 's removidos' : ' removido'}`,
@@ -760,6 +787,7 @@ export default function AgendamentoPage() {
   const limparLista = () => {
     const quantidade = pagamentos.length;
     setPagamentos([]);
+    if (barId) removerPendentes(barId, { all: true }).catch(() => {});
     toast({ title: '🧹 Lista limpa', description: `${quantidade} removidos` });
   };
 

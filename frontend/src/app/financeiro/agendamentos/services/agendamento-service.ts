@@ -3,7 +3,12 @@
  * Mantém respostas tipadas e erros normalizados sem depender de UI (toast).
  */
 
+import type { PagamentoAgendamento } from '../types';
+
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
+
+/** Header obrigatório p/ as rotas derivarem o bar do usuário (override seguro). */
+const barHeaders = (barId: number) => ({ 'x-selected-bar-id': String(barId) });
 
 export type AgendamentoResult<T> =
   | { ok: true; data: T }
@@ -342,6 +347,76 @@ export async function atualizarChavePix(
   data: PixKeyParams
 ): Promise<AgendamentoResult<AtualizarStakeholderPixData>> {
     return { ok: false, error: 'Funcionalidade não disponível nesta versão.' };
+}
+
+// ============================================================
+// Lista de pagamentos pendentes — persistida no banco (financial.pagamentos_pendentes)
+// e COMPARTILHADA por bar. Substitui o antigo localStorage por-navegador.
+// ============================================================
+
+/** Carrega a lista de pendentes do bar (o que qualquer pessoa do bar subiu). */
+export async function listarPendentes(
+  barId: number
+): Promise<AgendamentoResult<PagamentoAgendamento[]>> {
+  if (!barId) return { ok: false, error: 'bar_id é obrigatório' };
+  try {
+    const res = await fetch('/api/financeiro/agendamentos/pendentes', {
+      headers: barHeaders(barId),
+    });
+    const json =
+      (await safeJson<{ success?: boolean; pagamentos?: PagamentoAgendamento[]; error?: string }>(res)) ??
+      {};
+    if (!res.ok || json.success === false) {
+      return { ok: false, error: json.error || `Erro ${res.status}`, status: res.status };
+    }
+    return { ok: true, data: json.pagamentos ?? [] };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Falha de rede' };
+  }
+}
+
+/** Upsert idempotente — grava/atualiza os pagamentos informados. Nunca apaga. */
+export async function salvarPendentes(
+  barId: number,
+  pagamentos: PagamentoAgendamento[]
+): Promise<AgendamentoResult<{ salvos: number }>> {
+  if (!barId) return { ok: false, error: 'bar_id é obrigatório' };
+  try {
+    const res = await fetch('/api/financeiro/agendamentos/pendentes', {
+      method: 'POST',
+      headers: { ...JSON_HEADERS, ...barHeaders(barId) },
+      body: JSON.stringify({ pagamentos }),
+    });
+    const json = (await safeJson<{ success?: boolean; salvos?: number; error?: string }>(res)) ?? {};
+    if (!res.ok || json.success === false) {
+      return { ok: false, error: json.error || `Erro ${res.status}`, status: res.status };
+    }
+    return { ok: true, data: { salvos: json.salvos ?? 0 } };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Falha de rede' };
+  }
+}
+
+/** Remove pagamentos por id; se `all` for true, limpa a lista do bar. */
+export async function removerPendentes(
+  barId: number,
+  opts: { ids?: string[]; all?: boolean }
+): Promise<AgendamentoResult<true>> {
+  if (!barId) return { ok: false, error: 'bar_id é obrigatório' };
+  try {
+    const res = await fetch('/api/financeiro/agendamentos/pendentes', {
+      method: 'DELETE',
+      headers: { ...JSON_HEADERS, ...barHeaders(barId) },
+      body: JSON.stringify(opts),
+    });
+    const json = (await safeJson<{ success?: boolean; error?: string }>(res)) ?? {};
+    if (!res.ok || json.success === false) {
+      return { ok: false, error: json.error || `Erro ${res.status}`, status: res.status };
+    }
+    return { ok: true, data: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Falha de rede' };
+  }
 }
 
 
