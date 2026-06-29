@@ -82,38 +82,72 @@ function validarCnpj(cnpj: string): boolean {
   return parseInt(cnpj[13]) === d2;
 }
 
-function identificarTipoChave(chave: string): { tipo: string; chaveFormatada: string } | null {
+// DDDs válidos no Brasil — usado pra distinguir celular de CPF (ambos 11 dígitos).
+const DDDS_VALIDOS = new Set([
+  11, 12, 13, 14, 15, 16, 17, 18, 19,
+  21, 22, 24, 27, 28,
+  31, 32, 33, 34, 35, 37, 38,
+  41, 42, 43, 44, 45, 46, 47, 48, 49,
+  51, 53, 54, 55,
+  61, 62, 63, 64, 65, 66, 67, 68, 69,
+  71, 73, 74, 75, 77, 79,
+  81, 82, 83, 84, 85, 86, 87, 88, 89,
+  91, 92, 93, 94, 95, 96, 97, 98, 99,
+]);
+
+// Celular: 11 dígitos = DDD válido + 9 (9º dígito obrigatório) + 8 dígitos.
+function pareceCelular(digits: string): boolean {
+  return digits.length === 11 && digits[2] === '9' && DDDS_VALIDOS.has(Number(digits.slice(0, 2)));
+}
+
+// Identifica o tipo da chave PIX. `chaveAlternativa` cobre a AMBIGUIDADE de 11
+// dígitos: um número pode ser CPF válido E celular válido ao mesmo tempo. Nesse
+// caso mandamos o formato mais provável e, se o Inter não achar no DICT, o
+// pagamento re-tenta com o formato alternativo (CPF cru <-> +55telefone).
+function identificarTipoChave(
+  chave: string
+): { tipo: string; chaveFormatada: string; chaveAlternativa?: string } | null {
   if (!chave) return null;
-  
+
   const chaveClean = chave.trim();
-  
+
   // Email
   if (chaveClean.includes('@') && /^[\w.-]+@[\w.-]+\.\w{2,4}$/.test(chaveClean)) {
     return { tipo: 'EMAIL', chaveFormatada: chaveClean.toLowerCase() };
   }
-  
+
   const digits = chaveClean.replace(/\D/g, '');
-  
-  // CPF
-  if (digits.length === 11 && validarCpf(digits)) {
-    return { tipo: 'CPF', chaveFormatada: digits };
+  const ehCelular = pareceCelular(digits);
+  const ehCpf = digits.length === 11 && validarCpf(digits);
+
+  // CPF (mantém prioridade atual; se também parece celular, guarda o +55 como alternativa)
+  if (ehCpf) {
+    return {
+      tipo: 'CPF',
+      chaveFormatada: digits,
+      chaveAlternativa: ehCelular ? `+55${digits}` : undefined,
+    };
   }
-  
+
   // CNPJ
   if (digits.length === 14 && validarCnpj(digits)) {
     return { tipo: 'CNPJ', chaveFormatada: digits };
   }
-  
-  // Telefone (11 dígitos começando com 9)
-  if (digits.length === 11 && digits[2] === '9') {
-    return { tipo: 'TELEFONE', chaveFormatada: `+55${digits}` };
+
+  // Telefone (celular válido). Se os dígitos também forem CPF válido, guarda o CPF cru.
+  if (ehCelular) {
+    return {
+      tipo: 'TELEFONE',
+      chaveFormatada: `+55${digits}`,
+      chaveAlternativa: ehCpf ? digits : undefined,
+    };
   }
-  
+
   // Chave aleatória (EVP)
   if (chaveClean.length >= 32 || chaveClean.includes('-')) {
     return { tipo: 'CHAVE_ALEATORIA', chaveFormatada: chaveClean };
   }
-  
+
   // Se não identificou, tentar usar como está
   return { tipo: 'CHAVE_ALEATORIA', chaveFormatada: chaveClean };
 }
@@ -280,6 +314,31 @@ export async function POST(request: NextRequest) {
           valor: valorNumerico,
           descricao: descricao || `Pagamento PIX para ${destinatario || 'beneficiário'}`,
           chave: tipoChave.chaveFormatada,
+          dataPagamento: typeof data_pagamento === 'string' ? data_pagamento : undefined,
+          mtlsCredentials: mtlsCredentials || undefined,
+        });
+      }
+
+      // Retry de AMBIGUIDADE de chave: 11 dígitos podem ser CPF e celular ao mesmo
+      // tempo. Se o Inter não achou a chave no formato escolhido, re-tenta com o
+      // alternativo. Seguro: "chave não cadastrada" é falha de lookup no DICT —
+      // nenhum pagamento foi executado, então não há risco de pagar em dobro.
+      const chaveNaoEncontrada =
+        !resultadoPix.success &&
+        !!tipoChave.chaveAlternativa &&
+        /n[ãa]o\s+cadastrada|n[ãa]o\s+encontrada|not\s+registered|not\s+found|chave\s+inv[áa]lida/i.test(
+          resultadoPix.error || ''
+        );
+      if (chaveNaoEncontrada) {
+        console.log(
+          `[INTER-PIX] Chave não encontrada como ${tipoChave.tipo}; re-tentando com formato alternativo (${tipoChave.chaveAlternativa}).`
+        );
+        resultadoPix = await realizarPagamentoPixInter({
+          token: accessToken,
+          contaCorrente: contaCorrente,
+          valor: valorNumerico,
+          descricao: descricao || `Pagamento PIX para ${destinatario || 'beneficiário'}`,
+          chave: tipoChave.chaveAlternativa as string,
           dataPagamento: typeof data_pagamento === 'string' ? data_pagamento : undefined,
           mtlsCredentials: mtlsCredentials || undefined,
         });
