@@ -5,12 +5,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
-import { Boxes, Loader2, Search, CalendarDays, RefreshCw } from 'lucide-react';
+import { Boxes, Loader2, Search, CalendarDays, RefreshCw, Plus, Pencil } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { FazerContagem } from '@/components/estoque/FazerContagem';
-import { GerenciarItensModal } from './GerenciarItensModal';
+import { CadastrarItemModal } from './GerenciarItensModal';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
@@ -35,8 +35,10 @@ export default function EstoqueHistoricoPage() {
   const { toast } = useToast();
   const barId = selectedBar?.id;
   const [classe, setClasse] = useState('insumo');
-  const [gerenciarOpen, setGerenciarOpen] = useState(false);
+  const [cadOpen, setCadOpen] = useState(false);
+  const [cadEditCodigo, setCadEditCodigo] = useState<string | null>(null);
   const [tipo, setTipo] = useState('semanal');
+  const abrirCadastro = (codigo: string | null) => { setCadEditCodigo(codigo); setCadOpen(true); };
   const [sincronizando, setSincronizando] = useState(false);
   const [data, setData] = useState<string | null>(null);
   const [datas, setDatas] = useState<any[]>([]);
@@ -138,8 +140,8 @@ export default function EstoqueHistoricoPage() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {classe !== 'insumo' && (
-              <Button onClick={() => setGerenciarOpen(true)} variant="outline" title="Cadastrar / editar itens desta classe">
-                <Boxes className="w-4 h-4 mr-1.5" />Gerenciar itens
+              <Button onClick={() => abrirCadastro(null)} variant="outline" title="Adicionar item desta classe">
+                <Plus className="w-4 h-4 mr-1.5" />Adicionar item
               </Button>
             )}
             <FazerContagem onSaved={() => carregar(tipo, null)} />
@@ -150,8 +152,8 @@ export default function EstoqueHistoricoPage() {
         </div>
 
         {(classe === 'limpeza' || classe === 'utensilio') && (
-          <GerenciarItensModal classe={classe} open={gerenciarOpen}
-            onClose={() => setGerenciarOpen(false)} onChanged={() => carregar(tipo, null)} />
+          <CadastrarItemModal classe={classe} open={cadOpen} editCodigo={cadEditCodigo}
+            onClose={() => setCadOpen(false)} onSaved={() => carregar(tipo, null)} />
         )}
 
         {/* Classe de item: Insumo · Limpeza · Utensílio */}
@@ -244,7 +246,11 @@ export default function EstoqueHistoricoPage() {
               : itensView.length === 0 ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Nenhuma contagem nessa data.</td></tr>
               : itensView.map((it: any, i: number) => (
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                  <td className="px-3 py-2 font-mono text-xs text-gray-500">{it.insumo_codigo || '—'}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-gray-500">
+                    <span className="inline-flex items-center gap-1">{it.insumo_codigo || '—'}
+                      {(classe as string) !== 'insumo' && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
+                    </span>
+                  </td>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}</td>
                   <td className="px-3 py-2"><Badge variant="outline">{it.area || '—'}</Badge></td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-400 text-xs">{it.estoque_min == null && it.estoque_max == null ? '—' : `${it.estoque_min ?? '—'} / ${it.estoque_max ?? '—'}`}</td>
@@ -277,7 +283,11 @@ export default function EstoqueHistoricoPage() {
               : itensView.length === 0 ? <tr><td colSpan={classe === 'limpeza' ? 8 : 7} className="px-3 py-10 text-center text-gray-400">Nenhuma contagem nessa data.</td></tr>
               : itensView.map((it: any, i: number) => (
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                  <td className="px-3 py-2 font-mono text-xs text-gray-500">{it.insumo_codigo || '—'}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-gray-500">
+                    <span className="inline-flex items-center gap-1">{it.insumo_codigo || '—'}
+                      {(classe as string) !== 'insumo' && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
+                    </span>
+                  </td>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}</td>
                   {classe === 'limpeza'
                     ? <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{it.categoria || '—'}</td>
@@ -310,7 +320,11 @@ export default function EstoqueHistoricoPage() {
               : compView.length === 0 ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Escolha duas datas pra comparar.</td></tr>
               : compView.map((it: any, i: number) => (
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                  <td className="px-3 py-2 font-mono text-xs text-gray-500">{it.insumo_codigo || '—'}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-gray-500">
+                    <span className="inline-flex items-center gap-1">{it.insumo_codigo || '—'}
+                      {(classe as string) !== 'insumo' && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
+                    </span>
+                  </td>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.nome}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.qtd_a, it.unidade)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.qtd_b, it.unidade)}</td>
