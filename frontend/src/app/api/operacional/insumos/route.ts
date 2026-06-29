@@ -2,30 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient, selectAll } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { recalcCmvTeorico } from '@/lib/cmv-recalc';
+import { deriveUnid } from '@/lib/insumo-unidade';
 
 export const dynamic = 'force-dynamic';
-
-// base+embalagem derivados do NOME quando não há override salvo (ex.: "500ml"→ml/500, "11kg"→g/11000)
-function deriveUnid(nome: string, um: string | null): { base: string; embalagem: number } {
-  const n = (nome || '').toLowerCase();
-  const m = n.match(/(\d+[.,]?\d*)\s*(kg|kilo|litro|lt|ml|gr|grama|l|g)\b/);
-  if (m) {
-    const num = parseFloat(m[1].replace('.', '').replace(',', '.')) || parseFloat(m[1].replace(',', '.'));
-    const u = m[2];
-    if (u === 'kg' || u === 'kilo') return { base: 'g', embalagem: num * 1000 };
-    if (u === 'l' || u === 'lt' || u === 'litro') return { base: 'ml', embalagem: num * 1000 };
-    if (u === 'ml') return { base: 'ml', embalagem: num };
-    if (u === 'g' || u === 'gr' || u === 'grama') return { base: 'g', embalagem: num };
-  }
-  const mc = n.match(/c\/\s*(\d+)/) || n.match(/(\d+)\s*(und|unid|cx|caixa|pct|pacote|fardo)\b/);
-  if (mc) return { base: 'un', embalagem: parseInt(mc[1], 10) || 1 };
-  if (/vinho|espumante|frisante|moscatel|prosecco|sparkling|(^|\s)v\.|(^|\s)esp\./.test(n)) return { base: 'ml', embalagem: 750 };
-  if (/whisky|vodka|\bgin\b|tequila|cacha|\brum\b|licor|conhaque|brandy|aperol|campari|cynar|vermouth|jager|bitter|absinto|steinha|amarula|cointreau|frangelico|limoncello|domecq|netuno|presidente|bananinha|\bjambu\b/.test(n)) return { base: 'ml', embalagem: 1000 };
-  const s = (um || '').toLowerCase().trim();
-  if (s === 'ml' || s === 'l' || s === 'litro') return { base: 'ml', embalagem: 1000 };
-  if (s === 'kg' || s === 'g' || s === 'grama') return { base: 'g', embalagem: 1000 };
-  return { base: 'un', embalagem: 1 };
-}
 
 /**
  * GET ?bar_id= -> catálogo de insumos (cadastro Zykor 1:1, silver.insumo_catalogo) + comprados sem cadastro.

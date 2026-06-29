@@ -10,7 +10,14 @@ import { ShoppingCart, Search, Loader2, CalendarDays, RefreshCw, ChevronDown, Ch
 
 const fmtN = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtI = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
-const comUni = (v: any, un?: string) => v == null ? '—' : `${fmtN(v)}${un ? ` ${un}` : ''}`;
+// número na unidade-base com conversão p/ leitura (g≥1000→kg, ml≥1000→L) — evita "627.000,00 ml"
+const fmtMedida = (v: any, base?: string) => {
+  if (v == null) return '—';
+  const n = Number(v);
+  if (base === 'g') return n >= 1000 ? `${fmtN(n / 1000)} kg` : `${fmtN(n)} g`;
+  if (base === 'ml') return n >= 1000 ? `${fmtN(n / 1000)} L` : `${fmtN(n)} ml`;
+  return `${fmtN(n)} un`;
+};
 const fmtDM = (s: string) => s ? s.split('-').reverse().slice(0, 2).join('/') : '';
 
 export default function PlanoComprasPage() {
@@ -120,22 +127,22 @@ export default function PlanoComprasPage() {
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap">
                     {it.nome}{it.curva_a && <Badge variant="outline" className="ml-1.5 text-[10px] text-indigo-600 border-indigo-300">A</Badge>}
                     <span className="block text-[11px] text-gray-500 dark:text-gray-400 font-mono">{it.codigo}</span>
-                    <span className="block text-[11px] text-gray-400">{it.fornecedor || ''} · emb. {fmtI(it.embalagem)} {it.unidade || ''}</span>
+                    <span className="block text-[11px] text-gray-400">{it.fornecedor || ''} · emb. {fmtMedida(it.embalagem, it.base)}</span>
                   </td>
+                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{fmtMedida(it.ultima, it.base)}</td>
                   <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
-                    <button onClick={() => setAberto(expandido ? null : it.codigo)} className="inline-flex items-center gap-1 hover:text-emerald-600 dark:hover:text-emerald-400" title="Ver as 6 semanas">
-                      {expandido ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}{comUni(it.ultima, it.unidade)}
+                    <button onClick={() => setAberto(expandido ? null : it.codigo)} className="inline-flex items-center gap-1 hover:text-emerald-600 dark:hover:text-emerald-400" title="Ver as 6 semanas que formam a média">
+                      {expandido ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}{fmtMedida(it.media6, it.base)}
                     </button>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{comUni(it.media6, it.unidade)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmtN(it.desvpad)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-200 font-medium whitespace-nowrap">{comUni(it.pr, it.unidade)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{comUni(it.estoque, it.unidade)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{it.ab > 0 ? <span className="text-indigo-600 dark:text-indigo-400">{comUni(it.ab, it.unidade)}</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-200 font-medium whitespace-nowrap">{fmtMedida(it.pr, it.base)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmtMedida(it.estoque, it.base)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{it.ab > 0 ? <span className="text-indigo-600 dark:text-indigo-400">{fmtMedida(it.ab, it.base)}</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
                     {it.nao_comprar
                       ? <span className="text-gray-400 text-xs">Não comprar</span>
-                      : <span className="inline-flex flex-col items-end"><span className="font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{fmtI(it.sugestao_qtd)} emb.</span><span className="text-[10px] text-gray-400">≈ {comUni(it.sugestao_base, it.unidade)}</span></span>}
+                      : <span className="inline-flex flex-col items-end"><span className="font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{fmtI(it.sugestao_qtd)} emb.</span><span className="text-[10px] text-gray-400">≈ {fmtMedida(it.sugestao_base, it.base)}</span></span>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{it.comprado > 0 ? <span className="text-gray-700 dark:text-gray-200">{fmtI(it.comprado)} emb.</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
                 </tr>
@@ -145,9 +152,9 @@ export default function PlanoComprasPage() {
                       <span className="font-medium text-gray-600 dark:text-gray-300">Uso direto por semana:</span>
                       {(it.semanas || []).map((wk: string, i: number) => {
                         const v = it.saidas?.[i] ?? 0;
-                        return <span key={wk} className={`inline-flex items-center gap-1 rounded px-2 py-0.5 ${v > 0 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 line-through'}`}>{fmtDM(wk)}: <b>{comUni(v, it.unidade)}</b> <span className="opacity-60">×{i + 1}</span></span>;
+                        return <span key={wk} className={`inline-flex items-center gap-1 rounded px-2 py-0.5 ${v > 0 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 line-through'}`}>{fmtDM(wk)}: <b>{fmtMedida(v, it.base)}</b> <span className="opacity-60">×{i + 1}</span></span>;
                       })}
-                      <span className="text-gray-600 dark:text-gray-300">= média <b>{comUni(it.media6, it.unidade)}</b></span>
+                      <span className="text-gray-600 dark:text-gray-300">= média <b>{fmtMedida(it.media6, it.base)}</b></span>
                     </div>
                   </td>
                 </tr>}

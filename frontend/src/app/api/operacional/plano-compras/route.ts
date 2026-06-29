@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { deriveUnid } from '@/lib/insumo-unidade';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -50,17 +51,20 @@ export async function GET(request: NextRequest) {
     const saidas = (r.saidas || []).map(num);
     const media6 = mediaPonderada(saidas);
     const desvpad = desvioPadrao(saidas);
-    const embalagem = num(r.embalagem) || 1;
-    const estoque = num(r.estoque_base);
+    // unidade-base + tamanho da embalagem: catálogo (override/seed) com fallback derivado do NOME —
+    // MESMA fonte da tela de Insumos, pra os números baterem (lib compartilhado).
+    const u = (r.base && num(r.embalagem) > 0) ? { base: r.base as string, embalagem: num(r.embalagem) } : deriveUnid(r.nome, r.unidade_medida);
+    const embalagem = u.embalagem || 1;
+    const estoque = num(r.estoque_cont) * embalagem; // contagem vem em pacotes → unidade-base
     const ab = num(r.ab);
     const pr = media6 + desvpad * zDe(NIVEL);
-    const sugestaoBase = pr - estoque + ab;                 // AC = Z − AA + AB
+    const sugestaoBase = pr - estoque + ab;                 // AC = Z − AA + AB (unidade-base)
     const naoComprar = sugestaoBase <= 0;
-    const sugestaoQtd = !naoComprar ? Math.ceil(sugestaoBase / embalagem) : 0; // AD = ROUNDUP(AC/embalagem)
+    const sugestaoQtd = !naoComprar ? Math.ceil(sugestaoBase / embalagem) : 0; // AD = ROUNDUP(AC/embalagem) = nº de embalagens
     const ultima = saidas.length ? saidas[saidas.length - 1] : null;
     return {
       codigo: r.insumo_codigo, nome: r.nome, fornecedor: r.fornecedor, categoria: r.categoria,
-      embalagem, unidade: r.unidade, custo: num(r.custo), curva_a: r.curva_a === true,
+      embalagem, base: u.base, unidade: u.base, custo: num(r.custo), curva_a: r.curva_a === true,
       estoque: r2(estoque), ab: r2(ab), comprado: num(r.comprado),
       media6: r2(media6), desvpad: r2(desvpad), saidas, semanas: r.semanas || [], ultima,
       nivel_servico: NIVEL, pr: r2(pr), sugestao_base: r2(sugestaoBase), sugestao_qtd: sugestaoQtd, nao_comprar: naoComprar,
