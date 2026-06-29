@@ -54,6 +54,42 @@ export async function GET(request: NextRequest) {
   const dataSel = spar.get('data') || datas[0]?.data || null;
   if (!dataSel) return NextResponse.json({ success: true, tipo, classe, datas, data: null, itens: [], totais_area: [], total_geral: 0 });
 
+  // UTENSÍLIO = modelo de quebra (gold.estoque_utensilio_quebra): por item, estoque +
+  // compra → quebra; "valor" da aba é o VALOR DE QUEBRA. Agrupa por seção.
+  if (classe === 'utensilio') {
+    const gold = (sb() as any).schema('gold');
+    const { data: rows, error: eq } = await gold
+      .from('estoque_utensilio_quebra')
+      .select('insumo_codigo, insumo_nome, secao, estoque_min, estoque_max, estoque, compra, estoque_ant, quebra, preco, valor_quebra')
+      .eq('bar_id', user.bar_id).eq('data_contagem', dataSel)
+      .order('secao', { ascending: true }).order('insumo_nome', { ascending: true });
+    if (eq) return NextResponse.json({ success: false, error: eq.message }, { status: 500 });
+    const itens = (rows || []).map((r: any) => ({
+      insumo_codigo: r.insumo_codigo,
+      insumo_nome: r.insumo_nome,
+      area: r.secao || '—',
+      categoria: r.secao || '—',
+      estoque_final: Number(r.estoque ?? 0),
+      compra: r.compra == null ? null : Number(r.compra),
+      quebra: r.quebra == null ? null : Number(r.quebra),
+      estoque_min: r.estoque_min == null ? null : Number(r.estoque_min),
+      estoque_max: r.estoque_max == null ? null : Number(r.estoque_max),
+      custo_unitario: Number(r.preco ?? 0),
+      valor_quebra: r.valor_quebra == null ? null : Number(r.valor_quebra),
+      valor: Number(r.valor_quebra ?? 0), // "valor" da aba utensílio = valor de quebra
+    }));
+    const areaMap: Record<string, { area: string; itens: number; valor: number }> = {};
+    let total = 0;
+    for (const it of itens) {
+      (areaMap[it.area] ??= { area: it.area, itens: 0, valor: 0 });
+      areaMap[it.area].itens += 1;
+      areaMap[it.area].valor += it.valor;
+      total += it.valor;
+    }
+    const totais_area = Object.values(areaMap).sort((a, b) => a.area.localeCompare(b.area));
+    return NextResponse.json({ success: true, tipo, classe, datas, data: dataSel, itens, totais_area, total_geral: total });
+  }
+
   // itens da contagem selecionada — da SILVER (valorizada pelo preço do VMarket NA DATA da contagem)
   // Diária = Curva A: só os itens (insumo OU produção) marcados com o checkbox curva_a entram.
   let qItens = silver

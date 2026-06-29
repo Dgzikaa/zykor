@@ -165,7 +165,7 @@ export default function EstoqueHistoricoPage() {
         {/* Cards de total */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <Card className="card-dark"><CardContent className="py-3">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">Total em estoque</div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">{classe === 'utensilio' ? 'Valor de quebra (semana)' : 'Total em estoque'}</div>
             <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{fmtBRL(totalGeral)}</div>
           </CardContent></Card>
           {totaisArea.map((a: any) => (
@@ -215,9 +215,36 @@ export default function EstoqueHistoricoPage() {
 
         {/* Tabela */}
         {classe === 'utensilio' ? (
-        <Card className="card-dark"><CardContent className="py-12 text-center text-sm text-gray-400">
-          Aba de <b>Utensílios</b> — modelo de quebra (estoque + compra → quebra). Em construção (Fase 2).
-        </CardContent></Card>
+        <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
+              <th className="text-left font-medium px-3 py-2">Cód.</th>
+              <th className="text-left font-medium px-3 py-2">Item</th>
+              <th className="text-left font-medium px-3 py-2">Seção</th>
+              <th className="text-right font-medium px-3 py-2">Mín/Máx</th>
+              <th className="text-right font-medium px-3 py-2">Estoque</th>
+              <th className="text-right font-medium px-3 py-2">Compra</th>
+              <th className="text-right font-medium px-3 py-2">Quebra</th>
+              <th className="text-right font-medium px-3 py-2">Valor de Quebra</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {loading ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              : itensView.length === 0 ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Nenhuma contagem nessa data.</td></tr>
+              : itensView.map((it: any, i: number) => (
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                  <td className="px-3 py-2 font-mono text-xs text-gray-500">{it.insumo_codigo || '—'}</td>
+                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}</td>
+                  <td className="px-3 py-2"><Badge variant="outline">{it.area || '—'}</Badge></td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-400 text-xs">{it.estoque_min == null && it.estoque_max == null ? '—' : `${it.estoque_min ?? '—'} / ${it.estoque_max ?? '—'}`}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{Number(it.estoque_final || 0).toLocaleString('pt-BR')}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-500">{it.compra == null ? '—' : Number(it.compra).toLocaleString('pt-BR')}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${it.quebra == null ? 'text-gray-400' : Number(it.quebra) > 0 ? 'text-red-500' : Number(it.quebra) < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.quebra == null ? '—' : Number(it.quebra).toLocaleString('pt-BR')}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums font-medium ${it.valor_quebra == null ? 'text-gray-400' : Number(it.valor_quebra) > 0 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>{it.valor_quebra == null ? '—' : fmtBRL(it.valor_quebra)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div></CardContent></Card>
         ) : !comparar ? (
         <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
           <table className="w-full text-sm">

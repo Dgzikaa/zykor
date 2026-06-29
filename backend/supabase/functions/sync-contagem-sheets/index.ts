@@ -52,8 +52,11 @@ async function fetchSheet(id: string, range = 'INSUMOS!A1:AMJ800'): Promise<unkn
 interface BronzeRec {
   data_contagem: string; insumo_codigo: string; insumo_nome: string;
   estoque_fechado: number | null; estoque_flutuante: number | null;
-  preco_planilha: number | null;
+  preco_planilha: number | null; entrada_compra?: number | null;
 }
+
+const normNome = (s: unknown) =>
+  String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
 
 // "R$ 1.234,56" → 1234.56 (mas com UNFORMATTED_VALUE normalmente já vem número)
 function toNum(v: unknown): number | null {
@@ -157,26 +160,101 @@ function parseLimpeza(rows: unknown[][], fromISO: string, toISODate: string): Br
   return [...agg.values()]
 }
 
-async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtras: number) {
+// Mapa nome-normalizado → código (u0XXX) dos utensílios do bar (a planilha não tem código).
+async function loadUtensilioCodeMap(sb: ReturnType<typeof createClient>, bar: number): Promise<Map<string, string>> {
+  const { data, error } = await (sb.schema('operations') as any)
+    .from('insumos').select('codigo, nome').eq('bar_id', bar).eq('classe', 'utensilio')
+  if (error) throw error
+  const m = new Map<string, string>()
+  for (const r of (data || [])) m.set(normNome(r.nome), String(r.codigo))
+  return m
+}
+
+/**
+ * Parser da aba "UTENSÍLIOS" (modelo de quebra). Seções empilhadas (COZINHA/DRINK/
+ * SALÃO/UNIFORMES): cada uma tem linha de título+datas, linha VALOR DE QUEBRA, cabeçalho
+ * (PREÇO|Est Máx|Est Min|ITEM| trio ESTOQUE/COMPRA/QUEBRA por semana) e itens só por NOME.
+ * Datas nas colunas ESTOQUE (4,7,10,...). Casa o nome no código u0XXX via codeMap.
+ */
+function parseUtensilios(rows: unknown[][], fromISO: string, toISODate: string, codeMap: Map<string, string>): BronzeRec[] {
+  const SECOES = new Set(['cozinha', 'drink', 'salao', 'uniformes'])
+  const agg = new Map<string, BronzeRec>()
+  let dcols: { c: number; iso: string }[] = []
+  for (let i = 0; i < rows.length; i++) {
+    const row = (rows[i] || []) as unknown[]
+    const secKey = normNome(row[0]).replace(/\s/g, '')
+    if (SECOES.has(secKey)) {
+      // linha de título da seção: carrega as colunas de data (na coluna ESTOQUE de cada semana)
+      dcols = []
+      for (let c = 4; c < row.length; c++) {
+        const iso = toISO(row[c])
+        if (iso && iso >= fromISO && iso <= toISODate) dcols.push({ c, iso })
+      }
+      continue
+    }
+    const nome = String(row[3] || '').trim()
+    if (!nome || normNome(nome) === 'item' || dcols.length === 0) continue
+    const cod = codeMap.get(normNome(nome))
+    if (!cod) continue // item não cadastrado → ignora (será reportado pelo cadastro)
+    const preco = toNum(row[0])
+    for (const { c, iso } of dcols) {
+      const e = row[c], co = row[c + 1] // ESTOQUE, COMPRA (QUEBRA em c+2 é calculada, ignorada)
+      const estoque = typeof e === 'number' ? e : null
+      const compra = typeof co === 'number' ? co : null
+      if (estoque === null && compra === null) continue
+      const key = `${iso}|${cod}`
+      if (!agg.has(key)) {
+        agg.set(key, { data_contagem: iso, insumo_codigo: cod, insumo_nome: nome, estoque_fechado: estoque, estoque_flutuante: null, preco_planilha: preco, entrada_compra: compra })
+      }
+    }
+  }
+  return [...agg.values()]
+}
+
+async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtras: number, only?: string) {
   const sheetId = SHEETS[bar]
   if (!sheetId) throw new Error(`sem planilha para bar ${bar}`)
   const today = new Date().toISOString().slice(0, 10)
   const from = new Date(Date.now() - diasAtras * 86400000).toISOString().slice(0, 10)
 
-  const rows = await fetchSheet(sheetId)
-  const recsInsumos = parse(rows, from, today)
+  // only = 'insumo' | 'limpeza' | 'utensilio' → modo backfill de UMA classe
+  // (não re-puxa as outras nem deleta; refresh é scoped/externo). Sem only = sync normal.
+  const wantInsumo = !only || only === 'insumo'
+  const wantLimpeza = !only || only === 'limpeza'
+  const wantUtensilio = !only || only === 'utensilio'
 
-  // Aba LIMPEZA E DESCARTÁVEIS (classe=limpeza). Códigos d0XXX, sem flutuante.
-  // Pode não existir em todo bar → try/catch pra não derrubar o sync de insumos.
-  let recsLimpeza: BronzeRec[] = []
-  try {
-    const limpezaRows = await fetchSheet(sheetId, 'LIMPEZA E DESCARTÁVEIS!A1:CZ200')
-    recsLimpeza = parseLimpeza(limpezaRows, from, today)
-  } catch (e) {
-    console.log(`[sync] aba LIMPEZA indisponível p/ bar ${bar}: ${String((e as Error)?.message ?? e)}`)
+  let recsInsumos: BronzeRec[] = []
+  if (wantInsumo) {
+    const rows = await fetchSheet(sheetId)
+    recsInsumos = parse(rows, from, today)
   }
 
-  const recs = [...recsInsumos, ...recsLimpeza]
+  // Aba LIMPEZA E DESCARTÁVEIS (classe=limpeza). Códigos d0XXX, sem flutuante.
+  let recsLimpeza: BronzeRec[] = []
+  if (wantLimpeza) {
+    try {
+      const limpezaRows = await fetchSheet(sheetId, 'LIMPEZA E DESCARTÁVEIS!A1:CZ200')
+      recsLimpeza = parseLimpeza(limpezaRows, from, today)
+    } catch (e) {
+      console.log(`[sync] aba LIMPEZA indisponível p/ bar ${bar}: ${String((e as Error)?.message ?? e)}`)
+    }
+  }
+
+  // Aba UTENSÍLIOS (classe=utensilio, modelo de quebra). Match por nome → u0XXX.
+  let recsUtensilio: BronzeRec[] = []
+  if (wantUtensilio) {
+    try {
+      const codeMap = await loadUtensilioCodeMap(sb, bar)
+      if (codeMap.size > 0) {
+        const utRows = await fetchSheet(sheetId, 'UTENSÍLIOS!A1:KZ120')
+        recsUtensilio = parseUtensilios(utRows, from, today, codeMap)
+      }
+    } catch (e) {
+      console.log(`[sync] aba UTENSÍLIOS indisponível p/ bar ${bar}: ${String((e as Error)?.message ?? e)}`)
+    }
+  }
+
+  const recs = [...recsInsumos, ...recsLimpeza, ...recsUtensilio]
 
   // BRONZE: linhas cruas (tidy) da planilha
   const now = new Date().toISOString()
@@ -188,6 +266,7 @@ async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtr
     estoque_fechado: r.estoque_fechado,
     estoque_flutuante: r.estoque_flutuante,
     preco_planilha: r.preco_planilha,
+    entrada_compra: r.entrada_compra ?? null,
     ingested_em: now,
   }))
   let landed = 0
@@ -199,8 +278,13 @@ async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtr
     landed += chunk.length
   }
 
+  // Modo backfill (only): só landa bronze. Mirror-delete apagaria as outras classes
+  // e o refresh global re-fetcharia tudo (pesado) → ambos pulados; refresh é externo.
+  if (only) {
+    return { bar, only, janela: { from, to: today }, bronze: landed, limpeza: recsLimpeza.length, utensilio: recsUtensilio.length }
+  }
+
   // ESPELHO: o que sumiu da planilha (não foi tocado nesta leitura) some do bronze na janela.
-  // As linhas relidas têm ingested_em = now; as órfãs ficaram com ingested_em antigo.
   const { error: delErr } = await sb.from('bronze_contagem_sheet')
     .delete().eq('bar_id', bar).gte('data_contagem', from).lt('ingested_em', now)
   if (delErr) throw delErr
@@ -210,7 +294,7 @@ async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtr
     .rpc('fn_refresh_contagem_estoque', { p_bar: bar, p_dias: diasAtras })
   if (re) throw re
 
-  return { bar, janela: { from, to: today }, bronze: landed, limpeza: recsLimpeza.length, upserted }
+  return { bar, janela: { from, to: today }, bronze: landed, limpeza: recsLimpeza.length, utensilio: recsUtensilio.length, upserted }
 }
 
 Deno.serve(async (req: Request) => {
@@ -218,7 +302,8 @@ Deno.serve(async (req: Request) => {
   try {
     const url = new URL(req.url)
     const barParam = url.searchParams.get('bar_id')
-    const diasAtras = Math.max(1, Math.min(400, Number(url.searchParams.get('dias_atras')) || 14)) // até 400 p/ backfill
+    const diasAtras = Math.max(1, Math.min(700, Number(url.searchParams.get('dias_atras')) || 14)) // até 700 p/ backfill (2025)
+    const only = url.searchParams.get('only') || undefined // 'limpeza' | 'utensilio' | 'insumo'
     const bars = barParam ? [Number(barParam)] : [3, 4]
 
     const sb = createClient(
@@ -228,7 +313,7 @@ Deno.serve(async (req: Request) => {
     )
 
     const results = []
-    for (const bar of bars) results.push(await syncBar(sb, bar, diasAtras))
+    for (const bar of bars) results.push(await syncBar(sb, bar, diasAtras, only))
 
     return new Response(JSON.stringify({ success: true, results }), {
       headers: { ...cors, 'Content-Type': 'application/json' },
