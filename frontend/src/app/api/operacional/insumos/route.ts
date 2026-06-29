@@ -34,7 +34,8 @@ export async function GET(request: NextRequest) {
     const insumos = (insumosRaw || []).map((i: any) => {
       const u = (i.base && Number(i.embalagem) > 0) ? { base: i.base, embalagem: Number(i.embalagem) } : deriveUnid(i.nome, i.unidade_medida);
       return {
-        id: i.id, codigo: i.codigo, nome: i.nome, categoria: i.categoria, unidade_medida: i.unidade_medida,
+        id: i.id, codigo: i.codigo, nome: i.nome, categoria: i.categoria, secao_vmarket: i.secao_vmarket || null,
+        unidade_medida: i.unidade_medida,
         fator_correcao: !!i.fator_correcao,
         curva_a: !!i.curva_a, curva_a_proteina: !!i.curva_a_proteina, frequencia: i.frequencia,
         preco_atual: i.preco != null ? Number(i.preco) : null,

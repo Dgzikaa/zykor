@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
     const ultima = saidas.length ? saidas[saidas.length - 1] : null;
     return {
       codigo: r.insumo_codigo, nome: r.nome, fornecedor: r.fornecedor, categoria: r.categoria,
+      secao_vmarket: r.secao_vmarket || null,
       embalagem, base: u.base, unidade: u.base, custo: num(r.custo), curva_a: r.curva_a === true,
       estoque: r2(estoque), ab: r2(ab), comprado: num(r.comprado),
       media6: r2(media6), desvpad: r2(desvpad), saidas, semanas: r.semanas || [], ultima,

@@ -16,7 +16,7 @@ const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR'
 
 // 1 insumo = 1 linha (cadastro Zykor). VMarket (compras) só alimenta o preço via silver.
 interface Insumo {
-  id: number; codigo: string; nome: string; categoria: string | null; unidade_medida: string | null;
+  id: number; codigo: string; nome: string; categoria: string | null; secao_vmarket?: string | null; unidade_medida: string | null;
   fator_correcao?: boolean; curva_a?: boolean; curva_a_proteina?: boolean; frequencia?: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
   fornecedor: string | null; tem_compra?: boolean; tem_ficha?: boolean; base?: string | null; embalagem?: number | null;
 }
@@ -350,7 +350,8 @@ export default function InsumosPage() {
                   <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
                     <th className="text-left font-medium px-3 py-2">Código</th>
                     <th className="text-left font-medium px-3 py-2">Insumo</th>
-                    <th className="text-left font-medium px-3 py-2">Seção</th>
+                    <th className="text-left font-medium px-3 py-2" title="Categoria da planilha de contagem (usada só na hora de contar o estoque)">Local de Contagem</th>
+                    <th className="text-left font-medium px-3 py-2" title="Seção do VMarket = categoria de COMPRA (associada pelo de-para do insumo no VMarket)">Seção VMarket</th>
                     <th className="text-center font-medium px-3 py-2" title="Fator de Correção: insumo com perda/limpeza.">FC</th>
                     <th className="text-center font-medium px-3 py-2">Unid.</th>
                     <th className="text-right font-medium px-3 py-2" title="conversão da unidade de compra para unidade de ficha técnica">Embalagem</th>
@@ -359,8 +360,8 @@ export default function InsumosPage() {
                     <th className="w-10 px-3 py-2"></th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {loading ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
-                    : insumosView.length === 0 ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
+                    {loading ? <tr><td colSpan={10} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
+                    : insumosView.length === 0 ? <tr><td colSpan={10} className="px-3 py-10 text-center text-gray-400">Nenhum insumo.</td></tr>
                     : insumosView.map(i => {
                       const subiu = i.preco_anterior != null && i.preco_atual != null && i.preco_atual > i.preco_anterior;
                       const caiu = i.preco_anterior != null && i.preco_atual != null && i.preco_atual < i.preco_anterior;
@@ -376,6 +377,7 @@ export default function InsumosPage() {
                             </div>
                           </td>
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{i.categoria || '—'}</td>
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{i.secao_vmarket || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
                           <td className="px-3 py-2 text-center">
                             <button onClick={() => salvarFc(i, !i.fator_correcao)} title="Fator de correção (perda/limpeza)">
                               {i.fator_correcao ? <span className="text-amber-500">✓</span> : <span className="text-gray-300 hover:text-amber-400">—</span>}

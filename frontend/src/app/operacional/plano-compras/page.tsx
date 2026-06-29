@@ -30,7 +30,7 @@ export default function PlanoComprasPage() {
   const [busca, setBusca] = useState('');
   const [soCurvaA, setSoCurvaA] = useState(false);
   const [filtro, setFiltro] = useState<'todos' | 'comprar' | 'nao'>('todos');
-  const [fornecedor, setFornecedor] = useState('');
+  const [secao, setSecao] = useState('');
   const [aberto, setAberto] = useState<string | null>(null);
   const [semanaSel, setSemanaSel] = useState<string | null>(null);
 
@@ -45,16 +45,16 @@ export default function PlanoComprasPage() {
   useEffect(() => { carregar(); }, [carregar]);
 
   const semanaAtual = semanaSel ?? res?.semana_sel ?? null;
-  const fornecedores = useMemo(() => Array.from(new Set(((res?.itens || []) as any[]).map((i) => i.fornecedor).filter(Boolean))).sort(), [res]);
+  const secoes = useMemo(() => Array.from(new Set(((res?.itens || []) as any[]).map((i) => i.secao_vmarket).filter(Boolean))).sort(), [res]);
 
   const linhas = useMemo(() => {
     const s = busca.trim().toLowerCase();
     return ((res?.itens || []) as any[]).filter((i) =>
       (!soCurvaA || i.curva_a)
       && (filtro === 'todos' || (filtro === 'comprar' ? !i.nao_comprar : i.nao_comprar))
-      && (!fornecedor || i.fornecedor === fornecedor)
+      && (!secao || i.secao_vmarket === secao)
       && (!s || (i.nome || '').toLowerCase().includes(s) || (i.codigo || '').toLowerCase().includes(s)));
-  }, [res, busca, soCurvaA, filtro, fornecedor]);
+  }, [res, busca, soCurvaA, filtro, secao]);
 
   const totComprar = useMemo(() => linhas.filter((i) => !i.nao_comprar).length, [linhas]);
   const custoEstimado = useMemo(() => linhas.reduce((s, i) => s + (i.nao_comprar ? 0 : i.sugestao_qtd * i.custo), 0), [linhas]);
@@ -92,9 +92,9 @@ export default function PlanoComprasPage() {
         {/* Filtros */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[180px]"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar insumo…" className="pl-9" /></div>
-          <select value={fornecedor} onChange={e => setFornecedor(e.target.value)} className="text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent px-2 py-1.5 cursor-pointer max-w-[180px]">
-            <option value="" className="text-gray-900">Todos fornecedores</option>
-            {fornecedores.map((f) => <option key={f as string} value={f as string} className="text-gray-900">{f as string}</option>)}
+          <select value={secao} onChange={e => setSecao(e.target.value)} className="text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent px-2 py-1.5 cursor-pointer max-w-[220px]">
+            <option value="" className="text-gray-900">Todas as seções (VMarket)</option>
+            {secoes.map((s) => <option key={s as string} value={s as string} className="text-gray-900">{s as string}</option>)}
           </select>
           <button onClick={() => setSoCurvaA(v => !v)}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${soCurvaA ? 'ring-1 ring-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>Só Curva A</Badge></button>
           <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
@@ -129,7 +129,7 @@ export default function PlanoComprasPage() {
                   <td className="px-2 py-2 text-gray-900 dark:text-gray-100 max-w-[230px] leading-tight">
                     <span className="break-words">{it.nome}</span>{it.curva_a && <Badge variant="outline" className="ml-1.5 text-[10px] text-indigo-600 border-indigo-300">A</Badge>}
                     <span className="block text-[11px] text-gray-500 dark:text-gray-400 font-mono">{it.codigo}</span>
-                    <span className="block text-[11px] text-gray-400 break-words">{it.fornecedor || ''} · emb. {fmtMedida(it.embalagem, it.base)}</span>
+                    <span className="block text-[11px] text-gray-400 break-words">{it.secao_vmarket || 'sem seção'} · emb. {fmtMedida(it.embalagem, it.base)}</span>
                   </td>
                   <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{fmtEmb(it.ultima, it.embalagem)}</td>
                   <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
