@@ -8,7 +8,7 @@ import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { ChefHat, Search, Loader2, CalendarDays, Sparkles, RefreshCw, Play, Lock, Unlock, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Beer } from 'lucide-react';
 
-const fmtN = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+const fmtN = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const comUni = (v: any, un?: string) => v == null ? '—' : `${fmtN(v)}${un ? ` ${un}` : ''}`; // número com unidade de medida
 const fmtDM = (s: string) => s ? s.split('-').reverse().slice(0, 2).join('/') : '';
 const secaoDe = (it: any) => (it.codigo || '').toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha';
