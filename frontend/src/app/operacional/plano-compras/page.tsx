@@ -156,7 +156,7 @@ export default function PlanoComprasPage() {
             </tbody>
           </table>
         </div></CardContent></Card>
-        <p className="text-[11px] text-gray-400">Saída = uso <b>direto</b> do insumo em produtos (vendas × ficha). A necessidade dos insumos que vão em preparos vem da coluna <b>p/ Produção</b> (puxa o que foi decidido no Planejamento da Produção da mesma semana). <b>Comprado</b> = o que entrou de compra no Vmarket — é a "finalização" do planejamento.</p>
+        <p className="text-[11px] text-gray-400">Saída = uso <b>direto</b> do insumo em produtos (vendas × ficha). A necessidade dos insumos que vão em preparos vem da coluna <b>p/ Produção</b> (puxa o que foi decidido no Planejamento da Produção da mesma semana). <b>Comprado</b> = o que entrou de compra no Vmarket — é a &ldquo;finalização&rdquo; do planejamento.</p>
       </div>
     </div>
   );
