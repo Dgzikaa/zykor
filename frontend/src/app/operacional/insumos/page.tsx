@@ -16,7 +16,7 @@ const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR'
 
 // 1 insumo = 1 linha (cadastro Zykor). VMarket (compras) só alimenta o preço via silver.
 interface Insumo {
-  id: number; codigo: string; nome: string; categoria: string | null; secao_vmarket?: string | null; unidade_medida: string | null;
+  id: number; codigo: string; nome: string; categoria: string | null; secao_vmarket?: string | null; secao_vmarket_manual?: string | null; secao_vmarket_auto?: string | null; unidade_medida: string | null;
   fator_correcao?: boolean; curva_a?: boolean; curva_a_proteina?: boolean; frequencia?: string | null; preco_atual: number | null; preco_anterior: number | null; preco_data: string | null;
   fornecedor: string | null; tem_compra?: boolean; tem_ficha?: boolean; base?: string | null; embalagem?: number | null;
 }
@@ -31,6 +31,7 @@ export default function InsumosPage() {
   const [sincronizando, setSincronizando] = useState(false);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [semCadastro, setSemCadastro] = useState<SemCadastro[]>([]);
+  const [secoesVm, setSecoesVm] = useState<{ nome: string }[]>([]);
   const [syncedEm, setSyncedEm] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [catSel, setCatSel] = useState('todas');
@@ -53,7 +54,7 @@ export default function InsumosPage() {
     setLoading(true);
     try {
       const r = await api.get(`/api/operacional/insumos?bar_id=${barId}`);
-      if (r.success) { setInsumos(r.insumos || []); setSemCadastro(r.sem_cadastro || []); setSyncedEm(r.synced_em || null); }
+      if (r.success) { setInsumos(r.insumos || []); setSemCadastro(r.sem_cadastro || []); setSecoesVm(r.secoes || []); setSyncedEm(r.synced_em || null); }
     } catch (e: any) { toast({ title: 'Erro', description: e?.message || 'Falha ao carregar insumos', variant: 'destructive' }); }
     finally { setLoading(false); }
   }, [barId, toast]);
@@ -139,15 +140,17 @@ export default function InsumosPage() {
   // ---------- editar insumo ----------
   const [editIns, setEditIns] = useState<Insumo | null>(null);
   const [fCod, setFCod] = useState(''); const [fNome, setFNome] = useState(''); const [fCat, setFCat] = useState(''); const [fFc, setFFc] = useState(false);
+  const [fSecaoVm, setFSecaoVm] = useState('');
   const [fCurvaA, setFCurvaA] = useState(false);
   const [fProt, setFProt] = useState(false);
   const [fBase, setFBase] = useState('g'); const [fEmb, setFEmb] = useState('1');
-  const abrirEditIns = (i: Insumo) => { setEditIns(i); setFCod(i.codigo || ''); setFNome(i.nome || ''); setFCat(i.categoria || ''); setFFc(!!i.fator_correcao); setFCurvaA(!!i.curva_a); setFProt(!!i.curva_a_proteina); setFBase(i.base || 'g'); setFEmb(String(i.embalagem ?? 1)); };
+  const abrirEditIns = (i: Insumo) => { setEditIns(i); setFCod(i.codigo || ''); setFNome(i.nome || ''); setFCat(i.categoria || ''); setFSecaoVm(i.secao_vmarket_manual || ''); setFFc(!!i.fator_correcao); setFCurvaA(!!i.curva_a); setFProt(!!i.curva_a_proteina); setFBase(i.base || 'g'); setFEmb(String(i.embalagem ?? 1)); };
   const salvarEditIns = async () => {
     if (!editIns) return;
     try {
       const r = await api.post('/api/operacional/insumos', {
         bar_id: barId, action: 'editar', id: editIns.id, codigo: fCod.trim().toLowerCase(), nome: fNome.trim(), categoria: fCat.trim(),
+        secao_vmarket: fSecaoVm.trim(),
         fator_correcao: fFc, curva_a: fCurvaA, curva_a_proteina: fProt, unidade_medida: fBase, base: fBase, embalagem: Number(String(fEmb).replace(',', '.')) || 1,
       });
       if (!r.success) throw new Error(r.error);
@@ -628,12 +631,20 @@ export default function InsumosPage() {
                 <div className="w-32"><label className="text-xs text-gray-500" title="Código do insumo (i0XXX). Trocar aqui corrige de-para errado e renomeia em cascata (fichas, compras, unidade).">Código</label><Input value={fCod} onChange={e => setFCod(e.target.value)} placeholder="i0084" /></div>
                 <div className="flex-1"><label className="text-xs text-gray-500">Nome</label><Input value={fNome} onChange={e => setFNome(e.target.value)} /></div>
               </div>
-              <div><label className="text-xs text-gray-500">Seção</label>
+              <div><label className="text-xs text-gray-500" title="Categoria da planilha de contagem (só pra contar estoque)">Local de Contagem</label>
                 <select value={fCat} onChange={e => setFCat(e.target.value)} className="w-full h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent px-2 text-sm">
                   <option value="">— selecione —</option>
                   {fCat && !catList.includes(fCat) && <option value={fCat}>{fCat}</option>}
                   {catList.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+              </div>
+              <div><label className="text-xs text-gray-500" title="Seção do VMarket = categoria de COMPRA. Por padrão vem do de-para VMarket; aqui você fixa a correta (útil quando o insumo aparece em 2 seções).">Seção VMarket (compra)</label>
+                <select value={fSecaoVm} onChange={e => setFSecaoVm(e.target.value)} className="w-full h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent px-2 text-sm">
+                  <option value="">— automática (de-para VMarket) —</option>
+                  {fSecaoVm && !secoesVm.some(s => s.nome === fSecaoVm) && <option value={fSecaoVm}>{fSecaoVm}</option>}
+                  {secoesVm.map(s => <option key={s.nome} value={s.nome}>{s.nome}</option>)}
+                </select>
+                {!fSecaoVm && <p className="text-[11px] text-gray-400 mt-0.5">Automática: <b>{editIns?.secao_vmarket_auto || 'sem seção (sem de-para)'}</b></p>}
               </div>
               <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
                 <input type="checkbox" checked={fFc} onChange={e => setFFc(e.target.checked)} className="h-4 w-4 accent-amber-500" />

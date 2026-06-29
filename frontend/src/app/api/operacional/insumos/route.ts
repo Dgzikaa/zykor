@@ -34,7 +34,8 @@ export async function GET(request: NextRequest) {
     const insumos = (insumosRaw || []).map((i: any) => {
       const u = (i.base && Number(i.embalagem) > 0) ? { base: i.base, embalagem: Number(i.embalagem) } : deriveUnid(i.nome, i.unidade_medida);
       return {
-        id: i.id, codigo: i.codigo, nome: i.nome, categoria: i.categoria, secao_vmarket: i.secao_vmarket || null,
+        id: i.id, codigo: i.codigo, nome: i.nome, categoria: i.categoria,
+        secao_vmarket: i.secao_vmarket || null, secao_vmarket_manual: i.secao_vmarket_manual || null, secao_vmarket_auto: i.secao_vmarket_auto || null,
         unidade_medida: i.unidade_medida,
         fator_correcao: !!i.fator_correcao,
         curva_a: !!i.curva_a, curva_a_proteina: !!i.curva_a_proteina, frequencia: i.frequencia,
@@ -92,6 +93,8 @@ export async function POST(request: NextRequest) {
     const patch: any = {};
     if ('nome' in body) patch.nome = String(body.nome || '').trim();
     if ('categoria' in body) patch.categoria = String(body.categoria || '').trim() || null;
+    // override manual da Seção VMarket (categoria de compra) — vence o derivado do de-para VMarket
+    if ('secao_vmarket' in body) patch.secao_vmarket_manual = String(body.secao_vmarket || '').trim() || null;
     if ('unidade_medida' in body) patch.unidade_medida = mapUnidade(String(body.unidade_medida || ''));
     if ('fator_correcao' in body) patch.fator_correcao = !!body.fator_correcao;
     if ('curva_a' in body) { patch.curva_a = !!body.curva_a; patch.frequencia = body.curva_a ? 'diaria' : 'semanal'; }

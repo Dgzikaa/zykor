@@ -1,11 +1,19 @@
 -- "Seção VMarket" = categoria de COMPRA do insumo (vem do VMarket: bronze_vmarket_produtos.nome_secao,
 -- associada ao insumo pelo de-para codigo_planilha). Distinta do "Local de Contagem"
 -- (operations.insumos.categoria), que veio da planilha de contagem e só serve pra contar estoque.
--- A view silver.insumo_catalogo (fonte única de Insumos + Plano de Compras) passa a expor as duas:
---   categoria      = Local de Contagem
---   secao_vmarket  = Seção VMarket (categoria de compra)
--- 7 insumos caem em 2 seções (variações BAR/COZINHA) — DISTINCT ON pega 1 determinística (alfabética).
+--
+-- A view silver.insumo_catalogo (fonte única de Insumos + Plano de Compras) expõe:
+--   categoria              = Local de Contagem
+--   secao_vmarket          = Seção VMarket resolvida = COALESCE(override manual, derivada do VMarket)
+--   secao_vmarket_manual   = override manual cru (NULL = automática)
+--   secao_vmarket_auto     = a derivada do de-para (p/ mostrar o "automática: X" no editar)
+--
+-- Quando 1 insumo cai em 2+ seções (mesmo codigo_planilha em SKUs VMarket de seções diferentes —
+-- ex.: Abacaxi un BAR-HORTIFRUTI + Abacaxi Graúdo COZINHA-HORTIFRUTI), o DISTINCT ON pega 1
+-- (alfabética); o usuário fixa a correta no editar do insumo (secao_vmarket_manual).
 -- Aplicada em prod via MCP em 2026-06-29.
+alter table operations.insumos add column if not exists secao_vmarket_manual text;
+
 create or replace view silver.insumo_catalogo as
 with compras as (
   select b.bar_id,
@@ -28,7 +36,9 @@ select i.bar_id, i.id, i.codigo, i.nome, i.categoria, i.unidade_medida, i.fator_
   c.preco_anterior, c.data_atual as preco_data, c.fornecedor_atual as fornecedor,
   (c.preco_atual is not null) as tem_compra,
   u.base, u.embalagem, i.curva_a, i.frequencia, i.curva_a_proteina,
-  s.nome_secao as secao_vmarket
+  coalesce(nullif(i.secao_vmarket_manual,''), s.nome_secao) as secao_vmarket,
+  nullif(i.secao_vmarket_manual,'') as secao_vmarket_manual,
+  s.nome_secao as secao_vmarket_auto
 from operations.insumos i
 left join compras c on c.bar_id = i.bar_id and c.codigo = i.codigo::text and c.rn = 1
 left join public.insumo_unidade u on u.bar_id = i.bar_id and u.id_prod = (- i.id)
