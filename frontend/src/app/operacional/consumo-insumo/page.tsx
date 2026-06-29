@@ -21,8 +21,8 @@ const fmtQtdUnidade = (v: any, unidade: any) => {
 };
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const isoDate = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-// padrão = ontem (o dia atual ainda não tem dado consolidado)
-const ontemISO = () => { const d = new Date(); d.setDate(d.getDate() - 1); return isoDate(d); };
+// padrão = hoje (dia atual)
+const hojeISO = () => isoDate(new Date());
 const fmtDataBR = (s: string) => s.split('-').reverse().join('/');
 const fmtDM = (dt: Date) => `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`;
 // segunda-feira da semana de uma data ISO
@@ -54,7 +54,7 @@ export default function SaidasPage() {
 
   const [aba, setAba] = useState<Aba>('insumo');
   const [gran, setGran] = useState<'dia' | 'semana' | 'mes'>('dia');
-  const [dataRef, setDataRef] = useState(ontemISO());
+  const [dataRef, setDataRef] = useState(hojeISO());
   const range = useMemo(() => calcRange(gran, dataRef), [gran, dataRef]);
   // opções de mês (12 últimos) e semana (16 últimas, seg→dom) pro seletor
   const mesOptions = useMemo(() => {

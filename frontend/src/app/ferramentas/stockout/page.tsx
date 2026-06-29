@@ -169,7 +169,8 @@ export default function StockoutPage() {
   const router = useRouter();
 
   // Coleta diária grava data_consulta = dia do snapshot (alinhado ao cron CURRENT_DATE).
-  const [selectedDate, setSelectedDate] = useState(() => formatDateLocalYMD(new Date()));
+  // Padrão = ONTEM (D-1): o stockout roda de madrugada, então o dia de hoje ainda não tem snapshot.
+  const [selectedDate, setSelectedDate] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 1); return formatDateLocalYMD(d); });
   
   const [stockoutData, setStockoutData] = useState<StockoutData | null>(null);
   const [historicoData, setHistoricoData] = useState<HistoricoData | null>(null);
