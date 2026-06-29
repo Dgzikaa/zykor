@@ -222,19 +222,19 @@ export default function PlanoProducaoPage() {
         <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
-              <th className="text-left font-medium px-3 py-2">Produção</th>
-              <th className="text-right font-medium px-3 py-2" title="Uso indireto da última semana (clique p/ abrir as 6 semanas)">Uso Indireto</th>
-              <th className="text-right font-medium px-3 py-2" title="Média ponderada do uso indireto das últimas 6 semanas — peso maior para a semana mais recente; semana em branco fica fora. Clique no valor para ver as semanas.">Média 6s</th>
-              <th className="text-right font-medium px-3 py-2" title="Desvio padrão amostral das 6 semanas">Desv. padrão</th>
-              <th className="text-center font-medium px-3 py-2" title="Define o fator de segurança do Ponto de Ressuprimento">Nível de Serviço</th>
-              <th className="text-center font-medium px-3 py-2" title="Quantas semanas de receita produzir de uma vez">Qtde x Semanas</th>
-              <th className="text-right font-medium px-3 py-2" title="Ponto de Ressuprimento = média + desvio × fator de serviço">PR</th>
-              <th className="text-right font-medium px-3 py-2" title="Última contagem (início da semana planejada)">Estoque Atual</th>
-              <th className="text-right font-medium px-3 py-2" title="Estoque ÷ ritmo diário (÷6)">Dias de Estoque</th>
-              <th className="text-right font-medium px-3 py-2" title="Aviso (não muda a sugestão): quanto deste preparo a produção planejada dos pais vai consumir">Qtde p/ pais</th>
-              <th className="text-right font-medium px-3 py-2">Sugestão</th>
-              {planejando && <th className="text-right font-medium px-3 py-2" title="O que foi decidido na reunião (receitas)">Decidido</th>}
-              {planejando && <th className="text-center font-medium px-3 py-2">Dia</th>}
+              <th className="text-left font-medium px-2 py-2">Produção</th>
+              <th className="text-right font-medium px-2 py-2" title="Uso indireto da última semana (clique p/ abrir as 6 semanas)">Uso Indireto</th>
+              <th className="text-right font-medium px-2 py-2" title="Média ponderada do uso indireto das últimas 6 semanas — peso maior para a semana mais recente; semana em branco fica fora. Clique no valor para ver as semanas.">Média 6s</th>
+              <th className="text-right font-medium px-2 py-2" title="Desvio padrão amostral das 6 semanas">Desv. padrão</th>
+              <th className="text-center font-medium px-2 py-2" title="Define o fator de segurança do Ponto de Ressuprimento">Nível de Serviço</th>
+              <th className="text-center font-medium px-2 py-2" title="Quantas semanas de receita produzir de uma vez">Qtde x Semanas</th>
+              <th className="text-right font-medium px-2 py-2" title="Ponto de Ressuprimento = média + desvio × fator de serviço">PR</th>
+              <th className="text-right font-medium px-2 py-2" title="Última contagem (início da semana planejada)">Estoque Atual</th>
+              <th className="text-right font-medium px-2 py-2" title="Estoque ÷ ritmo diário (÷6)">Dias de Estoque</th>
+              <th className="text-right font-medium px-2 py-2" title="Aviso (não muda a sugestão): quanto deste preparo a produção planejada dos pais vai consumir">Qtde p/ pais</th>
+              <th className="text-right font-medium px-2 py-2">Sugestão</th>
+              {planejando && <th className="text-right font-medium px-2 py-2" title="O que foi decidido na reunião (receitas)">Decidido</th>}
+              {planejando && <th className="text-center font-medium px-2 py-2">Dia</th>}
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading ? <tr><td colSpan={nCols} className="px-3 py-12 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
@@ -247,46 +247,46 @@ export default function PlanoProducaoPage() {
                 return (
                 <Fragment key={it.producao_id}>
                 <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1.5">
-                      <button onClick={() => toggleFlag(it)} title={it.controle_producao ? 'Sai do controle de produção' : 'Entra no controle de produção'} className={`w-2.5 h-2.5 rounded-full ${it.controle_producao ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                  <td className="px-2 py-2 text-gray-900 dark:text-gray-100 max-w-[180px]">
+                    <span className="inline-flex items-start gap-1.5 leading-tight">
+                      <button onClick={() => toggleFlag(it)} title={it.controle_producao ? 'Sai do controle de produção' : 'Entra no controle de produção'} className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${it.controle_producao ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
                       {it.nome}{it.curva_a && <Badge variant="outline" className="text-[10px] text-indigo-600 border-indigo-300">A</Badge>}
                     </span>
                     {it.codigo && <span className="block text-[11px] text-gray-500 dark:text-gray-400 font-mono pl-4">{it.codigo}</span>}
                     <span className="block text-[11px] text-gray-400 pl-4">rende {comUni(it.rend_contagem, it.unidade)}/receita</span>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{comUni(ultima, it.unidade)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{comUni(ultima, it.unidade)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
                     <button onClick={() => setAberto(expandido ? null : it.producao_id)} className="inline-flex items-center gap-1 hover:text-violet-600 dark:hover:text-violet-400" title="Ver as 6 semanas que formam a média">
                       {expandido ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}{comUni(it.media6, it.unidade)}
                     </button>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtN(it.desvpad)}</td>
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-2 py-2 text-right tabular-nums text-gray-500">{fmtN(it.desvpad)}</td>
+                  <td className="px-2 py-2 text-center">
                     <select disabled={encerrado} value={it.nivel_servico} onChange={e => salvarConfig(it, 'nivel_servico', Number(e.target.value))} className="bg-transparent text-xs outline-none cursor-pointer disabled:cursor-default rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 px-1">
                       {NIVEIS.map(n => <option key={n} value={n} className="text-gray-900">{n}%</option>)}
                     </select>
                   </td>
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-2 py-2 text-center">
                     <input disabled={encerrado} type="number" min={0} step={0.5} value={it.semanas_receita}
                       onChange={e => patchItem(it.producao_id, { semanas_receita: Number(e.target.value) })}
                       onBlur={e => salvarConfig(it, 'semanas_receita', Number(e.target.value))}
                       className="w-12 bg-transparent text-xs text-center outline-none rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 disabled:hover:border-transparent" />
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-200 font-medium whitespace-nowrap">{comUni(it.pr, it.unidade)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{comUni(it.estoque, it.unidade)}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums whitespace-nowrap ${(it.diasEstoque ?? 99) < 3 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'}`}>{it.diasEstoque == null ? '—' : `${fmtN(it.diasEstoque)}d`}</td>
-                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                  <td className="px-2 py-2 text-right tabular-nums text-gray-700 dark:text-gray-200 font-medium whitespace-nowrap">{comUni(it.pr, it.unidade)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{comUni(it.estoque, it.unidade)}</td>
+                  <td className={`px-2 py-2 text-right tabular-nums whitespace-nowrap ${(it.diasEstoque ?? 99) < 3 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'}`}>{it.diasEstoque == null ? '—' : `${fmtN(it.diasEstoque)}d`}</td>
+                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
                     {it.consumo > 0
                       ? <span className={it.falta > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'} title={it.falta > 0 ? `Faltam ${comUni(it.falta, it.unidade)} p/ cobrir a produção planejada dos pais` : 'Coberto pelo estoque + plano'}>{comUni(it.consumo, it.unidade)}{it.falta > 0 ? ' ⚠' : ''}</span>
                       : <span className="text-gray-300 dark:text-gray-600">—</span>}
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="px-2 py-2 text-right">
                     {it.naoProduzir
                       ? <span className="text-emerald-600 dark:text-emerald-400 text-xs">Não produzir</span>
                       : <span className="inline-flex flex-col items-end"><span className="font-bold text-violet-700 dark:text-violet-300 tabular-nums">{it.receitas} rec.</span><span className="text-[10px] text-gray-400 whitespace-nowrap">≈ {comUni(it.sugestaoQtd, it.unidade)}</span></span>}
                   </td>
-                  {planejando && <td className="px-3 py-2 text-right">
+                  {planejando && <td className="px-2 py-2 text-right">
                     <input disabled={encerrado} type="number" min={0} step={1}
                       value={decidido ?? (it.naoProduzir ? 0 : it.receitas)}
                       onChange={e => patchItem(it.producao_id, { decisao: { ...(it.decisao || {}), decidido_receitas: e.target.value === '' ? null : Number(e.target.value) } })}
@@ -298,7 +298,7 @@ export default function PlanoProducaoPage() {
                       onBlur={e => salvarDecisao(it, { motivo_override: e.target.value || null })}
                       className="block mt-1 w-32 ml-auto bg-transparent text-[11px] text-right outline-none rounded border border-amber-300 dark:border-amber-700/60 px-1 py-0.5 placeholder:text-amber-400/60" />}
                   </td>}
-                  {planejando && <td className="px-3 py-2 text-center">
+                  {planejando && <td className="px-2 py-2 text-center">
                     <select disabled={encerrado} value={it.decisao?.dia_producao ?? ''} onChange={e => salvarDecisao(it, { dia_producao: e.target.value || null })} className="bg-transparent text-xs outline-none cursor-pointer disabled:cursor-default rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 px-1">
                       <option value="" className="text-gray-900">—</option>
                       {diasOpcoes.map(d => <option key={d.iso} value={d.iso} className="text-gray-900">{d.label}</option>)}
@@ -306,7 +306,7 @@ export default function PlanoProducaoPage() {
                   </td>}
                 </tr>
                 {expandido && <tr className="bg-gray-50/60 dark:bg-gray-800/30">
-                  <td colSpan={nCols} className="px-3 py-2">
+                  <td colSpan={nCols} className="px-2 py-2">
                     <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400 pl-4">
                       <span className="font-medium text-gray-600 dark:text-gray-300">Semanas que formam a média (ponderada por recência):</span>
                       {(it.semanas || []).map((wk: string, i: number) => {
