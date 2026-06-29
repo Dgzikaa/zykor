@@ -356,6 +356,7 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
         const pbNum = parseFloat(sel.pesoBruto) || 0;
         const plNum = parseFloat(sel.pesoMestre) || 0;
         const fcReal = mestreFc && pbNum > 0 && plNum > 0 ? plNum / pbNum : 0; // aproveitamento (líquido/bruto), 0–1 — mesma convenção do FC da ficha
+        const iniciada = sel.rodando || sel.segundos > 0; // peso/rendimento só liberam depois de iniciar a produção
         return (
           <Card className="card-dark"><CardContent className="py-3 space-y-4">
             {/* Cabeçalho + timer */}
@@ -376,6 +377,8 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
               </div>
             </div>
 
+            {!iniciada && <div className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1"><Play className="w-3 h-3" />Selecione o responsável e <b>inicie a produção</b> antes de pesar o bruto e lançar o rendimento.</div>}
+
             {/* Responsável + peso mestre + rendimento */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
@@ -392,11 +395,11 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
                   <div className="space-y-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] w-12 text-gray-400 shrink-0">Bruto</span>
-                      <Input type="number" inputMode="decimal" step="any" value={sel.pesoBruto} onChange={e => patch(sel.localId, { pesoBruto: e.target.value })} placeholder="antes de limpar" className="h-9" />
+                      <Input type="number" inputMode="decimal" step="any" disabled={!iniciada} value={sel.pesoBruto} onChange={e => patch(sel.localId, { pesoBruto: e.target.value })} placeholder="antes de limpar" className="h-9" />
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] w-12 text-gray-400 shrink-0">Líquido</span>
-                      <Input type="number" inputMode="decimal" step="any" value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })} placeholder={`limpo · ficha ${fmtNum(mestreQtd, 3)}`} className="h-9" />
+                      <Input type="number" inputMode="decimal" step="any" disabled={!iniciada} value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })} placeholder={`limpo · ficha ${fmtNum(mestreQtd, 3)}`} className="h-9" />
                     </div>
                   </div>
                   <p className="text-[11px] text-gray-400 mt-0.5">{fcReal > 0 ? `FC real ${fmtNum(fcReal, 2)} · ` : ''}o líquido dirige a receita</p>
@@ -405,12 +408,12 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
                 <div>
                   <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso real do mestre{mestre ? ` (${mestre.unidade_exib || ''})` : ''}</label>
                   <Input type="number" inputMode="decimal" step="any" value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })}
-                    placeholder={mestre ? `ficha: ${fmtNum(mestreQtd, 3)}` : 'sem insumo mestre'} disabled={!mestre} className="h-10" />
+                    placeholder={mestre ? `ficha: ${fmtNum(mestreQtd, 3)}` : 'sem insumo mestre'} disabled={!mestre || !iniciada} className="h-10" />
                 </div>
               )}
               <div>
                 <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real * {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado, 3)} {sel.ficha.unidade || ''}</span>}</label>
-                <Input type="number" inputMode="decimal" step="any" value={sel.rendimentoReal} onChange={e => patch(sel.localId, { rendimentoReal: e.target.value })} placeholder="produzido…" className="h-10" />
+                <Input type="number" inputMode="decimal" step="any" disabled={!iniciada} value={sel.rendimentoReal} onChange={e => patch(sel.localId, { rendimentoReal: e.target.value })} placeholder="produzido…" className="h-10" />
               </div>
             </div>
 
@@ -708,7 +711,7 @@ export default function ProducoesPage() {
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-orange-100 dark:bg-orange-900/30 rounded-xl"><Timer className="w-6 h-6 text-orange-600 dark:text-orange-400" /></div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Produções</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Controle da Produção</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Execução com cronômetro (várias em paralelo), aderência à ficha e controle de tempo, custo e insumos</p>
           </div>
         </div>
