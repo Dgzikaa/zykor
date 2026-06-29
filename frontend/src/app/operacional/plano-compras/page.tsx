@@ -18,6 +18,8 @@ const fmtMedida = (v: any, base?: string) => {
   if (base === 'ml') return n >= 1000 ? `${fmtN(n / 1000)} L` : `${fmtN(n)} ml`;
   return `${fmtN(n)} un`;
 };
+// valor da unidade-base convertido p/ nº de EMBALAGENS (unidade de compra), ex.: 627000 ml ÷ 269 = 2331 latas
+const fmtEmb = (vBase: any, emb: any) => vBase == null ? '—' : fmtN(Number(vBase) / (Number(emb) || 1));
 const fmtDM = (s: string) => s ? s.split('-').reverse().slice(0, 2).join('/') : '';
 
 export default function PlanoComprasPage() {
@@ -107,12 +109,12 @@ export default function PlanoComprasPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
               <th className="text-left font-medium px-2 py-2 w-px">Insumo</th>
-              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="Uso direto da última semana">Uso Direto</th>
-              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="Média ponderada do uso direto das 6 semanas">Média 6s</th>
-              <th className="text-right font-medium px-2 py-2 whitespace-nowrap">Desv. padrão</th>
-              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="Ponto de Ressuprimento = média + desvio × fator de serviço">PR</th>
-              <th className="text-right font-medium px-2 py-2 whitespace-nowrap">Estoque Atual</th>
-              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="Necessidade da produção planejada (plano encerrado da semana)">p/ Produção</th>
+              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="Uso direto da última semana (em nº de embalagens)">Uso Direto <span className="normal-case text-gray-400">(emb)</span></th>
+              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="Média ponderada do uso direto das 6 semanas (em nº de embalagens)">Média 6s <span className="normal-case text-gray-400">(emb)</span></th>
+              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="Desvio padrão (em nº de embalagens)">Desv. padrão</th>
+              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="Ponto de Ressuprimento = média + desvio × fator de serviço (em nº de embalagens)">PR <span className="normal-case text-gray-400">(emb)</span></th>
+              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="Estoque atual (em nº de embalagens)">Estoque <span className="normal-case text-gray-400">(emb)</span></th>
+              <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="Necessidade da produção planejada, plano encerrado da semana (em nº de embalagens)">p/ Produção <span className="normal-case text-gray-400">(emb)</span></th>
               <th className="text-right font-medium px-2 py-2 whitespace-nowrap">Sugestão de Compra</th>
               <th className="text-right font-medium px-2 py-2 whitespace-nowrap" title="O que apareceu de compra no Vmarket nesta semana">Comprado</th>
             </tr></thead>
@@ -129,16 +131,16 @@ export default function PlanoComprasPage() {
                     <span className="block text-[11px] text-gray-500 dark:text-gray-400 font-mono">{it.codigo}</span>
                     <span className="block text-[11px] text-gray-400 break-words">{it.fornecedor || ''} · emb. {fmtMedida(it.embalagem, it.base)}</span>
                   </td>
-                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{fmtMedida(it.ultima, it.base)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{fmtEmb(it.ultima, it.embalagem)}</td>
                   <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
                     <button onClick={() => setAberto(expandido ? null : it.codigo)} className="inline-flex items-center gap-1 hover:text-emerald-600 dark:hover:text-emerald-400" title="Ver as 6 semanas que formam a média">
-                      {expandido ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}{fmtMedida(it.media6, it.base)}
+                      {expandido ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}{fmtEmb(it.media6, it.embalagem)}
                     </button>
                   </td>
-                  <td className="px-2 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmtN(it.desvpad)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-gray-700 dark:text-gray-200 font-medium whitespace-nowrap">{fmtMedida(it.pr, it.base)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmtMedida(it.estoque, it.base)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{it.ab > 0 ? <span className="text-indigo-600 dark:text-indigo-400">{fmtMedida(it.ab, it.base)}</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmtEmb(it.desvpad, it.embalagem)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-gray-700 dark:text-gray-200 font-medium whitespace-nowrap">{fmtEmb(it.pr, it.embalagem)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmtEmb(it.estoque, it.embalagem)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{it.ab > 0 ? <span className="text-indigo-600 dark:text-indigo-400">{fmtEmb(it.ab, it.embalagem)}</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
                   <td className="px-2 py-2 text-right whitespace-nowrap">
                     {it.nao_comprar
                       ? <span className="text-gray-400 text-xs">Não comprar</span>
@@ -152,9 +154,9 @@ export default function PlanoComprasPage() {
                       <span className="font-medium text-gray-600 dark:text-gray-300">Uso direto por semana:</span>
                       {(it.semanas || []).map((wk: string, i: number) => {
                         const v = it.saidas?.[i] ?? 0;
-                        return <span key={wk} className={`inline-flex items-center gap-1 rounded px-2 py-0.5 ${v > 0 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 line-through'}`}>{fmtDM(wk)}: <b>{fmtMedida(v, it.base)}</b> <span className="opacity-60">×{i + 1}</span></span>;
+                        return <span key={wk} className={`inline-flex items-center gap-1 rounded px-2 py-0.5 ${v > 0 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 line-through'}`}>{fmtDM(wk)}: <b>{fmtEmb(v, it.embalagem)} emb</b> <span className="opacity-60">×{i + 1}</span></span>;
                       })}
-                      <span className="text-gray-600 dark:text-gray-300">= média <b>{fmtMedida(it.media6, it.base)}</b></span>
+                      <span className="text-gray-600 dark:text-gray-300">= média <b>{fmtEmb(it.media6, it.embalagem)} emb</b></span>
                     </div>
                   </td>
                 </tr>}
@@ -163,7 +165,7 @@ export default function PlanoComprasPage() {
             </tbody>
           </table>
         </div></CardContent></Card>
-        <p className="text-[11px] text-gray-400">Saída = uso <b>direto</b> do insumo em produtos (vendas × ficha). A necessidade dos insumos que vão em preparos vem da coluna <b>p/ Produção</b> (puxa o que foi decidido no Planejamento da Produção da mesma semana). <b>Comprado</b> = o que entrou de compra no Vmarket — é a &ldquo;finalização&rdquo; do planejamento.</p>
+        <p className="text-[11px] text-gray-400">Todos os números estão em <b>nº de embalagens</b> (unidade de compra; ex.: latas/garrafas/pacotes) — o tamanho de cada embalagem aparece abaixo do nome do insumo. Saída = uso <b>direto</b> do insumo em produtos (vendas × ficha). A necessidade dos insumos que vão em preparos vem da coluna <b>p/ Produção</b> (puxa o que foi decidido no Planejamento da Produção da mesma semana). <b>Comprado</b> = o que entrou de compra no Vmarket — é a &ldquo;finalização&rdquo; do planejamento.</p>
       </div>
     </div>
   );
