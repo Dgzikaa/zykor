@@ -41,14 +41,20 @@ export default function PlanoProducaoPage() {
   const [aba, setAba] = useState<'Cozinha' | 'Bar'>('Cozinha'); // planejamento separado Cozinha × Bar
   const [filtroProd, setFiltroProd] = useState<'todos' | 'produzir' | 'nao'>('todos');
   const [aberto, setAberto] = useState<number | null>(null); // linha expandida (6 semanas)
+  const [semanaSel, setSemanaSel] = useState<string | null>(null); // semana escolhida (null = mais recente)
   const [salvando, setSalvando] = useState(false);
 
   const carregar = useCallback(async () => {
     if (!barId) return; setLoading(true);
-    try { const r = await api.get('/api/operacional/plano-producao'); if (r.success) { setRes(r); setItens(r.itens || []); } }
-    finally { setLoading(false); }
-  }, [barId]);
+    try {
+      const qs = semanaSel ? `?semana=${encodeURIComponent(semanaSel)}` : '';
+      const r = await api.get(`/api/operacional/plano-producao${qs}`);
+      if (r.success) { setRes(r); setItens(r.itens || []); }
+    } finally { setLoading(false); }
+  }, [barId, semanaSel]);
   useEffect(() => { carregar(); }, [carregar]);
+
+  const semanaAtual = semanaSel ?? res?.semana_sel ?? null; // semana em foco
 
   const plano = res?.planos?.[aba] || null; // sessão da aba atual (Cozinha × Bar são independentes)
   const emRascunho = plano?.status === 'rascunho';
@@ -106,7 +112,8 @@ export default function PlanoProducaoPage() {
     const m = new Map<number, number>();
     const recById = new Map<number, number>(itens.map((it) => {
       const dec = it.decisao?.decidido_receitas;
-      return [it.producao_id, dec != null ? Number(dec) : calcular(it).receitas];
+      const base = it.frozen ? it.sugestao_receitas : calcular(it).receitas;
+      return [it.producao_id, dec != null ? Number(dec) : base];
     }));
     (res?.bom || []).forEach((b: any) => {
       const rec = recById.get(b.pai) || 0;
@@ -120,8 +127,11 @@ export default function PlanoProducaoPage() {
     const s = busca.trim().toLowerCase();
     return itens
       .map((it) => {
-        const calc = calcular(it);
-        const consumo = consumoMap.get(it.producao_id) || 0;
+        // semana congelada (encerrada): usa os valores do snapshot, não recalcula
+        const calc = it.frozen
+          ? { pr: it.pr, naoProduzir: it.nao_produzir, receitas: it.sugestao_receitas, sugestaoQtd: it.sugestao_qtd, diasEstoque: it.media6 > 0 ? it.estoque / (it.media6 / 6) : null }
+          : calcular(it);
+        const consumo = it.frozen ? (it.consumo || 0) : (consumoMap.get(it.producao_id) || 0);
         const planejadoQtd = it.decisao?.decidido_receitas != null ? Number(it.decisao.decidido_receitas) * it.rend_contagem : calc.sugestaoQtd;
         const falta = consumo > 0 ? Math.max(0, consumo - (it.estoque + planejadoQtd)) : 0; // não cobre a produção dos pais
         return { ...it, ...calc, consumo, falta };
@@ -154,13 +164,17 @@ export default function PlanoProducaoPage() {
 
         {/* Status da sessão + ações */}
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          {res?.semana && <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 px-3 py-1"><CalendarDays className="w-4 h-4" />Semana <b>{fmtDM(res.semana.ini)} – {fmtDM(res.semana.fim)}</b></span>}
+          {res?.semanas_disponiveis && <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 px-3 py-1"><CalendarDays className="w-4 h-4" />Semana:
+            <select value={semanaAtual ?? ''} onChange={e => { setSemanaSel(e.target.value); setAberto(null); }} className="bg-transparent font-semibold outline-none cursor-pointer">
+              {res.semanas_disponiveis.map((s: any) => <option key={s.ini} value={s.ini} disabled={!s.tem_contagem} className="text-gray-900">{fmtDM(s.ini)} – {fmtDM(s.fim)}{s.tem_contagem ? '' : ' (aguardando contagem)'}</option>)}
+            </select>
+          </span>}
           {(res?.eventos || []).length > 0 && <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 px-3 py-1"><Sparkles className="w-4 h-4" />{res.eventos.map((e: any) => e.nome).join(', ')}</span>}
           <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 ${contagemOk ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'}`}>{contagemOk ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}Contagem: {contagemOk ? fmtDM(res.contagem.data) : 'pendente'}</span>
 
           <div className="flex-1" />
 
-          {!plano && <button disabled={!contagemOk || salvando} onClick={() => acao('iniciar', { area: aba })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"><Play className="w-4 h-4" />Iniciar planejamento ({aba})</button>}
+          {!plano && <button disabled={!contagemOk || salvando} onClick={() => acao('iniciar', { area: aba, semana: semanaAtual })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"><Play className="w-4 h-4" />Iniciar planejamento ({aba})</button>}
           {emRascunho && <><span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-3 py-1">{aba} em planejamento (rascunho)</span><button disabled={salvando} onClick={() => acao('encerrar', { plano_id: plano.id })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"><Lock className="w-4 h-4" />Encerrar e calendarizar</button></>}
           {encerrado && <><span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 px-3 py-1"><CheckCircle2 className="w-4 h-4" />Encerrado — foi pro Controle de Produção</span><button disabled={salvando} onClick={() => acao('reabrir', { plano_id: plano.id })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"><Unlock className="w-4 h-4" />Reabrir</button></>}
         </div>
