@@ -39,8 +39,8 @@ function toISO(s: unknown): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : null
 }
 
-async function fetchSheet(id: string): Promise<unknown[][]> {
-  const range = 'INSUMOS!A1:AMJ800' // 800 linhas: a aba tem ~482 e a seção FUNCIONÁRIOS (Alimentação/CMA) fica depois da linha 400
+// range default = aba INSUMOS (800 linhas: ~482 + seção FUNCIONÁRIOS depois da linha 400)
+async function fetchSheet(id: string, range = 'INSUMOS!A1:AMJ800'): Promise<unknown[][]> {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}` +
     `?key=${GOOGLE_API_KEY}&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`
   const r = await fetch(url)
@@ -52,12 +52,37 @@ async function fetchSheet(id: string): Promise<unknown[][]> {
 interface BronzeRec {
   data_contagem: string; insumo_codigo: string; insumo_nome: string;
   estoque_fechado: number | null; estoque_flutuante: number | null;
+  preco_planilha: number | null;
+}
+
+// "R$ 1.234,56" → 1234.56 (mas com UNFORMATTED_VALUE normalmente já vem número)
+function toNum(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null
+  if (typeof v === 'number') return v
+  let s = String(v).replace(/R\$/gi, '').replace(/\s/g, '')
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.')
+  const n = parseFloat(s)
+  return isNaN(n) ? null : n
+}
+
+// Coluna de PREÇO (atributo do item, perto do código) — detectada pelo cabeçalho, não por índice fixo.
+function findPrecoCol(rows: unknown[][]): number {
+  const norm = (s: unknown) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
+  for (const ri of [5, 4, 3, 6, 2, 1, 0]) {
+    const r = (rows[ri] || []) as unknown[]
+    for (let c = 0; c < Math.min(r.length, 14); c++) {
+      const v = norm(r[c])
+      if (v === 'preco' || v.startsWith('preco')) return c
+    }
+  }
+  return -1
 }
 
 /** Parseia o grid → linhas cruas (tidy) por (data, código). Soma duplicatas do mesmo código no dia. */
 function parse(rows: unknown[][], fromISO: string, toISODate: string): BronzeRec[] {
   const dateRow = (rows[3] || []) as unknown[]
   const header = (rows[5] || []) as unknown[]
+  const precoCol = findPrecoCol(rows)
   const dcols: { c: number; iso: string }[] = []
   for (let c = 0; c < dateRow.length; c++) {
     const iso = toISO(dateRow[c])
@@ -78,13 +103,15 @@ function parse(rows: unknown[][], fromISO: string, toISODate: string): BronzeRec
       const fechado = typeof f === 'number' ? f : null
       const flut = typeof fl === 'number' ? fl : null
       if (fechado === null && flut === null) continue
+      const preco = precoCol >= 0 ? toNum(row[precoCol]) : null
       const key = `${iso}|${cod}`
       const ex = agg.get(key)
       if (ex) {
         ex.estoque_fechado = (ex.estoque_fechado || 0) + (fechado || 0)
         ex.estoque_flutuante = (ex.estoque_flutuante || 0) + (flut || 0)
+        if (ex.preco_planilha == null && preco != null) ex.preco_planilha = preco
       } else {
-        agg.set(key, { data_contagem: iso, insumo_codigo: cod, insumo_nome: nome, estoque_fechado: fechado, estoque_flutuante: flut })
+        agg.set(key, { data_contagem: iso, insumo_codigo: cod, insumo_nome: nome, estoque_fechado: fechado, estoque_flutuante: flut, preco_planilha: preco })
       }
     }
   }
@@ -109,6 +136,7 @@ async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtr
     insumo_nome: r.insumo_nome,
     estoque_fechado: r.estoque_fechado,
     estoque_flutuante: r.estoque_flutuante,
+    preco_planilha: r.preco_planilha,
     ingested_em: now,
   }))
   let landed = 0
