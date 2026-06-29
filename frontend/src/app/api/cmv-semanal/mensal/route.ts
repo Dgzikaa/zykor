@@ -187,11 +187,11 @@ export async function GET(request: NextRequest) {
     const anoAtual = new Date().getFullYear();
     const isMesAtual = (ano === anoAtual && mes === mesAtual);
 
-    // CMV teórico AUTOMÁTICO do mês (gold.cmv_teorico_dia) — só mês atual pra frente.
-    // O passado preenchido na mão fica intocado.
+    // CMV teórico AUTOMÁTICO do mês (gold.cmv_teorico_dia). Mês atual/futuro: automático manda.
+    // Passado: o manual tem prioridade; sem manual, usa o automático (antes o passado ficava em branco/0).
     const mesAtualOuFuturo = ano > anoAtual || (ano === anoAtual && mes >= mesAtual);
     let cmvTeoricoAuto: number | null = null;
-    if (mesAtualOuFuturo) {
+    {
       const { data: cdMes } = await (supabase as any).schema('gold').from('cmv_teorico_dia')
         .select('custo, faturamento').eq('bar_id', barId).gte('data', dataInicio).lte('data', dataFim);
       let c = 0, f = 0;
@@ -210,6 +210,11 @@ export async function GET(request: NextRequest) {
     if (cmvMensal && !errMensal) {
       // Buscar fator CMV do banco (centralizado)
       const fatorCmv = await getFatorCmv(supabase, barId);
+
+      // atual/futuro: automático manda. passado: manual tem prioridade; sem manual, usa o automático.
+      const manualMes = cmvMensal.cmv_teorico_percentual_manual;
+      const temManualMes = manualMes !== null && manualMes !== undefined && String(manualMes) !== '' && Number(manualMes) > 0;
+      const usaAutoMes = cmvTeoricoAuto != null && (mesAtualOuFuturo || !temManualMes);
       
       // Calcular semanas para informação
       const semanasComProporcao = calcularSemanasComProporcao(mes, ano);
@@ -262,8 +267,8 @@ export async function GET(request: NextRequest) {
           : (parseFloat(String(cmvMensal.bonificacao_contrato_anual || 0)) + parseFloat(String(cmvMensal.bonificacao_cashback_mensal || 0))),
         cmv_real: cmvRealEfetivo,
         cmv_limpo_percentual: cmvLimpoPctEfetivo,
-        cmv_teorico_percentual: cmvTeoricoAuto != null ? cmvTeoricoAuto : parseFloat(String(cmvMensal.cmv_teorico_percentual || 0)),
-        cmv_teorico_auto: cmvTeoricoAuto != null,
+        cmv_teorico_percentual: usaAutoMes ? cmvTeoricoAuto : parseFloat(String(cmvMensal.cmv_teorico_percentual || 0)),
+        cmv_teorico_auto: usaAutoMes,
         cmv_teorico_percentual_manual: cmvMensal.cmv_teorico_percentual_manual !== null && cmvMensal.cmv_teorico_percentual_manual !== undefined
           ? parseFloat(String(cmvMensal.cmv_teorico_percentual_manual))
           : null,
@@ -513,16 +518,16 @@ export async function GET(request: NextRequest) {
     // Agregar dados CMV com proporção
     const dadosMensais = agregarCMVProportional(semanasComProporcao, cmvMap, estoqueFinalMesAnterior, ano, mes);
 
-    // Override pelo campo MANUAL (cmv_teorico_percentual_manual) — a coluna sem
-    // sufixo é populada pelo ETL com o CMV Limpo calculado, então não serve
-    // como fonte do input do sócio (próximo sync sobrescreveria).
-    if (cmvMensal && !errMensal) {
-      const cmvTeoricoManual = cmvMensal.cmv_teorico_percentual_manual !== null
-        && cmvMensal.cmv_teorico_percentual_manual !== undefined
-        ? parseFloat(String(cmvMensal.cmv_teorico_percentual_manual))
-        : null;
+    // Teórico: o MANUAL (cmv_teorico_percentual_manual) tem prioridade — a coluna sem sufixo é
+    // populada pelo ETL com o CMV Limpo, então não serve como fonte do input do sócio.
+    // Sem manual, usa o AUTOMÁTICO (gold.cmv_teorico_dia), inclusive no passado.
+    {
+      const m = cmvMensal && !errMensal ? cmvMensal.cmv_teorico_percentual_manual : null;
+      const cmvTeoricoManual = m !== null && m !== undefined ? parseFloat(String(m)) : null;
       if (cmvTeoricoManual !== null && Number.isFinite(cmvTeoricoManual) && cmvTeoricoManual > 0) {
         dadosMensais.cmv_teorico_percentual = cmvTeoricoManual;
+      } else if (cmvTeoricoAuto != null) {
+        dadosMensais.cmv_teorico_percentual = cmvTeoricoAuto;
       }
     }
 

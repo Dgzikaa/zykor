@@ -77,8 +77,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // CMV teórico AUTOMÁTICO (gold.cmv_teorico_dia) — overlay só da semana atual pra frente.
-    // O passado preenchido na mão (cmv_teorico_percentual_manual) fica intocado.
+    // CMV teórico AUTOMÁTICO (gold.cmv_teorico_dia). Atual/futuro: automático sempre manda.
+    // Passado: o valor manual (cmv_teorico_percentual_manual) tem prioridade; quando NÃO há manual,
+    // usa o automático do gold.cmv_teorico_dia (antes o passado sem manual ficava em branco/0).
     let cmvDiaRows: Array<{ data: string; custo: number; faturamento: number }> = [];
     const datasIni = (data || []).map(d => d.data_inicio).filter(Boolean).sort();
     const datasFim = (data || []).map(d => d.data_fim).filter(Boolean).sort();
@@ -103,14 +104,19 @@ export async function GET(request: NextRequest) {
     const dataEnriquecida = data?.map(item => {
       const key = `${item.ano}-${item.semana}`;
       const desempenho = desempenhoMap[key] || { comissao: 0, couvert_atracoes: 0, faturamento_entrada: 0 };
-      const cmvAuto = (item.data_fim && item.data_fim >= segStr) ? cmvTeoricoDe(item.data_inicio, item.data_fim) : null;
+      const auto = (item.data_inicio && item.data_fim) ? cmvTeoricoDe(item.data_inicio, item.data_fim) : null;
+      const ehAtualOuFuturo = !!(item.data_fim && item.data_fim >= segStr);
+      const manual = item.cmv_teorico_percentual_manual;
+      const temManual = manual !== undefined && manual !== null && String(manual) !== '' && Number(manual) > 0;
+      // atual/futuro: automático manda. passado: manual tem prioridade; sem manual, usa o automático.
+      const usaAuto = auto != null && (ehAtualOuFuturo || !temManual);
       return {
         ...item,
         comissao: desempenho.comissao,
         couvert_atracoes: desempenho.couvert_atracoes,
         faturamento_entrada: desempenho.faturamento_entrada,
-        cmv_teorico_percentual: cmvAuto != null ? cmvAuto : item.cmv_teorico_percentual,
-        cmv_teorico_auto: cmvAuto != null,
+        cmv_teorico_percentual: usaAuto ? auto : item.cmv_teorico_percentual,
+        cmv_teorico_auto: usaAuto,
       };
     }) || [];
 
