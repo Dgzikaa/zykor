@@ -23,7 +23,7 @@ const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 function calcular(it: any) {
   const pr = it.media6 + it.desvpad * zDe(it.nivel_servico); // média já vem ponderada do servidor
   const gap = pr - it.estoque;
-  const ae = gap < 0 ? gap : gap + pr * ((it.semanas_receita || 1) - 1); // cada semana extra repõe um PR cheio
+  const ae = gap < 0 ? gap : gap + it.media6 * ((it.semanas_receita || 1) - 1); // cada semana extra repõe a Média6s (não o PR cheio)
   const naoProduzir = ae <= 0;
   const receitas = !naoProduzir && it.rend_contagem > 0 ? Math.ceil(ae / it.rend_contagem) : 0;
   const sugestaoQtd = receitas * it.rend_contagem;

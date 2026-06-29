@@ -21,7 +21,7 @@ const zDe = (nivel: number) => NIVEL_Z[nivel] ?? 1.645;
 function calcular(media6: number, desvpad: number, estoque: number, rendContagem: number, nivel: number, semanas: number) {
   const pr = media6 + desvpad * zDe(nivel);
   const gap = pr - estoque;
-  const ae = gap < 0 ? gap : gap + pr * ((semanas || 1) - 1);
+  const ae = gap < 0 ? gap : gap + media6 * ((semanas || 1) - 1); // semanas extras repõem a Média6s, não o PR cheio
   const naoProduzir = ae <= 0;
   const receitas = !naoProduzir && rendContagem > 0 ? Math.ceil(ae / rendContagem) : 0;
   return { pr: r2(pr), naoProduzir, receitas, sugestaoQtd: r2(receitas * rendContagem) };
