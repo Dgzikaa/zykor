@@ -21,6 +21,17 @@ const addDiasIso = (iso: string, n: number) => {
 };
 const fmtDM = (iso: any) => iso ? `${String(iso).slice(8, 10)}/${String(iso).slice(5, 7)}` : '—';
 
+// Valor em R$ do desvio de RENDIMENTO de uma execução:
+// (rendimento real − rendimento esperado) × custo por kg da produção (= custo planejado ÷ rendimento esperado).
+// Ex.: rendeu 5,820 vs 5,6375 kg esperado, custo R$113,10/kg → +0,1885 × 113,10 ≈ +R$21,32.
+const desvioRendReais = (e: any): number | null => {
+  if (e?.rendimento_real == null || e?.rendimento_esperado == null || e?.custo_planejado == null) return null;
+  const resp = Number(e.rendimento_esperado);
+  if (!(resp > 0)) return null;
+  const custoPorKg = Number(e.custo_planejado) / resp;
+  return (Number(e.rendimento_real) - resp) * custoPorKg;
+};
+
 // ---------- helpers ----------
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtNum = (v: any, d = 0) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: d });
@@ -578,6 +589,7 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
     const tempoTotal = execs.reduce((s: number, e: any) => s + (Number(e.duracao_seg) || 0), 0);
     const custoPlan = execs.reduce((s: number, e: any) => s + (Number(e.custo_planejado) || 0), 0);
     const custoReal = execs.reduce((s: number, e: any) => s + (Number(e.custo_real) || 0), 0);
+    const desvioRendTotal = execs.reduce((s: number, e: any) => s + (desvioRendReais(e) ?? 0), 0);
     return {
       planejadas: planProdIds.size,
       planejadasExecutadas,
@@ -586,7 +598,7 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
       rendDentro: dentro,
       rendTotal: comRend.length,
       tempoTotal,
-      custoPlan, custoReal,
+      custoPlan, custoReal, desvioRendTotal,
     };
   }, [semanaSel, planSemana, execs]);
 
@@ -665,9 +677,9 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
                 <div className="text-[11px] text-gray-400">dentro de ±5%</div>
               </div>
               <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
-                <div className="flex items-center gap-1 text-xs text-gray-500"><DollarSign className="w-3.5 h-3.5" />Custo plan. → real</div>
-                <div className="text-base font-bold text-gray-900 dark:text-gray-100 tabular-nums">{fmtBRL(resumo.custoReal)}</div>
-                <div className={`text-[11px] ${resumo.custoReal > resumo.custoPlan ? 'text-red-500' : 'text-emerald-600'}`}>{resumo.custoReal - resumo.custoPlan >= 0 ? '+' : ''}{fmtBRL(resumo.custoReal - resumo.custoPlan)} vs plano</div>
+                <div className="flex items-center gap-1 text-xs text-gray-500"><DollarSign className="w-3.5 h-3.5" />Desvio de rendimento</div>
+                <div className={`text-base font-bold tabular-nums ${resumo.desvioRendTotal > 0.005 ? 'text-emerald-600' : resumo.desvioRendTotal < -0.005 ? 'text-red-600' : 'text-gray-900 dark:text-gray-100'}`}>{resumo.desvioRendTotal >= 0 ? '+' : ''}{fmtBRL(resumo.desvioRendTotal)}</div>
+                <div className="text-[11px] text-gray-400">custo total {fmtBRL(resumo.custoReal)}</div>
               </div>
               <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
                 <div className="flex items-center gap-1 text-xs text-gray-500"><Clock className="w-3.5 h-3.5" />Tempo total</div>
@@ -697,7 +709,7 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
               <th className="text-left font-medium px-3 py-2">Responsável</th>
               <th className="text-right font-medium px-3 py-2">Tempo</th>
               <th className="text-right font-medium px-3 py-2">Custo plan./real</th>
-              <th className="text-right font-medium px-3 py-2" title="Custo real − custo planejado">Desvio R$</th>
+              <th className="text-right font-medium px-3 py-2" title="Valor do desvio de rendimento = (rend. real − rend. esperado) × custo por kg da produção">Desvio R$</th>
               <th className="text-right font-medium px-3 py-2">Aderência</th>
               <th className="text-right font-medium px-3 py-2">Rend. real/meta</th>
               <th className="text-right font-medium px-3 py-2" title="Rendimento real ÷ rendimento esperado">% Rend.</th>
@@ -714,8 +726,8 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
                   <td className="px-3 py-2 text-right tabular-nums">{e.duracao_seg != null ? fmtTempo(e.duracao_seg) : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{fmtBRL(e.custo_planejado)} <span className="text-gray-400">/</span> <span className="font-medium">{fmtBRL(e.custo_real)}</span></td>
                   <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
-                    {(e.custo_real == null || e.custo_planejado == null) ? <span className="text-gray-400">—</span>
-                      : (() => { const d = Number(e.custo_real) - Number(e.custo_planejado); return <span className={d > 0.005 ? 'text-red-600 font-medium' : d < -0.005 ? 'text-emerald-600' : 'text-gray-400'}>{d >= 0 ? '+' : ''}{fmtBRL(d)}</span>; })()}
+                    {(() => { const d = desvioRendReais(e); return d == null ? <span className="text-gray-400">—</span>
+                      : <span className={d > 0.005 ? 'text-emerald-600 font-medium' : d < -0.005 ? 'text-red-600 font-medium' : 'text-gray-400'}>{d >= 0 ? '+' : ''}{fmtBRL(d)}</span>; })()}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     <span className={e.aderencia_pct == null ? 'text-gray-400' : e.aderencia_pct >= 90 ? 'text-emerald-600' : e.aderencia_pct >= 80 ? 'text-amber-600' : 'text-red-600'}>{fmtPct(e.aderencia_pct)}</span>
