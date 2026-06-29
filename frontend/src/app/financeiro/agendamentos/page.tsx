@@ -180,20 +180,31 @@ export default function AgendamentoPage() {
     }
   }, [toast, barId]);
 
+  // Bar a que a lista `pagamentos` atual pertence. Evita salvar a lista de um bar
+  // na chave de outro durante a troca de bar selecionado.
+  const loadedBarRef = useRef<number | null>(null);
+
   const saveToLocalStorage = useCallback(() => {
+    if (!barId) return;
+    // Durante a troca de bar, o estado `pagamentos` ainda é o do bar anterior —
+    // não persistir até o load do novo bar atualizar a lista e o ref.
+    if (loadedBarRef.current !== barId) return;
     try {
       const dataToSave = {
         pagamentos,
         timestamp: new Date().toISOString(),
         version: '1.0',
       };
-      localStorage.setItem(STORAGE_KEYS.PAGAMENTOS, JSON.stringify(dataToSave));
+      localStorage.setItem(
+        `${STORAGE_KEYS.PAGAMENTOS}_bar_${barId}`,
+        JSON.stringify(dataToSave)
+      );
       localStorage.setItem(STORAGE_KEYS.LAST_SAVE, new Date().toISOString());
       setLastSave(new Date().toLocaleString('pt-BR'));
     } catch (error) {
       console.error('Erro ao salvar no localStorage:', error);
     }
-  }, [pagamentos]);
+  }, [pagamentos, barId]);
 
   useEffect(() => {
     if (pagamentos.length > 0) {
@@ -202,18 +213,44 @@ export default function AgendamentoPage() {
   }, [pagamentos, saveToLocalStorage]);
 
   const loadSavedData = useCallback(() => {
+    if (!barId) return;
     try {
-      const savedData = localStorage.getItem(STORAGE_KEYS.PAGAMENTOS);
-      if (!savedData) return;
-      const parsed = JSON.parse(savedData);
-      if (parsed && parsed.pagamentos && Array.isArray(parsed.pagamentos)) {
-        setPagamentos(parsed.pagamentos);
-        setLastSave(new Date(parsed.timestamp).toLocaleString('pt-BR'));
+      let lista: PagamentoAgendamento[] = [];
+      let ts: string | null = null;
+
+      const perBarRaw = localStorage.getItem(`${STORAGE_KEYS.PAGAMENTOS}_bar_${barId}`);
+      if (perBarRaw) {
+        const parsed = JSON.parse(perBarRaw);
+        if (parsed?.pagamentos && Array.isArray(parsed.pagamentos)) {
+          lista = parsed.pagamentos;
+          ts = parsed.timestamp ?? null;
+        }
+      } else {
+        // Migração da chave legada (global, não separada por bar): traz só os
+        // pagamentos deste bar pra nunca misturar bar 3 com bar 4.
+        const legacyRaw = localStorage.getItem(STORAGE_KEYS.PAGAMENTOS);
+        if (legacyRaw) {
+          const parsed = JSON.parse(legacyRaw);
+          if (parsed?.pagamentos && Array.isArray(parsed.pagamentos)) {
+            lista = parsed.pagamentos.filter(
+              (p: PagamentoAgendamento) => !p.bar_id || p.bar_id === barId
+            );
+            ts = parsed.timestamp ?? null;
+          }
+        }
       }
+
+      // Defesa final: a lista visível é sempre de um único bar.
+      lista = lista.filter(p => !p.bar_id || p.bar_id === barId);
+      loadedBarRef.current = barId;
+      setPagamentos(lista);
+      if (ts) setLastSave(new Date(ts).toLocaleString('pt-BR'));
     } catch (error) {
       console.error('Erro ao carregar dados salvos:', error);
+      loadedBarRef.current = barId;
+      setPagamentos([]);
     }
-  }, []);
+  }, [barId]);
 
   useEffect(() => {
     loadCategoriasECentrosCusto();
@@ -421,6 +458,25 @@ export default function AgendamentoPage() {
     const valorNumerico = parseValorBRL(pagamento.valor);
     if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) {
       return { ok: false, etapa: 'inter', mensagem: 'Valor inválido' };
+    }
+
+    // Trava de segurança bar × credencial: a credencial Inter selecionada é a do
+    // bar atual; pagar um item de OUTRO bar com ela faz o Inter responder
+    // "credenciais não configuradas" (erro críptico). Bloqueia antes de chamar.
+    const barDoPagamento = pagamento.bar_id || barId;
+    if (barId && barDoPagamento && barDoPagamento !== barId) {
+      return {
+        ok: false,
+        etapa: 'inter',
+        mensagem: `Este pagamento é do bar ${barDoPagamento}, mas o bar selecionado é ${barId}. Troque o bar no topo da tela (e a credencial Inter) antes de pagar.`,
+      };
+    }
+    if (!interCredencialSelecionadaId) {
+      return {
+        ok: false,
+        etapa: 'inter',
+        mensagem: 'Selecione a credencial Inter do bar antes de pagar.',
+      };
     }
 
     const dataVenc = pagamento.data_pagamento;

@@ -11,20 +11,36 @@ const supabase = createServiceRoleClient();
 
 // Função para obter credenciais do Inter do banco
 async function getInterCredentials(barId: number = 3, credentialId?: number) {
-  let query = supabase
+  // 1ª tentativa: credencial específica pedida (se houver), SEMPRE amarrada ao bar.
+  // Nunca usamos uma credencial de outro bar — o filtro .eq('bar_id') garante isso.
+  if (credentialId) {
+    const { data, error } = await supabase
+      .from('api_credentials')
+      .select('*')
+      .eq('bar_id', barId)
+      .in('sistema', ['inter', 'banco_inter'])
+      .eq('ativo', true)
+      .eq('id', credentialId)
+      .limit(1);
+
+    if (!error && data?.[0]) return data[0];
+
+    // A credencial pedida não pertence a este bar (ex.: lista misturando bares,
+    // seleção de credencial do bar errado). Em vez de devolver "não configuradas",
+    // cai na credencial ATIVA do próprio bar — o pagamento sai pela conta certa.
+    console.warn(
+      `[INTER-PIX] credencial ${credentialId} não pertence ao bar ${barId}; usando credencial ativa do bar.`
+    );
+  }
+
+  const { data: credenciais, error } = await supabase
     .from('api_credentials')
     .select('*')
     .eq('bar_id', barId)
     .in('sistema', ['inter', 'banco_inter'])
-    .eq('ativo', true);
-
-  if (credentialId) {
-    query = query.eq('id', credentialId);
-  } else {
-    query = query.order('id', { ascending: true }).limit(1);
-  }
-
-  const { data: credenciais, error } = await query;
+    .eq('ativo', true)
+    .order('id', { ascending: true })
+    .limit(1);
 
   const credencial = credenciais?.[0];
   if (error || !credencial) {
