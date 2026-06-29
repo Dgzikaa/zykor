@@ -11,7 +11,8 @@ import { Search, Loader2, Save, ChevronLeft, Plus, CalendarDays } from 'lucide-r
 
 type ItemContar = {
   insumo_id: number; codigo: string; nome: string; categoria: string | null; tipo_local: string | null;
-  unidade_medida: string | null; frequencia: string | null; preco_atual: number | null;
+  classe: string | null; unidade_medida: string | null; unidade_contagem: string | null; fator_contagem: number | null;
+  frequencia: string | null; preco_atual: number | null;
   ultimo_final: number | null; contado: number | null;
 };
 
@@ -20,6 +21,20 @@ const TIPOS = [
   { v: 'semanal', label: 'Semanal', desc: 'Diários + os de contagem semanal (segundas).' },
   { v: 'mensal', label: 'Mensal', desc: 'Inventário completo (todo dia 1º).' },
 ];
+
+// Rótulos dos Locais de Contagem (tipo_local). Itens novos podem ter qualquer um.
+const LOCAL_LABEL: Record<string, string> = {
+  bar: 'Bar', cozinha: 'Cozinha', salao: 'Salão', drink: 'Drink',
+  uniformes: 'Uniformes', limpeza: 'Limpeza', almoxarifado: 'Almoxarifado',
+};
+const localLabel = (l: string | null) => (l ? LOCAL_LABEL[l] || l : '—');
+
+// Coluna conversora "Unidade de Contagem": o que você conta vs. a unidade-base.
+const convLabel = (i: ItemContar) => {
+  const uc = i.unidade_contagem || i.unidade_medida || 'un';
+  const f = Number(i.fator_contagem) || 1;
+  return f !== 1 ? `${uc} (×${f} ${i.unidade_medida || 'un'})` : uc;
+};
 const TIPO_DOT: Record<string, string> = { mensal: 'bg-purple-500', semanal: 'bg-blue-500', diaria: 'bg-muted-foreground/40' };
 const hoje = () => new Date().toISOString().slice(0, 10);
 const num = (v: string) => (v === '' || v == null ? null : Number(String(v).replace(',', '.')));
@@ -76,6 +91,12 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
     const q = buscaC.trim().toLowerCase();
     return itens.filter(i => (!areaC || i.tipo_local === areaC) && (!q || i.nome.toLowerCase().includes(q)));
   }, [itens, buscaC, areaC]);
+  // Locais de Contagem presentes nos itens carregados (dinâmico — cobre os locais novos)
+  const locais = useMemo(() => {
+    const set = new Set<string>();
+    itens.forEach(i => { if (i.tipo_local) set.add(i.tipo_local); });
+    return Array.from(set).sort();
+  }, [itens]);
   const contados = useMemo(() => Object.values(valores).filter(v => v !== '' && v != null).length, [valores]);
   const valorTotal = useMemo(() => itens.reduce((s, i) => {
     const q = num(valores[i.insumo_id] ?? '');
@@ -135,7 +156,7 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
               <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-muted-foreground" />
               <Input value={buscaC} onChange={e => setBuscaC(e.target.value)} placeholder="Buscar item…" className="pl-8 h-9" />
             </div>
-            {[{ v: '', l: 'Todas' }, { v: 'bar', l: 'Bar' }, { v: 'cozinha', l: 'Cozinha' }].map(a => (
+            {[{ v: '', l: 'Todos' }, ...locais.map(l => ({ v: l, l: localLabel(l) }))].map(a => (
               <button key={a.v} onClick={() => setAreaC(a.v)}
                 className={`text-xs px-2.5 py-1.5 rounded-full border transition ${areaC === a.v ? 'bg-foreground text-background' : 'hover:bg-muted/50'}`}>{a.l}</button>
             ))}
@@ -149,8 +170,9 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
                 <thead>
                   <tr className="bg-muted/40 text-left text-muted-foreground">
                     <th className="sticky left-0 top-0 z-30 bg-muted/40 px-3 py-2 font-medium min-w-[14rem] border-r">Item</th>
-                    <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium">Setor</th>
+                    <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium">Local</th>
                     <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium">Unid.</th>
+                    <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium">Un. Contagem</th>
                     <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium text-right">Anterior</th>
                     <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium text-right w-32">Contagem</th>
                   </tr>
@@ -165,8 +187,9 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
                           <div className="font-medium leading-tight">{i.nome}</div>
                           <div className="text-xs text-muted-foreground">{i.categoria || '—'}</div>
                         </td>
-                        <td className="px-3 py-1.5 capitalize text-muted-foreground">{i.tipo_local || '—'}</td>
+                        <td className="px-3 py-1.5 text-muted-foreground">{localLabel(i.tipo_local)}</td>
                         <td className="px-3 py-1.5 text-muted-foreground">{i.unidade_medida || 'un'}</td>
+                        <td className="px-3 py-1.5 text-muted-foreground text-xs">{convLabel(i)}</td>
                         <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{i.ultimo_final ?? '—'}</td>
                         <td className="px-3 py-1.5 text-right">
                           <Input value={v} onChange={e => setValores(p => ({ ...p, [i.insumo_id]: e.target.value }))}
@@ -175,7 +198,7 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
                       </tr>
                     );
                   })}
-                  {itensFiltrados.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-muted-foreground text-sm">Nenhum item.</td></tr>}
+                  {itensFiltrados.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-muted-foreground text-sm">Nenhum item.</td></tr>}
                 </tbody>
               </table>
             )}
