@@ -11,7 +11,15 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Timer, Play, Pause, RotateCcw, Save, Search, Plus, Trash2, User,
   Loader2, History, Package, Clock, TrendingDown, DollarSign, X, Scale, AlertTriangle, CalendarCheck,
+  CalendarDays, CheckCircle2, Gauge, ListChecks,
 } from 'lucide-react';
+
+// ISO de "dia + N" sem fuso (date math em UTC, igual ao restante das telas de planejamento)
+const addDiasIso = (iso: string, n: number) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+};
+const fmtDM = (iso: any) => iso ? `${String(iso).slice(8, 10)}/${String(iso).slice(5, 7)}` : '—';
 
 // ---------- helpers ----------
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -531,6 +539,16 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
   const [fResp, setFResp] = useState<number | null>(null);
   const [detalhe, setDetalhe] = useState<any | null>(null);
   const [detInsumos, setDetInsumos] = useState<any[]>([]);
+  // filtro de semana — mesmo time-frame do Planejamento da Produção (null = todas)
+  const [semanaSel, setSemanaSel] = useState<string | null>(null);
+  const [planSemana, setPlanSemana] = useState<any | null>(null);
+
+  // lista de semanas + itens planejados (planos encerrados) da semana selecionada
+  useEffect(() => {
+    if (!barId) return;
+    const qs = semanaSel ? `?calendario=1&semana=${encodeURIComponent(semanaSel)}` : '?calendario=1';
+    api.get(`/api/operacional/plano-producao${qs}`).then(r => { if (r?.success) setPlanSemana(r); }).catch(() => {});
+  }, [barId, semanaSel]);
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -539,11 +557,38 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
       const qs = new URLSearchParams({ bar_id: String(barId) });
       if (fProd) qs.set('producao_id', String(fProd));
       if (fResp) qs.set('responsavel_id', String(fResp));
+      if (semanaSel) { qs.set('de', semanaSel); qs.set('ate', `${addDiasIso(semanaSel, 6)}T23:59:59.999`); }
       const r = await api.get(`/api/operacional/producoes/execucao?${qs.toString()}`);
       if (r.success) { setExecs(r.execucoes || []); setBaselines(r.baselines || {}); }
     } finally { setLoading(false); }
-  }, [barId, fProd, fResp]);
+  }, [barId, fProd, fResp, semanaSel]);
   useEffect(() => { carregar(); }, [carregar]);
+
+  // Resumo da Semana: cruza o plano encerrado da semana com as execuções da semana
+  const resumo = useMemo(() => {
+    if (!semanaSel) return null;
+    const planejados: any[] = (planSemana?.itens || []).filter((it: any) => Number(it.decidido_receitas) > 0);
+    const planProdIds = new Set(planejados.map((it: any) => Number(it.producao_id)));
+    const execProdIds = new Set(execs.map((e: any) => Number(e.producao_id)));
+    const planejadasExecutadas = [...planProdIds].filter(id => execProdIds.has(id)).length;
+    const comRend = execs.filter((e: any) => e.rendimento_real != null && e.rendimento_esperado != null && e.rendimento_esperado > 0);
+    const dentro = comRend.filter((e: any) => Math.abs(e.rendimento_real / e.rendimento_esperado - 1) <= 0.05).length;
+    const aders = execs.filter((e: any) => e.aderencia_pct != null).map((e: any) => Number(e.aderencia_pct));
+    const aderMedia = aders.length ? aders.reduce((s: number, v: number) => s + v, 0) / aders.length : null;
+    const tempoTotal = execs.reduce((s: number, e: any) => s + (Number(e.duracao_seg) || 0), 0);
+    const custoPlan = execs.reduce((s: number, e: any) => s + (Number(e.custo_planejado) || 0), 0);
+    const custoReal = execs.reduce((s: number, e: any) => s + (Number(e.custo_real) || 0), 0);
+    return {
+      planejadas: planProdIds.size,
+      planejadasExecutadas,
+      executadas: execs.length,
+      aderMedia,
+      rendDentro: dentro,
+      rendTotal: comRend.length,
+      tempoTotal,
+      custoPlan, custoReal,
+    };
+  }, [semanaSel, planSemana, execs]);
 
   const abrirDetalhe = async (e: any) => {
     setDetalhe(e); setDetInsumos([]);
@@ -573,6 +618,15 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
     <div className="space-y-3">
       {/* Filtros */}
       <div className="flex flex-wrap gap-2 items-center">
+        <div className="inline-flex items-center gap-1.5 text-sm">
+          <CalendarDays className="w-4 h-4 text-violet-500" />
+          <select value={semanaSel ?? ''} onChange={e => setSemanaSel(e.target.value || null)}
+            className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
+            <option value="">Todas as semanas</option>
+            {(planSemana?.semanas_disponiveis || []).filter((s: any) => s.tem_contagem).map((s: any) =>
+              <option key={s.ini} value={s.ini}>{fmtDM(s.ini)} – {fmtDM(s.fim)}</option>)}
+          </select>
+        </div>
         <select value={fProd ?? ''} onChange={e => setFProd(e.target.value ? Number(e.target.value) : null)}
           className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
           <option value="">Todas as produções</option>
@@ -583,9 +637,47 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
           <option value="">Todos os responsáveis</option>
           {responsaveis.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
         </select>
-        {(fProd || fResp) && <button onClick={() => { setFProd(null); setFResp(null); }} className="text-xs text-gray-400 underline">limpar</button>}
+        {(fProd || fResp || semanaSel) && <button onClick={() => { setFProd(null); setFResp(null); setSemanaSel(null); }} className="text-xs text-gray-400 underline">limpar</button>}
         <span className="text-xs text-gray-400 ml-auto">{execs.length} execuç{execs.length === 1 ? 'ão' : 'ões'}</span>
       </div>
+
+      {/* Resumo da Semana — cruza o que foi planejado (plano encerrado) com o que foi executado */}
+      {resumo && (
+        <Card className="card-dark border-violet-200 dark:border-violet-900/40">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-1.5 mb-2 text-sm font-semibold text-violet-700 dark:text-violet-300">
+              <CalendarCheck className="w-4 h-4" />Resumo da semana {fmtDM(semanaSel)} – {fmtDM(addDiasIso(semanaSel!, 6))}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+                <div className="flex items-center gap-1 text-xs text-gray-500"><ListChecks className="w-3.5 h-3.5" />Planejado × executado</div>
+                <div className="text-lg font-bold text-gray-900 dark:text-gray-100 tabular-nums">{resumo.planejadasExecutadas}<span className="text-gray-400 text-sm font-normal">/{resumo.planejadas}</span></div>
+                <div className="text-[11px] text-gray-400">{resumo.executadas} execuç{resumo.executadas === 1 ? 'ão' : 'ões'} no total</div>
+              </div>
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+                <div className="flex items-center gap-1 text-xs text-gray-500"><Package className="w-3.5 h-3.5" />Aderência média</div>
+                <div className={`text-lg font-bold tabular-nums ${resumo.aderMedia == null ? 'text-gray-400' : resumo.aderMedia >= 90 ? 'text-emerald-600' : resumo.aderMedia >= 80 ? 'text-amber-600' : 'text-red-600'}`}>{fmtPct(resumo.aderMedia)}</div>
+                <div className="text-[11px] text-gray-400">insumos calc. × usado</div>
+              </div>
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+                <div className="flex items-center gap-1 text-xs text-gray-500"><CheckCircle2 className="w-3.5 h-3.5" />Rend. no esperado</div>
+                <div className="text-lg font-bold text-gray-900 dark:text-gray-100 tabular-nums">{resumo.rendDentro}<span className="text-gray-400 text-sm font-normal">/{resumo.rendTotal}</span></div>
+                <div className="text-[11px] text-gray-400">dentro de ±5%</div>
+              </div>
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+                <div className="flex items-center gap-1 text-xs text-gray-500"><DollarSign className="w-3.5 h-3.5" />Custo plan. → real</div>
+                <div className="text-base font-bold text-gray-900 dark:text-gray-100 tabular-nums">{fmtBRL(resumo.custoReal)}</div>
+                <div className={`text-[11px] ${resumo.custoReal > resumo.custoPlan ? 'text-red-500' : 'text-emerald-600'}`}>{resumo.custoReal - resumo.custoPlan >= 0 ? '+' : ''}{fmtBRL(resumo.custoReal - resumo.custoPlan)} vs plano</div>
+              </div>
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+                <div className="flex items-center gap-1 text-xs text-gray-500"><Clock className="w-3.5 h-3.5" />Tempo total</div>
+                <div className="text-lg font-bold text-gray-900 dark:text-gray-100 tabular-nums">{fmtTempo(resumo.tempoTotal)}</div>
+                <div className="text-[11px] text-gray-400">soma das execuções</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Baseline da ficha filtrada */}
       {fProd && baselines[fProd] && (
@@ -605,13 +697,15 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
               <th className="text-left font-medium px-3 py-2">Responsável</th>
               <th className="text-right font-medium px-3 py-2">Tempo</th>
               <th className="text-right font-medium px-3 py-2">Custo plan./real</th>
+              <th className="text-right font-medium px-3 py-2" title="Custo real − custo planejado">Desvio R$</th>
               <th className="text-right font-medium px-3 py-2">Aderência</th>
               <th className="text-right font-medium px-3 py-2">Rend. real/meta</th>
+              <th className="text-right font-medium px-3 py-2" title="Rendimento real ÷ rendimento esperado">% Rend.</th>
               <th className="text-left font-medium px-3 py-2">Alertas</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {loading ? <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-              : execs.length === 0 ? <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Nenhuma execução registrada ainda.</td></tr>
+              {loading ? <tr><td colSpan={10} className="px-3 py-8 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              : execs.length === 0 ? <tr><td colSpan={10} className="px-3 py-8 text-center text-gray-400">Nenhuma execução registrada ainda.</td></tr>
               : execs.map(e => (
                 <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer" onClick={() => abrirDetalhe(e)}>
                   <td className="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{fmtData(e.criado_em)}</td>
@@ -619,10 +713,18 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
                   <td className="px-3 py-2 text-gray-600 dark:text-gray-300">{e.responsavel_nome || '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{e.duracao_seg != null ? fmtTempo(e.duracao_seg) : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{fmtBRL(e.custo_planejado)} <span className="text-gray-400">/</span> <span className="font-medium">{fmtBRL(e.custo_real)}</span></td>
+                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                    {(e.custo_real == null || e.custo_planejado == null) ? <span className="text-gray-400">—</span>
+                      : (() => { const d = Number(e.custo_real) - Number(e.custo_planejado); return <span className={d > 0.005 ? 'text-red-600 font-medium' : d < -0.005 ? 'text-emerald-600' : 'text-gray-400'}>{d >= 0 ? '+' : ''}{fmtBRL(d)}</span>; })()}
+                  </td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     <span className={e.aderencia_pct == null ? 'text-gray-400' : e.aderencia_pct >= 90 ? 'text-emerald-600' : e.aderencia_pct >= 80 ? 'text-amber-600' : 'text-red-600'}>{fmtPct(e.aderencia_pct)}</span>
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{e.rendimento_real != null ? fmtNum(e.rendimento_real, 2) : '—'} <span className="text-gray-400">/</span> {e.rendimento_esperado != null ? fmtNum(e.rendimento_esperado, 2) : '—'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {(e.rendimento_real == null || e.rendimento_esperado == null || !(e.rendimento_esperado > 0)) ? <span className="text-gray-400">—</span>
+                      : (() => { const p = (e.rendimento_real / e.rendimento_esperado) * 100; return <span className={p >= 95 && p <= 105 ? 'text-emerald-600' : p >= 90 ? 'text-amber-600' : 'text-red-600'}>{fmtPct(p)}</span>; })()}
+                  </td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1">
                       {flags(e).map((f, i) => {
