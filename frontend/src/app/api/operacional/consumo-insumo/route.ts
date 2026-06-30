@@ -33,7 +33,8 @@ export async function GET(request: NextRequest) {
       }
       const { data, error } = await silver.rpc('fn_consumo_producao_periodo', { p_bar_id: barId, p_ini: ini, p_fim: fim });
       if (error) throw error;
-      return NextResponse.json({ success: true, rows: (data || []).map((r: any) => ({ codigo: r.producao_cod, nome: r.producao_nome, categoria: r.secao || 'Produção', qtd: r.qtd_base, unidade: r.unidade, dias: r.dias })) });
+      // produções não têm seção no silver — classifica drink/comida pelo prefixo do código (pd = Drinks/Bar, pc = Cozinha)
+      return NextResponse.json({ success: true, rows: (data || []).map((r: any) => ({ codigo: r.producao_cod, nome: r.producao_nome, categoria: String(r.producao_cod || '').toLowerCase().startsWith('pd') ? 'Drink' : 'Comida', qtd: r.qtd_base, unidade: r.unidade, dias: r.dias })) });
     }
 
     if (aba === 'geral') {
