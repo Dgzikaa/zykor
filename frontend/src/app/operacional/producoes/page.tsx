@@ -782,16 +782,21 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
             <table className="w-full text-sm">
               <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
                 <th className="text-left font-medium px-2 py-1.5">Insumo</th>
+                <th className="text-right font-medium px-2 py-1.5" title="Peso pesado antes de limpar (mestre com fator de correção)">Bruto</th>
                 <th className="text-right font-medium px-2 py-1.5">Calculado</th>
-                <th className="text-right font-medium px-2 py-1.5">Usado</th>
+                <th className="text-right font-medium px-2 py-1.5" title="Líquido que foi pra receita">Usado</th>
                 <th className="text-right font-medium px-2 py-1.5">Desvio</th>
                 <th className="text-right font-medium px-2 py-1.5">Custo real</th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {detInsumos.length === 0 ? <tr><td colSpan={5} className="px-2 py-4 text-center text-gray-400"><Loader2 className="w-4 h-4 animate-spin mx-auto" /></td></tr>
+                {detInsumos.length === 0 ? <tr><td colSpan={6} className="px-2 py-4 text-center text-gray-400"><Loader2 className="w-4 h-4 animate-spin mx-auto" /></td></tr>
                 : detInsumos.map(i => (
                   <tr key={i.id} className={i.is_mestre ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}>
                     <td className="px-2 py-1.5">{i.is_mestre && <span className="text-amber-500 mr-1">★</span>}{i.nome || i.insumo_codigo || '—'} <span className="text-xs text-gray-400">{i.unidade || ''}</span></td>
+                    {/* Bruto: só o mestre com peso bruto lançado (FC). É o que de fato saiu do estoque antes da limpeza. */}
+                    <td className="px-2 py-1.5 text-right tabular-nums">{i.is_mestre && detalhe.peso_bruto != null && Number(detalhe.peso_bruto) > 0
+                      ? <span className="font-medium text-gray-700 dark:text-gray-200">{fmtNum(detalhe.peso_bruto, 3)}</span>
+                      : <span className="text-gray-300">—</span>}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(i.qtd_calculada, 3)}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(i.qtd_real, 3)}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">
