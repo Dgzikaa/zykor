@@ -132,6 +132,9 @@ export async function GET(request: NextRequest) {
   const ini = sp.get('ini');
   const fim = sp.get('fim');
   const tipo = ['diaria', 'semanal', 'mensal'].includes(sp.get('tipo') || '') ? sp.get('tipo') : 'semanal';
+  // semana em andamento: ini = abertura da semana atual (última segunda), fim = última contagem diária
+  // disponível → só itens de Curva A têm fim fresco; restringe a Curva A (igual diária).
+  const andamento = sp.get('andamento') === '1';
 
   if (!ini || !fim) {
     // p_classe='insumo': exclui contagens de limpeza/utensílio (forçadas a 'semanal' no refresh,
@@ -139,7 +142,17 @@ export async function GET(request: NextRequest) {
     const { data: datas, error } = await (sb() as any).schema('operations')
       .rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo, p_classe: 'insumo' });
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, datas: (datas || []).map((d: any) => d.data_contagem) });
+    const ds: string[] = (datas || []).map((d: any) => d.data_contagem);
+    // prévia da semana em andamento (só semanal): abertura = última contagem semanal; fim = última
+    // contagem diária (Curva A) que seja mais recente que essa abertura. Sem fim novo → sem prévia.
+    let andamentoWin: { ini: string; fim: string } | null = null;
+    if (tipo === 'semanal' && ds.length) {
+      const { data: dia } = await (sb() as any).schema('operations')
+        .rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: 'diaria', p_classe: 'insumo' });
+      const latest: string | null = ((dia || []).map((d: any) => d.data_contagem))[0] || null;
+      if (latest && latest > ds[0]) andamentoWin = { ini: ds[0], fim: latest };
+    }
+    return NextResponse.json({ success: true, datas: ds, andamento: andamentoWin });
   }
 
   // aba Proteínas (VMarket × Utilizado Produção, estoque âncora) — fn própria
@@ -172,8 +185,9 @@ export async function GET(request: NextRequest) {
     .rpc('fn_desvios', { p_bar: user.bar_id, p_ini: ini, p_fim: fim });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-  // na diária só faz sentido a Curva A (insumos contados todo dia); senão estoque ini/fim vem furado
-  const base = tipo === 'diaria' ? (data || []).filter((r: any) => r.curva_a === true) : (data || []);
+  // na diária (e na prévia da semana em andamento) só faz sentido a Curva A (insumos contados todo
+  // dia); senão o estoque fim dos demais vem furado (sem contagem nova) e vira perda falsa.
+  const base = (tipo === 'diaria' || andamento) ? (data || []).filter((r: any) => r.curva_a === true) : (data || []);
 
   const itens = base.map((r: any) => {
     const estoque_ini = Number(r.estoque_ini || 0);
@@ -271,7 +285,7 @@ export async function GET(request: NextRequest) {
   const sobras = itensValidos.reduce((s: number, i: any) => s + (i.desvio_rs > 0 ? i.desvio_rs : 0), 0);
 
   // PRODUÇÕES: headline próprio (mesmo balanço, linhas is_producao)
-  const prodRows = itens.filter((i: any) => i.is_producao && !i.pendente && (tipo !== 'diaria' || i.curva_a === true));
+  const prodRows = itens.filter((i: any) => i.is_producao && !i.pendente && ((tipo !== 'diaria' && !andamento) || i.curva_a === true));
   const headlineProducao = {
     desvio_total: prodRows.reduce((s: number, i: any) => s + i.desvio_rs, 0),
     perdas: prodRows.reduce((s: number, i: any) => s + (i.desvio_rs < 0 ? i.desvio_rs : 0), 0),
@@ -286,7 +300,8 @@ export async function GET(request: NextRequest) {
       .rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo, p_classe: 'insumo' });
     const ds: string[] = (datasRaw || []).map((d: any) => d.data_contagem); // já vem desc
     const idx = ds.indexOf(ini);
-    const prevDate = idx >= 0 && idx < ds.length - 1 ? ds[idx + 1] : null; // contagem imediatamente anterior a `ini`
+    // na prévia em andamento não compara: confrontar uma semana parcial com uma semana cheia engana.
+    const prevDate = andamento ? null : (idx >= 0 && idx < ds.length - 1 ? ds[idx + 1] : null);
     let prevPerdas = 0;
     let prevPerdasProd = 0;
     if (prevDate) {
@@ -308,7 +323,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    ini, fim,
+    ini, fim, em_andamento: andamento,
     itens: itens.sort((a: any, b: any) => Math.abs(b.desvio_rs) - Math.abs(a.desvio_rs)),
     headline: { desvio_total, perdas, sobras },
     analise,

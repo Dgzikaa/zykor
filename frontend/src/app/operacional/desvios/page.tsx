@@ -99,6 +99,9 @@ export default function DesviosPage() {
   const [datas, setDatas] = useState<string[]>([]);
   const [ini, setIni] = useState<string | null>(null);
   const [fim, setFim] = useState<string | null>(null);
+  // prévia da semana em andamento (abertura da semana → última contagem diária; só Curva A)
+  const [andamentoWin, setAndamentoWin] = useState<{ ini: string; fim: string } | null>(null);
+  const [andamento, setAndamento] = useState(false);
   const [loading, setLoading] = useState(false);
   const [res, setRes] = useState<any | null>(null);
   const [busca, setBusca] = useState('');
@@ -114,25 +117,27 @@ export default function DesviosPage() {
   // carrega datas do tipo selecionado e pré-seleciona as 2 mais recentes
   useEffect(() => {
     if (!barId) return;
+    setAndamento(false);
     api.get(`/api/operacional/desvios?tipo=${tipo}`).then((r) => {
       if (r.success) {
         const ds: string[] = r.datas || [];
         setDatas(ds);
+        setAndamentoWin(r.andamento || null);
         if (ds.length >= 2) { setFim(ds[0]); setIni(ds[1]); }
         else { setFim(ds[0] || null); setIni(null); setRes(null); }
       }
     });
   }, [barId, tipo]);
 
-  const carregar = useCallback(async (a: string, b: string, t: string) => {
+  const carregar = useCallback(async (a: string, b: string, t: string, emAndamento = false) => {
     if (!barId || !a || !b) return;
     setLoading(true);
     try {
-      const r = await api.get(`/api/operacional/desvios?ini=${a}&fim=${b}&tipo=${t}`);
+      const r = await api.get(`/api/operacional/desvios?ini=${a}&fim=${b}&tipo=${t}${emAndamento ? '&andamento=1' : ''}`);
       if (r.success) setRes(r);
     } finally { setLoading(false); }
   }, [barId]);
-  useEffect(() => { if (ini && fim) carregar(ini, fim, tipo); }, [ini, fim, tipo, carregar]);
+  useEffect(() => { if (ini && fim) carregar(ini, fim, tipo, andamento); }, [ini, fim, tipo, andamento, carregar]);
 
   // Seletor único de Semanal/Mensal: cada período é a janela [ini, fim) entre duas contagens
   // consecutivas (datas vêm DESC); fim = a contagem que fecha a semana/mês.
@@ -160,10 +165,10 @@ export default function DesviosPage() {
     if (!barId || !ini || !fim || aba !== 'proteinas') return;
     setLoadingAba(true);
     try {
-      const r = await api.get(`/api/operacional/desvios?ini=${ini}&fim=${fim}&aba=proteina&tipo=${tipo}`);
+      const r = await api.get(`/api/operacional/desvios?ini=${ini}&fim=${fim}&aba=proteina&tipo=${tipo}${andamento ? '&andamento=1' : ''}`);
       if (r.success) { setRowsProt(r.itens || []); setProtAnalise(r.analise || null); }
     } finally { setLoadingAba(false); }
-  }, [barId, ini, fim, aba, tipo]);
+  }, [barId, ini, fim, aba, tipo, andamento]);
   useEffect(() => { carregarAba(); }, [carregarAba]);
   // após salvar (res muda), recarrega a aba Proteínas pra refletir utilizado/desperdício
   useEffect(() => { if (aba === 'proteinas' && res) carregarAba(); }, [res]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -173,10 +178,10 @@ export default function DesviosPage() {
   const prodBase = useMemo(() => {
     const s = busca.trim().toLowerCase();
     return (res?.itens || []).filter((i: any) => i.is_producao
-      && (tipo !== 'diaria' || i.curva_a === true) // diária só Curva A
+      && ((tipo !== 'diaria' && !andamento) || i.curva_a === true) // diária / semana em andamento: só Curva A
       && (!soCurvaA || i.curva_a === true)         // filtro Só Curva A (semanal/mensal)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
-  }, [res, busca, tipo, soCurvaA]);
+  }, [res, busca, tipo, soCurvaA, andamento]);
   const cntProdComida = useMemo(() => prodBase.filter((i: any) => i.secao_prod === 'Comida').length, [prodBase]);
   const cntProdDrinks = useMemo(() => prodBase.filter((i: any) => i.secao_prod === 'Drinks').length, [prodBase]);
   const prodView = useMemo(() => prodBase.filter((i: any) => !filtroSecaoProd || i.secao_prod === filtroSecaoProd), [prodBase, filtroSecaoProd]);
@@ -191,21 +196,21 @@ export default function DesviosPage() {
     if (!ini || !fim) return;
     try {
       await api.post('/api/operacional/desvios', { tipo: kind, codigo, data: ini, ...payload });
-      await carregar(ini, fim, tipo);
+      await carregar(ini, fim, tipo, andamento);
     } catch { /* silencioso; recarrega no próximo */ }
-  }, [ini, fim, tipo, carregar]);
+  }, [ini, fim, tipo, andamento, carregar]);
 
   // Insumos = só insumos (exclui produção e proteína, que têm aba própria).
   // Semanal/mensal: esconde insumo fora de ficha (nunca tem saída teórica). Filtro Só Curva A.
   const itensView = useMemo(() => {
     const s = busca.trim().toLowerCase();
     return (res?.itens || []).filter((i: any) => !i.is_producao && !i.is_proteina
-      && (tipo === 'diaria' || i.tem_ficha)
+      && (tipo === 'diaria' || andamento || i.tem_ficha)
       && (!soCurvaA || i.curva_a === true)
       && (!filtroDado || i.dado_faltando === filtroDado)
       && (!filtroArea || i.area === filtroArea)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
-  }, [res, busca, tipo, soCurvaA, filtroDado, filtroArea]);
+  }, [res, busca, tipo, soCurvaA, filtroDado, filtroArea, andamento]);
 
   // contadores dos chips de filtro (igual /operacional/insumos) — base = aba ativa sem o filtro Curva A
   const baseRows = useMemo(() => {
@@ -266,13 +271,24 @@ export default function DesviosPage() {
           ) : (
             <>
               <span className="text-sm text-gray-500">{tipo === 'semanal' ? 'Semana' : 'Mês'}</span>
-              <select value={fim || ''} onChange={e => { const p = periodos.find(x => x.fim === e.target.value); if (p) { setIni(p.ini); setFim(p.fim); } }} className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm capitalize">
-                {periodos.length === 0 && <option value="">—</option>}
+              <select value={andamento && andamentoWin ? `__and__${andamentoWin.fim}` : (fim || '')} onChange={e => {
+                if (tipo === 'semanal' && andamentoWin && e.target.value === `__and__${andamentoWin.fim}`) { setAndamento(true); setIni(andamentoWin.ini); setFim(andamentoWin.fim); return; }
+                setAndamento(false);
+                const p = periodos.find(x => x.fim === e.target.value); if (p) { setIni(p.ini); setFim(p.fim); }
+              }} className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm capitalize">
+                {periodos.length === 0 && !andamentoWin && <option value="">—</option>}
+                {tipo === 'semanal' && andamentoWin && <option value={`__and__${andamentoWin.fim}`}>🔴 Semana atual (em andamento) · {ddmm(andamentoWin.ini)} → {ddmm(andamentoWin.fim)}</option>}
                 {periodos.map(p => <option key={p.fim} value={p.fim}>{labelPeriodo(p)}</option>)}
               </select>
             </>
           )}
         </div>
+        {andamento && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/15 px-3 py-2 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>Prévia da <b>semana em andamento</b> ({ddmm(andamentoWin?.ini || ini || '')} → {ddmm(andamentoWin?.fim || fim || '')}): considera só itens de <b>Curva A</b> (contados todo dia). O fechamento completo entra na contagem de segunda-feira.</span>
+          </div>
+        )}
 
         <Tabs value={aba} onValueChange={setAba}>
           <TabsList>
