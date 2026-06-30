@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   const supabase = await getAdminClient();
   const { data, error } = await supabase
     .from('producao_base')
-    .select('id,codigo,nome,unidade,rendimento,unidade_contagem,fator_contagem,secao,ativo,observacao,atualizado_em,controle_producao,curva_a')
+    .select('id,codigo,nome,unidade,rendimento,unidade_contagem,fator_contagem,secao,ativo,observacao,atualizado_em,controle_producao,curva_a,entra_contagem')
     .eq('bar_id', barId)
     .order('nome', { ascending: true });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -130,7 +130,7 @@ export async function PUT(request: NextRequest) {
 
   const supabase = await getAdminClient();
   const patch: any = { atualizado_em: new Date().toISOString() };
-  for (const k of ['nome', 'codigo', 'unidade', 'unidade_contagem', 'secao', 'observacao', 'ativo', 'controle_producao', 'curva_a']) if (k in body) patch[k] = body[k];
+  for (const k of ['nome', 'codigo', 'unidade', 'unidade_contagem', 'secao', 'observacao', 'ativo', 'controle_producao', 'curva_a', 'entra_contagem']) if (k in body) patch[k] = body[k];
   if ('rendimento' in body) patch.rendimento = Number(body.rendimento);
   // conversor de contagem: quanto da unidade-base (rendimento) cabe em 1 unidade de contagem (ex.: 0,4 kg/porção)
   if ('fator_contagem' in body) patch.fator_contagem = (body.fator_contagem == null || body.fator_contagem === '') ? null : Number(body.fator_contagem);

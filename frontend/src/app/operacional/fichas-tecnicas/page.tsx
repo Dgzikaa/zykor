@@ -190,9 +190,22 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
-  // marca/desmarca a produção como Curva A (entra na contagem diária do estoque)
+  // marca/desmarca a produção como Curva A (contagem diária). Ligar Curva A força entrar na contagem.
   const toggleCurvaA = async (p: any) => {
-    try { await api.put('/api/operacional/producoes', { id: p.id, curva_a: !p.curva_a }); reloadLista(); }
+    const next = !p.curva_a;
+    const patch: any = { id: p.id, curva_a: next };
+    if (next && !p.entra_contagem) patch.entra_contagem = true; // Curva A exige estar na contagem
+    try { await api.put('/api/operacional/producoes', patch); reloadLista(); }
+    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+
+  // marca/desmarca se a produção entra na contagem de estoque (nem toda produção tem contagem física).
+  // Desmarcar tira da contagem e, por consequência, zera o Curva A (não há como contar diário sem contar).
+  const toggleEntraContagem = async (p: any) => {
+    const next = !p.entra_contagem;
+    const patch: any = { id: p.id, entra_contagem: next };
+    if (!next && p.curva_a) patch.curva_a = false;
+    try { await api.put('/api/operacional/producoes', patch); reloadLista(); }
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
@@ -369,9 +382,13 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                         <input type="checkbox" checked={!!selObj.controle_producao} onChange={() => toggleControle(selObj)} className="w-4 h-4 accent-indigo-600" />
                         Aparece no Controle de Produção
                       </label>
-                      <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 cursor-pointer" title="Entra na contagem diária do estoque (Curva A). Semanal e mensal sempre incluem.">
+                      <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 cursor-pointer" title="Contada todo dia (Curva A). Exige entrar na contagem de estoque.">
                         <input type="checkbox" checked={!!selObj.curva_a} onChange={() => toggleCurvaA(selObj)} className="w-4 h-4 accent-indigo-600" />
                         Curva A (contagem diária)
+                      </label>
+                      <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 cursor-pointer" title="Se desmarcado, esta produção não aparece em nenhuma contagem de estoque (algumas produções não têm contagem física).">
+                        <input type="checkbox" checked={!!selObj.entra_contagem} onChange={() => toggleEntraContagem(selObj)} className="w-4 h-4 accent-indigo-600" />
+                        Entra na contagem de estoque
                       </label>
                       <button onClick={abrirRend} className="inline-flex items-center gap-1.5 text-xs text-left hover:text-indigo-600" title="Como esta produção é contada no estoque (clique pra editar)">
                         <span className="text-gray-400">Unidade de contagem:</span>
