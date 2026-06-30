@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { PageShell } from '@/components/layout/PageShell';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { ShoppingCart, Search, Loader2, CalendarDays, RefreshCw, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
@@ -61,8 +62,7 @@ export default function PlanoComprasPage() {
   const semProducao = (res?.producao_encerrada || []).length === 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-4">
+    <PageShell width="wide">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl"><ShoppingCart className="w-6 h-6 text-emerald-600 dark:text-emerald-400" /></div>
           <div className="flex-1">
@@ -166,7 +166,6 @@ export default function PlanoComprasPage() {
           </table>
         </div></CardContent></Card>
         <p className="text-[11px] text-gray-400">Todos os números estão em <b>nº de embalagens</b> (unidade de compra; ex.: latas/garrafas/pacotes) — o tamanho de cada embalagem aparece abaixo do nome do insumo. Saída = uso <b>direto</b> do insumo em produtos (vendas × ficha). A necessidade dos insumos que vão em preparos vem da coluna <b>p/ Produção</b> (puxa o que foi decidido no Planejamento da Produção da mesma semana). <b>Comprado</b> = o que entrou de compra no Vmarket — é a &ldquo;finalização&rdquo; do planejamento.</p>
-      </div>
-    </div>
+    </PageShell>
   );
 }

@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { FazerContagem } from '@/components/estoque/FazerContagem';
+import { PageShell } from '@/components/layout/PageShell';
 import { CadastrarItemModal } from './GerenciarItensModal';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -129,8 +130,7 @@ export default function EstoqueHistoricoPage() {
   }, [comp, busca]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-4">
+    <PageShell width="wide">
         {/* Header */}
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl"><Boxes className="w-6 h-6 text-amber-600 dark:text-amber-400" /></div>
@@ -338,7 +338,6 @@ export default function EstoqueHistoricoPage() {
           </table>
         </div></CardContent></Card>
         )}
-      </div>
-    </div>
+    </PageShell>
   );
 }
