@@ -50,7 +50,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
 
   const [sel, setSel] = useState<number | null>(preSel ?? null);
   const [buscaLista, setBuscaLista] = useState('');
-  const [filtroLista, setFiltroLista] = useState<'zero' | 'sem_mestre' | 'sem_ch' | 'item_zerado' | 'curva_a' | null>(null);
+  const [filtroLista, setFiltroLista] = useState<'zero' | 'sem_mestre' | 'sem_ch' | 'item_zerado' | 'curva_a' | 'sem_unidade' | null>(null);
   const [statusFiltro, setStatusFiltro] = useState<'todos' | 'ativo' | 'inativo'>('todos');
   const [itens, setItens] = useState<any[]>([]);
   const [loadingItens, setLoadingItens] = useState(false);
@@ -93,6 +93,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   const nSemMestre = kind === 'producao' ? baseStat.filter(p => (p.qtd_componentes ?? 0) > 0 && !p.tem_mestre).length : 0;
   const nSemCh = kind === 'produto' ? baseStat.filter(p => (p.cods_ch?.length ?? 0) === 0 && !p.agrupado_em).length : 0;
   const nCurvaA = kind === 'producao' ? baseStat.filter(p => p.curva_a).length : 0;
+  const nSemUnid = kind === 'producao' ? baseStat.filter(p => !p.unidade_contagem).length : 0;
   const nAtivos = kind === 'produto' ? baseCat.filter(p => p.ativo).length : 0;
   const nInativos = kind === 'produto' ? baseCat.filter(p => !p.ativo).length : 0;
   const listaView = useMemo(() => {
@@ -104,6 +105,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
       if (filtroLista === 'sem_ch' && ((p.cods_ch?.length ?? 0) !== 0 || p.agrupado_em)) return false;
       if (filtroLista === 'item_zerado' && !zeradoCods.has(p.codigo)) return false;
       if (filtroLista === 'curva_a' && !p.curva_a) return false;
+      if (filtroLista === 'sem_unidade' && p.unidade_contagem) return false;
       if (kind === 'produto' && statusFiltro !== 'todos' && (statusFiltro === 'ativo' ? !p.ativo : !!p.ativo)) return false;
       return !q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q)
         || (p.cods_ch || []).some((c: any) => String(c).toLowerCase().includes(q));
@@ -308,6 +310,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                 {nSemMestre > 0 && <button onClick={() => setFiltroLista(f => f === 'sem_mestre' ? null : 'sem_mestre')} className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'sem_mestre' ? 'bg-amber-500 text-white border-amber-500' : 'border-amber-300 text-amber-600'}`}>{nSemMestre} sem mestre</button>}
                 {nSemCh > 0 && <button onClick={() => setFiltroLista(f => f === 'sem_ch' ? null : 'sem_ch')} className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'sem_ch' ? 'bg-orange-500 text-white border-orange-500' : 'border-orange-300 text-orange-600'}`}>{nSemCh} sem cód CH</button>}
                 {nCurvaA > 0 && <button onClick={() => setFiltroLista(f => f === 'curva_a' ? null : 'curva_a')} title="Produções marcadas como Curva A (entram na contagem diária do estoque)" className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'curva_a' ? 'bg-indigo-600 text-white border-indigo-600' : 'border-indigo-300 text-indigo-600'}`}>{nCurvaA} curva A</button>}
+                {nSemUnid > 0 && <button onClick={() => setFiltroLista(f => f === 'sem_unidade' ? null : 'sem_unidade')} title="Produções sem unidade de contagem cadastrada — falta o conversor pra contar" className={`text-[10px] rounded px-1.5 py-0.5 border ${filtroLista === 'sem_unidade' ? 'bg-amber-600 text-white border-amber-600' : 'border-amber-300 text-amber-600'}`}>{nSemUnid} sem un. contagem</button>}
                 {filtroLista && <button onClick={() => setFiltroLista(null)} className="text-[10px] text-gray-400 underline px-1">limpar</button>}
               </div>
             )}
@@ -370,6 +373,13 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                         <input type="checkbox" checked={!!selObj.curva_a} onChange={() => toggleCurvaA(selObj)} className="w-4 h-4 accent-indigo-600" />
                         Curva A (contagem diária)
                       </label>
+                      <button onClick={abrirRend} className="inline-flex items-center gap-1.5 text-xs text-left hover:text-indigo-600" title="Como esta produção é contada no estoque (clique pra editar)">
+                        <span className="text-gray-400">Unidade de contagem:</span>
+                        {selObj.unidade_contagem
+                          ? <span className="font-medium text-gray-700 dark:text-gray-200"><span className="capitalize">{selObj.unidade_contagem}</span>{selObj.fator_contagem != null ? ` ${Number(selObj.fator_contagem).toLocaleString('pt-BR')} ${selObj.unidade || ''}` : ''}</span>
+                          : <span className="text-amber-600 dark:text-amber-400 font-medium">definir</span>}
+                        <Pencil className="w-3 h-3 opacity-50" />
+                      </button>
                     </div>
                   )}
                   {kind === 'produto' && (
