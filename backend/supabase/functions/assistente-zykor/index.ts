@@ -18,7 +18,7 @@ import { requireAuth } from '../_shared/auth-guard.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-const MODELO = 'claude-sonnet-4-6';
+const MODELO = 'claude-sonnet-5';
 const MAX_TOOL_TURNS = 6;
 
 function normalizeTel(t: string): string { return t.replace(/\D/g, ''); }

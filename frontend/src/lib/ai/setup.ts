@@ -41,7 +41,7 @@ const DEFAULT_CONFIG: AIConfig = {
   },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || '',
-    model: 'claude-3-sonnet-20240229',
+    model: 'claude-sonnet-5',
     maxTokens: 4000,
     temperature: 0.1
   },

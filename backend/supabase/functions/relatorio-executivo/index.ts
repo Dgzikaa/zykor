@@ -25,7 +25,7 @@ import { requireAuth } from '../_shared/auth-guard.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-const MODELO = 'claude-sonnet-4-6';
+const MODELO = 'claude-sonnet-5';
 
 async function coletarSnapshot(supabase: any, barId: number, di: string, df: string) {
   // 1) Desempenho semanal (atual + anterior)

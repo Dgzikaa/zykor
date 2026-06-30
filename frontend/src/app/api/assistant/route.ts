@@ -239,7 +239,7 @@ A API key do Anthropic está presente mas com formato incorreto.
 
       // Primeira chamada ao Claude
       const response = await anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-5",
         max_tokens: 2000,
         system: SYSTEM_CONTEXT,
         messages,
@@ -289,7 +289,7 @@ A API key do Anthropic está presente mas com formato incorreto.
         ];
 
         const followUpResponse = await anthropic.messages.create({
-          model: "claude-3-5-sonnet-20241022",
+          model: "claude-sonnet-5",
           max_tokens: 1500,
           system: SYSTEM_CONTEXT,
           messages: toolMessages,

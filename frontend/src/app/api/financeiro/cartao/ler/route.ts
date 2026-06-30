@@ -57,7 +57,7 @@ Ignore linhas de pagamento da fatura anterior, juros, IOF e saldo. Some parcelam
   try {
     const anthropic = new Anthropic({ apiKey });
     const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-5',
       max_tokens: 8000,
       messages: [{ role: 'user', content: [block, { type: 'text', text: prompt }] }],
     });
