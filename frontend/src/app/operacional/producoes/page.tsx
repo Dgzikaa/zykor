@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
+import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import {
   Timer, Play, Pause, RotateCcw, Save, Search, Plus, Trash2, User,
   Loader2, History, Package, Clock, TrendingDown, DollarSign, X, Scale, AlertTriangle, CalendarCheck,
-  CalendarDays, CheckCircle2, Gauge, ListChecks,
+  CalendarDays, CheckCircle2, Gauge, ListChecks, Users, Pencil,
 } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
 
@@ -809,14 +810,125 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
 }
 
 // =====================================================================================
+// MODAL — GERIR EQUIPE (responsáveis de produção). Só admin chega aqui (botão + server gate).
+// =====================================================================================
+function GerirEquipeModal({ barId, responsaveis, onClose, onChanged }: {
+  barId: number; responsaveis: any[]; onClose: () => void; onChanged: () => void;
+}) {
+  const { toast } = useToast();
+  const [novoNome, setNovoNome] = useState('');
+  const [novoCargo, setNovoCargo] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editNome, setEditNome] = useState('');
+  const [editCargo, setEditCargo] = useState('');
+
+  const adicionar = async () => {
+    const nome = novoNome.trim();
+    if (!nome) { toast({ title: 'Informe o nome', variant: 'destructive' }); return; }
+    setSalvando(true);
+    const r = await api.post('/api/operacional/pessoas-responsaveis', { bar_id: barId, nome, cargo: novoCargo.trim() || null });
+    setSalvando(false);
+    if (r.success) { setNovoNome(''); setNovoCargo(''); onChanged(); }
+    else toast({ title: 'Erro ao adicionar', description: r.error, variant: 'destructive' });
+  };
+
+  const iniciarEdicao = (p: any) => { setEditId(p.id); setEditNome(p.nome); setEditCargo(p.cargo || ''); };
+  const salvarEdicao = async () => {
+    const nome = editNome.trim();
+    if (!nome) { toast({ title: 'Informe o nome', variant: 'destructive' }); return; }
+    setSalvando(true);
+    const r = await api.put('/api/operacional/pessoas-responsaveis', { id: editId, nome, cargo: editCargo.trim() || null });
+    setSalvando(false);
+    if (r.success) { setEditId(null); onChanged(); }
+    else toast({ title: 'Erro ao salvar', description: r.error, variant: 'destructive' });
+  };
+
+  const desativar = async (p: any) => {
+    setSalvando(true);
+    const r = await api.delete(`/api/operacional/pessoas-responsaveis?id=${p.id}`);
+    setSalvando(false);
+    if (r.success) onChanged();
+    else toast({ title: 'Erro ao remover', description: r.error, variant: 'destructive' });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-xl bg-white dark:bg-gray-900 shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 px-5 py-3.5">
+          <div className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">Gerir equipe de produção</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><X className="w-5 h-5" /></button>
+        </div>
+
+        {/* Adicionar */}
+        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800">
+          <p className="text-xs font-medium text-gray-500 mb-2">Adicionar pessoa</p>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label className="text-[11px] text-gray-400">Nome *</label>
+              <Input value={novoNome} onChange={e => setNovoNome(e.target.value)} placeholder="Nome completo"
+                onKeyDown={e => { if (e.key === 'Enter') adicionar(); }} />
+            </div>
+            <div className="w-36">
+              <label className="text-[11px] text-gray-400">Cargo</label>
+              <Input value={novoCargo} onChange={e => setNovoCargo(e.target.value)} placeholder="Ex.: Cozinha"
+                onKeyDown={e => { if (e.key === 'Enter') adicionar(); }} />
+            </div>
+            <Button onClick={adicionar} disabled={salvando} className="gap-1.5">
+              {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}Adicionar
+            </Button>
+          </div>
+        </div>
+
+        {/* Lista */}
+        <div className="max-h-80 overflow-y-auto px-5 py-3">
+          {responsaveis.length === 0 && <p className="text-sm text-gray-400 py-6 text-center">Nenhuma pessoa cadastrada ainda.</p>}
+          <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+            {responsaveis.map(p => (
+              <li key={p.id} className="py-2 flex items-center gap-2">
+                {editId === p.id ? (
+                  <>
+                    <Input value={editNome} onChange={e => setEditNome(e.target.value)} className="flex-1 h-8" autoFocus />
+                    <Input value={editCargo} onChange={e => setEditCargo(e.target.value)} placeholder="Cargo" className="w-28 h-8" />
+                    <Button size="sm" onClick={salvarEdicao} disabled={salvando} className="h-8">Salvar</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditId(null)} className="h-8">Cancelar</Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-gray-900 dark:text-white">{p.nome}</span>
+                      {p.cargo && <span className="text-xs text-gray-400 ml-2">{p.cargo}</span>}
+                    </div>
+                    <button onClick={() => iniciarEdicao(p)} title="Editar"
+                      className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"><Pencil className="w-4 h-4" /></button>
+                    <button onClick={() => desativar(p)} disabled={salvando} title="Remover"
+                      className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================================
 // PÁGINA
 // =====================================================================================
 export default function ProducoesPage() {
   const { selectedBar } = useBar();
+  const { isRole } = useAuth();
+  const isAdmin = isRole('admin');
   const barId = selectedBar?.id;
   const [aba, setAba] = useState<'executar' | 'historico'>('executar');
   const [fichas, setFichas] = useState<any[]>([]);
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
+  const [gerirEquipe, setGerirEquipe] = useState(false);
 
   const loadFichas = useCallback(async () => {
     if (!barId) return;
@@ -832,12 +944,19 @@ export default function ProducoesPage() {
 
   return (
     <PageShell width="wide">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-orange-100 dark:bg-orange-900/30 rounded-xl"><Timer className="w-6 h-6 text-orange-600 dark:text-orange-400" /></div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Controle da Produção</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Execução com cronômetro (várias em paralelo), aderência à ficha e controle de tempo, custo e insumos</p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-orange-100 dark:bg-orange-900/30 rounded-xl"><Timer className="w-6 h-6 text-orange-600 dark:text-orange-400" /></div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Controle da Produção</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Execução com cronômetro (várias em paralelo), aderência à ficha e controle de tempo, custo e insumos</p>
+            </div>
           </div>
+          {isAdmin && (
+            <Button variant="outline" onClick={() => setGerirEquipe(true)} className="gap-1.5 shrink-0">
+              <Users className="w-4 h-4" />Gerir equipe
+            </Button>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -848,6 +967,15 @@ export default function ProducoesPage() {
         {aba === 'executar'
           ? <AbaExecutar fichas={fichas} responsaveis={responsaveis} />
           : <AbaHistorico fichas={fichas} responsaveis={responsaveis} />}
+
+        {gerirEquipe && isAdmin && barId && (
+          <GerirEquipeModal
+            barId={barId}
+            responsaveis={responsaveis}
+            onClose={() => setGerirEquipe(false)}
+            onChanged={loadResponsaveis}
+          />
+        )}
     </PageShell>
   );
 }

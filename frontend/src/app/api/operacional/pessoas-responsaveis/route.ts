@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  // Gestão da equipe é restrita a admin — quem executa produção só lê/seleciona (GET).
+  if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores podem gerir responsáveis');
   const body = await request.json().catch(() => ({}));
   const barId = Number(body.bar_id) || user.bar_id;
   const nome = String(body.nome || '').trim();
@@ -48,6 +50,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores podem gerir responsáveis');
   const body = await request.json().catch(() => ({}));
   const id = Number(body.id);
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
@@ -71,6 +74,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores podem gerir responsáveis');
   const id = Number(new URL(request.url).searchParams.get('id'));
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
   const supabase = await getAdminClient();
