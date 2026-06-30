@@ -184,11 +184,20 @@ function parseUtensilios(rows: unknown[][], fromISO: string, toISODate: string, 
     const row = (rows[i] || []) as unknown[]
     const secKey = normNome(row[0]).replace(/\s/g, '')
     if (SECOES.has(secKey)) {
-      // linha de título da seção: carrega as colunas de data (na coluna ESTOQUE de cada semana)
+      // linha de título da seção: carrega as colunas de data (na coluna ESTOQUE de cada semana).
+      // CORREÇÃO DE ANO: a planilha rotulou 2026 como 2025. Quando a data "anda pra trás"
+      // (ex.: 30/12 → 21/01) é virada de ano → soma +1 ano às colunas seguintes.
       dcols = []
+      let prevRaw = ''
+      let yearAdd = 0
       for (let c = 4; c < row.length; c++) {
-        const iso = toISO(row[c])
-        if (iso && iso >= fromISO && iso <= toISODate) dcols.push({ c, iso })
+        const raw = toISO(row[c])
+        if (!raw) continue
+        if (prevRaw && raw < prevRaw) yearAdd += 1
+        prevRaw = raw
+        const [y, m, d] = raw.split('-')
+        const iso = yearAdd > 0 ? `${Number(y) + yearAdd}-${m}-${d}` : raw
+        if (iso >= fromISO && iso <= toISODate) dcols.push({ c, iso })
       }
       continue
     }
