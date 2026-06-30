@@ -39,6 +39,9 @@ const PERMISSION_MAPPINGS: Record<string, string[]> = {
   operacoes: ['operacoes', 'checklists', 'terminal_producao', 'receitas_insumos'],
   ferramentas: ['operacoes', 'checklists', 'terminal_producao', 'receitas_insumos', 'financeiro_agendamento'],
   configuracoes: ['configuracoes'],
+  // Token dedicado da tela de Controle de Produção: visível p/ quem tem 'gestao'
+  // E p/ o perfil de cozinha/kiosk ('operacional_producoes').
+  controle_producao: ['gestao', 'operacional_producoes'],
 };
 
 // Menu hambúrguer overlay completo (igual ao sidebar desktop)

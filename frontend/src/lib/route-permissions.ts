@@ -37,6 +37,23 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   { path: '/assistente-zykor', requiredModules: ['gestao', 'home', 'configuracoes'] },
 
   // ========================================
+  // COZINHA / KIOSK (override antes do menu p/ ganhar o match exato)
+  // ========================================
+  // /operacional/producoes é liberado pelo token dedicado `operacional_producoes`
+  // (perfil de cozinha nos tablets), além de quem já tinha acesso por
+  // operacoes/home. Precede o mapa do menu porque getRoutePermission pega o
+  // PRIMEIRO match exato. Mantém o guard de área em operacional/layout.tsx.
+  {
+    path: '/operacional/producoes',
+    requiredModules: [
+      'operacoes',
+      'operacional_producoes',
+      'producao - cmv_controle_de_producao',
+      'home',
+    ],
+  },
+
+  // ========================================
   // MENU LATERAL (fonte única de verdade)
   // ========================================
   ...getMenuRoutePermissions().map(route => ({

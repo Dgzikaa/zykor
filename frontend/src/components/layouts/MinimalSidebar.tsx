@@ -36,6 +36,9 @@ const PERMISSION_MAPPINGS: Record<string, string[]> = {
   configuracoes: ['configuracoes'],
   ferramentas: ['operacoes', 'checklists', 'terminal_producao', 'receitas_insumos', 'financeiro_agendamento'],
   cfp: ['home'],
+  // Token dedicado da tela de Controle de Produção: visível p/ quem tem 'gestao'
+  // (comportamento atual) E p/ o perfil de cozinha/kiosk ('operacional_producoes').
+  controle_producao: ['gestao', 'operacional_producoes'],
 };
 
 // Itens do menu derivados da FONTE ÚNICA (lib/navigation/menu.ts).
@@ -177,18 +180,24 @@ export function MinimalSidebar() {
 
   const filteredItems = useMemo(() => {
     if (permissionsLoading) return [];
-    
-    return defaultSidebarItems.filter(item => {
-      if (!item.permission) return true;
-      const permissions = PERMISSION_MAPPINGS[item.permission] || [item.permission];
+
+    // Casa uma permissão de menu (seção ou item) com as do usuário, via mapeamento
+    // (mesma lógica do BottomNavigation, p/ desktop e mobile não divergirem).
+    const matchPermission = (permission?: string) => {
+      if (!permission) return true;
+      if (hasPermission('todos')) return true;
+      const permissions = PERMISSION_MAPPINGS[permission] || [permission];
       return permissions.some(p => hasPermission(p));
-    }).map(item => ({
-      ...item,
-      subItems: item.subItems?.filter(subItem => {
-        if (!subItem.permission) return true;
-        return hasPermission(subItem.permission);
-      })
-    }));
+    };
+
+    return defaultSidebarItems
+      .map(item => ({
+        ...item,
+        subItems: item.subItems?.filter(subItem => matchPermission(subItem.permission)),
+      }))
+      // Mostra a seção se ela própria libera OU se sobrou algum sub-item visível
+      // (evita seção vazia e revela a seção quando o usuário só tem 1 item dela).
+      .filter(item => matchPermission(item.permission) || (item.subItems?.length ?? 0) > 0);
   }, [hasPermission, permissionsLoading]);
 
   return (
