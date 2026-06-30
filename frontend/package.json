@@ -5,9 +5,9 @@
     "private": true,
     "scripts": {
         "dev": "next dev --port 3001",
-        "build": "next build",
+        "build": "next build --turbopack",
         "build:analyze": "NEXT_PUBLIC_ANALYZE_BUNDLE=true next build",
-        "build:production": "NODE_ENV=production next build && next-sitemap",
+        "build:production": "NODE_ENV=production next build --turbopack && next-sitemap",
         "start": "next start",
         "start:production": "NODE_ENV=production next start -p 3000",
         "type-check": "tsc --noEmit",
