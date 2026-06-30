@@ -10,6 +10,7 @@ import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes, Download, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
+import { PageShell } from '@/components/layout/PageShell';
 
 const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'porção'];
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -865,8 +866,7 @@ function FichasInner() {
 
 export default function FichasTecnicasPage() {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-4">
+    <PageShell width="wide">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-xl"><ChefHat className="w-6 h-6 text-purple-600 dark:text-purple-400" /></div>
           <div>
@@ -877,7 +877,6 @@ export default function FichasTecnicasPage() {
         <Suspense fallback={<div className="py-16 text-center text-gray-400">Carregando…</div>}>
           <FichasInner />
         </Suspense>
-      </div>
-    </div>
+    </PageShell>
   );
 }

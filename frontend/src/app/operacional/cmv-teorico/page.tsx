@@ -9,6 +9,7 @@ import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { Calculator, RefreshCw, Search, Loader2, TrendingUp, TrendingDown, CalendarDays, ListChecks, Download } from 'lucide-react';
+import { PageShell } from '@/components/layout/PageShell';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtPct = (v: any) => v == null ? '—' : `${Number(v).toFixed(1)}%`;
@@ -159,8 +160,7 @@ export default function CmvTeoricoPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-4">
+    <PageShell width="wide">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl"><Calculator className="w-6 h-6 text-amber-600 dark:text-amber-400" /></div>
@@ -501,7 +501,6 @@ export default function CmvTeoricoPage() {
             </>);
           })()}
         </>)}
-      </div>
-    </div>
+    </PageShell>
   );
 }

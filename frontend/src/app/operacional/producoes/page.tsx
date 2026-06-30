@@ -13,6 +13,7 @@ import {
   Loader2, History, Package, Clock, TrendingDown, DollarSign, X, Scale, AlertTriangle, CalendarCheck,
   CalendarDays, CheckCircle2, Gauge, ListChecks,
 } from 'lucide-react';
+import { PageShell } from '@/components/layout/PageShell';
 
 // ISO de "dia + N" sem fuso (date math em UTC, igual ao restante das telas de planejamento)
 const addDiasIso = (iso: string, n: number) => {
@@ -830,8 +831,7 @@ export default function ProducoesPage() {
   useEffect(() => { loadFichas(); loadResponsaveis(); }, [loadFichas, loadResponsaveis]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-4">
+    <PageShell width="wide">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-orange-100 dark:bg-orange-900/30 rounded-xl"><Timer className="w-6 h-6 text-orange-600 dark:text-orange-400" /></div>
           <div>
@@ -848,7 +848,6 @@ export default function ProducoesPage() {
         {aba === 'executar'
           ? <AbaExecutar fichas={fichas} responsaveis={responsaveis} />
           : <AbaHistorico fichas={fichas} responsaveis={responsaveis} />}
-      </div>
-    </div>
+    </PageShell>
   );
 }

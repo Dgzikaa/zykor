@@ -10,6 +10,7 @@ import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap, Utensils, Pencil, Plus, Trash2 } from 'lucide-react';
+import { PageShell } from '@/components/layout/PageShell';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
@@ -230,8 +231,7 @@ export default function InsumosPage() {
   const corClasse = (c: string) => c === 'A' ? 'text-red-600 dark:text-red-400 border-red-300' : c === 'B' ? 'text-amber-600 dark:text-amber-400 border-amber-300' : 'text-gray-500 border-gray-300';
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-4">
+    <PageShell width="wide">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl"><Package className="w-6 h-6 text-emerald-600 dark:text-emerald-400" /></div>
@@ -725,7 +725,6 @@ export default function InsumosPage() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </PageShell>
   );
 }
