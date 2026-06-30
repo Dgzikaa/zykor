@@ -195,8 +195,10 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
                         <div className="font-medium leading-tight">{i.nome}</div>
                         <div className="text-[11px] text-muted-foreground">conta em {unidadeContagem(i)}</div>
                       </div>
-                      <Input value={v} onChange={e => setValores(p => ({ ...p, [i.codigo]: e.target.value }))}
-                        inputMode="decimal" placeholder="0" className={`w-24 text-center h-10 shrink-0 ${feito ? 'border-emerald-400' : ''}`} />
+                      {/* input simples (o componente <Input> tem wrapper w-full que quebraria o flex da linha) */}
+                      <input value={v} onChange={e => setValores(p => ({ ...p, [i.codigo]: e.target.value }))}
+                        inputMode="decimal" placeholder="0"
+                        className={`shrink-0 w-20 h-10 text-center text-base rounded-lg border bg-white dark:bg-gray-800 px-2 outline-none focus:ring-2 focus:ring-emerald-500/30 ${feito ? 'border-emerald-400' : 'border-gray-300 dark:border-gray-600'}`} />
                     </li>
                   );
                 })}
