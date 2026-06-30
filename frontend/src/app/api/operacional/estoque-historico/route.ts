@@ -92,11 +92,16 @@ export async function GET(request: NextRequest) {
 
   // itens da contagem selecionada — da SILVER (valorizada pelo preço do VMarket NA DATA da contagem)
   // Diária = Curva A: só os itens (insumo OU produção) marcados com o checkbox curva_a entram.
+  // O tipo_contagem é derivado pela data (segunda→'semanal', dia 1→'mensal'), mas os curva A são
+  // contados TODO dia — inclusive dentro da contagem de segunda. Por isso a aba Diária é definida
+  // pelo flag curva_a e NÃO pelo tipo_contagem (senão a contagem de segunda some). Semanal/mensal
+  // continuam casando o tipo_contagem exato.
   let qItens = silver
     .from('estoque_contagem')
     .select('insumo_codigo, insumo_nome, tipo_local, categoria, unidade_medida, estoque_final, estoque_ideal, preco_vmarket, preco_fonte, valor, curva_a')
-    .eq('bar_id', user.bar_id).eq('tipo_contagem', tipo).eq('data_contagem', dataSel).eq('classe', classe);
+    .eq('bar_id', user.bar_id).eq('data_contagem', dataSel).eq('classe', classe);
   if (tipo === 'diaria') qItens = qItens.eq('curva_a', true);
+  else qItens = qItens.eq('tipo_contagem', tipo);
   const { data: rows, error: e2 } = await qItens
     .order('categoria', { ascending: true }).order('insumo_nome', { ascending: true });
   if (e2) return NextResponse.json({ success: false, error: e2.message }, { status: 500 });

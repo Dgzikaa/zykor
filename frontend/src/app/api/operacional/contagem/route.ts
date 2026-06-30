@@ -62,8 +62,8 @@ export async function POST(request: NextRequest) {
   try { body = await request.json(); } catch { return NextResponse.json({ success: false, error: 'JSON inválido' }, { status: 400 }); }
   const data = body.data || hoje();
   const itens = (Array.isArray(body.itens) ? body.itens : [])
-    .filter((i: any) => i.insumo_id != null && i.estoque_final != null && i.estoque_final !== '')
-    .map((i: any) => ({ insumo_id: Number(i.insumo_id), estoque_final: Number(i.estoque_final), observacoes: i.observacoes || null }));
+    .filter((i: any) => i.codigo && i.estoque_final != null && i.estoque_final !== '')
+    .map((i: any) => ({ codigo: String(i.codigo), estoque_final: Number(i.estoque_final), observacoes: i.observacoes || null }));
   if (!itens.length) return NextResponse.json({ success: false, error: 'nada pra salvar' }, { status: 400 });
 
   const supabase = sb();

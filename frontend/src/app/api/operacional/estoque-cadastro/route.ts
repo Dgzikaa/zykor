@@ -5,10 +5,11 @@ import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 export const dynamic = 'force-dynamic';
 const sb = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
-// Cadastro de itens de Limpeza (d0XXX) e Utensílio (u0XXX) na Estoque-Histórico.
+// Cadastro de itens de Limpeza (L0XXX) e Utensílio (u0XXX) na Estoque-Histórico.
 // Código é AUTO-GERADO (próximo da sequência por classe). Insumo "comum" tem sua
 // própria tela (/operacional/insumos); aqui é só limpeza/utensílio.
-const PREFIXO: Record<string, string> = { limpeza: 'd', utensilio: 'u' };
+// Limpeza usa 'L' (e não 'd') p/ não colidir com o código de produto Drink (dXXXX).
+const PREFIXO: Record<string, string> = { limpeza: 'L', utensilio: 'u' };
 
 function classeValida(c: unknown): c is 'limpeza' | 'utensilio' {
   return c === 'limpeza' || c === 'utensilio';

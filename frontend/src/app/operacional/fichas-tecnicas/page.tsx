@@ -169,12 +169,14 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   const [rendCod, setRendCod] = useState('');
   const [rendVal, setRendVal] = useState('');
   const [rendUni, setRendUni] = useState('un');
-  const abrirRend = () => { setRendNome(selObj?.nome || ''); setRendCod(selObj?.codigo || ''); setRendVal(String(selObj?.rendimento ?? '')); setRendUni(selObj?.unidade || 'un'); setEditRend(true); };
+  const [rendUniCont, setRendUniCont] = useState('');
+  const [rendFator, setRendFator] = useState('');
+  const abrirRend = () => { setRendNome(selObj?.nome || ''); setRendCod(selObj?.codigo || ''); setRendVal(String(selObj?.rendimento ?? '')); setRendUni(selObj?.unidade || 'un'); setRendUniCont(selObj?.unidade_contagem || ''); setRendFator(selObj?.fator_contagem != null ? String(selObj.fator_contagem) : ''); setEditRend(true); };
   const salvarRend = async () => {
     if (!sel) return;
     if (!rendNome.trim()) { toast({ title: 'Informe o nome da produção', variant: 'destructive' }); return; }
     try {
-      await api.put('/api/operacional/producoes', { id: sel, nome: rendNome.trim(), codigo: rendCod.trim() || null, rendimento: Number(rendVal) || 0, unidade: rendUni });
+      await api.put('/api/operacional/producoes', { id: sel, nome: rendNome.trim(), codigo: rendCod.trim() || null, rendimento: Number(rendVal) || 0, unidade: rendUni, unidade_contagem: rendUniCont.trim() || null, fator_contagem: rendFator.trim() === '' ? null : Number(rendFator.replace(',', '.')) });
       setEditRend(false); reloadLista();
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
@@ -531,6 +533,16 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                             </select>
                           </div>
                         </div>
+                        {/* Conversor de contagem: como você CONTA esta produção no estoque */}
+                        <div className="flex gap-2 pt-1 border-t border-gray-100 dark:border-gray-800">
+                          <div className="flex-1"><label className="text-xs text-gray-500" title="Como você CONTA no estoque (ex.: porção, caixa, unidade)">Unidade de contagem</label>
+                            <Input value={rendUniCont} onChange={e => setRendUniCont(e.target.value)} placeholder={rendUni} />
+                          </div>
+                          <div className="w-32"><label className="text-xs text-gray-500" title="Quanto da unidade-base cabe em 1 unidade de contagem">Conversor p/ contagem</label>
+                            <Input type="number" step="0.001" value={rendFator} onChange={e => setRendFator(e.target.value)} placeholder="1" />
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-gray-400">Ex.: conta em <b>{rendUniCont.trim() || 'porção'}</b> e cada uma tem <b>{rendFator.trim() || '0,4'} {rendUni}</b> → na contagem você digita o nº de {rendUniCont.trim() || 'porções'} e o sistema multiplica pelo conversor pra ter {rendUni}.</p>
                       </div>
                       <div className="flex justify-end gap-2 mt-4">
                         <Button variant="outline" onClick={() => setEditRend(false)}>Cancelar</Button>

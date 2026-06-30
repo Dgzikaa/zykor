@@ -22,19 +22,9 @@ const TIPOS = [
   { v: 'mensal', label: 'Mensal', desc: 'Inventário completo (todo dia 1º).' },
 ];
 
-// Rótulos dos Locais de Contagem (tipo_local). Itens novos podem ter qualquer um.
-const LOCAL_LABEL: Record<string, string> = {
-  bar: 'Bar', cozinha: 'Cozinha', salao: 'Salão', drink: 'Drink',
-  uniformes: 'Uniformes', limpeza: 'Limpeza', almoxarifado: 'Almoxarifado',
-};
-const localLabel = (l: string | null) => (l ? LOCAL_LABEL[l] || l : '—');
-
-// Coluna conversora "Unidade de Contagem": o que você conta vs. a unidade-base.
-const convLabel = (i: ItemContar) => {
-  const uc = i.unidade_contagem || i.unidade_medida || 'un';
-  const f = Number(i.fator_contagem) || 1;
-  return f !== 1 ? `${uc} (×${f} ${i.unidade_medida || 'un'})` : uc;
-};
+// Unidade em que o item é CONTADO (porção, un, ml…). É a instrução pro estoqueista — o resto
+// (unidade-base, conversor, preço) é dado interno e não aparece na tela de contar.
+const unidadeContagem = (i: ItemContar) => i.unidade_contagem || i.unidade_medida || 'un';
 const TIPO_DOT: Record<string, string> = { mensal: 'bg-purple-500', semanal: 'bg-blue-500', diaria: 'bg-muted-foreground/40' };
 const hoje = () => new Date().toISOString().slice(0, 10);
 const num = (v: string) => (v === '' || v == null ? null : Number(String(v).replace(',', '.')));
@@ -53,21 +43,22 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
   const [tipoC, setTipoC] = useState('diaria');
   const [dataC, setDataC] = useState(hoje());
   const [itens, setItens] = useState<ItemContar[]>([]);
-  const [valores, setValores] = useState<Record<number, string>>({});
+  // valores chaveados por CÓDIGO (globalmente único: i/L/u = insumo, pc/pd = produção)
+  const [valores, setValores] = useState<Record<string, string>>({});
   const [buscaC, setBuscaC] = useState('');
-  const [areaC, setAreaC] = useState('');
+  const [localC, setLocalC] = useState('');
   const [loadingC, setLoadingC] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const comecar = async () => {
     setTipoC(novoTipo); setDataC(novaData); setModalOpen(false);
-    setContando(true); setLoadingC(true); setBuscaC(''); setAreaC('');
+    setContando(true); setLoadingC(true); setBuscaC(''); setLocalC('');
     try {
       const res = await api.get(`/api/operacional/contagem/itens?tipo=${novoTipo}&data=${novaData}`);
       const its: ItemContar[] = res.itens || [];
       setItens(its);
-      const v: Record<number, string> = {};
-      its.forEach(i => { if (i.contado != null) v[i.insumo_id] = String(i.contado); });
+      const v: Record<string, string> = {};
+      its.forEach(i => { if (i.contado != null) v[i.codigo] = String(i.contado); });
       setValores(v);
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao carregar itens', message: e?.message }); }
     finally { setLoadingC(false); }
@@ -75,7 +66,7 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
 
   const salvar = async () => {
     const payload = Object.entries(valores).filter(([, v]) => v !== '' && v != null)
-      .map(([id, v]) => ({ insumo_id: Number(id), estoque_final: num(v) }));
+      .map(([codigo, v]) => ({ codigo, estoque_final: num(v) }));
     if (!payload.length) return showToast({ type: 'error', title: 'Conte ao menos 1 item' });
     setSaving(true);
     try {
@@ -87,19 +78,20 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
     finally { setSaving(false); }
   };
 
+  // Filtra por Local de Contagem (= categoria do cadastro; produção = "Produção Cozinha/Drinks").
   const itensFiltrados = useMemo(() => {
     const q = buscaC.trim().toLowerCase();
-    return itens.filter(i => (!areaC || i.tipo_local === areaC) && (!q || i.nome.toLowerCase().includes(q)));
-  }, [itens, buscaC, areaC]);
-  // Locais de Contagem presentes nos itens carregados (dinâmico — cobre os locais novos)
+    return itens.filter(i => (!localC || (i.categoria || '') === localC) && (!q || i.nome.toLowerCase().includes(q)));
+  }, [itens, buscaC, localC]);
+  // Locais de Contagem presentes nos itens carregados (dinâmico)
   const locais = useMemo(() => {
     const set = new Set<string>();
-    itens.forEach(i => { if (i.tipo_local) set.add(i.tipo_local); });
+    itens.forEach(i => { if (i.categoria) set.add(i.categoria); });
     return Array.from(set).sort();
   }, [itens]);
   const contados = useMemo(() => Object.values(valores).filter(v => v !== '' && v != null).length, [valores]);
   const valorTotal = useMemo(() => itens.reduce((s, i) => {
-    const q = num(valores[i.insumo_id] ?? '');
+    const q = num(valores[i.codigo] ?? '');
     return s + (q != null ? q * (Number(i.preco_atual) || 0) : 0);
   }, 0), [itens, valores]);
 
@@ -138,7 +130,7 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
         </DialogContent>
       </Dialog>
 
-      {/* Overlay de contagem (tela cheia) */}
+      {/* Overlay de contagem (tela cheia, mobile-first) */}
       {contando && (
         <div className="fixed inset-0 z-50 bg-background flex flex-col">
           <div className="border-b px-3 py-2.5 flex items-center gap-2">
@@ -151,56 +143,43 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
           </div>
           <div className="h-1.5 bg-muted overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${itens.length ? (contados / itens.length) * 100 : 0}%` }} /></div>
 
-          <div className="px-3 py-2 flex flex-wrap items-center gap-2 border-b">
-            <div className="relative flex-1 min-w-[12rem] max-w-md">
+          {/* Busca + Local de Contagem (filtro) — o estoqueista escolhe o local e conta só ele */}
+          <div className="px-3 py-2 space-y-2 border-b">
+            <div className="relative">
               <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-muted-foreground" />
               <Input value={buscaC} onChange={e => setBuscaC(e.target.value)} placeholder="Buscar item…" className="pl-8 h-9" />
             </div>
-            {[{ v: '', l: 'Todos' }, ...locais.map(l => ({ v: l, l: localLabel(l) }))].map(a => (
-              <button key={a.v} onClick={() => setAreaC(a.v)}
-                className={`text-xs px-2.5 py-1.5 rounded-full border transition ${areaC === a.v ? 'bg-foreground text-background' : 'hover:bg-muted/50'}`}>{a.l}</button>
-            ))}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[{ v: '', l: 'Todos' }, ...locais.map(l => ({ v: l, l }))].map(a => (
+                <button key={a.v} onClick={() => setLocalC(a.v)}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition ${localC === a.v ? 'bg-foreground text-background' : 'hover:bg-muted/50'}`}>{a.l}</button>
+              ))}
+            </div>
           </div>
 
+          {/* Lista enxuta: só Item (+ unidade de contagem) e o campo. O resto é dado interno. */}
           <div className="flex-1 overflow-auto">
             {loadingC ? (
               <div className="py-12 text-center text-muted-foreground"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+            ) : itensFiltrados.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground text-sm">Nenhum item.</div>
             ) : (
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="bg-muted/40 text-left text-muted-foreground">
-                    <th className="sticky left-0 top-0 z-30 bg-muted/40 px-3 py-2 font-medium min-w-[14rem] border-r">Item</th>
-                    <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium">Local</th>
-                    <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium">Unid.</th>
-                    <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium">Un. Contagem</th>
-                    <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium text-right">Anterior</th>
-                    <th className="sticky top-0 z-20 bg-muted/40 px-3 py-2 font-medium text-right w-32">Contagem</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {itensFiltrados.map(i => {
-                    const v = valores[i.insumo_id] ?? '';
-                    const feito = v !== '';
-                    return (
-                      <tr key={i.insumo_id} className={`border-b ${feito ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : 'hover:bg-muted/20'}`}>
-                        <td className="sticky left-0 z-10 bg-background px-3 py-1.5 border-r">
-                          <div className="font-medium leading-tight">{i.nome}</div>
-                          <div className="text-xs text-muted-foreground">{i.categoria || '—'}</div>
-                        </td>
-                        <td className="px-3 py-1.5 text-muted-foreground">{localLabel(i.tipo_local)}</td>
-                        <td className="px-3 py-1.5 text-muted-foreground">{i.unidade_medida || 'un'}</td>
-                        <td className="px-3 py-1.5 text-muted-foreground text-xs">{convLabel(i)}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{i.ultimo_final ?? '—'}</td>
-                        <td className="px-3 py-1.5 text-right">
-                          <Input value={v} onChange={e => setValores(p => ({ ...p, [i.insumo_id]: e.target.value }))}
-                            inputMode="decimal" placeholder="0" className={`w-24 text-center h-9 ml-auto ${feito ? 'border-emerald-400' : ''}`} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {itensFiltrados.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-muted-foreground text-sm">Nenhum item.</td></tr>}
-                </tbody>
-              </table>
+              <ul className="divide-y">
+                {itensFiltrados.map(i => {
+                  const v = valores[i.codigo] ?? '';
+                  const feito = v !== '';
+                  return (
+                    <li key={i.codigo} className={`flex items-center gap-3 px-3 py-2 ${feito ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium leading-tight">{i.nome}</div>
+                        <div className="text-[11px] text-muted-foreground">conta em {unidadeContagem(i)}</div>
+                      </div>
+                      <Input value={v} onChange={e => setValores(p => ({ ...p, [i.codigo]: e.target.value }))}
+                        inputMode="decimal" placeholder="0" className={`w-24 text-center h-10 shrink-0 ${feito ? 'border-emerald-400' : ''}`} />
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
 

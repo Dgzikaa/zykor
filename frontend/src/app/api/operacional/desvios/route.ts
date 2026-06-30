@@ -222,7 +222,7 @@ export async function GET(request: NextRequest) {
   const prodCods = itens.filter((i: any) => i.is_producao).map((i: any) => i.insumo_codigo);
   if (prodCods.length) {
     const [pbRes, enRes] = await Promise.all([
-      sb().from('producao_base').select('codigo, rendimento, fator_contagem, unidade_contagem').eq('bar_id', user.bar_id),
+      sb().from('producao_base').select('codigo, rendimento, fator_contagem, unidade_contagem, secao').eq('bar_id', user.bar_id),
       (sb() as any).schema('operations').from('producao_entrada_manual').select('producao_codigo, fornadas').eq('bar_id', user.bar_id).gte('data', ini).lt('data', fim),
     ]);
     const pbMap = new Map<string, any>((pbRes.data || []).map((r: any) => [String(r.codigo).toUpperCase(), r]));
@@ -231,6 +231,9 @@ export async function GET(request: NextRequest) {
     for (const it of itens) {
       if (!it.is_producao) continue;
       const pb = pbMap.get(String(it.insumo_codigo).toUpperCase());
+      // seção da produção (Comida/Drinks) — respeita o cadastro (producao_base.secao); fallback no prefixo (pd=Bar/Drinks)
+      const sec = pb?.secao || (String(it.insumo_codigo).toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha');
+      it.secao_prod = sec === 'Bar' ? 'Drinks' : 'Comida';
       const rend = Number(pb?.rendimento || 0); const fator = Number(pb?.fator_contagem || 1) || 1;
       it.rend_contagem = rend > 0 ? rend / fator : null; // unidades de contagem por fornada
       it.unidade_contagem = pb?.unidade_contagem || it.unidade;

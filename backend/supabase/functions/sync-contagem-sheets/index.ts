@@ -144,9 +144,11 @@ function parseLimpeza(rows: unknown[][], fromISO: string, toISODate: string): Br
     for (let i = 3; i < rows.length; i++) {
       const row = rows[i] as unknown[]
       if (!row) continue
-      const cod = String(row[1] || '').trim().toUpperCase()
+      const codSheet = String(row[1] || '').trim().toUpperCase()
       const nome = String(row[4] || '').trim()
-      if (!cod || !nome || !/^D\d/.test(cod)) continue // só códigos d0XXX
+      if (!codSheet || !nome || !/^D\d/.test(codSheet)) continue // planilha usa d0XXX
+      // remapeia d→L: no sistema, limpeza é L0XXX p/ não colidir com código de produto Drink (dXXXX)
+      const cod = 'L' + codSheet.slice(1)
       const v = row[c]
       const fechado = typeof v === 'number' ? v : null
       if (fechado === null) continue // semana sem contagem (célula vazia) → ignora

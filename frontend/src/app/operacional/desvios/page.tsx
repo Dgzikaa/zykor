@@ -37,6 +37,7 @@ function PencilCell({ value, fmt, onSave, disabled }: { value: number | null; fm
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtQtd = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const fmtData = (d: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+const ddmm = (d: string) => d ? d.split('-').reverse().slice(0, 2).join('/') : '—';
 
 const TIPOS = [{ k: 'diaria', l: 'Diária' }, { k: 'semanal', l: 'Semanal' }, { k: 'mensal', l: 'Mensal' }];
 
@@ -102,6 +103,7 @@ export default function DesviosPage() {
   const [soCurvaA, setSoCurvaA] = useState(false);
   const [filtroDado, setFiltroDado] = useState<'sem_contagem' | 'sem_ficha' | null>(null);
   const [filtroArea, setFiltroArea] = useState<string | null>(null);
+  const [filtroSecaoProd, setFiltroSecaoProd] = useState<'Comida' | 'Drinks' | null>(null);
   const [rowsProt, setRowsProt] = useState<any[]>([]);
   const [protAnalise, setProtAnalise] = useState<any>(null);
   const [loadingAba, setLoadingAba] = useState(false);
@@ -129,6 +131,18 @@ export default function DesviosPage() {
   }, [barId]);
   useEffect(() => { if (ini && fim) carregar(ini, fim, tipo); }, [ini, fim, tipo, carregar]);
 
+  // Seletor único de Semanal/Mensal: cada período é a janela [ini, fim) entre duas contagens
+  // consecutivas (datas vêm DESC); fim = a contagem que fecha a semana/mês.
+  const periodos = useMemo(() => {
+    const out: { ini: string; fim: string }[] = [];
+    for (let i = 0; i + 1 < datas.length; i++) out.push({ fim: datas[i], ini: datas[i + 1] });
+    return out;
+  }, [datas]);
+  const labelPeriodo = (p: { ini: string; fim: string }) =>
+    tipo === 'mensal'
+      ? new Date(p.ini + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+      : `${ddmm(p.ini)} – ${ddmm(p.fim)}`;
+
   // abas Produções / Proteínas (leitura) — carregam sob demanda
   // Proteínas tem fn própria (balanço VMarket × utilizado produção); Produções vem do mesmo fn_desvios
   const carregarAba = useCallback(async () => {
@@ -144,13 +158,17 @@ export default function DesviosPage() {
   useEffect(() => { if (aba === 'proteinas' && res) carregarAba(); }, [res]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Produções = linhas is_producao do fn_desvios (balanço ancorado no estoque, com Produzido)
-  const prodView = useMemo(() => {
+  // prodBase = antes do filtro Comida/Drinks (alimenta os contadores dos chips); prodView = já filtrado.
+  const prodBase = useMemo(() => {
     const s = busca.trim().toLowerCase();
     return (res?.itens || []).filter((i: any) => i.is_producao
       && (tipo !== 'diaria' || i.curva_a === true) // diária só Curva A
       && (!soCurvaA || i.curva_a === true)         // filtro Só Curva A (semanal/mensal)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
   }, [res, busca, tipo, soCurvaA]);
+  const cntProdComida = useMemo(() => prodBase.filter((i: any) => i.secao_prod === 'Comida').length, [prodBase]);
+  const cntProdDrinks = useMemo(() => prodBase.filter((i: any) => i.secao_prod === 'Drinks').length, [prodBase]);
+  const prodView = useMemo(() => prodBase.filter((i: any) => !filtroSecaoProd || i.secao_prod === filtroSecaoProd), [prodBase, filtroSecaoProd]);
   const protView = useMemo(() => {
     const s = busca.trim().toLowerCase();
     return rowsProt.filter((i: any) => !s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_cod || '').toLowerCase().includes(s));
@@ -226,16 +244,28 @@ export default function DesviosPage() {
           </div>
           <span className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1" />
           <CalendarDays className="w-4 h-4 text-gray-400" />
-          <span className="text-sm text-gray-500">de</span>
-          <select value={ini || ''} onChange={e => setIni(e.target.value)} className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm">
-            {datas.length === 0 && <option value="">—</option>}
-            {datas.map(d => <option key={d} value={d}>{fmtData(d)}</option>)}
-          </select>
-          <span className="text-sm text-gray-500">até</span>
-          <select value={fim || ''} onChange={e => setFim(e.target.value)} className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm">
-            {datas.length === 0 && <option value="">—</option>}
-            {datas.map(d => <option key={d} value={d}>{fmtData(d)}</option>)}
-          </select>
+          {tipo === 'diaria' ? (
+            <>
+              <span className="text-sm text-gray-500">de</span>
+              <select value={ini || ''} onChange={e => setIni(e.target.value)} className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm">
+                {datas.length === 0 && <option value="">—</option>}
+                {datas.map(d => <option key={d} value={d}>{fmtData(d)}</option>)}
+              </select>
+              <span className="text-sm text-gray-500">até</span>
+              <select value={fim || ''} onChange={e => setFim(e.target.value)} className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm">
+                {datas.length === 0 && <option value="">—</option>}
+                {datas.map(d => <option key={d} value={d}>{fmtData(d)}</option>)}
+              </select>
+            </>
+          ) : (
+            <>
+              <span className="text-sm text-gray-500">{tipo === 'semanal' ? 'Semana' : 'Mês'}</span>
+              <select value={fim || ''} onChange={e => { const p = periodos.find(x => x.fim === e.target.value); if (p) { setIni(p.ini); setFim(p.fim); } }} className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm capitalize">
+                {periodos.length === 0 && <option value="">—</option>}
+                {periodos.map(p => <option key={p.fim} value={p.fim}>{labelPeriodo(p)}</option>)}
+              </select>
+            </>
+          )}
         </div>
 
         <Tabs value={aba} onValueChange={setAba}>
@@ -317,6 +347,14 @@ export default function DesviosPage() {
             <HeadCards head={hProd} />
             <AnaliseBlock analise={res?.analise_producao} tipo={tipo} />
             <p className="text-xs text-gray-500 dark:text-gray-400">Balanço da produção: estoque ini + <b>Produzido</b> (fornadas na diária) − saída teórica (vendas×ficha) − desperdício. {editavel ? 'Na diária você lança as fornadas.' : 'Semanal/mensal somam as fornadas do dia.'} Diária só Curva A.</p>
+            {/* Filtro Comida / Drinks (seção da produção: pc=Cozinha, pd=Bar) */}
+            {(cntProdComida > 0 || cntProdDrinks > 0) && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={() => setFiltroSecaoProd(null)}><Badge variant="outline" className={`cursor-pointer ${!filtroSecaoProd ? 'ring-1 ring-emerald-400' : 'text-gray-600 dark:text-gray-300'}`}>{prodBase.length} todas</Badge></button>
+                {cntProdComida > 0 && <button onClick={() => setFiltroSecaoProd(f => f === 'Comida' ? null : 'Comida')}><Badge variant="outline" className={`cursor-pointer text-amber-700 dark:text-amber-400 border-amber-300 ${filtroSecaoProd === 'Comida' ? 'ring-1 ring-amber-400 bg-amber-50 dark:bg-amber-900/20' : ''}`}>🍳 {cntProdComida} Comida</Badge></button>}
+                {cntProdDrinks > 0 && <button onClick={() => setFiltroSecaoProd(f => f === 'Drinks' ? null : 'Drinks')}><Badge variant="outline" className={`cursor-pointer text-sky-700 dark:text-sky-400 border-sky-300 ${filtroSecaoProd === 'Drinks' ? 'ring-1 ring-sky-400 bg-sky-50 dark:bg-sky-900/20' : ''}`}>🍸 {cntProdDrinks} Drinks</Badge></button>}
+              </div>
+            )}
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>

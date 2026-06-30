@@ -146,8 +146,8 @@ export default function CmvTeoricoPage() {
 
   const exportarCSV = () => {
     if (!perProdView.length) return;
-    const head = ['Codigo', 'Produto', 'Categoria', 'Qtd', 'Preco venda', 'Custo unit', 'Faturamento', 'Custo total', 'Margem', 'CMV %'];
-    const linhas = perProdView.map((p: any) => [p.codigo, p.nome, p.categoria || '', p.qtd, p.preco_venda ?? '', p.custo_unit ?? '', p.faturamento ?? '', p.custo_total ?? '', p.margem ?? '', p.cmv_pct ?? '']
+    const head = ['Codigo', 'Produto', 'Categoria', 'Fonte', 'Qtd', 'Preco venda', 'Custo unit', 'Faturamento', 'Custo total', 'Margem', 'CMV %'];
+    const linhas = perProdView.map((p: any) => [p.codigo, p.nome, p.categoria || '', p.fonte || 'contahub', p.qtd, p.preco_venda ?? '', p.custo_unit ?? '', p.faturamento ?? '', p.custo_total ?? '', p.margem ?? '', p.cmv_pct ?? '']
       .map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';'));
     const csv = '﻿' + [head.join(';'), ...linhas].join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
@@ -241,7 +241,14 @@ export default function CmvTeoricoPage() {
           {/* ===== POR PERÍODO ===== */}
           <div className="flex flex-wrap items-center gap-2">
             {btnGran('dia', 'Dia')}{btnGran('semana', 'Semana')}{btnGran('mes', 'Mês')}
-            <Input type="date" value={dataRef} onChange={e => setDataRef(e.target.value)} className="w-auto" />
+            {gran === 'dia'
+              ? <Input type="date" value={dataRef} onChange={e => setDataRef(e.target.value)} className="w-auto" />
+              : <select
+                  value={gran === 'mes' ? `${dataRef.slice(0, 7)}-01` : (() => { const d = new Date(dataRef + 'T00:00:00'); const dw = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dw); return isoDate(d); })()}
+                  onChange={e => setDataRef(e.target.value)}
+                  className="h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm px-2 capitalize">
+                  {(gran === 'mes' ? mesOptions : semanaOptions).map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
+                </select>}
             <span className="text-sm text-gray-500 dark:text-gray-400">{range.ini === range.fim ? fmtDataBR(range.ini) : `${fmtDataBR(range.ini)} → ${fmtDataBR(range.fim)}`}</span>
             {periodo?.headline?.dias_yuzer?.length > 0 && (
               <span className="text-xs rounded-full px-2 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" title={`Operação Yuzer — o CMV usa o preço do Yuzer nesses dias: ${periodo.headline.dias_yuzer.map((d: string) => fmtDataBR(d)).join(', ')}`}>
@@ -377,9 +384,9 @@ export default function CmvTeoricoPage() {
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {perProdView.map((p: any) => (
-                    <tr key={p.codigo} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                    <tr key={`${p.codigo}-${p.fonte || 'ch'}`} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                       <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.codigo}</td>
-                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.nome}</td>
+                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.nome}{p.fonte === 'yuzer' && <Badge variant="outline" className="ml-1.5 text-[10px] text-violet-600 border-violet-300">🎟️ Yuzer</Badge>}</td>
                       <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.categoria || 'Outros'}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtNum(p.qtd)}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(p.preco_venda)}</td>

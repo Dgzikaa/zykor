@@ -97,7 +97,7 @@ export function CadastrarItemModal({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editId ? `Editar — ${editNome}` : `Adicionar item — ${isUtensilio ? 'Utensílios' : 'Limpeza'}`}</DialogTitle>
-          <DialogDescription>{editId ? 'Altere os campos do item.' : `Código gerado automaticamente (${isUtensilio ? 'u0XXX' : 'd0XXX'}).`}</DialogDescription>
+          <DialogDescription>{editId ? 'Altere os campos do item.' : `Código gerado automaticamente (${isUtensilio ? 'u0XXX' : 'L0XXX'}).`}</DialogDescription>
         </DialogHeader>
 
         {loading ? (
