@@ -8,6 +8,7 @@ import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut, Search, Loader2, Download, ChevronDown, ChevronRight } from 'lucide-react';
+import { PageShell } from '@/components/layout/PageShell';
 
 const fmtNum = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 // mostra a quantidade com unidade, arredondando g→kg e ml→L quando grande (5542 g → 5,54 kg)
@@ -21,8 +22,8 @@ const fmtQtdUnidade = (v: any, unidade: any) => {
 };
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const isoDate = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-// padrão = hoje (dia atual)
-const hojeISO = () => isoDate(new Date());
+// padrão = ontem (hoje−1) — o consumo do dia atual ainda está em andamento/incompleto
+const ontemISO = () => { const d = new Date(); d.setDate(d.getDate() - 1); return isoDate(d); };
 const fmtDataBR = (s: string) => s.split('-').reverse().join('/');
 const fmtDM = (dt: Date) => `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`;
 // segunda-feira da semana de uma data ISO
@@ -54,7 +55,7 @@ export default function SaidasPage() {
 
   const [aba, setAba] = useState<Aba>('insumo');
   const [gran, setGran] = useState<'dia' | 'semana' | 'mes'>('dia');
-  const [dataRef, setDataRef] = useState(hojeISO());
+  const [dataRef, setDataRef] = useState(ontemISO());
   const range = useMemo(() => calcRange(gran, dataRef), [gran, dataRef]);
   // opções de mês (12 últimos) e semana (16 últimas, seg→dom) pro seletor
   const mesOptions = useMemo(() => {
@@ -134,8 +135,7 @@ export default function SaidasPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
-      <div className="max-w-6xl mx-auto space-y-4">
+    <PageShell width="wide">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-violet-100 dark:bg-violet-900/30 rounded-xl"><LogOut className="w-6 h-6 text-violet-600 dark:text-violet-400" /></div>
           <div>
@@ -273,7 +273,6 @@ export default function SaidasPage() {
             </CardContent>
           </Card>
         )}
-      </div>
-    </div>
+    </PageShell>
   );
 }
