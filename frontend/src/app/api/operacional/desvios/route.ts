@@ -134,8 +134,10 @@ export async function GET(request: NextRequest) {
   const tipo = ['diaria', 'semanal', 'mensal'].includes(sp.get('tipo') || '') ? sp.get('tipo') : 'semanal';
 
   if (!ini || !fim) {
+    // p_classe='insumo': exclui contagens de limpeza/utensílio (forçadas a 'semanal' no refresh,
+    // contadas em dias soltos da semana) — senão poluem as janelas semanais com datas de ter/qua.
     const { data: datas, error } = await (sb() as any).schema('operations')
-      .rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo });
+      .rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo, p_classe: 'insumo' });
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, datas: (datas || []).map((d: any) => d.data_contagem) });
   }
@@ -152,7 +154,7 @@ export async function GET(request: NextRequest) {
     };
     let analise: any = null;
     try {
-      const { data: datasRaw } = await (sb() as any).schema('operations').rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo });
+      const { data: datasRaw } = await (sb() as any).schema('operations').rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo, p_classe: 'insumo' });
       const ds: string[] = (datasRaw || []).map((d: any) => d.data_contagem);
       const idx = ds.indexOf(ini);
       const prevDate = idx >= 0 && idx < ds.length - 1 ? ds[idx + 1] : null;
@@ -281,7 +283,7 @@ export async function GET(request: NextRequest) {
   let analiseProducao: any = null;
   try {
     const { data: datasRaw } = await (sb() as any).schema('operations')
-      .rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo });
+      .rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo, p_classe: 'insumo' });
     const ds: string[] = (datasRaw || []).map((d: any) => d.data_contagem); // já vem desc
     const idx = ds.indexOf(ini);
     const prevDate = idx >= 0 && idx < ds.length - 1 ? ds[idx + 1] : null; // contagem imediatamente anterior a `ini`

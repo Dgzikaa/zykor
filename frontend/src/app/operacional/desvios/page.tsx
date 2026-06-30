@@ -39,6 +39,8 @@ const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR',
 const fmtQtd = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const fmtData = (d: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
 const ddmm = (d: string) => d ? d.split('-').reverse().slice(0, 2).join('/') : '—';
+// dd/mm do dia anterior a `d` (fim da semana = contagem de fechamento − 1 = domingo)
+const ddmmPrev = (d: string) => { const dt = new Date(d + 'T00:00:00'); dt.setDate(dt.getDate() - 1); return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`; };
 
 const TIPOS = [{ k: 'diaria', l: 'Diária' }, { k: 'semanal', l: 'Semanal' }, { k: 'mensal', l: 'Mensal' }];
 
@@ -139,10 +141,18 @@ export default function DesviosPage() {
     for (let i = 0; i + 1 < datas.length; i++) out.push({ fim: datas[i], ini: datas[i + 1] });
     return out;
   }, [datas]);
+  // Diária = 1 só dia selecionado: a janela é [dia, próxima contagem). O dia mais recente (datas[0])
+  // ainda não tem contagem de fechamento, então não pode ser início — começa em datas[1].
+  const diasDiaria = useMemo(() => {
+    const out: { dia: string; fim: string }[] = [];
+    for (let i = 1; i < datas.length; i++) out.push({ dia: datas[i], fim: datas[i - 1] });
+    return out;
+  }, [datas]);
   const labelPeriodo = (p: { ini: string; fim: string }) =>
     tipo === 'mensal'
       ? new Date(p.ini + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-      : `${ddmm(p.ini)} – ${ddmm(p.fim)}`;
+      // semana operacional: ini (segunda) → fim−1 (domingo); fim é a contagem de fechamento da semana seguinte
+      : `${ddmm(p.ini)} – ${ddmmPrev(p.fim)}`;
 
   // abas Produções / Proteínas (leitura) — carregam sob demanda
   // Proteínas tem fn própria (balanço VMarket × utilizado produção); Produções vem do mesmo fn_desvios
@@ -246,16 +256,12 @@ export default function DesviosPage() {
           <CalendarDays className="w-4 h-4 text-gray-400" />
           {tipo === 'diaria' ? (
             <>
-              <span className="text-sm text-gray-500">de</span>
-              <select value={ini || ''} onChange={e => setIni(e.target.value)} className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm">
-                {datas.length === 0 && <option value="">—</option>}
-                {datas.map(d => <option key={d} value={d}>{fmtData(d)}</option>)}
+              <span className="text-sm text-gray-500">Dia</span>
+              <select value={ini || ''} onChange={e => { const d = diasDiaria.find(x => x.dia === e.target.value); if (d) { setIni(d.dia); setFim(d.fim); } }} className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm">
+                {diasDiaria.length === 0 && <option value="">—</option>}
+                {diasDiaria.map(d => <option key={d.dia} value={d.dia}>{fmtData(d.dia)}</option>)}
               </select>
-              <span className="text-sm text-gray-500">até</span>
-              <select value={fim || ''} onChange={e => setFim(e.target.value)} className="h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm">
-                {datas.length === 0 && <option value="">—</option>}
-                {datas.map(d => <option key={d} value={d}>{fmtData(d)}</option>)}
-              </select>
+              {ini && fim && <span className="text-xs text-gray-400">estoque {ddmm(ini)} → {ddmm(fim)}</span>}
             </>
           ) : (
             <>
