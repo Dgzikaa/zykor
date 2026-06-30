@@ -40,7 +40,7 @@ export default function PlanoProducaoPage() {
   const [loading, setLoading] = useState(false);
   const [busca, setBusca] = useState('');
   const [aba, setAba] = useState<'Cozinha' | 'Bar'>('Cozinha'); // planejamento separado Cozinha × Bar
-  const [filtroProd, setFiltroProd] = useState<'todos' | 'produzir' | 'nao'>('todos');
+  const [filtroProd, setFiltroProd] = useState<'todos' | 'produzir' | 'nao' | 'sem_dia'>('todos');
   const [aberto, setAberto] = useState<number | null>(null); // linha expandida (6 semanas)
   const [semanaSel, setSemanaSel] = useState<string | null>(null); // semana escolhida (null = mais recente)
   const [salvando, setSalvando] = useState(false);
@@ -139,7 +139,10 @@ export default function PlanoProducaoPage() {
       })
       .filter((i) => i.controle_producao                                  // a tela só mostra o que está no Controle de Produção
         && secaoDe(i) === aba                                             // aba Cozinha × Bar
-        && (filtroProd === 'todos' || (filtroProd === 'produzir' ? !i.naoProduzir : i.naoProduzir))
+        && (filtroProd === 'todos'
+          || (filtroProd === 'produzir' && !i.naoProduzir)
+          || (filtroProd === 'nao' && i.naoProduzir)
+          || (filtroProd === 'sem_dia' && !i.naoProduzir && !i.decisao?.dia_producao)) // vai produzir mas sem dia cadastrado
         && (!s || (i.nome || '').toLowerCase().includes(s) || (i.codigo || '').toLowerCase().includes(s)))
       .sort((a, b) => b.sugestaoQtd - a.sugestaoQtd);
   }, [itens, busca, aba, filtroProd, consumoMap]);
@@ -212,7 +215,7 @@ export default function PlanoProducaoPage() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[200px]"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar produção…" className="pl-9" /></div>
           <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
-            {([['todos', 'Todos'], ['produzir', 'Produzir'], ['nao', 'Não produzir']] as const).map(([v, label]) => (
+            {([['todos', 'Todos'], ['produzir', 'Produzir'], ['nao', 'Não produzir'], ['sem_dia', 'Sem dia']] as const).map(([v, label]) => (
               <button key={v} onClick={() => setFiltroProd(v)} className={`px-3 py-1.5 ${filtroProd === v ? 'bg-violet-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>{label}</button>
             ))}
           </div>
