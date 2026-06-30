@@ -891,7 +891,7 @@ function GerirEquipeModal({ barId, responsaveis, onClose, onChanged }: {
               <li key={p.id} className="py-2 flex items-center gap-2">
                 {editId === p.id ? (
                   <>
-                    <Input value={editNome} onChange={e => setEditNome(e.target.value)} className="flex-1 h-8" autoFocus />
+                    <Input value={editNome} onChange={e => setEditNome(e.target.value)} className="flex-1 h-8" />
                     <Input value={editCargo} onChange={e => setEditCargo(e.target.value)} placeholder="Cargo" className="w-28 h-8" />
                     <Button size="sm" onClick={salvarEdicao} disabled={salvando} className="h-8">Salvar</Button>
                     <Button size="sm" variant="ghost" onClick={() => setEditId(null)} className="h-8">Cancelar</Button>
