@@ -22,6 +22,15 @@ const TIPOS = [
   { v: 'mensal', label: 'Mensal', desc: 'Inventário completo (todo dia 1º).' },
 ];
 
+// Classe a contar — pré-filtra a tela seguinte (insumo/limpeza/utensílio/produção).
+const CLASSES = [
+  { v: 'todos', label: 'Todos' },
+  { v: 'insumo', label: 'Insumo' },
+  { v: 'limpeza', label: 'Limpeza' },
+  { v: 'utensilio', label: 'Utensílio' },
+  { v: 'producao', label: 'Produção' },
+];
+
 // Unidade em que o item é CONTADO (porção, un, ml…). É a instrução pro estoqueista — o resto
 // (unidade-base, conversor, preço) é dado interno e não aparece na tela de contar.
 const unidadeContagem = (i: ItemContar) => i.unidade_contagem || i.unidade_medida || 'un';
@@ -40,8 +49,10 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
   const [contando, setContando] = useState(false);
   const [novoTipo, setNovoTipo] = useState('diaria');
   const [novaData, setNovaData] = useState(hoje());
+  const [novaClasse, setNovaClasse] = useState('todos');
   const [tipoC, setTipoC] = useState('diaria');
   const [dataC, setDataC] = useState(hoje());
+  const [classeC, setClasseC] = useState('todos');
   const [itens, setItens] = useState<ItemContar[]>([]);
   // valores chaveados por CÓDIGO (globalmente único: i/L/u = insumo, pc/pd = produção)
   const [valores, setValores] = useState<Record<string, string>>({});
@@ -51,7 +62,7 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
   const [saving, setSaving] = useState(false);
 
   const comecar = async () => {
-    setTipoC(novoTipo); setDataC(novaData); setModalOpen(false);
+    setTipoC(novoTipo); setDataC(novaData); setClasseC(novaClasse); setModalOpen(false);
     setContando(true); setLoadingC(true); setBuscaC(''); setLocalC('');
     try {
       const res = await api.get(`/api/operacional/contagem/itens?tipo=${novoTipo}&data=${novaData}`);
@@ -78,22 +89,23 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
     finally { setSaving(false); }
   };
 
-  // Filtra por Local de Contagem (= categoria do cadastro; produção = "Produção Cozinha/Drinks").
+  // Pré-filtro por classe (escolhido no modal); depois filtra por Local de Contagem + busca.
+  const itensClasse = useMemo(() => itens.filter(i => classeC === 'todos' || (i.classe || 'insumo') === classeC), [itens, classeC]);
   const itensFiltrados = useMemo(() => {
     const q = buscaC.trim().toLowerCase();
-    return itens.filter(i => (!localC || (i.categoria || '') === localC) && (!q || i.nome.toLowerCase().includes(q)));
-  }, [itens, buscaC, localC]);
-  // Locais de Contagem presentes nos itens carregados (dinâmico)
+    return itensClasse.filter(i => (!localC || (i.categoria || '') === localC) && (!q || i.nome.toLowerCase().includes(q)));
+  }, [itensClasse, buscaC, localC]);
+  // Locais de Contagem presentes na classe escolhida (chips dinâmicos)
   const locais = useMemo(() => {
     const set = new Set<string>();
-    itens.forEach(i => { if (i.categoria) set.add(i.categoria); });
+    itensClasse.forEach(i => { if (i.categoria) set.add(i.categoria); });
     return Array.from(set).sort();
-  }, [itens]);
-  const contados = useMemo(() => Object.values(valores).filter(v => v !== '' && v != null).length, [valores]);
-  const valorTotal = useMemo(() => itens.reduce((s, i) => {
+  }, [itensClasse]);
+  const contados = useMemo(() => itensClasse.filter(i => { const v = valores[i.codigo]; return v !== '' && v != null; }).length, [itensClasse, valores]);
+  const valorTotal = useMemo(() => itensClasse.reduce((s, i) => {
     const q = num(valores[i.codigo] ?? '');
     return s + (q != null ? q * (Number(i.preco_atual) || 0) : 0);
-  }, 0), [itens, valores]);
+  }, 0), [itensClasse, valores]);
 
   const tipoLabel = TIPOS.find(t => t.v === tipoC)?.label || tipoC;
 
@@ -119,6 +131,15 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
               </button>
             ))}
             <div className="pt-1">
+              <label className="text-xs text-muted-foreground mb-1 block">O que vai contar?</label>
+              <div className="flex flex-wrap gap-1.5">
+                {CLASSES.map(c => (
+                  <button key={c.v} onClick={() => setNovaClasse(c.v)}
+                    className={`text-xs px-2.5 py-1.5 rounded-full border transition ${novaClasse === c.v ? 'bg-foreground text-background' : 'hover:bg-muted/50'}`}>{c.label}</button>
+                ))}
+              </div>
+            </div>
+            <div className="pt-1">
               <label className="text-xs text-muted-foreground flex items-center gap-1 mb-1"><CalendarDays className="w-3.5 h-3.5" /> Data da contagem</label>
               <Input type="date" value={novaData} onChange={e => setNovaData(e.target.value)} className="w-44" />
             </div>
@@ -139,9 +160,9 @@ export function FazerContagem({ onSaved }: { onSaved?: () => void }) {
               <h2 className="text-lg font-bold leading-tight flex items-center gap-2"><span className={`inline-block w-2 h-2 rounded-full ${TIPO_DOT[tipoC]}`} />Contagem {tipoLabel}</h2>
               <p className="text-xs text-muted-foreground">{fmtData(dataC)}</p>
             </div>
-            <span className="text-xs text-muted-foreground">{contados}/{itens.length}</span>
+            <span className="text-xs text-muted-foreground">{contados}/{itensClasse.length}</span>
           </div>
-          <div className="h-1.5 bg-muted overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${itens.length ? (contados / itens.length) * 100 : 0}%` }} /></div>
+          <div className="h-1.5 bg-muted overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${itensClasse.length ? (contados / itensClasse.length) * 100 : 0}%` }} /></div>
 
           {/* Busca + Local de Contagem (filtro) — o estoqueista escolhe o local e conta só ele */}
           <div className="px-3 py-2 space-y-2 border-b">

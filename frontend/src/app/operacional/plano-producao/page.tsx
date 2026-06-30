@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { PageShell } from '@/components/layout/PageShell';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { ChefHat, Search, Loader2, CalendarDays, Sparkles, RefreshCw, Play, Lock, Unlock, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Beer, X } from 'lucide-react';
@@ -158,8 +159,7 @@ export default function PlanoProducaoPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-4">
+    <PageShell width="wide">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-violet-100 dark:bg-violet-900/30 rounded-xl"><ChefHat className="w-6 h-6 text-violet-600 dark:text-violet-400" /></div>
           <div className="flex-1">
@@ -323,7 +323,6 @@ export default function PlanoProducaoPage() {
           </table>
         </div></CardContent></Card>
         <p className="text-[11px] text-gray-400">Saída = uso indireto (vendas explodidas pela ficha técnica, inclusive preparo-dentro-de-preparo); recalcula com a ficha atual nas 6 semanas. O ponto azul liga/desliga a produção no Controle de Produção. Ao <b>encerrar</b>, os itens com dia definido viram a calendarização que aparece na tela Executar do dia.</p>
-      </div>
-    </div>
+    </PageShell>
   );
 }
