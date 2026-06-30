@@ -74,7 +74,7 @@ export default function PedidosPagamentoPage() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-3 py-5 max-w-5xl">
+        <div className="mx-auto px-3 py-5">
           {/* Header */}
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>

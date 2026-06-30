@@ -66,7 +66,7 @@ export default function FluxoCaixaPage() {
 
   return (
     <ProtectedRoute>
-      <div className="container mx-auto px-3 py-5 max-w-5xl">
+      <div className="mx-auto px-3 py-5">
         <div className="flex items-center gap-2 mb-1"><Wallet className="w-5 h-5" /><h1 className="text-xl font-bold">Fluxo de Caixa</h1></div>
         <p className="text-sm text-muted-foreground mb-4">Saldo atual + entradas projetadas − contas a pagar comprometidas no Conta Azul. Mostra quando o caixa aperta.</p>
 

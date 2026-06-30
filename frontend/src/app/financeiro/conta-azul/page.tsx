@@ -194,7 +194,7 @@ export default function ContaAzulPage() {
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="mx-auto py-6 space-y-6">
       <PageHeader
         title="Lançamentos Conta Azul"
         description="Visualize e gerencie os lançamentos financeiros sincronizados do Conta Azul"

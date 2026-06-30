@@ -555,7 +555,7 @@ export default function CalendarioPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-3 py-2 max-w-7xl">
+      <div className="mx-auto px-3 py-2">
         {/* Header com filtros */}
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-3 mb-2 shadow-sm flex-shrink-0">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">

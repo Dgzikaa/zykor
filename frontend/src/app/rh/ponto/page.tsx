@@ -84,7 +84,7 @@ export default function PontoPage() {
 
   return (
     <ProtectedRoute>
-      <div className="container mx-auto px-3 py-5 max-w-6xl">
+      <div className="mx-auto px-3 py-5">
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-500 via-emerald-600 to-green-600 p-5 mb-5 shadow-sm">
           <div className="absolute -right-10 -top-10 w-44 h-44 rounded-full bg-white/10 blur-2xl pointer-events-none" />
           <div className="relative flex items-center justify-between gap-3 flex-wrap text-white">

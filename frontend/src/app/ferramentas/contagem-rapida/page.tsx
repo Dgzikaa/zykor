@@ -245,7 +245,7 @@ export default function ContagemRapidaPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6 max-w-6xl">
+      <div className="mx-auto px-4 py-6">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3 mb-2">

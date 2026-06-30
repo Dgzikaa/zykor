@@ -260,7 +260,7 @@ export default function ConciliacaoPage() {
 
   return (
     <ProtectedRoute>
-      <div className="container mx-auto px-3 py-5 max-w-6xl">
+      <div className="mx-auto px-3 py-5">
         <div className="flex items-center gap-2 mb-1">
           <Scale className="w-5 h-5" /><h1 className="text-xl font-bold">Conciliação & Análise Stone</h1>
         </div>

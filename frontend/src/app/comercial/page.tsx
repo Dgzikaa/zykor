@@ -52,7 +52,7 @@ export default function ComercialPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6 max-w-7xl">
+      <div className="mx-auto px-4 py-6">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}

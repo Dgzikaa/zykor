@@ -115,7 +115,7 @@ export default function BeneficiariosPage() {
 
   return (
     <ProtectedRoute>
-      <div className="container mx-auto px-3 py-5 max-w-5xl">
+      <div className="mx-auto px-3 py-5">
         <div className="flex items-center gap-2 mb-1">
           <Users className="w-5 h-5" /><h1 className="text-xl font-bold">Beneficiários</h1>
         </div>

@@ -112,7 +112,7 @@ function NotasFiscaisInner() {
   }), [mensal, cnpjsMensal]);
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-5">
+    <div className="p-4 md:p-6 mx-auto space-y-5">
       {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex items-center gap-3">
