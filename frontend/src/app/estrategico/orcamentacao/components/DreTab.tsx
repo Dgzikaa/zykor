@@ -413,26 +413,27 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
 
   return (
     <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* No mobile: empilha (título full-width, descrição some, botões embaixo com wrap p/ nenhum sair da tela) */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-2 min-w-0">
           <select
             value={ano}
             onChange={(e) => setAno(Number(e.target.value))}
-            className="h-9 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-base font-bold px-2"
+            className="h-9 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-base font-bold px-2 shrink-0"
             title="Ano da DRE"
           >
             {Array.from({ length: anoAtualSistema - 2023 }, (_, i) => anoAtualSistema - i).map((a) => (
               <option key={a} value={a}>{a}</option>
             ))}
           </select>
-          <div>
-            <h2 className="text-lg font-semibold">DRE {ano} — Demonstrativo de Resultados</h2>
-            <p className="text-xs text-muted-foreground">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-semibold leading-tight">DRE {ano} — Demonstrativo de Resultados</h2>
+            <p className="hidden lg:block text-xs text-muted-foreground">
               Dados ContaAzul agregados por competência. Estrutura espelha planilha &ldquo;[Ordinário] DRE e DFC&rdquo;.
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {temMacrosColapsaveis && (
             <Button onClick={toggleTodos} variant="outline" size="sm" className="gap-1">
               {todosColapsados ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
