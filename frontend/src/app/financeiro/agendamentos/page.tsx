@@ -510,25 +510,54 @@ export default function AgendamentoPage() {
     // ETAPA 1 — Inter PIX PRIMEIRO (pula se já enviado: idempotência anti-duplo-PIX)
     let codigoSolic = pagamento.codigo_solic || pagamento.inter_aprovacao_id || '';
     if (!codigoSolic) {
-      try {
-        const response = await fetch('/api/financeiro/inter/pix', {
+      const pixBody = {
+        // Envia como NUMBER pra evitar bug do parse pt-BR no backend
+        valor: valorNumerico,
+        destinatario: pagamento.nome_beneficiario,
+        chave: pagamento.chave_pix,
+        data_pagamento: dataVenc,
+        descricao:
+          pagamento.descricao || `Pagamento para ${pagamento.nome_beneficiario}`,
+        bar_id: pagamento.bar_id || barId,
+        inter_credencial_id: Number(interCredencialSelecionadaId),
+        // ID local pra correlação com pix_enviados via webhook
+        agendamento_id: pagamento.id,
+      };
+      const enviarPix = (extra?: Record<string, unknown>) =>
+        fetch('/api/financeiro/inter/pix', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            // Envia como NUMBER pra evitar bug do parse pt-BR no backend
-            valor: valorNumerico,
-            destinatario: pagamento.nome_beneficiario,
-            chave: pagamento.chave_pix,
-            data_pagamento: dataVenc,
-            descricao:
-              pagamento.descricao || `Pagamento para ${pagamento.nome_beneficiario}`,
-            bar_id: pagamento.bar_id || barId,
-            inter_credencial_id: Number(interCredencialSelecionadaId),
-            // ID local pra correlação com pix_enviados via webhook
-            agendamento_id: pagamento.id,
-          }),
+          body: JSON.stringify({ ...pixBody, ...extra }),
         });
-        const data = await response.json();
+      try {
+        let response = await enviarPix();
+        let data = await response.json();
+
+        // Guarda de quase-duplicata (HTTP 409): o backend achou um PIX igual recente.
+        // Confirma com o operador antes de mandar de novo (evita pagar em dobro).
+        if (!data.success && data.code === 'possivel_duplicata') {
+          const confirmar =
+            typeof window !== 'undefined' &&
+            window.confirm(`${data.error}\n\nEnviar o PIX MESMO ASSIM?`);
+          if (!confirmar) {
+            setPagamentos(prev =>
+              prev.map(p =>
+                p.id === pagamento.id
+                  ? {
+                      ...p,
+                      status: 'pendente' as const,
+                      erro_mensagem: 'Envio cancelado — possível duplicata',
+                      updated_at: new Date().toISOString(),
+                    }
+                  : p
+              )
+            );
+            return { ok: false, etapa: 'inter', mensagem: 'Cancelado — possível duplicata' };
+          }
+          response = await enviarPix({ confirmar_duplicata: true });
+          data = await response.json();
+        }
+
         if (!data.success) {
           const msg = data?.error || `Inter HTTP ${response.status}`;
           setPagamentos(prev =>

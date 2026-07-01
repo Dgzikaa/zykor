@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { getInterAccessToken, clearInterTokenCache } from '@/lib/inter/getAccessToken';
 import { realizarPagamentoPixInter } from '@/lib/inter/pixPayment';
@@ -8,6 +9,15 @@ import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/
 export const dynamic = 'force-dynamic';
 
 const supabase = createServiceRoleClient();
+
+// Gera um UUID (formato v4) DETERMINÍSTICO a partir de uma seed. Mesmo pagamento
+// => mesma seed => mesma chave `x-id-idempotente` => o Banco Inter deduplica o
+// reenvio no lado dele (rede de segurança bancária contra pagamento em dobro).
+function idempotenciaDeterministica(seed: string): string {
+  const h = crypto.createHash('sha256').update(seed).digest('hex');
+  const variant = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
 
 // Função para obter credenciais do Inter do banco
 async function getInterCredentials(barId: number = 3, credentialId?: number) {
@@ -224,6 +234,109 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ============================================================
+    // IDEMPOTÊNCIA (servidor) — impede reenviar o MESMO pagamento.
+    // O agendamento_id (pagamento_zykor_id) identifica o item da lista. Se já saiu
+    // um PIX pra esse item (status != erro), NÃO reenvia — devolve o código
+    // existente. Cobre reload, 2 abas, 2 usuários (lista compartilhada por bar) e
+    // TROCA DE BAR entre cliques (por isso NÃO filtra por bar_id: no incidente o
+    // mesmo item saiu 1x como bar 3 e 1x como bar 4). Retry legítimo após falha
+    // continua liberado porque a tentativa com erro fica status='erro'.
+    // ============================================================
+    const zykorId = typeof agendamento_id === 'string' && agendamento_id ? agendamento_id : null;
+    if (zykorId) {
+      const { data: jaEnviado } = await (supabase.schema('financial' as any) as any)
+        .from('pix_enviados')
+        .select('inter_codigo_solicitacao, txid, inter_status, status, bar_id, valor')
+        .eq('pagamento_zykor_id', zykorId)
+        .neq('status', 'erro')
+        .order('data_envio', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (jaEnviado) {
+        const codigoExistente =
+          jaEnviado.inter_codigo_solicitacao || jaEnviado.txid || null;
+        console.warn(
+          `[INTER-PIX] Idempotência: agendamento ${zykorId} já possui PIX (bar ${jaEnviado.bar_id}, status ${jaEnviado.inter_status}). Reenvio bloqueado.`
+        );
+        return NextResponse.json({
+          success: true,
+          message: 'PIX já enviado para este pagamento — reenvio bloqueado (idempotência).',
+          data: {
+            codigoSolicitacao: codigoExistente,
+            valor: Number(jaEnviado.valor) || valorNumerico,
+            chave: tipoChave.chaveFormatada,
+            tipoChave: tipoChave.tipo,
+            status: jaEnviado.status,
+            agendado: jaEnviado.status === 'agendado',
+            destinatario,
+            dedupe: true,
+          },
+        });
+      }
+    }
+
+    // ============================================================
+    // GUARDA DE QUASE-DUPLICATA — mesmo beneficiário + valor + data de pagamento
+    // já enviado nas últimas 24h (qualquer bar, mesmo sendo item/linha diferente).
+    // Cobre o caso de RE-DIGITAR o pagamento como uma nova linha (id novo), que a
+    // trava por item acima não pega. Não bloqueia de vez: exige confirmação
+    // explícita (confirmar_duplicata=true) — repasses legítimos iguais seguem OK.
+    // ============================================================
+    const dataPagamentoIso =
+      typeof data_pagamento === 'string' && /^\d{4}-\d{2}-\d{2}/.test(data_pagamento)
+        ? data_pagamento.slice(0, 10)
+        : null;
+    if (zykorId && body.confirmar_duplicata !== true) {
+      const desde = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      let q = (supabase.schema('financial' as any) as any)
+        .from('pix_enviados')
+        .select('inter_codigo_solicitacao, txid, bar_id, valor, data_envio, inter_status, pagamento_zykor_id')
+        .neq('status', 'erro')
+        .eq('valor', valorNumerico)
+        .eq('beneficiario->>chave', tipoChave.chaveFormatada)
+        .gte('data_envio', desde)
+        .order('data_envio', { ascending: false })
+        .limit(1);
+      if (dataPagamentoIso) q = q.eq('data_pagamento', dataPagamentoIso);
+      const { data: similar } = await q.maybeSingle();
+
+      if (similar) {
+        console.warn(
+          `[INTER-PIX] Possível duplicata: chave ${tipoChave.chaveFormatada} valor ${valorNumerico} já enviado em ${similar.data_envio} (bar ${similar.bar_id}).`
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            code: 'possivel_duplicata',
+            error:
+              `Possível duplicata: já saiu um PIX de R$ ${valorNumerico.toFixed(2)} para esta chave ` +
+              `em ${new Date(similar.data_envio).toLocaleString('pt-BR')} (bar ${similar.bar_id}, status ${similar.inter_status}).`,
+            similar: {
+              codigoSolicitacao: similar.inter_codigo_solicitacao || similar.txid,
+              bar_id: similar.bar_id,
+              data_envio: similar.data_envio,
+              inter_status: similar.inter_status,
+            },
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Chave de idempotência ESTÁVEL enviada ao Inter (dedupe também no lado do banco).
+    // Deriva do item + valor + chave; NÃO inclui bar_id de propósito (o bar pode
+    // trocar). O retry de ambiguidade usa outra chave PIX, então ganha uma chave de
+    // idempotência distinta — senão o banco devolveria a resposta cacheada do erro.
+    const centsIdem = Math.round(valorNumerico * 100);
+    const idempotencyKey = zykorId
+      ? idempotenciaDeterministica(`pix:${zykorId}:${centsIdem}:${tipoChave.chaveFormatada}`)
+      : undefined;
+    const idempotencyKeyAlt = zykorId && tipoChave.chaveAlternativa
+      ? idempotenciaDeterministica(`pix:${zykorId}:${centsIdem}:${tipoChave.chaveAlternativa}`)
+      : undefined;
+
     // Buscar credenciais do Inter
     const credentialId = Number.isFinite(Number(inter_credencial_id))
       ? Number(inter_credencial_id)
@@ -294,7 +407,8 @@ export async function POST(request: NextRequest) {
         descricao: descricao || `Pagamento PIX para ${destinatario || 'beneficiário'}`,
         chave: tipoChave.chaveFormatada,
         dataPagamento: typeof data_pagamento === 'string' ? data_pagamento : undefined,
-        mtlsCredentials: mtlsCredentials || undefined
+        mtlsCredentials: mtlsCredentials || undefined,
+        idempotencyKey,
       });
 
       // Retry automático se token cached for de cert antigo (após troca de cert+key)
@@ -316,6 +430,7 @@ export async function POST(request: NextRequest) {
           chave: tipoChave.chaveFormatada,
           dataPagamento: typeof data_pagamento === 'string' ? data_pagamento : undefined,
           mtlsCredentials: mtlsCredentials || undefined,
+          idempotencyKey,
         });
       }
 
@@ -341,6 +456,7 @@ export async function POST(request: NextRequest) {
           chave: tipoChave.chaveAlternativa as string,
           dataPagamento: typeof data_pagamento === 'string' ? data_pagamento : undefined,
           mtlsCredentials: mtlsCredentials || undefined,
+          idempotencyKey: idempotencyKeyAlt,
         });
       }
 
@@ -352,7 +468,8 @@ export async function POST(request: NextRequest) {
           txid: `ERR_${Date.now()}`,
           bar_id,
           valor: valorNumerico,
-          inter_credencial_id: credentialId || null,
+          // Credencial REALMENTE usada (pode diferir da pedida após o fallback por bar).
+          inter_credencial_id: resolved?.id ?? credentialId ?? null,
           inter_status: 'ERRO',
           data_pagamento: typeof data_pagamento === 'string' ? data_pagamento : null,
           pagamento_zykor_id: typeof body.agendamento_id === 'string' ? body.agendamento_id : null,
@@ -379,10 +496,9 @@ export async function POST(request: NextRequest) {
                                  `PIX_${Date.now()}`;
 
       // Salvar no banco financial.pix_enviados (schema correto + campos pra webhook tracking)
-      const dataPagamentoIso = typeof data_pagamento === 'string' ? data_pagamento : null;
+      // dataPagamentoIso já calculado acima (guarda de quase-duplicata).
       const isAgendado =
-        dataPagamentoIso &&
-        /^\d{4}-\d{2}-\d{2}$/.test(dataPagamentoIso) &&
+        !!dataPagamentoIso &&
         dataPagamentoIso > new Date().toISOString().slice(0, 10);
       const { error: insertError } = await (supabase
         .schema('financial' as any) as any)
@@ -391,7 +507,8 @@ export async function POST(request: NextRequest) {
           txid: codigoSolicitacao,
           bar_id,
           valor: valorNumerico,
-          inter_credencial_id: credentialId || null,
+          // Credencial REALMENTE usada (pode diferir da pedida após o fallback por bar).
+          inter_credencial_id: resolved?.id ?? credentialId ?? null,
           inter_codigo_solicitacao: codigoSolicitacao,
           inter_status: isAgendado ? 'AGENDADO' : 'ENVIADO',
           data_pagamento: dataPagamentoIso,

@@ -11,6 +11,12 @@ interface PixPaymentParams {
   /** YYYY-MM-DD. Se >= hoje (no fuso de São Paulo), Inter agenda; senão paga imediato. */
   dataPagamento?: string;
   mtlsCredentials?: { cert: Buffer; key: Buffer };
+  /**
+   * Chave de idempotência ESTÁVEL enviada ao Inter (`x-id-idempotente`). Mesmo
+   * pagamento => mesma chave => o próprio banco recusa o reenvio (dedupe bancário).
+   * Se omitida, gera uma aleatória (comportamento antigo, sem proteção).
+   */
+  idempotencyKey?: string;
 }
 
 function isFutureScheduleDate(dataPagamento: string | undefined): boolean {
@@ -33,7 +39,7 @@ export async function realizarPagamentoPixInter(
   params: PixPaymentParams
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    const { token, contaCorrente, valor, descricao, chave, dataPagamento, mtlsCredentials } = params;
+    const { token, contaCorrente, valor, descricao, chave, dataPagamento, mtlsCredentials, idempotencyKey } = params;
 
     console.log('🔐 Iniciando pagamento PIX com https.request...');
 
@@ -79,7 +85,8 @@ export async function realizarPagamentoPixInter(
         Authorization: `Bearer ${token.trim()}`,
         'Content-Type': 'application/json',
         'x-conta-corrente': contaCorrente,
-        'x-id-idempotente': crypto.randomUUID(),
+        // Chave estável quando fornecida (dedupe bancário); aleatória só como fallback.
+        'x-id-idempotente': idempotencyKey || crypto.randomUUID(),
         'Content-Length': Buffer.byteLength(payloadStr),
       },
       cert,
