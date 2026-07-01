@@ -561,6 +561,13 @@ export default function CMVSemanalPage() {
     setItemEditando(item);
     setFormData(item);
     setModalAberto(true);
+
+    // AUTOMÁTICO também na edição: repuxa contagem (estoque final = base do Desvios), compras e
+    // consumação — a contagem é a fonte da verdade. Só sobrescreve os campos automáticos; ajustes
+    // manuais (bonificações, outros ajustes, status) são preservados (o route não os retorna).
+    if (item.data_inicio && item.data_fim) {
+      buscarDadosAutomaticos(item.data_inicio, item.data_fim, true);
+    }
   };
 
   // Salvar item
