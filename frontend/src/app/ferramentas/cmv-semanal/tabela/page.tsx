@@ -253,7 +253,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         label: '(-) Estoque Final',
         semCollapse: true,
         metricas: [
-          { key: 'estoque_final', label: '(-) Estoque Final', status: 'manual', fonte: 'Manual', calculo: 'Contagem de estoque (preenchimento manual)', formato: 'moeda', editavel: true },
+          { key: 'estoque_final', label: '(-) Estoque Final', status: 'auto', fonte: 'Contagem (silver)', calculo: 'Automático: contagem de estoque valorizada (silver.estoque_contagem), mesma base do Desvios. Editável se precisar de ajuste manual.', formato: 'moeda', editavel: true },
         ]
       },
       {
@@ -320,7 +320,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         metricas: [
           { key: 'estoque_inicial_funcionarios', label: 'Estoque Inicial (F)', status: 'calculado', fonte: 'Calculado', calculo: 'Estoque final (F) do período anterior (propagado)', formato: 'moeda' },
           { key: 'compras_alimentacao', label: '(+) Compras', status: 'auto', fonte: 'Conta Azul', calculo: 'categoria_nome = Alimentação', formato: 'moeda', drilldown: true },
-          { key: 'estoque_final_funcionarios', label: '(-) Estoque Final (F)', status: 'manual', fonte: 'Manual', calculo: 'Contagem de estoque (preenchimento manual)', formato: 'moeda', editavel: true },
+          { key: 'estoque_final_funcionarios', label: '(-) Estoque Final (F)', status: 'auto', fonte: 'Contagem (silver)', calculo: 'Automático: contagem de estoque (F) valorizada (silver.estoque_contagem), mesma base do Desvios. Editável se precisar de ajuste manual.', formato: 'moeda', editavel: true },
           { key: 'cma_total', label: 'CMA Total', status: 'calculado', fonte: 'Calculado', calculo: 'Est.Inicial (F) + Compras Alimentação - Est.Final (F)', formato: 'moeda' },
         ]
       }

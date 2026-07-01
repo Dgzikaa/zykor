@@ -491,11 +491,46 @@ serve(async (req) => {
         // TODO(rodrigo/2026-04): Reabilitar cálculo de estoque final da planilha de contagem
         // Contexto: Atualmente usa apenas estoque final da planilha CMV. Código de contagem comentado abaixo.
         // Issue: Decidir se planilha de contagem deve ser fonte primária ou secundária
+        // Estoque INICIAL e FINAL da semana pela SILVER (mesma base do Desvios/estoque-histórico):
+        // silver.estoque_contagem classificado por área (fn_estoque_contagem_buckets / _final_semana).
+        // Quando HÁ contagem, a silver é a FONTE PRIMÁRIA e ganha da planilha; sem contagem na
+        // data, cai no valor da planilha (dadosAtuais.*) — sem regressão nas semanas antigas.
         let estoqueFinalDetalhado = {
           estoque_final_cozinha: 0,
           estoque_final_bebidas: 0,
-          estoque_final_drinks: 0
+          estoque_final_drinks: 0,
+          estoque_final_funcionarios: 0
         };
+        let estoqueFinalSilverOk = false;
+        let estoqueInicialSilver = { cozinha: 0, bebidas: 0, drinks: 0, funcionarios: 0 };
+        let estoqueInicialSilverOk = false;
+        try {
+          const { data: sFin } = await supabase.schema('silver')
+            .rpc('fn_estoque_contagem_final_semana', { p_bar_id: barId, p_data_fim: dataFim });
+          const rf: any = Array.isArray(sFin) ? sFin[0] : sFin;
+          if (rf && Number(rf.n_itens) > 0) {
+            estoqueFinalDetalhado = {
+              estoque_final_cozinha: Number(rf.cozinha) || 0,
+              estoque_final_bebidas: Number(rf.bebidas) || 0,
+              estoque_final_drinks: Number(rf.drinks) || 0,
+              estoque_final_funcionarios: Number(rf.funcionarios) || 0
+            };
+            estoqueFinalSilverOk = true;
+            console.log(`  📦 Estoque Final (silver ${rf.data_usada}): R$ ${(estoqueFinalDetalhado.estoque_final_cozinha + estoqueFinalDetalhado.estoque_final_bebidas + estoqueFinalDetalhado.estoque_final_drinks).toFixed(2)}`);
+          }
+          const { data: sIni } = await supabase.schema('silver')
+            .rpc('fn_estoque_contagem_buckets', { p_bar_id: barId, p_data: dataInicio });
+          const ri: any = Array.isArray(sIni) ? sIni[0] : sIni;
+          if (ri && Number(ri.n_itens) > 0) {
+            estoqueInicialSilver = {
+              cozinha: Number(ri.cozinha) || 0, bebidas: Number(ri.bebidas) || 0,
+              drinks: Number(ri.drinks) || 0, funcionarios: Number(ri.funcionarios) || 0
+            };
+            estoqueInicialSilverOk = true;
+          }
+        } catch (err) {
+          console.error('  ⚠️ Erro ao buscar estoque da silver (mantém planilha):', err);
+        }
         /*
         try {
           // Calcular a segunda-feira seguinte ao fim do período
@@ -648,12 +683,25 @@ serve(async (req) => {
           console.log(`  📦 Propagando Estoque Inicial semana ${numeroSemana} = Estoque Final semana ${semanaAnterior}: R$ ${estoqueAnterior.estoque_final.toFixed(2)}`);
         }
 
+        // Estoque INICIAL pela silver (quando há contagem no início da semana) sobrescreve
+        // planilha/propagação — mantém o inicial coerente com o final silver da semana anterior.
+        if (estoqueInicialSilverOk) {
+          estoqueInicialUpdate.estoque_inicial = estoqueInicialSilver.cozinha + estoqueInicialSilver.bebidas + estoqueInicialSilver.drinks;
+          estoqueInicialUpdate.estoque_inicial_cozinha = estoqueInicialSilver.cozinha;
+          estoqueInicialUpdate.estoque_inicial_bebidas = estoqueInicialSilver.bebidas;
+          estoqueInicialUpdate.estoque_inicial_drinks = estoqueInicialSilver.drinks;
+          estoqueInicialUpdate.estoque_inicial_funcionarios = estoqueInicialSilver.funcionarios;
+        }
+
         // 7. Calcular CMV Real se tiver estoques válidos
         // CMV Real = Estoque Inicial + Compras - Estoque Final - Consumos + Bonificações
-        // PRIORIDADE: Usar valores da planilha CMV
-        const estoqueInicial = dadosAtuais.estoque_inicial || estoqueInicialUpdate.estoque_inicial || 0;
-        // Usar SEMPRE o estoque final da planilha CMV (não calcular da contagem)
-        const estoqueFinal = dadosAtuais.estoque_final || 0;
+        // PRIORIDADE: silver (contagem) > planilha. Sem contagem, cai na planilha.
+        const estoqueInicial = estoqueInicialSilverOk
+          ? (estoqueInicialSilver.cozinha + estoqueInicialSilver.bebidas + estoqueInicialSilver.drinks)
+          : (dadosAtuais.estoque_inicial || estoqueInicialUpdate.estoque_inicial || 0);
+        const estoqueFinal = estoqueFinalSilverOk
+          ? (estoqueFinalDetalhado.estoque_final_cozinha + estoqueFinalDetalhado.estoque_final_bebidas + estoqueFinalDetalhado.estoque_final_drinks)
+          : (dadosAtuais.estoque_final || 0);
         
         let cmvReal = null;
         let cmvPercentual = null;
@@ -744,7 +792,15 @@ serve(async (req) => {
         // não estiver consolidado. Quando contagens estão atrasadas/órfãs, o
         // cálculo retorna 0 e sobrescrevia o valor correto vindo do Sheets.
         // Espelha o guard de cmv_real abaixo.
-        if (!dadosAtuais.estoque_final || dadosAtuais.estoque_final === 0) {
+        // silver = FONTE PRIMÁRIA quando há contagem (ganha da planilha). Sem contagem,
+        // mantém o comportamento antigo (só escreve se a planilha não trouxe total).
+        if (estoqueFinalSilverOk) {
+          updateData.estoque_final_cozinha = estoqueFinalDetalhado.estoque_final_cozinha;
+          updateData.estoque_final_bebidas = estoqueFinalDetalhado.estoque_final_bebidas;
+          updateData.estoque_final_drinks = estoqueFinalDetalhado.estoque_final_drinks;
+          updateData.estoque_final_funcionarios = estoqueFinalDetalhado.estoque_final_funcionarios;
+          updateData.estoque_final = estoqueFinalDetalhado.estoque_final_cozinha + estoqueFinalDetalhado.estoque_final_bebidas + estoqueFinalDetalhado.estoque_final_drinks;
+        } else if (!dadosAtuais.estoque_final || dadosAtuais.estoque_final === 0) {
           updateData.estoque_final_cozinha = estoqueFinalDetalhado.estoque_final_cozinha;
           updateData.estoque_final_bebidas = estoqueFinalDetalhado.estoque_final_bebidas;
           updateData.estoque_final_drinks = estoqueFinalDetalhado.estoque_final_drinks;
@@ -754,13 +810,16 @@ serve(async (req) => {
         // Adicionar CMV calculado se válido
         // NOTA: cmv_percentual é GENERATED ALWAYS no banco — NÃO incluir no update
         // Usar CMV Real da planilha se disponível, senão calcular
-        const cmvRealFinal = dadosAtuais.cmv_real !== null && dadosAtuais.cmv_real !== undefined 
-          ? dadosAtuais.cmv_real 
+        // Com estoque da silver, o CMV recalculado (cmvReal) é a verdade — ignora o
+        // cmv_real defasado que veio da planilha. Sem silver, mantém prioridade da planilha.
+        const cmvRealFinal = (!(estoqueFinalSilverOk || estoqueInicialSilverOk)
+          && dadosAtuais.cmv_real !== null && dadosAtuais.cmv_real !== undefined)
+          ? dadosAtuais.cmv_real
           : cmvReal;
-        
+
         if (cmvRealFinal !== null) {
-          // Só sobrescrever CMV Real se não veio da planilha
-          if (!dadosAtuais.cmv_real && dadosAtuais.cmv_real !== 0) {
+          // Sobrescrever CMV Real quando veio da silver OU quando não veio da planilha
+          if (estoqueFinalSilverOk || estoqueInicialSilverOk || (!dadosAtuais.cmv_real && dadosAtuais.cmv_real !== 0)) {
             updateData.cmv_real = cmvRealFinal;
           }
           
