@@ -560,10 +560,27 @@ export async function POST(request: NextRequest) {
     // - Clientes: mesa_beneficios_cliente × fator (inclui chegadeira)
     // - Artistas: mesa_banda_dj × fator
     const fatorCmv = await getFatorCmv(supabase, bar_id);
-    const consumo_socios_calculado = resultado.total_consumo_socios * fatorCmv;
-    const consumo_adm_calculado = resultado.mesa_adm_casa * fatorCmv;
-    const consumo_artista_calculado = resultado.mesa_banda_dj * fatorCmv;
-    const consumo_beneficios_calculado = resultado.mesa_beneficios_cliente * fatorCmv;
+    // Custo real da consumação (Gonza): em vez do 35% flat, usa o % EFETIVO da ficha técnica por
+    // categoria (produto com ficha → custo real proporcional ao desconto; sem ficha → 35%). Aplicado
+    // sobre o mesmo valor da base atual (cliente_visitas), pra não desalinhar preço-venda × custo.
+    const ef: Record<'socios' | 'artistas' | 'clientes' | 'funcionarios', number> = { socios: fatorCmv, artistas: fatorCmv, clientes: fatorCmv, funcionarios: fatorCmv };
+    try {
+      const { data: custoReal } = await supabase.rpc('get_consumo_custo_real_semana', {
+        input_bar_id: bar_id, input_data_inicio: data_inicio, input_data_fim: data_fim, p_fator: fatorCmv,
+      });
+      const acc: Record<string, { v: number; c: number }> = {};
+      for (const r of (custoReal || []) as any[]) {
+        const cat = (r.categoria === 'funcionarios_operacao' || r.categoria === 'funcionarios_escritorio') ? 'funcionarios' : r.categoria;
+        (acc[cat] ??= { v: 0, c: 0 }); acc[cat].v += Number(r.valor_desconto) || 0; acc[cat].c += Number(r.custo_real) || 0;
+      }
+      for (const k of ['socios', 'artistas', 'clientes', 'funcionarios'] as const) {
+        if (acc[k] && acc[k].v > 0) ef[k] = acc[k].c / acc[k].v;
+      }
+    } catch (e) { console.warn('Custo real da ficha indisponível — usando fator', e); }
+    const consumo_socios_calculado = resultado.total_consumo_socios * ef.socios;
+    const consumo_adm_calculado = resultado.mesa_adm_casa * ef.funcionarios;
+    const consumo_artista_calculado = resultado.mesa_banda_dj * ef.artistas;
+    const consumo_beneficios_calculado = resultado.mesa_beneficios_cliente * ef.clientes;
 
     // Retornar com campos mapeados para o frontend
     // 4 categorias: Sócios, Funcionários, Clientes, Artistas
