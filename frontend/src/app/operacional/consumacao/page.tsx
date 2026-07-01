@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { RefreshCw, Download, Search } from 'lucide-react';
+import { RefreshCw, Download, Search, X, SlidersHorizontal } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { toast } from 'sonner';
@@ -44,11 +44,31 @@ const CATS: { key: string; label: string; cor: string }[] = [
 const LABEL = Object.fromEntries(CATS.map((c) => [c.key, c.label]));
 const COR = Object.fromEntries(CATS.map((c) => [c.key, c.cor]));
 
+const DOW = [
+  { i: 0, l: 'Dom', n: 'Domingo' },
+  { i: 1, l: 'Seg', n: 'Segunda' },
+  { i: 2, l: 'Ter', n: 'Terça' },
+  { i: 3, l: 'Qua', n: 'Quarta' },
+  { i: 4, l: 'Qui', n: 'Quinta' },
+  { i: 5, l: 'Sex', n: 'Sexta' },
+  { i: 6, l: 'Sáb', n: 'Sábado' },
+];
+
 const moeda = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const brData = (s: string) => (s ? s.split('-').reverse().join('/') : '-');
+const dowDe = (s: string) => new Date(s + 'T12:00:00').getDay();
 
 const POR_PAGINA = 100;
+
+const PRESETS: { key: string; label: string }[] = [
+  { key: 'hoje', label: 'Hoje' },
+  { key: 'ontem', label: 'Ontem' },
+  { key: 'semana', label: 'Semana atual' },
+  { key: 'mes', label: 'Mês atual' },
+  { key: 'mesPassado', label: 'Mês passado' },
+  { key: 'd30', label: 'Últimos 30 dias' },
+];
 
 export default function ControleConsumacaoPage() {
   const { setPageTitle } = usePageTitle();
@@ -59,13 +79,19 @@ export default function ControleConsumacaoPage() {
 
   const [di, setDi] = useState(iso(primeiroDoMes));
   const [df, setDf] = useState(iso(hoje));
+  const [presetAtivo, setPresetAtivo] = useState<string>('mes');
   const [loading, setLoading] = useState(false);
   const [fator, setFator] = useState(0.35);
   const [resumo, setResumo] = useState<Resumo[]>([]);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [totalBruto, setTotalBruto] = useState(0);
   const [totalCusto, setTotalCusto] = useState(0);
+
+  // filtros client-side
   const [catFiltro, setCatFiltro] = useState<Set<string>>(new Set());
+  const [diaSemana, setDiaSemana] = useState<Set<number>>(new Set());
+  const [motivoSel, setMotivoSel] = useState('');
+  const [produtoSel, setProdutoSel] = useState('');
   const [busca, setBusca] = useState('');
   const [pagina, setPagina] = useState(1);
 
@@ -88,7 +114,6 @@ export default function ControleConsumacaoPage() {
       setLinhas(j.linhas || []);
       setTotalBruto(j.total_bruto || 0);
       setTotalCusto(j.total_custo || 0);
-      setPagina(1);
     } catch {
       toast.error('Erro ao carregar');
     } finally {
@@ -100,48 +125,79 @@ export default function ControleConsumacaoPage() {
     carregar();
   }, [carregar]);
 
-  const preset = (tipo: 'mes' | 'mesPassado' | 'semana' | 'd30') => {
+  // qualquer mudança de filtro volta pra página 1
+  useEffect(() => {
+    setPagina(1);
+  }, [catFiltro, diaSemana, motivoSel, produtoSel, busca, di, df]);
+
+  const preset = (tipo: string) => {
     const h = new Date();
-    if (tipo === 'mes') {
-      setDi(iso(new Date(h.getFullYear(), h.getMonth(), 1)));
-      setDf(iso(h));
-    } else if (tipo === 'mesPassado') {
-      setDi(iso(new Date(h.getFullYear(), h.getMonth() - 1, 1)));
-      setDf(iso(new Date(h.getFullYear(), h.getMonth(), 0)));
+    const set = (a: Date, b: Date) => {
+      setDi(iso(a));
+      setDf(iso(b));
+    };
+    if (tipo === 'hoje') set(h, h);
+    else if (tipo === 'ontem') {
+      const o = new Date(h);
+      o.setDate(h.getDate() - 1);
+      set(o, o);
     } else if (tipo === 'semana') {
       const seg = new Date(h);
-      seg.setDate(h.getDate() - ((h.getDay() + 6) % 7)); // segunda desta semana
-      setDi(iso(seg));
-      setDf(iso(h));
-    } else {
+      seg.setDate(h.getDate() - ((h.getDay() + 6) % 7));
+      set(seg, h);
+    } else if (tipo === 'mes') set(new Date(h.getFullYear(), h.getMonth(), 1), h);
+    else if (tipo === 'mesPassado') set(new Date(h.getFullYear(), h.getMonth() - 1, 1), new Date(h.getFullYear(), h.getMonth(), 0));
+    else {
       const d = new Date(h);
       d.setDate(h.getDate() - 29);
-      setDi(iso(d));
-      setDf(iso(h));
+      set(d, h);
     }
+    setPresetAtivo(tipo);
   };
 
-  const toggleCat = (key: string) => {
+  const toggleCat = (key: string) =>
     setCatFiltro((prev) => {
       const n = new Set(prev);
       if (n.has(key)) n.delete(key);
       else n.add(key);
       return n;
     });
-    setPagina(1);
-  };
+  const toggleDow = (i: number) =>
+    setDiaSemana((prev) => {
+      const n = new Set(prev);
+      if (n.has(i)) n.delete(i);
+      else n.add(i);
+      return n;
+    });
+
+  // opções de motivo/produto derivadas das linhas carregadas
+  const motivos = useMemo(
+    () => Array.from(new Set(linhas.map((l) => l.motivo).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b)),
+    [linhas],
+  );
+  const produtos = useMemo(
+    () => Array.from(new Set(linhas.map((l) => l.produto).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b)),
+    [linhas],
+  );
+
+  const temFiltro = catFiltro.size > 0 || diaSemana.size > 0 || !!motivoSel || !!produtoSel || !!busca;
 
   const linhasFiltradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
+    const mv = motivoSel.trim().toLowerCase();
+    const pr = produtoSel.trim().toLowerCase();
     return linhas.filter((l) => {
       if (catFiltro.size > 0 && !catFiltro.has(l.categoria)) return false;
+      if (diaSemana.size > 0 && !diaSemana.has(dowDe(l.data))) return false;
+      if (mv && !(l.motivo || '').toLowerCase().includes(mv)) return false;
+      if (pr && !(l.produto || '').toLowerCase().includes(pr)) return false;
       if (q) {
         const alvo = `${l.motivo || ''} ${l.produto || ''} ${l.mesa || ''}`.toLowerCase();
         if (!alvo.includes(q)) return false;
       }
       return true;
     });
-  }, [linhas, catFiltro, busca]);
+  }, [linhas, catFiltro, diaSemana, motivoSel, produtoSel, busca]);
 
   const totFiltrado = useMemo(
     () => ({
@@ -154,6 +210,14 @@ export default function ControleConsumacaoPage() {
   const totalPaginas = Math.max(1, Math.ceil(linhasFiltradas.length / POR_PAGINA));
   const pagina1 = Math.min(pagina, totalPaginas);
   const pageSlice = linhasFiltradas.slice((pagina1 - 1) * POR_PAGINA, pagina1 * POR_PAGINA);
+
+  const limparTudo = () => {
+    setCatFiltro(new Set());
+    setDiaSemana(new Set());
+    setMotivoSel('');
+    setProdutoSel('');
+    setBusca('');
+  };
 
   const exportarCsv = () => {
     const head = ['Data', 'Categoria', 'Mesa', 'Motivo', 'Produto', 'Qtd', 'Valor Bruto', 'Custo', 'Tem ficha'];
@@ -182,35 +246,164 @@ export default function ControleConsumacaoPage() {
 
   const resumoMap = new Map(resumo.map((r) => [r.categoria, r]));
 
+  // chips de filtros ativos
+  const chips: { label: string; onClear: () => void }[] = [
+    ...Array.from(catFiltro).map((k) => ({ label: `Categoria: ${LABEL[k] || k}`, onClear: () => toggleCat(k) })),
+    ...Array.from(diaSemana).map((i) => ({ label: DOW[i].n, onClear: () => toggleDow(i) })),
+    ...(motivoSel ? [{ label: `Motivo: ${motivoSel}`, onClear: () => setMotivoSel('') }] : []),
+    ...(produtoSel ? [{ label: `Produto: ${produtoSel}`, onClear: () => setProdutoSel('') }] : []),
+    ...(busca ? [{ label: `Busca: ${busca}`, onClear: () => setBusca('') }] : []),
+  ];
+
+  const campoLabel = 'block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1';
+
   return (
     <div className="space-y-4 p-1">
-      {/* Período (o título vem do header da página) */}
-      <div className="flex flex-wrap items-end justify-end gap-3">
-        <div className="flex flex-wrap items-end gap-2">
-          <div>
-            <label className="block text-xs text-gray-400 mb-0.5">Início</label>
-            <Input type="date" value={di} onChange={(e) => setDi(e.target.value)} className="input-dark w-40" />
+      {/* ===== Painel de filtros ===== */}
+      <Card>
+        <CardContent className="p-4 space-y-4">
+          {/* Período: presets + datas */}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <span className={campoLabel}>Período</span>
+              <div className="flex flex-wrap gap-1.5">
+                {PRESETS.map((p) => (
+                  <button
+                    key={p.key}
+                    onClick={() => preset(p.key)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                      presetAtivo === p.key
+                        ? 'bg-[hsl(var(--primary))] text-white shadow-sm'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-end gap-2">
+              <div>
+                <span className={campoLabel}>De</span>
+                <Input
+                  type="date"
+                  value={di}
+                  onChange={(e) => {
+                    setDi(e.target.value);
+                    setPresetAtivo('');
+                  }}
+                  className="input-dark w-[9.5rem]"
+                />
+              </div>
+              <div>
+                <span className={campoLabel}>Até</span>
+                <Input
+                  type="date"
+                  value={df}
+                  onChange={(e) => {
+                    setDf(e.target.value);
+                    setPresetAtivo('');
+                  }}
+                  className="input-dark w-[9.5rem]"
+                />
+              </div>
+              <Button variant="outline" size="icon" onClick={carregar} disabled={loading} title="Atualizar">
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
           </div>
+
+          {/* Dia da semana */}
           <div>
-            <label className="block text-xs text-gray-400 mb-0.5">Fim</label>
-            <Input type="date" value={df} onChange={(e) => setDf(e.target.value)} className="input-dark w-40" />
+            <span className={campoLabel}>Dia da semana</span>
+            <div className="flex flex-wrap gap-1.5">
+              {DOW.map((d) => (
+                <button
+                  key={d.i}
+                  onClick={() => toggleDow(d.i)}
+                  title={d.n}
+                  className={`w-11 rounded-md py-1 text-xs font-medium transition-colors ${
+                    diaSemana.has(d.i)
+                      ? 'bg-[hsl(var(--primary))] text-white shadow-sm'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {d.l}
+                </button>
+              ))}
+            </div>
           </div>
-          <Button variant="outline" size="sm" onClick={carregar} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
-            Atualizar
-          </Button>
-        </div>
-      </div>
 
-      {/* Presets */}
-      <div className="flex flex-wrap gap-2">
-        <Button variant="ghost" size="sm" onClick={() => preset('semana')}>Semana atual</Button>
-        <Button variant="ghost" size="sm" onClick={() => preset('mes')}>Mês atual</Button>
-        <Button variant="ghost" size="sm" onClick={() => preset('mesPassado')}>Mês passado</Button>
-        <Button variant="ghost" size="sm" onClick={() => preset('d30')}>Últimos 30 dias</Button>
-      </div>
+          {/* Motivo / Produto / Busca */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <span className={campoLabel}>Motivo (artista / sócio / etc.)</span>
+              <Input
+                list="motivos-list"
+                placeholder="Selecione ou digite…"
+                value={motivoSel}
+                onChange={(e) => setMotivoSel(e.target.value)}
+                className="input-dark"
+              />
+              <datalist id="motivos-list">
+                {motivos.map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <span className={campoLabel}>Produto</span>
+              <Input
+                list="produtos-list"
+                placeholder="Selecione ou digite…"
+                value={produtoSel}
+                onChange={(e) => setProdutoSel(e.target.value)}
+                className="input-dark"
+              />
+              <datalist id="produtos-list">
+                {produtos.map((p) => (
+                  <option key={p} value={p} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <span className={campoLabel}>Busca livre (motivo, produto, mesa)</span>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Buscar…"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  className="input-dark pl-8"
+                />
+              </div>
+            </div>
+          </div>
 
-      {/* Resumo por categoria (clicável) */}
+          {/* Chips de filtros ativos */}
+          {chips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 border-t border-gray-100 dark:border-gray-800 pt-3">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-gray-400" />
+              {chips.map((c, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-900/25 text-blue-700 dark:text-blue-300 px-2 py-0.5 text-xs"
+                >
+                  {c.label}
+                  <button onClick={c.onClear} className="hover:text-blue-900 dark:hover:text-blue-100">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              <button onClick={limparTudo} className="ml-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline">
+                Limpar tudo
+              </button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ===== Resumo por categoria (clicável) ===== */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         {CATS.map((c) => {
           const r = resumoMap.get(c.key);
@@ -239,62 +432,41 @@ export default function ControleConsumacaoPage() {
         })}
       </div>
 
-      {/* Totais */}
+      {/* ===== Totais ===== */}
       <div className="flex flex-wrap gap-3">
         <Card className="flex-1 min-w-[180px]">
           <CardContent className="p-3">
-            <p className="text-xs text-gray-400">Total bruto {catFiltro.size > 0 ? '(filtro)' : ''}</p>
-            <p className="text-lg font-bold text-gray-900 dark:text-white">
-              {moeda(catFiltro.size > 0 || busca ? totFiltrado.bruto : totalBruto)}
-            </p>
+            <p className="text-xs text-gray-400">Total bruto {temFiltro ? '(filtro)' : ''}</p>
+            <p className="text-lg font-bold text-gray-900 dark:text-white">{moeda(temFiltro ? totFiltrado.bruto : totalBruto)}</p>
           </CardContent>
         </Card>
         <Card className="flex-1 min-w-[180px]">
           <CardContent className="p-3">
             <p className="text-xs text-gray-400">Custo real (ficha + ×{fator})</p>
-            <p className="text-lg font-bold text-gray-900 dark:text-white">
-              {moeda(catFiltro.size > 0 || busca ? totFiltrado.custo : totalCusto)}
-            </p>
+            <p className="text-lg font-bold text-gray-900 dark:text-white">{moeda(temFiltro ? totFiltrado.custo : totalCusto)}</p>
           </CardContent>
         </Card>
         <Card className="flex-1 min-w-[180px]">
           <CardContent className="p-3">
             <p className="text-xs text-gray-400">Lançamentos</p>
-            <p className="text-lg font-bold text-gray-900 dark:text-white">
-              {linhasFiltradas.length.toLocaleString('pt-BR')}
-            </p>
+            <p className="text-lg font-bold text-gray-900 dark:text-white">{linhasFiltradas.length.toLocaleString('pt-BR')}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Busca + export */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="relative flex-1 min-w-[220px] max-w-md">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input
-            placeholder="Buscar por motivo, produto ou mesa..."
-            value={busca}
-            onChange={(e) => {
-              setBusca(e.target.value);
-              setPagina(1);
-            }}
-            className="input-dark pl-8"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          {catFiltro.size > 0 && (
-            <Button variant="ghost" size="sm" onClick={() => setCatFiltro(new Set())}>
-              Limpar filtro
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={exportarCsv} disabled={linhasFiltradas.length === 0}>
-            <Download className="w-4 h-4 mr-1" />
-            CSV
-          </Button>
-        </div>
+      {/* ===== Barra da tabela: contagem + CSV ===== */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-gray-500">
+          {linhasFiltradas.length.toLocaleString('pt-BR')} lançamento(s)
+          {totalPaginas > 1 && <span className="text-gray-400"> · página {pagina1} de {totalPaginas}</span>}
+        </p>
+        <Button variant="outline" size="sm" onClick={exportarCsv} disabled={linhasFiltradas.length === 0}>
+          <Download className="w-4 h-4 mr-1" />
+          CSV
+        </Button>
       </div>
 
-      {/* Tabela */}
+      {/* ===== Tabela ===== */}
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
@@ -334,8 +506,12 @@ export default function ControleConsumacaoPage() {
                       </span>
                     </td>
                     <td className="px-3 py-1.5 whitespace-nowrap text-gray-500">{l.mesa || '-'}</td>
-                    <td className="px-3 py-1.5 text-gray-700 dark:text-gray-300 max-w-[240px] truncate" title={l.motivo || ''}>{l.motivo || '-'}</td>
-                    <td className="px-3 py-1.5 text-gray-500 max-w-[240px] truncate" title={l.produto || ''}>{l.produto || '-'}</td>
+                    <td className="px-3 py-1.5 text-gray-700 dark:text-gray-300 max-w-[240px] truncate" title={l.motivo || ''}>
+                      {l.motivo || '-'}
+                    </td>
+                    <td className="px-3 py-1.5 text-gray-500 max-w-[240px] truncate" title={l.produto || ''}>
+                      {l.produto || '-'}
+                    </td>
                     <td className="px-3 py-1.5 text-right text-gray-500">{l.qtd.toLocaleString('pt-BR')}</td>
                     <td className="px-3 py-1.5 text-right font-medium text-gray-900 dark:text-white whitespace-nowrap">{moeda(l.valor_bruto)}</td>
                     <td className="px-3 py-1.5 text-right whitespace-nowrap">
@@ -359,7 +535,7 @@ export default function ControleConsumacaoPage() {
         </CardContent>
       </Card>
 
-      {/* Paginação */}
+      {/* ===== Paginação ===== */}
       {totalPaginas > 1 && (
         <div className="flex items-center justify-center gap-3 text-sm">
           <Button variant="outline" size="sm" onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={pagina1 <= 1}>
