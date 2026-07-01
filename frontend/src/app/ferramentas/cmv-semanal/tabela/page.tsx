@@ -217,7 +217,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         semCollapse: true,
         metricas: [
           { key: 'vendas_brutas', label: 'Faturamento Bruto', status: 'auto', fonte: 'ContaHub', calculo: 'SUM(valor) excluindo Conta Assinada', formato: 'moeda', drilldown: true },
-          { key: 'vendas_liquidas', label: 'Faturamento Limpo', status: 'calculado', fonte: 'Calculado', calculo: 'Fat. Bruto - Gorjeta (vd_vrrepique) - Couvert (vd_vrcouvert)', formato: 'moeda' },
+          { key: 'vendas_liquidas', label: 'Faturamento Limpo', status: 'calculado', fonte: 'Calculado', calculo: 'Fat. Bruto - Gorjeta (vd_vrrepique) - Couvert (vd_vrcouvert) - Ingressos Yuzer (faturamento_entrada_yuzer)', formato: 'moeda' },
         ]
       }
     ]

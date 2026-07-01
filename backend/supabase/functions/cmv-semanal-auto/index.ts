@@ -295,11 +295,28 @@ serve(async (req) => {
           faturamentoCouvert = parseFloat(agg[0].couvert) || 0;
         }
 
-        console.log(`\n⏱️ [${Date.now() - barStartTime}ms] Processando semana ${numeroSemana}...`);
-        console.log(`📊 [DEBUG] Bruto: R$ ${faturamentoBruto} | Comissao: R$ ${comissao.toFixed(2)} | Couvert: R$ ${faturamentoCouvert.toFixed(2)}`);
+        // Ingressos Yuzer: em dia de evento Yuzer, o faturamento_total (consolidado que
+        // vem do gold.desempenho) inclui os ingressos/entrada, e nesses dias o couvert do
+        // ContaHub é 0 -> os ingressos NÃO são removidos pela subtração de couvert. Como
+        // são venda de ingresso (não F&B), saem do Faturamento Limpo (denominador do CMV%).
+        // Só o entrada/ingresso é subtraído; o consumo de bar no Yuzer é F&B e permanece.
+        let ingressosYuzer = 0;
+        const { data: yzr } = await supabase
+          .schema('gold')
+          .from('planejamento')
+          .select('faturamento_entrada_yuzer')
+          .eq('bar_id', barId)
+          .gte('data_evento', weekRange.start)
+          .lte('data_evento', weekRange.end);
+        if (Array.isArray(yzr)) {
+          ingressosYuzer = yzr.reduce((s, r) => s + (parseFloat(r.faturamento_entrada_yuzer) || 0), 0);
+        }
 
-        // Faturamento Limpo = Faturamento Total - Comissão (taxa servico) - Faturamento Couvert
-        const faturamentoLimpo = faturamentoBruto - comissao - faturamentoCouvert;
+        console.log(`\n⏱️ [${Date.now() - barStartTime}ms] Processando semana ${numeroSemana}...`);
+        console.log(`📊 [DEBUG] Bruto: R$ ${faturamentoBruto} | Comissao: R$ ${comissao.toFixed(2)} | Couvert: R$ ${faturamentoCouvert.toFixed(2)} | Ingressos Yuzer: R$ ${ingressosYuzer.toFixed(2)}`);
+
+        // Faturamento Limpo = Faturamento Total - Comissão (taxa servico) - Couvert - Ingressos Yuzer
+        const faturamentoLimpo = faturamentoBruto - comissao - faturamentoCouvert - ingressosYuzer;
         
         // Calcular datas da semana se não existirem
         let dataInicio = sem.data_inicio;
@@ -670,7 +687,7 @@ serve(async (req) => {
           }
           
           // CMV Limpo % = CMV Real / Faturamento Líquido * 100
-          // Faturamento Líquido = Faturamento Bruto - Comissão - Couvert
+          // Faturamento Líquido = Faturamento Bruto - Comissão - Couvert - Ingressos Yuzer
           if (faturamentoLimpo > 0) {
             cmvLimpoPercentual = (cmvReal / faturamentoLimpo) * 100;
           }
