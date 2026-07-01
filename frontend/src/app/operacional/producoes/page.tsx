@@ -737,12 +737,13 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
               <th className="text-right font-medium px-3 py-2">Aderência</th>
               <th className="text-right font-medium px-3 py-2">Rend. real/meta</th>
               <th className="text-right font-medium px-3 py-2" title="Rendimento real ÷ rendimento esperado">% Rend.</th>
+              <th className="text-right font-medium px-3 py-2" title="Fator de correção: realizado (líquido ÷ bruto pesado) / esperado (da ficha). Só nas produções que pesam o bruto (FC).">FC real/esp</th>
               <th className="text-right font-medium px-3 py-2" title="Desvio de rendimento em R$ = (rend. real − rend. esperado) × custo por kg da produção">Desvio Rend.</th>
               <th className="text-left font-medium px-3 py-2">Alertas</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {loading ? <tr><td colSpan={11} className="px-3 py-8 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-              : execs.length === 0 ? <tr><td colSpan={11} className="px-3 py-8 text-center text-gray-400">Nenhuma execução registrada ainda.</td></tr>
+              {loading ? <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              : execs.length === 0 ? <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400">Nenhuma execução registrada ainda.</td></tr>
               : execs.map(e => (
                 <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer" onClick={() => abrirDetalhe(e)}>
                   <td className="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{fmtData(e.criado_em)}</td>
@@ -761,6 +762,10 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
                   <td className="px-3 py-2 text-right tabular-nums">
                     {(e.rendimento_real == null || e.rendimento_esperado == null || !(e.rendimento_esperado > 0)) ? <span className="text-gray-400">—</span>
                       : (() => { const p = (e.rendimento_real / e.rendimento_esperado) * 100; return <span className={p >= 95 && p <= 105 ? 'text-emerald-600' : p >= 90 ? 'text-amber-600' : 'text-red-600'}>{fmtPct(p)}</span>; })()}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                    {(!(Number(e.peso_bruto) > 0) || !(Number(e.peso_mestre_real) > 0)) ? <span className="text-gray-400">—</span>
+                      : (() => { const fcReal = Number(e.peso_mestre_real) / Number(e.peso_bruto); const fcEsp = Number(e.fc_esperado) || 0; const cls = fcEsp > 0 && fcReal < fcEsp - 0.02 ? 'text-red-600 font-medium' : fcEsp > 0 && fcReal > fcEsp + 0.02 ? 'text-emerald-600 font-medium' : 'text-gray-600 dark:text-gray-300'; return <span className={cls}>{fmtNum(fcReal, 2)}{fcEsp > 0 ? <span className="text-gray-400"> / {fmtNum(fcEsp, 2)}</span> : ''}</span>; })()}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
                     {(() => { const d = desvioRendReais(e); return d == null ? <span className="text-gray-400">—</span>
