@@ -363,13 +363,20 @@ export default function CMVSemanalPage() {
   };
 
   // Buscar dados automáticos de APIs externas
-  const buscarDadosAutomaticos = async () => {
-    if (!selectedBar || !formData.data_inicio || !formData.data_fim) {
-      toast({
-        title: "Dados insuficientes",
-        description: "Defina as datas da semana primeiro",
-        variant: "destructive"
-      });
+  // overrideInicio/overrideFim: permite disparar com datas recém-calculadas (ex.: ao abrir o
+  // modal, quando o setFormData ainda não propagou). silencioso: pula o toast de sucesso (uso
+  // automático no open, pra não poluir com aviso a cada abertura).
+  const buscarDadosAutomaticos = async (overrideInicio?: string, overrideFim?: string, silencioso = false) => {
+    const di = overrideInicio || formData.data_inicio;
+    const df = overrideFim || formData.data_fim;
+    if (!selectedBar || !di || !df) {
+      if (!silencioso) {
+        toast({
+          title: "Dados insuficientes",
+          description: "Defina as datas da semana primeiro",
+          variant: "destructive"
+        });
+      }
       return;
     }
 
@@ -386,8 +393,8 @@ export default function CMVSemanalPage() {
         },
         body: JSON.stringify({
           bar_id: selectedBar.id,
-          data_inicio: formData.data_inicio,
-          data_fim: formData.data_fim,
+          data_inicio: di,
+          data_fim: df,
           criterio_data: criterioDataCompras
         })
       });
@@ -408,10 +415,12 @@ export default function CMVSemanalPage() {
         // Calcular valores automaticamente após carregar dados
         setTimeout(() => calcularValoresAutomaticos(), 100);
 
-        toast({
-          title: "✅ Dados carregados",
-          description: "Dados automáticos foram carregados com sucesso",
-        });
+        if (!silencioso) {
+          toast({
+            title: "✅ Dados carregados",
+            description: "Dados automáticos foram carregados com sucesso",
+          });
+        }
 
         console.log('✅ Dados automáticos carregados:', resultado.data);
       } else {
@@ -537,6 +546,14 @@ export default function CMVSemanalPage() {
       responsavel: user?.nome || ''
     });
     setModalAberto(true);
+
+    // AUTOMÁTICO: ao abrir uma semana nova, já puxa contagem (estoque final = base do Desvios),
+    // compras e consumação — sem precisar clicar em "buscar dados automáticos". Silencioso.
+    buscarDadosAutomaticos(
+      primeiroDiaSemana.toISOString().split('T')[0],
+      ultimoDiaSemana.toISOString().split('T')[0],
+      true,
+    );
   };
 
   // Abrir modal para editar
@@ -1054,7 +1071,7 @@ export default function CMVSemanalPage() {
                 </div>
               </div>
               <Button
-                onClick={buscarDadosAutomaticos}
+                onClick={() => buscarDadosAutomaticos()}
                 disabled={calculando || !formData.data_inicio || !formData.data_fim}
                 className="btn-primary-dark whitespace-nowrap"
               >
