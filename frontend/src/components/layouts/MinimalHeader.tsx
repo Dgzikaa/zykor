@@ -21,7 +21,6 @@ import { usePathname } from 'next/navigation';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
   CommandPaletteSearchPlaceholder,
-  CommandPaletteIconTrigger,
 } from '@/components/ui/command-palette-trigger';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { ContaAzulSyncButton } from '@/components/ContaAzulSyncButton';
@@ -127,29 +126,28 @@ export function MinimalHeader() {
   };
 
   return (
-    <header className="h-16 bg-[hsl(var(--background))] flex items-center justify-between px-6 gap-4 border-b border-[hsl(var(--border))]">
+    <header className="h-16 bg-[hsl(var(--background))] flex items-center justify-between px-3 sm:px-6 gap-2 sm:gap-4 border-b border-[hsl(var(--border))]">
       {/* Left: Menu Toggle + Search + Page Title */}
-      <div className="flex items-center gap-4 flex-1 min-w-0">
+      <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
         {/* Menu Toggle Button */}
         <button
-          className="lg:hidden p-2 rounded-md hover:bg-[hsl(var(--muted))] transition-colors"
+          className="lg:hidden p-2 rounded-md hover:bg-[hsl(var(--muted))] transition-colors shrink-0"
           aria-label="Toggle menu"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Search - Logo no início */}
-        <div className="flex items-center gap-2">
+        {/* Search: só no desktop. No celular sai de cena (estourava o header e há a busca do Menu). */}
+        <div className="hidden md:flex items-center min-w-0">
           <CommandPaletteSearchPlaceholder />
-          <CommandPaletteIconTrigger />
         </div>
 
         {/* Page Title */}
-        {pageTitle && <h1 className="text-lg font-semibold">{pageTitle}</h1>}
+        {pageTitle && <h1 className="hidden sm:block text-lg font-semibold truncate">{pageTitle}</h1>}
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
 
         {/* Notifications */}
         <NotificationCenter />
@@ -161,7 +159,7 @@ export function MinimalHeader() {
               onClick={() => setShowBarDropdown(!showBarDropdown)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm hover:bg-[hsl(var(--muted))] transition-colors"
             >
-              <span className="font-medium truncate max-w-[120px]">
+              <span className="font-medium truncate max-w-[90px] sm:max-w-[140px]">
                 {selectedBar?.nome || 'Selecione'}
               </span>
               <ChevronDown className="w-4 h-4 flex-shrink-0" />
