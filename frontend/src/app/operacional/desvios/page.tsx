@@ -280,6 +280,7 @@ export default function DesviosPage() {
                 {tipo === 'semanal' && andamentoWin && <option value={`__and__${andamentoWin.fim}`}>🔴 Semana atual (em andamento) · {ddmm(andamentoWin.ini)} → {ddmm(andamentoWin.fim)}</option>}
                 {periodos.map(p => <option key={p.fim} value={p.fim}>{labelPeriodo(p)}</option>)}
               </select>
+              {ini && fim && <span className="text-xs text-gray-400">estoque {ddmm(ini)} → {ddmm(fim)}</span>}
             </>
           )}
         </div>
