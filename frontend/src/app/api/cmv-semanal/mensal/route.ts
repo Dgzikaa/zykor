@@ -159,26 +159,48 @@ export async function GET(request: NextRequest) {
     const dataFim = dataFimDomingo || dataFimMesCheio;
     const ehMesCorrenteRecorte = dataFimDomingo !== null;
 
-    // Breakdown das 9 categorias padronizadas (×fator) p/ a visao mensal — calculado
-    // LIVE pelo periodo do mes (mesma RPC do semanal). Total NAO muda; e' so detalhe.
-    // Passado (< corte 12/06) cai todo em "outros" dentro da propria RPC.
+    // Breakdown das categorias para a visão mensal vindo do CONTA AZUL — MESMA fonte do
+    // total (categorias [Consumação] X, já em custo, classificação manual = base da DRE).
+    // Sem "outros": o de-para do CA cobre as categorias. Casa com a soma do total.
     let consumacoes9Mensal: Record<string, number> | null = null;
     try {
-      const fator9 = await getFatorCmv(supabase, barId);
-      const { data: cons9 } = await (supabase as any).rpc('get_consumos_9_semana', {
-        input_bar_id: barId,
-        input_data_inicio: dataInicio,
-        input_data_fim: dataFim,
-      });
-      if (Array.isArray(cons9) && cons9.length > 0) {
-        consumacoes9Mensal = {};
-        for (const item of cons9) {
-          consumacoes9Mensal[item.categoria as string] =
-            Math.round(((parseFloat(String(item.total)) || 0) * fator9) * 100) / 100;
+      const { data: caCons } = await (supabase as any)
+        .schema('bronze')
+        .from('bronze_contaazul_lancamentos')
+        .select('categoria_nome, tipo, valor_bruto, valor_pago')
+        .eq('bar_id', barId)
+        .is('excluido_em', null)
+        .gte('data_competencia', dataInicio)
+        .lte('data_competencia', dataFim)
+        .ilike('categoria_nome', '[Consuma%');
+      if (Array.isArray(caCons) && caCons.length > 0) {
+        const mapCat = (nome: string): string | null => {
+          const c = (nome || '').toLowerCase();
+          if (c.includes('ajuste')) return null; // contra-lançamento agregado, não é categoria
+          if (c.includes('sócio') || c.includes('socio')) return 'socios';
+          if (c.includes('artista')) return 'artistas';
+          if (c.includes('operaç') || c.includes('operac')) return 'funcionarios_operacao';
+          if (c.includes('escritó') || c.includes('escrito')) return 'funcionarios_escritorio';
+          if (c.includes('aniversár') || c.includes('aniversar')) return 'aniversario';
+          if (c.includes('influencer')) return 'influencer';
+          if (c.includes('pontos')) return 'programa_pontos';
+          if (c.includes('cliente')) return 'beneficio_cliente';
+          return 'outros';
+        };
+        const acc: Record<string, number> = {};
+        for (const r of caCons as any[]) {
+          const k = mapCat(r.categoria_nome);
+          if (!k) continue;
+          const pago = parseFloat(r.valor_pago) || 0;
+          const bruto = parseFloat(r.valor_bruto) || 0;
+          const v = (pago > 0 ? pago : bruto) * (String(r.tipo) === 'RECEITA' ? -1 : 1);
+          acc[k] = (acc[k] || 0) + v;
         }
+        consumacoes9Mensal = {};
+        for (const [k, v] of Object.entries(acc)) consumacoes9Mensal[k] = Math.round(v * 100) / 100;
       }
     } catch (e) {
-      console.warn('get_consumos_9_semana (mensal) falhou:', e);
+      console.warn('consumação por categoria (mensal, Conta Azul) falhou:', e);
     }
 
     // Buscar dados diretamente da tabela cmv_mensal (alimentada por sync-cmv-mensal + agregar_cmv_mensal_auto)
