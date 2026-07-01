@@ -46,6 +46,12 @@ const fmtTempo = (seg: any) => {
 };
 const fmtData = (iso: any) => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
 
+// Seção da produção pelo código da ficha: pd* = Bar (drinks), demais = Cozinha.
+// Mesma convenção da contagem (pc = Cozinha, pd = Drinks/Bar).
+type Secao = 'Cozinha' | 'Bar';
+const secaoDeCodigo = (codigo?: string | null): Secao =>
+  (codigo || '').toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha';
+
 interface FichaItem {
   id: number;
   componente_tipo: 'insumo' | 'producao';
@@ -80,13 +86,12 @@ interface ActiveProd {
 // =====================================================================================
 // ABA EXECUTAR — múltiplas produções simultâneas, cada uma com seu timer
 // =====================================================================================
-function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: any[] }) {
+function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; responsaveis: any[]; secaoAtiva: Secao }) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
 
   // seleção de ficha para adicionar
-  const [secao, setSecao] = useState<'Cozinha' | 'Bar' | null>(null);
   const [busca, setBusca] = useState('');
   const [picker, setPicker] = useState(false);
 
@@ -117,26 +122,33 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
 
   const DIAS_LBL = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
   const hojeIso = new Date().toISOString().slice(0, 10);
+  // só os itens do plano cuja ficha é da seção ativa (Cozinha/Bar)
+  const secaoDoItem = useCallback((it: any): Secao | null => {
+    const f = fichas.find(x => x.id === it.producao_id);
+    return f ? secaoDeCodigo(f.codigo) : null;
+  }, [fichas]);
+  const itensSecao = useMemo(() =>
+    (planSemana?.itens || []).filter((it: any) => secaoDoItem(it) === secaoAtiva),
+    [planSemana, secaoDoItem, secaoAtiva]);
   const diasPlano = useMemo(() => {
     const ini = planSemana?.semana?.ini;
     if (!ini) return [];
     const [y, m, d] = ini.split('-').map(Number);
     return Array.from({ length: 7 }, (_, i) => {
       const iso = new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10);
-      return { iso, label: `${DIAS_LBL[i]} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`, itens: (planSemana.itens || []).filter((it: any) => it.dia_producao === iso) };
+      return { iso, label: `${DIAS_LBL[i]} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`, itens: itensSecao.filter((it: any) => it.dia_producao === iso) };
     });
-  }, [planSemana]);
-  const semDia = useMemo(() => (planSemana?.itens || []).filter((it: any) => !it.dia_producao), [planSemana]);
+  }, [planSemana, itensSecao]);
+  const semDia = useMemo(() => itensSecao.filter((it: any) => !it.dia_producao), [itensSecao]);
 
-  const secaoDe = (f: any) => (f.codigo || '').toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha';
   const fichasControle = useMemo(() => fichas.filter(f => f.controle_producao), [fichas]);
   const fichasView = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return fichasControle.filter(f => {
-      if (secao && secaoDe(f) !== secao) return false;
+      if (secaoDeCodigo(f.codigo) !== secaoAtiva) return false;
       return !q || (f.nome || '').toLowerCase().includes(q) || (f.codigo || '').toLowerCase().includes(q);
     });
-  }, [fichasControle, busca, secao]);
+  }, [fichasControle, busca, secaoAtiva]);
 
   const patch = useCallback((id: string, p: Partial<ActiveProd>) =>
     setProds(prev => prev.map(x => x.localId === id ? { ...x, ...p } : x)), []);
@@ -324,15 +336,7 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
       <Card className="card-dark">
         <CardContent className="py-3 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1"><Plus className="w-4 h-4" />Iniciar produção</span>
-            <div className="flex gap-1">
-              {(['Cozinha', 'Bar'] as const).map(c => (
-                <button key={c} onClick={() => setSecao(s => s === c ? null : c)}
-                  className={`text-[11px] rounded px-2.5 py-0.5 border ${secao === c ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                  {c === 'Cozinha' ? '👨‍🍳 Cozinha' : '🍺 Bar'}
-                </button>
-              ))}
-            </div>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1"><Plus className="w-4 h-4" />Iniciar produção {secaoAtiva === 'Cozinha' ? '👨‍🍳' : '🍺'} <span className="text-gray-400 font-normal">{secaoAtiva}</span></span>
             <div className="relative flex-1 min-w-[220px]">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input value={busca} onChange={e => { setBusca(e.target.value); setPicker(true); }} onFocus={() => setPicker(true)}
@@ -559,7 +563,7 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
 // =====================================================================================
 // ABA HISTÓRICO
 // =====================================================================================
-function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: any[] }) {
+function AbaHistorico({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; responsaveis: any[]; secaoAtiva: Secao }) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
@@ -575,6 +579,9 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
   // filtro de semana — mesmo time-frame do Planejamento da Produção (null = todas)
   const [semanaSel, setSemanaSel] = useState<string | null>(null);
   const [planSemana, setPlanSemana] = useState<any | null>(null);
+
+  // ao trocar de seção (Cozinha/Bar), zera o filtro de produção — ele aponta pra ficha da outra seção
+  useEffect(() => { setFProd(null); }, [secaoAtiva]);
 
   // lista de semanas + itens planejados (planos encerrados) da semana selecionada
   useEffect(() => {
@@ -597,39 +604,48 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
   }, [barId, fProd, fResp, semanaSel]);
   useEffect(() => { carregar(); }, [carregar]);
 
-  // Resumo da Semana: cruza o plano encerrado da semana com as execuções da semana
+  // execuções da seção ativa (Cozinha/Bar) — base de tudo no histórico
+  const execsSecao = useMemo(() =>
+    execs.filter((e: any) => secaoDeCodigo(e.producao_codigo) === secaoAtiva),
+    [execs, secaoAtiva]);
+
+  // Resumo da Semana: cruza o plano encerrado da semana com as execuções da semana (só da seção ativa)
   const resumo = useMemo(() => {
     if (!semanaSel) return null;
-    const planejados: any[] = (planSemana?.itens || []).filter((it: any) => Number(it.decidido_receitas) > 0);
+    const planejados: any[] = (planSemana?.itens || []).filter((it: any) => {
+      if (!(Number(it.decidido_receitas) > 0)) return false;
+      const f = fichas.find(x => x.id === it.producao_id);
+      return f ? secaoDeCodigo(f.codigo) === secaoAtiva : false;
+    });
     const planProdIds = new Set(planejados.map((it: any) => Number(it.producao_id)));
-    const execProdIds = new Set(execs.map((e: any) => Number(e.producao_id)));
+    const execProdIds = new Set(execsSecao.map((e: any) => Number(e.producao_id)));
     const planejadasExecutadas = [...planProdIds].filter(id => execProdIds.has(id)).length;
-    const comRend = execs.filter((e: any) => e.rendimento_real != null && e.rendimento_esperado != null && e.rendimento_esperado > 0);
+    const comRend = execsSecao.filter((e: any) => e.rendimento_real != null && e.rendimento_esperado != null && e.rendimento_esperado > 0);
     const dentro = comRend.filter((e: any) => Math.abs(e.rendimento_real / e.rendimento_esperado - 1) <= 0.05).length;
-    const aders = execs.filter((e: any) => e.aderencia_pct != null).map((e: any) => Number(e.aderencia_pct));
+    const aders = execsSecao.filter((e: any) => e.aderencia_pct != null).map((e: any) => Number(e.aderencia_pct));
     const aderMedia = aders.length ? aders.reduce((s: number, v: number) => s + v, 0) / aders.length : null;
-    const tempoTotal = execs.reduce((s: number, e: any) => s + (Number(e.duracao_seg) || 0), 0);
-    const custoPlan = execs.reduce((s: number, e: any) => s + (Number(e.custo_planejado) || 0), 0);
-    const custoReal = execs.reduce((s: number, e: any) => s + (Number(e.custo_real) || 0), 0);
-    const desvioRendTotal = execs.reduce((s: number, e: any) => s + (desvioRendReais(e) ?? 0), 0);
+    const tempoTotal = execsSecao.reduce((s: number, e: any) => s + (Number(e.duracao_seg) || 0), 0);
+    const custoPlan = execsSecao.reduce((s: number, e: any) => s + (Number(e.custo_planejado) || 0), 0);
+    const custoReal = execsSecao.reduce((s: number, e: any) => s + (Number(e.custo_real) || 0), 0);
+    const desvioRendTotal = execsSecao.reduce((s: number, e: any) => s + (desvioRendReais(e) ?? 0), 0);
     return {
       planejadas: planProdIds.size,
       planejadasExecutadas,
-      executadas: execs.length,
+      executadas: execsSecao.length,
       aderMedia,
       rendDentro: dentro,
       rendTotal: comRend.length,
       tempoTotal,
       custoPlan, custoReal, desvioRendTotal,
     };
-  }, [semanaSel, planSemana, execs]);
+  }, [semanaSel, planSemana, execsSecao, fichas, secaoAtiva]);
 
   // busca por texto no histórico (nome ou código da produção)
   const execsView = useMemo(() => {
     const s = buscaProd.trim().toLowerCase();
-    if (!s) return execs;
-    return execs.filter((e: any) => (e.producao_nome || '').toLowerCase().includes(s) || (e.producao_codigo || '').toLowerCase().includes(s));
-  }, [execs, buscaProd]);
+    if (!s) return execsSecao;
+    return execsSecao.filter((e: any) => (e.producao_nome || '').toLowerCase().includes(s) || (e.producao_codigo || '').toLowerCase().includes(s));
+  }, [execsSecao, buscaProd]);
 
   const abrirDetalhe = async (e: any) => {
     setDetalhe(e); setDetInsumos([]);
@@ -678,7 +694,7 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
         <select value={fProd ?? ''} onChange={e => setFProd(e.target.value ? Number(e.target.value) : null)}
           className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
           <option value="">Todas as produções</option>
-          {fichas.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+          {fichas.filter(f => secaoDeCodigo(f.codigo) === secaoAtiva).map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
         </select>
         <select value={fResp ?? ''} onChange={e => setFResp(e.target.value ? Number(e.target.value) : null)}
           className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
@@ -973,13 +989,24 @@ function GerirEquipeModal({ barId, responsaveis, onClose, onChanged }: {
 // =====================================================================================
 export default function ProducoesPage() {
   const { selectedBar } = useBar();
-  const { isRole } = useAuth();
+  const { isRole, hasPermission } = useAuth();
   const isAdmin = isRole('admin');
   const barId = selectedBar?.id;
   const [aba, setAba] = useState<'executar' | 'historico'>('executar');
   const [fichas, setFichas] = useState<any[]>([]);
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [gerirEquipe, setGerirEquipe] = useState(false);
+
+  // Trava de seção por acesso (resolver único): quem tem SÓ 'producao_bar' vê só Bar,
+  // quem tem SÓ 'producao_cozinha' vê só Cozinha. Admin ('todos') e quem tem ambos/nenhum
+  // veem as duas abas. producaobar@ / producaocozinha@ recebem o token no modulos_permitidos.
+  const podeBar = hasPermission('producao_bar');
+  const podeCozinha = hasPermission('producao_cozinha');
+  const secaoTravada: Secao | null = podeBar && !podeCozinha ? 'Bar' : podeCozinha && !podeBar ? 'Cozinha' : null;
+  const secoesVisiveis: Secao[] = secaoTravada ? [secaoTravada] : ['Cozinha', 'Bar'];
+  const [secaoAtiva, setSecaoAtiva] = useState<Secao>('Cozinha');
+  // quando a trava resolve (user carrega assíncrono), força a seção permitida
+  useEffect(() => { if (secaoTravada) setSecaoAtiva(secaoTravada); }, [secaoTravada]);
 
   const loadFichas = useCallback(async () => {
     if (!barId) return;
@@ -1010,14 +1037,25 @@ export default function ProducoesPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <button onClick={() => setAba('executar')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'executar' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><Play className="w-4 h-4" />Executar</button>
-          <button onClick={() => setAba('historico')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'historico' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><History className="w-4 h-4" />Histórico</button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => setAba('executar')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'executar' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><Play className="w-4 h-4" />Executar</button>
+            <button onClick={() => setAba('historico')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'historico' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><History className="w-4 h-4" />Histórico</button>
+          </div>
+          {/* Seletor de seção: Cozinha / Bar. Travado quando o usuário só tem acesso a uma. */}
+          <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-0.5 bg-muted/30">
+            {secoesVisiveis.map(s => (
+              <button key={s} onClick={() => setSecaoAtiva(s)}
+                className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${secaoAtiva === s ? 'bg-indigo-600 text-white shadow-sm' : 'text-muted-foreground hover:bg-muted'}`}>
+                {s === 'Cozinha' ? '👨‍🍳' : '🍺'} {s}
+              </button>
+            ))}
+          </div>
         </div>
 
         {aba === 'executar'
-          ? <AbaExecutar fichas={fichas} responsaveis={responsaveis} />
-          : <AbaHistorico fichas={fichas} responsaveis={responsaveis} />}
+          ? <AbaExecutar fichas={fichas} responsaveis={responsaveis} secaoAtiva={secaoAtiva} />
+          : <AbaHistorico fichas={fichas} responsaveis={responsaveis} secaoAtiva={secaoAtiva} />}
 
         {gerirEquipe && isAdmin && barId && (
           <GerirEquipeModal
