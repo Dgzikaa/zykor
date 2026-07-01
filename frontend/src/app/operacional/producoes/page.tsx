@@ -74,6 +74,7 @@ interface ActiveProd {
   qtdReal: Record<number, string>;
   segundos: number;
   rodando: boolean;
+  dataProducao?: string; // retroativa: data (YYYY-MM-DD) em que a produção foi feita; vazio = hoje
 }
 
 // =====================================================================================
@@ -144,7 +145,7 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
     const localId = `p${++idRef.current}`;
     const nova: ActiveProd = {
       localId, ficha: f, itens: [], loadingItens: true, responsavelId: null,
-      pesoBruto: '', pesoMestre: '', rendimentoReal: '', observacao: '', qtdReal: {}, segundos: 0, rodando: false,
+      pesoBruto: '', pesoMestre: '', rendimentoReal: '', observacao: '', qtdReal: {}, segundos: 0, rodando: false, dataProducao: '',
     };
     setProds(prev => [...prev, nova]);
     setSelId(localId);
@@ -223,7 +224,11 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
     setSalvandoId(prod.localId);
     patch(prod.localId, { rodando: false });
     const { linhas, rendEsperado, mestre } = calc(prod);
-    const agora = new Date();
+    // retroativa: se lançou uma data passada, ancora fim ao meio-dia dela (o desvio usa inicio::date)
+    const hoje = new Date().toISOString().slice(0, 10);
+    const agora = (prod.dataProducao && prod.dataProducao !== hoje)
+      ? new Date(`${prod.dataProducao}T12:00:00`)
+      : new Date();
     const inicio = new Date(agora.getTime() - prod.segundos * 1000);
     const resp = responsaveis.find(r => r.id === prod.responsavelId);
     const payload = {
@@ -400,6 +405,14 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
 
             {!iniciada && <div className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1"><Play className="w-3 h-3" />Selecione o responsável e <b>inicie a produção</b> antes de pesar o bruto e lançar o rendimento.</div>}
 
+            {/* data da produção (permite lançamento retroativo — ex.: esqueceram de iniciar no dia) */}
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-gray-500 flex items-center gap-1"><CalendarCheck className="w-3.5 h-3.5" />Data da produção:</span>
+              <Input type="date" value={sel.dataProducao || new Date().toISOString().slice(0, 10)} max={new Date().toISOString().slice(0, 10)}
+                onChange={e => patch(sel.localId, { dataProducao: e.target.value })} className="h-8 w-40" />
+              {sel.dataProducao && sel.dataProducao !== new Date().toISOString().slice(0, 10) && <span className="text-amber-600 dark:text-amber-400 font-medium">retroativa</span>}
+            </div>
+
             {/* Responsável + peso mestre + rendimento */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
@@ -423,7 +436,11 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
                       <Input type="number" inputMode="decimal" step="any" disabled={!iniciada} value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })} placeholder={`limpo · ficha ${fmtNum(mestreQtd, 3)}`} className="h-9" />
                     </div>
                   </div>
-                  <p className="text-[11px] text-gray-400 mt-0.5">{fcReal > 0 ? `FC real ${fmtNum(fcReal, 2)} · ` : ''}o líquido dirige a receita</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {(() => { const fcEsp = Number((mestre as any)?.fator_correcao) || 0; return fcReal > 0 ? (
+                      <>FC real <b className={fcEsp > 0 && fcReal < fcEsp - 0.02 ? 'text-red-600 dark:text-red-400' : fcEsp > 0 && fcReal > fcEsp + 0.02 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-600 dark:text-gray-300'}>{fmtNum(fcReal, 2)}</b>
+                        {fcEsp > 0 && fcEsp !== 1 ? ` · esperado ${fmtNum(fcEsp, 2)} (ficha)` : ''} · </>
+                    ) : ''; })()}o líquido dirige a receita</p>
                 </div>
               ) : (
                 <div>
