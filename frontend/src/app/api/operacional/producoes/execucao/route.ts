@@ -166,12 +166,22 @@ export async function GET(request: NextRequest) {
   // nome/código/unidade/tempo_meta da ficha por producao_id
   const prodIds = Array.from(new Set(execucoes.map((e: any) => e.producao_id)));
   const fichaMap = new Map<number, any>();
+  const fcEspMap = new Map<number, number>(); // FC esperado da ficha (mestre) por produção
   if (prodIds.length) {
     const { data: bases } = await supabase
       .from('producao_base')
       .select('id, codigo, nome, unidade, secao, rendimento, tempo_meta_seg')
       .in('id', prodIds);
     (bases || []).forEach((b: any) => fichaMap.set(b.id, b));
+    // FC esperado = fator_correcao do insumo mestre na ficha da produção
+    const { data: mestres } = await supabase
+      .from('producao_ficha_item')
+      .select('producao_id, fator_correcao')
+      .in('producao_id', prodIds).eq('is_mestre', true);
+    for (const m of (mestres || []) as any[]) {
+      const fc = Number(m.fator_correcao);
+      if (m.producao_id && fc > 0 && fc !== 1) fcEspMap.set(m.producao_id, fc);
+    }
   }
 
   // baselines por ficha: tempo médio (benchmark), custo médio, aderência média, contagem
@@ -204,6 +214,7 @@ export async function GET(request: NextRequest) {
       producao_unidade: f?.unidade ?? null,
       producao_secao: f?.secao ?? null,
       tempo_meta_seg: f?.tempo_meta_seg ?? null,
+      fc_esperado: fcEspMap.get(e.producao_id) ?? null,
     };
   });
 
