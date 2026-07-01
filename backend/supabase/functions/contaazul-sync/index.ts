@@ -894,11 +894,13 @@ serve(async (req: Request) => {
           || new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString()
         const cursor = new Date(cursorISO)
         cursor.setHours(cursor.getHours() - 1) // overlap 1h
-        // Piso de 90 dias: sempre re-varre os últimos 3 meses de alterações, mesmo que o
-        // cursor já tenha passado. Pedido do sócio — é comum lançarem hoje uma edição
-        // referente a 1-2 meses atrás (back-date no CA); 7 dias deixava isso escapar e só
-        // o 'ano completo' pegava. Segue leve: incremental só traz o que foi de fato alterado.
-        const pisoAlteracao = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+        // Piso de 7 dias: re-varre só a última semana de alterações como margem de
+        // segurança do cursor. Back-dates mais antigos (edição hoje de algo de 1-2 meses
+        // atrás) são cobertos pelo cron 'alteracao_full_ano' 2x/dia (jobid 529, varre 1 ano).
+        // ANTES era 90 dias re-varridos a cada 6 min (orquestrador) = ~17k linhas re-upsertadas
+        // por run, o maior custo do banco. 90d→7d corta ~92% dessa escrita sem perder back-dates.
+        // Reavaliar a janela mais pra frente se aparecer gap de re-categorização.
+        const pisoAlteracao = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
         dateFrom = formatDate(cursor < pisoAlteracao ? cursor : pisoAlteracao)
         dateTo = formatDate(now)
         useAlteracaoFilter = true

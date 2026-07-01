@@ -39,7 +39,15 @@
       "mcp__plugin_vercel_vercel__get_deployment",
       "PowerShell(Get-ChildItem -Path \"C:\\\\Projects\\\\zykor\\\\frontend\\\\src\\\\app\\\\api\" -Recurse -Name | Where-Object { $_ -match 'bar' })",
       "mcp__claude_ai_Supabase__deploy_edge_function",
-      "PowerShell(cd C:\\\\Projects\\\\zykor\\\\frontend; \\(Get-Content package.json | ConvertFrom-Json\\).scripts | ConvertTo-Json)"
+      "PowerShell(cd C:\\\\Projects\\\\zykor\\\\frontend; \\(Get-Content package.json | ConvertFrom-Json\\).scripts | ConvertTo-Json)",
+      "mcp__plugin_vercel_vercel__get_runtime_logs",
+      "PowerShell(npx next lint --file src/app/estrategico/planejamento-comercial/components/PlanejamentoClient.tsx 2>&1 | Select-Object -First 30)",
+      "mcp__plugin_vercel_vercel__deploy_to_vercel",
+      "mcp__claude_ai_Google_Drive__get_file_metadata",
+      "PowerShell(cd C:\\\\Projects\\\\zykor\\\\frontend; $out = npx tsc --noEmit -p tsconfig.json 2>&1; if \\($LASTEXITCODE -eq 0\\) { \"TSC OK - 0 erros\" } else { \"TSC com erros: \" + \\(\\($out | Select-String 'error TS'\\).Count\\) + \" total\"; $out | Select-String 'error TS' | Select-Object -First 8 })",
+      "mcp__claude_ai_Supabase__get_project_url",
+      "mcp__claude_ai_Supabase__get_project",
+      "mcp__claude_ai_Supabase__get_organization"
     ]
   },
   "mcpServers": {
