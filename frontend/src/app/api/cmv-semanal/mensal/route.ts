@@ -277,6 +277,11 @@ export async function GET(request: NextRequest) {
         compras_alimentacao: parseFloat(String(cmvMensal.compras_alimentacao || 0)),
         estoque_final_funcionarios: parseFloat(String(cmvMensal.estoque_final_funcionarios || 0)),
         cma_total: parseFloat(String(cmvMensal.cma_total || 0)),
+        // Componentes do Faturamento Limpo (breakdown do tooltip) — preenchidos abaixo.
+        comissao: 0,
+        couvert_atracoes: 0,
+        ingressos_yuzer: 0,
+        ingressos_sympla: 0,
       };
 
       // Recorte por semana fechada (apenas mes corrente): refazer faturamento e
@@ -288,39 +293,44 @@ export async function GET(request: NextRequest) {
       //   - liquido = bruto - couvert - comissao
       //   - compras = SUM(valor_bruto) WHERE categoria_nome ILIKE '%custo%' (inclui Outros,
       //     case-insensitive — bar_categorias_custo tem case-mismatch e nao mapeia cmv_outros)
+      // Componentes que decompõem Bruto → Limpo (breakdown do tooltip do Fat. Limpo).
+      // Sempre calculados p/ [dataInicio, dataFim] (mês fechado = mês cheio; corrente =
+      // até o último domingo). Bilheteria (Yuzer + Sympla) e couvert saem do limpo por
+      // não serem venda de produto — espelha agregar_cmv_mensal_auto / cmv-semanal-auto.
+      const { data: planej } = await (supabase
+        .schema('gold' as any) as any)
+        .from('planejamento')
+        .select('faturamento_total_consolidado, sympla_liquido, faturamento_entrada_yuzer')
+        .eq('bar_id', barId)
+        .gte('data_evento', dataInicio)
+        .lte('data_evento', dataFim);
+      const ingressosYuzer = (planej || []).reduce(
+        (s: number, r: any) => s + (parseFloat(r.faturamento_entrada_yuzer) || 0), 0
+      );
+      const ingressosSympla = (planej || []).reduce(
+        (s: number, r: any) => s + (parseFloat(r.sympla_liquido) || 0), 0
+      );
+      const { data: comCouvert } = await (supabase as any)
+        .rpc('get_comissao_couvert_periodo', {
+          p_bar_id: barId,
+          p_data_inicio: dataInicio,
+          p_data_fim: dataFim,
+        });
+      const rpcRow = Array.isArray(comCouvert) ? comCouvert[0] : comCouvert;
+      const gorjetaTotal = parseFloat(String(rpcRow?.comissao || 0));
+      const couvertTotal = parseFloat(String(rpcRow?.couvert || 0));
+
+      dadosMensais.comissao = gorjetaTotal;
+      dadosMensais.couvert_atracoes = couvertTotal;
+      dadosMensais.ingressos_yuzer = ingressosYuzer;
+      dadosMensais.ingressos_sympla = ingressosSympla;
+
+      // Mês corrente: refaz faturamento cortando até o último domingo fechado.
       if (ehMesCorrenteRecorte) {
-        const { data: planej } = await (supabase
-          .schema('gold' as any) as any)
-          .from('planejamento')
-          .select('faturamento_total_consolidado, sympla_liquido, faturamento_entrada_yuzer')
-          .eq('bar_id', barId)
-          .gte('data_evento', dataInicio)
-          .lte('data_evento', dataFim);
         const fatBruto = (planej || []).reduce(
           (s: number, r: any) => s + (parseFloat(r.faturamento_total_consolidado) || 0), 0
         );
-        // Ingressos (bilheteria) NÃO são faturamento de produto: tira Sympla + ingresso Yuzer
-        // do faturamento limpo (igual o couvert), pra o CMV bater só com a venda de produto.
-        const ingressosTotal = (planej || []).reduce(
-          (s: number, r: any) => s + (parseFloat(r.sympla_liquido) || 0) + (parseFloat(r.faturamento_entrada_yuzer) || 0), 0
-        );
-
-        // Couvert + gorjeta (repique) vem do bronze ContaHub via RPC.
-        // Espelha o calculo da edge function cmv-semanal-auto pra que mensal
-        // bata com o que e' agregado nas semanas. Query Conta Azul "%comiss%"
-        // (antigo) trazia comissao de ARTISTAS = R$ 0 no comeco do mes,
-        // entao fat_limpo vinha quase igual ao bruto (so faltava o couvert).
-        const { data: comCouvert } = await (supabase as any)
-          .rpc('get_comissao_couvert_periodo', {
-            p_bar_id: barId,
-            p_data_inicio: dataInicio,
-            p_data_fim: dataFim,
-          });
-        const rpcRow = Array.isArray(comCouvert) ? comCouvert[0] : comCouvert;
-        const gorjetaTotal = parseFloat(String(rpcRow?.comissao || 0));
-        const couvertTotal = parseFloat(String(rpcRow?.couvert || 0));
-
-        const fatLiquido = fatBruto - couvertTotal - gorjetaTotal - ingressosTotal;
+        const fatLiquido = fatBruto - couvertTotal - gorjetaTotal - ingressosYuzer - ingressosSympla;
         dadosMensais.vendas_brutas = fatBruto;
         dadosMensais.vendas_liquidas = fatLiquido;
         dadosMensais.faturamento_cmvivel = fatLiquido;

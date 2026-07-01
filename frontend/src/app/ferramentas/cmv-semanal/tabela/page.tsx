@@ -58,7 +58,9 @@ interface CMVSemanal {
   faturamento_cmvivel: number;
   comissao?: number;
   couvert_atracoes?: number;
-  
+  ingressos_yuzer?: number;
+  ingressos_sympla?: number;
+
   // Estoque e Compras
   estoque_inicial: number;
   compras_periodo: number;
@@ -1055,13 +1057,19 @@ export default function CMVSemanalTabelaPage() {
         const bruto = semana.vendas_brutas || 0;
         const comissao = semana.comissao || 0;
         const couvert = semana.couvert_atracoes || 0;
+        const yuzer = semana.ingressos_yuzer || 0;
+        const sympla = semana.ingressos_sympla || 0;
         // Se não temos os campos detalhados, calcular a diferença
         const diferencaTotal = bruto - (semana.vendas_liquidas || 0);
-        if (comissao > 0 || couvert > 0) {
+        const partes: { label: string; valor: number }[] = [];
+        if (comissao > 0) partes.push({ label: '(-) Comissão', valor: -comissao });
+        if (couvert > 0) partes.push({ label: '(-) Couvert', valor: -couvert });
+        if (yuzer > 0) partes.push({ label: '(-) Ingressos Yuzer', valor: -yuzer });
+        if (sympla > 0) partes.push({ label: '(-) Sympla', valor: -sympla });
+        if (partes.length > 0) {
           return [
             { label: 'Faturamento Bruto', valor: bruto },
-            { label: '(-) Comissão', valor: -comissao },
-            { label: '(-) Couvert', valor: -couvert },
+            ...partes,
           ];
         } else if (diferencaTotal > 0) {
           return [

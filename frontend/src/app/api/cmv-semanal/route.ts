@@ -100,10 +100,28 @@ export async function GET(request: NextRequest) {
       return f > 0 ? Number((c / f * 100).toFixed(2)) : null;
     };
 
+    // Bilheteria por semana (ingresso Yuzer + Sympla) de gold.planejamento — p/ o
+    // breakdown do Fat. Limpo (que já desconta a bilheteria em cmv-semanal-auto).
+    let planejRows: Array<{ data_evento: string; faturamento_entrada_yuzer: number; sympla_liquido: number }> = [];
+    if (datasIni.length && datasFim.length) {
+      const { data: pj } = await (supabase as any).schema('gold').from('planejamento')
+        .select('data_evento, faturamento_entrada_yuzer, sympla_liquido').eq('bar_id', barId)
+        .gte('data_evento', datasIni[0]).lte('data_evento', datasFim[datasFim.length - 1]);
+      planejRows = pj || [];
+    }
+    const bilheteriaDe = (ini: string, fim: string): { yuzer: number; sympla: number } => {
+      let y = 0, s = 0;
+      for (const r of planejRows) if (r.data_evento >= ini && r.data_evento <= fim) {
+        y += Number(r.faturamento_entrada_yuzer) || 0; s += Number(r.sympla_liquido) || 0;
+      }
+      return { yuzer: y, sympla: s };
+    };
+
     // Enriquecer dados do CMV com comissão, couvert e faturamento_entrada
     const dataEnriquecida = data?.map(item => {
       const key = `${item.ano}-${item.semana}`;
       const desempenho = desempenhoMap[key] || { comissao: 0, couvert_atracoes: 0, faturamento_entrada: 0 };
+      const bilhet = (item.data_inicio && item.data_fim) ? bilheteriaDe(item.data_inicio, item.data_fim) : { yuzer: 0, sympla: 0 };
       const auto = (item.data_inicio && item.data_fim) ? cmvTeoricoDe(item.data_inicio, item.data_fim) : null;
       const ehAtualOuFuturo = !!(item.data_fim && item.data_fim >= segStr);
       const manual = item.cmv_teorico_percentual_manual;
@@ -115,6 +133,8 @@ export async function GET(request: NextRequest) {
         comissao: desempenho.comissao,
         couvert_atracoes: desempenho.couvert_atracoes,
         faturamento_entrada: desempenho.faturamento_entrada,
+        ingressos_yuzer: bilhet.yuzer,
+        ingressos_sympla: bilhet.sympla,
         cmv_teorico_percentual: usaAuto ? auto : item.cmv_teorico_percentual,
         cmv_teorico_auto: usaAuto,
       };
