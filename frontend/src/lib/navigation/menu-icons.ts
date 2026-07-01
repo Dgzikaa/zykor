@@ -50,6 +50,7 @@ import {
   Timer,
   FlaskConical,
   LogOut,
+  Coffee,
 } from 'lucide-react';
 
 export type MenuIcon = ComponentType<{ className?: string }>;
@@ -98,6 +99,7 @@ export const MENU_ICONS: Record<string, MenuIcon> = {
   Timer,
   FlaskConical,
   LogOut,
+  Coffee,
 };
 
 /** Componente do ícone pelo nome; fallback em Activity se faltar. */
