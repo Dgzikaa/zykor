@@ -70,6 +70,77 @@ const PRESETS: { key: string; label: string }[] = [
   { key: 'd30', label: 'Últimos 30 dias' },
 ];
 
+// Combobox: input com dropdown pra baixo (rolagem), filtra conforme digita. Substitui o
+// <datalist> nativo, que abre de forma inconsistente (às vezes na lateral).
+function Combobox({
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const filtered = useMemo(() => {
+    const q = value.trim().toLowerCase();
+    const base = q ? options.filter((o) => o.toLowerCase().includes(q)) : options;
+    return base.slice(0, 300);
+  }, [options, value]);
+
+  return (
+    <div className="relative">
+      <div className="relative">
+        <Input
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          className="input-dark pr-7"
+        />
+        {value && (
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onChange('');
+            }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+      {open && filtered.length > 0 && (
+        <ul className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg text-sm">
+          {filtered.map((o) => (
+            <li key={o}>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(o);
+                  setOpen(false);
+                }}
+                className="block w-full truncate px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                title={o}
+              >
+                {o}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function ControleConsumacaoPage() {
   const { setPageTitle } = usePageTitle();
   const { selectedBar } = useBar();
@@ -94,6 +165,11 @@ export default function ControleConsumacaoPage() {
   const [produtoSel, setProdutoSel] = useState('');
   const [busca, setBusca] = useState('');
   const [pagina, setPagina] = useState(1);
+  // ordenação da tabela (default: data mais recente primeiro)
+  const [ordem, setOrdem] = useState<{ campo: 'data' | 'valor_bruto' | 'custo' | 'qtd'; dir: 'asc' | 'desc' }>({
+    campo: 'data',
+    dir: 'desc',
+  });
 
   useEffect(() => setPageTitle('Controle de Consumação'), [setPageTitle]);
 
@@ -207,9 +283,27 @@ export default function ControleConsumacaoPage() {
     [linhasFiltradas],
   );
 
-  const totalPaginas = Math.max(1, Math.ceil(linhasFiltradas.length / POR_PAGINA));
+  const linhasOrdenadas = useMemo(() => {
+    const arr = [...linhasFiltradas];
+    const mul = ordem.dir === 'asc' ? 1 : -1;
+    arr.sort((a, b) => {
+      if (ordem.campo === 'data') {
+        // desempate por valor desc dentro do mesmo dia
+        if (a.data !== b.data) return a.data < b.data ? -1 * mul : 1 * mul;
+        return b.valor_bruto - a.valor_bruto;
+      }
+      return (Number(a[ordem.campo]) - Number(b[ordem.campo])) * mul;
+    });
+    return arr;
+  }, [linhasFiltradas, ordem]);
+
+  const sortBy = (campo: 'data' | 'valor_bruto' | 'custo' | 'qtd') =>
+    setOrdem((o) => (o.campo === campo ? { campo, dir: o.dir === 'asc' ? 'desc' : 'asc' } : { campo, dir: 'desc' }));
+  const seta = (campo: string) => (ordem.campo === campo ? (ordem.dir === 'asc' ? ' ▲' : ' ▼') : '');
+
+  const totalPaginas = Math.max(1, Math.ceil(linhasOrdenadas.length / POR_PAGINA));
   const pagina1 = Math.min(pagina, totalPaginas);
-  const pageSlice = linhasFiltradas.slice((pagina1 - 1) * POR_PAGINA, pagina1 * POR_PAGINA);
+  const pageSlice = linhasOrdenadas.slice((pagina1 - 1) * POR_PAGINA, pagina1 * POR_PAGINA);
 
   const limparTudo = () => {
     setCatFiltro(new Set());
@@ -220,10 +314,11 @@ export default function ControleConsumacaoPage() {
   };
 
   const exportarCsv = () => {
-    const head = ['Data', 'Categoria', 'Mesa', 'Motivo', 'Produto', 'Qtd', 'Valor Bruto', 'Custo', 'Tem ficha'];
-    const linhasCsv = linhasFiltradas.map((l) =>
+    const head = ['Data', 'Dia', 'Categoria', 'Mesa', 'Motivo', 'Produto', 'Qtd', 'Valor Bruto', 'Custo', 'Tem ficha'];
+    const linhasCsv = linhasOrdenadas.map((l) =>
       [
         l.data,
+        DOW[dowDe(l.data)].n,
         LABEL[l.categoria] || l.categoria,
         l.mesa || '',
         (l.motivo || '').replace(/;/g, ','),
@@ -338,33 +433,11 @@ export default function ControleConsumacaoPage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <span className={campoLabel}>Motivo (artista / sócio / etc.)</span>
-              <Input
-                list="motivos-list"
-                placeholder="Selecione ou digite…"
-                value={motivoSel}
-                onChange={(e) => setMotivoSel(e.target.value)}
-                className="input-dark"
-              />
-              <datalist id="motivos-list">
-                {motivos.map((m) => (
-                  <option key={m} value={m} />
-                ))}
-              </datalist>
+              <Combobox value={motivoSel} onChange={setMotivoSel} options={motivos} placeholder="Selecione ou digite…" />
             </div>
             <div>
               <span className={campoLabel}>Produto</span>
-              <Input
-                list="produtos-list"
-                placeholder="Selecione ou digite…"
-                value={produtoSel}
-                onChange={(e) => setProdutoSel(e.target.value)}
-                className="input-dark"
-              />
-              <datalist id="produtos-list">
-                {produtos.map((p) => (
-                  <option key={p} value={p} />
-                ))}
-              </datalist>
+              <Combobox value={produtoSel} onChange={setProdutoSel} options={produtos} placeholder="Selecione ou digite…" />
             </div>
             <div>
               <span className={campoLabel}>Busca livre (motivo, produto, mesa)</span>
@@ -472,26 +545,35 @@ export default function ControleConsumacaoPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400">
               <tr>
-                <th className="text-left font-medium px-3 py-2">Data</th>
+                <th className="text-left font-medium px-3 py-2 cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200" onClick={() => sortBy('data')}>
+                  Data{seta('data')}
+                </th>
+                <th className="text-left font-medium px-3 py-2">Dia</th>
                 <th className="text-left font-medium px-3 py-2">Categoria</th>
                 <th className="text-left font-medium px-3 py-2">Mesa</th>
                 <th className="text-left font-medium px-3 py-2">Motivo</th>
                 <th className="text-left font-medium px-3 py-2">Produto</th>
-                <th className="text-right font-medium px-3 py-2">Qtd</th>
-                <th className="text-right font-medium px-3 py-2">Bruto</th>
-                <th className="text-right font-medium px-3 py-2">Custo</th>
+                <th className="text-right font-medium px-3 py-2 cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200" onClick={() => sortBy('qtd')}>
+                  Qtd{seta('qtd')}
+                </th>
+                <th className="text-right font-medium px-3 py-2 cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200" onClick={() => sortBy('valor_bruto')}>
+                  Bruto{seta('valor_bruto')}
+                </th>
+                <th className="text-right font-medium px-3 py-2 cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200" onClick={() => sortBy('custo')}>
+                  Custo{seta('custo')}
+                </th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-3 py-8 text-center text-gray-400">
+                  <td colSpan={9} className="px-3 py-8 text-center text-gray-400">
                     Carregando...
                   </td>
                 </tr>
               ) : pageSlice.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-3 py-8 text-center text-gray-400">
+                  <td colSpan={9} className="px-3 py-8 text-center text-gray-400">
                     Nenhum lançamento no período/filtro.
                   </td>
                 </tr>
@@ -499,6 +581,7 @@ export default function ControleConsumacaoPage() {
                 pageSlice.map((l, i) => (
                   <tr key={i} className="border-t border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/40">
                     <td className="px-3 py-1.5 whitespace-nowrap text-gray-700 dark:text-gray-300">{brData(l.data)}</td>
+                    <td className="px-3 py-1.5 whitespace-nowrap text-gray-500">{DOW[dowDe(l.data)].l}</td>
                     <td className="px-3 py-1.5 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1.5">
                         <span className={`inline-block w-2 h-2 rounded-full ${COR[l.categoria] || 'bg-gray-400'}`} />
