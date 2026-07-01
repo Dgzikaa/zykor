@@ -180,7 +180,8 @@ export async function GET(request: NextRequest) {
       .in('producao_id', prodIds).eq('is_mestre', true);
     for (const m of (mestres || []) as any[]) {
       const fc = Number(m.fator_correcao);
-      if (m.producao_id && fc > 0 && fc !== 1) fcEspMap.set(m.producao_id, fc);
+      // inclui FC esperado mesmo quando 1 (= ficha espera 0% de perda): se o realizado vier < 1 fica vermelho.
+      if (m.producao_id && fc > 0) fcEspMap.set(m.producao_id, fc);
     }
   }
 
