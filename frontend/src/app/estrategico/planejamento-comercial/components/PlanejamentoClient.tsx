@@ -41,12 +41,75 @@ import {
   Maximize2,
   Minimize2,
   Pencil,
-  Check
+  Check,
+  Music,
+  Plus
 } from 'lucide-react';
 import { PlanejamentoData } from '../services/planejamento-service';
 
 // Singleton no escopo do modulo (Intl.NumberFormat e' caro).
 const FMT_PLAN_BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+// 1 linha de artista do evento (nome + janela de horário). artista_id liga ao cadastro bar_artistas.
+interface ArtistaLinha {
+  artista_id?: number | null;
+  artista_nome: string;
+  horario_inicio?: string;
+  horario_fim?: string;
+}
+
+// Combobox leve de artista: lista o cadastro (bar_artistas) + permite digitar um nome novo (cria no save).
+function ArtistaField({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: { id: number; nome: string; tipo: string }[];
+  onChange: (nome: string, artistaId: number | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const q = value.trim().toLowerCase();
+  const filtered = (q ? options.filter((o) => o.nome.toLowerCase().includes(q)) : options).slice(0, 50);
+  const exato = options.some((o) => o.nome.toLowerCase() === q);
+  return (
+    <div className="relative">
+      <Input
+        value={value}
+        placeholder="Artista…"
+        onChange={(e) => { onChange(e.target.value, null); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && (filtered.length > 0 || (!!q && !exato)) && (
+        <ul className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-lg text-sm">
+          {filtered.map((o) => (
+            <li key={o.id}>
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); onChange(o.nome, o.id); setOpen(false); }}
+                className="block w-full truncate px-3 py-1.5 text-left hover:bg-[hsl(var(--muted))]"
+              >
+                {o.nome} <span className="text-xs text-[hsl(var(--muted-foreground))]">· {o.tipo}</span>
+              </button>
+            </li>
+          ))}
+          {!!q && !exato && (
+            <li>
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); onChange(value.trim(), null); setOpen(false); }}
+                className="block w-full px-3 py-1.5 text-left text-emerald-600 dark:text-emerald-400 hover:bg-[hsl(var(--muted))]"
+              >
+                + criar &ldquo;{value.trim()}&rdquo;
+              </button>
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 interface EventoEdicaoCompleta {
   id: number;
@@ -94,6 +157,7 @@ interface EventoEdicaoCompleta {
   atrasos_cozinha?: number;
   atrasos_bar?: number;
   observacoes: string;
+  artistas?: ArtistaLinha[];
 }
 
 interface PlanejamentoClientProps {
@@ -184,6 +248,14 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
   const [modoEdicao, setModoEdicao] = useState(false); 
   const [eventoSelecionado, setEventoSelecionado] = useState<PlanejamentoData | null>(null);
   const [eventoEdicao, setEventoEdicao] = useState<EventoEdicaoCompleta | null>(null);
+  // cadastro de artistas do bar (operations.bar_artistas) para o combobox do modal
+  const [artistasCadastro, setArtistasCadastro] = useState<{ id: number; nome: string; tipo: string }[]>([]);
+  useEffect(() => {
+    if (!selectedBar?.id) return;
+    apiCall('/api/artistas', { headers: { 'x-selected-bar-id': String(selectedBar.id) } })
+      .then((r: any) => { if (r?.success) setArtistasCadastro(r.artistas || []); })
+      .catch(() => {});
+  }, [selectedBar?.id]);
   const [salvando, setSalvando] = useState(false);
 
   // === Cadastro de eventos (quando o mês está vazio) ===
@@ -293,17 +365,26 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
     // Sempre buscar o evento bruto: precisamos das colunas separadas
     // (c_artistico_plan/c_prod_plan = previsão manual; c_art/c_prod = real do Conta
     // Azul; *_projecao = projeção automática) pra saber em qual campo gravar o edit.
-    const [atrasosResponse, eventoRawResponse] = await Promise.all([
+    const [atrasosResponse, eventoRawResponse, artistasResponse] = await Promise.all([
       apiCall(`/api/estrategico/atrasos-evento?data=${evento.data_evento}`, {
         headers: { 'x-selected-bar-id': String(selectedBar?.id || '') }
       }).catch(() => ({ success: false, data: { atrasos_cozinha: 0, atrasos_bar: 0 } })),
       apiCall(`/api/eventos/${evento.evento_id}`, {
         headers: { 'x-selected-bar-id': String(selectedBar?.id || '') }
-      }).catch(() => ({ data: null }))
+      }).catch(() => ({ data: null })),
+      apiCall(`/api/eventos/artistas?data_evento=${evento.data_evento}`, {
+        headers: { 'x-selected-bar-id': String(selectedBar?.id || '') }
+      }).catch(() => ({ artistas: [] }))
     ]);
 
     const atrasosData = atrasosResponse?.data || { atrasos_cozinha: 0, atrasos_bar: 0 };
     const raw: any = eventoRawResponse?.data || {};
+    const artistasEvento: ArtistaLinha[] = (((artistasResponse as any)?.artistas) || []).map((a: any) => ({
+      artista_id: a.artista_id ?? null,
+      artista_nome: a.artista_nome || '',
+      horario_inicio: a.horario_inicio ? String(a.horario_inicio).slice(0, 5) : '',
+      horario_fim: a.horario_fim ? String(a.horario_fim).slice(0, 5) : '',
+    }));
 
     let dadosSymplaYuzer = {};
     if (isDomingo && eventoRawResponse?.data) {
@@ -364,9 +445,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
       atrasos_bar: atrasosData.atrasos_bar,
       observacoes: '',
       faturamento_couvert_manual: evento.faturamento_couvert_manual,
-      faturamento_bar_manual: evento.faturamento_bar_manual
+      faturamento_bar_manual: evento.faturamento_bar_manual,
+      artistas: artistasEvento
     };
-    
+
     modalDataCacheRef.current[cacheKey] = dadosIniciais;
     setEventoEdicao(dadosIniciais);
     setModalOpen(true);
@@ -377,6 +459,14 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
     setEventoSelecionado(null);
     setEventoEdicao(null);
   };
+
+  // ---- artistas do evento (lista dinâmica no modal) ----
+  const addArtista = () =>
+    setEventoEdicao((p) => (p ? { ...p, artistas: [...(p.artistas || []), { artista_nome: '', horario_inicio: '', horario_fim: '' }] } : null));
+  const removerArtista = (i: number) =>
+    setEventoEdicao((p) => (p ? { ...p, artistas: (p.artistas || []).filter((_, idx) => idx !== i) } : null));
+  const setArtistaLinha = (i: number, patch: Partial<ArtistaLinha>) =>
+    setEventoEdicao((p) => (p ? { ...p, artistas: (p.artistas || []).map((a, idx) => (idx === i ? { ...a, ...patch } : a)) } : null));
 
   const salvarEdicao = async () => {
     if (!eventoEdicao) return;
@@ -438,6 +528,14 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
           faturamento_bar_manual: eventoEdicao.faturamento_bar_manual || null,
           observacoes: eventoEdicao.observacoes || ''
         })
+      });
+
+      // Artistas do evento (replace-all) — o backend resolve o evento por (bar, data),
+      // que o PUT de planejamento acima já materializou no eventos_base.
+      await apiCall('/api/eventos/artistas', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(selectedBar?.id || '') },
+        body: JSON.stringify({ data_evento: eventoEdicao.data_evento, artistas: eventoEdicao.artistas || [] })
       });
 
       // Invalidar cache do modal
@@ -1554,6 +1652,49 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                       </div>
                       <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800"><h3 className="text-base font-medium mb-2 text-[hsl(var(--foreground))] flex items-center gap-2"><AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" /> Atrasos de Entrega</h3><div className="grid grid-cols-2 gap-4"><div><Label>Cozinha</Label><div className="mt-1 font-medium">{eventoEdicao?.atrasos_cozinha ?? 0}</div></div><div><Label>Bar</Label><div className="mt-1 font-medium">{eventoEdicao?.atrasos_bar ?? 0}</div></div></div></div>
                    </div>
+                </div>
+
+                {/* Artistas do evento (nome + janela de horário) — base das análises por artista */}
+                <div className="mt-4 p-3 bg-[hsl(var(--muted))] rounded border">
+                  <Label className="flex items-center gap-1.5"><Music className="h-4 w-4" /> Artistas (quem tocou)</Label>
+                  <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5 mb-2">
+                    Separe os artistas do nome do dia, com horário de início e fim — assim dá pra puxar público, consumo e relatórios por artista.
+                  </p>
+                  {modoEdicao ? (
+                    <div className="space-y-2">
+                      {(eventoEdicao?.artistas || []).map((a, i) => (
+                        <div key={i} className="flex flex-wrap items-center gap-2">
+                          <div className="flex-1 min-w-[180px]">
+                            <ArtistaField
+                              value={a.artista_nome}
+                              options={artistasCadastro}
+                              onChange={(nome, id) => setArtistaLinha(i, { artista_nome: nome, artista_id: id })}
+                            />
+                          </div>
+                          <Input type="time" value={a.horario_inicio || ''} onChange={(e) => setArtistaLinha(i, { horario_inicio: e.target.value })} className="w-[7.5rem]" title="Início" />
+                          <span className="text-xs text-[hsl(var(--muted-foreground))]">até</span>
+                          <Input type="time" value={a.horario_fim || ''} onChange={(e) => setArtistaLinha(i, { horario_fim: e.target.value })} className="w-[7.5rem]" title="Fim" />
+                          <Button variant="ghost" size="icon" onClick={() => removerArtista(i)} title="Remover artista"><X className="h-4 w-4" /></Button>
+                        </div>
+                      ))}
+                      <Button variant="outline" size="sm" onClick={addArtista}><Plus className="h-4 w-4 mr-1" /> Adicionar artista</Button>
+                    </div>
+                  ) : (eventoEdicao?.artistas || []).length > 0 ? (
+                    <ul className="space-y-1">
+                      {(eventoEdicao?.artistas || []).map((a, i) => (
+                        <li key={i} className="text-sm flex items-center gap-2">
+                          <span className="font-medium">{a.artista_nome}</span>
+                          {(a.horario_inicio || a.horario_fim) && (
+                            <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                              {a.horario_inicio || '—'}{a.horario_fim ? `–${a.horario_fim}` : ''}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-[hsl(var(--muted-foreground))]">Nenhum artista cadastrado neste evento.</p>
+                  )}
                 </div>
               </div>
               <DialogFooter className="bg-[hsl(var(--muted))] p-4 border-t"><Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>{modoEdicao && <Button onClick={salvarEdicao} disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar Alterações'}</Button>}</DialogFooter>
