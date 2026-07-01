@@ -292,7 +292,7 @@ export default function CmvTeoricoPage() {
               <div className="space-y-1.5">
                 {periodo.headline?.sem_ficha_n > 0 && (
                   <button onClick={() => setSoSemFicha(v => !v)} className={`text-left text-xs rounded-md px-3 py-2 border w-full sm:w-auto block ${soSemFicha ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300' : 'border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50/60 dark:hover:bg-red-900/10'}`}>
-                    ⚠ <b>{periodo.headline.sem_ficha_n}</b> produtos venderam <b>sem ficha técnica</b> ({fmtBRL(periodo.headline.sem_ficha_fat)}, fora do custo) — falta cadastrar a receita
+                    ⚠ <b>{periodo.headline.sem_ficha_n}</b> produtos venderam <b>sem ficha técnica</b> ({fmtBRL(periodo.headline.sem_ficha_fat)}) — falta cadastrar a receita · <b>não estou considerando no CMV</b>
                   </button>
                 )}
                 {periodo.headline?.ficha_sem_preco_n > 0 && (

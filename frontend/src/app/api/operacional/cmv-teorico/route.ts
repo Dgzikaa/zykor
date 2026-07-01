@@ -108,30 +108,35 @@ export async function GET(request: NextRequest) {
       return c === 'b' ? 'Bebida' : c === 'd' ? 'Drink' : c === 'c' ? 'Comida' : c === 'o' ? 'Outros' : (r.categoria || '—');
     };
     for (const r of lista) r.categoria = catDe(r);
-    const fat = lista.reduce((s, r) => s + num(r.faturamento), 0);
-    const custo = lista.reduce((s, r) => s + num(r.custo_total), 0);
-    const qtdCortesia = lista.reduce((s, r) => s + Math.max(num(r.qtd_consumo) - num(r.qtd), 0), 0);
-    const custoCortesia = lista.reduce((s, r) => s + Math.max(num(r.qtd_consumo) - num(r.qtd), 0) * num(r.custo_unit), 0);
-    // custo não entra no CMV em 2 casos distintos:
-    //  - SEM FICHA: produto sem ficha técnica (itens_ficha = 0) → precisa cadastrar receita
-    //  - FICHA SEM PREÇO: tem ficha, mas insumo sem preço (custo 0) → precisa precificar o insumo (caso "item R$0")
+    // SEM FICHA (itens_ficha = 0): NÃO entra no CMV — nem faturamento, nem custo.
+    // Sem receita cadastrada o custo seria 0 e só diluiria o CMV pra baixo; então
+    // fica FORA da base. Continua no aviso e na tabela de produtos (p/ cadastrar).
     const semFicha = lista.filter((r: any) => num(r.itens_ficha) === 0);
+    // FICHA SEM PREÇO: tem receita, mas insumo sem preço (custo 0). CONTINUA na base
+    // (é precificável) — entra sem custo ainda, medido pela cobertura.
     const fichaSemPreco = lista.filter((r: any) => num(r.itens_ficha) > 0 && (!r.custo_unit || num(r.custo_unit) === 0));
+    // base efetivamente considerada no CMV = produtos COM ficha técnica
+    const considerados = lista.filter((r: any) => num(r.itens_ficha) > 0);
+
+    const fat = considerados.reduce((s, r) => s + num(r.faturamento), 0);
+    const custo = considerados.reduce((s, r) => s + num(r.custo_total), 0);
+    const qtdCortesia = considerados.reduce((s, r) => s + Math.max(num(r.qtd_consumo) - num(r.qtd), 0), 0);
+    const custoCortesia = considerados.reduce((s, r) => s + Math.max(num(r.qtd_consumo) - num(r.qtd), 0) * num(r.custo_unit), 0);
     const fatSum = (arr: any[]) => Number(arr.reduce((s: number, r: any) => s + num(r.faturamento), 0).toFixed(2));
-    const semCustoFat = fatSum([...semFicha, ...fichaSemPreco]); // total fora do custo (cobertura)
+    const fichaSemPrecoFat = fatSum(fichaSemPreco); // dentro da base, mas sem custo (cobertura)
     const headline = {
       faturamento: fat, custo_total: custo, margem: fat - custo,
       cmv_pct: fat > 0 ? Number((custo / fat * 100).toFixed(2)) : null,
-      n_produtos: lista.length, qtd: lista.reduce((s, r) => s + num(r.qtd), 0),
+      n_produtos: considerados.length, qtd: considerados.reduce((s, r) => s + num(r.qtd), 0),
       qtd_cortesia: qtdCortesia, custo_cortesia: Number(custoCortesia.toFixed(2)),
       sem_ficha_n: semFicha.length,
       sem_ficha_fat: fatSum(semFicha),
       ficha_sem_preco_n: fichaSemPreco.length,
-      ficha_sem_preco_fat: fatSum(fichaSemPreco),
-      cobertura_pct: fat > 0 ? Number(((fat - semCustoFat) / fat * 100).toFixed(1)) : null,
+      ficha_sem_preco_fat: fichaSemPrecoFat,
+      cobertura_pct: fat > 0 ? Number(((fat - fichaSemPrecoFat) / fat * 100).toFixed(1)) : null,
     };
     const catMap = new Map<string, any>();
-    for (const r of lista) {
+    for (const r of considerados) {
       const k = r.categoria || '—';
       const c = catMap.get(k) || { categoria: k, faturamento: 0, custo_total: 0, qtd: 0, itens: 0 };
       c.faturamento += num(r.faturamento); c.custo_total += num(r.custo_total); c.qtd += num(r.qtd); c.itens += 1;
