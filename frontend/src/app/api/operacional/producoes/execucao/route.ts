@@ -72,6 +72,40 @@ export async function POST(request: NextRequest) {
 
   const supabase = await getAdminClient();
 
+  // IDEMPOTÊNCIA (anti duplo/triplo submit): o "Finalizar" pode disparar 2-3x em rede lenta
+  // (cozinha), cada chamada recalcula inicio/fim com new Date() — então só o timestamp muda.
+  // Deduplica pela chave estável (bar+ficha+responsável+duração+rendimento) numa janela curta:
+  // se já existe uma execução idêntica nos últimos 5 min, devolve ELA (sucesso idempotente) em
+  // vez de inserir de novo. Guard em memória no cliente sempre vaza (ver incidente PIX 3x).
+  const durSeg = body.duracao_seg != null ? Math.round(Number(body.duracao_seg)) : null;
+  const rendReal = body.rendimento_real != null ? Number(body.rendimento_real) : null;
+  const respId = body.responsavel_id != null ? Number(body.responsavel_id) : null;
+  const janelaIso = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const { data: recentes } = await (supabase as any)
+    .schema('operations')
+    .from('producao_execucao')
+    .select('id, responsavel_id, duracao_seg, rendimento_real')
+    .eq('bar_id', barId)
+    .eq('producao_id', producaoId)
+    .gte('criado_em', janelaIso)
+    .order('criado_em', { ascending: false })
+    .limit(20);
+  const dup = (recentes || []).find((e: any) =>
+    (e.duracao_seg ?? null) === durSeg &&
+    (e.rendimento_real == null ? null : Number(e.rendimento_real)) === rendReal &&
+    (e.responsavel_id ?? null) === respId
+  );
+  if (dup) {
+    return NextResponse.json({
+      success: true,
+      execucao_id: dup.id,
+      custo_planejado: round(custoPlanejado, 2),
+      custo_real: round(custoReal, 2),
+      aderencia_pct: aderenciaPct,
+      duplicada: true,
+    });
+  }
+
   const { data: exec, error: errExec } = await (supabase as any)
     .schema('operations')
     .from('producao_execucao')
@@ -118,6 +152,34 @@ export async function POST(request: NextRequest) {
     custo_real: round(custoReal, 2),
     aderencia_pct: aderenciaPct,
   });
+}
+
+/**
+ * DELETE ?id=&bar_id= — remove uma execução do histórico (admin only). Usado pra corrigir
+ * lançamentos errados/duplicados (ex.: duplo submit). Apaga os insumos e a execução.
+ */
+export async function DELETE(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  if (user.role !== 'admin') {
+    return NextResponse.json({ success: false, error: 'Apenas admin pode excluir execuções' }, { status: 403 });
+  }
+  const sp = new URL(request.url).searchParams;
+  const id = Number(sp.get('id'));
+  const barId = Number(sp.get('bar_id')) || user.bar_id;
+  if (!id || !barId) return NextResponse.json({ success: false, error: 'id e bar_id obrigatórios' }, { status: 400 });
+
+  const supabase = await getAdminClient();
+  // confirma que a execução é do bar antes de apagar (evita excluir de outro bar por id solto)
+  const { data: alvo } = await (supabase as any)
+    .schema('operations').from('producao_execucao')
+    .select('id').eq('id', id).eq('bar_id', barId).maybeSingle();
+  if (!alvo) return NextResponse.json({ success: false, error: 'Execução não encontrada neste bar' }, { status: 404 });
+
+  await (supabase as any).schema('operations').from('producao_execucao_insumo').delete().eq('execucao_id', id);
+  const { error } = await (supabase as any).schema('operations').from('producao_execucao').delete().eq('id', id).eq('bar_id', barId);
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true, deleted_id: id });
 }
 
 /**

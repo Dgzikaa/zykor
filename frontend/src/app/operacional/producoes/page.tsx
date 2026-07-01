@@ -551,7 +551,9 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setConfirmar(null)}>Voltar e corrigir</Button>
-              <Button onClick={() => executarSalvar(confirmar.prod)} className="bg-amber-600 hover:bg-amber-700">Está correto, salvar</Button>
+              <Button onClick={() => executarSalvar(confirmar.prod)} disabled={salvandoId === confirmar.prod.localId} className="bg-amber-600 hover:bg-amber-700">
+                {salvandoId === confirmar.prod.localId ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}Está correto, salvar
+              </Button>
             </div>
           </div>
         </div>
@@ -563,10 +565,11 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
 // =====================================================================================
 // ABA HISTÓRICO
 // =====================================================================================
-function AbaHistorico({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; responsaveis: any[]; secaoAtiva: Secao }) {
+function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: any[]; responsaveis: any[]; secaoAtiva: Secao; isAdmin: boolean }) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
+  const [excluindo, setExcluindo] = useState(false);
 
   const [execs, setExecs] = useState<any[]>([]);
   const [baselines, setBaselines] = useState<Record<number, any>>({});
@@ -653,6 +656,21 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; res
       const r = await api.get(`/api/operacional/producoes/execucao?bar_id=${barId}&execucao_id=${e.id}`);
       if (r.success) setDetInsumos(r.insumos || []);
     } catch (err: any) { toast({ title: 'Erro', description: err?.message, variant: 'destructive' }); }
+  };
+
+  // Excluir execução (admin only) — corrige lançamento errado/duplicado. Confirma antes.
+  const excluir = async (e: any) => {
+    if (!barId || excluindo) return;
+    if (!window.confirm(`Excluir esta execução de "${e.producao_nome || `#${e.producao_id}`}" (${fmtData(e.criado_em)})?\n\nIsso remove do histórico e das médias. Não dá pra desfazer.`)) return;
+    setExcluindo(true);
+    try {
+      const r = await api.delete(`/api/operacional/producoes/execucao?id=${e.id}&bar_id=${barId}`);
+      if (!r.success) throw new Error(r.error);
+      toast({ title: 'Execução excluída', description: e.producao_nome || `#${e.producao_id}` });
+      setDetalhe(null);
+      await carregar();
+    } catch (err: any) { toast({ title: 'Erro ao excluir', description: err?.message, variant: 'destructive' }); }
+    finally { setExcluindo(false); }
   };
 
   // flags de controle por execução
@@ -828,7 +846,16 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; res
                 <h4 className="font-semibold text-gray-900 dark:text-white">{detalhe.producao_nome}</h4>
                 <p className="text-xs text-gray-500">{fmtData(detalhe.criado_em)} · {detalhe.responsavel_nome || '—'} · {detalhe.duracao_seg != null ? fmtTempo(detalhe.duracao_seg) : '—'}</p>
               </div>
-              <button onClick={() => setDetalhe(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <div className="flex items-center gap-1 shrink-0">
+                {isAdmin && (
+                  <button onClick={() => excluir(detalhe)} disabled={excluindo}
+                    className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 border border-red-200 dark:border-red-800 rounded-md px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                    title="Excluir esta execução do histórico (admin)">
+                    {excluindo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}Excluir
+                  </button>
+                )}
+                <button onClick={() => setDetalhe(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2 mb-3">
               {flags(detalhe).map((f, i) => { const Icon = f.icon; return <span key={i} className={`inline-flex items-center gap-0.5 text-[11px] rounded px-1.5 py-0.5 border ${f.cls}`}><Icon className="w-3 h-3" />{f.label}</span>; })}
@@ -1055,7 +1082,7 @@ export default function ProducoesPage() {
 
         {aba === 'executar'
           ? <AbaExecutar fichas={fichas} responsaveis={responsaveis} secaoAtiva={secaoAtiva} />
-          : <AbaHistorico fichas={fichas} responsaveis={responsaveis} secaoAtiva={secaoAtiva} />}
+          : <AbaHistorico fichas={fichas} responsaveis={responsaveis} secaoAtiva={secaoAtiva} isAdmin={isAdmin} />}
 
         {gerirEquipe && isAdmin && barId && (
           <GerirEquipeModal
