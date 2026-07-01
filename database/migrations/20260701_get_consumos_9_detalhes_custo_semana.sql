@@ -96,4 +96,7 @@ begin
 end;
 $function$;
 
+-- Função nova recebe EXECUTE pro PUBLIC por padrão; como é SECURITY INVOKER isso não vaza
+-- (roda como o chamador), mas por higiene tiramos do public/anon e damos só a quem usa.
+revoke execute on function public.get_consumos_9_detalhes_custo_semana(integer, date, date, text, numeric, integer, integer) from public, anon;
 grant execute on function public.get_consumos_9_detalhes_custo_semana(integer, date, date, text, numeric, integer, integer) to service_role, authenticated;
