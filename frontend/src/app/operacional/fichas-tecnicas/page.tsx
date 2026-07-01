@@ -180,14 +180,23 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   const abrirEdit = (it: any) => { setEditItem(it); setEditQtd(String(it.quantidade ?? '')); };
   const salvarEdit = async () => {
     if (!editItem) return;
+    // aviso na hora da edição: se o custo resultante destoa muito do previsto (planilha),
+    // costuma ser unidade/embalagem do insumo errada. Avisa e, se confirmar, segue e mostra o valor.
+    const novaQtd = Number(String(editQtd).replace(',', '.')) || 0;
+    const precoUn = Number(editItem.preco_un || 0);
+    const planilha = Number(editItem.custo_planilha || 0);
+    const custoPrev = novaQtd * precoUn;
+    if (planilha > 0 && precoUn > 0 && custoPrev > planilha * 5
+      && !window.confirm(`O custo desse componente fica em ${fmtBRL(custoPrev)}, bem acima do previsto (${fmtBRL(planilha)} na planilha). Isso costuma indicar unidade/embalagem do insumo errada. Salvar mesmo assim?`)) return;
     try {
-      await api.put('/api/operacional/producoes/ficha', { id: editItem.id, quantidade: Number(editQtd) || 0 });
+      await api.put('/api/operacional/producoes/ficha', { id: editItem.id, quantidade: novaQtd });
       setEditItem(null); if (sel) await carregarItens(sel);
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
-  // custo pelo último preço: usa o calculado; se destoar muito da planilha (unidade a revisar), cai pro planilha
+  // custo pelo último preço: usa SEMPRE o calculado (VMarket/última compra) quando existe.
+  // flagRevisar só ALERTA quando destoa muito da planilha (provável unidade/embalagem errada) — não zera nem esconde o valor.
   const flagRevisar = (it: any) => Number(it.custo_planilha || 0) > 0 && it.custo_atual != null && it.custo_atual > Number(it.custo_planilha) * 5;
-  const custoItemAtual = (it: any) => (it.custo_atual != null && !flagRevisar(it)) ? it.custo_atual : Number(it.custo_planilha || 0);
+  const custoItemAtual = (it: any) => it.custo_atual != null ? it.custo_atual : Number(it.custo_planilha || 0);
   const custoAtualTotal = itens.reduce((s, it) => s + custoItemAtual(it), 0);
 
   // indicador: CMV do produto vs média da categoria (CMV teórico, 90 dias) — verde se ≤ média (melhor), vermelho se acima
@@ -578,8 +587,9 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                         </td>
                         <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtPrecoUn(it.preco_un, it.unidade_exib)}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums font-medium">
-                          {flagRevisar(it) ? <span className="text-amber-500 text-xs" title="Custo destoa muito — revisar a unidade/embalagem do insumo">⚠ revisar</span>
-                            : it.custo_atual != null ? fmtBRL(it.custo_atual) : '—'}
+                          {it.custo_atual != null
+                            ? <span className={flagRevisar(it) ? 'text-amber-600 dark:text-amber-400' : ''} title={flagRevisar(it) ? `Custo bem acima do previsto (planilha ${fmtBRL(Number(it.custo_planilha))}) — confira a unidade/embalagem do insumo` : undefined}>{flagRevisar(it) ? '⚠ ' : ''}{fmtBRL(it.custo_atual)}</span>
+                            : '—'}
                         </td>
                         <td className="px-2 py-1.5 text-right whitespace-nowrap">
                           <button onClick={() => abrirEdit(it)} className="text-gray-400 hover:text-gray-600 mr-1" title="Editar"><Pencil className="w-4 h-4 inline" /></button>
