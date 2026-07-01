@@ -177,9 +177,15 @@ export default function InsumosPage() {
   };
 
   const catList = useMemo(() => Array.from(new Set(insumos.map(i => i.categoria).filter(Boolean))).sort() as string[], [insumos]);
-  // próximo código na sequência (maior i0XXX + 1) — pré-preenche o cadastro manual
+  // próximo código na sequência (maior i0XXX + 1) — pré-preenche o cadastro manual.
+  // Usa SÓ o número logo após o 'i' inicial: códigos têm sufixos (ex.: i0010_guatnica35,
+  // i0501_espetinho__1) que, se removêssemos todas as letras, concatenavam os dígitos do
+  // sufixo e inflavam a sugestão (i0010_guatnica35 → "1035"). Regex ancorada no início.
   const proximoCodigo = useMemo(() => {
-    const maxn = insumos.reduce((m, i) => Math.max(m, Number(String(i.codigo || '').replace(/\D/g, '')) || 0), 0);
+    const maxn = insumos.reduce((m, i) => {
+      const mt = String(i.codigo || '').match(/^i0*(\d+)/i);
+      return mt ? Math.max(m, Number(mt[1]) || 0) : m;
+    }, 0);
     return `i${String(maxn + 1).padStart(4, '0')}`;
   }, [insumos]);
   const nSemFicha = useMemo(() => insumos.filter(i => !i.tem_ficha).length, [insumos]);
