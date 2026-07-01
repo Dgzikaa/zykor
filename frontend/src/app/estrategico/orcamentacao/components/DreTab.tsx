@@ -409,7 +409,7 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
 
   if (loading) return <div className="p-4"><Skeleton className="h-96 w-full" /></div>;
 
-  const COLSPAN_TOTAL = 2 + 12 * 2 + 2; // labels + (valor,%)×12 + YTD(valor,%)
+  const COLSPAN_TOTAL = 1 + 12 * 2 + 2; // label (1 col) + (valor,%)×12 + YTD(valor,%)
 
   return (
     <div className="p-4 space-y-4">
@@ -455,8 +455,7 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
         <table className="w-full text-xs">
           <thead className="bg-gray-100 dark:bg-gray-800 text-[10px] uppercase">
             <tr>
-              <th className="text-left py-2 px-2 sticky left-0 top-0 bg-gray-100 dark:bg-gray-800 min-w-[180px] z-30">Categ MACRO</th>
-              <th className="text-left py-2 px-2 sticky left-[180px] top-0 bg-gray-100 dark:bg-gray-800 min-w-[200px] z-30">Categoria</th>
+              <th className="text-left py-2 px-2 sticky left-0 top-0 bg-gray-100 dark:bg-gray-800 min-w-[240px] z-30">Categoria</th>
               {MES_LABEL.map((m, i) => (
                 // Label do mês fica alinhado à direita sobre a coluna de VALOR (não a de %),
                 // ficando exatamente sobre o total da coluna.
@@ -514,32 +513,13 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
                               ? 'bg-slate-50 dark:bg-slate-900/40 font-bold'
                               : row.destaque ? 'bg-gray-50 dark:bg-gray-900/40 font-bold' : 'bg-white dark:bg-gray-950'
                     } ${row.cor ?? ''}`}>
-                      <span className="inline-flex items-center gap-1">
-                        {row.colapsavel && row.tipo !== 'subgrupo' && (
-                          colapsado ? <ChevronRight className="w-3 h-3 shrink-0" /> : <ChevronDown className="w-3 h-3 shrink-0" />
-                        )}
-                        {row.label}
-                      </span>
-                    </td>
-                    <td className={`py-1.5 px-2 sticky left-[180px] z-10 ${
-                      row.label === 'Lucro Líquido'
-                        ? 'bg-emerald-50 dark:bg-emerald-950/40'
-                        : row.parcial
-                          ? 'bg-slate-100 dark:bg-slate-800/60'
-                          : row.secao === 'investimento' && row.tipo === 'macro'
-                            ? 'bg-blue-50/60 dark:bg-blue-950/30'
-                            : row.tipo === 'subgrupo'
-                              ? 'bg-slate-50 dark:bg-slate-900/40'
-                              : row.destaque ? 'bg-gray-50 dark:bg-gray-900/40' : 'bg-white dark:bg-gray-950'
-                    }`}>
-                      <span
-                        className="inline-flex items-center gap-1"
-                        style={row.nivel === 2 ? { paddingLeft: '1rem' } : undefined}
-                      >
-                        {row.colapsavel && row.tipo === 'subgrupo' && (
-                          colapsado ? <ChevronRight className="w-3 h-3 shrink-0" /> : <ChevronDown className="w-3 h-3 shrink-0" />
-                        )}
-                        {row.label2}
+                      {/* Coluna única de categoria: macro em negrito quando colapsado; ao expandir,
+                          subgrupos/subs descem indentados por nível (0 macro · 1 sub/subgrupo · 2 sub). */}
+                      <span className="inline-flex items-center gap-1" style={{ paddingLeft: `${(row.nivel ?? 0) * 0.9}rem` }}>
+                        {row.colapsavel
+                          ? (colapsado ? <ChevronRight className="w-3 h-3 shrink-0" /> : <ChevronDown className="w-3 h-3 shrink-0" />)
+                          : <span className="w-3 shrink-0" aria-hidden />}
+                        {row.label || row.label2}
                       </span>
                     </td>
                     {row.valores.map((v, i) => {

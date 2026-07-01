@@ -32,7 +32,10 @@ export default async function Page() {
   return (
     <div className="flex flex-col min-h-screen">
       <BarSyncCheck />
-      <div className="flex-1 overflow-auto p-4">
+      {/* overflow-x-hidden (não overflow-auto): sem isso, o iOS/iPhone captura o gesto de
+          arrastar lateral neste wrapper aninhado e não repassa pro scroll horizontal da
+          tabela (o <Card overflow-x-auto>). O vertical fica por conta de overflow-y-auto. */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
         <DreComparativo barId={barId} anoAtual={anoAtual} />
       </div>
     </div>
