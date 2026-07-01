@@ -9,7 +9,8 @@ AS $function$
       sum(v.valor) fat, sum(v.qtd_venda * coalesce(pcmv.custo,0)) custo
     from silver.vendas_consolidada_dia v
     join public.produto_cardapio pc on pc.bar_id=v.bar_id and pc.codigo=v.cod_interno
-    left join gold.produto_cmv pcmv on pcmv.bar_id=v.bar_id and pcmv.produto_id=pc.id
+    -- só produtos COM ficha técnica entram no teórico (itens_ficha>0)
+    join gold.produto_cmv pcmv on pcmv.bar_id=v.bar_id and pcmv.produto_id=pc.id and coalesce(pcmv.itens_ficha,0) > 0
     where v.bar_id=p_bar_id and extract(year from v.data)=p_ano
     group by 1
   ), re as (
