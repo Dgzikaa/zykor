@@ -17,24 +17,13 @@ const round = (n: number, casas = 4) => {
   return Math.round((Number(n) || 0) * f) / f;
 };
 
-export async function POST(request: NextRequest) {
-  const user = await authenticateUser(request);
-  if (!user) return authErrorResponse('Usuário não autenticado');
-  const body = await request.json().catch(() => ({}));
-
-  const barId = Number(body.bar_id) || user.bar_id;
-  const producaoId = Number(body.producao_id);
-  if (!barId || !producaoId) {
-    return NextResponse.json({ success: false, error: 'bar_id e producao_id obrigatórios' }, { status: 400 });
-  }
-
-  const insumos: any[] = Array.isArray(body.insumos) ? body.insumos : [];
-
-  // snapshots de custo/desvio por insumo
+// Snapshot de custo/desvio por insumo (usado no POST e no PUT/editar). O custo já vem
+// precificado da tela (preco_un da cascata VMarket→planilha); aqui só multiplica e agrega.
+function computarExecucao(insumos: any[]) {
   let custoPlanejado = 0;
   let custoReal = 0;
   const desvios: number[] = [];
-  const linhas = insumos.map((i) => {
+  const linhas = (Array.isArray(insumos) ? insumos : []).map((i) => {
     const precoUn = Number(i.preco_un) || 0;
     const qtdPlan = i.qtd_planejada != null ? Number(i.qtd_planejada) : null;
     const qtdCalc = i.qtd_calculada != null ? Number(i.qtd_calculada) : qtdPlan;
@@ -64,11 +53,26 @@ export async function POST(request: NextRequest) {
       desvio_pct: desvioPct,
     };
   });
-
   // aderência = 100 - desvio médio absoluto (clamp 0..100)
   const aderenciaPct = desvios.length
     ? Math.max(0, round(100 - (desvios.reduce((s, d) => s + d, 0) / desvios.length) * 100, 2))
     : null;
+  return { linhas, custoPlanejado, custoReal, aderenciaPct };
+}
+
+export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const body = await request.json().catch(() => ({}));
+
+  const barId = Number(body.bar_id) || user.bar_id;
+  const producaoId = Number(body.producao_id);
+  if (!barId || !producaoId) {
+    return NextResponse.json({ success: false, error: 'bar_id e producao_id obrigatórios' }, { status: 400 });
+  }
+
+  const insumos: any[] = Array.isArray(body.insumos) ? body.insumos : [];
+  const { linhas, custoPlanejado, custoReal, aderenciaPct } = computarExecucao(insumos);
 
   const supabase = await getAdminClient();
 

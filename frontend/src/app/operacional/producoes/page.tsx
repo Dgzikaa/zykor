@@ -37,6 +37,13 @@ const desvioRendReais = (e: any): number | null => {
 // ---------- helpers ----------
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtNum = (v: any, d = 0) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: d });
+// peso/volume com unidade amigável (igual às Fichas Técnicas): g→kg, ml→L quando ≥1000
+const fmtPeso = (q: any, u: string | null) => {
+  const n = Number(q || 0);
+  if (u === 'g' || u === 'kg') { const g = u === 'kg' ? n * 1000 : n; return g >= 1000 ? `${(g / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg` : `${g.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} g`; }
+  if (u === 'ml' || u === 'L') { const ml = u === 'L' ? n * 1000 : n; return ml >= 1000 ? `${(ml / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} L` : `${ml.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ml`; }
+  return `${n.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}${u ? ' ' + u : ''}`;
+};
 const fmtPct = (v: any, d = 1) => v == null ? '—' : `${Number(v).toLocaleString('pt-BR', { maximumFractionDigits: d })}%`;
 const fmtTempo = (seg: any) => {
   const s = Math.max(0, Math.round(Number(seg) || 0));
@@ -845,6 +852,18 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
               <div>
                 <h4 className="font-semibold text-gray-900 dark:text-white">{detalhe.producao_nome}</h4>
                 <p className="text-xs text-gray-500">{fmtData(detalhe.criado_em)} · {detalhe.responsavel_nome || '—'} · {detalhe.duracao_seg != null ? fmtTempo(detalhe.duracao_seg) : '—'}</p>
+                {/* Rendimento real × planejado (da ficha) */}
+                {detalhe.rendimento_real != null && (
+                  <p className="text-xs mt-1 text-gray-600 dark:text-gray-300">
+                    Rendimento: <b>{fmtNum(detalhe.rendimento_real, 2)} {detalhe.producao_unidade || ''}</b>
+                    <span className="text-gray-400"> / meta </span>
+                    {detalhe.rendimento_esperado != null ? `${fmtNum(detalhe.rendimento_esperado, 2)} ${detalhe.producao_unidade || ''}` : '—'}
+                    {detalhe.rendimento_esperado != null && detalhe.rendimento_esperado > 0 && (() => {
+                      const p = (Number(detalhe.rendimento_real) / Number(detalhe.rendimento_esperado)) * 100;
+                      return <span className={`ml-1 font-medium ${p >= 95 && p <= 105 ? 'text-emerald-600' : p >= 90 ? 'text-amber-600' : 'text-red-600'}`}>({fmtPct(p)})</span>;
+                    })()}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {isAdmin && (
@@ -881,13 +900,13 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
                 {detInsumos.length === 0 ? <tr><td colSpan={6} className="px-2 py-4 text-center text-gray-400"><Loader2 className="w-4 h-4 animate-spin mx-auto" /></td></tr>
                 : detInsumos.map(i => (
                   <tr key={i.id} className={i.is_mestre ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}>
-                    <td className="px-2 py-1.5">{i.is_mestre && <span className="text-amber-500 mr-1">★</span>}{i.nome || i.insumo_codigo || '—'} <span className="text-xs text-gray-400">{i.unidade || ''}</span></td>
+                    <td className="px-2 py-1.5">{i.is_mestre && <span className="text-amber-500 mr-1">★</span>}{i.nome || i.insumo_codigo || '—'}</td>
                     {/* Bruto: só o mestre com peso bruto lançado (FC). É o que de fato saiu do estoque antes da limpeza. */}
                     <td className="px-2 py-1.5 text-right tabular-nums">{i.is_mestre && detalhe.peso_bruto != null && Number(detalhe.peso_bruto) > 0
-                      ? <span className="font-medium text-gray-700 dark:text-gray-200">{fmtNum(detalhe.peso_bruto, 3)}</span>
+                      ? <span className="font-medium text-gray-700 dark:text-gray-200">{fmtPeso(detalhe.peso_bruto, i.unidade)}</span>
                       : <span className="text-gray-300">—</span>}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(i.qtd_calculada, 3)}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(i.qtd_real, 3)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{fmtPeso(i.qtd_calculada, i.unidade)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{fmtPeso(i.qtd_real, i.unidade)}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">
                       {i.desvio_pct == null ? '—' : <span className={Math.abs(i.desvio_pct) < 0.05 ? 'text-emerald-600' : Math.abs(i.desvio_pct) < 0.15 ? 'text-amber-600' : 'text-red-600'}>{i.desvio_pct > 0 ? '+' : ''}{fmtPct(i.desvio_pct * 100)}</span>}
                     </td>
