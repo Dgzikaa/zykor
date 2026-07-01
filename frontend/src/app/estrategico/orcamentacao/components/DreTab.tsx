@@ -47,11 +47,28 @@ const fmtBRL = (n: number) => {
   return neg ? `-R$ ${str}` : `R$ ${str}`;
 };
 
-// Linha pronta pra render (header de macro OU subcategoria).
+// Subgrupos intermediários dentro de um macro (nível extra entre macro e subcategoria).
+// Hoje só a Mão-de-Obra: separa o CMO fixo dos freelas. Quem não cair em nenhum subgrupo
+// (ex.: PRO LABORE) vira linha solta direto no macro, na ordem_sub original.
+const CMO_FIXO = new Set([
+  'SALARIO FUNCIONARIOS', 'PROVISÃO TRABALHISTA', 'VALE TRANSPORTE', 'ADICIONAIS', 'ALIMENTAÇÃO',
+]);
+const SUBGRUPOS_POR_MACRO: Record<string, { nome: string; inclui: (cat: string) => boolean }[]> = {
+  'Mão-de-Obra': [
+    { nome: 'CMO Fixo', inclui: (c) => CMO_FIXO.has(c) },
+    { nome: 'CMO Freelas', inclui: (c) => c.startsWith('FREELA') },
+  ],
+};
+
+// Linha pronta pra render (header de macro, subgrupo OU subcategoria).
 interface LinhaRender {
-  tipo: 'macro' | 'sub';
-  grupo: string;            // chave de colapso (macro ao qual pertence)
-  colapsavel: boolean;      // header de macro com subs
+  tipo: 'macro' | 'subgrupo' | 'sub';
+  grupo: string;            // macro ao qual pertence (react key)
+  macro: string;            // categoria_macro p/ drill-down
+  colapsoKey?: string;      // chave que esta linha (colapsável) abre/fecha
+  ancestrais: string[];     // chaves de colapso que, se fechadas, escondem esta linha
+  nivel?: number;           // 0 macro, 1 subgrupo/sub-solta, 2 sub dentro de subgrupo
+  colapsavel: boolean;      // header colapsável (macro/subgrupo com filhos)
   label: string;
   label2?: string;
   valores: number[];        // 12 valores
@@ -182,6 +199,9 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
       out.push({
         tipo: 'macro',
         grupo: '__subtotal__',
+        macro: '',
+        ancestrais: [],
+        nivel: 0,
         colapsavel: false,
         label,
         label2: '',
@@ -220,6 +240,10 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
       out.push({
         tipo: 'macro',
         grupo: macroNome,
+        macro: macroNome,
+        colapsoKey: macroNome,
+        ancestrais: [],
+        nivel: 0,
         colapsavel: subs.length > 0,
         label: macroNome,
         label2: 'TOTAL',
@@ -232,7 +256,10 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
         cor: corMacro ?? (macroNome === 'Receita' ? 'text-emerald-700' : 'text-gray-900 dark:text-gray-100'),
       });
 
-      for (const [subNome, mesMap] of subs) {
+      type Sub = [string, Map<number, DreRow>];
+
+      // Emite uma linha de subcategoria (folha).
+      const pushSub = (subNome: string, mesMap: Map<number, DreRow>, ancestrais: string[], nivel: number) => {
         const valoresSub: number[] = Array(12).fill(0);
         for (const [mes, row] of mesMap) valoresSub[mes] = row.valor_com_sinal;
         const ytdSub = somaFechados(valoresSub);
@@ -240,6 +267,9 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
         out.push({
           tipo: 'sub',
           grupo: macroNome,
+          macro: macroNome,
+          ancestrais,
+          nivel,
           colapsavel: false,
           label: '',
           label2: subNome,
@@ -249,6 +279,50 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
           ytdPct: secao === 'investimento' ? null : (receitaYTD > 0 ? (ytdSub / receitaYTD * 100) : null),
           secao,
         });
+      };
+
+      // Emite o header (subtotal) de um subgrupo + suas subcategorias abaixo.
+      const pushSubgrupo = (nome: string, membros: Sub[]) => {
+        const key = `${macroNome} :: ${nome}`;
+        const valores: number[] = Array(12).fill(0);
+        for (const [, mesMap] of membros) {
+          for (const [mes, row] of mesMap) valores[mes] += row.valor_com_sinal;
+        }
+        const ytd = somaFechados(valores);
+        const pct = valores.map((v, i) => receitaTotalMes[i] > 0 ? (v / receitaTotalMes[i] * 100) : null);
+        out.push({
+          tipo: 'subgrupo',
+          grupo: macroNome,
+          macro: macroNome,
+          colapsoKey: key,
+          ancestrais: [macroNome],
+          nivel: 1,
+          colapsavel: membros.length > 0,
+          label: '',
+          label2: nome,
+          valores,
+          percentuais: secao === 'investimento' ? valores.map(() => null) : pct,
+          ytd,
+          ytdPct: secao === 'investimento' ? null : (receitaYTD > 0 ? (ytd / receitaYTD * 100) : null),
+          secao,
+        });
+        for (const [subNome, mesMap] of membros) pushSub(subNome, mesMap, [macroNome, key], 2);
+      };
+
+      const subgruposCfg = SUBGRUPOS_POR_MACRO[macroNome];
+      if (subgruposCfg) {
+        // Cada subcategoria entra no 1º subgrupo que a inclui; o resto vira linha solta.
+        const usados = new Set<string>();
+        for (const cfg of subgruposCfg) {
+          const membros = subs.filter(([n]) => cfg.inclui(n));
+          membros.forEach(([n]) => usados.add(n));
+          if (membros.length > 0) pushSubgrupo(cfg.nome, membros);
+        }
+        for (const [subNome, mesMap] of subs) {
+          if (!usados.has(subNome)) pushSub(subNome, mesMap, [macroNome], 1);
+        }
+      } else {
+        for (const [subNome, mesMap] of subs) pushSub(subNome, mesMap, [macroNome], 1);
       }
     };
 
@@ -287,6 +361,9 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
       out.push({
         tipo: 'macro',
         grupo: 'Dividendos',
+        macro: 'Dividendos',
+        ancestrais: [],
+        nivel: 0,
         colapsavel: false,
         label: 'Dividendos',
         label2: '',
@@ -302,30 +379,32 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
     return { rows: out, receitaTotalMes, receitaYTD };
   }, [linhas, ano]);
 
-  // Aplica colapso: esconde subs de macros colapsados (macros sempre visíveis).
+  // Aplica colapso: uma linha some se qualquer um dos seus ancestrais estiver fechado
+  // (macro colapsado esconde subgrupos e subs; subgrupo colapsado esconde só suas subs).
   const linhasVisiveis = useMemo(
-    () => dados.rows.filter(r => r.tipo === 'macro' || !colapsados.has(r.grupo)),
+    () => dados.rows.filter(r => r.ancestrais.every(a => !colapsados.has(a))),
     [dados.rows, colapsados]
   );
 
-  // Default: entra com TODOS os macros recolhidos (só no 1º load — depois respeita
-  // o que o usuário abrir/fechar, mesmo após "Atualizar").
+  const chavesColapsaveis = useMemo(
+    () => dados.rows.filter(r => r.colapsavel && r.colapsoKey).map(r => r.colapsoKey!),
+    [dados.rows]
+  );
+
+  // Default: entra com TUDO recolhido (só no 1º load — depois respeita o que o
+  // usuário abrir/fechar, mesmo após "Atualizar").
   const colapsoInicialRef = useRef(false);
   useEffect(() => {
-    if (!colapsoInicialRef.current && dados.rows.some(r => r.colapsavel)) {
-      setColapsados(new Set(dados.rows.filter(r => r.colapsavel).map(r => r.grupo)));
+    if (!colapsoInicialRef.current && chavesColapsaveis.length > 0) {
+      setColapsados(new Set(chavesColapsaveis));
       colapsoInicialRef.current = true;
     }
-  }, [dados.rows]);
+  }, [chavesColapsaveis]);
 
-  const temMacrosColapsaveis = dados.rows.some(r => r.colapsavel);
-  const todosColapsados = dados.rows.filter(r => r.colapsavel).every(r => colapsados.has(r.grupo));
+  const temMacrosColapsaveis = chavesColapsaveis.length > 0;
+  const todosColapsados = chavesColapsaveis.every(k => colapsados.has(k));
   const toggleTodos = () => {
-    if (todosColapsados) {
-      setColapsados(new Set());
-    } else {
-      setColapsados(new Set(dados.rows.filter(r => r.colapsavel).map(r => r.grupo)));
-    }
+    setColapsados(todosColapsados ? new Set() : new Set(chavesColapsaveis));
   };
 
   if (loading) return <div className="p-4"><Skeleton className="h-96 w-full" /></div>;
@@ -392,7 +471,7 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
           </thead>
           <tbody>
             {linhasVisiveis.map((row, idx) => {
-              const colapsado = colapsados.has(row.grupo);
+              const colapsado = !!row.colapsoKey && colapsados.has(row.colapsoKey);
               // Espaço antes do primeiro bloco de Investimentos pra separá-lo do resultado.
               const primeiraInvest = row.secao === 'investimento'
                 && (idx === 0 || linhasVisiveis[idx - 1].secao !== 'investimento');
@@ -411,15 +490,17 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
                           ? 'bg-slate-100 dark:bg-slate-800/60 border-t-2 border-slate-300 dark:border-slate-600 font-bold'
                           : row.secao === 'investimento' && row.tipo === 'macro'
                             ? 'bg-blue-50/60 dark:bg-blue-950/30 border-t border-blue-200 dark:border-blue-800 font-semibold'
-                            : row.destaque
-                              ? 'bg-gray-50 dark:bg-gray-900/40 font-semibold'
-                              : ''
+                            : row.tipo === 'subgrupo'
+                              ? 'bg-slate-50 dark:bg-slate-900/40 font-semibold'
+                              : row.destaque
+                                ? 'bg-gray-50 dark:bg-gray-900/40 font-semibold'
+                                : ''
                     } ${row.colapsavel ? 'hover:bg-gray-100 dark:hover:bg-gray-800/60' : ''} ${
                       linhaSelecionada === idx ? '[&>td]:!bg-amber-100 dark:[&>td]:!bg-amber-900/30' : ''
                     }`}
                     onClick={() => {
                       setLinhaSelecionada(prev => (prev === idx ? null : idx));
-                      if (row.colapsavel) toggleMacro(row.grupo);
+                      if (row.colapsavel && row.colapsoKey) toggleMacro(row.colapsoKey);
                     }}
                   >
                     <td className={`py-1.5 px-2 sticky left-0 z-10 ${
@@ -429,10 +510,12 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
                           ? 'bg-slate-100 dark:bg-slate-800/60 font-bold'
                           : row.secao === 'investimento' && row.tipo === 'macro'
                             ? 'bg-blue-50/60 dark:bg-blue-950/30 font-bold'
-                            : row.destaque ? 'bg-gray-50 dark:bg-gray-900/40 font-bold' : 'bg-white dark:bg-gray-950'
+                            : row.tipo === 'subgrupo'
+                              ? 'bg-slate-50 dark:bg-slate-900/40 font-bold'
+                              : row.destaque ? 'bg-gray-50 dark:bg-gray-900/40 font-bold' : 'bg-white dark:bg-gray-950'
                     } ${row.cor ?? ''}`}>
                       <span className="inline-flex items-center gap-1">
-                        {row.colapsavel && (
+                        {row.colapsavel && row.tipo !== 'subgrupo' && (
                           colapsado ? <ChevronRight className="w-3 h-3 shrink-0" /> : <ChevronDown className="w-3 h-3 shrink-0" />
                         )}
                         {row.label}
@@ -445,9 +528,19 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
                           ? 'bg-slate-100 dark:bg-slate-800/60'
                           : row.secao === 'investimento' && row.tipo === 'macro'
                             ? 'bg-blue-50/60 dark:bg-blue-950/30'
-                            : row.destaque ? 'bg-gray-50 dark:bg-gray-900/40' : 'bg-white dark:bg-gray-950'
+                            : row.tipo === 'subgrupo'
+                              ? 'bg-slate-50 dark:bg-slate-900/40'
+                              : row.destaque ? 'bg-gray-50 dark:bg-gray-900/40' : 'bg-white dark:bg-gray-950'
                     }`}>
-                      {row.label2}
+                      <span
+                        className="inline-flex items-center gap-1"
+                        style={row.nivel === 2 ? { paddingLeft: '1rem' } : undefined}
+                      >
+                        {row.colapsavel && row.tipo === 'subgrupo' && (
+                          colapsado ? <ChevronRight className="w-3 h-3 shrink-0" /> : <ChevronDown className="w-3 h-3 shrink-0" />
+                        )}
+                        {row.label2}
+                      </span>
                     </td>
                     {row.valores.map((v, i) => {
                       const drillable = !!onDrill && row.tipo === 'sub' && !!row.label2 && v !== 0;
@@ -457,7 +550,7 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
                           className={`py-1.5 px-2 text-right tabular-nums whitespace-nowrap ${v < 0 ? 'text-red-600' : v > 0 && row.label === 'Receita' ? 'text-emerald-600' : ''} ${drillable ? 'cursor-pointer hover:underline hover:bg-amber-50 dark:hover:bg-amber-900/20' : ''}`}
                           onClick={drillable ? (e) => {
                             e.stopPropagation();
-                            onDrill!({ categoria_macro: row.grupo, canon: row.label2 as string, mes: i + 1, ano, label: `${row.label2} — ${MES_LABEL[i]}/${ano}` });
+                            onDrill!({ categoria_macro: row.macro, canon: row.label2 as string, mes: i + 1, ano, label: `${row.label2} — ${MES_LABEL[i]}/${ano}` });
                           } : undefined}
                           title={drillable ? 'Ver lançamentos' : undefined}
                         >
