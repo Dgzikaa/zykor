@@ -767,6 +767,51 @@ function FichasInner() {
     finally { setImportando(false); }
   };
 
+  // ===== Buscar por insumo (#1) + substituir em massa (#3) =====
+  const [iuOpen, setIuOpen] = useState(false);
+  const [iuTermo, setIuTermo] = useState('');
+  const [iuInsumos, setIuInsumos] = useState<any[]>([]); // insumos que casaram com o termo
+  const [iuDe, setIuDe] = useState<any>(null);           // insumo de origem selecionado {codigo, nome}
+  const [iuUsos, setIuUsos] = useState<any[]>([]);
+  const [iuLoading, setIuLoading] = useState(false);
+  const [iuSub, setIuSub] = useState<any>(null);         // insumo destino {codigo, nome}
+  const [iuSubBusca, setIuSubBusca] = useState('');
+  const [iuBusy, setIuBusy] = useState(false);
+
+  const buscarUso = useCallback(async (termo: string) => {
+    if (!barId || termo.trim().length < 2) { setIuInsumos([]); setIuUsos([]); setIuDe(null); return; }
+    setIuLoading(true);
+    try {
+      const r = await api.get(`/api/operacional/fichas/insumo-uso?bar_id=${barId}&insumo=${encodeURIComponent(termo.trim())}`);
+      if (r.success) {
+        setIuInsumos(r.insumos || []);
+        setIuUsos(r.usos || []);
+        setIuDe((r.insumos || []).length === 1 ? r.insumos[0] : null);
+      }
+    } finally { setIuLoading(false); }
+  }, [barId]);
+  useEffect(() => { const id = setTimeout(() => buscarUso(iuTermo), 300); return () => clearTimeout(id); }, [iuTermo, buscarUso]);
+
+  const iuUsosView = useMemo(() => iuDe ? iuUsos.filter((u: any) => String(u.insumo_codigo).toUpperCase() === String(iuDe.codigo).toUpperCase()) : iuUsos, [iuUsos, iuDe]);
+  const iuSubOpcoes = useMemo(() => {
+    const s = iuSubBusca.trim().toLowerCase(); if (!s) return [];
+    return (insumos || []).filter((i: any) => (i.nome || '').toLowerCase().includes(s) || (i.codigo || '').toLowerCase().includes(s)).slice(0, 8);
+  }, [insumos, iuSubBusca]);
+
+  const substituir = async () => {
+    if (!barId || !iuDe || !iuSub) return;
+    if (!confirm(`Substituir "${iuDe.nome}" por "${iuSub.nome}" em ${iuUsosView.length} ficha(s)? Esta ação altera todas de uma vez.`)) return;
+    setIuBusy(true);
+    try {
+      const r = await api.post('/api/operacional/fichas/insumo-uso', { bar_id: barId, de_codigo: iuDe.codigo, para_codigo: iuSub.codigo });
+      if (!r.success) throw new Error(r.error);
+      toast({ title: 'Substituído', description: `${r.afetadas} ficha(s): ${iuDe.nome} → ${iuSub.nome}` });
+      setIuSub(null); setIuSubBusca(''); setIuTermo(iuSub.nome);
+      loadProducoes(); loadProdutos();
+    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+    finally { setIuBusy(false); }
+  };
+
   // atualizar status (ativo) + preço de venda do ContaHub
   const [atualizandoCh, setAtualizandoCh] = useState(false);
   const atualizarContahub = async () => {
@@ -822,7 +867,8 @@ function FichasInner() {
       <div className="flex items-center gap-1.5 mb-4">
         <button onClick={() => setAba('producao')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'producao' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><ChefHat className="w-4 h-4" />Produção</button>
         <button onClick={() => setAba('finalizacao')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'finalizacao' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><Utensils className="w-4 h-4" />Finalização</button>
-        <Button size="sm" onClick={nova} className="ml-auto"><Plus className="w-4 h-4 mr-1" />{aba === 'producao' ? 'Nova produção' : 'Novo produto'}</Button>
+        <Button variant="outline" size="sm" onClick={() => setIuOpen(true)} className="ml-auto" title="Achar todas as FTs que usam um insumo e trocá-lo em massa"><Search className="w-4 h-4 mr-1.5" />Buscar por insumo</Button>
+        <Button size="sm" onClick={nova}><Plus className="w-4 h-4 mr-1" />{aba === 'producao' ? 'Nova produção' : 'Novo produto'}</Button>
         <Button variant="outline" size="sm" onClick={importar} disabled={importando}>
           <Download className={`w-4 h-4 mr-1.5 ${importando ? 'animate-pulse' : ''}`} />{importando ? 'Importando…' : (aba === 'producao' ? 'Importar preparos' : 'Importar cardápio')}
         </Button>
@@ -836,6 +882,77 @@ function FichasInner() {
         ? <FichaTab kind="producao" lista={producoes} insumos={insumos} producoes={producoes} reloadLista={loadProducoes} preSel={preSel} />
         : <FichaTab kind="produto" lista={produtos} insumos={insumos} producoes={producoes} reloadLista={loadProdutos} cmvMedias={cmvMedias} vendasSemCadastro={vendasSemCadastro} />}
 
+      {iuOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 pt-16 overflow-y-auto" onMouseDown={(e) => { if (e.target === e.currentTarget) setIuOpen(false); }}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-2xl space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-1.5"><Search className="w-4 h-4" />Buscar insumo nas Fichas Técnicas</h4>
+              <button onClick={() => setIuOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+            </div>
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+              <Input autoFocus value={iuTermo} onChange={e => setIuTermo(e.target.value)} placeholder="Ex.: Pimenta do Reino, Ypioca…" className="pl-9" />
+            </div>
+            {/* se o termo casar vários insumos, escolher qual */}
+            {iuInsumos.length > 1 && (
+              <div className="flex flex-wrap gap-1.5">
+                {iuInsumos.map((i: any) => (
+                  <button key={i.codigo} onClick={() => setIuDe(i)} className={`text-xs rounded px-2 py-1 border ${iuDe?.codigo === i.codigo ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>{i.nome} <span className="opacity-60 font-mono">{i.codigo}</span></button>
+                ))}
+              </div>
+            )}
+            {iuLoading ? <div className="py-6 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
+            : iuTermo.trim().length >= 2 && (
+              <>
+                <div className="text-sm text-gray-600 dark:text-gray-300">
+                  {iuDe ? <><b>{iuDe.nome}</b> aparece em <b>{iuUsosView.length}</b> ficha(s):</> : iuInsumos.length > 1 ? 'Escolha o insumo acima.' : 'Nenhum insumo encontrado.'}
+                </div>
+                {iuDe && (
+                  <div className="max-h-60 overflow-y-auto rounded border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
+                    {iuUsosView.length === 0 ? <div className="px-3 py-3 text-xs text-gray-400">Não é usado em nenhuma ficha.</div>
+                    : iuUsosView.map((u: any) => (
+                      <div key={u.ficha_id} className="flex items-center justify-between px-3 py-1.5 text-sm">
+                        <span className="text-gray-800 dark:text-gray-100">{u.parent_nome} <span className="text-xs text-gray-400 font-mono">{u.parent_codigo}</span> <Badge variant="outline" className="ml-1 text-[10px]">{u.tipo === 'producao' ? 'produção' : 'produto'}</Badge></span>
+                        <span className="text-xs text-gray-400 tabular-nums">{fmtPeso(u.quantidade, u.unidade)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* substituir em massa */}
+                {iuDe && iuUsosView.length > 0 && (
+                  <div className="rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-900/15 p-3 space-y-2">
+                    <div className="text-sm font-medium text-gray-800 dark:text-gray-100">Substituir em massa</div>
+                    <p className="text-[11px] text-gray-500">Troca <b>{iuDe.nome}</b> por outro insumo em <b>todas</b> as {iuUsosView.length} fichas de uma vez (mantém as quantidades).</p>
+                    {iuSub ? (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 flex items-center justify-between rounded border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/15 px-2.5 py-1.5">
+                          <span className="text-sm">→ {iuSub.nome} <span className="text-xs text-gray-400 font-mono">{iuSub.codigo}</span></span>
+                          <button onClick={() => { setIuSub(null); setIuSubBusca(''); }} className="text-gray-400 hover:text-red-500 text-xs underline">trocar</button>
+                        </div>
+                        <Button size="sm" onClick={substituir} disabled={iuBusy} className="bg-amber-600 hover:bg-amber-700">{iuBusy ? 'Trocando…' : `Substituir em ${iuUsosView.length}`}</Button>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <Input value={iuSubBusca} onChange={e => setIuSubBusca(e.target.value)} placeholder="Buscar insumo substituto…" className="pl-9" />
+                        {iuSubBusca.trim() && (
+                          <div className="absolute z-10 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg divide-y divide-gray-100 dark:divide-gray-800">
+                            {iuSubOpcoes.length === 0 ? <div className="px-3 py-2 text-xs text-gray-400">Nenhum insumo.</div>
+                            : iuSubOpcoes.filter((o: any) => o.codigo?.toUpperCase() !== iuDe.codigo?.toUpperCase()).map((o: any) => (
+                              <button key={o.codigo} onClick={() => { setIuSub({ codigo: o.codigo, nome: o.nome }); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/40">{o.nome}<span className="text-xs text-gray-400 font-mono"> · {o.codigo}</span></button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {createOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setCreateOpen(false); }}>
           <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
