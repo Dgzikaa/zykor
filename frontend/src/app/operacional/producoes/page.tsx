@@ -382,7 +382,9 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
         const pbNum = parseFloat(sel.pesoBruto) || 0;
         const plNum = parseFloat(sel.pesoMestre) || 0;
         const fcReal = mestreFc && pbNum > 0 && plNum > 0 ? plNum / pbNum : 0; // aproveitamento (líquido/bruto), 0–1 — mesma convenção do FC da ficha
-        const iniciada = sel.rodando || sel.segundos > 0; // peso/rendimento só liberam depois de iniciar a produção
+        // retroativa: data passada → não tem cronômetro (já foi feita); libera os campos sem precisar iniciar
+        const retroativa = !!sel.dataProducao && sel.dataProducao !== new Date().toISOString().slice(0, 10);
+        const iniciada = sel.rodando || sel.segundos > 0 || retroativa; // peso/rendimento liberam ao iniciar OU se for retroativa
         return (
           <Card className="card-dark"><CardContent className="py-3 space-y-4">
             {/* Cabeçalho + timer */}
@@ -410,7 +412,7 @@ function AbaExecutar({ fichas, responsaveis }: { fichas: any[]; responsaveis: an
               <span className="text-gray-500 flex items-center gap-1"><CalendarCheck className="w-3.5 h-3.5" />Data da produção:</span>
               <Input type="date" value={sel.dataProducao || new Date().toISOString().slice(0, 10)} max={new Date().toISOString().slice(0, 10)}
                 onChange={e => patch(sel.localId, { dataProducao: e.target.value })} className="h-8 w-40" />
-              {sel.dataProducao && sel.dataProducao !== new Date().toISOString().slice(0, 10) && <span className="text-amber-600 dark:text-amber-400 font-medium">retroativa</span>}
+              {retroativa && <span className="text-amber-600 dark:text-amber-400 font-medium">retroativa · sem cronômetro (já foi feita)</span>}
             </div>
 
             {/* Responsável + peso mestre + rendimento */}
@@ -650,6 +652,9 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
       out.push({ icon: Package, label: 'insumo fora', cls: 'text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-900/20' });
     if (e.rendimento_real != null && e.rendimento_esperado != null && e.rendimento_esperado > 0 && e.rendimento_real < e.rendimento_esperado * 0.95)
       out.push({ icon: TrendingDown, label: 'baixo rend.', cls: 'text-purple-600 border-purple-300 bg-purple-50 dark:bg-purple-900/20' });
+    // retroativo: produção feita num dia anterior ao lançamento (inicio < criação) → tempo não vale
+    if (e.inicio && e.criado_em && new Date(e.inicio).toISOString().slice(0, 10) < new Date(e.criado_em).toISOString().slice(0, 10))
+      out.push({ icon: CalendarCheck, label: 'retroativo', cls: 'text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-900/20' });
     return out;
   };
 
