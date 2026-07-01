@@ -24,12 +24,13 @@ export async function GET(request: NextRequest) {
   if (!['diaria', 'semanal', 'mensal'].includes(tipo)) {
     return NextResponse.json({ success: false, error: 'tipo inválido' }, { status: 400 });
   }
-  // Classe = tipo de item: insumo (padrão) | limpeza | utensilio.
+  // Classe = tipo de item: insumo (padrão) | limpeza | utensilio | producao.
   const classe = spar.get('classe') || 'insumo';
-  if (!['insumo', 'limpeza', 'utensilio'].includes(classe)) {
+  if (!['insumo', 'limpeza', 'utensilio', 'producao'].includes(classe)) {
     return NextResponse.json({ success: false, error: 'classe inválida' }, { status: 400 });
   }
   const isLimpeza = classe === 'limpeza';
+  const isProducao = classe === 'producao';
   const ops = (sb() as any).schema('operations');
   const silver = (sb() as any).schema('silver');
 
@@ -95,16 +96,24 @@ export async function GET(request: NextRequest) {
   const itens = (rows || []).map((r: any) => {
     const estoque_final = Number(r.estoque_final ?? 0);
     const estoque_ideal = r.estoque_ideal == null ? null : Number(r.estoque_ideal);
+    const valor = Number(r.valor ?? 0);
     return {
       ...r,
       estoque_final,
       estoque_ideal,
       // Limpeza: Sug. Pedido = repor até o ideal (nunca negativo).
       sug_pedido: isLimpeza && estoque_ideal != null ? Math.max(0, estoque_ideal - estoque_final) : null,
-      custo_unitario: Number(r.preco_vmarket ?? 0), // "Preço (na data)" = VMarket na data; fallback cadastro no valor
-      valor: Number(r.valor ?? 0),
-      // Insumo agrupa por área derivada; limpeza/utensílio agrupam pela própria categoria.
-      area: isLimpeza ? (r.categoria || 'Outros') : areaDe(r.categoria, r.insumo_codigo),
+      // Insumo/limpeza: preço VMarket na data. Produção não tem VMarket — o custo é da ficha,
+      // que já está embutido no `valor`; expõe o custo por unidade contada (valor/qtd).
+      custo_unitario: isProducao
+        ? (estoque_final !== 0 ? valor / estoque_final : null)
+        : Number(r.preco_vmarket ?? 0),
+      valor,
+      // Insumo agrupa por área derivada; limpeza pela própria categoria;
+      // produção (pc/pd) por seção da ficha (Cozinha × Drinks) pelo prefixo do código.
+      area: isLimpeza ? (r.categoria || 'Outros')
+          : isProducao ? (String(r.insumo_codigo || '').toLowerCase().startsWith('pd') ? 'Produção Drinks' : 'Produção Cozinha')
+          : areaDe(r.categoria, r.insumo_codigo),
     };
   });
 
@@ -118,7 +127,7 @@ export async function GET(request: NextRequest) {
     areaMap[area].valor += it.valor;
     total_geral += it.valor;
   }
-  const ordem = ['Comidas', 'Salão', 'Drinks', 'Alimentação'];
+  const ordem = ['Comidas', 'Salão', 'Drinks', 'Alimentação', 'Produção Cozinha', 'Produção Drinks'];
   const totais_area = Object.values(areaMap).sort((a, b) => (ordem.indexOf(a.area) - ordem.indexOf(b.area)));
 
   return NextResponse.json({ success: true, tipo, classe, datas, data: dataSel, itens, totais_area, total_geral });

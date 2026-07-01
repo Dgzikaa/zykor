@@ -24,12 +24,17 @@ const TIPOS = [
 ];
 
 // Classe = tipo de item. Insumo (atual) · Limpeza (estoque ideal + sug. pedido) ·
-// Utensílio (modelo de quebra — Fase 2).
+// Utensílio (modelo de quebra) · Produção (pc/pd da ficha, custo real).
 const CLASSES = [
   { key: 'insumo', label: 'Insumo' },
   { key: 'limpeza', label: 'Limpeza' },
   { key: 'utensilio', label: 'Utensílio' },
+  { key: 'producao', label: 'Produção' },
 ];
+
+// Classes cujos itens são cadastrados/editados nesta tela (botão + lápis).
+// Insumo vem do VMarket; produção mora no módulo Produção-CMV → sem cadastro aqui.
+const CLASSES_CADASTRO = ['limpeza', 'utensilio'];
 
 export default function EstoqueHistoricoPage() {
   const { selectedBar } = useBar();
@@ -139,7 +144,7 @@ export default function EstoqueHistoricoPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400">Valor em estoque por área e por contagem · {selectedBar?.nome || `Bar ${barId ?? ''}`}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {classe !== 'insumo' && (
+            {CLASSES_CADASTRO.includes(classe) && (
               <Button onClick={() => abrirCadastro(null)} variant="outline" title="Adicionar item desta classe">
                 <Plus className="w-4 h-4 mr-1.5" />Adicionar item
               </Button>
@@ -159,7 +164,7 @@ export default function EstoqueHistoricoPage() {
         {/* Classe de item: Insumo · Limpeza · Utensílio */}
         <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1 gap-1">
           {CLASSES.map(c => (
-            <button key={c.key} onClick={() => { setClasse(c.key); if (c.key !== 'insumo') setTipo('semanal'); setComparar(false); setComp(null); }}
+            <button key={c.key} onClick={() => { setClasse(c.key); if (c.key === 'limpeza' || c.key === 'utensilio') setTipo('semanal'); setComparar(false); setComp(null); }}
               className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${classe === c.key ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
               {c.label}
             </button>
@@ -248,7 +253,7 @@ export default function EstoqueHistoricoPage() {
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                   <td className="px-3 py-2 font-mono text-xs text-gray-500">
                     <span className="inline-flex items-center gap-1">{it.insumo_codigo || '—'}
-                      {(classe as string) !== 'insumo' && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
+                      {CLASSES_CADASTRO.includes(classe) && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}</td>
@@ -268,14 +273,14 @@ export default function EstoqueHistoricoPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
               <th className="text-left font-medium px-3 py-2">Cód.</th>
-              <th className="text-left font-medium px-3 py-2">{classe === 'limpeza' ? 'Item' : 'Insumo'}</th>
+              <th className="text-left font-medium px-3 py-2">{classe === 'limpeza' ? 'Item' : classe === 'producao' ? 'Produção' : 'Insumo'}</th>
               {classe === 'limpeza'
                 ? <th className="text-left font-medium px-3 py-2">Categoria</th>
                 : <><th className="text-left font-medium px-3 py-2">Área</th><th className="text-left font-medium px-3 py-2">Categoria</th></>}
               {classe === 'limpeza' && <th className="text-right font-medium px-3 py-2">Estoque Ideal</th>}
               <th className="text-right font-medium px-3 py-2">Qtd. contada</th>
               {classe === 'limpeza' && <th className="text-right font-medium px-3 py-2">Sug. Pedido</th>}
-              <th className="text-right font-medium px-3 py-2">{classe === 'limpeza' ? 'Preço' : 'Preço VMarket (na data)'}</th>
+              <th className="text-right font-medium px-3 py-2">{classe === 'limpeza' ? 'Preço' : classe === 'producao' ? 'Custo (ficha)' : 'Preço VMarket (na data)'}</th>
               <th className="text-right font-medium px-3 py-2">Valor</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -285,7 +290,7 @@ export default function EstoqueHistoricoPage() {
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                   <td className="px-3 py-2 font-mono text-xs text-gray-500">
                     <span className="inline-flex items-center gap-1">{it.insumo_codigo || '—'}
-                      {(classe as string) !== 'insumo' && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
+                      {CLASSES_CADASTRO.includes(classe) && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}</td>
@@ -322,7 +327,7 @@ export default function EstoqueHistoricoPage() {
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                   <td className="px-3 py-2 font-mono text-xs text-gray-500">
                     <span className="inline-flex items-center gap-1">{it.insumo_codigo || '—'}
-                      {(classe as string) !== 'insumo' && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
+                      {CLASSES_CADASTRO.includes(classe) && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.nome}</td>
