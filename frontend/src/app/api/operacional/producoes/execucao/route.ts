@@ -159,6 +159,63 @@ export async function POST(request: NextRequest) {
 }
 
 /**
+ * PUT — edita uma execução existente (admin only). Recomputa custo/aderência a partir das
+ * linhas enviadas (mesma lógica do POST) e substitui os insumos. Usado pelo modal de edição
+ * rápida do histórico pra corrigir lançamento errado (ex.: peso mestre em unidade trocada)
+ * sem perder o registro. Não mexe em inicio/fim salvo se vierem no body.
+ */
+export async function PUT(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  if (user.role !== 'admin') {
+    return NextResponse.json({ success: false, error: 'Apenas admin pode editar execuções' }, { status: 403 });
+  }
+  const body = await request.json().catch(() => ({}));
+  const execId = Number(body.execucao_id);
+  const barId = Number(body.bar_id) || user.bar_id;
+  if (!execId || !barId) return NextResponse.json({ success: false, error: 'execucao_id e bar_id obrigatórios' }, { status: 400 });
+
+  const supabase = await getAdminClient();
+  // confirma que a execução é do bar
+  const { data: alvo } = await (supabase as any)
+    .schema('operations').from('producao_execucao')
+    .select('id, duracao_seg, inicio, fim').eq('id', execId).eq('bar_id', barId).maybeSingle();
+  if (!alvo) return NextResponse.json({ success: false, error: 'Execução não encontrada neste bar' }, { status: 404 });
+
+  const { linhas, custoPlanejado, custoReal, aderenciaPct } = computarExecucao(Array.isArray(body.insumos) ? body.insumos : []);
+
+  const patch: any = { atualizado_em: new Date().toISOString() };
+  if ('responsavel_id' in body) patch.responsavel_id = body.responsavel_id != null ? Number(body.responsavel_id) : null;
+  if ('responsavel_nome' in body) patch.responsavel_nome = body.responsavel_nome ?? null;
+  if ('duracao_seg' in body) patch.duracao_seg = body.duracao_seg != null ? Math.round(Number(body.duracao_seg)) : null;
+  if ('rendimento_esperado' in body) patch.rendimento_esperado = body.rendimento_esperado != null ? Number(body.rendimento_esperado) : null;
+  if ('rendimento_real' in body) patch.rendimento_real = body.rendimento_real != null ? Number(body.rendimento_real) : null;
+  if ('peso_mestre_real' in body) patch.peso_mestre_real = body.peso_mestre_real != null ? Number(body.peso_mestre_real) : null;
+  if ('peso_bruto' in body) patch.peso_bruto = body.peso_bruto != null ? Number(body.peso_bruto) : null;
+  if ('observacao' in body) patch.observacao = body.observacao ? String(body.observacao) : null;
+  patch.custo_planejado = round(custoPlanejado, 4);
+  patch.custo_real = round(custoReal, 4);
+  patch.aderencia_pct = aderenciaPct;
+
+  const { error: errUpd } = await (supabase as any)
+    .schema('operations').from('producao_execucao').update(patch).eq('id', execId).eq('bar_id', barId);
+  if (errUpd) return NextResponse.json({ success: false, error: errUpd.message }, { status: 500 });
+
+  // substitui os insumos (apaga + reinsere)
+  await (supabase as any).schema('operations').from('producao_execucao_insumo').delete().eq('execucao_id', execId);
+  if (linhas.length) {
+    const ins = linhas.map((l) => ({ ...l, execucao_id: execId }));
+    const { error: errIns } = await (supabase as any).schema('operations').from('producao_execucao_insumo').insert(ins);
+    if (errIns) return NextResponse.json({ success: false, error: errIns.message }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    success: true, execucao_id: execId,
+    custo_planejado: round(custoPlanejado, 2), custo_real: round(custoReal, 2), aderencia_pct: aderenciaPct,
+  });
+}
+
+/**
  * DELETE ?id=&bar_id= — remove uma execução do histórico (admin only). Usado pra corrigir
  * lançamentos errados/duplicados (ex.: duplo submit). Apaga os insumos e a execução.
  */

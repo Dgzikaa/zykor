@@ -589,6 +589,7 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
   const { toast } = useToast();
   const barId = selectedBar?.id;
   const [excluindo, setExcluindo] = useState(false);
+  const [editando, setEditando] = useState<any | null>(null);
 
   const [execs, setExecs] = useState<any[]>([]);
   const [baselines, setBaselines] = useState<Record<number, any>>({});
@@ -879,6 +880,13 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {isAdmin && (
+                  <button onClick={() => { setEditando(detalhe); setDetalhe(null); }}
+                    className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 border border-indigo-200 dark:border-indigo-800 rounded-md px-2 py-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                    title="Editar esta execução (admin)">
+                    <Pencil className="w-3.5 h-3.5" />Editar
+                  </button>
+                )}
+                {isAdmin && (
                   <button onClick={() => excluir(detalhe)} disabled={excluindo}
                     className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 border border-red-200 dark:border-red-800 rounded-md px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
                     title="Excluir esta execução do histórico (admin)">
@@ -930,6 +938,176 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
           </div>
         </div>
       )}
+
+      {/* Modal de edição rápida (admin) — corrige lançamento errado sem perder o registro */}
+      {editando && isAdmin && barId && (
+        <EditarExecucaoModal
+          exec={editando} fichas={fichas} responsaveis={responsaveis} barId={barId}
+          onClose={() => setEditando(null)}
+          onSaved={() => { setEditando(null); carregar(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// =====================================================================================
+// MODAL — EDITAR EXECUÇÃO (admin). Recarrega a ficha, recalcula com a mesma lógica da
+// execução (peso mestre em kg/L → base) e salva por cima via PUT. Não perde a produção.
+// =====================================================================================
+function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSaved }: {
+  exec: any; fichas: any[]; responsaveis: any[]; barId: number; onClose: () => void; onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [itens, setItens] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [resp, setResp] = useState<number | null>(exec.responsavel_id ?? null);
+  const [durMin, setDurMin] = useState<string>(String(Math.floor((exec.duracao_seg || 0) / 60)));
+  const [durSeg, setDurSeg] = useState<string>(String((exec.duracao_seg || 0) % 60));
+  const [pesoBruto, setPesoBruto] = useState('');   // em unidade amigável (kg/L) — preenchido ao carregar a ficha
+  const [pesoMestre, setPesoMestre] = useState('');
+  const [rendReal, setRendReal] = useState<string>(exec.rendimento_real != null ? String(exec.rendimento_real) : '');
+  const [obs, setObs] = useState<string>(exec.observacao || '');
+
+  const ficha = fichas.find(f => f.id === exec.producao_id) || null;
+
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const r = await api.get(`/api/operacional/producoes/ficha?producao_id=${exec.producao_id}&bar_id=${barId}`);
+        if (cancel) return;
+        const its = r.success ? (r.itens || []) : [];
+        setItens(its);
+        // prefill peso mestre/bruto convertendo o valor salvo (base g/ml) → unidade de entrada (kg/L)
+        const m = its.find((i: any) => i.is_mestre) || null;
+        const ent = entradaPeso(m?.unidade_exib || null, Number(m?.quantidade || 0));
+        if (exec.peso_mestre_real != null) setPesoMestre(String(Number(exec.peso_mestre_real) / ent.fator));
+        if (exec.peso_bruto != null) setPesoBruto(String(Number(exec.peso_bruto) / ent.fator));
+      } catch (e: any) { if (!cancel) toast({ title: 'Erro ao carregar ficha', description: e?.message, variant: 'destructive' }); }
+      finally { if (!cancel) setLoading(false); }
+    })();
+    return () => { cancel = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exec.producao_id, barId]);
+
+  const mestre = itens.find(i => i.is_mestre) || null;
+  const mestreQtd = Number(mestre?.quantidade || 0);
+  const baseMestre = mestre?.unidade_exib || null;
+  const ent = entradaPeso(baseMestre, mestreQtd);
+  const mestreFc = !!mestre?.insumo_fc;
+  const pesoMestreBase = (parseFloat(pesoMestre) || 0) * ent.fator;
+  const proporcao = (mestre && pesoMestreBase > 0 && mestreQtd > 0) ? pesoMestreBase / mestreQtd : 1;
+  const rendEsperado = Number(ficha?.rendimento || 0) * proporcao;
+
+  const salvar = async () => {
+    if (salvando) return;
+    const dur = (parseInt(durMin) || 0) * 60 + (parseInt(durSeg) || 0);
+    const linhas = itens.map((it: any) => {
+      const qtdPlan = Number(it.quantidade || 0);
+      const qtdCalc = it.is_mestre ? (pesoMestreBase > 0 ? pesoMestreBase : qtdPlan) : qtdPlan * proporcao;
+      return {
+        insumo_codigo: it.insumo_codigo ?? it.componente_codigo ?? null,
+        insumo_id_vmarket: it.insumo_id_vmarket ?? null,
+        nome: it.nome_componente ?? it.componente_codigo ?? null,
+        is_mestre: it.is_mestre,
+        qtd_planejada: qtdPlan,
+        qtd_calculada: qtdCalc,
+        qtd_real: qtdCalc, // edição rápida: usado = calculado (sem override por insumo)
+        unidade: it.unidade_exib ?? null,
+        preco_un: Number(it.preco_un || 0),
+      };
+    });
+    const respNome = responsaveis.find(r => r.id === resp)?.nome ?? null;
+    setSalvando(true);
+    try {
+      const r = await api.put('/api/operacional/producoes/execucao', {
+        execucao_id: exec.id, bar_id: barId, producao_id: exec.producao_id,
+        responsavel_id: resp, responsavel_nome: respNome, duracao_seg: dur,
+        rendimento_esperado: rendEsperado || null,
+        rendimento_real: parseFloat(rendReal) || null,
+        peso_mestre_real: pesoMestreBase || null,
+        peso_bruto: mestreFc ? ((parseFloat(pesoBruto) || 0) * ent.fator || null) : null,
+        observacao: obs.trim() || null,
+        insumos: linhas,
+      });
+      if (!r.success) throw new Error(r.error);
+      toast({ title: 'Execução atualizada', description: exec.producao_nome || '' });
+      onSaved();
+    } catch (e: any) { toast({ title: 'Erro ao salvar', description: e?.message, variant: 'destructive' }); }
+    finally { setSalvando(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Pencil className="w-4 h-4 text-indigo-600" />
+            <h4 className="font-semibold text-gray-900 dark:text-white">Editar execução — {exec.producao_nome}</h4>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+        </div>
+
+        {loading ? <div className="py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div> : (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><User className="w-3.5 h-3.5" />Responsável</label>
+                <select value={resp ?? ''} onChange={e => setResp(e.target.value ? Number(e.target.value) : null)}
+                  className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
+                  <option value="">Selecione…</option>
+                  {responsaveis.map(r => <option key={r.id} value={r.id}>{r.nome}{r.cargo ? ` (${r.cargo})` : ''}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Clock className="w-3.5 h-3.5" />Duração</label>
+                <div className="flex items-center gap-1">
+                  <Input type="number" inputMode="numeric" value={durMin} onChange={e => setDurMin(e.target.value)} className="h-10" />
+                  <span className="text-xs text-gray-400">min</span>
+                  <Input type="number" inputMode="numeric" value={durSeg} onChange={e => setDurSeg(e.target.value)} className="h-10" />
+                  <span className="text-xs text-gray-400">seg</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {mestreFc && (
+                <div>
+                  <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso bruto{ent.unidade ? ` (${ent.unidade})` : ''}</label>
+                  <Input type="number" inputMode="decimal" step="any" value={pesoBruto} onChange={e => setPesoBruto(e.target.value)} placeholder="antes de limpar" className="h-10" />
+                </div>
+              )}
+              {mestre && (
+                <div>
+                  <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso mestre{ent.unidade ? ` (${ent.unidade})` : ''}</label>
+                  <Input type="number" inputMode="decimal" step="any" value={pesoMestre} onChange={e => setPesoMestre(e.target.value)} placeholder={`ficha: ${fmtPeso(mestreQtd, baseMestre)}`} className="h-10" />
+                </div>
+              )}
+              <div>
+                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado, 2)} {ficha?.unidade || ''}</span>}</label>
+                <Input type="number" inputMode="decimal" step="any" value={rendReal} onChange={e => setRendReal(e.target.value)} placeholder="produzido…" className="h-10" />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Observação</label>
+              <Input value={obs} onChange={e => setObs(e.target.value)} placeholder="Observação (opcional)…" />
+            </div>
+
+            {proporcao !== 1 && <p className="text-[11px] text-gray-400">Proporção recalculada: ×{fmtNum(proporcao, 3)} · o custo e a aderência são recomputados ao salvar.</p>}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={onClose}>Cancelar</Button>
+              <Button onClick={salvar} disabled={salvando} className="bg-indigo-600 hover:bg-indigo-700">
+                {salvando ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}Salvar alterações
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
