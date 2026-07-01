@@ -72,6 +72,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: e?.message || 'Erro ao buscar dia' }, { status: 500 });
   }
 
+  // garçom (usr_lancou) + comanda (cli/trn) vêm do bronze do ContaHub — o silver não os carrega e
+  // o origem_ref é instável, então casamos por chave natural (mesa | valor).
+  let chRaw: any[] = [];
+  try {
+    const prox = new Date(`${data}T00:00:00Z`); prox.setUTCDate(prox.getUTCDate() + 1);
+    chRaw = await paginate<any>(
+      () => (supabase as any).schema('bronze').from('bronze_contahub_financeiro_pagamentosrecebidos')
+        .select('mesa, valor, usr_lancou, cli, trn, dt_gerencial')
+        .eq('bar_id', user.bar_id)
+        .gte('dt_gerencial', data).lt('dt_gerencial', prox.toISOString().slice(0, 10)),
+      { label: 'conciliacao/dia/chraw' });
+  } catch { chRaw = []; }
+  const rawMap = new Map<string, { garcom: string | null; comanda: string | null }[]>();
+  for (const r of chRaw) {
+    const k = `${String(r.mesa || '').trim()}|${num(r.valor).toFixed(2)}`;
+    if (!rawMap.has(k)) rawMap.set(k, []);
+    rawMap.get(k)!.push({ garcom: r.usr_lancou || null, comanda: r.cli != null ? String(r.cli) : (r.trn != null ? String(r.trn) : null) });
+  }
+
   // Resumo por bandeira × tipo de conta
   const mapa = new Map<string, any>();
   for (const t of tx) {
@@ -153,7 +172,10 @@ export async function GET(request: NextRequest) {
       brand_id: t.brand_id, cartao: t.card_number_masked, autorizacao: t.issuer_authorization_code,
     }));
   const so_ch: any[] = [];
-  for (const [, arr] of chBuckets) for (const p of arr) so_ch.push({ tipo: p.tipo, valor: num(p.valor_bruto), cliente: p.cliente_nome, mesa: p.mesa_desc, meio: p.meio });
+  for (const [, arr] of chBuckets) for (const p of arr) {
+    const hit = rawMap.get(`${String(p.mesa_desc || '').trim()}|${num(p.valor_bruto).toFixed(2)}`)?.shift();
+    so_ch.push({ tipo: p.tipo, valor: num(p.valor_bruto), cliente: p.cliente_nome, mesa: p.mesa_desc, meio: p.meio, garcom: hit?.garcom || null, comanda: hit?.comanda || null });
+  }
   so_ch.sort((a, b) => Math.abs(b.valor) - Math.abs(a.valor));
   const divergencias = {
     so_stone, so_ch,
