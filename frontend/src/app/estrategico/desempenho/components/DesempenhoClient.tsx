@@ -132,7 +132,12 @@ return [
         id: 'custos_atracao',
         label: 'Atração/Fat.',
         metricas: [
-          { key: 'custo_atracao_faturamento', label: 'Atração/Fat.', status: 'auto', fonte: 'eventos_base (c_art)', calculo: 'Soma c_art eventos / Faturamento × 100', formato: 'percentual', inverso: true, temTooltipAtracao: true },
+          { key: 'custo_atracao_faturamento', label: 'Atração/Fat.', status: 'auto',
+            fonte: visao === 'mensal' ? 'Orçamentação (Artístico + Produção)' : 'eventos_base (c_art)',
+            calculo: visao === 'mensal'
+              ? '(Atrações Programação + [Consumação] Artistas + Produção Eventos + Produção Mensal Fixo) ÷ Faturamento × 100 — espelha os blocos Artístico + Produção da Orçamentação (realizado do Conta Azul por categoria).'
+              : 'Soma c_art eventos / Faturamento × 100',
+            formato: 'percentual', inverso: true, temTooltipAtracao: true },
         ]
       }
     ]

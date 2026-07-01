@@ -1,16 +1,18 @@
--- etl_gold_desempenho_mensal v11
+-- etl_gold_desempenho_mensal v13
 --
 -- (1) NPS Digital mensal: a Falae grava search_name = 'NPS' (o semanal ja usa isso).
 --     A mensal estava filtrando 'NPS Digital' (literal antigo) -> 0 respostas -> zerava.
 --
--- (2) Atracao/Fat mensal: numerador passa a espelhar EXATAMENTE as linhas
---     Artistico + Producao da Orcamentacao:
---       Atracoes Programacao + Producao Eventos + Producao Mensal Fixo  (CA, de-para categoria_zykor)
---       + [Consumacao] Artistas (comp do ContaHub, silver.consumacao_artistas)
---     Fonte identica a fn_refresh_gold_orcamento (silver.lancamento_classificado,
---     valor_bruto, is_ignorado/is_antecipacao_stone = false, por competencia).
---     So o indicador custo_atracao_faturamento muda; atracoes_eventos e os totais
---     de custo (custos_variaveis/custos_total) ficam intactos (consumacao e nao-caixa).
+-- (2) Atracao/Fat mensal: numerador espelha EXATAMENTE as 4 linhas Artistico + Producao
+--     da Orcamentacao, TODAS na mesma fonte do CA (silver.lancamento_classificado por
+--     categoria_zykor, identica a fn_refresh_gold_orcamento):
+--       Atracoes Programacao + Producao Eventos + Producao Mensal Fixo + [Consumacao] Artistas
+--     O socio lancou [Consumacao] Artistas e Producao Mensal Fixo retroativos no CA, entao
+--     vale para TODOS os meses. So o indicador custo_atracao_faturamento muda; atracoes_eventos
+--     e os totais de custo (custos_variaveis/custos_total) ficam intactos.
+--
+-- Historico: v11 usava silver.consumacao_artistas (so junho) e v12 tinha corte em jun/2026;
+-- ambos descartados apos o socio confirmar o lancamento retroativo no CA.
 
 CREATE OR REPLACE FUNCTION public.etl_gold_desempenho_mensal(p_bar_id integer, p_ano integer, p_mes integer)
  RETURNS TABLE(bar_processado integer, periodo_processado text, linhas_inseridas integer, duracao_ms integer)
@@ -244,12 +246,7 @@ BEGIN
           AND lc.data_competencia BETWEEN v_data_inicio AND v_data_fim
           AND lc.is_antecipacao_stone = FALSE
           AND lc.is_ignorado = FALSE
-          AND lc.categoria_zykor IN ('Atrações Programação','Produção Eventos','Produção Mensal Fixo')
-      ), 0)
-      + COALESCE((
-        SELECT SUM(cra.valor)
-        FROM silver.consumacao_artistas cra
-        WHERE cra.bar_id = p_bar_id AND cra.data BETWEEN v_data_inicio AND v_data_fim
+          AND lc.categoria_zykor IN ('Atrações Programação','Produção Eventos','Produção Mensal Fixo','[Consumação] Artistas')
       ), 0) AS atracao_num
   )
   INSERT INTO gold.desempenho (
@@ -327,7 +324,7 @@ BEGIN
     canc.cancelamentos_total, canc.cancelamentos_qtd,
     mk.o_num_posts, mk.o_num_stories, mk.o_alcance, mk.o_interacao, mk.o_compartilhamento, mk.o_engajamento, mk.o_visu_stories,
     mk.m_valor_investido, mk.m_alcance, mk.m_frequencia, mk.m_cpm, mk.m_cliques, mk.m_ctr, mk.m_cpc, mk.m_conversas_iniciadas,
-    NOW(), 11
+    NOW(), 13
   FROM fase_planejamento p
   CROSS JOIN fase_reservas_getin rg CROSS JOIN fase_clientes c
   LEFT JOIN fase_cmv cmv ON true CROSS JOIN fase_nps_geral ng
@@ -394,7 +391,7 @@ BEGIN
     m_frequencia=EXCLUDED.m_frequencia, m_cpm=EXCLUDED.m_cpm, m_cliques=EXCLUDED.m_cliques,
     m_ctr=EXCLUDED.m_ctr, m_custo_por_clique=EXCLUDED.m_custo_por_clique,
     m_conversas_iniciadas=EXCLUDED.m_conversas_iniciadas,
-    calculado_em=NOW(), versao_etl=11;
+    calculado_em=NOW(), versao_etl=13;
 
   GET DIAGNOSTICS v_inseridos = ROW_COUNT;
   RETURN QUERY SELECT p_bar_id, v_periodo, v_inseridos, ((EXTRACT(EPOCH FROM (clock_timestamp() - v_start)) * 1000))::int;
