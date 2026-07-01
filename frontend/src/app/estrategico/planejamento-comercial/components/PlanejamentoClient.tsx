@@ -632,6 +632,17 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
             <Card className="card-dark p-8">
               <div className="text-center">
                 <Calendar className="h-12 w-12 mx-auto mb-4 text-[hsl(var(--muted-foreground))]" />
+                {/* Seletor de mês/ano — permite navegar mesmo quando o mês está vazio */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <Select value={filtroMes.toString()} onValueChange={(value) => alterarPeriodo(parseInt(value), filtroAno)}>
+                    <SelectTrigger className="w-36 bg-[hsl(var(--background))]"><SelectValue /></SelectTrigger>
+                    <SelectContent>{meses.map(m => <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Select value={filtroAno.toString()} onValueChange={(value) => alterarPeriodo(filtroMes, parseInt(value))}>
+                    <SelectTrigger className="w-24 bg-[hsl(var(--background))]"><SelectValue /></SelectTrigger>
+                    <SelectContent>{anos.map(a => <SelectItem key={a} value={a.toString()}>{a}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
                 <h3 className="card-title-dark mb-2">Nenhum evento encontrado</h3>
                 <p className="card-description-dark mb-4">
                   Não há eventos cadastrados para {meses.find(m => m.value === filtroMes)?.label} de {filtroAno}
