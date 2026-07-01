@@ -248,6 +248,12 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
 
+  // Pré-batch: ao contar, decompõe a quantidade nos insumos componentes (soma no estoque cru; sem SKU próprio).
+  const toggleDecompor = async (p: any) => {
+    try { await api.put('/api/operacional/producoes', { id: p.id, decompor_contagem: !p.decompor_contagem }); reloadLista(); }
+    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+
   // "vendeu sem cadastro": vendido no ContaHub sem produto no Zykor → cadastra o item + mapeia o prd
   const [semCadOpen, setSemCadOpen] = useState(false);
   const [semCadCat, setSemCadCat] = useState<Record<string, string>>({});
@@ -442,6 +448,10 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                       <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 cursor-pointer" title="Se desmarcado, esta produção não aparece em nenhuma contagem de estoque (algumas produções não têm contagem física).">
                         <input type="checkbox" checked={!!selObj.entra_contagem} onChange={() => toggleEntraContagem(selObj)} className="w-4 h-4 accent-indigo-600" />
                         Entra na contagem de estoque
+                      </label>
+                      <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 cursor-pointer" title="Pré-batch: ao contar, a quantidade é decomposta nos insumos que a compõem (soma no estoque cru). Não vira SKU próprio no estoque.">
+                        <input type="checkbox" checked={!!selObj.decompor_contagem} onChange={() => toggleDecompor(selObj)} className="w-4 h-4 accent-amber-600" />
+                        Pré-batch (decompor nos insumos ao contar)
                       </label>
                       <button onClick={abrirRend} className="inline-flex items-center gap-1.5 text-xs text-left hover:text-indigo-600" title="Como esta produção é contada no estoque (clique pra editar)">
                         <span className="text-gray-400">Unidade de contagem:</span>
