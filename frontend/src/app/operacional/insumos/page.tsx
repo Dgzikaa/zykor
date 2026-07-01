@@ -1,6 +1,7 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap, Utensils, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap, Utensils, Pencil, Plus, Trash2, Filter, Check } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -22,6 +23,89 @@ interface Insumo {
   fornecedor: string | null; tem_compra?: boolean; tem_ficha?: boolean; base?: string | null; embalagem?: number | null;
 }
 interface SemCadastro { id_vmarket: number; cod_interno: string | null; codigo_vmarket: string | null; nome: string; nome_secao: string | null; preco: number | null; preco_data: string | null; fornecedor: string | null; }
+
+// Colunas com filtro por cabeçalho (estilo DataTable). id = chave do filtro, get = valor textual da célula.
+type ColAlign = 'left' | 'center' | 'right';
+const COLS: { id: string; label: string; title?: string; align: ColAlign; get: (i: Insumo) => string }[] = [
+  { id: 'categoria', label: 'Local de Contagem', title: 'Categoria da planilha de contagem (usada só na hora de contar o estoque)', align: 'left', get: i => i.categoria || '—' },
+  { id: 'secao_vmarket', label: 'Seção VMarket', title: 'Seção do VMarket = categoria de COMPRA (associada pelo de-para do insumo no VMarket)', align: 'left', get: i => i.secao_vmarket || '—' },
+  { id: 'fc', label: 'FC', title: 'Fator de Correção: insumo com perda/limpeza.', align: 'center', get: i => (i.fator_correcao ? 'Sim' : 'Não') },
+  { id: 'base', label: 'Unid.', align: 'center', get: i => i.base || '—' },
+  { id: 'embalagem', label: 'Embalagem', title: 'conversão da unidade de compra para unidade de ficha técnica', align: 'right', get: i => (i.embalagem == null ? '—' : String(i.embalagem)) },
+  { id: 'fornecedor', label: 'Fornecedor', align: 'left', get: i => i.fornecedor || '—' },
+];
+const EMPTY_SET: Set<string> = new Set();
+
+// Cabeçalho clicável com popover de checkboxes (valores distintos + contagem). Renderizado em portal pra não ser cortado pelo overflow da tabela.
+function ColHeader({ label, title, align, options, selected, onChange }: {
+  label: string; title?: string; align: ColAlign;
+  options: { value: string; count: number }[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const active = selected.size > 0;
+
+  const openMenu = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - 268)), top: r.bottom + 4 });
+    setQ(''); setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current?.contains(e.target as Node) || btnRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onBlurAway = () => setOpen(false);
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('resize', onBlurAway);
+    return () => { window.removeEventListener('mousedown', onDown); window.removeEventListener('resize', onBlurAway); };
+  }, [open]);
+
+  const shown = q ? options.filter(o => o.value.toLowerCase().includes(q.toLowerCase())) : options;
+  const toggle = (v: string) => { const n = new Set(selected); if (n.has(v)) n.delete(v); else n.add(v); onChange(n); };
+  const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
+
+  return (
+    <th className={`${alignCls} font-medium px-3 py-2`} title={title}>
+      <button ref={btnRef} onClick={() => (open ? setOpen(false) : openMenu())}
+        className={`inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200 ${active ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
+        <span>{label}</span>
+        <Filter className={`w-3 h-3 ${active ? 'fill-emerald-500 text-emerald-500' : 'text-gray-300 dark:text-gray-600'}`} />
+        {active && <span className="text-[10px] rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-1 leading-4">{selected.size}</span>}
+      </button>
+      {open && pos && typeof document !== 'undefined' && createPortal(
+        <div ref={menuRef} style={{ position: 'fixed', left: pos.left, top: pos.top, width: 256 }}
+          className="z-[60] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-2 normal-case">
+          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Filtrar valores…" className="h-8 text-xs" autoFocus />
+          <div className="flex items-center justify-between px-1 py-1.5 text-[11px] text-gray-500">
+            <button className="hover:text-emerald-600" onClick={() => onChange(new Set(options.map(o => o.value)))}>Todos</button>
+            <span>{selected.size ? `${selected.size} sel.` : `${options.length} valores`}</span>
+            <button className="hover:text-red-600" onClick={() => onChange(new Set())}>Limpar</button>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {shown.length === 0 ? <div className="px-2 py-3 text-center text-xs text-gray-400">Nada</div>
+            : shown.map(o => {
+              const on = selected.has(o.value);
+              return (
+                <button key={o.value} onClick={() => toggle(o.value)} className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-800/60 rounded">
+                  <span className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center ${on ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>{on && <Check className="w-3 h-3" />}</span>
+                  <span className="flex-1 truncate text-gray-700 dark:text-gray-200">{o.value}</span>
+                  <span className="text-gray-400 tabular-nums">{o.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>, document.body)}
+    </th>
+  );
+}
 
 export default function InsumosPage() {
   const { selectedBar } = useBar();
@@ -100,17 +184,47 @@ export default function InsumosPage() {
   const nCurvaA = useMemo(() => insumos.filter(i => i.curva_a).length, [insumos]);
   const nProteina = useMemo(() => insumos.filter(i => i.curva_a_proteina).length, [insumos]);
 
-  const insumosView = useMemo(() => {
+  // ---------- filtros por cabeçalho (estilo DataTable) ----------
+  const [colFilter, setColFilter] = useState<Record<string, Set<string>>>({});
+  const setCol = useCallback((id: string, next: Set<string>) => {
+    setColFilter(prev => { const n = { ...prev }; if (next.size) n[id] = next; else delete n[id]; return n; });
+  }, []);
+  const anyCol = Object.keys(colFilter).length > 0;
+
+  // base sobre a qual os filtros de coluna operam (busca livre + seção + badges de topo)
+  const baseMatch = useCallback((i: Insumo) => {
+    if (catSel !== 'todas' && (i.categoria || '') !== catSel) return false;
+    if (filtro === 'sem_ficha' && i.tem_ficha) return false;
+    if (filtro === 'curva_a' && !i.curva_a) return false;
+    if (filtro === 'curva_a_proteina' && !i.curva_a_proteina) return false;
     const q = busca.trim().toLowerCase();
-    return insumos.filter(i => {
-      if (catSel !== 'todas' && (i.categoria || '') !== catSel) return false;
-      if (filtro === 'sem_ficha' && i.tem_ficha) return false;
-      if (filtro === 'curva_a' && !i.curva_a) return false;
-      if (filtro === 'curva_a_proteina' && !i.curva_a_proteina) return false;
-      if (!q) return true;
-      return (i.nome || '').toLowerCase().includes(q) || (i.codigo || '').toLowerCase().includes(q) || (i.categoria || '').toLowerCase().includes(q) || (i.fornecedor || '').toLowerCase().includes(q);
-    });
-  }, [insumos, busca, catSel, filtro]);
+    if (!q) return true;
+    return (i.nome || '').toLowerCase().includes(q) || (i.codigo || '').toLowerCase().includes(q) || (i.categoria || '').toLowerCase().includes(q) || (i.fornecedor || '').toLowerCase().includes(q);
+  }, [busca, catSel, filtro]);
+  const insumosBase = useMemo(() => insumos.filter(baseMatch), [insumos, baseMatch]);
+
+  // opções de cada coluna = valores distintos (com contagem) já respeitando os OUTROS filtros de coluna (estilo Excel)
+  const colOptions = useMemo(() => {
+    const out: Record<string, { value: string; count: number }[]> = {};
+    for (const c of COLS) {
+      const rows = insumosBase.filter(i => COLS.every(o => {
+        if (o.id === c.id) return true;
+        const sel = colFilter[o.id]; if (!sel || !sel.size) return true; return sel.has(o.get(i));
+      }));
+      const m = new Map<string, number>();
+      for (const i of rows) { const v = c.get(i); m.set(v, (m.get(v) || 0) + 1); }
+      const arr = Array.from(m, ([value, count]) => ({ value, count }));
+      arr.sort((a, b) => c.id === 'embalagem'
+        ? ((parseFloat(a.value.replace(',', '.')) || -Infinity) - (parseFloat(b.value.replace(',', '.')) || -Infinity))
+        : a.value.localeCompare(b.value, 'pt-BR', { numeric: true }));
+      out[c.id] = arr;
+    }
+    return out;
+  }, [insumosBase, colFilter]);
+
+  const insumosView = useMemo(() => insumosBase.filter(i => COLS.every(c => {
+    const sel = colFilter[c.id]; if (!sel || !sel.size) return true; return sel.has(c.get(i));
+  })), [insumosBase, colFilter]);
 
   // ---------- cadastrar insumo ----------
   const [novoOpen, setNovoOpen] = useState(false);
@@ -269,7 +383,8 @@ export default function InsumosPage() {
               </select>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <button onClick={() => setFiltro(null)}><Badge variant="outline" className={`cursor-pointer ${!filtro ? 'ring-1 ring-emerald-400' : ''}`}>{insumos.length} insumos</Badge></button>
+              <button onClick={() => setFiltro(null)}><Badge variant="outline" className={`cursor-pointer ${!filtro ? 'ring-1 ring-emerald-400' : ''}`}>{anyCol ? `${insumosView.length}/${insumos.length}` : insumos.length} insumos</Badge></button>
+              {anyCol && <button onClick={() => setColFilter({})}><Badge variant="outline" className="cursor-pointer text-gray-600 border-gray-300 dark:text-gray-300">✕ limpar filtros de coluna</Badge></button>}
               {nSemFicha > 0 && <button onClick={() => setFiltro(f => f === 'sem_ficha' ? null : 'sem_ficha')} title="Todos os insumos sem ficha técnica (inclui itens parados que não precisam de ficha)"><Badge variant="outline" className={`cursor-pointer text-orange-600 border-orange-300 ${filtro === 'sem_ficha' ? 'ring-1 ring-orange-400' : ''}`}>{nSemFicha} sem ficha técnica</Badge></button>}
               {nCurvaA > 0 && <button onClick={() => setFiltro(f => f === 'curva_a' ? null : 'curva_a')}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${filtro === 'curva_a' ? 'ring-1 ring-indigo-400' : ''}`}>{nCurvaA} curva A</Badge></button>}
               {nProteina > 0 && <button onClick={() => setFiltro(f => f === 'curva_a_proteina' ? null : 'curva_a_proteina')}><Badge variant="outline" className={`cursor-pointer text-rose-600 border-rose-300 ${filtro === 'curva_a_proteina' ? 'ring-1 ring-rose-400' : ''}`}>{nProteina} curva A proteína</Badge></button>}
@@ -353,13 +468,13 @@ export default function InsumosPage() {
                   <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
                     <th className="text-left font-medium px-3 py-2">Código</th>
                     <th className="text-left font-medium px-3 py-2">Insumo</th>
-                    <th className="text-left font-medium px-3 py-2" title="Categoria da planilha de contagem (usada só na hora de contar o estoque)">Local de Contagem</th>
-                    <th className="text-left font-medium px-3 py-2" title="Seção do VMarket = categoria de COMPRA (associada pelo de-para do insumo no VMarket)">Seção VMarket</th>
-                    <th className="text-center font-medium px-3 py-2" title="Fator de Correção: insumo com perda/limpeza.">FC</th>
-                    <th className="text-center font-medium px-3 py-2">Unid.</th>
-                    <th className="text-right font-medium px-3 py-2" title="conversão da unidade de compra para unidade de ficha técnica">Embalagem</th>
+                    <ColHeader label="Local de Contagem" title={COLS[0].title} align="left" options={colOptions.categoria || []} selected={colFilter.categoria || EMPTY_SET} onChange={n => setCol('categoria', n)} />
+                    <ColHeader label="Seção VMarket" title={COLS[1].title} align="left" options={colOptions.secao_vmarket || []} selected={colFilter.secao_vmarket || EMPTY_SET} onChange={n => setCol('secao_vmarket', n)} />
+                    <ColHeader label="FC" title={COLS[2].title} align="center" options={colOptions.fc || []} selected={colFilter.fc || EMPTY_SET} onChange={n => setCol('fc', n)} />
+                    <ColHeader label="Unid." align="center" options={colOptions.base || []} selected={colFilter.base || EMPTY_SET} onChange={n => setCol('base', n)} />
+                    <ColHeader label="Embalagem" title={COLS[4].title} align="right" options={colOptions.embalagem || []} selected={colFilter.embalagem || EMPTY_SET} onChange={n => setCol('embalagem', n)} />
                     <th className="text-right font-medium px-3 py-2">Preço (últ.)</th>
-                    <th className="text-left font-medium px-3 py-2">Fornecedor</th>
+                    <ColHeader label="Fornecedor" align="left" options={colOptions.fornecedor || []} selected={colFilter.fornecedor || EMPTY_SET} onChange={n => setCol('fornecedor', n)} />
                     <th className="w-10 px-3 py-2"></th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
