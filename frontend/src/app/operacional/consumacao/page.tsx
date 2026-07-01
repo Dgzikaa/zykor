@@ -17,13 +17,15 @@ interface Linha {
   produto: string | null;
   qtd: number;
   valor_bruto: number;
-  valor_cmv: number;
+  custo: number;
+  tem_ficha: boolean;
 }
 interface Resumo {
   categoria: string;
   linhas: number;
+  com_ficha: number;
   bruto: number;
-  cmv: number;
+  custo: number;
 }
 
 // 9 categorias padronizadas + Outros (mesma classificação da Gestão CMV)
@@ -62,7 +64,7 @@ export default function ControleConsumacaoPage() {
   const [resumo, setResumo] = useState<Resumo[]>([]);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [totalBruto, setTotalBruto] = useState(0);
-  const [totalCmv, setTotalCmv] = useState(0);
+  const [totalCusto, setTotalCusto] = useState(0);
   const [catFiltro, setCatFiltro] = useState<Set<string>>(new Set());
   const [busca, setBusca] = useState('');
   const [pagina, setPagina] = useState(1);
@@ -85,7 +87,7 @@ export default function ControleConsumacaoPage() {
       setResumo(j.resumo || []);
       setLinhas(j.linhas || []);
       setTotalBruto(j.total_bruto || 0);
-      setTotalCmv(j.total_cmv || 0);
+      setTotalCusto(j.total_custo || 0);
       setPagina(1);
     } catch {
       toast.error('Erro ao carregar');
@@ -144,7 +146,7 @@ export default function ControleConsumacaoPage() {
   const totFiltrado = useMemo(
     () => ({
       bruto: linhasFiltradas.reduce((s, l) => s + l.valor_bruto, 0),
-      cmv: linhasFiltradas.reduce((s, l) => s + l.valor_cmv, 0),
+      custo: linhasFiltradas.reduce((s, l) => s + l.custo, 0),
     }),
     [linhasFiltradas],
   );
@@ -154,7 +156,7 @@ export default function ControleConsumacaoPage() {
   const pageSlice = linhasFiltradas.slice((pagina1 - 1) * POR_PAGINA, pagina1 * POR_PAGINA);
 
   const exportarCsv = () => {
-    const head = ['Data', 'Categoria', 'Mesa', 'Motivo', 'Produto', 'Qtd', 'Valor Bruto', `Valor x${fator}`];
+    const head = ['Data', 'Categoria', 'Mesa', 'Motivo', 'Produto', 'Qtd', 'Valor Bruto', 'Custo', 'Tem ficha'];
     const linhasCsv = linhasFiltradas.map((l) =>
       [
         l.data,
@@ -164,7 +166,8 @@ export default function ControleConsumacaoPage() {
         (l.produto || '').replace(/;/g, ','),
         String(l.qtd).replace('.', ','),
         String(l.valor_bruto).replace('.', ','),
-        String(l.valor_cmv).replace('.', ','),
+        String(l.custo).replace('.', ','),
+        l.tem_ficha ? 'sim' : 'nao',
       ].join(';'),
     );
     const csv = [head.join(';'), ...linhasCsv].join('\n');
@@ -181,14 +184,8 @@ export default function ControleConsumacaoPage() {
 
   return (
     <div className="space-y-4 p-1">
-      {/* Cabeçalho + período */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Controle de Consumação</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Cada lançamento de consumação, linha a linha, por categoria. Custo efetivo = bruto × {fator}.
-          </p>
-        </div>
+      {/* Período (o título vem do header da página) */}
+      <div className="flex flex-wrap items-end justify-end gap-3">
         <div className="flex flex-wrap items-end gap-2">
           <div>
             <label className="block text-xs text-gray-400 mb-0.5">Início</label>
@@ -254,9 +251,9 @@ export default function ControleConsumacaoPage() {
         </Card>
         <Card className="flex-1 min-w-[180px]">
           <CardContent className="p-3">
-            <p className="text-xs text-gray-400">Custo efetivo (×{fator})</p>
+            <p className="text-xs text-gray-400">Custo real (ficha + ×{fator})</p>
             <p className="text-lg font-bold text-gray-900 dark:text-white">
-              {moeda(catFiltro.size > 0 || busca ? totFiltrado.cmv : totalCmv)}
+              {moeda(catFiltro.size > 0 || busca ? totFiltrado.custo : totalCusto)}
             </p>
           </CardContent>
         </Card>
@@ -310,7 +307,7 @@ export default function ControleConsumacaoPage() {
                 <th className="text-left font-medium px-3 py-2">Produto</th>
                 <th className="text-right font-medium px-3 py-2">Qtd</th>
                 <th className="text-right font-medium px-3 py-2">Bruto</th>
-                <th className="text-right font-medium px-3 py-2">×{fator}</th>
+                <th className="text-right font-medium px-3 py-2">Custo</th>
               </tr>
             </thead>
             <tbody>
@@ -341,7 +338,19 @@ export default function ControleConsumacaoPage() {
                     <td className="px-3 py-1.5 text-gray-500 max-w-[240px] truncate" title={l.produto || ''}>{l.produto || '-'}</td>
                     <td className="px-3 py-1.5 text-right text-gray-500">{l.qtd.toLocaleString('pt-BR')}</td>
                     <td className="px-3 py-1.5 text-right font-medium text-gray-900 dark:text-white whitespace-nowrap">{moeda(l.valor_bruto)}</td>
-                    <td className="px-3 py-1.5 text-right text-gray-500 whitespace-nowrap">{moeda(l.valor_cmv)}</td>
+                    <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                      <span
+                        className={`mr-1 inline-block rounded px-1 text-[9px] font-bold align-middle ${
+                          l.tem_ficha
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                            : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                        }`}
+                        title={l.tem_ficha ? 'Custo da ficha técnica' : `Sem ficha — estimado (×${fator})`}
+                      >
+                        {l.tem_ficha ? 'FT' : `×${fator}`}
+                      </span>
+                      <span className="text-gray-700 dark:text-gray-200">{moeda(l.custo)}</span>
+                    </td>
                   </tr>
                 ))
               )}

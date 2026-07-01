@@ -13,8 +13,9 @@ const supabase = createServiceRoleClient();
  * classificadas nas 9 categorias padronizadas + Outros (mesma fonte da Gestão CMV).
  *
  * GET ?data_inicio=YYYY-MM-DD&data_fim=YYYY-MM-DD
- * Usa o RPC get_consumos_9_detalhes_semana (categoria=null → todas), que devolve cada
- * lançamento (data, mesa, motivo, produto, qtd, valor bruto). O custo efetivo = bruto × fator.
+ * Usa get_consumos_9_detalhes_custo_semana (categoria=null → todas): cada lançamento com o
+ * CUSTO REAL — se o produto tem ficha técnica, custo = custo_ficha proporcional ao desconto;
+ * senão, desconto × fator (0,35). Paginado via p_limit/p_offset (imune ao cap de 1000 do PostgREST).
  */
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
@@ -33,60 +34,53 @@ export async function GET(request: NextRequest) {
   try {
     const fator = await getFatorCmv(supabase, barId);
 
-    // PostgREST corta o .rpc() em 1000 linhas (cap padrão) — paginar com .range() até esgotar.
-    // Ordenação determinística (todas as colunas) pra não perder/duplicar linha entre páginas.
+    // Paginação em SQL via p_limit/p_offset (cada página ≤1000 → nunca bate no cap do PostgREST).
+    // A função já ordena de forma determinística, então o offset é estável.
     const PAGE = 1000;
     const rows: any[] = [];
     for (let off = 0; ; off += PAGE) {
-      const { data, error } = await (supabase as any)
-        .rpc('get_consumos_9_detalhes_semana', {
-          input_bar_id: barId,
-          input_data_inicio: dataInicio,
-          input_data_fim: dataFim,
-          input_categoria: null,
-        })
-        .order('valor_desconto', { ascending: false })
-        .order('data', { ascending: true })
-        .order('mesa', { ascending: true })
-        .order('motivo', { ascending: true })
-        .order('prd_desc', { ascending: true })
-        .order('qtd', { ascending: true })
-        .order('categoria', { ascending: true })
-        .range(off, off + PAGE - 1);
+      const { data, error } = await (supabase as any).rpc('get_consumos_9_detalhes_custo_semana', {
+        input_bar_id: barId,
+        input_data_inicio: dataInicio,
+        input_data_fim: dataFim,
+        input_categoria: null,
+        p_fator: fator,
+        p_limit: PAGE,
+        p_offset: off,
+      });
       if (error) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
       }
       const chunk = (data as any[]) || [];
       rows.push(...chunk);
       if (chunk.length < PAGE) break;
-      if (off >= 200000) break; // trava de segurança (não deve chegar perto)
+      if (off >= 200000) break; // trava de segurança
     }
 
-    const linhas = rows.map((r) => {
-      const bruto = Number(r.valor_desconto) || 0;
-      return {
-        categoria: String(r.categoria),
-        data: r.data,
-        mesa: r.mesa || null,
-        motivo: r.motivo || null,
-        produto: r.prd_desc || null,
-        qtd: Number(r.qtd) || 0,
-        valor_bruto: Math.round(bruto * 100) / 100,
-        valor_cmv: Math.round(bruto * fator * 100) / 100,
-      };
-    });
+    const linhas = rows.map((r) => ({
+      categoria: String(r.categoria),
+      data: r.data,
+      mesa: r.mesa || null,
+      motivo: r.motivo || null,
+      produto: r.prd_desc || null,
+      qtd: Number(r.qtd) || 0,
+      valor_bruto: Number(r.valor_desconto) || 0,
+      custo: Number(r.custo_real) || 0, // custo real (ficha) ou desconto×fator quando sem ficha
+      tem_ficha: !!r.tem_ficha,
+    }));
 
-    // resumo por categoria (bruto, cmv, linhas)
-    const map = new Map<string, { categoria: string; linhas: number; bruto: number; cmv: number }>();
+    // resumo por categoria (bruto, custo, linhas, com_ficha)
+    const map = new Map<string, { categoria: string; linhas: number; com_ficha: number; bruto: number; custo: number }>();
     for (const l of linhas) {
-      const a = map.get(l.categoria) || { categoria: l.categoria, linhas: 0, bruto: 0, cmv: 0 };
+      const a = map.get(l.categoria) || { categoria: l.categoria, linhas: 0, com_ficha: 0, bruto: 0, custo: 0 };
       a.linhas += 1;
+      if (l.tem_ficha) a.com_ficha += 1;
       a.bruto += l.valor_bruto;
-      a.cmv += l.valor_cmv;
+      a.custo += l.custo;
       map.set(l.categoria, a);
     }
     const resumo = Array.from(map.values())
-      .map((r) => ({ ...r, bruto: Math.round(r.bruto * 100) / 100, cmv: Math.round(r.cmv * 100) / 100 }))
+      .map((r) => ({ ...r, bruto: Math.round(r.bruto * 100) / 100, custo: Math.round(r.custo * 100) / 100 }))
       .sort((a, b) => b.bruto - a.bruto);
 
     return NextResponse.json({
@@ -95,7 +89,8 @@ export async function GET(request: NextRequest) {
       data_inicio: dataInicio,
       data_fim: dataFim,
       total_bruto: Math.round(linhas.reduce((s, l) => s + l.valor_bruto, 0) * 100) / 100,
-      total_cmv: Math.round(linhas.reduce((s, l) => s + l.valor_cmv, 0) * 100) / 100,
+      total_custo: Math.round(linhas.reduce((s, l) => s + l.custo, 0) * 100) / 100,
+      com_ficha: linhas.filter((l) => l.tem_ficha).length,
       resumo,
       linhas,
     });
