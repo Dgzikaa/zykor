@@ -5,6 +5,19 @@ import { recalcCmvFromFichaParent } from '@/lib/cmv-recalc';
 
 export const dynamic = 'force-dynamic';
 
+// Fichas vinculadas: irmãos do mesmo ficha_grupo_id (mesmo tipo de parent). Edição propaga pra eles.
+async function irmaosDoGrupo(supabase: any, parent: { producao_id?: number | null; produto_id?: number | null }): Promise<{ col: 'producao_id' | 'produto_id'; ids: number[] }> {
+  const isProd = !!parent.producao_id;
+  const table = isProd ? 'producao_base' : 'produto_cardapio';
+  const col: 'producao_id' | 'produto_id' = isProd ? 'producao_id' : 'produto_id';
+  const selfId = isProd ? parent.producao_id : parent.produto_id;
+  if (!selfId) return { col, ids: [] };
+  const { data: self } = await supabase.from(table).select('ficha_grupo_id, bar_id').eq('id', selfId).maybeSingle();
+  if (!self?.ficha_grupo_id) return { col, ids: [] };
+  const { data: irmaos } = await supabase.from(table).select('id').eq('bar_id', self.bar_id).eq('ficha_grupo_id', self.ficha_grupo_id).neq('id', selfId);
+  return { col, ids: (irmaos || []).map((r: any) => r.id) };
+}
+
 /**
  * Componentes da ficha técnica. Parent = producao_id (Produção) OU produto_id (Finalização).
  * Componente = insumo (i0XXX → catálogo VMarket, com último preço) ou outra produção (pcXXXX).
@@ -169,6 +182,12 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase.from('producao_ficha_item').insert(payload).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   await recalcCmvFromFichaParent(supabase, { producao_id: producaoId, produto_id: produtoId });
+  // fichas vinculadas: adiciona o mesmo componente nas irmãs
+  const { col, ids } = await irmaosDoGrupo(supabase, { producao_id: producaoId, produto_id: produtoId });
+  for (const sid of ids) {
+    await supabase.from('producao_ficha_item').insert({ ...payload, producao_id: null, produto_id: null, [col]: sid });
+    await recalcCmvFromFichaParent(supabase, { [col]: sid } as any);
+  }
   return NextResponse.json({ success: true, item: data });
 }
 
@@ -202,6 +221,19 @@ export async function PUT(request: NextRequest) {
   const { data, error } = await supabase.from('producao_ficha_item').update(patch).eq('id', id).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   await recalcCmvFromFichaParent(supabase, { producao_id: data?.producao_id, produto_id: data?.produto_id });
+  // fichas vinculadas: aplica o mesmo patch no item correspondente das irmãs (mesma chave de componente)
+  const { col, ids } = await irmaosDoGrupo(supabase, { producao_id: data?.producao_id, produto_id: data?.produto_id });
+  for (const sid of ids) {
+    let mq = supabase.from('producao_ficha_item').select('id').eq(col, sid).eq('componente_tipo', data.componente_tipo);
+    mq = data.componente_tipo === 'insumo' ? mq.eq('insumo_codigo', data.insumo_codigo) : mq.eq('producao_ref', data.producao_ref);
+    const { data: match } = await mq;
+    const matchIds = (match || []).map((r: any) => r.id);
+    if (matchIds.length) {
+      if (body.is_mestre === true) await supabase.from('producao_ficha_item').update({ is_mestre: false }).eq(col, sid);
+      await supabase.from('producao_ficha_item').update(patch).in('id', matchIds);
+      await recalcCmvFromFichaParent(supabase, { [col]: sid } as any);
+    }
+  }
   return NextResponse.json({ success: true, item: data });
 }
 
@@ -211,9 +243,19 @@ export async function DELETE(request: NextRequest) {
   const id = Number(new URL(request.url).searchParams.get('id'));
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
   const supabase = await getAdminClient();
-  const { data: alvo } = await supabase.from('producao_ficha_item').select('producao_id,produto_id').eq('id', id).single();
+  const { data: alvo } = await supabase.from('producao_ficha_item').select('producao_id,produto_id,componente_tipo,insumo_codigo,producao_ref').eq('id', id).single();
   const { error } = await supabase.from('producao_ficha_item').delete().eq('id', id);
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  if (alvo) await recalcCmvFromFichaParent(supabase, { producao_id: alvo.producao_id, produto_id: alvo.produto_id });
+  if (alvo) {
+    await recalcCmvFromFichaParent(supabase, { producao_id: alvo.producao_id, produto_id: alvo.produto_id });
+    // fichas vinculadas: remove o item correspondente das irmãs
+    const { col, ids } = await irmaosDoGrupo(supabase, { producao_id: alvo.producao_id, produto_id: alvo.produto_id });
+    for (const sid of ids) {
+      let dq = supabase.from('producao_ficha_item').delete().eq(col, sid).eq('componente_tipo', alvo.componente_tipo);
+      dq = alvo.componente_tipo === 'insumo' ? dq.eq('insumo_codigo', alvo.insumo_codigo) : dq.eq('producao_ref', alvo.producao_ref);
+      await dq;
+      await recalcCmvFromFichaParent(supabase, { [col]: sid } as any);
+    }
+  }
   return NextResponse.json({ success: true });
 }

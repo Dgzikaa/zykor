@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes, Download, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
+import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes, Download, RefreshCw, TrendingUp, TrendingDown, Link2 } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
 
 const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'porção'];
@@ -54,6 +54,12 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   const [statusFiltro, setStatusFiltro] = useState<'todos' | 'ativo' | 'inativo'>('todos');
   const [itens, setItens] = useState<any[]>([]);
   const [loadingItens, setLoadingItens] = useState(false);
+  // fichas vinculadas (réplicas) do item selecionado
+  const [grupo, setGrupo] = useState<any[]>([]);
+  const [vincOpen, setVincOpen] = useState(false);
+  const [vincSel, setVincSel] = useState<Set<number>>(new Set());
+  const [vincBusca, setVincBusca] = useState('');
+  const [vincBusy, setVincBusy] = useState(false);
   // códigos com componente sem preço (R$0 — revisar)
   const [zeradoCods, setZeradoCods] = useState<Set<string>>(new Set());
   // re-busca o contador de "item R$0" — a view é ao vivo, então corrigir o preço de um
@@ -64,6 +70,39 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
       .then(r => { if (r.success) setZeradoCods(new Set((kind === 'producao' ? r.producoes : r.produtos) || [])); })
       .catch(() => {});
   }, [barId, kind]);
+
+  // fichas vinculadas: membros do grupo do item selecionado
+  const loadGrupo = useCallback(async () => {
+    if (!barId || !sel) { setGrupo([]); return; }
+    const r = await api.get(`/api/operacional/fichas/grupo?bar_id=${barId}&tipo=${kind}&id=${sel}`);
+    if (r.success) setGrupo(r.membros || []);
+  }, [barId, sel, kind]);
+  useEffect(() => { loadGrupo(); }, [loadGrupo]);
+  const vincular = async () => {
+    if (!barId || !sel) return;
+    const ids = Array.from(new Set<number>([sel, ...Array.from(vincSel)]));
+    if (ids.length < 2) return;
+    if (!confirm(`Vincular ${ids.length} fichas? A receita desta (mestre) será copiada pras outras, e a partir de agora editar uma edita todas.`)) return;
+    setVincBusy(true);
+    try {
+      const r = await api.post('/api/operacional/fichas/grupo', { bar_id: barId, tipo: kind, master_id: sel, ids });
+      if (!r.success) throw new Error(r.error);
+      toast({ title: 'Vinculadas', description: `${r.vinculadas} fichas compartilham a receita.` });
+      setVincOpen(false); setVincSel(new Set()); setVincBusca('');
+      loadGrupo(); reloadLista();
+    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+    finally { setVincBusy(false); }
+  };
+  const desvincular = async () => {
+    if (!barId || !sel) return;
+    if (!confirm('Desvincular esta ficha do grupo? Ela deixa de sincronizar com as outras.')) return;
+    try { await api.delete(`/api/operacional/fichas/grupo?bar_id=${barId}&tipo=${kind}&id=${sel}`); loadGrupo(); }
+    catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+  const vincOpcoes = useMemo(() => {
+    const q = vincBusca.trim().toLowerCase();
+    return (lista || []).filter((p: any) => p.id !== sel && (!q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q))).slice(0, 40);
+  }, [lista, vincBusca, sel]);
   useEffect(() => { reloadZerados(); }, [reloadZerados]);
 
   useEffect(() => { if (preSel) setSel(preSel); }, [preSel]);
@@ -376,6 +415,20 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                     <button onClick={() => setConfirmDel(true)} className="text-red-500 hover:text-red-700" title={kind === 'producao' ? 'Excluir esta produção da base do Zykor' : 'Excluir este produto da base do Zykor'}><Trash2 className="w-4 h-4" /></button>
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{selObj.codigo ? `${selObj.codigo} · ` : ''}{itens.length} componentes</p>
+                  {/* fichas vinculadas (réplicas) */}
+                  <div className="text-[11px] mt-0.5">
+                    {grupo.length > 1 ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Badge variant="outline" className="text-indigo-600 border-indigo-300"><Link2 className="w-3 h-3 mr-1" />vinculada a {grupo.length - 1} outra(s)</Badge>
+                        <button onClick={() => { setVincSel(new Set()); setVincOpen(true); }} className="text-indigo-600 hover:underline">+ vincular</button>
+                        <span className="text-gray-300">·</span>
+                        <button onClick={desvincular} className="text-red-500 hover:underline">desvincular esta</button>
+                        <span className="text-gray-400" title={grupo.map((g: any) => g.nome).join(', ')}>ⓘ</span>
+                      </span>
+                    ) : (
+                      <button onClick={() => { setVincSel(new Set()); setVincOpen(true); }} className="inline-flex items-center gap-1 text-indigo-600 hover:underline"><Link2 className="w-3 h-3" />Vincular fichas réplica</button>
+                    )}
+                  </div>
                   {kind === 'producao' && (
                     <div className="mt-1.5 flex flex-col gap-1">
                       <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
@@ -625,6 +678,31 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                       <div className="flex justify-end gap-2 pt-1">
                         <Button variant="outline" onClick={() => setConfirmDel(false)}>Cancelar</Button>
                         <Button onClick={excluirProduto} className="bg-red-600 hover:bg-red-700 text-white">Excluir</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Modal: vincular fichas réplica (receita compartilhada) */}
+                {vincOpen && (
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 pt-16 overflow-y-auto" onMouseDown={(e) => { if (e.target === e.currentTarget) setVincOpen(false); }}>
+                    <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-lg space-y-3" onClick={e => e.stopPropagation()}>
+                      <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-1.5"><Link2 className="w-4 h-4" />Vincular fichas a &ldquo;{selObj?.nome}&rdquo;</h4>
+                      <p className="text-[11px] text-gray-500">A receita de <b>{selObj?.nome}</b> vira a <b>mestre</b> e é copiada pras selecionadas. A partir daí, editar um insumo em qualquer uma <b>edita todas</b>. Use pra réplicas (ex.: mesma bebida com preços diferentes: HH, PP, DD…).</p>
+                      <div className="relative"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={vincBusca} onChange={e => setVincBusca(e.target.value)} placeholder="Buscar ficha pra vincular…" className="pl-9" /></div>
+                      <div className="max-h-72 overflow-y-auto rounded border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
+                        {vincOpcoes.length === 0 ? <div className="px-3 py-3 text-xs text-gray-400">Nada encontrado.</div>
+                        : vincOpcoes.map((p: any) => (
+                          <label key={p.id} className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                            <input type="checkbox" checked={vincSel.has(p.id)} onChange={() => setVincSel(s => { const n = new Set(s); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n; })} className="w-4 h-4 accent-indigo-600" />
+                            <span className="text-gray-800 dark:text-gray-100">{p.nome} <span className="text-xs text-gray-400 font-mono">{p.codigo}</span></span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-amber-600 dark:text-amber-400">⚠ A receita atual das selecionadas será <b>substituída</b> pela de {selObj?.nome}.</p>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <Button variant="outline" onClick={() => setVincOpen(false)}>Cancelar</Button>
+                        <Button onClick={vincular} disabled={vincBusy || vincSel.size === 0}>{vincBusy ? 'Vinculando…' : `Vincular ${vincSel.size + 1} fichas`}</Button>
                       </div>
                     </div>
                   </div>
