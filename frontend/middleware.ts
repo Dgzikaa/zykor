@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { hasRoutePermission, getRoutePermission } from './src/lib/route-permissions';
 import { validateToken } from './src/lib/auth/jwt';
+import { isPublicRoute } from './src/lib/auth/public-routes';
 
 interface User {
   id: number;
@@ -66,8 +67,9 @@ async function getAuthenticatedUser(request: NextRequest): Promise<User | null> 
   }
 }
 
-// Rotas que não precisam de autenticação
-const PUBLIC_ROUTES = ['/login', '/auth', '/api'];
+// Rotas públicas (sem sessão) vêm da FONTE ÚNICA public-routes.ts — a mesma usada por
+// SessionManager/PermissionGuard. Inclui /usuarios/redefinir-senha (1º acesso roda sem
+// sessão); manter a lista aqui duplicada foi o que quebrou o primeiro acesso (loop pro login).
 
 // Rotas que devem ser ignoradas pelo middleware
 const IGNORED_ROUTES = ['/_next', '/favicon.ico', '/static'];
@@ -97,8 +99,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Permitir rotas públicas
-  if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
+  // Permitir rotas públicas (fonte única: public-routes.ts)
+  if (isPublicRoute(pathname)) {
     return NextResponse.next();
   }
 
