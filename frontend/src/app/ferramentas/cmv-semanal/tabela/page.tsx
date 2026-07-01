@@ -920,9 +920,12 @@ export default function CMVSemanalTabelaPage() {
              (semana.compras_alimentacao || 0) - 
              (semana.estoque_final_funcionarios || 0);
     }
-    // Consumações = soma dos sub-itens × fatorCmv (CMV do consumo)
-    // 6 categorias: Sócios, Funcionários, Clientes, Artistas, RH, Chegadeira
+    // Consumações = CUSTO REAL da ficha (consumo_* gravados pela edge desde jul/2026).
+    // Fallback ×fator sobre os brutos p/ semanas antigas (2025) ainda não reprocessadas.
     if (key === 'total_consumos') {
+      const s = semana as unknown as { consumo_socios?: number; consumo_beneficios?: number; consumo_artista?: number; consumo_rh?: number };
+      const real = (s.consumo_socios || 0) + (s.consumo_beneficios || 0) + (s.consumo_artista || 0) + (s.consumo_rh || 0);
+      if (real > 0) return real;
       return ((semana.total_consumo_socios || 0) * fatorCmv) +
              ((semana.mesa_adm_casa || 0) * fatorCmv) +
              ((semana.mesa_beneficios_cliente || 0) * fatorCmv) +

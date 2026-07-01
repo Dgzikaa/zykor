@@ -466,20 +466,21 @@ serve(async (req) => {
         // total continua vindo dos 5 buckets acima (soma identica, validado).
         let consumacoes9Json: Record<string, number> | null = null;
         try {
-          const { data: cons9, error: cons9Err } = await supabase.rpc('get_consumos_9_semana', {
+          const fator9 = await getFatorConsumo(barId);
+          const { data: cons9, error: cons9Err } = await supabase.rpc('get_consumos_9_custo_semana', {
             input_bar_id: barId,
             input_data_inicio: dataInicio,
             input_data_fim: dataFim,
+            p_fator: fator9,
           });
           if (cons9Err) {
-            console.error('  ⚠️ Erro RPC get_consumos_9_semana:', cons9Err);
+            console.error('  ⚠️ Erro RPC get_consumos_9_custo_semana:', cons9Err);
           } else if (cons9 && cons9.length > 0) {
-            const fator9 = await getFatorConsumo(barId);
             consumacoes9Json = {};
             for (const item of cons9) {
               const cat = item.categoria as string;
-              const valor = (parseFloat(String(item.total)) || 0) * fator9;
-              consumacoes9Json[cat] = Math.round(valor * 100) / 100;
+              // custo_real = ficha (produto com FT) ou desconto×fator (sem FT). Mantém o corte 12/06.
+              consumacoes9Json[cat] = Math.round((parseFloat(String(item.custo_real)) || 0) * 100) / 100;
             }
           }
         } catch (cons9Catch) {
@@ -706,26 +707,51 @@ serve(async (req) => {
         let cmvReal = null;
         let cmvPercentual = null;
         let cmvLimpoPercentual = null;
-        
+        // Consumação (custo real da ficha) exposta pro updateData gravar consumo_* reais.
+        let consumoSociosOut = 0, consumoBeneficiosOut = 0, consumoArtistaOut = 0, consumoRhOut = 0;
+
         if (estoqueInicial > 0 || estoqueFinal > 0 || comprasCmvTotal > 0) {
-          // Usar consumos da planilha (já com fator aplicado) se disponíveis
-          // Caso contrário, usar valores brutos e aplicar fator
-          let consumoSocios = dadosAtuais.consumo_socios || 0;
-          let consumoBeneficios = dadosAtuais.consumo_beneficios || 0;
-          let consumoArtista = dadosAtuais.consumo_artista || 0;
-          let consumoRh = dadosAtuais.consumo_rh || 0;
-          let outrosAjustes = dadosAtuais.outros_ajustes || 0;
-          
-          // Se não tiver consumos da planilha, calcular dos valores brutos
-          if (consumoSocios === 0 && consumoBeneficios === 0 && consumoArtista === 0) {
+          // Consumação valorizada pelo CUSTO REAL da ficha técnica (produto com FT → custo real
+          // proporcional ao desconto; sem FT → desconto × fator). Fonte: get_consumo_custo_real_semana,
+          // mesma da tela de Controle de Consumação. Substitui o antigo ×fator liso.
+          const outrosAjustes = dadosAtuais.outros_ajustes || 0;
+          let consumoSocios = 0, consumoBeneficios = 0, consumoArtista = 0, consumoRh = 0;
+          let custoRealOk = false;
+          try {
+            const fatorConsumo = await getFatorConsumo(barId);
+            const { data: custoReal, error: custoErr } = await supabase.rpc('get_consumo_custo_real_semana', {
+              input_bar_id: barId,
+              input_data_inicio: dataInicio,
+              input_data_fim: dataFim,
+              p_fator: fatorConsumo,
+            });
+            if (!custoErr && Array.isArray(custoReal) && custoReal.length > 0) {
+              const m: Record<string, number> = {};
+              for (const it of custoReal) m[it.categoria as string] = parseFloat(String(it.custo_real)) || 0;
+              consumoSocios = m['socios'] || 0;
+              consumoBeneficios = m['clientes'] || 0;
+              consumoArtista = m['artistas'] || 0;
+              consumoRh = (m['funcionarios_operacao'] || 0) + (m['funcionarios_escritorio'] || 0);
+              custoRealOk = true;
+            } else if (custoErr) {
+              console.error('  ⚠️ Erro RPC get_consumo_custo_real_semana:', custoErr);
+            }
+          } catch (custoCatch) {
+            console.error('  ⚠️ Erro ao calcular custo real da ficha:', custoCatch);
+          }
+          // Fallback: ×fator sobre os brutos (comportamento antigo) se o custo real falhar
+          if (!custoRealOk) {
             const fatorConsumo = await getFatorConsumo(barId);
             consumoSocios = (consumacoes.total_consumo_socios || 0) * fatorConsumo;
             consumoBeneficios = (consumacoes.mesa_beneficios_cliente || 0) * fatorConsumo;
             consumoArtista = (consumacoes.mesa_banda_dj || 0) * fatorConsumo;
-            // RH = funcionarios_operacao (mesa_rh) + funcionarios_escritorio (mesa_adm_casa)
             consumoRh = ((consumacoes.mesa_rh || 0) + (consumacoes.mesa_adm_casa || 0)) * fatorConsumo;
           }
-          
+          consumoSociosOut = consumoSocios;
+          consumoBeneficiosOut = consumoBeneficios;
+          consumoArtistaOut = consumoArtista;
+          consumoRhOut = consumoRh;
+
           const totalConsumos = consumoSocios + consumoBeneficios + consumoArtista + consumoRh + outrosAjustes;
           const bonificacoes = dadosAtuais.bonificacao_contrato_anual || 0;
           
@@ -779,8 +805,13 @@ serve(async (req) => {
           mesa_rh: consumacoes.mesa_rh,
           mesa_adm_casa: consumacoes.mesa_adm_casa,
           mesa_beneficios_cliente: consumacoes.mesa_beneficios_cliente,
-          // Breakdown das 9 categorias padronizadas (×fator) p/ a tela exibir.
-          // Total continua nos buckets acima — esse campo e so detalhamento.
+          // Consumação em CUSTO REAL da ficha (5 buckets) — é o que entra no cmv_real e o que
+          // a tela soma no "TOTAL". Antes era ×0,35; agora ficha (fallback ×fator se RPC falhar).
+          consumo_socios: consumoSociosOut,
+          consumo_beneficios: consumoBeneficiosOut,
+          consumo_artista: consumoArtistaOut,
+          consumo_rh: consumoRhOut,
+          // Breakdown das 9 categorias (custo real da ficha) p/ a tela exibir. Mantém o corte 12/06.
           consumacoes_9: consumacoes9Json,
           // Propagar estoque inicial da semana anterior (só se não veio da planilha)
           ...estoqueInicialUpdate,
