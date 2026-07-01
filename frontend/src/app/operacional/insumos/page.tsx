@@ -47,6 +47,7 @@ function ColHeader({ label, title, align, options, selected, onChange }: {
   const [q, setQ] = useState('');
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const active = selected.size > 0;
 
@@ -58,6 +59,7 @@ function ColHeader({ label, title, align, options, selected, onChange }: {
 
   useEffect(() => {
     if (!open) return;
+    inputRef.current?.focus();
     const onDown = (e: MouseEvent) => {
       if (menuRef.current?.contains(e.target as Node) || btnRef.current?.contains(e.target as Node)) return;
       setOpen(false);
@@ -83,7 +85,7 @@ function ColHeader({ label, title, align, options, selected, onChange }: {
       {open && pos && typeof document !== 'undefined' && createPortal(
         <div ref={menuRef} style={{ position: 'fixed', left: pos.left, top: pos.top, width: 256 }}
           className="z-[60] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-2 normal-case">
-          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Filtrar valores…" className="h-8 text-xs" autoFocus />
+          <Input ref={inputRef} value={q} onChange={e => setQ(e.target.value)} placeholder="Filtrar valores…" className="h-8 text-xs" />
           <div className="flex items-center justify-between px-1 py-1.5 text-[11px] text-gray-500">
             <button className="hover:text-emerald-600" onClick={() => onChange(new Set(options.map(o => o.value)))}>Todos</button>
             <span>{selected.size ? `${selected.size} sel.` : `${options.length} valores`}</span>
