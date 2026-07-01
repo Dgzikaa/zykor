@@ -56,6 +56,10 @@ const CAMPOS = [
   'descontos',
   'fat_19h',
   'fat_19h_percent',
+  'fat_20h',
+  'fat_20h_percent',
+  'pessoas_ate_19h',
+  'pessoas_ate_20h',
   'capacidade_estimada',
   'observacoes',
 ].join(', ');
@@ -850,6 +854,20 @@ export async function GET(request: NextRequest) {
           data_evento: data,
           motivo: 'Nenhum evento encontrado para esta data.',
         });
+      }
+
+      // Cortes por hora (fat/pessoas até 19h e 20h) vêm do eventos_base ao vivo —
+      // o snapshot gold.planejamento ainda não carrega fat_20h/pessoas_ate_*.
+      {
+        const { data: cortesRows } = await (supabase as any)
+          .schema('operations')
+          .from('eventos_base')
+          .select('fat_19h, fat_19h_percent, fat_20h, fat_20h_percent, pessoas_ate_19h, pessoas_ate_20h')
+          .eq('bar_id', barId)
+          .eq('data_evento', data)
+          .order('id', { ascending: true })
+          .limit(1);
+        if (cortesRows && cortesRows.length) Object.assign(evento, cortesRows[0]);
       }
 
       const { data: baselineRows } = await gold

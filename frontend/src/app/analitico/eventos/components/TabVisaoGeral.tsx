@@ -157,6 +157,50 @@ export function TabVisaoGeral({ data }: Props) {
         />
       </div>
 
+      {data.gran === 'dia' && (
+        <>
+          <SectionTitle>Ritmo até 19h / 20h</SectionTitle>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <KpiCard
+              label="Faturamento até 19h"
+              value={formatCurrency(Number(evt.fat_19h) || 0)}
+              accent="blue"
+              icon={<Timer className="w-4 h-4" />}
+              sub={evt.fat_19h_percent != null ? `${Number(evt.fat_19h_percent).toFixed(0)}% do dia` : undefined}
+            />
+            <KpiCard
+              label="Faturamento até 20h"
+              value={formatCurrency(Number(evt.fat_20h) || 0)}
+              accent="blue"
+              icon={<Timer className="w-4 h-4" />}
+              sub={evt.fat_20h_percent != null ? `${Number(evt.fat_20h_percent).toFixed(0)}% do dia` : undefined}
+            />
+            <KpiCard
+              label="Pessoas até 19h"
+              value={Math.round(Number(evt.pessoas_ate_19h) || 0).toLocaleString('pt-BR')}
+              accent="green"
+              icon={<UserRound className="w-4 h-4" />}
+              sub={
+                m.publico > 0
+                  ? `${(((Number(evt.pessoas_ate_19h) || 0) / m.publico) * 100).toFixed(0)}% do público · comanda aberta`
+                  : 'comanda aberta'
+              }
+            />
+            <KpiCard
+              label="Pessoas até 20h"
+              value={Math.round(Number(evt.pessoas_ate_20h) || 0).toLocaleString('pt-BR')}
+              accent="green"
+              icon={<UserRound className="w-4 h-4" />}
+              sub={
+                m.publico > 0
+                  ? `${(((Number(evt.pessoas_ate_20h) || 0) / m.publico) * 100).toFixed(0)}% do público · comanda aberta`
+                  : 'comanda aberta'
+              }
+            />
+          </div>
+        </>
+      )}
+
       <SectionTitle>Operação & Mix</SectionTitle>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard
