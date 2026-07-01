@@ -44,6 +44,14 @@ const fmtPeso = (q: any, u: string | null) => {
   if (u === 'ml' || u === 'L') { const ml = u === 'L' ? n * 1000 : n; return ml >= 1000 ? `${(ml / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} L` : `${ml.toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ml`; }
   return `${n.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}${u ? ' ' + u : ''}`;
 };
+// Unidade de ENTRADA do peso mestre/bruto na execução: espelha o que a ficha mostra
+// (kg/L quando a quantidade de referência ≥1000), pra a pessoa digitar como pesa na
+// balança (1 kg) e não em grama (1000). fator = quanto multiplicar p/ voltar à base (g/ml).
+function entradaPeso(base: string | null, refQtd: number): { unidade: string; fator: number } {
+  if (base === 'g') return refQtd >= 1000 ? { unidade: 'kg', fator: 1000 } : { unidade: 'g', fator: 1 };
+  if (base === 'ml') return refQtd >= 1000 ? { unidade: 'L', fator: 1000 } : { unidade: 'ml', fator: 1 };
+  return { unidade: base || '', fator: 1 };
+}
 const fmtPct = (v: any, d = 1) => v == null ? '—' : `${Number(v).toLocaleString('pt-BR', { maximumFractionDigits: d })}%`;
 const fmtTempo = (seg: any) => {
   const s = Math.max(0, Math.round(Number(seg) || 0));
@@ -187,7 +195,9 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
   const calc = (prod: ActiveProd) => {
     const mestre = prod.itens.find(i => i.is_mestre) || null;
     const mestreQtd = Number(mestre?.quantidade || 0);
-    const pesoMestreNum = parseFloat(prod.pesoMestre) || 0;
+    const baseMestre = (mestre as any)?.unidade_exib || null;
+    const entrada = entradaPeso(baseMestre, mestreQtd);       // unidade digitada (kg/L) → base (g/ml)
+    const pesoMestreNum = (parseFloat(prod.pesoMestre) || 0) * entrada.fator; // sempre em base p/ o cálculo
     const proporcao = (mestre && pesoMestreNum > 0 && mestreQtd > 0) ? pesoMestreNum / mestreQtd : 1;
     const linhas = prod.itens.map(it => {
       const qtdPlan = Number(it.quantidade || 0);
@@ -203,7 +213,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     const custoPlan = linhas.reduce((s, l) => s + l.cPlan, 0);
     const custoReal = linhas.reduce((s, l) => s + l.cReal, 0);
     const rendEsperado = Number(prod.ficha?.rendimento || 0) * proporcao;
-    return { mestre, mestreQtd, proporcao, linhas, custoPlan, custoReal, rendEsperado };
+    return { mestre, mestreQtd, baseMestre, entrada, proporcao, linhas, custoPlan, custoReal, rendEsperado };
   };
 
   const iniciar = (prod: ActiveProd) => {
@@ -213,16 +223,17 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
 
   // detecta valores prováveis de erro de unidade (ex.: digitou 1,2 como se fosse kg onde a meta é 1.020 g)
   const checarUnidades = (prod: ActiveProd) => {
-    const { mestre, mestreQtd, linhas, rendEsperado } = calc(prod);
+    const { mestre, mestreQtd, baseMestre, entrada, linhas, rendEsperado } = calc(prod);
     const FATOR = 50; // diferença de ~50x+ quase sempre é confusão de unidade (g×kg, ml×L), não variação real
     const off = (val: number, ref: number) => ref > 0 && val > 0 && (val / ref >= FATOR || ref / val >= FATOR);
     const sus: { campo: string; valor: number; unidade: string | null; esperado: number }[] = [];
     const rreal = parseFloat(prod.rendimentoReal) || 0;
     if (rendEsperado > 0 && off(rreal, rendEsperado)) sus.push({ campo: 'Rendimento real', valor: rreal, unidade: prod.ficha.unidade, esperado: rendEsperado });
-    const pm = parseFloat(prod.pesoMestre) || 0;
-    if (mestre && off(pm, mestreQtd)) sus.push({ campo: `${mestre.insumo_fc ? 'Peso líquido' : 'Peso'} do mestre — ${mestre.nome_componente || ''}`.trim(), valor: pm, unidade: mestre.unidade_exib, esperado: mestreQtd });
-    const pb = parseFloat(prod.pesoBruto) || 0;
-    if (mestre?.insumo_fc && off(pb, mestreQtd)) sus.push({ campo: `Peso bruto do mestre — ${mestre.nome_componente || ''}`.trim(), valor: pb, unidade: mestre.unidade_exib, esperado: mestreQtd });
+    // pm/pb são digitados na unidade de entrada (kg/L) → converte p/ base antes de comparar com a ficha (base)
+    const pm = (parseFloat(prod.pesoMestre) || 0) * entrada.fator;
+    if (mestre && off(pm, mestreQtd)) sus.push({ campo: `${mestre.insumo_fc ? 'Peso líquido' : 'Peso'} do mestre — ${mestre.nome_componente || ''}`.trim(), valor: pm, unidade: baseMestre, esperado: mestreQtd });
+    const pb = (parseFloat(prod.pesoBruto) || 0) * entrada.fator;
+    if (mestre?.insumo_fc && off(pb, mestreQtd)) sus.push({ campo: `Peso bruto do mestre — ${mestre.nome_componente || ''}`.trim(), valor: pb, unidade: baseMestre, esperado: mestreQtd });
     for (const l of linhas) {
       if (off(l.real, l.qtdCalc)) sus.push({ campo: l.it.nome_componente || l.it.componente_codigo || 'Insumo', valor: l.real, unidade: l.it.unidade_exib, esperado: l.qtdCalc });
     }
@@ -242,7 +253,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     setConfirmar(null);
     setSalvandoId(prod.localId);
     patch(prod.localId, { rodando: false });
-    const { linhas, rendEsperado, mestre } = calc(prod);
+    const { linhas, rendEsperado, mestre, entrada } = calc(prod);
     // retroativa: se lançou uma data passada, ancora fim ao meio-dia dela (o desvio usa inicio::date)
     const hoje = new Date().toISOString().slice(0, 10);
     const agora = (prod.dataProducao && prod.dataProducao !== hoje)
@@ -260,8 +271,9 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
       duracao_seg: prod.segundos,
       rendimento_esperado: rendEsperado || null,
       rendimento_real: parseFloat(prod.rendimentoReal) || null,
-      peso_mestre_real: parseFloat(prod.pesoMestre) || null,
-      peso_bruto: mestre?.insumo_fc ? (parseFloat(prod.pesoBruto) || null) : null,
+      // guarda SEMPRE na unidade-base (g/ml): o valor digitado (kg/L) × fator de entrada
+      peso_mestre_real: (parseFloat(prod.pesoMestre) * entrada.fator) || null,
+      peso_bruto: mestre?.insumo_fc ? ((parseFloat(prod.pesoBruto) * entrada.fator) || null) : null,
       observacao: prod.observacao.trim() || null,
       insumos: linhas.map(l => ({
         insumo_codigo: l.it.insumo_codigo ?? l.it.componente_codigo ?? null,
@@ -388,7 +400,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
       {!sel ? (
         <Card className="card-dark"><CardContent className="py-16 text-center text-gray-400"><Timer className="w-10 h-10 mx-auto mb-2 opacity-40" />Adicione uma produção acima para iniciar. Você pode ter várias rodando ao mesmo tempo.</CardContent></Card>
       ) : (() => {
-        const { mestre, mestreQtd, proporcao, linhas, custoPlan, custoReal, rendEsperado } = calc(sel);
+        const { mestre, mestreQtd, baseMestre, entrada, proporcao, linhas, custoPlan, custoReal, rendEsperado } = calc(sel);
         const mestreFc = !!mestre?.insumo_fc;
         const pbNum = parseFloat(sel.pesoBruto) || 0;
         const plNum = parseFloat(sel.pesoMestre) || 0;
@@ -438,15 +450,15 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
               </div>
               {mestreFc ? (
                 <div>
-                  <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso do mestre{mestre?.unidade_exib ? ` (${mestre.unidade_exib})` : ''} <span className="text-amber-500 font-medium">· FC</span></label>
+                  <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso do mestre{entrada.unidade ? ` (${entrada.unidade})` : ''} <span className="text-amber-500 font-medium">· FC</span></label>
                   <div className="space-y-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] w-12 text-gray-400 shrink-0">Bruto</span>
-                      <Input type="number" inputMode="decimal" step="any" disabled={!iniciada} value={sel.pesoBruto} onChange={e => patch(sel.localId, { pesoBruto: e.target.value })} placeholder="antes de limpar" className="h-9" />
+                      <Input type="number" inputMode="decimal" step="any" disabled={!iniciada} value={sel.pesoBruto} onChange={e => patch(sel.localId, { pesoBruto: e.target.value })} placeholder={`antes de limpar · em ${entrada.unidade || 'un'}`} className="h-9" />
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] w-12 text-gray-400 shrink-0">Líquido</span>
-                      <Input type="number" inputMode="decimal" step="any" disabled={!iniciada} value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })} placeholder={`limpo · ficha ${fmtNum(mestreQtd, 3)}`} className="h-9" />
+                      <Input type="number" inputMode="decimal" step="any" disabled={!iniciada} value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })} placeholder={`limpo · ficha ${fmtPeso(mestreQtd, baseMestre)}`} className="h-9" />
                     </div>
                   </div>
                   <p className="text-[11px] text-gray-400 mt-0.5">
@@ -457,9 +469,9 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
                 </div>
               ) : (
                 <div>
-                  <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso real do mestre{mestre ? ` (${mestre.unidade_exib || ''})` : ''}</label>
+                  <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso real do mestre{mestre && entrada.unidade ? ` (${entrada.unidade})` : ''}</label>
                   <Input type="number" inputMode="decimal" step="any" value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })}
-                    placeholder={mestre ? `ficha: ${fmtNum(mestreQtd, 3)}` : 'sem insumo mestre'} disabled={!mestre || !iniciada} className="h-10" />
+                    placeholder={mestre ? `ficha: ${fmtPeso(mestreQtd, baseMestre)}` : 'sem insumo mestre'} disabled={!mestre || !iniciada} className="h-10" />
                 </div>
               )}
               <div>
@@ -552,7 +564,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
               {confirmar.suspeitos.map((s, i) => (
                 <div key={i} className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/15 px-3 py-2 text-sm">
                   <div className="font-medium text-gray-900 dark:text-gray-100">{s.campo}</div>
-                  <div className="text-gray-700 dark:text-gray-300">Você digitou <b>{fmtNum(s.valor, 3)} {s.unidade || ''}</b> — esperado ~<b>{fmtNum(s.esperado, 3)} {s.unidade || ''}</b>.</div>
+                  <div className="text-gray-700 dark:text-gray-300">Você digitou <b>{fmtPeso(s.valor, s.unidade)}</b> — esperado ~<b>{fmtPeso(s.esperado, s.unidade)}</b>.</div>
                 </div>
               ))}
             </div>
