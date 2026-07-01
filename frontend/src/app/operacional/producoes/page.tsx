@@ -567,6 +567,7 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
   const [loading, setLoading] = useState(false);
   const [fProd, setFProd] = useState<number | null>(null);
   const [fResp, setFResp] = useState<number | null>(null);
+  const [buscaProd, setBuscaProd] = useState(''); // busca por texto no histórico (ex.: "pastel")
   const [detalhe, setDetalhe] = useState<any | null>(null);
   const [detInsumos, setDetInsumos] = useState<any[]>([]);
   // filtro de semana — mesmo time-frame do Planejamento da Produção (null = todas)
@@ -621,6 +622,13 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
     };
   }, [semanaSel, planSemana, execs]);
 
+  // busca por texto no histórico (nome ou código da produção)
+  const execsView = useMemo(() => {
+    const s = buscaProd.trim().toLowerCase();
+    if (!s) return execs;
+    return execs.filter((e: any) => (e.producao_nome || '').toLowerCase().includes(s) || (e.producao_codigo || '').toLowerCase().includes(s));
+  }, [execs, buscaProd]);
+
   const abrirDetalhe = async (e: any) => {
     setDetalhe(e); setDetInsumos([]);
     try {
@@ -658,6 +666,10 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
               <option key={s.ini} value={s.ini}>{fmtDM(s.ini)} – {fmtDM(s.fim)}</option>)}
           </select>
         </div>
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Input value={buscaProd} onChange={e => setBuscaProd(e.target.value)} placeholder="Buscar produção (ex.: pastel)…" className="h-9 pl-8 w-52" />
+        </div>
         <select value={fProd ?? ''} onChange={e => setFProd(e.target.value ? Number(e.target.value) : null)}
           className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
           <option value="">Todas as produções</option>
@@ -668,8 +680,8 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
           <option value="">Todos os responsáveis</option>
           {responsaveis.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
         </select>
-        {(fProd || fResp || semanaSel) && <button onClick={() => { setFProd(null); setFResp(null); setSemanaSel(null); }} className="text-xs text-gray-400 underline">limpar</button>}
-        <span className="text-xs text-gray-400 ml-auto">{execs.length} execuç{execs.length === 1 ? 'ão' : 'ões'}</span>
+        {(fProd || fResp || semanaSel || buscaProd) && <button onClick={() => { setFProd(null); setFResp(null); setSemanaSel(null); setBuscaProd(''); }} className="text-xs text-gray-400 underline">limpar</button>}
+        <span className="text-xs text-gray-400 ml-auto">{execsView.length} execuç{execsView.length === 1 ? 'ão' : 'ões'}</span>
       </div>
 
       {/* Resumo da Semana — cruza o que foi planejado (plano encerrado) com o que foi executado */}
@@ -743,8 +755,8 @@ function AbaHistorico({ fichas, responsaveis }: { fichas: any[]; responsaveis: a
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading ? <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-              : execs.length === 0 ? <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400">Nenhuma execução registrada ainda.</td></tr>
-              : execs.map(e => (
+              : execsView.length === 0 ? <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400">{buscaProd ? 'Nenhuma execução com essa busca.' : 'Nenhuma execução registrada ainda.'}</td></tr>
+              : execsView.map(e => (
                 <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer" onClick={() => abrirDetalhe(e)}>
                   <td className="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{fmtData(e.criado_em)}</td>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{e.producao_nome || `#${e.producao_id}`}<span className="block text-xs text-gray-400">{e.producao_codigo || ''}</span></td>
