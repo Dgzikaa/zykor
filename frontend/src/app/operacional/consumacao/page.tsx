@@ -481,7 +481,8 @@ export default function ControleConsumacaoPage() {
         {CATS.map((c) => {
           const r = resumoMap.get(c.key);
           const ativo = catFiltro.has(c.key);
-          const pct = totalBruto > 0 ? ((r?.bruto || 0) / totalBruto) * 100 : 0;
+          // % agora é a fatia do CUSTO total (não do bruto), coerente com o valor em destaque
+          const pct = totalCusto > 0 ? ((r?.custo || 0) / totalCusto) * 100 : 0;
           return (
             <button
               key={c.key}
@@ -496,10 +497,12 @@ export default function ControleConsumacaoPage() {
                 <span className={`inline-block w-2 h-2 rounded-full ${c.cor}`} />
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate">{c.label}</span>
               </div>
-              <p className="mt-1 text-sm font-bold text-gray-900 dark:text-white">{moeda(r?.bruto || 0)}</p>
+              {/* valor principal = CUSTO (ficha + ×fator); bruto vira referência discreta */}
+              <p className="mt-1 text-sm font-bold text-gray-900 dark:text-white">{moeda(r?.custo || 0)}</p>
               <p className="text-[11px] text-gray-400">
                 {(r?.linhas || 0).toLocaleString('pt-BR')} lanç. · {pct.toFixed(0)}%
               </p>
+              <p className="text-[10px] text-gray-400 dark:text-gray-500">bruto {moeda(r?.bruto || 0)}</p>
             </button>
           );
         })}
@@ -509,14 +512,9 @@ export default function ControleConsumacaoPage() {
       <div className="flex flex-wrap gap-3">
         <Card className="flex-1 min-w-[180px]">
           <CardContent className="p-3">
-            <p className="text-xs text-gray-400">Total bruto {temFiltro ? '(filtro)' : ''}</p>
-            <p className="text-lg font-bold text-gray-900 dark:text-white">{moeda(temFiltro ? totFiltrado.bruto : totalBruto)}</p>
-          </CardContent>
-        </Card>
-        <Card className="flex-1 min-w-[180px]">
-          <CardContent className="p-3">
-            <p className="text-xs text-gray-400">Custo real (ficha + ×{fator})</p>
+            <p className="text-xs text-gray-400">Custo real (ficha + ×{fator}) {temFiltro ? '(filtro)' : ''}</p>
             <p className="text-lg font-bold text-gray-900 dark:text-white">{moeda(temFiltro ? totFiltrado.custo : totalCusto)}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">bruto {moeda(temFiltro ? totFiltrado.bruto : totalBruto)}</p>
           </CardContent>
         </Card>
         <Card className="flex-1 min-w-[180px]">
