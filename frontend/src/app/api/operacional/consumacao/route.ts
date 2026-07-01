@@ -33,17 +33,36 @@ export async function GET(request: NextRequest) {
   try {
     const fator = await getFatorCmv(supabase, barId);
 
-    const { data, error } = await (supabase as any).rpc('get_consumos_9_detalhes_semana', {
-      input_bar_id: barId,
-      input_data_inicio: dataInicio,
-      input_data_fim: dataFim,
-      input_categoria: null,
-    });
-    if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    // PostgREST corta o .rpc() em 1000 linhas (cap padrão) — paginar com .range() até esgotar.
+    // Ordenação determinística (todas as colunas) pra não perder/duplicar linha entre páginas.
+    const PAGE = 1000;
+    const rows: any[] = [];
+    for (let off = 0; ; off += PAGE) {
+      const { data, error } = await (supabase as any)
+        .rpc('get_consumos_9_detalhes_semana', {
+          input_bar_id: barId,
+          input_data_inicio: dataInicio,
+          input_data_fim: dataFim,
+          input_categoria: null,
+        })
+        .order('valor_desconto', { ascending: false })
+        .order('data', { ascending: true })
+        .order('mesa', { ascending: true })
+        .order('motivo', { ascending: true })
+        .order('prd_desc', { ascending: true })
+        .order('qtd', { ascending: true })
+        .order('categoria', { ascending: true })
+        .range(off, off + PAGE - 1);
+      if (error) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      }
+      const chunk = (data as any[]) || [];
+      rows.push(...chunk);
+      if (chunk.length < PAGE) break;
+      if (off >= 200000) break; // trava de segurança (não deve chegar perto)
     }
 
-    const linhas = ((data as any[]) || []).map((r) => {
+    const linhas = rows.map((r) => {
       const bruto = Number(r.valor_desconto) || 0;
       return {
         categoria: String(r.categoria),
