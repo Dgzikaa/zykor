@@ -184,7 +184,7 @@ export async function PUT(request: NextRequest) {
 
   const { linhas, custoPlanejado, custoReal, aderenciaPct } = computarExecucao(Array.isArray(body.insumos) ? body.insumos : []);
 
-  const patch: any = { atualizado_em: new Date().toISOString() };
+  const patch: any = {}; // producao_execucao não tem coluna de updated_at (só criado_em)
   if ('responsavel_id' in body) patch.responsavel_id = body.responsavel_id != null ? Number(body.responsavel_id) : null;
   if ('responsavel_nome' in body) patch.responsavel_nome = body.responsavel_nome ?? null;
   if ('duracao_seg' in body) patch.duracao_seg = body.duracao_seg != null ? Math.round(Number(body.duracao_seg)) : null;
