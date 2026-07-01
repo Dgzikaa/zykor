@@ -3,10 +3,74 @@ import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { filtrarDiasAbertos } from '@/lib/helpers/calendario-helper';
 import { getFatorCmv } from '@/lib/config/getFatorCmv';
 import { tbl } from '@/lib/supabase/table-schemas';
+import { areaDe, areaParaBucketCmv } from '@/lib/estoque/area-contagem';
 
 export const dynamic = 'force-dynamic';
 
 const supabase = createServiceRoleClient();
+
+/**
+ * Valoriza a contagem de UMA data pela MESMA fonte do Desvios/estoque-histórico:
+ * silver.estoque_contagem.valor (estoque × fator_contagem × preço VMarket congelado na data),
+ * classificado por área (areaDe) → buckets do CMV. Retorna null se não houver contagem na data.
+ * NÃO filtra por tipo_contagem (o dia 1º é 'mensal'; há 1 linha por insumo/data).
+ */
+async function estoqueContagemPorArea(
+  barId: number,
+  dataContagem: string,
+): Promise<{ cozinha: number; bebidas: number; drinks: number; funcionarios: number } | null> {
+  const { data: rows, error } = await supabase
+    .schema('silver' as never)
+    .from('estoque_contagem')
+    .select('insumo_codigo, categoria, valor')
+    .eq('bar_id', barId)
+    .eq('data_contagem', dataContagem)
+    .eq('classe', 'insumo');
+  if (error || !rows || rows.length === 0) return null;
+  const acc = { cozinha: 0, bebidas: 0, drinks: 0, funcionarios: 0 };
+  for (const r of rows as any[]) {
+    const bucket = areaParaBucketCmv(areaDe(r.categoria, r.insumo_codigo));
+    acc[bucket] += Number(r.valor) || 0;
+  }
+  return acc;
+}
+
+/**
+ * Data da contagem que representa o ESTOQUE FINAL da semana: a contagem da segunda-feira
+ * seguinte ao fim do período (mesma convenção da planilha). Com fallback pra próxima contagem
+ * existente até 7 dias à frente. Lê a existência na silver (espelha operations).
+ */
+async function resolverDataContagemFinal(barId: number, dataFim: string): Promise<string | null> {
+  const d = new Date(dataFim + 'T12:00:00Z');
+  const dow = d.getUTCDay(); // 0=dom
+  const add = dow === 0 ? 1 : dow === 6 ? 2 : (8 - dow) % 7 || 7;
+  d.setUTCDate(d.getUTCDate() + add);
+  const alvo = d.toISOString().slice(0, 10);
+
+  const { data: exata } = await supabase
+    .schema('silver' as never)
+    .from('estoque_contagem')
+    .select('data_contagem')
+    .eq('bar_id', barId)
+    .eq('data_contagem', alvo)
+    .eq('classe', 'insumo')
+    .limit(1);
+  if (exata && exata.length > 0) return alvo;
+
+  const limite = new Date(d);
+  limite.setUTCDate(limite.getUTCDate() + 7);
+  const { data: prox } = await supabase
+    .schema('silver' as never)
+    .from('estoque_contagem')
+    .select('data_contagem')
+    .eq('bar_id', barId)
+    .gte('data_contagem', alvo)
+    .lte('data_contagem', limite.toISOString().slice(0, 10))
+    .eq('classe', 'insumo')
+    .order('data_contagem', { ascending: true })
+    .limit(1);
+  return prox && prox.length > 0 ? (prox[0] as any).data_contagem : null;
+}
 
 /**
  * API para buscar dados automáticos para CMV Semanal
@@ -543,6 +607,37 @@ export async function POST(request: NextRequest) {
 
     } catch (err) {
       console.error('Erro ao buscar dados CMA:', err);
+    }
+
+    // 7.5. OVERRIDE dos estoques pela FONTE ÚNICA alinhada ao cálculo de Desvios:
+    // silver.estoque_contagem.valor (estoque × fator_contagem × preço VMarket congelado na data),
+    // classificado por área (areaDe). Sobrescreve os cálculos legados (steps 5/6/7.1-7.2), que
+    // usavam estoque×custo_unitario com categorias hardcoded e divergiam do Desvios. Assim o
+    // "Estoque Final" do CMV fica IDÊNTICO ao "estoque" do Desvios/estoque-histórico.
+    // Se não houver contagem na data, mantém o valor legado (fallback silencioso).
+    try {
+      const dataFinal = await resolverDataContagemFinal(bar_id, data_fim);
+      const fin = dataFinal ? await estoqueContagemPorArea(bar_id, dataFinal) : null;
+      if (fin) {
+        resultado.estoque_final_cozinha = fin.cozinha;
+        resultado.estoque_final_bebidas = fin.bebidas;
+        resultado.estoque_final_drinks = fin.drinks;
+        resultado.estoque_final_funcionarios = fin.funcionarios;
+      }
+      const ini = await estoqueContagemPorArea(bar_id, data_inicio);
+      if (ini) {
+        resultado.estoque_inicial_cozinha = ini.cozinha;
+        resultado.estoque_inicial_bebidas = ini.bebidas;
+        resultado.estoque_inicial_drinks = ini.drinks;
+        resultado.estoque_inicial_funcionarios = ini.funcionarios;
+      }
+      // CMA recalculado com os valores de funcionários já alinhados
+      resultado.cma_total =
+        resultado.estoque_inicial_funcionarios +
+        resultado.compras_alimentacao -
+        resultado.estoque_final_funcionarios;
+    } catch (err) {
+      console.error('Erro ao valorizar estoques pela silver (alinhado ao Desvios):', err);
     }
 
     // 8. CONSOLIDAR TOTAIS

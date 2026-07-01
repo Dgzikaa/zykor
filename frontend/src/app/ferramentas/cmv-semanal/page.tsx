@@ -1114,9 +1114,9 @@ export default function CMVSemanalPage() {
           </ModalSection>
 
           {/* Seção 2: Estoque Final Detalhado */}
-          <ModalSection 
-            title="📦 Estoque Final (por tipo)" 
-            description="Soma de estoque flutuante + fechado de cada área"
+          <ModalSection
+            title="📦 Estoque Final (por tipo)"
+            description="🟢 Automático: puxado da contagem semanal/mensal (mesma base do cálculo de Desvios). Editável se precisar de ajuste manual."
           >
             <ModalFormGrid columns={3}>
               <ModalField label="Cozinha" description="Insumos da cozinha">

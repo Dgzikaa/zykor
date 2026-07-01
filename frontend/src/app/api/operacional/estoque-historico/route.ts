@@ -1,25 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { areaDe } from '@/lib/estoque/area-contagem';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 const sb = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-
-// Área = seção da planilha de contagem (COZINHA/SALÃO/DRINKS/FUNCIONÁRIOS), refletida no sufixo da categoria:
-// (C)→Comidas · (S)→Salão · (B)/destilados→Drinks · (F)→Alimentação. "Não-alcóolicos" aparece nas 2 seções → resolve por código.
-const DRINK_NAOALC = new Set(['i0298', 'i0085', 'i0328', 'i0191', 'i0563']); // não-alcóolicos que ficam na seção DRINKS
-function areaDe(categoria: string | null, cod: string | null): string {
-  const c = (categoria || '').toUpperCase();
-  if (cod && DRINK_NAOALC.has(cod)) return 'Drinks';
-  if (/\(F\)/.test(c)) return 'Alimentação';
-  if (/\(C\)/.test(c) || c.includes('PÃES') || c.includes('PAES') || c.includes('FEIJOADA')) return 'Comidas';
-  if (/\(S\)/.test(c) || c.includes('MERCADO (S)')) return 'Salão';
-  if (/\(B\)/.test(c) || ['DESTILADOS', 'IMPÉRIO', 'IMPERIO', 'POLPAS', 'PRÉ-BATCH', 'PRE-BATCH', 'OUTROS'].some((k) => c.includes(k))) return 'Drinks';
-  if (['ARTESANAL', 'LATA', 'LONG NECK', 'RETORNÁVEIS', 'RETORNAVEIS', 'VINHOS'].some((k) => c.includes(k))) return 'Salão';
-  if (c.includes('ALCÓOLICOS') || c.includes('ALCOOLICOS')) return 'Salão';
-  return 'Comidas';
-}
 
 /**
  * GET /api/operacional/estoque-historico?tipo=semanal&data=YYYY-MM-DD
