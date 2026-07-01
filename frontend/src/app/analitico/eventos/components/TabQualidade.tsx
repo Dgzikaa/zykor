@@ -5,17 +5,21 @@ import { MessageSquare, PackageX, Star, Timer } from 'lucide-react';
 import { EventoResponse } from './types';
 import { DiagnosticoCard } from './DiagnosticoCard';
 
-interface NpsRecord {
-  data_pesquisa: string;
+// agregado do dia vindo de /api/nps (silver.nps_diario)
+interface NpsAgregado {
+  geral?: number | null;
+  respostas?: number;
+  atendimento?: number | null;
+  comida?: number | null;
+  drink?: number | null;
+  ambiente?: number | null;
+  musica?: number | null;
+  preco?: number | null;
+}
+interface Comentario {
+  data?: string;
+  nota?: number;
   setor?: string;
-  nps_geral?: number;
-  media_geral?: number;
-  nps_comida?: number;
-  nps_drink?: number;
-  nps_atendimento?: number;
-  nps_ambiente?: number;
-  nps_musica?: number;
-  nps_preco?: number;
   comentarios?: string;
 }
 
@@ -25,14 +29,9 @@ interface Props {
   barId: number;
 }
 
-function media(vals: (number | undefined | null)[]) {
-  const ns = vals.map((v) => Number(v)).filter((v) => !isNaN(v) && v > 0);
-  if (!ns.length) return null;
-  return ns.reduce((s, v) => s + v, 0) / ns.length;
-}
-
 export function TabQualidade({ data, dataSelecionada, barId }: Props) {
-  const [nps, setNps] = useState<NpsRecord[]>([]);
+  const [npsDia, setNpsDia] = useState<NpsAgregado | null>(null);
+  const [comentarios, setComentarios] = useState<Comentario[]>([]);
   const [loading, setLoading] = useState(true);
 
   const npsInicio = data.periodo?.inicio || dataSelecionada;
@@ -44,7 +43,9 @@ export function TabQualidade({ data, dataSelecionada, barId }: Props) {
     fetch(`/api/nps?bar_id=${barId}&data_inicio=${npsInicio}&data_fim=${npsFim}`)
       .then((r) => r.json())
       .then((json) => {
-        if (ativo && json?.success) setNps(json.data || []);
+        if (!ativo || !json?.success) return;
+        setNpsDia(json.nps || null);
+        setComentarios(Array.isArray(json.comentarios) ? json.comentarios : []);
       })
       .catch(() => {})
       .finally(() => ativo && setLoading(false));
@@ -57,34 +58,23 @@ export function TabQualidade({ data, dataSelecionada, barId }: Props) {
   const m = data.metricas!;
 
   // Semana/mês: NPS vem agregado do gold.desempenho (mesma fonte da tela de Desempenho).
-  // Dia: cai pro fetch legado /api/nps.
+  // Dia: usa o agregado do silver.nps_diario (via /api/nps).
   const npsD = data.nps;
   const usaDesemp = !!(npsD && npsD.respostas > 0);
   const numOuNull = (v: any) => (v === null || v === undefined ? null : Number(v));
+  const fonte: any = usaDesemp ? npsD : npsDia;
 
-  const npsGeral = usaDesemp
-    ? numOuNull(npsD!.geral)
-    : media(nps.map((n) => n.nps_geral ?? n.media_geral));
-  const respostas = usaDesemp ? npsD!.respostas : nps.length;
-  const comentarios = nps.filter((n) => n.comentarios && n.comentarios.trim().length > 0);
+  const npsGeral = fonte ? numOuNull(fonte.geral) : null;
+  const respostas = fonte ? Number(fonte.respostas) || 0 : 0;
 
-  const categorias = usaDesemp
-    ? [
-        { label: 'Atendimento', val: numOuNull(npsD!.atendimento) },
-        { label: 'Comida', val: numOuNull(npsD!.comida) },
-        { label: 'Drink', val: numOuNull(npsD!.drink) },
-        { label: 'Ambiente', val: numOuNull(npsD!.ambiente) },
-        { label: 'Música', val: numOuNull(npsD!.musica) },
-        { label: 'Preço', val: numOuNull(npsD!.preco) },
-      ]
-    : [
-        { label: 'Atendimento', val: media(nps.map((n) => n.nps_atendimento)) },
-        { label: 'Comida', val: media(nps.map((n) => n.nps_comida)) },
-        { label: 'Drink', val: media(nps.map((n) => n.nps_drink)) },
-        { label: 'Ambiente', val: media(nps.map((n) => n.nps_ambiente)) },
-        { label: 'Música', val: media(nps.map((n) => n.nps_musica)) },
-        { label: 'Preço', val: media(nps.map((n) => n.nps_preco)) },
-      ];
+  const categorias = [
+    { label: 'Atendimento', val: numOuNull(fonte?.atendimento) },
+    { label: 'Comida', val: numOuNull(fonte?.comida) },
+    { label: 'Drink', val: numOuNull(fonte?.drink) },
+    { label: 'Ambiente', val: numOuNull(fonte?.ambiente) },
+    { label: 'Música', val: numOuNull(fonte?.musica) },
+    { label: 'Preço', val: numOuNull(fonte?.preco) },
+  ];
 
   const stockoutCats = [
     { label: 'Geral', val: m.percent_stockout },
