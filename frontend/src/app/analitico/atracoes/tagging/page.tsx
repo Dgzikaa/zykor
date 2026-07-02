@@ -12,7 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  ArrowLeft, Music, Check, X, Sparkles, Copy, Loader2, AlertCircle, Star, ChevronRight,
+  ArrowLeft, Music, Check, X, Sparkles, Copy, Loader2, AlertCircle, Star, ChevronRight, Users,
 } from 'lucide-react';
 
 interface ArtistaTag {
@@ -252,6 +252,11 @@ export default function TaggingArtistasPage() {
             <Button variant={soVazios ? 'default' : 'outline'} onClick={() => setSoVazios((v) => !v)} size="sm">
               Só pendentes
             </Button>
+            <Link href="/analitico/atracoes/normalizar">
+              <Button variant="outline" size="sm" className="gap-1.5 bg-white dark:bg-gray-800">
+                <Users className="w-4 h-4" /> Normalizar
+              </Button>
+            </Link>
             <Input placeholder="🔍 buscar…" value={busca} onChange={(e) => setBusca(e.target.value)} className="w-48 bg-white dark:bg-gray-800" />
           </div>
         </div>

@@ -23,9 +23,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { 
-  Music, 
-  TrendingUp, 
+import {
+  Music,
+  TrendingUp,
   TrendingDown, 
   Minus,
   Users,
@@ -183,6 +183,11 @@ export default function DashboardAtracoesPage() {
             <Link href="/analitico/atracoes/tagging">
               <Button variant="outline" className="bg-white dark:bg-gray-800 gap-2">
                 <Music className="w-4 h-4" /> Taggear eventos
+              </Button>
+            </Link>
+            <Link href="/analitico/atracoes/normalizar">
+              <Button variant="outline" className="bg-white dark:bg-gray-800 gap-2">
+                <Users className="w-4 h-4" /> Normalizar artistas
               </Button>
             </Link>
             <Select value={periodo} onValueChange={setPeriodo}>
