@@ -246,6 +246,7 @@ export async function GET(request: NextRequest) {
           descricao: l.desc,
           valor: l.valor,
           data_competencia: l.data_competencia,
+          overridden: overrideByCid.has(l.contaazul_id),
           artista_id: matched?.artista_id ?? null,
           artista_nome: matched?.artista_nome ?? null,
         };

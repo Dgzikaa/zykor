@@ -18,10 +18,12 @@ async function recomputarCArt(ops: any, barId: number, eventoId: number, artista
     .eq('bar_id', barId)
     .eq('evento_id', eventoId)
     .eq('artista_id', artistaId);
-  const soma = (ovs || []).reduce((s: number, o: any) => s + (Number(o.valor) || 0), 0);
+  const rows = ovs || [];
+  const soma = rows.reduce((s: number, o: any) => s + (Number(o.valor) || 0), 0);
+  // sem override sobrando -> volta pra null (retoma o cálculo automático / fallback do evento)
   await ops
     .from('evento_artistas')
-    .update({ c_art: soma, updated_at: new Date().toISOString() })
+    .update({ c_art: rows.length ? soma : null, updated_at: new Date().toISOString() })
     .eq('bar_id', barId)
     .eq('evento_id', eventoId)
     .eq('artista_id', artistaId);

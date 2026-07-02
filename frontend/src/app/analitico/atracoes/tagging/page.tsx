@@ -12,7 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  ArrowLeft, Music, Check, X, Sparkles, Copy, Loader2, AlertCircle, Star,
+  ArrowLeft, Music, Check, X, Sparkles, Copy, Loader2, AlertCircle, Star, ChevronRight,
 } from 'lucide-react';
 
 interface ArtistaTag {
@@ -47,6 +47,7 @@ interface CaLancamento {
   descricao: string;
   valor: number;
   data_competencia: string;
+  overridden: boolean;
   artista_id: number | null;
   artista_nome: string | null;
 }
@@ -172,6 +173,16 @@ export default function TaggingArtistasPage() {
         descricao: l.descricao,
         data_competencia: l.data_competencia,
       }),
+    });
+    carregar(mes);
+  };
+
+  // desfaz a correção de um lançamento (volta pro casamento automático)
+  const desfazerCorrigir = async (l: CaLancamento) => {
+    if (!barId) return;
+    await fetch(`/api/eventos/ca-atracao-override?contaazul_id=${encodeURIComponent(l.contaazul_id)}`, {
+      method: 'DELETE',
+      headers: { 'x-selected-bar-id': String(barId) },
     });
     carregar(mes);
   };
@@ -334,21 +345,18 @@ export default function TaggingArtistasPage() {
                   </div>
                   </div>
 
-                  {/* pagamentos do CA que não casaram: atribuir no dia OU corrigir p/ outro show */}
-                  {row.ca_lancamentos?.some((l) => l.artista_id == null) && (
-                    <div className="mt-2 md:pl-[17rem] space-y-1.5">
-                      {row.ca_lancamentos.filter((l) => l.artista_id == null).map((l, i) => (
-                        <CaSemMatch
-                          key={l.contaazul_id || i}
-                          l={l}
-                          eventos={eventosCorrigir.length ? eventosCorrigir : rows}
-                          cadastro={cadastro}
-                          artistasDoDia={row.artistas.filter((a) => a.artista_id)}
-                          onAtribuir={(id) => atribuirCA(l.pessoa, id)}
-                          onCorrigir={(evId, evData, nome, aid) => corrigirDia(l, evId, evData, nome, aid)}
-                        />
-                      ))}
-                    </div>
+                  {/* pagamentos do CA do dia: collapse com cada lançamento, quem casou e opção de trocar/desfazer */}
+                  {row.ca_lancamentos && row.ca_lancamentos.length > 0 && (
+                    <CaPagamentos
+                      lancamentos={row.ca_lancamentos}
+                      eventos={eventosCorrigir.length ? eventosCorrigir : rows}
+                      cadastro={cadastro}
+                      artistasDoDia={row.artistas.filter((a) => a.artista_id)}
+                      currentEvento={{ id: row.id, data_evento: row.data_evento, nome: row.nome }}
+                      onAtribuir={atribuirCA}
+                      onCorrigir={corrigirDia}
+                      onDesfazer={desfazerCorrigir}
+                    />
                   )}
                 </div>
               ))}
@@ -360,66 +368,123 @@ export default function TaggingArtistasPage() {
   );
 }
 
-// Linha de pagamento do CA que não casou. Duas saídas:
-//  • "atribuir a…" — o show é neste dia, só o nome não bateu (grava de-para favorecido→artista)
-//  • "corrigir dia" — o pagamento caiu num dia, mas o show foi noutro (grava override + cachê)
-function CaSemMatch({
-  l, eventos, cadastro, artistasDoDia, onAtribuir, onCorrigir,
+// Painel colapsável com TODOS os pagamentos do CA do dia: quem casou, quanto, e
+// controle pra trocar/desfazer cada vínculo. Auto-abre quando há algo sem match.
+function CaPagamentos({
+  lancamentos, eventos, cadastro, artistasDoDia, currentEvento, onAtribuir, onCorrigir, onDesfazer,
+}: {
+  lancamentos: CaLancamento[];
+  eventos: Array<{ id: number; data_evento: string; nome: string }>;
+  cadastro: Cadastro[];
+  artistasDoDia: ArtistaTag[];
+  currentEvento: { id: number; data_evento: string; nome: string };
+  onAtribuir: (pessoa: string, artistaId: number) => void;
+  onCorrigir: (l: CaLancamento, eventoId: number, dataEvento: string, artistaNome: string, artistaId: number | null) => void;
+  onDesfazer: (l: CaLancamento) => void;
+}) {
+  const semMatch = lancamentos.filter((l) => l.artista_id == null).length;
+  const [aberto, setAberto] = useState(semMatch > 0);
+  const total = lancamentos.reduce((s, l) => s + l.valor, 0);
+  return (
+    <div className="mt-2 md:pl-[17rem]">
+      <button
+        onClick={() => setAberto((v) => !v)}
+        className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+      >
+        <ChevronRight className={`w-3 h-3 transition-transform ${aberto ? 'rotate-90' : ''}`} />
+        Pagamentos CA · {lancamentos.length} · {fmtBRL(total)}
+        {semMatch > 0 && <span className="text-amber-600 dark:text-amber-400 font-medium">· {semMatch} sem match</span>}
+      </button>
+      {aberto && (
+        <div className="mt-1.5 space-y-1.5 border-l-2 border-gray-100 dark:border-gray-700 pl-3">
+          {lancamentos.map((l, i) => (
+            <CaLinha
+              key={l.contaazul_id || i}
+              l={l}
+              eventos={eventos}
+              cadastro={cadastro}
+              artistasDoDia={artistasDoDia}
+              currentEvento={currentEvento}
+              onAtribuir={onAtribuir}
+              onCorrigir={onCorrigir}
+              onDesfazer={onDesfazer}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Uma linha de pagamento do CA. Mostra pra quem casou (ou "sem match") e abre um
+// editor: escolher o dia (show) + o artista. Se já foi corrigido, oferece "desfazer".
+function CaLinha({
+  l, eventos, cadastro, artistasDoDia, currentEvento, onAtribuir, onCorrigir, onDesfazer,
 }: {
   l: CaLancamento;
   eventos: Array<{ id: number; data_evento: string; nome: string }>;
   cadastro: Cadastro[];
   artistasDoDia: ArtistaTag[];
-  onAtribuir: (artistaId: number) => void;
-  onCorrigir: (eventoId: number, dataEvento: string, artistaNome: string, artistaId: number | null) => void;
+  currentEvento: { id: number; data_evento: string; nome: string };
+  onAtribuir: (pessoa: string, artistaId: number) => void;
+  onCorrigir: (l: CaLancamento, eventoId: number, dataEvento: string, artistaNome: string, artistaId: number | null) => void;
+  onDesfazer: (l: CaLancamento) => void;
 }) {
-  const [evId, setEvId] = useState('');
+  const [aberto, setAberto] = useState(false);
+  const [evId, setEvId] = useState(String(currentEvento.id));
   const [artista, setArtista] = useState('');
-  const ev = eventos.find((e) => String(e.id) === evId);
+  const matched = l.artista_id != null;
+  const selCls = 'rounded border border-gray-200 dark:border-gray-600 bg-transparent px-1 py-0.5 text-xs';
   const commit = () => {
+    const ev = eventos.find((e) => String(e.id) === evId) || currentEvento;
     if (!ev || !artista.trim()) return;
     const hit = cadastro.find((c) => c.nome.toLowerCase() === artista.trim().toLowerCase());
-    onCorrigir(ev.id, ev.data_evento, artista.trim(), hit?.id ?? null);
-    setEvId(''); setArtista('');
+    onCorrigir(l, ev.id, ev.data_evento, artista.trim(), hit?.id ?? null);
+    setArtista(''); setAberto(false);
   };
-  const selCls = 'rounded border border-gray-200 dark:border-gray-600 bg-transparent px-1 py-0.5 text-xs';
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs">
-      <span className="text-amber-600 dark:text-amber-400 font-medium">CA sem match:</span>
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      {matched
+        ? <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+        : <span className="text-amber-600 dark:text-amber-400 font-medium shrink-0">sem match</span>}
       <span className="text-gray-700 dark:text-gray-300">{l.pessoa || l.descricao}</span>
+      {l.pessoa && l.descricao && <span className="text-gray-400 truncate max-w-[13rem]" title={l.descricao}>{l.descricao}</span>}
       <span className="text-gray-500">{fmtBRL(l.valor)}</span>
-      {l.data_competencia && <span className="text-gray-400">pago {fmtData(l.data_competencia)}</span>}
+      {matched && <span className="text-gray-500">→ <span className="font-medium text-gray-700 dark:text-gray-300">{l.artista_nome}</span></span>}
+      {l.overridden && <span className="text-[10px] text-purple-500 dark:text-purple-400">corrigido</span>}
 
-      {artistasDoDia.length > 0 && (
-        <>
-          <span className="text-gray-400">→</span>
-          <select className={selCls} defaultValue="" onChange={(e) => { const id = Number(e.target.value); if (id) onAtribuir(id); }}>
-            <option value="">atribuir a…</option>
-            {artistasDoDia.map((a) => (
-              <option key={a.artista_id} value={a.artista_id!}>{a.artista_nome}</option>
-            ))}
-          </select>
-        </>
+      <button onClick={() => setAberto((v) => !v)} className="text-purple-600 dark:text-purple-400 hover:underline">
+        {matched ? 'trocar' : 'corrigir'}
+      </button>
+      {l.overridden && (
+        <button onClick={() => onDesfazer(l)} className="text-gray-400 hover:text-red-500 hover:underline">desfazer</button>
       )}
 
-      <span className="text-gray-300 dark:text-gray-600">|</span>
-      <span className="text-gray-400">corrigir dia:</span>
-      <select className={selCls} value={evId} onChange={(e) => { setEvId(e.target.value); setArtista(''); }}>
-        <option value="">escolher show…</option>
-        {eventos.map((e) => (
-          <option key={e.id} value={e.id}>{fmtData(e.data_evento)} · {e.nome || '—'}</option>
-        ))}
-      </select>
-      {evId && (
-        <input
-          list="cadastro-artistas"
-          value={artista}
-          onChange={(e) => setArtista(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
-          onBlur={commit}
-          placeholder="artista"
-          className="w-32 rounded border border-gray-200 dark:border-gray-600 bg-transparent px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-purple-400"
-        />
+      {aberto && (
+        <span className="inline-flex flex-wrap items-center gap-1 basis-full pl-5 mt-0.5">
+          {!matched && artistasDoDia.length > 0 && (
+            <>
+              <select className={selCls} defaultValue="" onChange={(e) => { const id = Number(e.target.value); if (id) { onAtribuir(l.pessoa, id); setAberto(false); } }}>
+                <option value="">atribuir a… (mesmo dia)</option>
+                {artistasDoDia.map((a) => <option key={a.artista_id} value={a.artista_id!}>{a.artista_nome}</option>)}
+              </select>
+              <span className="text-gray-300 dark:text-gray-600">|</span>
+            </>
+          )}
+          <span className="text-gray-400">dia:</span>
+          <select className={selCls} value={evId} onChange={(e) => setEvId(e.target.value)}>
+            {eventos.map((e) => <option key={e.id} value={e.id}>{fmtData(e.data_evento)} · {e.nome || '—'}</option>)}
+          </select>
+          <input
+            list="cadastro-artistas"
+            value={artista}
+            onChange={(e) => setArtista(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
+            onBlur={commit}
+            placeholder="artista"
+            className="w-32 rounded border border-gray-200 dark:border-gray-600 bg-transparent px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-purple-400"
+          />
+        </span>
       )}
     </div>
   );
