@@ -35,6 +35,8 @@ interface Cadastro { id: number; nome: string; tipo: string; }
 type SaveStatus = 'saving' | 'saved' | 'error' | undefined;
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+// formata "YYYY-MM-DD" -> "DD/MM/YYYY" sem passar por Date (evita shift de fuso)
+const fmtData = (iso: string) => { const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${d}/${m}/${y}`; };
 
 export default function TaggingArtistasPage() {
   const { selectedBar } = useBar();
@@ -196,7 +198,7 @@ export default function TaggingArtistasPage() {
                   {/* data + evento */}
                   <div className="md:w-64 shrink-0">
                     <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                      {new Date(row.data_evento).toLocaleDateString('pt-BR')} <span className="font-normal text-gray-500 capitalize">{row.dia_semana}</span>
+                      {fmtData(row.data_evento)} <span className="font-normal text-gray-500 capitalize">{row.dia_semana}</span>
                     </div>
                     <div className="text-xs text-gray-600 dark:text-gray-400 truncate max-w-[16rem]" title={row.nome}>{row.nome || '—'}</div>
                   </div>

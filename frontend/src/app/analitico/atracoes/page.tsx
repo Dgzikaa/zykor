@@ -156,6 +156,10 @@ export default function DashboardAtracoesPage() {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
+  // formata datas ISO ("YYYY-MM-DD") sem passar por Date (evita shift de fuso -> dia anterior)
+  const fmtData = (iso: string) => { const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${d}/${m}/${y}`; };
+  const fmtDiaMes = (iso: string) => { const p = String(iso).slice(0, 10).split('-'); return `${p[2]}/${p[1]}`; };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-6">
@@ -455,7 +459,7 @@ export default function DashboardAtracoesPage() {
                             <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
                             <XAxis
                               dataKey="data"
-                              tickFormatter={(d) => new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                              tickFormatter={(d) => fmtDiaMes(d)}
                               fontSize={11}
                             />
                             <YAxis
@@ -467,7 +471,7 @@ export default function DashboardAtracoesPage() {
                                 name === 'faturamento' ? formatCurrency(v) : `${v} PAX`,
                                 name === 'faturamento' ? 'Faturamento' : 'Público',
                               ]) as any}
-                              labelFormatter={(d) => new Date(d as string).toLocaleDateString('pt-BR')}
+                              labelFormatter={(d) => fmtData(d as string)}
                             />
                             {atracaoSelecionada.baseline_fat != null && (
                               <ReferenceLine
@@ -540,7 +544,7 @@ export default function DashboardAtracoesPage() {
                             <div className="flex items-center gap-3">
                               <div className="text-sm">
                                 <div className="font-medium text-gray-900 dark:text-white">
-                                  {new Date(evento.data).toLocaleDateString('pt-BR')}
+                                  {fmtData(evento.data)}
                                 </div>
                                 <div className="text-gray-500 dark:text-gray-400">{evento.dia_semana}</div>
                               </div>
@@ -592,7 +596,7 @@ export default function DashboardAtracoesPage() {
                         <li>
                           {atracaoSelecionada.dias_sem_tocar > 60
                             ? `⏰ ${atracaoSelecionada.dias_sem_tocar} dias sem tocar - considerar reagendar`
-                            : `📅 Último show: ${new Date(atracaoSelecionada.ultimo_show).toLocaleDateString('pt-BR')}`}
+                            : `📅 Último show: ${fmtData(atracaoSelecionada.ultimo_show)}`}
                         </li>
                       </ul>
                     </CardContent>
