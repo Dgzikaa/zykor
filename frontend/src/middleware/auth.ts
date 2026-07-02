@@ -40,6 +40,12 @@ export interface PermissionCheck {
 export async function authenticateUser(
   request: NextRequest
 ): Promise<AuthenticatedUser | null> {
+  // Vincula um store de auditoria VAZIO já aqui no topo — antes de qualquer await, ou seja,
+  // ainda no contexto síncrono do handler que chamou. Só assim o enterWith propaga pro resto
+  // da request (enterWith chamado DEPOIS de um await fica preso no contexto filho e não sobe).
+  // O usuário é preenchido por mutação mais abaixo, quando a autenticação resolve.
+  try { auditContext.enterWith({ actor: {} }); } catch { /* noop */ }
+
   try {
     let authenticatedUser: AuthenticatedUser | null = null;
 
@@ -146,17 +152,17 @@ export async function authenticateUser(
       }
     }
 
-    // Publica o usuário no contexto de auditoria da requisição (o getAdminClient injeta os
-    // headers x-audit-* pra o trigger do banco atribuir a escrita). enterWith afeta o restante
-    // da execução assíncrona desta request. Nunca deixa a auditoria quebrar a autenticação.
+    // MUTA o store publicado no topo (mesma referência que o handler já enxerga) com o usuário
+    // resolvido → o getAdminClient injeta os headers x-audit-* e o trigger atribui a escrita.
     try {
-      auditContext.enterWith({
-        actor: {
+      const store = auditContext.getStore();
+      if (store) {
+        store.actor = {
           email: authenticatedUser.email,
           role: authenticatedUser.role,
           bar_id: authenticatedUser.bar_id,
-        },
-      });
+        };
+      }
     } catch { /* noop */ }
 
     return authenticatedUser;
