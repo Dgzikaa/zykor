@@ -611,6 +611,7 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
   // filtro de semana — mesmo time-frame do Planejamento da Produção (null = todas)
   const [semanaSel, setSemanaSel] = useState<string | null>(null);
   const [diaSel, setDiaSel] = useState<string>(''); // filtro por 1 dia (YYYY-MM-DD); '' = todos
+  const [soFora, setSoFora] = useState(false); // mostrar só execuções fora do plano
   const [planSemana, setPlanSemana] = useState<any | null>(null);
 
   // ao trocar de seção (Cozinha/Bar), zera o filtro de produção — ele aponta pra ficha da outra seção
@@ -700,10 +701,11 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
   const execsView = useMemo(() => {
     let base = execsSecao;
     if (diaSel) base = base.filter((e: any) => isoLocal(e.criado_em) === diaSel);
+    if (soFora) base = base.filter((e: any) => foraDoPlano(e));
     const s = buscaProd.trim().toLowerCase();
     if (!s) return base;
     return base.filter((e: any) => (e.producao_nome || '').toLowerCase().includes(s) || (e.producao_codigo || '').toLowerCase().includes(s));
-  }, [execsSecao, buscaProd, diaSel]);
+  }, [execsSecao, buscaProd, diaSel, soFora, foraDoPlano]);
 
   const abrirDetalhe = async (e: any) => {
     setDetalhe(e); setDetInsumos([]);
@@ -783,7 +785,11 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
           <option value="">Todos os responsáveis</option>
           {responsaveis.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
         </select>
-        {(fProd || fResp || semanaSel || buscaProd || diaSel) && <button onClick={() => { setFProd(null); setFResp(null); setSemanaSel(null); setBuscaProd(''); setDiaSel(''); }} className="text-xs text-gray-400 underline">limpar</button>}
+        <button onClick={() => setSoFora(v => !v)} title="Mostrar só as produções feitas fora do planejamento"
+          className={`inline-flex items-center gap-1 h-9 rounded-md border px-2.5 text-sm transition ${soFora ? 'border-rose-400 bg-rose-50 text-rose-600 dark:border-rose-800 dark:bg-rose-900/25 dark:text-rose-300' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
+          <AlertTriangle className="w-3.5 h-3.5" />Só fora do plano
+        </button>
+        {(fProd || fResp || semanaSel || buscaProd || diaSel || soFora) && <button onClick={() => { setFProd(null); setFResp(null); setSemanaSel(null); setBuscaProd(''); setDiaSel(''); setSoFora(false); }} className="text-xs text-gray-400 underline">limpar</button>}
         <span className="text-xs text-gray-400 ml-auto">{execsView.length} execuç{execsView.length === 1 ? 'ão' : 'ões'}</span>
       </div>
 
@@ -863,7 +869,7 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading ? <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-              : execsView.length === 0 ? <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400">{diaSel ? `Nenhuma execução em ${fmtDM(diaSel)}.` : buscaProd ? 'Nenhuma execução com essa busca.' : 'Nenhuma execução registrada ainda.'}</td></tr>
+              : execsView.length === 0 ? <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400">{soFora ? 'Nenhuma produção fora do plano 🎉 (tudo dentro do planejamento).' : diaSel ? `Nenhuma execução em ${fmtDM(diaSel)}.` : buscaProd ? 'Nenhuma execução com essa busca.' : 'Nenhuma execução registrada ainda.'}</td></tr>
               : execsView.map(e => (
                 <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer" onClick={() => abrirDetalhe(e)}>
                   <td className="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{fmtData(e.criado_em)}</td>
