@@ -292,15 +292,17 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // eventos candidatos p/ "corrigir dia": inclui ~2 meses anteriores, já que o pagamento
-    // atrasa em relação ao show (o show alvo pode estar no mês anterior ao do pagamento).
+    // eventos candidatos p/ "corrigir dia": janela de ~2 meses pra trás E pra frente do mês
+    // visto — o pagamento pode atrasar (show no mês anterior) ou adiantar (parcela paga antes
+    // do show, no mês seguinte). Sempre limitado a eventos passados (< hoje BRT).
     const corrigirIni = new Date(ano, mm - 3, 1).toISOString().slice(0, 10);
+    const corrigirFim = new Date(ano, mm + 2, 0).toISOString().slice(0, 10);
     const { data: evCorrigirRaw } = await supabase
       .from('eventos_base')
       .select('id, data_evento, nome')
       .eq('bar_id', barId)
       .gte('data_evento', corrigirIni)
-      .lte('data_evento', fim)
+      .lte('data_evento', corrigirFim)
       .lt('data_evento', hojeBR)
       .order('data_evento', { ascending: false });
     const eventosCorrigir = (evCorrigirRaw || []).map((e: any) => ({
