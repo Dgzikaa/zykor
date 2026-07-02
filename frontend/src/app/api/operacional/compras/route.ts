@@ -74,12 +74,25 @@ export async function GET(request: NextRequest) {
   let pedidos = pedRes.data ?? [];
   const cotacoes = cotRes.data ?? [];
 
-  // busca por PRODUTO (ex.: abacaxi): filtra os pedidos que têm algum item com o nome
+  // busca por PRODUTO (ex.: abacaxi, Spaten): filtra os pedidos que têm algum item com o nome.
+  // O VMarket manda nome_cotacao em branco em ~70% dos itens (ex.: AMBEV), então além do
+  // nome_cotacao a gente resolve pelo cadastro: acha os insumos cujo nome casa e pega os
+  // itens por cod_interno (mesmo de-para que a exibição do pedido usa).
   const produto = (sp.get('produto') || '').trim();
   if (produto) {
-    const itensMatch = await selectAll((from, to) => gold.from('vmarket_pedido_item')
+    const porNome = await selectAll((from, to) => gold.from('vmarket_pedido_item')
       .select('id_pedido').eq('bar_id', barId).ilike('nome_cotacao', `%${produto}%`).range(from, to)).catch(() => []);
-    const ids = new Set((itensMatch as any[]).map((r: any) => r.id_pedido));
+
+    const { data: insMatch } = await (supabase as any).schema('operations').from('insumos')
+      .select('codigo').eq('bar_id', barId).ilike('nome', `%${produto}%`);
+    const cods = Array.from(new Set(((insMatch || []) as any[]).map((r: any) => r.codigo).filter(Boolean)));
+    let porCodigo: any[] = [];
+    if (cods.length) {
+      porCodigo = await selectAll((from, to) => gold.from('vmarket_pedido_item')
+        .select('id_pedido').eq('bar_id', barId).in('cod_interno', cods).range(from, to)).catch(() => []) as any[];
+    }
+
+    const ids = new Set([...(porNome as any[]), ...porCodigo].map((r: any) => r.id_pedido));
     pedidos = pedidos.filter((p: any) => ids.has(p.id_pedido));
   }
 
