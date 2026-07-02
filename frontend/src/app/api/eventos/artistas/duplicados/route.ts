@@ -17,7 +17,14 @@ export async function GET(request: NextRequest) {
   const ops = (supabase as any).schema('operations');
   const { data, error } = await ops.rpc('fn_artistas_duplicados', { p_bar_id: barId });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, pares: data || [] });
+  // lista de artistas ativos p/ o "mesclar manual" (casos que o algoritmo não pega)
+  const { data: artistas } = await ops
+    .from('bar_artistas')
+    .select('id, nome')
+    .eq('bar_id', barId)
+    .eq('ativo', true)
+    .order('nome', { ascending: true });
+  return NextResponse.json({ success: true, pares: data || [], artistas: artistas || [] });
 }
 
 // POST — { action: 'merge', from_id, into_id } mescla; { action: 'ignorar', id_a, id_b } dispensa o par

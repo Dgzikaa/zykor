@@ -13,12 +13,14 @@ interface Par {
   id_b: number; nome_b: string; uso_b: number;
   sim: number;
 }
+interface Artista { id: number; nome: string; }
 
 export default function NormalizarArtistasPage() {
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
   const [loading, setLoading] = useState(true);
   const [pares, setPares] = useState<Par[]>([]);
+  const [artistas, setArtistas] = useState<Artista[]>([]);
   const [busy, setBusy] = useState<string | null>(null); // chave do par em processamento
 
   const carregar = useCallback(async () => {
@@ -27,7 +29,7 @@ export default function NormalizarArtistasPage() {
     try {
       const res = await fetch('/api/eventos/artistas/duplicados', { headers: { 'x-selected-bar-id': String(barId) } });
       const j = await res.json();
-      if (j.success) setPares(j.pares || []);
+      if (j.success) { setPares(j.pares || []); setArtistas(j.artistas || []); }
     } finally {
       setLoading(false);
     }
@@ -45,6 +47,25 @@ export default function NormalizarArtistasPage() {
     const some = intoId === p.id_a ? p.nome_b : p.nome_a;
     if (!confirm(`Unificar "${some}" em "${fica}"?\n\nTodo o histórico, cachês e tags de "${some}" passam pra "${fica}", e "${some}" é desativado.`)) return;
     setBusy(chave(p));
+    try {
+      await fetch('/api/eventos/artistas/duplicados', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
+        body: JSON.stringify({ action: 'merge', from_id: fromId, into_id: intoId }),
+      });
+      await carregar();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // mescla manual: qualquer par de artistas (casos que o algoritmo não detecta)
+  const mesclarManual = async (fromId: number, intoId: number) => {
+    if (!barId || !fromId || !intoId || fromId === intoId) return;
+    const fromN = artistas.find((a) => a.id === fromId)?.nome || '';
+    const intoN = artistas.find((a) => a.id === intoId)?.nome || '';
+    if (!confirm(`Unificar "${fromN}" em "${intoN}"?\n\nTodo o histórico, cachês e tags de "${fromN}" passam pra "${intoN}", e "${fromN}" é desativado.`)) return;
+    setBusy('manual');
     try {
       await fetch('/api/eventos/artistas/duplicados', {
         method: 'POST',
@@ -90,6 +111,9 @@ export default function NormalizarArtistasPage() {
           </p>
         </div>
 
+        {/* mesclar manual — pros casos que o algoritmo não pega (ex: "Doze" = "12 por 8", "Tiago Gioseffi" = "Dj Tiago Jousef") */}
+        <MesclarManual artistas={artistas} disabled={busy === 'manual'} onMesclar={mesclarManual} />
+
         {loading ? (
           <div className="space-y-2">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
         ) : pares.length === 0 ? (
@@ -127,6 +151,45 @@ export default function NormalizarArtistasPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Mescla manual: escolhe dois artistas quaisquer (o 2º é o que fica).
+function MesclarManual({ artistas, disabled, onMesclar }: {
+  artistas: Artista[];
+  disabled: boolean;
+  onMesclar: (fromId: number, intoId: number) => void;
+}) {
+  const [from, setFrom] = useState('');
+  const [into, setInto] = useState('');
+  const resolve = (nome: string) => artistas.find((a) => a.nome.toLowerCase() === nome.trim().toLowerCase())?.id ?? null;
+  const fromId = resolve(from);
+  const intoId = resolve(into);
+  const pronto = !!fromId && !!intoId && fromId !== intoId;
+  const inputCls = 'w-48 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-400';
+  return (
+    <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 mb-4">
+      <CardContent className="p-3 md:p-4">
+        <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+          Mesclar manualmente (quando os nomes são diferentes mas é o mesmo artista):
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input list="norm-artistas" value={from} onChange={(e) => setFrom(e.target.value)} placeholder="unir este…" className={inputCls} />
+          <ArrowRight className="w-4 h-4 text-gray-400 shrink-0" />
+          <input list="norm-artistas" value={into} onChange={(e) => setInto(e.target.value)} placeholder="…neste (fica)" className={inputCls} />
+          <Button
+            size="sm"
+            disabled={!pronto || disabled}
+            onClick={() => { if (pronto) { onMesclar(fromId!, intoId!); setFrom(''); setInto(''); } }}
+          >
+            {disabled ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Mesclar'}
+          </Button>
+        </div>
+        <datalist id="norm-artistas">
+          {artistas.map((a) => <option key={a.id} value={a.nome} />)}
+        </datalist>
+      </CardContent>
+    </Card>
   );
 }
 
