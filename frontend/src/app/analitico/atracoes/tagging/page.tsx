@@ -288,17 +288,29 @@ export default function TaggingArtistasPage() {
 
                   {/* artistas */}
                   <div className="flex-1 flex flex-wrap items-center gap-2">
-                    {row.artistas.map((a, idx) => (
-                      <Badge key={idx} variant={a.principal ? 'default' : 'secondary'} className="gap-1 pr-1">
+                    {row.artistas.map((a, idx) => {
+                      // vermelho: artista taggeado sem cachê, mas o dia TEM pagamento no CA
+                      // (sinal de que a grana caiu toda em outro artista e este ficou de fora)
+                      const semPagamento = !a.cachet && row.custo_atracao_total > 0;
+                      return (
+                      <Badge
+                        key={idx}
+                        variant={a.principal ? 'default' : 'secondary'}
+                        className={`gap-1 pr-1 ${semPagamento ? 'border border-red-400 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 dark:border-red-600' : ''}`}
+                        title={semPagamento ? 'Sem pagamento atrelado — o cachê pode ter caído em outro artista do dia. Ajuste nos "Pagamentos CA" abaixo.' : undefined}
+                      >
                         {a.principal && <Star className="w-3 h-3 text-amber-300 fill-amber-300" />}
                         <span className="capitalize text-[10px] opacity-60">{a.tipo}</span>
                         {a.artista_nome}
-                        {a.cachet ? <span className="text-[10px] opacity-70">· {fmtBRL(a.cachet)}</span> : null}
+                        {a.cachet
+                          ? <span className="text-[10px] opacity-70">· {fmtBRL(a.cachet)}</span>
+                          : (semPagamento ? <span className="text-[10px] font-medium">· sem R$</span> : null)}
                         <button onClick={() => remover(row, idx)} className="ml-1 rounded hover:bg-black/10 dark:hover:bg-white/10">
                           <X className="w-3 h-3" />
                         </button>
                       </Badge>
-                    ))}
+                      );
+                    })}
 
                     {row.artistas.length === 0 && row.sugestao.length > 0 && (
                       <button
