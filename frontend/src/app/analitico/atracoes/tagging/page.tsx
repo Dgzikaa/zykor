@@ -39,6 +39,14 @@ interface EventoRow {
   pct_principal: number | null;
   retorno: number | null;
   ca_maior: { nome: string; valor: number } | null;
+  ca_lancamentos: CaLancamento[];
+}
+interface CaLancamento {
+  pessoa: string;
+  descricao: string;
+  valor: number;
+  artista_id: number | null;
+  artista_nome: string | null;
 }
 interface Cadastro { id: number; nome: string; tipo: string; }
 type SaveStatus = 'saving' | 'saved' | 'error' | undefined;
@@ -132,6 +140,17 @@ export default function TaggingArtistasPage() {
     atualizarRow(row.id, row.artistas.filter((_, i) => i !== idx));
   };
 
+  // mapeia um favorecido do CA a um artista (persistente) e recarrega p/ recomputar
+  const atribuirCA = async (pessoa: string, artistaId: number) => {
+    if (!barId) return;
+    await fetch('/api/eventos/artista-ca-pessoa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
+      body: JSON.stringify({ ca_pessoa_nome: pessoa, artista_id: artistaId }),
+    });
+    carregar(mes);
+  };
+
   const propagar = (row: EventoRow) => {
     const alvo = row.nome.trim().toLowerCase();
     if (!alvo) return;
@@ -203,7 +222,8 @@ export default function TaggingArtistasPage() {
                 <div className="p-8 text-center text-gray-500 dark:text-gray-400">Nenhum evento com os filtros atuais.</div>
               )}
               {visiveis.map((row) => (
-                <div key={row.id} className="p-3 md:p-4 flex flex-col md:flex-row md:items-center gap-3">
+                <div key={row.id} className="p-3 md:p-4">
+                  <div className="flex flex-col md:flex-row md:items-center gap-3">
                   {/* data + evento */}
                   <div className="md:w-64 shrink-0">
                     <div className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -287,6 +307,35 @@ export default function TaggingArtistasPage() {
                     {status[row.id] === 'saved' && <span className="text-xs text-emerald-600 inline-flex items-center gap-0.5"><Check className="w-3 h-3" /> salvo</span>}
                     {status[row.id] === 'error' && <span className="text-xs text-red-600 inline-flex items-center gap-0.5"><AlertCircle className="w-3 h-3" /> erro</span>}
                   </div>
+                  </div>
+
+                  {/* pagamentos do CA que não casaram: atribuir manualmente (fica salvo) */}
+                  {row.ca_lancamentos?.some((l) => l.artista_id == null) && (
+                    <div className="mt-2 md:pl-[17rem] space-y-1">
+                      {row.ca_lancamentos.filter((l) => l.artista_id == null).map((l, i) => (
+                        <div key={i} className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="text-amber-600 dark:text-amber-400 font-medium">CA sem match:</span>
+                          <span className="text-gray-700 dark:text-gray-300">{l.pessoa || l.descricao}</span>
+                          <span className="text-gray-500">{fmtBRL(l.valor)}</span>
+                          <span className="text-gray-400">→</span>
+                          {row.artistas.filter((a) => a.artista_id).length > 0 ? (
+                            <select
+                              className="rounded border border-gray-200 dark:border-gray-600 bg-transparent px-1 py-0.5 text-xs"
+                              defaultValue=""
+                              onChange={(e) => { const id = Number(e.target.value); if (id) atribuirCA(l.pessoa, id); }}
+                            >
+                              <option value="">atribuir a…</option>
+                              {row.artistas.filter((a) => a.artista_id).map((a) => (
+                                <option key={a.artista_id} value={a.artista_id!}>{a.artista_nome}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="text-gray-400 italic">taggeie o artista primeiro pra poder atribuir</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </CardContent>

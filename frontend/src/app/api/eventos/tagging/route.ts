@@ -19,6 +19,16 @@ function cleanName(s: string): string {
     .trim();
 }
 
+// normaliza p/ casamento: minúsculas, sem acento, sem espaço extra
+function norm(s: string): string {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+const STOPWORDS = new Set(['de', 'da', 'do', 'e', 'no', 'na', 'o', 'a', 'os', 'as', 'di', 'du', 'dos', 'das']);
+// tokens relevantes do nome do artista (ignora conectores; mantém números)
+function tokensSignificativos(nome: string): string[] {
+  return norm(nome).split(/\s+/).filter((t) => t && !STOPWORDS.has(t) && (t.length >= 2 || /\d/.test(t)));
+}
+
 /**
  * Parser de artista a partir do texto livre (campo antigo eventos_base.artista
  * ou nome do evento). Quebra combos "X e Dj Y", "A, Dj B, C" em entradas
@@ -155,29 +165,50 @@ export async function GET(request: NextRequest) {
       caPorData.set(dia, arr);
     }
 
+    // de-para favorecido do CA -> artista (manual, persistente)
+    const { data: deparaRaw } = await ops
+      .from('artista_ca_pessoa')
+      .select('ca_pessoa_nome, artista_id')
+      .eq('bar_id', barId);
+    const deparaByPessoa = new Map<string, number>((deparaRaw || []).map((d: any) => [norm(d.ca_pessoa_nome), d.artista_id]));
+
     const eventos = (eventosRaw || []).map((e: any) => {
       const faturamento = parseFloat(e.real_r) || 0;
       const artistasAtuais: any[] = (tagsPorEvento.get(e.id) || []).map((a: any) => ({ ...a, cachet: 0, principal: false }));
 
-      // casa os lançamentos do CA do dia com os artistas taggeados (por nome na descrição/favorecido)
+      // casa os lançamentos do CA do dia com os artistas taggeados:
+      // 1) de-para favorecido->artista (manual); 2) match por tokens (acento-insensível)
       const caDia = caPorData.get(String(e.data_evento).slice(0, 10)) || [];
       const custo_atracao_total = caDia.reduce((s, l) => s + l.valor, 0);
       let ca_maior: { nome: string; valor: number } | null = null;
-      for (const l of caDia) {
+      const ca_lancamentos = caDia.map((l) => {
         if (!ca_maior || l.valor > ca_maior.valor) {
-          // nome "amigável" do maior lançamento (tira prefixo do evento antes de "Banda ")
           const m = /banda\s+(.+)$/i.exec(l.desc);
           ca_maior = { nome: (m ? m[1] : l.pessoa || l.desc).trim(), valor: l.valor };
         }
-        const hay = `${l.desc} ${l.pessoa}`.toLowerCase();
-        let best: any = null;
-        let bestLen = 0;
-        for (const a of artistasAtuais) {
-          const nm = String(a.artista_nome || '').toLowerCase();
-          if (nm && nm.length > bestLen && hay.includes(nm)) { best = a; bestLen = nm.length; }
+        let matched: any = null;
+        const viaDepara = deparaByPessoa.get(norm(l.pessoa));
+        if (viaDepara != null) matched = artistasAtuais.find((a) => a.artista_id === viaDepara) || null;
+        if (!matched) {
+          const hay = norm(`${l.desc} ${l.pessoa}`);
+          let bestLen = 0;
+          for (const a of artistasAtuais) {
+            const toks = tokensSignificativos(a.artista_nome);
+            if (toks.length && toks.every((t) => hay.includes(t))) {
+              const len = norm(a.artista_nome).length;
+              if (len > bestLen) { matched = a; bestLen = len; }
+            }
+          }
         }
-        if (best) best.cachet += l.valor;
-      }
+        if (matched) matched.cachet += l.valor;
+        return {
+          pessoa: l.pessoa,
+          descricao: l.desc,
+          valor: l.valor,
+          artista_id: matched?.artista_id ?? null,
+          artista_nome: matched?.artista_nome ?? null,
+        };
+      });
 
       // principal = artista taggeado com maior cachê
       let principal: any = null;
@@ -216,6 +247,7 @@ export async function GET(request: NextRequest) {
         pct_principal,
         retorno,
         ca_maior, // maior cachê do dia no CA (ajuda a validar quando nada casou)
+        ca_lancamentos, // todas as linhas de atração do CA no dia (p/ atribuição manual)
       };
     });
 
