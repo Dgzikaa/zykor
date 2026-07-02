@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminClient } from '@/lib/supabase-admin';
+import { getAdminClient, auditContext } from '@/lib/supabase-admin';
 import { safeErrorLog } from '@/lib/logger';
 import { validateToken } from '@/lib/auth/jwt';
 
@@ -145,6 +145,19 @@ export async function authenticateUser(
         }
       }
     }
+
+    // Publica o usuário no contexto de auditoria da requisição (o getAdminClient injeta os
+    // headers x-audit-* pra o trigger do banco atribuir a escrita). enterWith afeta o restante
+    // da execução assíncrona desta request. Nunca deixa a auditoria quebrar a autenticação.
+    try {
+      auditContext.enterWith({
+        actor: {
+          email: authenticatedUser.email,
+          role: authenticatedUser.role,
+          bar_id: authenticatedUser.bar_id,
+        },
+      });
+    } catch { /* noop */ }
 
     return authenticatedUser;
   } catch (error) {

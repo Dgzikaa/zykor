@@ -1,32 +1,54 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { AsyncLocalStorage } from 'async_hooks';
 
 // Cliente administrativo do Supabase (usa service role key)
 let adminClient: SupabaseClient | null = null;
 
-async function getAdminClient(): Promise<SupabaseClient> {
-  if (adminClient) {
-    return adminClient;
-  }
+/**
+ * Contexto de auditoria por requisição. `authenticateUser` publica o usuário aqui
+ * (enterWith) e o `getAdminClient` injeta os headers x-audit-* em cada chamada — assim
+ * o trigger de auditoria no banco (system.fn_audit) sabe QUEM fez a escrita, sem precisar
+ * alterar as centenas de rotas. Escritas sem esse contexto (ETL/cron/edge) não mandam o
+ * header e por isso não são auditadas (é o gate que evita poluir a trilha com escrita de máquina).
+ */
+export interface AuditActor { email?: string; role?: string; bar_id?: number }
+export const auditContext = new AsyncLocalStorage<{ actor: AuditActor; client?: SupabaseClient }>();
 
-  // SEMPRE usar variáveis de ambiente
+function novoServiceClient(headers?: Record<string, string>): SupabaseClient {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
-
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error(
       'Variáveis de ambiente NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias'
     );
   }
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    ...(headers ? { global: { headers } } : {}),
+  });
+}
+
+async function getAdminClient(): Promise<SupabaseClient> {
+  // Se há usuário autenticado no contexto da requisição, devolve um client que carrega
+  // a identidade nos headers (pra o trigger de auditoria atribuir a escrita). Cacheado no
+  // próprio store → 1 client por requisição.
+  const store = auditContext.getStore();
+  if (store?.actor?.email) {
+    if (store.client) return store.client;
+    store.client = novoServiceClient({
+      'x-audit-email': store.actor.email,
+      'x-audit-role': store.actor.role ?? '',
+      'x-audit-bar': store.actor.bar_id != null ? String(store.actor.bar_id) : '',
+    });
+    return store.client;
+  }
+
+  if (adminClient) {
+    return adminClient;
+  }
 
   try {
-    adminClient = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
-
+    adminClient = novoServiceClient();
     console.log('✅ Cliente administrativo Supabase inicializado');
     return adminClient;
   } catch (error) {
@@ -35,22 +57,18 @@ async function getAdminClient(): Promise<SupabaseClient> {
   }
 }
 
-// Função helper para rotas API (evita inicialização no módulo)
+// Função helper para rotas API (evita inicialização no módulo). Também carrega os headers
+// de auditoria quando há usuário no contexto da requisição (mesma lógica do getAdminClient).
 function createServiceRoleClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Variáveis de ambiente Supabase não configuradas');
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  const store = auditContext.getStore();
+  const headers = store?.actor?.email
+    ? {
+        'x-audit-email': store.actor.email,
+        'x-audit-role': store.actor.role ?? '',
+        'x-audit-bar': store.actor.bar_id != null ? String(store.actor.bar_id) : '',
+      }
+    : undefined;
+  return novoServiceClient(headers);
 }
 
 /**
