@@ -329,7 +329,7 @@ export default function TaggingArtistasPage() {
                       </button>
                     )}
 
-                    <AddArtista onAdd={(nome) => adicionar(row, nome)} />
+                    <AddArtista onAdd={(nome) => adicionar(row, nome)} cadastro={cadastro} />
 
                     {row.artistas.length > 0 && (
                       <button
@@ -466,9 +466,10 @@ function CaLinha({
   const selCls = 'rounded border border-gray-200 dark:border-gray-600 bg-transparent px-1 py-0.5 text-xs';
   const commit = () => {
     const ev = eventos.find((e) => String(e.id) === evId) || currentEvento;
-    if (!ev || !artista.trim()) return;
+    // só aponta pra artista que JÁ existe (escolhido do datalist) — não cria do texto parcial digitado
     const hit = cadastro.find((c) => c.nome.toLowerCase() === artista.trim().toLowerCase());
-    onCorrigir(l, ev.id, ev.data_evento, artista.trim(), hit?.id ?? null);
+    if (!ev || !hit) return;
+    onCorrigir(l, ev.id, ev.data_evento, hit.nome, hit.id);
     setArtista(''); setAberto(false);
   };
   return (
@@ -519,16 +520,24 @@ function CaLinha({
   );
 }
 
-function AddArtista({ onAdd }: { onAdd: (nome: string) => void }) {
+function AddArtista({ onAdd, cadastro }: { onAdd: (nome: string) => void; cadastro: Cadastro[] }) {
   const [valor, setValor] = useState('');
-  const commit = () => { if (valor.trim()) { onAdd(valor); setValor(''); } };
+  // Enter cria (permite nome novo). Blur só adiciona se já existe no cadastro —
+  // assim digitar um pedaço pra buscar e clicar fora NÃO cria artista-lixo ("bec", "seg"…).
+  const commit = (permitirNovo: boolean) => {
+    const v = valor.trim();
+    if (!v) return;
+    const existe = cadastro.some((c) => c.nome.toLowerCase() === v.toLowerCase());
+    if (!existe && !permitirNovo) { setValor(''); return; }
+    onAdd(v); setValor('');
+  };
   return (
     <input
       list="cadastro-artistas"
       value={valor}
       onChange={(e) => setValor(e.target.value)}
-      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
-      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(true); } }}
+      onBlur={() => commit(false)}
       placeholder="+ artista"
       className="w-32 rounded border border-gray-200 dark:border-gray-600 bg-transparent px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-purple-400"
     />

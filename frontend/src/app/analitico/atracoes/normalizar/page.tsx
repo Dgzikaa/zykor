@@ -13,7 +13,7 @@ interface Par {
   id_b: number; nome_b: string; uso_b: number;
   sim: number;
 }
-interface Artista { id: number; nome: string; }
+interface Artista { id: number; nome: string; tipo?: string; uso?: number; }
 
 export default function NormalizarArtistasPage() {
   const { selectedBar } = useBar();
@@ -59,19 +59,21 @@ export default function NormalizarArtistasPage() {
     }
   };
 
-  // mescla manual: qualquer par de artistas (casos que o algoritmo não detecta)
-  const mesclarManual = async (fromId: number, intoId: number) => {
-    if (!barId || !fromId || !intoId || fromId === intoId) return;
-    const fromN = artistas.find((a) => a.id === fromId)?.nome || '';
+  // agrupa vários artistas num só (o "into" é o que fica) — casos que o algoritmo não detecta
+  const agrupar = async (fromIds: number[], intoId: number) => {
+    if (!barId || !fromIds.length || !intoId) return;
     const intoN = artistas.find((a) => a.id === intoId)?.nome || '';
-    if (!confirm(`Unificar "${fromN}" em "${intoN}"?\n\nTodo o histórico, cachês e tags de "${fromN}" passam pra "${intoN}", e "${fromN}" é desativado.`)) return;
-    setBusy('manual');
+    const fromN = fromIds.map((id) => artistas.find((a) => a.id === id)?.nome).filter(Boolean);
+    if (!confirm(`Agrupar ${fromN.length} artista(s) em "${intoN}"?\n\n${fromN.join(', ')}\n\nTudo (histórico, cachês, tags) migra pra "${intoN}" e os outros são desativados.`)) return;
+    setBusy('agrupar');
     try {
-      await fetch('/api/eventos/artistas/duplicados', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
-        body: JSON.stringify({ action: 'merge', from_id: fromId, into_id: intoId }),
-      });
+      for (const fromId of fromIds) {
+        await fetch('/api/eventos/artistas/duplicados', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
+          body: JSON.stringify({ action: 'merge', from_id: fromId, into_id: intoId }),
+        });
+      }
       await carregar();
     } finally {
       setBusy(null);
@@ -111,8 +113,8 @@ export default function NormalizarArtistasPage() {
           </p>
         </div>
 
-        {/* mesclar manual — pros casos que o algoritmo não pega (ex: "Doze" = "12 por 8", "Tiago Gioseffi" = "Dj Tiago Jousef") */}
-        <MesclarManual artistas={artistas} disabled={busy === 'manual'} onMesclar={mesclarManual} />
+        {/* lista completa — marque os que são o mesmo artista e agrupe (resolve os casos que o algoritmo não pega) */}
+        <TodosArtistas artistas={artistas} disabled={busy === 'agrupar'} onAgrupar={agrupar} />
 
         {loading ? (
           <div className="space-y-2">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
@@ -154,40 +156,64 @@ export default function NormalizarArtistasPage() {
   );
 }
 
-// Mescla manual: escolhe dois artistas quaisquer (o 2º é o que fica).
-function MesclarManual({ artistas, disabled, onMesclar }: {
+// Lista completa de artistas: marca (checkbox) os que são o mesmo, escolhe qual
+// nome fica e agrupa. Resolve 100% dos casos (número escrito × dígito, nome × nome
+// artístico, etc.) sem depender da detecção automática.
+function TodosArtistas({ artistas, disabled, onAgrupar }: {
   artistas: Artista[];
   disabled: boolean;
-  onMesclar: (fromId: number, intoId: number) => void;
+  onAgrupar: (fromIds: number[], intoId: number) => void;
 }) {
-  const [from, setFrom] = useState('');
-  const [into, setInto] = useState('');
-  const resolve = (nome: string) => artistas.find((a) => a.nome.toLowerCase() === nome.trim().toLowerCase())?.id ?? null;
-  const fromId = resolve(from);
-  const intoId = resolve(into);
-  const pronto = !!fromId && !!intoId && fromId !== intoId;
-  const inputCls = 'w-48 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-400';
+  const [q, setQ] = useState('');
+  const [sel, setSel] = useState<Set<number>>(new Set());
+  const [survivor, setSurvivor] = useState<number | null>(null);
+  const filtrados = artistas.filter((a) => a.nome.toLowerCase().includes(q.trim().toLowerCase()));
+  const selecionados = artistas.filter((a) => sel.has(a.id));
+  const surv = survivor && sel.has(survivor) ? survivor : (selecionados[0]?.id ?? null);
+  const toggle = (id: number) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const limpar = () => { setSel(new Set()); setSurvivor(null); };
   return (
     <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 mb-4">
       <CardContent className="p-3 md:p-4">
-        <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-          Mesclar manualmente (quando os nomes são diferentes mas é o mesmo artista):
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            Todos os artistas ({artistas.length})
+            <span className="ml-1 text-xs font-normal text-gray-400">— marque os iguais e agrupe</span>
+          </div>
+          <input
+            value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 filtrar…"
+            className="w-44 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-400"
+          />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <input list="norm-artistas" value={from} onChange={(e) => setFrom(e.target.value)} placeholder="unir este…" className={inputCls} />
-          <ArrowRight className="w-4 h-4 text-gray-400 shrink-0" />
-          <input list="norm-artistas" value={into} onChange={(e) => setInto(e.target.value)} placeholder="…neste (fica)" className={inputCls} />
-          <Button
-            size="sm"
-            disabled={!pronto || disabled}
-            onClick={() => { if (pronto) { onMesclar(fromId!, intoId!); setFrom(''); setInto(''); } }}
-          >
-            {disabled ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Mesclar'}
-          </Button>
+
+        {sel.size >= 2 && (
+          <div className="flex flex-wrap items-center gap-2 mb-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 px-3 py-2 text-sm">
+            <span className="text-purple-700 dark:text-purple-300 font-medium">Agrupar {sel.size} em:</span>
+            <select
+              value={surv ?? ''} onChange={(e) => setSurvivor(Number(e.target.value))}
+              className="rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-1.5 py-1 text-sm"
+            >
+              {selecionados.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+            </select>
+            <Button size="sm" disabled={disabled || !surv}
+              onClick={() => { if (surv) { onAgrupar([...sel].filter((id) => id !== surv), surv); limpar(); } }}>
+              {disabled ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Agrupar'}
+            </Button>
+            <button onClick={limpar} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">limpar</button>
+          </div>
+        )}
+
+        <div className="max-h-80 overflow-y-auto -mx-1 divide-y divide-gray-50 dark:divide-gray-800">
+          {filtrados.map((a) => (
+            <label key={a.id} className="flex items-center gap-2 px-1 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 rounded">
+              <input type="checkbox" checked={sel.has(a.id)} onChange={() => toggle(a.id)} className="accent-purple-600" />
+              <span className="text-sm text-gray-800 dark:text-gray-100">{a.nome}</span>
+              {a.tipo && <span className="text-[10px] uppercase text-gray-400">{a.tipo}</span>}
+              <span className="ml-auto text-[10px] text-gray-400">{a.uso ?? 0} show{(a.uso ?? 0) === 1 ? '' : 's'}</span>
+            </label>
+          ))}
+          {filtrados.length === 0 && <div className="px-1 py-3 text-xs text-gray-400">Nenhum artista com esse filtro.</div>}
         </div>
-        <datalist id="norm-artistas">
-          {artistas.map((a) => <option key={a.id} value={a.nome} />)}
-        </datalist>
       </CardContent>
     </Card>
   );

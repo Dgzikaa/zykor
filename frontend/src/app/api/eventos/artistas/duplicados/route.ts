@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { createServiceRoleClient, selectAll } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
 const supabase = createServiceRoleClient();
@@ -17,14 +17,20 @@ export async function GET(request: NextRequest) {
   const ops = (supabase as any).schema('operations');
   const { data, error } = await ops.rpc('fn_artistas_duplicados', { p_bar_id: barId });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  // lista de artistas ativos p/ o "mesclar manual" (casos que o algoritmo não pega)
-  const { data: artistas } = await ops
+  // lista completa de artistas ativos (p/ a tela agrupar manualmente qualquer par)
+  const { data: artistasRaw } = await ops
     .from('bar_artistas')
-    .select('id, nome')
+    .select('id, nome, tipo')
     .eq('bar_id', barId)
     .eq('ativo', true)
     .order('nome', { ascending: true });
-  return NextResponse.json({ success: true, pares: data || [], artistas: artistas || [] });
+  // nº de shows por artista (paginado — PostgREST corta em 1000)
+  const tags = await selectAll((from, to) => ops
+    .from('evento_artistas').select('artista_id').eq('bar_id', barId).range(from, to)).catch(() => []);
+  const uso = new Map<number, number>();
+  for (const t of tags as any[]) uso.set(t.artista_id, (uso.get(t.artista_id) || 0) + 1);
+  const artistas = (artistasRaw || []).map((a: any) => ({ ...a, uso: uso.get(a.id) || 0 }));
+  return NextResponse.json({ success: true, pares: data || [], artistas });
 }
 
 // POST — { action: 'merge', from_id, into_id } mescla; { action: 'ignorar', id_a, id_b } dispensa o par
