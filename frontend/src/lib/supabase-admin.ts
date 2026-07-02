@@ -93,4 +93,42 @@ async function selectAll<T = any>(
   return out;
 }
 
+/**
+ * Fecha os "pontos cegos" da auditoria: rotas que criam o client Supabase por conta própria
+ * (createClient direto, sem passar pelo getAdminClient) não injetariam o header de auditoria.
+ * Como TODO client Supabase usa o fetch global por baixo, instalamos UMA vez um wrapper que
+ * injeta x-audit-* em qualquer requisição destinada ao host do Supabase, lendo o usuário do
+ * contexto da requisição (auditContext). Nunca vaza pra APIs externas (só toca o host do Supabase)
+ * e nunca quebra o fetch (try/catch). Cobre também rotas futuras, sem precisar lembrar de nada.
+ */
+function instalarAuditFetch(): void {
+  const g = globalThis as any;
+  if (g.__zykorAuditFetch) return; // idempotente (roda 1x por processo)
+  let supaHost = '';
+  try { supaHost = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || '').host; } catch { /* sem url */ }
+  const orig = g.fetch;
+  if (!supaHost || typeof orig !== 'function') return;
+  g.fetch = function (input: any, init?: any) {
+    try {
+      const actor = auditContext.getStore()?.actor;
+      if (actor?.email) {
+        const url = typeof input === 'string' ? input : (input?.url ?? String(input ?? ''));
+        if (url.includes(supaHost)) {
+          const base = init?.headers ?? (typeof input !== 'string' && input?.headers ? input.headers : undefined);
+          const h = new Headers(base as any);
+          if (!h.has('x-audit-email')) {
+            h.set('x-audit-email', actor.email);
+            if (actor.role) h.set('x-audit-role', actor.role);
+            if (actor.bar_id != null) h.set('x-audit-bar', String(actor.bar_id));
+            init = { ...(init || {}), headers: h };
+          }
+        }
+      }
+    } catch { /* auditoria nunca quebra o fetch */ }
+    return orig(input, init);
+  };
+  g.__zykorAuditFetch = true;
+}
+instalarAuditFetch();
+
 export { getAdminClient, createServiceRoleClient, selectAll };
