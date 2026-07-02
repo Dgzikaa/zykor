@@ -1,0 +1,277 @@
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
+import { useBar } from '@/contexts/BarContext';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  ArrowLeft, Music, Check, X, Sparkles, Copy, Loader2, AlertCircle,
+} from 'lucide-react';
+
+interface ArtistaTag {
+  artista_id: number | null;
+  artista_nome: string;
+  tipo: string;
+}
+interface EventoRow {
+  id: number;
+  data_evento: string;
+  dia_semana: string;
+  nome: string;
+  faturamento: number;
+  publico: number;
+  artista_texto: string;
+  artistas: ArtistaTag[];
+  sugestao: Array<{ nome: string; tipo: string }>;
+}
+interface Cadastro { id: number; nome: string; tipo: string; }
+type SaveStatus = 'saving' | 'saved' | 'error' | undefined;
+
+const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
+export default function TaggingArtistasPage() {
+  const { selectedBar } = useBar();
+  const barId = selectedBar?.id;
+
+  const [loading, setLoading] = useState(true);
+  const [meses, setMeses] = useState<string[]>([]);
+  const [mes, setMes] = useState<string>('');
+  const [rows, setRows] = useState<EventoRow[]>([]);
+  const [cadastro, setCadastro] = useState<Cadastro[]>([]);
+  const [status, setStatus] = useState<Record<number, SaveStatus>>({});
+  const [soVazios, setSoVazios] = useState(false);
+  const [busca, setBusca] = useState('');
+
+  const carregar = async (mesAlvo?: string) => {
+    if (!barId) return;
+    setLoading(true);
+    try {
+      const url = `/api/eventos/tagging${mesAlvo ? `?mes=${mesAlvo}` : ''}`;
+      const res = await fetch(url, { headers: { 'x-selected-bar-id': String(barId) } });
+      const j = await res.json();
+      if (j.success) {
+        setMeses(j.meses || []);
+        setMes(j.mes || '');
+        setRows(j.eventos || []);
+        setCadastro(j.cadastro || []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { carregar(); /* eslint-disable-next-line */ }, [barId]);
+
+  const tipoDoNome = (nome: string): { tipo: string; artista_id: number | null } => {
+    const hit = cadastro.find((c) => c.nome.toLowerCase() === nome.trim().toLowerCase());
+    if (hit) return { tipo: hit.tipo, artista_id: hit.id };
+    return { tipo: /\bdj\b/i.test(nome) ? 'dj' : 'banda', artista_id: null };
+  };
+
+  const salvar = async (evento_id: number, artistas: ArtistaTag[]) => {
+    if (!barId) return;
+    const row = rows.find((r) => r.id === evento_id);
+    if (!row) return;
+    setStatus((s) => ({ ...s, [evento_id]: 'saving' }));
+    try {
+      const res = await fetch('/api/eventos/artistas', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
+        body: JSON.stringify({
+          data_evento: row.data_evento,
+          artistas: artistas.map((a) => ({ artista_id: a.artista_id, artista_nome: a.artista_nome, tipo: a.tipo })),
+        }),
+      });
+      const j = await res.json();
+      setStatus((s) => ({ ...s, [evento_id]: j.success ? 'saved' : 'error' }));
+    } catch {
+      setStatus((s) => ({ ...s, [evento_id]: 'error' }));
+    }
+  };
+
+  const atualizarRow = (evento_id: number, artistas: ArtistaTag[]) => {
+    setRows((rs) => rs.map((r) => (r.id === evento_id ? { ...r, artistas, sugestao: [] } : r)));
+    salvar(evento_id, artistas);
+  };
+
+  const aceitarSugestao = (row: EventoRow) => {
+    const artistas: ArtistaTag[] = row.sugestao.map((s) => {
+      const { artista_id } = tipoDoNome(s.nome);
+      return { artista_id, artista_nome: s.nome, tipo: s.tipo };
+    });
+    atualizarRow(row.id, artistas);
+  };
+
+  const adicionar = (row: EventoRow, nome: string) => {
+    const limpo = nome.trim();
+    if (!limpo) return;
+    if (row.artistas.some((a) => a.artista_nome.toLowerCase() === limpo.toLowerCase())) return;
+    const { tipo, artista_id } = tipoDoNome(limpo);
+    atualizarRow(row.id, [...row.artistas, { artista_id, artista_nome: limpo, tipo }]);
+  };
+
+  const remover = (row: EventoRow, idx: number) => {
+    atualizarRow(row.id, row.artistas.filter((_, i) => i !== idx));
+  };
+
+  const propagar = (row: EventoRow) => {
+    const alvo = row.nome.trim().toLowerCase();
+    if (!alvo) return;
+    const iguais = rows.filter((r) => r.id !== row.id && r.nome.trim().toLowerCase() === alvo);
+    if (!iguais.length) return;
+    if (!confirm(`Aplicar estes artistas a ${iguais.length} evento(s) com o mesmo nome neste mês?`)) return;
+    for (const r of iguais) {
+      const copia = row.artistas.map((a) => ({ ...a }));
+      atualizarRow(r.id, copia);
+    }
+  };
+
+  const visiveis = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (soVazios && r.artistas.length > 0) return false;
+      if (q && !(`${r.nome} ${r.artista_texto}`.toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [rows, soVazios, busca]);
+
+  const taggeados = rows.filter((r) => r.artistas.length > 0).length;
+
+  if (!barId) {
+    return <div className="p-6 text-gray-500">Selecione um bar.</div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="container mx-auto px-4 py-6">
+        {/* Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <Link href="/analitico/atracoes" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 mb-2">
+              <ArrowLeft className="w-4 h-4" /> Voltar para análise
+            </Link>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Music className="w-6 h-6" /> Taggear Artistas nos Eventos
+            </h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {selectedBar?.nome} · {rows.length} eventos no mês · <span className="text-emerald-600 font-medium">{taggeados} taggeados</span> · {rows.length - taggeados} pendentes
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={mes} onValueChange={(v) => carregar(v)}>
+              <SelectTrigger className="w-40 bg-white dark:bg-gray-800"><SelectValue placeholder="Mês" /></SelectTrigger>
+              <SelectContent>
+                {meses.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button variant={soVazios ? 'default' : 'outline'} onClick={() => setSoVazios((v) => !v)} size="sm">
+              Só pendentes
+            </Button>
+            <Input placeholder="🔍 buscar…" value={busca} onChange={(e) => setBusca(e.target.value)} className="w-48 bg-white dark:bg-gray-800" />
+          </div>
+        </div>
+
+        {/* datalist compartilhado para autocomplete */}
+        <datalist id="cadastro-artistas">
+          {cadastro.map((c) => <option key={c.id} value={c.nome} />)}
+        </datalist>
+
+        {loading ? (
+          <div className="space-y-2">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
+        ) : (
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <CardContent className="p-0 divide-y divide-gray-100 dark:divide-gray-700">
+              {visiveis.length === 0 && (
+                <div className="p-8 text-center text-gray-500 dark:text-gray-400">Nenhum evento com os filtros atuais.</div>
+              )}
+              {visiveis.map((row) => (
+                <div key={row.id} className="p-3 md:p-4 flex flex-col md:flex-row md:items-center gap-3">
+                  {/* data + evento */}
+                  <div className="md:w-64 shrink-0">
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                      {new Date(row.data_evento).toLocaleDateString('pt-BR')} <span className="font-normal text-gray-500 capitalize">{row.dia_semana}</span>
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400 truncate max-w-[16rem]" title={row.nome}>{row.nome || '—'}</div>
+                  </div>
+
+                  {/* métricas */}
+                  <div className="md:w-28 shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                    <div>{fmtBRL(row.faturamento)}</div>
+                    <div>{row.publico} PAX</div>
+                  </div>
+
+                  {/* artistas */}
+                  <div className="flex-1 flex flex-wrap items-center gap-2">
+                    {row.artistas.map((a, idx) => (
+                      <Badge key={idx} variant="secondary" className="gap-1 pr-1">
+                        <span className="capitalize text-[10px] opacity-60">{a.tipo}</span>
+                        {a.artista_nome}
+                        <button onClick={() => remover(row, idx)} className="ml-1 rounded hover:bg-black/10 dark:hover:bg-white/10">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    ))}
+
+                    {row.artistas.length === 0 && row.sugestao.length > 0 && (
+                      <button
+                        onClick={() => aceitarSugestao(row)}
+                        className="inline-flex items-center gap-1 rounded-full border border-dashed border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 text-xs text-purple-700 dark:text-purple-300 hover:bg-purple-100"
+                        title="Aceitar sugestão"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        {row.sugestao.map((s) => s.nome).join(' + ')}
+                        <Check className="w-3 h-3" />
+                      </button>
+                    )}
+
+                    <AddArtista onAdd={(nome) => adicionar(row, nome)} />
+
+                    {row.artistas.length > 0 && (
+                      <button
+                        onClick={() => propagar(row)}
+                        className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        title="Aplicar a eventos com nome igual neste mês"
+                      >
+                        <Copy className="w-3 h-3" /> iguais
+                      </button>
+                    )}
+                  </div>
+
+                  {/* status */}
+                  <div className="md:w-16 shrink-0 text-right">
+                    {status[row.id] === 'saving' && <Loader2 className="w-4 h-4 animate-spin text-gray-400 inline" />}
+                    {status[row.id] === 'saved' && <span className="text-xs text-emerald-600 inline-flex items-center gap-0.5"><Check className="w-3 h-3" /> salvo</span>}
+                    {status[row.id] === 'error' && <span className="text-xs text-red-600 inline-flex items-center gap-0.5"><AlertCircle className="w-3 h-3" /> erro</span>}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AddArtista({ onAdd }: { onAdd: (nome: string) => void }) {
+  const [valor, setValor] = useState('');
+  const commit = () => { if (valor.trim()) { onAdd(valor); setValor(''); } };
+  return (
+    <input
+      list="cadastro-artistas"
+      value={valor}
+      onChange={(e) => setValor(e.target.value)}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
+      onBlur={commit}
+      placeholder="+ artista"
+      className="w-32 rounded border border-gray-200 dark:border-gray-600 bg-transparent px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-purple-400"
+    />
+  );
+}

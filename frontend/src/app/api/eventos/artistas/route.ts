@@ -66,12 +66,13 @@ export async function PUT(request: NextRequest) {
   for (const a of artistas) {
     const nome = String(a.artista_nome || '').trim();
     if (!nome) continue;
+    const tipo = ['banda', 'dj', 'solo'].includes(a.tipo) ? a.tipo : 'banda';
     let artistaId: number | null = Number(a.artista_id) || null;
     if (!artistaId) {
       const { data: ja } = await ops.from('bar_artistas').select('id').eq('bar_id', barId).eq('nome', nome).maybeSingle();
       if (ja) artistaId = ja.id;
       else {
-        const { data: novo } = await ops.from('bar_artistas').insert({ bar_id: barId, nome, tipo: 'banda' }).select('id').single();
+        const { data: novo } = await ops.from('bar_artistas').insert({ bar_id: barId, nome, tipo }).select('id').single();
         artistaId = novo?.id ?? null;
       }
     }

@@ -1,6 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useBar } from '@/contexts/BarContext';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
+} from 'recharts';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,7 +40,9 @@ import {
 } from 'lucide-react';
 
 interface Atracao {
+  artista_id: number | null;
   nome: string;
+  tipo: string;
   shows: number;
   fat_total: number;
   fat_medio: number;
@@ -48,6 +55,11 @@ interface Atracao {
   tendencia: 'subindo' | 'estavel' | 'caindo';
   ultimo_show: string;
   dias_sem_tocar: number;
+  baseline_fat: number | null;
+  baseline_publico: number | null;
+  lift_fat: number | null;
+  lift_fat_pct: number | null;
+  lift_publico: number | null;
   eventos: Array<{
     data: string;
     dia_semana: string;
@@ -55,6 +67,7 @@ interface Atracao {
     publico: number;
     custo: number;
     ticket: number;
+    co_headline: boolean;
   }>;
 }
 
@@ -67,36 +80,42 @@ interface Stats {
   top_faturamento: string | null;
   top_roi: string | null;
   top_publico: string | null;
+  top_lift: string | null;
 }
 
 export default function DashboardAtracoesPage() {
+  const { selectedBar } = useBar();
+  const barId = selectedBar?.id;
   const [atracoes, setAtracoes] = useState<Atracao[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [semDados, setSemDados] = useState(false);
   const [periodo, setPeriodo] = useState('12');
-  const [ordenacao, setOrdenacao] = useState<'fat_total' | 'roi' | 'publico_medio' | 'shows'>('fat_total');
+  const [ordenacao, setOrdenacao] = useState<'fat_total' | 'roi' | 'publico_medio' | 'shows' | 'lift_fat'>('fat_total');
   const [atracaoSelecionada, setAtracaoSelecionada] = useState<Atracao | null>(null);
 
   useEffect(() => {
-    fetchAtracoes();
-  }, [periodo]);
-
-  const fetchAtracoes = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/analitico/atracoes?bar_id=3&periodo=${periodo}&min_shows=2`);
-      const result = await response.json();
-      
-      if (result.success) {
-        setAtracoes(result.data);
-        setStats(result.stats);
+    if (!barId) return;
+    const fetchAtracoes = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/analitico/atracoes?periodo=${periodo}&min_shows=2`, {
+          headers: { 'x-selected-bar-id': String(barId) },
+        });
+        const result = await response.json();
+        if (result.success) {
+          setAtracoes(result.data || []);
+          setStats(result.stats);
+          setSemDados(!!result.sem_dados);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar atrações:', error);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Erro ao buscar atrações:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+    fetchAtracoes();
+  }, [periodo, barId]);
 
   const atracoesOrdenadas = [...atracoes].sort((a, b) => {
     switch (ordenacao) {
@@ -106,6 +125,8 @@ export default function DashboardAtracoesPage() {
         return b.publico_medio - a.publico_medio;
       case 'shows':
         return b.shows - a.shows;
+      case 'lift_fat':
+        return (b.lift_fat || -Infinity) - (a.lift_fat || -Infinity);
       default:
         return b.fat_total - a.fat_total;
     }
@@ -155,6 +176,11 @@ export default function DashboardAtracoesPage() {
           </div>
 
           <div className="flex gap-3">
+            <Link href="/analitico/atracoes/tagging">
+              <Button variant="outline" className="bg-white dark:bg-gray-800 gap-2">
+                <Music className="w-4 h-4" /> Taggear eventos
+              </Button>
+            </Link>
             <Select value={periodo} onValueChange={setPeriodo}>
               <SelectTrigger className="w-40 bg-white dark:bg-gray-800">
                 <SelectValue placeholder="Período" />
@@ -174,6 +200,7 @@ export default function DashboardAtracoesPage() {
               <SelectContent>
                 <SelectItem value="fat_total">Faturamento Total</SelectItem>
                 <SelectItem value="roi">Melhor ROI</SelectItem>
+                <SelectItem value="lift_fat">Maior Lift (vs média do dia)</SelectItem>
                 <SelectItem value="publico_medio">Maior Público</SelectItem>
                 <SelectItem value="shows">Mais Shows</SelectItem>
               </SelectContent>
@@ -260,6 +287,19 @@ export default function DashboardAtracoesPage() {
               <div className="space-y-4">
                 {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24" />)}
               </div>
+            ) : semDados ? (
+              <div className="text-center py-12">
+                <Music className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Nenhum artista vinculado a eventos ainda</h3>
+                <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+                  Vincule artistas aos eventos na seção <strong>Artistas</strong> do modal Editar Evento (Planejamento Comercial).
+                  Assim que houver shows taggeados, a análise de performance aparece aqui.
+                </p>
+              </div>
+            ) : atracoesOrdenadas.length === 0 ? (
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                Nenhuma atração com 2+ shows no período selecionado.
+              </div>
             ) : (
               <div className="space-y-4">
                 {atracoesOrdenadas.map((atracao, index) => (
@@ -286,8 +326,14 @@ export default function DashboardAtracoesPage() {
                               {getTendenciaIcon(atracao.tendencia)}
                             </h3>
                             <div className="flex gap-2 mt-1 flex-wrap">
+                              <Badge variant="outline" className="capitalize">{atracao.tipo}</Badge>
                               <Badge variant="outline">{atracao.shows} shows</Badge>
                               {getRoiBadge(atracao.roi)}
+                              {atracao.lift_fat != null && (
+                                <Badge className={atracao.lift_fat >= 0 ? 'bg-emerald-600' : 'bg-red-600'}>
+                                  {atracao.lift_fat >= 0 ? '+' : ''}{formatCurrency(atracao.lift_fat)} vs média do {atracao.eventos[0]?.dia_semana || 'dia'}
+                                </Badge>
+                              )}
                               {atracao.dias_sem_tocar > 60 && (
                                 <Badge variant="outline" className="text-orange-600 border-orange-300">
                                   {atracao.dias_sem_tocar} dias sem tocar
@@ -395,6 +441,83 @@ export default function DashboardAtracoesPage() {
                       </CardContent>
                     </Card>
                   </div>
+
+                  {/* Evolução temporal */}
+                  {atracaoSelecionada.eventos.length >= 2 && (
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5" />
+                        Evolução de Faturamento por Show
+                      </h3>
+                      <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={atracaoSelecionada.eventos} margin={{ top: 5, right: 16, left: 8, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
+                            <XAxis
+                              dataKey="data"
+                              tickFormatter={(d) => new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                              fontSize={11}
+                            />
+                            <YAxis
+                              tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                              fontSize={11}
+                            />
+                            <RechartsTooltip
+                              formatter={((v: number, name: string): [string, string] => [
+                                name === 'faturamento' ? formatCurrency(v) : `${v} PAX`,
+                                name === 'faturamento' ? 'Faturamento' : 'Público',
+                              ]) as any}
+                              labelFormatter={(d) => new Date(d as string).toLocaleDateString('pt-BR')}
+                            />
+                            {atracaoSelecionada.baseline_fat != null && (
+                              <ReferenceLine
+                                y={atracaoSelecionada.baseline_fat}
+                                stroke="#9ca3af"
+                                strokeDasharray="4 4"
+                                label={{ value: 'média do dia (sem o artista)', position: 'insideTopRight', fontSize: 10, fill: '#9ca3af' }}
+                              />
+                            )}
+                            <Line type="monotone" dataKey="faturamento" stroke="#a855f7" strokeWidth={2} dot={{ r: 3 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Substituição / Lift */}
+                  {atracaoSelecionada.lift_fat != null && (
+                    <Card className={`border ${atracaoSelecionada.lift_fat >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'}`}>
+                      <CardContent className="p-4">
+                        <h4 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                          <TrendingUp className="w-5 h-5" />
+                          Valor incremental (vs a casa sem esse artista)
+                        </h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <div className="text-gray-500 dark:text-gray-400">Fat. médio do artista</div>
+                            <div className="font-bold text-gray-900 dark:text-white">{formatCurrency(atracaoSelecionada.fat_medio)}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-500 dark:text-gray-400">Média do dia sem ele</div>
+                            <div className="font-bold text-gray-900 dark:text-white">{formatCurrency(atracaoSelecionada.baseline_fat || 0)}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-500 dark:text-gray-400">Lift em R$</div>
+                            <div className={`font-bold ${atracaoSelecionada.lift_fat >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                              {atracaoSelecionada.lift_fat >= 0 ? '+' : ''}{formatCurrency(atracaoSelecionada.lift_fat)}
+                              {atracaoSelecionada.lift_fat_pct != null && ` (${atracaoSelecionada.lift_fat_pct >= 0 ? '+' : ''}${atracaoSelecionada.lift_fat_pct.toFixed(0)}%)`}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-500 dark:text-gray-400">Lift em público</div>
+                            <div className={`font-bold ${(atracaoSelecionada.lift_publico || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                              {(atracaoSelecionada.lift_publico || 0) >= 0 ? '+' : ''}{atracaoSelecionada.lift_publico} PAX
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   {/* Histórico de shows */}
                   <div>
