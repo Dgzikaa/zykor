@@ -105,6 +105,7 @@ interface ActiveProd {
   segundos: number;
   rodando: boolean;
   dataProducao?: string; // retroativa: data (YYYY-MM-DD) em que a produção foi feita; vazio = hoje
+  tentouSalvar?: boolean; // já tentou salvar → destaca em vermelho os obrigatórios vazios
 }
 
 // =====================================================================================
@@ -249,9 +250,35 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     return sus;
   };
 
+  // "Usado" vazio? (string nula ou só espaço). Obrigatório em todo insumo NÃO-mestre
+  // (o mestre é dirigido pelo peso do mestre, não pela coluna Usado).
+  const usadoVazio = (prod: ActiveProd, it: FichaItem) => {
+    if (it.is_mestre) return false;
+    const v = prod.qtdReal[it.id];
+    return v == null || String(v).trim() === '';
+  };
+
+  // preenche todos os "Usado" com o valor calculado atual (atalho: aceitar o teórico e ajustar o que mudou)
+  const preencherCalculado = (prod: ActiveProd) => {
+    const { linhas } = calc(prod);
+    const next = { ...prod.qtdReal };
+    linhas.forEach(l => { next[l.it.id] = String(Math.round(l.qtdCalc * 1000) / 1000); });
+    patch(prod.localId, { qtdReal: next });
+  };
+
   const pedirSalvar = (prod: ActiveProd) => {
-    if (!prod.responsavelId) { toast({ title: 'Selecione o responsável', variant: 'destructive' }); return; }
-    if (!prod.rendimentoReal.trim()) { toast({ title: 'Informe o rendimento real produzido', variant: 'destructive' }); return; }
+    const faltaResp = !prod.responsavelId;
+    const faltaRend = !prod.rendimentoReal.trim();
+    const usadoFaltando = prod.itens.filter(it => usadoVazio(prod, it));
+    if (faltaResp || faltaRend || usadoFaltando.length) {
+      patch(prod.localId, { tentouSalvar: true }); // liga o destaque vermelho dos vazios
+      const partes: string[] = [];
+      if (faltaResp) partes.push('responsável');
+      if (faltaRend) partes.push('rendimento real');
+      if (usadoFaltando.length) partes.push(`${usadoFaltando.length} insumo${usadoFaltando.length > 1 ? 's' : ''} sem "Usado"`);
+      toast({ title: 'Preencha os campos obrigatórios', description: partes.join(' · '), variant: 'destructive' });
+      return;
+    }
     const suspeitos = checarUnidades(prod);
     if (suspeitos.length) { setConfirmar({ prod, suspeitos }); return; }
     executarSalvar(prod);
@@ -417,6 +444,10 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
         // retroativa: data passada → não tem cronômetro (já foi feita); libera os campos sem precisar iniciar
         const retroativa = !!sel.dataProducao && sel.dataProducao !== new Date().toISOString().slice(0, 10);
         const iniciada = sel.rodando || sel.segundos > 0 || retroativa; // peso/rendimento liberam ao iniciar OU se for retroativa
+        const t = !!sel.tentouSalvar;                       // já clicou em salvar → destaca obrigatórios vazios
+        const errResp = t && !sel.responsavelId;            // responsável vazio
+        const errRend = t && !sel.rendimentoReal.trim();    // rendimento real vazio
+        const errUsado = (l: any) => t && usadoVazio(sel, l.it); // "Usado" vazio (não-mestre)
         return (
           <Card className="card-dark"><CardContent className="py-3 space-y-4">
             {/* Cabeçalho + timer */}
@@ -452,10 +483,11 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
               <div>
                 <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><User className="w-3.5 h-3.5" />Responsável *</label>
                 <select value={sel.responsavelId ?? ''} onChange={e => patch(sel.localId, { responsavelId: e.target.value ? Number(e.target.value) : null })}
-                  className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
+                  className={`h-10 w-full rounded-md border bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white ${errResp ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 dark:border-gray-600'}`}>
                   <option value="">Selecione…</option>
                   {responsaveis.map(r => <option key={r.id} value={r.id}>{r.nome}{r.cargo ? ` (${r.cargo})` : ''}</option>)}
                 </select>
+                {errResp && <p className="text-[11px] text-red-600 dark:text-red-400 mt-0.5">Obrigatório — selecione o responsável.</p>}
               </div>
               {mestreFc ? (
                 <div>
@@ -485,7 +517,8 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
               )}
               <div>
                 <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real * {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado, 3)} {sel.ficha.unidade || ''}</span>}</label>
-                <Input type="number" inputMode="decimal" step="any" disabled={!iniciada} value={sel.rendimentoReal} onChange={e => patch(sel.localId, { rendimentoReal: e.target.value })} placeholder="produzido…" className="h-10" />
+                <Input type="number" inputMode="decimal" step="any" disabled={!iniciada} value={sel.rendimentoReal} onChange={e => patch(sel.localId, { rendimentoReal: e.target.value })} placeholder="produzido…" className={`h-10 ${errRend ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
+                {errRend && <p className="text-[11px] text-red-600 dark:text-red-400 mt-0.5">Obrigatório — informe o rendimento produzido.</p>}
               </div>
             </div>
 
@@ -509,12 +542,19 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
 
             {/* Insumos */}
             <div className="overflow-x-auto">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-500 dark:text-gray-400">Informe o <b>usado</b> de cada insumo (obrigatório).</span>
+                <button type="button" onClick={() => preencherCalculado(sel)}
+                  className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-md px-2 py-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+                  <Scale className="w-3.5 h-3.5" />Preencher c/ o calculado
+                </button>
+              </div>
               <table className="w-full text-sm">
                 <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
                   <th className="text-left font-medium px-2 py-1.5">Insumo</th>
                   <th className="text-right font-medium px-2 py-1.5">Planejado</th>
                   <th className="text-right font-medium px-2 py-1.5">Calculado</th>
-                  <th className="text-right font-medium px-2 py-1.5 w-28">Usado</th>
+                  <th className="text-right font-medium px-2 py-1.5 w-28">Usado *</th>
                   <th className="text-right font-medium px-2 py-1.5">Desvio</th>
                   <th className="text-right font-medium px-2 py-1.5">Custo real</th>
                 </tr></thead>
@@ -532,7 +572,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
                       <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(l.qtdCalc, 3)}</td>
                       <td className="px-2 py-1.5 text-right">
                         <Input type="number" inputMode="decimal" step="any" value={sel.qtdReal[l.it.id] ?? ''} onChange={e => patch(sel.localId, { qtdReal: { ...sel.qtdReal, [l.it.id]: e.target.value } })}
-                          placeholder={fmtNum(l.qtdCalc, 3)} className="h-8 text-right text-sm" />
+                          placeholder={l.it.is_mestre ? fmtNum(l.qtdCalc, 3) : 'obrigatório'} className={`h-8 text-right text-sm ${errUsado(l) ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
                       </td>
                       <td className="px-2 py-1.5 text-right tabular-nums">
                         {l.desvio == null ? '—' : (
@@ -1024,6 +1064,8 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
   const [pesoMestre, setPesoMestre] = useState('');
   const [rendReal, setRendReal] = useState<string>(exec.rendimento_real != null ? String(exec.rendimento_real) : '');
   const [obs, setObs] = useState<string>(exec.observacao || '');
+  const [qtdReal, setQtdReal] = useState<Record<number, string>>({}); // "Usado" por item da ficha (editável)
+  const [tentou, setTentou] = useState(false); // já clicou em salvar → destaca "Usado" vazio
 
   const ficha = fichas.find(f => f.id === exec.producao_id) || null;
 
@@ -1032,7 +1074,11 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
     (async () => {
       setLoading(true);
       try {
-        const r = await api.get(`/api/operacional/producoes/ficha?producao_id=${exec.producao_id}&bar_id=${barId}`);
+        // carrega a ficha (base p/ recalcular) + os insumos salvos da execução (p/ preencher o "Usado")
+        const [r, rExec] = await Promise.all([
+          api.get(`/api/operacional/producoes/ficha?producao_id=${exec.producao_id}&bar_id=${barId}`),
+          api.get(`/api/operacional/producoes/execucao?bar_id=${barId}&execucao_id=${exec.id}`),
+        ]);
         if (cancel) return;
         const its = r.success ? (r.itens || []) : [];
         setItens(its);
@@ -1041,12 +1087,28 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
         const ent = entradaPeso(m?.unidade_exib || null, Number(m?.quantidade || 0));
         if (exec.peso_mestre_real != null) setPesoMestre(String(Number(exec.peso_mestre_real) / ent.fator));
         if (exec.peso_bruto != null) setPesoBruto(String(Number(exec.peso_bruto) / ent.fator));
+        // prefill "Usado" de cada insumo não-mestre com o qtd_real salvo (casa por código, fallback nome)
+        const salvos = rExec?.success ? (rExec.insumos || []) : [];
+        const byCod = new Map<string, any>(); const byNome = new Map<string, any>();
+        salvos.forEach((s: any) => {
+          if (s.insumo_codigo) byCod.set(String(s.insumo_codigo), s);
+          if (s.nome) byNome.set(String(s.nome).toLowerCase(), s);
+        });
+        const pre: Record<number, string> = {};
+        its.forEach((it: any) => {
+          if (it.is_mestre) return;
+          const cod = it.insumo_codigo ?? it.componente_codigo;
+          const nome = it.nome_componente ?? it.componente_codigo;
+          const s = (cod && byCod.get(String(cod))) || (nome && byNome.get(String(nome).toLowerCase()));
+          if (s && s.qtd_real != null) pre[it.id] = String(s.qtd_real);
+        });
+        setQtdReal(pre);
       } catch (e: any) { if (!cancel) toast({ title: 'Erro ao carregar ficha', description: e?.message, variant: 'destructive' }); }
       finally { if (!cancel) setLoading(false); }
     })();
     return () => { cancel = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exec.producao_id, barId]);
+  }, [exec.producao_id, exec.id, barId]);
 
   const mestre = itens.find(i => i.is_mestre) || null;
   const mestreQtd = Number(mestre?.quantidade || 0);
@@ -1057,22 +1119,44 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
   const proporcao = (mestre && pesoMestreBase > 0 && mestreQtd > 0) ? pesoMestreBase / mestreQtd : 1;
   const rendEsperado = Number(ficha?.rendimento || 0) * proporcao;
 
+  // quantidade calculada (proporção) e o "usado" (override manual, ou o calculado) por item
+  const calcItem = (it: any) => {
+    const qtdPlan = Number(it.quantidade || 0);
+    const qtdCalc = it.is_mestre ? (pesoMestreBase > 0 ? pesoMestreBase : qtdPlan) : qtdPlan * proporcao;
+    const ov = qtdReal[it.id];
+    const real = it.is_mestre ? qtdCalc : (ov != null && String(ov).trim() !== '' ? (parseFloat(ov) || 0) : qtdCalc);
+    const precoUn = Number(it.preco_un || 0);
+    const desvio = qtdCalc > 0 ? (real - qtdCalc) / qtdCalc : null;
+    return { qtdPlan, qtdCalc, real, precoUn, desvio, cReal: real * precoUn };
+  };
+  const usadoVazio = (it: any) => !it.is_mestre && (qtdReal[it.id] == null || String(qtdReal[it.id]).trim() === '');
+  const preencherCalculado = () => {
+    const next: Record<number, string> = { ...qtdReal };
+    itens.forEach((it: any) => { if (!it.is_mestre) next[it.id] = String(Math.round(calcItem(it).qtdCalc * 1000) / 1000); });
+    setQtdReal(next);
+  };
+
   const salvar = async () => {
     if (salvando) return;
+    const faltando = itens.filter((it: any) => usadoVazio(it));
+    if (faltando.length) {
+      setTentou(true);
+      toast({ title: 'Preencha o "Usado"', description: `${faltando.length} insumo${faltando.length > 1 ? 's' : ''} sem valor`, variant: 'destructive' });
+      return;
+    }
     const dur = (parseInt(durMin) || 0) * 60 + (parseInt(durSeg) || 0);
     const linhas = itens.map((it: any) => {
-      const qtdPlan = Number(it.quantidade || 0);
-      const qtdCalc = it.is_mestre ? (pesoMestreBase > 0 ? pesoMestreBase : qtdPlan) : qtdPlan * proporcao;
+      const c = calcItem(it);
       return {
         insumo_codigo: it.insumo_codigo ?? it.componente_codigo ?? null,
         insumo_id_vmarket: it.insumo_id_vmarket ?? null,
         nome: it.nome_componente ?? it.componente_codigo ?? null,
         is_mestre: it.is_mestre,
-        qtd_planejada: qtdPlan,
-        qtd_calculada: qtdCalc,
-        qtd_real: qtdCalc, // edição rápida: usado = calculado (sem override por insumo)
+        qtd_planejada: c.qtdPlan,
+        qtd_calculada: c.qtdCalc,
+        qtd_real: c.real, // usado = override manual da coluna, ou o calculado se não mexeram
         unidade: it.unidade_exib ?? null,
-        preco_un: Number(it.preco_un || 0),
+        preco_un: c.precoUn,
       };
     });
     const respNome = responsaveis.find(r => r.id === resp)?.nome ?? null;
@@ -1144,6 +1228,54 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
               <div>
                 <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado, 2)} {ficha?.unidade || ''}</span>}</label>
                 <Input type="number" inputMode="decimal" step="any" value={rendReal} onChange={e => setRendReal(e.target.value)} placeholder="produzido…" className="h-10" />
+              </div>
+            </div>
+
+            {/* Insumos — editar o "Usado" de cada um (o mestre é dirigido pelo peso) */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-gray-500 flex items-center gap-1"><Package className="w-3.5 h-3.5" />Insumos — usado <span className="text-gray-400">(obrigatório)</span></label>
+                <button type="button" onClick={preencherCalculado}
+                  className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-md px-2 py-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
+                  <Scale className="w-3.5 h-3.5" />Preencher c/ o calculado
+                </button>
+              </div>
+              <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
+                    <th className="text-left font-medium px-2 py-1.5">Insumo</th>
+                    <th className="text-right font-medium px-2 py-1.5">Calculado</th>
+                    <th className="text-right font-medium px-2 py-1.5 w-28">Usado *</th>
+                    <th className="text-right font-medium px-2 py-1.5">Desvio</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {itens.length === 0 ? <tr><td colSpan={4} className="px-2 py-4 text-center text-gray-400">Ficha sem componentes.</td></tr>
+                    : itens.map((it: any) => {
+                      const c = calcItem(it);
+                      const err = tentou && usadoVazio(it);
+                      return (
+                        <tr key={it.id} className={it.is_mestre ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}>
+                          <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">
+                            {it.is_mestre && <span className="text-amber-500 mr-1" title="Insumo mestre (dirigido pelo peso)">★</span>}
+                            {it.nome_componente || it.componente_codigo || `#${it.id}`}
+                            <span className="text-xs text-gray-400 ml-1">{it.unidade_exib || ''}</span>
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtNum(c.qtdCalc, 3)}</td>
+                          <td className="px-2 py-1.5 text-right">
+                            {it.is_mestre
+                              ? <span className="text-xs text-gray-400">via peso</span>
+                              : <Input type="number" inputMode="decimal" step="any" value={qtdReal[it.id] ?? ''}
+                                  onChange={e => setQtdReal(prev => ({ ...prev, [it.id]: e.target.value }))}
+                                  placeholder="obrigatório" className={`h-8 text-right text-sm ${err ? 'border-red-500 ring-1 ring-red-500' : ''}`} />}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">
+                            {c.desvio == null ? '—' : <span className={Math.abs(c.desvio) < 0.05 ? 'text-emerald-600' : Math.abs(c.desvio) < 0.15 ? 'text-amber-600' : 'text-red-600'}>{c.desvio > 0 ? '+' : ''}{fmtPct(c.desvio * 100)}</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
 
