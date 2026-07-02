@@ -106,6 +106,7 @@ interface ActiveProd {
   rodando: boolean;
   dataProducao?: string; // retroativa: data (YYYY-MM-DD) em que a produção foi feita; vazio = hoje
   tentouSalvar?: boolean; // já tentou salvar → destaca em vermelho os obrigatórios vazios
+  idempotencyKey: string; // 1 por instância → duplo/triplo submit (internet ruim) colide no banco, não duplica
 }
 
 // =====================================================================================
@@ -183,6 +184,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     const nova: ActiveProd = {
       localId, ficha: f, itens: [], loadingItens: true, responsavelId: null,
       pesoBruto: '', pesoMestre: '', rendimentoReal: '', observacao: '', qtdReal: {}, segundos: 0, rodando: false, dataProducao: '',
+      idempotencyKey: (globalThis.crypto?.randomUUID?.() ?? `${localId}-${Date.now()}-${Math.round(Math.random() * 1e9)}`),
     };
     setProds(prev => [...prev, nova]);
     setSelId(localId);
@@ -300,6 +302,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     const payload = {
       bar_id: barId,
       producao_id: prod.ficha.id,
+      idempotencia_key: prod.idempotencyKey,
       responsavel_id: prod.responsavelId,
       responsavel_nome: resp?.nome ?? null,
       inicio: inicio.toISOString(),

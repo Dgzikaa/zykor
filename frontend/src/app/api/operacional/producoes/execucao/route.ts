@@ -17,6 +17,34 @@ const round = (n: number, casas = 4) => {
   return Math.round((Number(n) || 0) * f) / f;
 };
 
+// Auditoria best-effort em system.audit_trail (quem/quando/o quê, com o registro inteiro em
+// old_values). NUNCA derruba a operação principal se falhar. Nasceu do incidente de duplicação:
+// execução era hard-deletada sem deixar rastro do que foi apagado.
+async function auditar(
+  supabase: any,
+  request: NextRequest,
+  p: { operation: string; barId: number; recordId: string | number; description: string; user: any; oldValues?: any; newValues?: any; severity?: string },
+) {
+  try {
+    await supabase.schema('system').from('audit_trail').insert({
+      bar_id: p.barId,
+      operation: p.operation,
+      table_name: 'operations.producao_execucao',
+      record_id: String(p.recordId),
+      user_email: p.user?.email ?? null,
+      user_role: p.user?.role ?? null,
+      user_agent: request.headers.get('user-agent'),
+      description: p.description,
+      old_values: p.oldValues ?? null,
+      new_values: p.newValues ?? null,
+      endpoint: '/api/operacional/producoes/execucao',
+      method: p.operation === 'DELETE' ? 'DELETE' : 'PUT',
+      severity: p.severity ?? 'info',
+      category: 'data',
+    });
+  } catch { /* auditoria nunca quebra a operação principal */ }
+}
+
 // Snapshot de custo/desvio por insumo (usado no POST e no PUT/editar). O custo já vem
 // precificado da tela (preco_un da cascata VMarket→planilha); aqui só multiplica e agrega.
 function computarExecucao(insumos: any[]) {
@@ -73,8 +101,28 @@ export async function POST(request: NextRequest) {
 
   const insumos: any[] = Array.isArray(body.insumos) ? body.insumos : [];
   const { linhas, custoPlanejado, custoReal, aderenciaPct } = computarExecucao(insumos);
+  // chave de idempotência gerada no cliente (1 por instância de execução) — o unique index
+  // (bar_id, idempotencia_key) faz duplo/triplo submit colidir no banco em vez de duplicar.
+  const idemKey = typeof body.idempotencia_key === 'string' && body.idempotencia_key.trim()
+    ? body.idempotencia_key.trim().slice(0, 80) : null;
 
   const supabase = await getAdminClient();
+
+  // fallback idempotente pela chave (também cobre o retry que chega DEPOIS do 1º já ter inserido)
+  if (idemKey) {
+    const { data: jaTem } = await (supabase as any)
+      .schema('operations').from('producao_execucao')
+      .select('id, custo_planejado, custo_real, aderencia_pct')
+      .eq('bar_id', barId).eq('idempotencia_key', idemKey).maybeSingle();
+    if (jaTem) {
+      return NextResponse.json({
+        success: true, execucao_id: jaTem.id,
+        custo_planejado: Number(jaTem.custo_planejado ?? round(custoPlanejado, 2)),
+        custo_real: Number(jaTem.custo_real ?? round(custoReal, 2)),
+        aderencia_pct: jaTem.aderencia_pct ?? aderenciaPct, duplicada: true,
+      });
+    }
+  }
 
   // IDEMPOTÊNCIA (anti duplo/triplo submit): o "Finalizar" pode disparar 2-3x em rede lenta
   // (cozinha), cada chamada recalcula inicio/fim com new Date() — então só o timestamp muda.
@@ -130,11 +178,30 @@ export async function POST(request: NextRequest) {
       peso_bruto: body.peso_bruto != null ? Number(body.peso_bruto) : null,
       status: body.status ? String(body.status) : 'finalizada',
       observacao: body.observacao ? String(body.observacao) : null,
+      idempotencia_key: idemKey,
       criado_por: user.email ?? user.nome ?? null,
     })
     .select('id')
     .single();
-  if (errExec) return NextResponse.json({ success: false, error: errExec.message }, { status: 500 });
+  if (errExec) {
+    // colisão do unique index = duplo submit concorrente (a corrida que o pré-check não pega).
+    // Devolve a execução que venceu, como sucesso idempotente, em vez de erro/duplicata.
+    if ((errExec.code === '23505') && idemKey) {
+      const { data: venceu } = await (supabase as any)
+        .schema('operations').from('producao_execucao')
+        .select('id, custo_planejado, custo_real, aderencia_pct')
+        .eq('bar_id', barId).eq('idempotencia_key', idemKey).maybeSingle();
+      if (venceu) {
+        return NextResponse.json({
+          success: true, execucao_id: venceu.id,
+          custo_planejado: Number(venceu.custo_planejado ?? round(custoPlanejado, 2)),
+          custo_real: Number(venceu.custo_real ?? round(custoReal, 2)),
+          aderencia_pct: venceu.aderencia_pct ?? aderenciaPct, duplicada: true,
+        });
+      }
+    }
+    return NextResponse.json({ success: false, error: errExec.message }, { status: 500 });
+  }
 
   if (linhas.length) {
     const payload = linhas.map((l) => ({ ...l, execucao_id: exec.id }));
@@ -176,10 +243,10 @@ export async function PUT(request: NextRequest) {
   if (!execId || !barId) return NextResponse.json({ success: false, error: 'execucao_id e bar_id obrigatórios' }, { status: 400 });
 
   const supabase = await getAdminClient();
-  // confirma que a execução é do bar
+  // confirma que a execução é do bar + guarda o estado ANTERIOR (auditoria da edição)
   const { data: alvo } = await (supabase as any)
     .schema('operations').from('producao_execucao')
-    .select('id, duracao_seg, inicio, fim').eq('id', execId).eq('bar_id', barId).maybeSingle();
+    .select('*').eq('id', execId).eq('bar_id', barId).maybeSingle();
   if (!alvo) return NextResponse.json({ success: false, error: 'Execução não encontrada neste bar' }, { status: 404 });
 
   const { linhas, custoPlanejado, custoReal, aderenciaPct } = computarExecucao(Array.isArray(body.insumos) ? body.insumos : []);
@@ -209,6 +276,12 @@ export async function PUT(request: NextRequest) {
     if (errIns) return NextResponse.json({ success: false, error: errIns.message }, { status: 500 });
   }
 
+  await auditar(supabase, request, {
+    operation: 'UPDATE', barId, recordId: execId, user,
+    description: `Execução #${execId} (produção ${alvo.producao_id}) editada`,
+    oldValues: alvo, newValues: patch,
+  });
+
   return NextResponse.json({
     success: true, execucao_id: execId,
     custo_planejado: round(custoPlanejado, 2), custo_real: round(custoReal, 2), aderencia_pct: aderenciaPct,
@@ -231,15 +304,24 @@ export async function DELETE(request: NextRequest) {
   if (!id || !barId) return NextResponse.json({ success: false, error: 'id e bar_id obrigatórios' }, { status: 400 });
 
   const supabase = await getAdminClient();
-  // confirma que a execução é do bar antes de apagar (evita excluir de outro bar por id solto)
+  // confirma que a execução é do bar antes de apagar (evita excluir de outro bar por id solto).
+  // pega a linha INTEIRA + os insumos p/ deixar registrado o que foi apagado (auditoria).
   const { data: alvo } = await (supabase as any)
     .schema('operations').from('producao_execucao')
-    .select('id').eq('id', id).eq('bar_id', barId).maybeSingle();
+    .select('*').eq('id', id).eq('bar_id', barId).maybeSingle();
   if (!alvo) return NextResponse.json({ success: false, error: 'Execução não encontrada neste bar' }, { status: 404 });
+  const { data: insumosAlvo } = await (supabase as any)
+    .schema('operations').from('producao_execucao_insumo').select('*').eq('execucao_id', id);
 
   await (supabase as any).schema('operations').from('producao_execucao_insumo').delete().eq('execucao_id', id);
   const { error } = await (supabase as any).schema('operations').from('producao_execucao').delete().eq('id', id).eq('bar_id', barId);
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+
+  await auditar(supabase, request, {
+    operation: 'DELETE', barId, recordId: id, severity: 'warning', user,
+    description: `Execução #${id} (produção ${alvo.producao_id}${alvo.responsavel_nome ? ` · ${alvo.responsavel_nome}` : ''}) excluída do histórico`,
+    oldValues: { ...alvo, insumos: insumosAlvo || [] },
+  });
   return NextResponse.json({ success: true, deleted_id: id });
 }
 
