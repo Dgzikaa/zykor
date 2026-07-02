@@ -22,6 +22,15 @@ const addDiasIso = (iso: string, n: number) => {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 };
 const fmtDM = (iso: any) => iso ? `${String(iso).slice(8, 10)}/${String(iso).slice(5, 7)}` : '—';
+// data local (BRT do navegador) de um timestamp — casa 1:1 com a coluna "Data" do histórico
+// (que usa toLocaleString). Evita o bug de virada de dia UTC: produção lançada à noite (ex.: 21h)
+// fica no dia certo, não "pula" pro dia seguinte por causa do fuso.
+const isoLocal = (iso: any) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
 
 // Valor em R$ do desvio de RENDIMENTO de uma execução:
 // (rendimento real − rendimento esperado) × custo por kg da produção (= custo planejado ÷ rendimento esperado).
@@ -601,6 +610,7 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
   const [detInsumos, setDetInsumos] = useState<any[]>([]);
   // filtro de semana — mesmo time-frame do Planejamento da Produção (null = todas)
   const [semanaSel, setSemanaSel] = useState<string | null>(null);
+  const [diaSel, setDiaSel] = useState<string>(''); // filtro por 1 dia (YYYY-MM-DD); '' = todos
   const [planSemana, setPlanSemana] = useState<any | null>(null);
 
   // ao trocar de seção (Cozinha/Bar), zera o filtro de produção — ele aponta pra ficha da outra seção
@@ -632,15 +642,35 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
     execs.filter((e: any) => secaoDeCodigo(e.producao_codigo) === secaoAtiva),
     [execs, secaoAtiva]);
 
+  // Produções que ESTAVAM no planejamento encerrado da semana carregada (só da seção ativa).
+  // É contra este conjunto que marcamos "fora do plano".
+  const planProdIds = useMemo(() => {
+    const s = new Set<number>();
+    (planSemana?.itens || []).forEach((it: any) => {
+      if (!(Number(it.decidido_receitas) > 0)) return;
+      const f = fichas.find(x => x.id === it.producao_id);
+      if (f && secaoDeCodigo(f.codigo) === secaoAtiva) s.add(Number(it.producao_id));
+    });
+    return s;
+  }, [planSemana, fichas, secaoAtiva]);
+
+  // Janela [ini, fim] da semana que o plano carregado cobre. Só marcamos "fora do plano" execuções
+  // DENTRO desta janela — assim nunca marcamos errado uma execução de outra semana (o plano é 1 semana).
+  const planWeek = useMemo(() => {
+    const ini = planSemana?.semana?.ini;
+    return ini ? { ini, fim: addDiasIso(ini, 6) } : null;
+  }, [planSemana]);
+
+  // Uma execução é "fora do plano" quando cai na semana do plano carregado e a produção não estava planejada.
+  const foraDoPlano = useCallback((e: any) => {
+    if (!planWeek || !e?.criado_em) return false;
+    const d = isoLocal(e.criado_em);
+    return d >= planWeek.ini && d <= planWeek.fim && !planProdIds.has(Number(e.producao_id));
+  }, [planWeek, planProdIds]);
+
   // Resumo da Semana: cruza o plano encerrado da semana com as execuções da semana (só da seção ativa)
   const resumo = useMemo(() => {
     if (!semanaSel) return null;
-    const planejados: any[] = (planSemana?.itens || []).filter((it: any) => {
-      if (!(Number(it.decidido_receitas) > 0)) return false;
-      const f = fichas.find(x => x.id === it.producao_id);
-      return f ? secaoDeCodigo(f.codigo) === secaoAtiva : false;
-    });
-    const planProdIds = new Set(planejados.map((it: any) => Number(it.producao_id)));
     const execProdIds = new Set(execsSecao.map((e: any) => Number(e.producao_id)));
     const planejadasExecutadas = [...planProdIds].filter(id => execProdIds.has(id)).length;
     const comRend = execsSecao.filter((e: any) => e.rendimento_real != null && e.rendimento_esperado != null && e.rendimento_esperado > 0);
@@ -651,6 +681,8 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
     const custoPlan = execsSecao.reduce((s: number, e: any) => s + (Number(e.custo_planejado) || 0), 0);
     const custoReal = execsSecao.reduce((s: number, e: any) => s + (Number(e.custo_real) || 0), 0);
     const desvioRendTotal = execsSecao.reduce((s: number, e: any) => s + (desvioRendReais(e) ?? 0), 0);
+    // execuções fora do plano (produção não planejada) nesta semana
+    const foraPlanoN = execsSecao.filter((e: any) => foraDoPlano(e)).length;
     return {
       planejadas: planProdIds.size,
       planejadasExecutadas,
@@ -660,15 +692,18 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
       rendTotal: comRend.length,
       tempoTotal,
       custoPlan, custoReal, desvioRendTotal,
+      foraPlano: foraPlanoN,
     };
-  }, [semanaSel, planSemana, execsSecao, fichas, secaoAtiva]);
+  }, [semanaSel, execsSecao, planProdIds, foraDoPlano]);
 
-  // busca por texto no histórico (nome ou código da produção)
+  // busca por texto no histórico (nome/código) + filtro por 1 dia (data local = coluna "Data")
   const execsView = useMemo(() => {
+    let base = execsSecao;
+    if (diaSel) base = base.filter((e: any) => isoLocal(e.criado_em) === diaSel);
     const s = buscaProd.trim().toLowerCase();
-    if (!s) return execsSecao;
-    return execsSecao.filter((e: any) => (e.producao_nome || '').toLowerCase().includes(s) || (e.producao_codigo || '').toLowerCase().includes(s));
-  }, [execsSecao, buscaProd]);
+    if (!s) return base;
+    return base.filter((e: any) => (e.producao_nome || '').toLowerCase().includes(s) || (e.producao_codigo || '').toLowerCase().includes(s));
+  }, [execsSecao, buscaProd, diaSel]);
 
   const abrirDetalhe = async (e: any) => {
     setDetalhe(e); setDetInsumos([]);
@@ -709,6 +744,9 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
     // retroativo: produção feita num dia anterior ao lançamento (inicio < criação) → tempo não vale
     if (e.inicio && e.criado_em && new Date(e.inicio).toISOString().slice(0, 10) < new Date(e.criado_em).toISOString().slice(0, 10))
       out.push({ icon: CalendarCheck, label: 'retroativo', cls: 'text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-900/20' });
+    // fora do plano: produziram algo que não estava no planejamento da semana
+    if (foraDoPlano(e))
+      out.push({ icon: AlertTriangle, label: 'fora do plano', cls: 'text-rose-600 border-rose-300 bg-rose-50 dark:bg-rose-900/20' });
     return out;
   };
 
@@ -725,6 +763,12 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
               <option key={s.ini} value={s.ini}>{fmtDM(s.ini)} – {fmtDM(s.fim)}</option>)}
           </select>
         </div>
+        <div className="inline-flex items-center gap-1.5 text-sm">
+          <CalendarCheck className="w-4 h-4 text-blue-500" />
+          <Input type="date" value={diaSel} max={new Date().toISOString().slice(0, 10)}
+            onChange={e => setDiaSel(e.target.value)} title="Filtrar por um dia específico" className="h-9 w-40" />
+          {diaSel && <button onClick={() => setDiaSel('')} className="text-gray-400 hover:text-gray-600" title="Limpar dia"><X className="w-4 h-4" /></button>}
+        </div>
         <div className="relative">
           <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
           <Input value={buscaProd} onChange={e => setBuscaProd(e.target.value)} placeholder="Buscar produção (ex.: pastel)…" className="h-9 pl-8 w-52" />
@@ -739,7 +783,7 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
           <option value="">Todos os responsáveis</option>
           {responsaveis.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
         </select>
-        {(fProd || fResp || semanaSel || buscaProd) && <button onClick={() => { setFProd(null); setFResp(null); setSemanaSel(null); setBuscaProd(''); }} className="text-xs text-gray-400 underline">limpar</button>}
+        {(fProd || fResp || semanaSel || buscaProd || diaSel) && <button onClick={() => { setFProd(null); setFResp(null); setSemanaSel(null); setBuscaProd(''); setDiaSel(''); }} className="text-xs text-gray-400 underline">limpar</button>}
         <span className="text-xs text-gray-400 ml-auto">{execsView.length} execuç{execsView.length === 1 ? 'ão' : 'ões'}</span>
       </div>
 
@@ -750,11 +794,16 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
             <div className="flex items-center gap-1.5 mb-2 text-sm font-semibold text-violet-700 dark:text-violet-300">
               <CalendarCheck className="w-4 h-4" />Resumo da semana {fmtDM(semanaSel)} – {fmtDM(addDiasIso(semanaSel!, 6))}
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
               <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
                 <div className="flex items-center gap-1 text-xs text-gray-500"><ListChecks className="w-3.5 h-3.5" />Planejado × executado</div>
                 <div className="text-lg font-bold text-gray-900 dark:text-gray-100 tabular-nums">{resumo.planejadasExecutadas}<span className="text-gray-400 text-sm font-normal">/{resumo.planejadas}</span></div>
                 <div className="text-[11px] text-gray-400">{resumo.executadas} execuç{resumo.executadas === 1 ? 'ão' : 'ões'} no total</div>
+              </div>
+              <div className={`rounded-lg border p-2 ${resumo.foraPlano > 0 ? 'border-rose-300 bg-rose-50/60 dark:border-rose-900/50 dark:bg-rose-900/15' : 'border-gray-200 dark:border-gray-700'}`}>
+                <div className="flex items-center gap-1 text-xs text-gray-500"><AlertTriangle className="w-3.5 h-3.5" />Fora do plano</div>
+                <div className={`text-lg font-bold tabular-nums ${resumo.foraPlano > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{resumo.foraPlano}</div>
+                <div className="text-[11px] text-gray-400">produção não planejada</div>
               </div>
               <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
                 <div className="flex items-center gap-1 text-xs text-gray-500"><Package className="w-3.5 h-3.5" />Aderência média</div>
@@ -814,7 +863,7 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading ? <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-              : execsView.length === 0 ? <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400">{buscaProd ? 'Nenhuma execução com essa busca.' : 'Nenhuma execução registrada ainda.'}</td></tr>
+              : execsView.length === 0 ? <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400">{diaSel ? `Nenhuma execução em ${fmtDM(diaSel)}.` : buscaProd ? 'Nenhuma execução com essa busca.' : 'Nenhuma execução registrada ainda.'}</td></tr>
               : execsView.map(e => (
                 <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer" onClick={() => abrirDetalhe(e)}>
                   <td className="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{fmtData(e.criado_em)}</td>
