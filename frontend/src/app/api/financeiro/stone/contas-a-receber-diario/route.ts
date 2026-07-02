@@ -9,12 +9,16 @@ export const maxDuration = 300; // PIX é 1 lançamento por transação → pode
  * Stone -> Conta Azul: lançamento de contas a receber + taxa (execução manual, sem cron).
  *
  * Modelo (definido com o sócio):
+ *  - Lançamos o LÍQUIDO (bruto − taxa) como conta a receber, tanto cartão quanto PIX.
  *  - CRÉDITO/DÉBITO: agrupados por BANDEIRA × VENCIMENTO (Visa/Master/Elo/Amex). Bandeira na
  *    descrição; categoria = Stone Crédito/Débito. Vencimento = prevision_payment_date do relatório
  *    Stone (num mesmo dia o débito pode liquidar em datas diferentes por fds/feriado).
  *  - PIX: 1 lançamento POR TRANSAÇÃO (não agrupa).
- *  - TAXA: 1 despesa POR LANÇAMENTO (espelha cada recebível) — taxa por bandeira no créd/déb,
- *    taxa por transação no pix.
+ *  - TAXA: compila 1 valor TOTAL do dia e lança um PAR que se compensa:
+ *      (a) DESPESA em TAXA MAQUININHA (total do dia);
+ *      (b) RECEITA em Outras Receitas, descrição "Compensação taxa maquininha" (mesmo total).
+ *    Como já lançamos o líquido, o par mantém o caixa correto (líquido) e ainda deixa a taxa
+ *    visível como linha de custo.
  *
  *  - GET  : preview do dia (não escreve no CA).
  *  - POST : cria os lançamentos (idempotente por financial.stone_ca_lancamento_log: bar,dia,chave,natureza).
@@ -35,7 +39,7 @@ type TipoStone = 'CREDITO' | 'DEBITO' | 'PIX';
 interface BarStoneConfig {
   cliente_id: string; // CLIENTE Stone (contato das receitas)
   receitas: Record<TipoStone, { categoria_id: string; conta_financeira_id: string; label: string }>;
-  taxa: { categoria_id: string; conta_financeira_id: string; fornecedor_id: string };
+  taxa: { categoria_id: string; conta_financeira_id: string; fornecedor_id: string; compensacao_categoria_id: string };
 }
 
 // De-para bar 3 (Ordinário): créd/déb → Ordinário BB; pix → Ordinário Stone.
@@ -48,9 +52,10 @@ const CONFIG: Record<number, BarStoneConfig> = {
       PIX: { categoria_id: '44408100-c5bb-48e7-a291-64c62d12f81d', conta_financeira_id: 'd210a889-27e1-49cb-b5c0-d8cad97a6939', label: 'PIX' },
     },
     taxa: {
-      categoria_id: '4374543a-57cc-42b4-a175-b9044cf83b47', // TAXA MAQUININHA
+      categoria_id: '4374543a-57cc-42b4-a175-b9044cf83b47', // TAXA MAQUININHA (despesa)
       conta_financeira_id: '5e0290a7-87ed-4a31-ac8d-88f107d20d8a', // Ordinário BB
       fornecedor_id: 'af680bf0-1970-465e-b8df-ae8e1b85a775', // STONE (FORNECEDOR)
+      compensacao_categoria_id: 'a8a69943-af27-46de-b308-d28a51c7847f', // Outras Receitas (compensação da taxa)
     },
   },
 };
@@ -119,14 +124,15 @@ function descricaoDe(l: LinhaDia, natureza: 'RECEITA' | 'TAXA'): string {
   return `${prefixo}${bandeiraLabel(l.brand_id)} ${tipoLabel} ${brDate(l.vencimento)}`;
 }
 
+/** Conta a receber pelo LÍQUIDO (bruto − taxa) do recebível. */
 function payloadReceita(cfg: BarStoneConfig, l: LinhaDia, dataVenda: string) {
-  const valor = round2(l.bruto);
+  const valor = round2(l.bruto - l.taxa); // LÍQUIDO
   const rc = cfg.receitas[l.tipo];
   const descricao = descricaoDe(l, 'RECEITA');
   return {
     data_competencia: dataVenda,
     valor,
-    observacao: `Recebível Stone (${l.transacoes} transação(ões)) lançado via Zykor`,
+    observacao: `Recebível Stone líquido (${l.transacoes} transação(ões); bruto ${round2(l.bruto)} − taxa ${round2(l.taxa)}) via Zykor`,
     descricao,
     contato: cfg.cliente_id,
     conta_financeira: rc.conta_financeira_id,
@@ -135,7 +141,7 @@ function payloadReceita(cfg: BarStoneConfig, l: LinhaDia, dataVenda: string) {
       parcelas: [{
         descricao,
         data_vencimento: l.vencimento,
-        nota: 'Recebível Stone lançado via Zykor',
+        nota: 'Recebível Stone (líquido) lançado via Zykor',
         conta_financeira: rc.conta_financeira_id,
         detalhe_valor: { valor_bruto: valor, valor_liquido: valor, juros: 0, multa: 0, desconto: 0, taxa: 0 },
       }],
@@ -143,13 +149,14 @@ function payloadReceita(cfg: BarStoneConfig, l: LinhaDia, dataVenda: string) {
   };
 }
 
-function payloadTaxa(cfg: BarStoneConfig, l: LinhaDia, dataVenda: string) {
-  const valor = round2(l.taxa);
-  const descricao = descricaoDe(l, 'TAXA');
+/** DESPESA: taxa TOTAL de maquininha do dia (1 lançamento). */
+function payloadTaxaTotal(cfg: BarStoneConfig, dataVenda: string, valorTotal: number) {
+  const valor = round2(valorTotal);
+  const descricao = `Taxa maquininha Stone ${brDate(dataVenda)}`;
   return {
     data_competencia: dataVenda,
     valor,
-    observacao: 'Taxa de maquininha Stone (por lançamento) lançada via Zykor',
+    observacao: 'Taxa total de maquininha Stone do dia (lançamos o líquido) via Zykor',
     descricao,
     contato: cfg.taxa.fornecedor_id,
     conta_financeira: cfg.taxa.conta_financeira_id,
@@ -157,8 +164,32 @@ function payloadTaxa(cfg: BarStoneConfig, l: LinhaDia, dataVenda: string) {
     condicao_pagamento: {
       parcelas: [{
         descricao,
-        data_vencimento: l.vencimento,
-        nota: 'Taxa Stone lançada via Zykor',
+        data_vencimento: dataVenda,
+        nota: 'Taxa Stone (total do dia) lançada via Zykor',
+        conta_financeira: cfg.taxa.conta_financeira_id,
+        detalhe_valor: { valor_bruto: valor, valor_liquido: valor, juros: 0, multa: 0, desconto: 0, taxa: 0 },
+      }],
+    },
+  };
+}
+
+/** RECEITA: compensação da taxa (Outras Receitas) — anula a despesa, mantém o caixa no líquido. */
+function payloadCompensacao(cfg: BarStoneConfig, dataVenda: string, valorTotal: number) {
+  const valor = round2(valorTotal);
+  const descricao = 'Compensação taxa maquininha';
+  return {
+    data_competencia: dataVenda,
+    valor,
+    observacao: 'Compensação da taxa de maquininha Stone do dia (lançamos o líquido) via Zykor',
+    descricao,
+    contato: cfg.cliente_id,
+    conta_financeira: cfg.taxa.conta_financeira_id,
+    rateio: [{ id_categoria: cfg.taxa.compensacao_categoria_id, valor }],
+    condicao_pagamento: {
+      parcelas: [{
+        descricao,
+        data_vencimento: dataVenda,
+        nota: 'Compensação taxa Stone (total do dia) via Zykor',
         conta_financeira: cfg.taxa.conta_financeira_id,
         detalhe_valor: { valor_bruto: valor, valor_liquido: valor, juros: 0, multa: 0, desconto: 0, taxa: 0 },
       }],
@@ -211,31 +242,36 @@ export async function GET(request: NextRequest) {
         tipo: l.tipo,
         bandeira: bandeiraLabel(l.brand_id),
         descricao: descricaoDe(l, 'RECEITA'),
-        valor: round2(l.bruto),
+        bruto: round2(l.bruto),
+        taxa: round2(l.taxa),
+        valor: round2(l.bruto - l.taxa), // LÍQUIDO — é o que vai como conta a receber
         vencimento: l.vencimento,
         transacoes: l.transacoes,
         ja_lancado: feito.has(`${l.chave}::RECEITA`),
       }));
-    const taxas = linhas
-      .filter((l) => l.taxa > 0)
-      .map((l) => ({
-        descricao: descricaoDe(l, 'TAXA'),
-        valor: round2(l.taxa),
-        vencimento: l.vencimento,
-        ja_lancado: feito.has(`${l.chave}::TAXA`),
-      }));
 
+    // taxa do dia = 1 valor total → par que se compensa (despesa TAXA MAQUININHA + receita Outras Receitas)
+    const taxaTotal = round2(linhas.reduce((s, l) => s + l.taxa, 0));
+    const compensacao = taxaTotal > 0 ? [
+      { descricao: `Taxa maquininha Stone ${brDate(data)}`, tipo: 'DESPESA', categoria: 'TAXA MAQUININHA', valor: taxaTotal, vencimento: data, ja_lancado: feito.has('TAXA_DIA::TAXA') },
+      { descricao: 'Compensação taxa maquininha', tipo: 'RECEITA', categoria: 'Outras Receitas', valor: taxaTotal, vencimento: data, ja_lancado: feito.has('COMPENSACAO_DIA::COMPENSACAO') },
+    ] : [];
+
+    const totalLiquido = round2(recebiveis.reduce((s, r) => s + r.valor, 0));
     return NextResponse.json({
       bar_id: barId,
       data,
       resumo: {
         recebiveis: recebiveis.length,
-        taxas: taxas.length,
-        total_bruto: round2(recebiveis.reduce((s, r) => s + r.valor, 0)),
-        total_taxa: round2(taxas.reduce((s, t) => s + t.valor, 0)),
+        lancamentos_taxa: compensacao.length, // 0 ou 2
+        total_bruto: round2(recebiveis.reduce((s, r) => s + r.bruto, 0)),
+        total_taxa: taxaTotal,
+        total_liquido: totalLiquido,
+        // efeito no caixa = líquido dos recebíveis (despesa e compensação da taxa se anulam)
+        efeito_caixa: totalLiquido,
       },
       recebiveis,
-      taxas,
+      compensacao,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Erro no preview' }, { status: 500 });
@@ -275,37 +311,48 @@ export async function POST(request: NextRequest) {
 
   const resultados: any[] = [];
 
-  async function criar(l: LinhaDia, natureza: 'RECEITA' | 'TAXA', valor: number) {
+  async function enviar(
+    chave: string,
+    natureza: 'RECEITA' | 'TAXA' | 'COMPENSACAO',
+    valor: number,
+    endpoint: 'contas-a-receber' | 'contas-a-pagar',
+    payload: unknown,
+    meta: { tipo?: TipoStone | null; brand_id?: number | null; vencimento?: string | null },
+  ) {
     if (valor <= 0) return;
-    if (feito.has(`${l.chave}::${natureza}`)) {
-      resultados.push({ chave: l.chave, natureza, skipped: true, motivo: 'já lançado' });
+    if (feito.has(`${chave}::${natureza}`)) {
+      resultados.push({ chave, natureza, skipped: true, motivo: 'já lançado' });
       return;
     }
-    const endpoint = natureza === 'RECEITA' ? 'contas-a-receber' : 'contas-a-pagar';
-    const payload = natureza === 'RECEITA' ? payloadReceita(cfg, l, data) : payloadTaxa(cfg, l, data);
     const r = await postCA(token, endpoint, payload);
     if (r.ok) {
       await (supabase.schema('financial' as any) as any).from('stone_ca_lancamento_log').insert({
         bar_id: barId,
         data_venda: data,
-        chave: l.chave,
+        chave,
         natureza,
-        tipo: l.tipo,
-        brand_id: l.brand_id,
-        vencimento: l.vencimento,
+        tipo: meta.tipo ?? null,
+        brand_id: meta.brand_id ?? null,
+        vencimento: meta.vencimento ?? data,
         valor: round2(valor),
         ca_protocol_id: r.protocolId,
         ca_status: r.status,
         criado_por: user!.email ?? user!.nome ?? null,
       });
     }
-    resultados.push({ chave: l.chave, natureza, ok: r.ok, valor: round2(valor), protocolId: r.protocolId, erro: r.erro });
+    resultados.push({ chave, natureza, ok: r.ok, valor: round2(valor), protocolId: r.protocolId, erro: r.erro });
   }
 
   // Sequencial pra não estourar rate limit do CA (PIX pode ter muitas linhas).
+  // 1) Recebíveis pelo LÍQUIDO (bruto − taxa).
   for (const l of linhas) {
-    await criar(l, 'RECEITA', l.bruto);
-    await criar(l, 'TAXA', l.taxa);
+    await enviar(l.chave, 'RECEITA', round2(l.bruto - l.taxa), 'contas-a-receber', payloadReceita(cfg, l, data), { tipo: l.tipo, brand_id: l.brand_id, vencimento: l.vencimento });
+  }
+  // 2) Taxa do dia: 1 valor total → par que se compensa (despesa TAXA MAQUININHA + receita Outras Receitas).
+  const taxaTotal = round2(linhas.reduce((s, l) => s + l.taxa, 0));
+  if (taxaTotal > 0) {
+    await enviar('TAXA_DIA', 'TAXA', taxaTotal, 'contas-a-pagar', payloadTaxaTotal(cfg, data, taxaTotal), { vencimento: data });
+    await enviar('COMPENSACAO_DIA', 'COMPENSACAO', taxaTotal, 'contas-a-receber', payloadCompensacao(cfg, data, taxaTotal), { vencimento: data });
   }
 
   const houveErro = resultados.some((r) => r.ok === false);
