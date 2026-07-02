@@ -12,13 +12,15 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  ArrowLeft, Music, Check, X, Sparkles, Copy, Loader2, AlertCircle,
+  ArrowLeft, Music, Check, X, Sparkles, Copy, Loader2, AlertCircle, Star,
 } from 'lucide-react';
 
 interface ArtistaTag {
   artista_id: number | null;
   artista_nome: string;
   tipo: string;
+  cachet?: number;
+  principal?: boolean;
 }
 interface EventoRow {
   id: number;
@@ -27,9 +29,16 @@ interface EventoRow {
   nome: string;
   faturamento: number;
   publico: number;
+  ticket: number | null;
   artista_texto: string;
   artistas: ArtistaTag[];
   sugestao: Array<{ nome: string; tipo: string }>;
+  custo_atracao_total: number;
+  principal_nome: string | null;
+  principal_cachet: number | null;
+  pct_principal: number | null;
+  retorno: number | null;
+  ca_maior: { nome: string; valor: number } | null;
 }
 interface Cadastro { id: number; nome: string; tipo: string; }
 type SaveStatus = 'saving' | 'saved' | 'error' | undefined;
@@ -205,16 +214,18 @@ export default function TaggingArtistasPage() {
 
                   {/* métricas */}
                   <div className="md:w-28 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-                    <div>{fmtBRL(row.faturamento)}</div>
-                    <div>{row.publico} PAX</div>
+                    <div className="font-medium text-gray-700 dark:text-gray-300">{fmtBRL(row.faturamento)}</div>
+                    <div>{row.publico} PAX{row.ticket ? ` · ${fmtBRL(row.ticket)}` : ''}</div>
                   </div>
 
                   {/* artistas */}
                   <div className="flex-1 flex flex-wrap items-center gap-2">
                     {row.artistas.map((a, idx) => (
-                      <Badge key={idx} variant="secondary" className="gap-1 pr-1">
+                      <Badge key={idx} variant={a.principal ? 'default' : 'secondary'} className="gap-1 pr-1">
+                        {a.principal && <Star className="w-3 h-3 text-amber-300 fill-amber-300" />}
                         <span className="capitalize text-[10px] opacity-60">{a.tipo}</span>
                         {a.artista_nome}
+                        {a.cachet ? <span className="text-[10px] opacity-70">· {fmtBRL(a.cachet)}</span> : null}
                         <button onClick={() => remover(row, idx)} className="ml-1 rounded hover:bg-black/10 dark:hover:bg-white/10">
                           <X className="w-3 h-3" />
                         </button>
@@ -243,6 +254,30 @@ export default function TaggingArtistasPage() {
                       >
                         <Copy className="w-3 h-3" /> iguais
                       </button>
+                    )}
+                  </div>
+
+                  {/* principal / custo CA */}
+                  <div className="md:w-56 shrink-0 text-xs">
+                    {row.principal_nome ? (
+                      <>
+                        <div className="flex items-center gap-1 font-medium text-gray-900 dark:text-white">
+                          <Star className="w-3 h-3 text-amber-500 fill-amber-500" /> {row.principal_nome}
+                        </div>
+                        <div className="text-gray-600 dark:text-gray-400">
+                          {fmtBRL(row.principal_cachet || 0)}
+                          {row.pct_principal != null && ` · ${(row.pct_principal * 100).toFixed(0)}% do fat`}
+                          {row.retorno != null && ` · ${row.retorno.toFixed(1)}x`}
+                        </div>
+                      </>
+                    ) : row.ca_maior ? (
+                      <div className="text-amber-600 dark:text-amber-400" title="Maior cachê do CA no dia — não casou com os artistas taggeados; ajuste o nome do artista pra casar">
+                        CA: {row.ca_maior.nome} · {fmtBRL(row.ca_maior.valor)} <span className="opacity-70">(sem match)</span>
+                      </div>
+                    ) : row.custo_atracao_total > 0 ? (
+                      <div className="text-gray-500">atração {fmtBRL(row.custo_atracao_total)}</div>
+                    ) : (
+                      <span className="text-gray-300 dark:text-gray-600">—</span>
                     )}
                   </div>
 

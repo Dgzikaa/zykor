@@ -76,12 +76,15 @@ export async function GET(request: NextRequest) {
     if (!barId) return NextResponse.json({ success: false, error: 'bar_id é obrigatório' }, { status: 400 });
     const { searchParams } = new URL(request.url);
     const mesParam = searchParams.get('mes'); // YYYY-MM
+    // "hoje" no fuso de Brasília (UTC-3) — só taggeamos o passado (evento < hoje)
+    const hojeBR = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-    // meses disponíveis (a partir das datas de evento do bar)
+    // meses disponíveis (só passados)
     const { data: datas } = await supabase
       .from('eventos_base')
       .select('data_evento')
       .eq('bar_id', barId)
+      .lt('data_evento', hojeBR)
       .order('data_evento', { ascending: false })
       .limit(2000);
     const mesesSet = new Set<string>();
@@ -108,13 +111,14 @@ export async function GET(request: NextRequest) {
     const tipoPorNome = new Map<string, string>((cadastro || []).map((a: any) => [String(a.nome).toLowerCase(), a.tipo]));
     const tipoPorId = new Map<number, string>((cadastro || []).map((a: any) => [a.id, a.tipo]));
 
-    // eventos do mês
+    // eventos do mês (só passados: >= início do mês, <= fim do mês, e < hoje)
     const { data: eventosRaw, error: evErr } = await supabase
       .from('eventos_base')
       .select('id, data_evento, dia_semana, nome, real_r, cl_real, artista')
       .eq('bar_id', barId)
       .gte('data_evento', inicio)
       .lte('data_evento', fim)
+      .lt('data_evento', hojeBR)
       .order('data_evento', { ascending: false });
     if (evErr) throw evErr;
 
@@ -137,8 +141,52 @@ export async function GET(request: NextRequest) {
       tagsPorEvento.set(l.evento_id, arr);
     }
 
+    // custo de atração do Conta Azul (cachê), por competência = dia do evento
+    const { data: caRaw } = await ops.rpc('fn_ca_atracao_lancamentos', {
+      p_bar_id: barId,
+      p_ini: inicio,
+      p_fim: fim,
+    });
+    const caPorData = new Map<string, Array<{ pessoa: string; desc: string; valor: number }>>();
+    for (const l of caRaw || []) {
+      const dia = String(l.data_competencia).slice(0, 10);
+      const arr = caPorData.get(dia) || [];
+      arr.push({ pessoa: l.pessoa_nome || '', desc: l.descricao || '', valor: Number(l.valor) || 0 });
+      caPorData.set(dia, arr);
+    }
+
     const eventos = (eventosRaw || []).map((e: any) => {
-      const artistasAtuais = tagsPorEvento.get(e.id) || [];
+      const faturamento = parseFloat(e.real_r) || 0;
+      const artistasAtuais: any[] = (tagsPorEvento.get(e.id) || []).map((a: any) => ({ ...a, cachet: 0, principal: false }));
+
+      // casa os lançamentos do CA do dia com os artistas taggeados (por nome na descrição/favorecido)
+      const caDia = caPorData.get(String(e.data_evento).slice(0, 10)) || [];
+      const custo_atracao_total = caDia.reduce((s, l) => s + l.valor, 0);
+      let ca_maior: { nome: string; valor: number } | null = null;
+      for (const l of caDia) {
+        if (!ca_maior || l.valor > ca_maior.valor) {
+          // nome "amigável" do maior lançamento (tira prefixo do evento antes de "Banda ")
+          const m = /banda\s+(.+)$/i.exec(l.desc);
+          ca_maior = { nome: (m ? m[1] : l.pessoa || l.desc).trim(), valor: l.valor };
+        }
+        const hay = `${l.desc} ${l.pessoa}`.toLowerCase();
+        let best: any = null;
+        let bestLen = 0;
+        for (const a of artistasAtuais) {
+          const nm = String(a.artista_nome || '').toLowerCase();
+          if (nm && nm.length > bestLen && hay.includes(nm)) { best = a; bestLen = nm.length; }
+        }
+        if (best) best.cachet += l.valor;
+      }
+
+      // principal = artista taggeado com maior cachê
+      let principal: any = null;
+      for (const a of artistasAtuais) if (a.cachet > 0 && (!principal || a.cachet > principal.cachet)) principal = a;
+      if (principal) principal.principal = true;
+      const principal_cachet = principal?.cachet ?? null;
+      const pct_principal = principal_cachet != null && faturamento > 0 ? principal_cachet / faturamento : null;
+      const retorno = principal_cachet != null && principal_cachet > 0 ? faturamento / principal_cachet : null;
+
       // sugestão só quando ainda não há tags; prioriza o campo antigo, senão o nome do evento
       let sugestao: Array<{ nome: string; tipo: string }> = [];
       if (artistasAtuais.length === 0) {
@@ -155,11 +203,19 @@ export async function GET(request: NextRequest) {
         data_evento: e.data_evento,
         dia_semana: e.dia_semana || '',
         nome: e.nome || '',
-        faturamento: parseFloat(e.real_r) || 0,
+        faturamento,
         publico: e.cl_real || 0,
+        ticket: (e.cl_real || 0) > 0 ? faturamento / e.cl_real : null,
         artista_texto: e.artista || '',
         artistas: artistasAtuais,
         sugestao,
+        // custo de atração (Conta Azul)
+        custo_atracao_total,
+        principal_nome: principal?.artista_nome ?? null,
+        principal_cachet,
+        pct_principal,
+        retorno,
+        ca_maior, // maior cachê do dia no CA (ajuda a validar quando nada casou)
       };
     });
 
