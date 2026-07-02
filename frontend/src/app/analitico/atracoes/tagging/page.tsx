@@ -85,13 +85,25 @@ export default function TaggingArtistasPage() {
         setRows(j.eventos || []);
         setEventosCorrigir(j.eventosCorrigir || []);
         setCadastro(j.cadastro || []);
+        // guarda o mês na URL pra sobreviver ao refresh (fica na tela onde você estava)
+        if (j.mes && typeof window !== 'undefined') {
+          const u = new URL(window.location.href);
+          u.searchParams.set('mes', j.mes);
+          window.history.replaceState(null, '', u.toString());
+        }
       }
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { carregar(); /* eslint-disable-next-line */ }, [barId]);
+  useEffect(() => {
+    const mesUrl = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('mes') || undefined
+      : undefined;
+    carregar(mesUrl);
+    /* eslint-disable-next-line */
+  }, [barId]);
 
   const tipoDoNome = (nome: string): { tipo: string; artista_id: number | null } => {
     const hit = cadastro.find((c) => c.nome.toLowerCase() === nome.trim().toLowerCase());
