@@ -41,6 +41,31 @@ const opColor = (op: string) => {
 
 const fmtData = (d: string) => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
+// colunas de "carimbo" que mudam sozinhas — não são alteração de conteúdo, ignora no diff
+const IGN_DIFF = new Set(['atualizado_em', 'updated_at', 'criado_em', 'created_at', 'atualizado_por', 'updated_by', 'timestamp']);
+const fmtVal = (v: any) => {
+  if (v === null || v === undefined || v === '') return '∅';
+  const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+  return s.length > 48 ? s.slice(0, 48) + '…' : s;
+};
+// campos que mudaram numa edição: [{campo, de, para}]
+const diffCampos = (l: { operation: string; old_values: any; new_values: any }) => {
+  if (l.operation !== 'UPDATE' || !l.old_values || !l.new_values) return [];
+  const o = l.old_values, n = l.new_values;
+  const out: { campo: string; de: any; para: any }[] = [];
+  for (const k of Object.keys(n)) {
+    if (IGN_DIFF.has(k)) continue;
+    if (JSON.stringify(o[k]) !== JSON.stringify(n[k])) out.push({ campo: k, de: o[k], para: n[k] });
+  }
+  return out;
+};
+// rótulo humano do registro (pra INSERT/DELETE): nome/descrição/código do que foi criado/removido
+const rotuloRegistro = (l: { new_values: any; old_values: any }) => {
+  const r = l.new_values || l.old_values || {};
+  const v = r.nome ?? r.descricao ?? r.titulo ?? r.insumo_codigo ?? r.codigo ?? r.email ?? null;
+  return v != null ? String(v) : null;
+};
+
 export default function AuditoriaPage() {
   const { setPageTitle } = usePageTitle();
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -50,6 +75,7 @@ export default function AuditoriaPage() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
+  const [auto, setAuto] = useState(false); // tempo real (polling)
 
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
@@ -59,8 +85,9 @@ export default function AuditoriaPage() {
 
   useEffect(() => { setPageTitle('🛡️ Auditoria'); return () => setPageTitle(''); }, [setPageTitle]);
 
-  const carregar = useCallback(async (novoOffset = 0, append = false) => {
-    setLoading(true); setErro(null);
+  const carregar = useCallback(async (novoOffset = 0, append = false, silent = false) => {
+    if (!silent) setLoading(true);
+    setErro(null);
     try {
       const p = new URLSearchParams({ limit: String(PAGE), offset: String(novoOffset) });
       if (de) p.set('de', de);
@@ -83,6 +110,13 @@ export default function AuditoriaPage() {
 
   useEffect(() => { carregar(0, false); /* carga inicial */ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // tempo real: enquanto ligado, recarrega a 1ª página a cada 10s sem piscar o spinner
+  useEffect(() => {
+    if (!auto) return;
+    const t = setInterval(() => carregar(0, false, true), 10000);
+    return () => clearInterval(t);
+  }, [auto, carregar]);
 
   const buscar = () => carregar(0, false);
   const limpar = () => { setDe(''); setAte(''); setOperation(''); setTable(''); setQ(''); setTimeout(() => carregar(0, false), 0); };
@@ -141,9 +175,14 @@ export default function AuditoriaPage() {
                 <Input placeholder="ex.: joao@…, produção 12" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscar()} className="h-9" />
               </div>
             </div>
-            <div className="flex gap-2 mt-3">
+            <div className="flex flex-wrap gap-2 mt-3 items-center">
               <Button onClick={buscar} size="sm" className="flex items-center gap-1"><Search className="h-4 w-4" />Buscar</Button>
               <Button variant="outline" size="sm" onClick={limpar}>Limpar</Button>
+              <button onClick={() => setAuto(v => !v)} title="Atualiza a lista automaticamente a cada 10s"
+                className={`inline-flex items-center gap-1.5 h-8 rounded-md border px-2.5 text-sm transition ${auto ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/25 dark:text-emerald-300' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
+                <span className={`w-2 h-2 rounded-full ${auto ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                Tempo real
+              </button>
               <Button variant="outline" size="sm" onClick={exportarCSV} disabled={!logs.length} className="ml-auto flex items-center gap-1"><Download className="h-4 w-4" />Exportar CSV</Button>
             </div>
           </CardContent>
@@ -162,12 +201,11 @@ export default function AuditoriaPage() {
               <div className="text-center py-10"><Loader2 className="h-7 w-7 animate-spin mx-auto text-gray-400" /></div>
             ) : logs.length === 0 ? (
               <div className="text-center py-10 text-gray-500 text-sm">
-                Nenhum registro de auditoria ainda. A trilha começa a preencher conforme as ações vão sendo feitas
-                (por ora: exclusão e edição de execuções em Produção).
+                Nenhum registro para os filtros atuais. A trilha registra criação, edição e exclusão em todo o sistema conforme as ações são feitas.
               </div>
             ) : (
               <div className="space-y-2">
-                {logs.map(l => (
+                {logs.map(l => { const diffs = diffCampos(l); const rot = rotuloRegistro(l); return (
                   <div key={l.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
@@ -176,7 +214,26 @@ export default function AuditoriaPage() {
                           {l.table_name && <span className="inline-flex items-center gap-1 text-xs text-gray-500"><Database className="h-3 w-3" />{l.table_name}{l.record_id ? ` · #${l.record_id}` : ''}</span>}
                           {l.bar_id != null && <span className="text-[11px] text-gray-400">bar {l.bar_id}</span>}
                         </div>
-                        <p className="text-sm text-gray-900 dark:text-gray-100">{l.description}</p>
+                        <p className="text-sm text-gray-900 dark:text-gray-100">
+                          {l.operation === 'UPDATE' ? `Editou ${l.table_name?.split('.').pop() || 'registro'}${l.record_id ? ` #${l.record_id}` : ''}`
+                            : l.operation === 'INSERT' ? `Criou ${l.table_name?.split('.').pop() || 'registro'}${rot ? `: ${rot}` : ''}`
+                            : l.operation === 'DELETE' ? `Excluiu ${l.table_name?.split('.').pop() || 'registro'}${rot ? `: ${rot}` : ''}`
+                            : l.description}
+                        </p>
+                        {/* diff amigável na própria linha: campo antigo → novo */}
+                        {diffs.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {diffs.slice(0, 8).map((d, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 text-[11px] rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/15 px-1.5 py-0.5">
+                                <span className="font-medium text-gray-700 dark:text-gray-200">{d.campo}</span>
+                                <span className="text-gray-500 line-through">{fmtVal(d.de)}</span>
+                                <span className="text-gray-400">→</span>
+                                <span className="font-medium text-emerald-700 dark:text-emerald-400">{fmtVal(d.para)}</span>
+                              </span>
+                            ))}
+                            {diffs.length > 8 && <span className="text-[11px] text-gray-400 self-center">+{diffs.length - 8} campos</span>}
+                          </div>
+                        )}
                         <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-gray-500">
                           <span className="inline-flex items-center gap-1"><User className="h-3 w-3" />{l.user_email || 'sistema'}{l.user_role ? ` (${l.user_role})` : ''}</span>
                           {(l.old_values || l.new_values) && (
@@ -199,7 +256,7 @@ export default function AuditoriaPage() {
                       <div className="text-right text-[11px] text-gray-500 whitespace-nowrap inline-flex items-center gap-1"><Clock className="h-3 w-3" />{fmtData(l.timestamp)}</div>
                     </div>
                   </div>
-                ))}
+                ); })}
                 {logs.length < total && (
                   <div className="text-center pt-2">
                     <Button variant="outline" size="sm" onClick={() => carregar(offset + PAGE, true)} disabled={loading}>
