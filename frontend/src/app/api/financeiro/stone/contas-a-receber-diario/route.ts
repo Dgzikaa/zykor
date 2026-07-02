@@ -221,7 +221,7 @@ export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
   if (user.role !== 'admin' && user.role !== 'financeiro') return permissionErrorResponse('Sem permissão');
-  const barId = Number(user.bar_id);
+  const barId = Number(new URL(request.url).searchParams.get('bar_id')) || Number(user.bar_id);
   const cfg = CONFIG[barId];
   if (!cfg) return NextResponse.json({ error: `Bar ${barId} ainda não configurado para Stone->CA` }, { status: 400 });
   const data = new URL(request.url).searchParams.get('data') || ontemBRT();
@@ -283,11 +283,11 @@ export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
   if (user.role !== 'admin' && user.role !== 'financeiro') return permissionErrorResponse('Sem permissão para criar lançamentos');
-  const barId = Number(user.bar_id);
+  const body = await request.json().catch(() => ({} as any));
+  const barId = Number(body?.bar_id) || Number(user.bar_id);
   const cfg = CONFIG[barId];
   if (!cfg) return NextResponse.json({ error: `Bar ${barId} ainda não configurado para Stone->CA` }, { status: 400 });
 
-  const body = await request.json().catch(() => ({} as any));
   const data: string = body?.data || ontemBRT();
 
   const tokenResult = await getCAToken(barId);

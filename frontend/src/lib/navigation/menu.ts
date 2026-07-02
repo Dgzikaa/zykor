@@ -103,6 +103,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Receipt', label: 'Pedidos de Pagamento', href: '/financeiro/pedidos-pagamento', permission: 'financeiro_ferramentas' },
       { icon: 'Users', label: 'Beneficiários', href: '/financeiro/beneficiarios', permission: 'financeiro_ferramentas' },
       { icon: 'Scale', label: 'Conciliação', href: '/financeiro/conciliacao', permission: 'financeiro_ferramentas' },
+      { icon: 'CreditCard', label: 'Recebíveis Stone', href: '/financeiro/stone-recebiveis', permission: 'financeiro_ferramentas' },
       { icon: 'ReceiptText', label: 'Notas Fiscais', href: '/financeiro/notas-fiscais', permission: 'financeiro_ferramentas' },
       { icon: 'FolderTree', label: 'Categorias', href: '/financeiro/categorias', permission: 'financeiro_ferramentas' },
       { icon: 'Wallet', label: 'Fluxo de Caixa', href: '/financeiro/fluxo-caixa', permission: 'financeiro_ferramentas' },

@@ -486,6 +486,9 @@ function IntegracoesBar({ barId }: { barId: number }) {
       {/* Conta Azul: fluxo de conexão completo (credenciais + OAuth) */}
       <ContaAzulConnect barId={barId} />
 
+      {/* Stone → Conta Azul: antecipação de crédito (setup por bar) */}
+      <StoneAntecipacaoConfig barId={barId} />
+
       <div className="space-y-1.5">
         {itens.filter(i => i.id !== 'contaazul').map(i => {
           const s = STATUS_LABEL[i.statusGeral] || STATUS_LABEL.nao_configurada;
@@ -512,6 +515,76 @@ function IntegracoesBar({ barId }: { barId: number }) {
       <Link href="/configuracoes/administracao/integracoes" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
         <Plug className="w-3.5 h-3.5" /> Abrir tela completa de integrações <ExternalLink className="w-3 h-3" />
       </Link>
+    </div>
+  );
+}
+
+// ── Stone → CA: antecipação de crédito (liga/desliga + dias do mês) ──
+function StoneAntecipacaoConfig({ barId }: { barId: number }) {
+  const { toast } = useToast();
+  const [antecipa, setAntecipa] = useState(false);
+  const [dias, setDias] = useState('1');
+  const [loading, setLoading] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const r = await api.get(`/api/financeiro/stone/antecipacao-config?bar_id=${barId}`);
+        if (!vivo) return;
+        setAntecipa(!!r.config?.antecipa);
+        setDias(((r.config?.dias_landing as number[]) || [1]).join(', '));
+      } catch { /* silencioso */ } finally { if (vivo) setLoading(false); }
+    })();
+    return () => { vivo = false; };
+  }, [barId]);
+
+  const salvar = async () => {
+    setSalvando(true);
+    try {
+      const arr = dias.split(',').map(s => parseInt(s.trim(), 10)).filter(n => Number.isInteger(n) && n >= 1 && n <= 31);
+      const r = await api.put('/api/financeiro/stone/antecipacao-config', { bar_id: barId, antecipa, dias_landing: arr });
+      setDias(((r.config?.dias_landing as number[]) || [1]).join(', '));
+      toast({ title: 'Antecipação salva' });
+    } catch (e: any) {
+      toast({ title: 'Erro ao salvar', description: e?.message, variant: 'destructive' });
+    } finally { setSalvando(false); }
+  };
+
+  return (
+    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium flex items-center gap-2">
+          <span className="w-5 h-5 rounded bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center">S</span>
+          Stone — antecipação de crédito
+        </span>
+        {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+      </div>
+      {!loading && (
+        <>
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input type="checkbox" className="mt-0.5" checked={antecipa} onChange={e => setAntecipa(e.target.checked)} />
+            <span>
+              <span className="text-sm font-medium">Antecipa o crédito?</span>
+              <span className="block text-[11px] text-muted-foreground">
+                Se ligado, o crédito cai nos dias fixos abaixo (em vez do ~D+30 da Stone). Débito e PIX não mudam.
+              </span>
+            </span>
+          </label>
+          <div className={antecipa ? '' : 'opacity-50 pointer-events-none'}>
+            <Label className="text-xs">Dias do mês em que o crédito cai</Label>
+            <Input className="h-8 mt-1" placeholder="ex.: 1 ou 1, 15" value={dias} onChange={e => setDias(e.target.value)} />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Vale o próximo dia da lista após a venda; se cair em fim de semana/feriado, rola pro próximo dia útil.
+            </p>
+          </div>
+          <Button size="sm" onClick={salvar} disabled={salvando}>
+            {salvando ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}Salvar
+          </Button>
+        </>
+      )}
     </div>
   );
 }
