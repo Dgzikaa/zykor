@@ -52,6 +52,7 @@ import {
   LogOut,
   Coffee,
   Music,
+  Shield,
 } from 'lucide-react';
 
 export type MenuIcon = ComponentType<{ className?: string }>;
@@ -102,6 +103,7 @@ export const MENU_ICONS: Record<string, MenuIcon> = {
   LogOut,
   Coffee,
   Music,
+  Shield,
 };
 
 /** Componente do ícone pelo nome; fallback em Activity se faltar. */
