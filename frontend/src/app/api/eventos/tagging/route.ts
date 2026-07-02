@@ -151,17 +151,50 @@ export async function GET(request: NextRequest) {
       tagsPorEvento.set(l.evento_id, arr);
     }
 
-    // custo de atração do Conta Azul (cachê), por competência = dia do evento
+    // overrides "corrigir dia": remaneja um lançamento do CA (contaazul_id) pro evento certo,
+    // resolvendo o descasamento data-de-pagamento (competência) x dia-do-show.
+    const { data: overridesRaw } = await ops
+      .from('ca_atracao_override')
+      .select('contaazul_id, data_evento, artista_id, data_competencia')
+      .eq('bar_id', barId);
+    const overrideByCid = new Map<string, { data_evento: string; artista_id: number }>();
+    for (const o of overridesRaw || []) {
+      overrideByCid.set(String(o.contaazul_id), { data_evento: String(o.data_evento).slice(0, 10), artista_id: o.artista_id });
+    }
+    // janela do RPC: além do mês, inclui a competência de pagamentos cujo show (alvo) cai no mês
+    let rpcIni = inicio, rpcFim = fim;
+    for (const o of overridesRaw || []) {
+      const alvo = String(o.data_evento).slice(0, 10);
+      const comp = o.data_competencia ? String(o.data_competencia).slice(0, 10) : null;
+      if (comp && alvo >= inicio && alvo <= fim) {
+        if (comp < rpcIni) rpcIni = comp;
+        if (comp > rpcFim) rpcFim = comp;
+      }
+    }
+
+    // custo de atração do Conta Azul (cachê). Bucketiza pelo dia efetivo do show:
+    // override quando existe, senão a competência do pagamento.
     const { data: caRaw } = await ops.rpc('fn_ca_atracao_lancamentos', {
       p_bar_id: barId,
-      p_ini: inicio,
-      p_fim: fim,
+      p_ini: rpcIni,
+      p_fim: rpcFim,
     });
-    const caPorData = new Map<string, Array<{ pessoa: string; desc: string; valor: number }>>();
+    type CaLinha = { contaazul_id: string; pessoa: string; desc: string; valor: number; data_competencia: string; forcedArtista: number | null };
+    const caPorData = new Map<string, CaLinha[]>();
     for (const l of caRaw || []) {
-      const dia = String(l.data_competencia).slice(0, 10);
+      const cid = String(l.contaazul_id);
+      const comp = String(l.data_competencia).slice(0, 10);
+      const ov = overrideByCid.get(cid);
+      const dia = ov ? ov.data_evento : comp;
       const arr = caPorData.get(dia) || [];
-      arr.push({ pessoa: l.pessoa_nome || '', desc: l.descricao || '', valor: Number(l.valor) || 0 });
+      arr.push({
+        contaazul_id: cid,
+        pessoa: l.pessoa_nome || '',
+        desc: l.descricao || '',
+        valor: Number(l.valor) || 0,
+        data_competencia: comp,
+        forcedArtista: ov ? ov.artista_id : null,
+      });
       caPorData.set(dia, arr);
     }
 
@@ -187,8 +220,14 @@ export async function GET(request: NextRequest) {
           ca_maior = { nome: (m ? m[1] : l.pessoa || l.desc).trim(), valor: l.valor };
         }
         let matched: any = null;
-        const viaDepara = deparaByPessoa.get(norm(l.pessoa));
-        if (viaDepara != null) matched = artistasAtuais.find((a) => a.artista_id === viaDepara) || null;
+        // 1) correção manual "corrigir dia" (override força o artista)
+        if (l.forcedArtista != null) matched = artistasAtuais.find((a) => a.artista_id === l.forcedArtista) || null;
+        // 2) de-para favorecido -> artista
+        if (!matched) {
+          const viaDepara = deparaByPessoa.get(norm(l.pessoa));
+          if (viaDepara != null) matched = artistasAtuais.find((a) => a.artista_id === viaDepara) || null;
+        }
+        // 3) match por tokens (acento-insensível)
         if (!matched) {
           const hay = norm(`${l.desc} ${l.pessoa}`);
           let bestLen = 0;
@@ -202,9 +241,11 @@ export async function GET(request: NextRequest) {
         }
         if (matched) matched.cachet += l.valor;
         return {
+          contaazul_id: l.contaazul_id,
           pessoa: l.pessoa,
           descricao: l.desc,
           valor: l.valor,
+          data_competencia: l.data_competencia,
           artista_id: matched?.artista_id ?? null,
           artista_nome: matched?.artista_nome ?? null,
         };
@@ -251,7 +292,22 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({ success: true, meses, mes, eventos, cadastro: cadastro || [] });
+    // eventos candidatos p/ "corrigir dia": inclui ~2 meses anteriores, já que o pagamento
+    // atrasa em relação ao show (o show alvo pode estar no mês anterior ao do pagamento).
+    const corrigirIni = new Date(ano, mm - 3, 1).toISOString().slice(0, 10);
+    const { data: evCorrigirRaw } = await supabase
+      .from('eventos_base')
+      .select('id, data_evento, nome')
+      .eq('bar_id', barId)
+      .gte('data_evento', corrigirIni)
+      .lte('data_evento', fim)
+      .lt('data_evento', hojeBR)
+      .order('data_evento', { ascending: false });
+    const eventosCorrigir = (evCorrigirRaw || []).map((e: any) => ({
+      id: e.id, data_evento: e.data_evento, nome: e.nome || '',
+    }));
+
+    return NextResponse.json({ success: true, meses, mes, eventos, eventosCorrigir, cadastro: cadastro || [] });
   } catch (error: any) {
     console.error('Erro no tagging de eventos:', error);
     return NextResponse.json({ success: false, error: error?.message || 'Erro' }, { status: 500 });

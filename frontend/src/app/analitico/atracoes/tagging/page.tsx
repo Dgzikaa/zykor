@@ -42,9 +42,11 @@ interface EventoRow {
   ca_lancamentos: CaLancamento[];
 }
 interface CaLancamento {
+  contaazul_id: string;
   pessoa: string;
   descricao: string;
   valor: number;
+  data_competencia: string;
   artista_id: number | null;
   artista_nome: string | null;
 }
@@ -63,6 +65,7 @@ export default function TaggingArtistasPage() {
   const [meses, setMeses] = useState<string[]>([]);
   const [mes, setMes] = useState<string>('');
   const [rows, setRows] = useState<EventoRow[]>([]);
+  const [eventosCorrigir, setEventosCorrigir] = useState<Array<{ id: number; data_evento: string; nome: string }>>([]);
   const [cadastro, setCadastro] = useState<Cadastro[]>([]);
   const [status, setStatus] = useState<Record<number, SaveStatus>>({});
   const [soVazios, setSoVazios] = useState(false);
@@ -79,6 +82,7 @@ export default function TaggingArtistasPage() {
         setMeses(j.meses || []);
         setMes(j.mes || '');
         setRows(j.eventos || []);
+        setEventosCorrigir(j.eventosCorrigir || []);
         setCadastro(j.cadastro || []);
       }
     } finally {
@@ -147,6 +151,27 @@ export default function TaggingArtistasPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
       body: JSON.stringify({ ca_pessoa_nome: pessoa, artista_id: artistaId }),
+    });
+    carregar(mes);
+  };
+
+  // "corrigir dia": aponta o pagamento do CA pro show certo (quando a competência ≠ dia do show)
+  const corrigirDia = async (l: CaLancamento, evento_id: number, data_evento: string, artistaNome: string, artistaId: number | null) => {
+    if (!barId) return;
+    await fetch('/api/eventos/ca-atracao-override', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
+      body: JSON.stringify({
+        contaazul_id: l.contaazul_id,
+        evento_id,
+        data_evento,
+        artista_id: artistaId,
+        artista_nome: artistaNome,
+        valor: l.valor,
+        pessoa_nome: l.pessoa,
+        descricao: l.descricao,
+        data_competencia: l.data_competencia,
+      }),
     });
     carregar(mes);
   };
@@ -309,30 +334,19 @@ export default function TaggingArtistasPage() {
                   </div>
                   </div>
 
-                  {/* pagamentos do CA que não casaram: atribuir manualmente (fica salvo) */}
+                  {/* pagamentos do CA que não casaram: atribuir no dia OU corrigir p/ outro show */}
                   {row.ca_lancamentos?.some((l) => l.artista_id == null) && (
-                    <div className="mt-2 md:pl-[17rem] space-y-1">
+                    <div className="mt-2 md:pl-[17rem] space-y-1.5">
                       {row.ca_lancamentos.filter((l) => l.artista_id == null).map((l, i) => (
-                        <div key={i} className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="text-amber-600 dark:text-amber-400 font-medium">CA sem match:</span>
-                          <span className="text-gray-700 dark:text-gray-300">{l.pessoa || l.descricao}</span>
-                          <span className="text-gray-500">{fmtBRL(l.valor)}</span>
-                          <span className="text-gray-400">→</span>
-                          {row.artistas.filter((a) => a.artista_id).length > 0 ? (
-                            <select
-                              className="rounded border border-gray-200 dark:border-gray-600 bg-transparent px-1 py-0.5 text-xs"
-                              defaultValue=""
-                              onChange={(e) => { const id = Number(e.target.value); if (id) atribuirCA(l.pessoa, id); }}
-                            >
-                              <option value="">atribuir a…</option>
-                              {row.artistas.filter((a) => a.artista_id).map((a) => (
-                                <option key={a.artista_id} value={a.artista_id!}>{a.artista_nome}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className="text-gray-400 italic">taggeie o artista primeiro pra poder atribuir</span>
-                          )}
-                        </div>
+                        <CaSemMatch
+                          key={l.contaazul_id || i}
+                          l={l}
+                          eventos={eventosCorrigir.length ? eventosCorrigir : rows}
+                          cadastro={cadastro}
+                          artistasDoDia={row.artistas.filter((a) => a.artista_id)}
+                          onAtribuir={(id) => atribuirCA(l.pessoa, id)}
+                          onCorrigir={(evId, evData, nome, aid) => corrigirDia(l, evId, evData, nome, aid)}
+                        />
                       ))}
                     </div>
                   )}
@@ -342,6 +356,71 @@ export default function TaggingArtistasPage() {
           </Card>
         )}
       </div>
+    </div>
+  );
+}
+
+// Linha de pagamento do CA que não casou. Duas saídas:
+//  • "atribuir a…" — o show é neste dia, só o nome não bateu (grava de-para favorecido→artista)
+//  • "corrigir dia" — o pagamento caiu num dia, mas o show foi noutro (grava override + cachê)
+function CaSemMatch({
+  l, eventos, cadastro, artistasDoDia, onAtribuir, onCorrigir,
+}: {
+  l: CaLancamento;
+  eventos: Array<{ id: number; data_evento: string; nome: string }>;
+  cadastro: Cadastro[];
+  artistasDoDia: ArtistaTag[];
+  onAtribuir: (artistaId: number) => void;
+  onCorrigir: (eventoId: number, dataEvento: string, artistaNome: string, artistaId: number | null) => void;
+}) {
+  const [evId, setEvId] = useState('');
+  const [artista, setArtista] = useState('');
+  const ev = eventos.find((e) => String(e.id) === evId);
+  const commit = () => {
+    if (!ev || !artista.trim()) return;
+    const hit = cadastro.find((c) => c.nome.toLowerCase() === artista.trim().toLowerCase());
+    onCorrigir(ev.id, ev.data_evento, artista.trim(), hit?.id ?? null);
+    setEvId(''); setArtista('');
+  };
+  const selCls = 'rounded border border-gray-200 dark:border-gray-600 bg-transparent px-1 py-0.5 text-xs';
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <span className="text-amber-600 dark:text-amber-400 font-medium">CA sem match:</span>
+      <span className="text-gray-700 dark:text-gray-300">{l.pessoa || l.descricao}</span>
+      <span className="text-gray-500">{fmtBRL(l.valor)}</span>
+      {l.data_competencia && <span className="text-gray-400">pago {fmtData(l.data_competencia)}</span>}
+
+      {artistasDoDia.length > 0 && (
+        <>
+          <span className="text-gray-400">→</span>
+          <select className={selCls} defaultValue="" onChange={(e) => { const id = Number(e.target.value); if (id) onAtribuir(id); }}>
+            <option value="">atribuir a…</option>
+            {artistasDoDia.map((a) => (
+              <option key={a.artista_id} value={a.artista_id!}>{a.artista_nome}</option>
+            ))}
+          </select>
+        </>
+      )}
+
+      <span className="text-gray-300 dark:text-gray-600">|</span>
+      <span className="text-gray-400">corrigir dia:</span>
+      <select className={selCls} value={evId} onChange={(e) => { setEvId(e.target.value); setArtista(''); }}>
+        <option value="">escolher show…</option>
+        {eventos.map((e) => (
+          <option key={e.id} value={e.id}>{fmtData(e.data_evento)} · {e.nome || '—'}</option>
+        ))}
+      </select>
+      {evId && (
+        <input
+          list="cadastro-artistas"
+          value={artista}
+          onChange={(e) => setArtista(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } }}
+          onBlur={commit}
+          placeholder="artista"
+          className="w-32 rounded border border-gray-200 dark:border-gray-600 bg-transparent px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-purple-400"
+        />
+      )}
     </div>
   );
 }

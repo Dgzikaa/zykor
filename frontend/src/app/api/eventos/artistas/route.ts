@@ -60,6 +60,17 @@ export async function PUT(request: NextRequest) {
 
   const ops = (supabase as any).schema('operations');
 
+  // cachê já gravado por artista (via "corrigir dia" / correção manual) — preserva no replace-all,
+  // senão re-taggear o evento apagaria o c_art corrigido.
+  const { data: existentes } = await ops
+    .from('evento_artistas')
+    .select('artista_id, c_art')
+    .eq('evento_id', eventoId);
+  const cArtExistente = new Map<number, number>();
+  for (const r of existentes || []) {
+    if (r.artista_id != null && r.c_art != null) cArtExistente.set(r.artista_id, Number(r.c_art));
+  }
+
   // monta as linhas, resolvendo/gravando o artista no cadastro (bar_artistas) quando digitado livre
   const linhas: any[] = [];
   let ordem = 1;
@@ -78,7 +89,10 @@ export async function PUT(request: NextRequest) {
     }
     const hi = String(a.horario_inicio || '').trim();
     const hf = String(a.horario_fim || '').trim();
-    const custo = a.c_art != null && a.c_art !== '' ? Number(a.c_art) : null;
+    // c_art: usa o do payload; se não veio, preserva o que já estava gravado pro artista
+    const custo = a.c_art != null && a.c_art !== ''
+      ? Number(a.c_art)
+      : (artistaId != null && cArtExistente.has(artistaId) ? cArtExistente.get(artistaId)! : null);
     linhas.push({
       evento_id: eventoId,
       bar_id: barId,
