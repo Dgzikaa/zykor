@@ -1105,9 +1105,11 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
       .finally(() => setLoadingCat(false));
   }, [barId]);
 
-  // sessão de refeição em andamento (null = não iniciada). O modal só abre depois de iniciar.
+  // refeição em montagem (null = nenhuma aberta). Painel inline na página (não é modal).
+  // O cronômetro NÃO começa ao abrir: a pessoa preenche/seleciona insumos e só clica
+  // "Iniciar" quando começa a fazer de fato — igual ao fluxo da execução de produção.
   const [sessao, setSessao] = useState<null | {
-    inicio: string; segundos: number; rodando: boolean;
+    segundos: number; rodando: boolean;
     responsavelId: number | null; data: string; tipo: string; numPessoas: string;
     observacao: string; itens: RefeicaoItem[];
   }>(null);
@@ -1124,13 +1126,19 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
 
   const patch = (p: Partial<NonNullable<typeof sessao>>) => setSessao(s => s ? { ...s, ...p } : s);
 
-  const iniciar = () => {
+  // abre o painel (sem começar o cronômetro)
+  const novaRefeicao = () => {
     setSessao({
-      inicio: new Date().toISOString(), segundos: 0, rodando: true,
+      segundos: 0, rodando: false,
       responsavelId: null, data: hojeIso, tipo: 'janta', numPessoas: '',
       observacao: '', itens: [],
     });
     setBusca(''); setPicker(false);
+  };
+  // liga o cronômetro (exige responsável — igual à execução de produção)
+  const iniciarTimer = () => {
+    if (!sessao?.responsavelId) { toast({ title: 'Selecione o responsável antes de iniciar', variant: 'destructive' }); return; }
+    patch({ rodando: true });
   };
 
   const addInsumo = (c: { codigo: string; nome: string; base: string | null; precoUn: number }) => {
@@ -1196,7 +1204,9 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
     if (!sessao.responsavelId) { toast({ title: 'Selecione o responsável', variant: 'destructive' }); return; }
     const comQtd = sessao.itens.filter(i => (parseFloat(i.qtd) || 0) > 0);
     if (!comQtd.length) { toast({ title: 'Adicione insumos com quantidade', variant: 'destructive' }); return; }
+    // ancora início ao tempo decorrido no cronômetro (igual à execução de produção)
     const fim = new Date();
+    const inicio = new Date(fim.getTime() - sessao.segundos * 1000);
     const respNome = responsaveis.find(r => r.id === sessao.responsavelId)?.nome ?? null;
     const linhas = comQtd.map(i => {
       const ent = entradaInsumo(i.base);
@@ -1217,7 +1227,7 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
         data_refeicao: sessao.data,
         tipo: sessao.tipo,
         num_pessoas: sessao.numPessoas || null,
-        inicio: sessao.inicio,
+        inicio: inicio.toISOString(),
         fim: fim.toISOString(),
         duracao_seg: sessao.segundos,
         observacao: sessao.observacao.trim() || null,
@@ -1233,21 +1243,157 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
 
   return (
     <div className="space-y-4">
-      {/* Iniciar alimentação */}
-      <Card className="card-dark">
-        <CardContent className="py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl"><UtensilsCrossed className="w-6 h-6 text-amber-600 dark:text-amber-400" /></div>
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Alimentação da equipe</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Marque os insumos da refeição do dia (arroz, feijão, linguiça…). O preço vem do catálogo — sem ficha técnica.</p>
+      {/* Abrir nova refeição (só quando não há uma em montagem) */}
+      {!sessao && (
+        <Card className="card-dark">
+          <CardContent className="py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl"><UtensilsCrossed className="w-6 h-6 text-amber-600 dark:text-amber-400" /></div>
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Alimentação da equipe</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Marque os insumos da refeição do dia (arroz, feijão, linguiça…). O preço vem do catálogo — sem ficha técnica.</p>
+              </div>
             </div>
-          </div>
-          <Button onClick={iniciar} disabled={!barId} className="bg-amber-600 hover:bg-amber-700 gap-1.5 shrink-0">
-            <Play className="w-4 h-4" />Iniciar alimentação
-          </Button>
-        </CardContent>
-      </Card>
+            <Button onClick={novaRefeicao} disabled={!barId} className="bg-amber-600 hover:bg-amber-700 gap-1.5 shrink-0">
+              <Plus className="w-4 h-4" />Nova refeição
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Painel inline de montagem da refeição (na página, não é modal) */}
+      {sessao && (() => {
+        const iniciada = sessao.rodando || sessao.segundos > 0;
+        return (
+        <Card className="card-dark border-amber-200 dark:border-amber-900/40">
+          <CardContent className="py-3 space-y-4">
+            {/* Cabeçalho + timer */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <UtensilsCrossed className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Registrar refeição da equipe</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="px-4 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-center min-w-[110px]">
+                  <div className="text-[10px] text-blue-600/80 dark:text-blue-300/80 uppercase tracking-wide flex items-center justify-center gap-1"><Clock className="w-3 h-3" />Tempo</div>
+                  <div className="text-2xl font-mono font-bold text-blue-700 dark:text-blue-300 leading-tight">{fmtTempo(sessao.segundos)}</div>
+                </div>
+                {!sessao.rodando
+                  ? <Button size="sm" onClick={iniciarTimer} className="bg-green-600 hover:bg-green-700"><Play className="w-4 h-4 mr-1" />{sessao.segundos > 0 ? 'Continuar' : 'Iniciar'}</Button>
+                  : <Button size="sm" onClick={() => patch({ rodando: false })} variant="outline"><Pause className="w-4 h-4 mr-1" />Pausar</Button>}
+                <Button size="sm" variant="ghost" onClick={() => patch({ rodando: false, segundos: 0 })} title="Zerar tempo"><RotateCcw className="w-4 h-4" /></Button>
+              </div>
+            </div>
+
+            {!iniciada && <div className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1"><Play className="w-3 h-3" />Preencha o responsável e os insumos; clique <b>Iniciar</b> quando começar a fazer a refeição de fato.</div>}
+
+            {/* Responsável, data, tipo, pessoas */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="col-span-2 sm:col-span-1">
+                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><User className="w-3.5 h-3.5" />Responsável *</label>
+                <select value={sessao.responsavelId ?? ''} onChange={e => patch({ responsavelId: e.target.value ? Number(e.target.value) : null })}
+                  className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
+                  <option value="">Selecione…</option>
+                  {responsaveis.map(r => <option key={r.id} value={r.id}>{r.nome}{r.cargo ? ` (${r.cargo})` : ''}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><CalendarCheck className="w-3.5 h-3.5" />Data</label>
+                <Input type="date" value={sessao.data} max={hojeIso} onChange={e => patch({ data: e.target.value })} className="h-10" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Refeição</label>
+                <select value={sessao.tipo} onChange={e => patch({ tipo: e.target.value })}
+                  className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
+                  {TIPOS_REFEICAO.map(t => <option key={t.v} value={t.v}>{t.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Users className="w-3.5 h-3.5" />Nº pessoas</label>
+                <Input type="number" inputMode="numeric" min="0" value={sessao.numPessoas} onChange={e => patch({ numPessoas: e.target.value })} placeholder="opcional" className="h-10" />
+              </div>
+            </div>
+
+            {/* Buscar/adicionar insumo */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Input value={busca} onChange={e => { setBusca(e.target.value); setPicker(true); }} onFocus={() => setPicker(true)}
+                onBlur={() => setTimeout(() => setPicker(false), 200)}
+                placeholder={loadingCat ? 'Carregando insumos…' : 'Buscar insumo para adicionar (arroz, feijão…)'} className="pl-9 h-9" disabled={loadingCat} />
+              {picker && catalogoView.length > 0 && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg divide-y divide-gray-100 dark:divide-gray-800">
+                  {catalogoView.map(c => {
+                    const ent = entradaInsumo(c.base);
+                    return (
+                      <button key={c.codigo} onMouseDown={() => addInsumo(c)} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center justify-between gap-2">
+                        <span className="truncate">{c.nome}<span className="text-xs text-gray-400 ml-1">{c.codigo}</span></span>
+                        <span className="text-xs text-gray-400 shrink-0">{c.precoUn > 0 ? `${fmtBRL(c.precoUn * ent.fator)}/${ent.unidade}` : 'sem preço'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {picker && !loadingCat && catalogoView.length === 0 && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg px-3 py-3 text-xs text-gray-500">Nenhum insumo encontrado.</div>
+              )}
+            </div>
+
+            {/* Itens selecionados */}
+            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
+                  <th className="text-left font-medium px-2 py-1.5">Insumo</th>
+                  <th className="text-right font-medium px-2 py-1.5 w-32">Quantidade</th>
+                  <th className="text-right font-medium px-2 py-1.5">Custo</th>
+                  <th className="px-2 py-1.5 w-8"></th>
+                </tr></thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {sessao.itens.length === 0 ? <tr><td colSpan={4} className="px-2 py-6 text-center text-gray-400">Adicione os insumos da refeição acima.</td></tr>
+                  : sessao.itens.map(i => {
+                    const ent = entradaInsumo(i.base);
+                    return (
+                      <tr key={i.codigo}>
+                        <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">{i.nome}<span className="text-xs text-gray-400 ml-1">{i.precoUn > 0 ? `${fmtBRL(i.precoUn * ent.fator)}/${ent.unidade}` : 'sem preço'}</span></td>
+                        <td className="px-2 py-1.5 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Input type="number" inputMode="decimal" step="any" value={i.qtd} onChange={e => setQtd(i.codigo, e.target.value)} placeholder="0" className="h-8 w-20 text-right text-sm" />
+                            <span className="text-xs text-gray-400 w-6">{ent.unidade}</span>
+                          </div>
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtBRL(custoLinha(i))}</td>
+                        <td className="px-2 py-1.5 text-right"><button onClick={() => removeInsumo(i.codigo)} className="text-gray-300 hover:text-red-500"><X className="w-4 h-4" /></button></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Resumo de custo */}
+            <div className="flex flex-wrap gap-2">
+              <div className="px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/15 text-center">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Custo total</div>
+                <div className="text-base font-bold text-amber-600 dark:text-amber-400">{fmtBRL(custoTotal)}</div>
+              </div>
+              {custoPorPessoa != null && (
+                <div className="px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/15 text-center">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Custo / pessoa</div>
+                  <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">{fmtBRL(custoPorPessoa)}</div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch">
+              <Input value={sessao.observacao} onChange={e => patch({ observacao: e.target.value })} placeholder="Observação (opcional)…" className="flex-1" />
+              <Button variant="outline" onClick={() => !salvando && setSessao(null)} className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4 mr-1" />Descartar</Button>
+              <Button onClick={salvar} disabled={salvando} className="bg-amber-600 hover:bg-amber-700">
+                {salvando ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}Registrar refeição
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+        );
+      })()}
 
       {/* Histórico das refeições */}
       <Card className="card-dark">
@@ -1297,138 +1443,6 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
           </div>
         </CardContent>
       </Card>
-
-      {/* Modal de montagem da refeição (abre ao iniciar) */}
-      {sessao && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !salvando) setSessao(null); }}>
-          <div className="bg-white dark:bg-gray-900 rounded-xl w-full max-w-2xl max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            {/* Cabeçalho + timer */}
-            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 px-5 py-3.5 sticky top-0 bg-white dark:bg-gray-900 z-10">
-              <div className="flex items-center gap-2">
-                <UtensilsCrossed className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Registrar refeição da equipe</h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-center">
-                  <div className="text-[10px] text-blue-600/80 dark:text-blue-300/80 uppercase tracking-wide flex items-center justify-center gap-1"><Clock className="w-3 h-3" />Tempo</div>
-                  <div className="text-lg font-mono font-bold text-blue-700 dark:text-blue-300 leading-tight">{fmtTempo(sessao.segundos)}</div>
-                </div>
-                {sessao.rodando
-                  ? <Button size="sm" variant="outline" onClick={() => patch({ rodando: false })}><Pause className="w-4 h-4" /></Button>
-                  : <Button size="sm" variant="outline" onClick={() => patch({ rodando: true })}><Play className="w-4 h-4" /></Button>}
-                <button onClick={() => !salvando && setSessao(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
-              </div>
-            </div>
-
-            <div className="px-5 py-4 space-y-4">
-              {/* Responsável, data, tipo, pessoas */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="col-span-2 sm:col-span-1">
-                  <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><User className="w-3.5 h-3.5" />Responsável *</label>
-                  <select value={sessao.responsavelId ?? ''} onChange={e => patch({ responsavelId: e.target.value ? Number(e.target.value) : null })}
-                    className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
-                    <option value="">Selecione…</option>
-                    {responsaveis.map(r => <option key={r.id} value={r.id}>{r.nome}{r.cargo ? ` (${r.cargo})` : ''}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><CalendarCheck className="w-3.5 h-3.5" />Data</label>
-                  <Input type="date" value={sessao.data} max={hojeIso} onChange={e => patch({ data: e.target.value })} className="h-10" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Refeição</label>
-                  <select value={sessao.tipo} onChange={e => patch({ tipo: e.target.value })}
-                    className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
-                    {TIPOS_REFEICAO.map(t => <option key={t.v} value={t.v}>{t.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Users className="w-3.5 h-3.5" />Nº pessoas</label>
-                  <Input type="number" inputMode="numeric" min="0" value={sessao.numPessoas} onChange={e => patch({ numPessoas: e.target.value })} placeholder="opcional" className="h-10" />
-                </div>
-              </div>
-
-              {/* Buscar/adicionar insumo */}
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <Input value={busca} onChange={e => { setBusca(e.target.value); setPicker(true); }} onFocus={() => setPicker(true)}
-                  onBlur={() => setTimeout(() => setPicker(false), 200)}
-                  placeholder={loadingCat ? 'Carregando insumos…' : 'Buscar insumo para adicionar (arroz, feijão…)'} className="pl-9 h-9" disabled={loadingCat} />
-                {picker && catalogoView.length > 0 && (
-                  <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg divide-y divide-gray-100 dark:divide-gray-800">
-                    {catalogoView.map(c => {
-                      const ent = entradaInsumo(c.base);
-                      return (
-                        <button key={c.codigo} onMouseDown={() => addInsumo(c)} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center justify-between gap-2">
-                          <span className="truncate">{c.nome}<span className="text-xs text-gray-400 ml-1">{c.codigo}</span></span>
-                          <span className="text-xs text-gray-400 shrink-0">{c.precoUn > 0 ? `${fmtBRL(c.precoUn * ent.fator)}/${ent.unidade}` : 'sem preço'}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {picker && !loadingCat && catalogoView.length === 0 && (
-                  <div className="absolute z-50 top-full left-0 right-0 mt-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg px-3 py-3 text-xs text-gray-500">Nenhum insumo encontrado.</div>
-                )}
-              </div>
-
-              {/* Itens selecionados */}
-              <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-                <table className="w-full text-sm">
-                  <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
-                    <th className="text-left font-medium px-2 py-1.5">Insumo</th>
-                    <th className="text-right font-medium px-2 py-1.5 w-32">Quantidade</th>
-                    <th className="text-right font-medium px-2 py-1.5">Custo</th>
-                    <th className="px-2 py-1.5 w-8"></th>
-                  </tr></thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {sessao.itens.length === 0 ? <tr><td colSpan={4} className="px-2 py-6 text-center text-gray-400">Adicione os insumos da refeição acima.</td></tr>
-                    : sessao.itens.map(i => {
-                      const ent = entradaInsumo(i.base);
-                      return (
-                        <tr key={i.codigo}>
-                          <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">{i.nome}<span className="text-xs text-gray-400 ml-1">{i.precoUn > 0 ? `${fmtBRL(i.precoUn * ent.fator)}/${ent.unidade}` : 'sem preço'}</span></td>
-                          <td className="px-2 py-1.5 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Input type="number" inputMode="decimal" step="any" value={i.qtd} onChange={e => setQtd(i.codigo, e.target.value)} placeholder="0" className="h-8 w-20 text-right text-sm" />
-                              <span className="text-xs text-gray-400 w-6">{ent.unidade}</span>
-                            </div>
-                          </td>
-                          <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtBRL(custoLinha(i))}</td>
-                          <td className="px-2 py-1.5 text-right"><button onClick={() => removeInsumo(i.codigo)} className="text-gray-300 hover:text-red-500"><X className="w-4 h-4" /></button></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Resumo de custo */}
-              <div className="flex flex-wrap gap-2">
-                <div className="px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/15 text-center">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Custo total</div>
-                  <div className="text-base font-bold text-amber-600 dark:text-amber-400">{fmtBRL(custoTotal)}</div>
-                </div>
-                {custoPorPessoa != null && (
-                  <div className="px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/15 text-center">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Custo / pessoa</div>
-                    <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">{fmtBRL(custoPorPessoa)}</div>
-                  </div>
-                )}
-              </div>
-
-              <Input value={sessao.observacao} onChange={e => patch({ observacao: e.target.value })} placeholder="Observação (opcional)…" />
-
-              <div className="flex justify-end gap-2 pt-1">
-                <Button variant="outline" onClick={() => !salvando && setSessao(null)}>Cancelar</Button>
-                <Button onClick={salvar} disabled={salvando} className="bg-amber-600 hover:bg-amber-700">
-                  {salvando ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}Registrar refeição
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Detalhe dos insumos de uma refeição do histórico */}
       {detalhe && (
