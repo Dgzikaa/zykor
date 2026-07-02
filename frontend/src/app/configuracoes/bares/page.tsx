@@ -519,11 +519,12 @@ function IntegracoesBar({ barId }: { barId: number }) {
   );
 }
 
-// ── Stone → CA: antecipação de crédito (liga/desliga + dias do mês) ──
+// ── Stone → CA: antecipação de crédito (liga/desliga + dias do mês em chips) ──
 function StoneAntecipacaoConfig({ barId }: { barId: number }) {
   const { toast } = useToast();
   const [antecipa, setAntecipa] = useState(false);
-  const [dias, setDias] = useState('1');
+  const [dias, setDias] = useState<number[]>([1]);
+  const [novoDia, setNovoDia] = useState('');
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
@@ -535,18 +536,26 @@ function StoneAntecipacaoConfig({ barId }: { barId: number }) {
         const r = await api.get(`/api/financeiro/stone/antecipacao-config?bar_id=${barId}`);
         if (!vivo) return;
         setAntecipa(!!r.config?.antecipa);
-        setDias(((r.config?.dias_landing as number[]) || [1]).join(', '));
+        setDias(((r.config?.dias_landing as number[]) || [1]));
       } catch { /* silencioso */ } finally { if (vivo) setLoading(false); }
     })();
     return () => { vivo = false; };
   }, [barId]);
 
+  const addDia = () => {
+    const n = parseInt(novoDia.trim(), 10);
+    if (!Number.isInteger(n) || n < 1 || n > 31) { toast({ title: 'Dia inválido (1 a 31)', variant: 'destructive' }); return; }
+    if (dias.includes(n)) { setNovoDia(''); return; }
+    setDias(prev => [...prev, n].sort((a, b) => a - b));
+    setNovoDia('');
+  };
+  const removeDia = (n: number) => setDias(prev => prev.filter(d => d !== n));
+
   const salvar = async () => {
     setSalvando(true);
     try {
-      const arr = dias.split(',').map(s => parseInt(s.trim(), 10)).filter(n => Number.isInteger(n) && n >= 1 && n <= 31);
-      const r = await api.put('/api/financeiro/stone/antecipacao-config', { bar_id: barId, antecipa, dias_landing: arr });
-      setDias(((r.config?.dias_landing as number[]) || [1]).join(', '));
+      const r = await api.put('/api/financeiro/stone/antecipacao-config', { bar_id: barId, antecipa, dias_landing: dias });
+      setDias(((r.config?.dias_landing as number[]) || [1]));
       toast({ title: 'Antecipação salva' });
     } catch (e: any) {
       toast({ title: 'Erro ao salvar', description: e?.message, variant: 'destructive' });
@@ -575,9 +584,30 @@ function StoneAntecipacaoConfig({ barId }: { barId: number }) {
           </label>
           <div className={antecipa ? '' : 'opacity-50 pointer-events-none'}>
             <Label className="text-xs">Dias do mês em que o crédito cai</Label>
-            <Input className="h-8 mt-1" placeholder="ex.: 1 ou 1, 15" value={dias} onChange={e => setDias(e.target.value)} />
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Vale o próximo dia da lista após a venda; se cair em fim de semana/feriado, rola pro próximo dia útil.
+            {/* chips dos dias selecionados */}
+            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+              {dias.length === 0 && <span className="text-[11px] text-muted-foreground">nenhum dia — adicione ao lado</span>}
+              {dias.map(d => (
+                <span key={d} className="inline-flex items-center gap-1 rounded-full bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 text-xs px-2 py-0.5">
+                  dia {d}
+                  <button type="button" onClick={() => removeDia(d)} className="hover:text-red-600" title="Remover">
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              {/* adicionar dia */}
+              <span className="inline-flex items-center gap-1">
+                <Input type="number" min={1} max={31} className="h-7 w-16 text-sm" placeholder="dia" value={novoDia}
+                  onChange={e => setNovoDia(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addDia(); } }} />
+                <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={addDia}>
+                  <Plus className="w-3.5 h-3.5" />
+                </Button>
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1.5">
+              Ex.: adicione <b>1</b> e <b>15</b> pra antecipar duas vezes no mês. Vale o próximo dia da lista após a venda;
+              se cair em fim de semana/feriado, rola pro próximo dia útil.
             </p>
           </div>
           <Button size="sm" onClick={salvar} disabled={salvando}>
