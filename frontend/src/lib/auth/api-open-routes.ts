@@ -22,7 +22,9 @@ const EXATO_ABERTO = new Set<string>([
   '/api/version', // versão do app (checada em toda página, sem sessão garantida)
 
   // --- público / fluxo sem sessão ---
-  '/api/configuracoes/usuarios/redefinir-senha', // 1º acesso roda sem sessão
+  // NOTA: /api/configuracoes/usuarios/redefinir-senha (reset ADMIN) REMOVIDO da allowlist
+  // — era takeover anônimo (retornava senha temp p/ qualquer email). O 1º acesso usa
+  // /api/configuracoes/auth/redefinir-senha (coberto pelo prefixo /api/configuracoes/auth/).
   '/api/nps', // submissão pública de NPS
   '/api/pesquisa-felicidade', // pesquisa pública
 
@@ -55,7 +57,8 @@ const EXATO_ABERTO = new Set<string>([
   '/api/cmv-semanal/sync-retroativo',
   '/api/cmv-semanal/sync-sheets',
   '/api/concorrencia/monitorar',
-  '/api/configuracoes/contahub/setup-pgcron',
+  // '/api/configuracoes/contahub/setup-pgcron' REMOVIDO — vazava SERVICE_ROLE_KEY no corpo
+  // da resposta a QUALQUER anônimo (compromisso total do banco). Não é chamado pelo app.
   '/api/configuracoes/contahub/setup-resync-semanal',
   '/api/configuracoes/cron/setup',
   '/api/configuracoes/desempenho/recalcular-semana',
@@ -76,7 +79,8 @@ const EXATO_ABERTO = new Set<string>([
   '/api/contahub/sync-diario',
   '/api/contahub/sync-retroativo',
   '/api/contahub/sync-retroativo-real',
-  '/api/eventos/popular-dados',
+  // '/api/eventos/popular-dados' REMOVIDO — write destrutivo anônimo (zerava c_art/c_prod
+  // de todos os eventos do bar). Scaffolding morto, não chamado pelo app.
   '/api/eventos/sync-eventos',
   '/api/falae/sync',
   '/api/falae/sync-retroativo',

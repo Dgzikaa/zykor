@@ -145,15 +145,14 @@ async function guardApi(request: NextRequest, pathname: string): Promise<NextRes
     return NextResponse.next();
   }
 
-  // 2) JWT assinado (real): cookie auth_token OU header Bearer, verificado no Edge.
+  // 2) JWT assinado (real): cookie auth_token OU header Bearer, verificado no Edge (Web Crypto).
+  //    Esta é a ÚNICA prova de identidade aceita em /api — INFORJÁVEL. O login sempre seta
+  //    auth_token (JWT HS256, exp 7d = maxAge do cookie), então todo usuário logado passa aqui.
+  //    O antigo fallback sgb_user (cookie não-httpOnly, forjável) foi REMOVIDO: era o furo-mestre
+  //    que permitia forjar {role:admin} e passar a trava em toda rota /api. Segurança real agora.
   const cookieToken = request.cookies.get('auth_token')?.value ?? null;
   if (cookieToken && (await verificarTokenEdge(cookieToken))) return NextResponse.next();
   if (headerToken && (await verificarTokenEdge(headerToken))) return NextResponse.next();
-
-  // 3) Rede de segurança: sessão que as PÁGINAS aceitam (sgb_user). Não fortalece a segurança
-  //    (é forjável), mas garante que ninguém logado seja deslogado por um edge-case do token.
-  const user = await getAuthenticatedUser(request);
-  if (user) return NextResponse.next();
 
   return NextResponse.json(
     { success: false, error: 'Não autenticado', code: 'NO_AUTH' },
