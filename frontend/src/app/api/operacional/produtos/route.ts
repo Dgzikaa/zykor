@@ -37,7 +37,9 @@ export async function GET(request: NextRequest) {
 
     // contagem de itens da ficha (finalização) por produto — via view agregada (1 linha por produto)
     const contagem: Record<number, number> = {};
-    const itens = await selectAll((from, to) => supabase.from('v_produto_ficha_count').select('produto_id, n').range(from, to));
+    // ORDER estável é obrigatório: a view tem >1000 linhas e sem ordenação a paginação
+    // pula linhas entre páginas → contagem some pra alguns produtos → falso "ficha vazia".
+    const itens = await selectAll((from, to) => supabase.from('v_produto_ficha_count').select('produto_id, n').order('produto_id', { ascending: true }).range(from, to));
     itens.forEach((i: any) => { if (i.produto_id) contagem[i.produto_id] = i.n; });
 
     // cód ContaHub (prd) + preço de venda (cardápio) por cod_interno — um produto pode ter vários (HH/PP/variações)
