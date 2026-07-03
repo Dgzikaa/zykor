@@ -124,6 +124,23 @@ export async function GET(request: NextRequest) {
     const caCacheMap = new Map<string, number>();
     for (const r of caCacheRaw || []) caCacheMap.set(`${r.evento_id}:${r.artista_id}`, Number(r.cachet) || 0);
 
+    // PRINCIPAL da noite = artista de MAIOR cachê (modelo da casa). A noite (fat/público) é creditada
+    // SÓ ao principal — senão um DJ de apoio numa noite de festival herda o público inteiro (bug do Larbac).
+    const custoDeLink = (l: any): number => {
+      const cm = l.artista_id ? (caCacheMap.get(`${l.evento_id}:${l.artista_id}`) || 0) : 0;
+      if (cm > 0) return cm;
+      const cl = l.c_art != null && l.c_art !== '' ? parseFloat(l.c_art) : 0;
+      if (cl > 0) return cl;
+      const n = artistasPorEvento.get(l.evento_id) || 1;
+      return n === 1 ? (eventoById.get(l.evento_id)?.c_art || 0) : 0;
+    };
+    const principalPorEvento = new Map<number, number | null>();
+    const bestCusto = new Map<number, number>();
+    for (const l of links) {
+      const c = custoDeLink(l);
+      if (c > (bestCusto.get(l.evento_id) ?? -1)) { bestCusto.set(l.evento_id, c); principalPorEvento.set(l.evento_id, l.artista_id ?? null); }
+    }
+
     // cadastro para tipo (banda/dj/solo)
     const { data: cadastro } = await ops
       .from('bar_artistas')
@@ -143,6 +160,8 @@ export async function GET(request: NextRequest) {
     }
     const mapa = new Map<string, Acc>();
     for (const l of links) {
+      // credita a noite (fat/público/cachê) SÓ ao principal; apoio não entra no ranking daquela noite
+      if (principalPorEvento.get(l.evento_id) !== (l.artista_id ?? null)) continue;
       const ev = eventoById.get(l.evento_id)!;
       const chave = l.artista_id ? `id:${l.artista_id}` : `nome:${String(l.artista_nome || '').trim().toLowerCase()}`;
       const nArt = artistasPorEvento.get(l.evento_id) || 1;
