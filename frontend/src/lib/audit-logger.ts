@@ -136,16 +136,17 @@ class AuditLogger {
         old_values: params.oldValues || null,
         new_values: params.newValues || null,
         severity: params.severity || 'info',
-        category: params.category || null,
+        category: params.category || 'system', // audit_trail.category é NOT NULL
         session_id: params.sessionId || null,
         request_id: params.requestId || null,
         metadata: params.metadata || null,
         created_at: new Date().toISOString(),
       };
 
-      // Inserir no banco
-      const { error } = await supabase
-        .from('audit_logs')
+      // Inserir no banco (system.audit_trail — a mesma trilha do painel de Auditoria)
+      const { error } = await (supabase as any)
+        .schema('system')
+        .from('audit_trail')
         .insert(auditData);
 
       if (error) {
@@ -166,7 +167,9 @@ class AuditLogger {
     try {
       const supabase = await getAdminClient();
 
-      const eventData: SecurityEventData = {
+      const eventData: SecurityEventData & { event_id: string; timestamp: string } = {
+        event_id: (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.round(Math.random() * 1e9)}`),
+        timestamp: new Date().toISOString(),
         bar_id: params.barId || null,
         level: params.level,
         category: params.category,
@@ -180,8 +183,9 @@ class AuditLogger {
         created_at: new Date().toISOString(),
       };
 
-      // Inserir no banco
-      const { error } = await supabase
+      // Inserir no banco (system.security_events)
+      const { error } = await (supabase as any)
+        .schema('system')
         .from('security_events')
         .insert(eventData);
 

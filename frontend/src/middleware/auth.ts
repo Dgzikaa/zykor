@@ -37,18 +37,24 @@ export interface PermissionCheck {
  * NOTA: x-selected-bar-id pode ser usado apenas para override de bar_id
  * após autenticação bem-sucedida, com validação de acesso.
  */
-// "Deslogar todo mundo": corte de emissão. Token com iat < min_iat é rejeitado (força re-login).
-// Lê system.auth_policy com cache de 60s (não bate no banco a cada request). Fail-open: erro → 0.
-let _minIat = { v: 0, t: 0 };
-async function getMinIat(): Promise<number> {
+// Cortes de re-login: global ("deslogar todos" = auth_policy.min_iat) + por usuário
+// ("encerrar sessão" = user_token_cutoff). Token com iat < corte é rejeitado → força re-login.
+// Cache de 60s (não bate no banco a cada request). Fail-open: erro mantém o valor anterior.
+let _cortes: { global: number; users: Record<string, number>; t: number } = { global: 0, users: {}, t: 0 };
+async function getCortes() {
   const agora = Date.now();
-  if (agora - _minIat.t < 60_000) return _minIat.v;
+  if (agora - _cortes.t < 60_000) return _cortes;
   try {
     const supabase = await getAdminClient();
-    const { data } = await (supabase as any).schema('system').from('auth_policy').select('min_iat').eq('id', 1).maybeSingle();
-    _minIat = { v: Number(data?.min_iat || 0), t: agora };
-  } catch { _minIat = { v: _minIat.v, t: agora }; }
-  return _minIat.v;
+    const [g, u] = await Promise.all([
+      (supabase as any).schema('system').from('auth_policy').select('min_iat').eq('id', 1).maybeSingle(),
+      (supabase as any).schema('system').from('user_token_cutoff').select('email, min_iat'),
+    ]);
+    const users: Record<string, number> = {};
+    for (const r of (u.data || [])) users[String(r.email).toLowerCase()] = Number(r.min_iat || 0);
+    _cortes = { global: Number(g.data?.min_iat || 0), users, t: agora };
+  } catch { _cortes = { ..._cortes, t: agora }; }
+  return _cortes;
 }
 
 export async function authenticateUser(
@@ -132,10 +138,12 @@ export async function authenticateUser(
       return null;
     }
 
-    // Corte "deslogar todo mundo": token emitido antes de min_iat → força re-login (401 → /login)
+    // Cortes de re-login (global "deslogar todos" + por usuário "encerrar sessão"): token
+    // emitido antes do corte → rejeita (401 → /login).
     if (tokenIat) {
-      const minIat = await getMinIat();
-      if (minIat && tokenIat < minIat) return null;
+      const c = await getCortes();
+      const corte = Math.max(c.global, c.users[(authenticatedUser.email || '').toLowerCase()] || 0);
+      if (corte && tokenIat < corte) return null;
     }
 
     // Buscar bar_id do usuário (usuarios não tem bar_id — vem de usuarios_bares)

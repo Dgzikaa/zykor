@@ -175,6 +175,15 @@ export default function AuditoriaPage() {
     } catch (e: any) { window.alert('Erro: ' + (e?.message || 'desconhecido')); }
   };
 
+  const encerrarSessao = async (email: string) => {
+    if (!window.confirm(`Encerrar a sessão de ${email}?\n\nEle precisará entrar de novo (os outros não são afetados).`)) return;
+    try {
+      const r = await api.post('/api/configuracoes/auth/encerrar-sessao', { email });
+      if (!r.success) throw new Error(r.error || 'falha');
+      carregarAcessos(true);
+    } catch (e: any) { window.alert('Erro: ' + (e?.message || 'desconhecido')); }
+  };
+
   const buscar = () => carregar(0, false);
   const limpar = () => { setDe(''); setAte(''); setOperation(''); setTable(''); setQ(''); setTimeout(() => carregar(0, false), 0); };
 
@@ -295,7 +304,12 @@ export default function AuditoriaPage() {
                       <td className="px-3 py-2 text-right tabular-nums">{fmtDur(s.duracao_seg)}</td>
                       <td className="px-3 py-2 text-right tabular-nums" title={`${ocioso}% do tempo ocioso`}>{fmtDur(s.ativo_seg)}<span className="text-[10px] text-gray-400"> ({100 - ocioso}%)</span></td>
                       <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{s.ip || '—'}</td>
-                      <td className="px-3 py-2">{s.online ? <span className="inline-flex items-center gap-1 text-emerald-600 text-xs"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />online</span> : s.ended_at ? <span className="text-xs text-gray-400">saiu {fmtData(s.ended_at)}</span> : <span className="text-xs text-gray-400">inativo</span>}</td>
+                      <td className="px-3 py-2">
+                        <span className="inline-flex items-center gap-2">
+                          {s.online ? <span className="inline-flex items-center gap-1 text-emerald-600 text-xs"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />online</span> : s.ended_at ? <span className="text-xs text-gray-400">saiu {fmtData(s.ended_at)}</span> : <span className="text-xs text-gray-400">inativo</span>}
+                          {!s.ended_at && <button onClick={() => encerrarSessao(s.user_email)} className="text-[11px] text-rose-600 hover:underline" title="Deslogar este usuário">encerrar</button>}
+                        </span>
+                      </td>
                     </tr>
                   );
                 })}
