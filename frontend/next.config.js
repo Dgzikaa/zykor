@@ -91,8 +91,8 @@ const nextConfig = {
           {
             key: 'Content-Security-Policy',
             value: process.env.NODE_ENV === 'development' 
-              ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.pluggy.ai; style-src 'self' 'unsafe-inline' https://cdn.pluggy.ai; img-src 'self' data: blob: https:; connect-src 'self' https: wss: ws: https://api.pluggy.ai; font-src 'self' data: https:; worker-src 'self' blob:; frame-src 'self' https://docs.google.com https://vercel.live https://cdn.pluggy.ai https://connect.pluggy.ai; frame-ancestors 'none';"
-              : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.pluggy.ai; style-src 'self' 'unsafe-inline' https://cdn.pluggy.ai; img-src 'self' data: blob: https:; connect-src 'self' https: wss: https://api.pluggy.ai; font-src 'self' data: https:; worker-src 'self' blob:; frame-src 'self' https://docs.google.com https://vercel.live https://cdn.pluggy.ai https://connect.pluggy.ai; frame-ancestors 'none';",
+              ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.pluggy.ai; style-src 'self' 'unsafe-inline' https://cdn.pluggy.ai; img-src 'self' data: blob: https:; connect-src 'self' https: wss: ws: https://api.pluggy.ai; font-src 'self' data: https:; worker-src 'self' blob:; frame-src 'self' https://docs.google.com https://vercel.live https://cdn.pluggy.ai https://connect.pluggy.ai https://zykor.grafana.net; frame-ancestors 'none';"
+              : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.pluggy.ai; style-src 'self' 'unsafe-inline' https://cdn.pluggy.ai; img-src 'self' data: blob: https:; connect-src 'self' https: wss: https://api.pluggy.ai; font-src 'self' data: https:; worker-src 'self' blob:; frame-src 'self' https://docs.google.com https://vercel.live https://cdn.pluggy.ai https://connect.pluggy.ai https://zykor.grafana.net; frame-ancestors 'none';",
           },
         ],
       },
