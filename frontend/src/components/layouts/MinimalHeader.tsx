@@ -24,22 +24,7 @@ import {
 } from '@/components/ui/command-palette-trigger';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { ContaAzulSyncButton } from '@/components/ContaAzulSyncButton';
-import { corDoBar, iniciaisBar } from '@/lib/bar-theme';
-
-// Logo do bar (ou inicial na cor do bar como fallback).
-function LogoBar({ id, nome, logo }: { id: number; nome: string; logo?: string | null }) {
-  if (logo) {
-    return <img src={logo} alt={nome} className="h-5 w-5 flex-shrink-0 rounded object-contain" />;
-  }
-  return (
-    <span
-      style={{ background: corDoBar(id) }}
-      className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-[9px] font-bold text-white"
-    >
-      {iniciaisBar(nome)}
-    </span>
-  );
-}
+import { BarLogo } from '@/components/BarLogo';
 
 const routeMapping: Record<string, { name: string }> = {
   '/home': { name: 'Home' },
@@ -175,7 +160,7 @@ export function MinimalHeader() {
               onClick={() => setShowBarDropdown(!showBarDropdown)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm hover:bg-[hsl(var(--muted))] transition-colors"
             >
-              {selectedBar && <LogoBar id={selectedBar.id} nome={selectedBar.nome} logo={selectedBar.logo_url} />}
+              {selectedBar && <BarLogo id={selectedBar.id} nome={selectedBar.nome} logo={selectedBar.logo_url} />}
               <span className="font-medium truncate max-w-[90px] sm:max-w-[140px]">
                 {selectedBar?.nome || 'Selecione'}
               </span>
@@ -194,7 +179,7 @@ export function MinimalHeader() {
                     className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-[hsl(var(--muted))] transition-colors"
                   >
                     <span className="flex items-center gap-2 min-w-0">
-                      <LogoBar id={bar.id} nome={bar.nome} logo={bar.logo_url} />
+                      <BarLogo id={bar.id} nome={bar.nome} logo={bar.logo_url} />
                       <span className="truncate">{bar.nome}</span>
                     </span>
                     {selectedBar?.id === bar.id && (

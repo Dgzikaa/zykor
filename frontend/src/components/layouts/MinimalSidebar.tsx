@@ -1,16 +1,65 @@
 'use client';
 
-import { useState, useCallback, useMemo, memo } from 'react';
+import { useState, useCallback, useMemo, memo, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useBadges } from '@/contexts/BadgesContext';
 import { useBar } from '@/contexts/BarContext';
 import { corDoBar } from '@/lib/bar-theme';
+import { BarLogo } from '@/components/BarLogo';
 import { cn } from '@/lib/utils';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, ChevronDown, Check, Home } from 'lucide-react';
 import { MENU_TREE } from '@/lib/navigation/menu';
 import { iconFor } from '@/lib/navigation/menu-icons';
+
+// Seletor de bar no topo do menu lateral: identidade (logo + nome do bar) + troca rápida.
+function SidebarBarSwitcher() {
+  const { selectedBar, availableBars, setSelectedBar } = useBar();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, []);
+
+  const podeTrocar = availableBars.length > 1;
+
+  return (
+    <div className="relative min-w-0 flex-1" ref={ref}>
+      <button
+        onClick={() => podeTrocar && setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-[hsl(var(--background))]"
+      >
+        <BarLogo id={selectedBar?.id ?? 0} nome={selectedBar?.nome ?? 'Zykor'} logo={selectedBar?.logo_url} size={24} />
+        <span className="min-w-0 flex-1 truncate text-left text-sm font-bold">{selectedBar?.nome || 'Zykor'}</span>
+        {podeTrocar && <ChevronDown className="h-4 w-4 flex-shrink-0 opacity-60" />}
+      </button>
+      {open && podeTrocar && (
+        <div className="absolute left-0 right-0 z-50 mt-1 max-h-72 overflow-y-auto rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--popover))] py-1 shadow-lg">
+          {availableBars.map((bar) => (
+            <button
+              key={bar.id}
+              onClick={() => {
+                setSelectedBar(bar);
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-2 px-2.5 py-2 text-sm hover:bg-[hsl(var(--muted))]"
+            >
+              <BarLogo id={bar.id} nome={bar.nome} logo={bar.logo_url} />
+              <span className="min-w-0 flex-1 truncate text-left">{bar.nome}</span>
+              {selectedBar?.id === bar.id && <Check className="h-4 w-4 flex-shrink-0 text-emerald-500" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface SubMenuItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -213,16 +262,15 @@ export function MinimalSidebar() {
     >
       {/* Faixa de identidade do bar selecionado */}
       <div className="mx-2 mt-1 h-1 rounded-full" style={{ background: accent }} />
-      {/* Logo */}
-      <div className="h-16 flex items-center px-4">
-        <Link href="/home" className="flex items-center gap-2">
-          <div
-            className="w-8 h-8 rounded-md flex items-center justify-center"
-            style={{ background: accent }}
-          >
-            <span className="text-white font-bold text-sm">Z</span>
-          </div>
-          <span className="font-semibold text-lg">Zykor</span>
+      {/* Bar atual = seletor (identidade + troca rápida) + atalho pra Home */}
+      <div className="flex h-14 items-center gap-1 px-2">
+        <SidebarBarSwitcher />
+        <Link
+          href="/home"
+          title="Início"
+          className="flex-none rounded-md p-2 text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--background))] hover:text-[hsl(var(--foreground))]"
+        >
+          <Home className="h-4 w-4" />
         </Link>
       </div>
 
