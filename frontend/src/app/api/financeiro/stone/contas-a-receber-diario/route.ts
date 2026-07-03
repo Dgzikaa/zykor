@@ -248,55 +248,6 @@ async function postCA(
   return { ok: false, protocolId: null, status: '429', erro: 'rate limit persistente' };
 }
 
-/**
- * Baixa da taxa (o CA NÃO cria já paga — testado: data_pagamento/baixa embutida são ignorados).
- * Acha o evento recém-criado AO VIVO (buscar, com retry pois a criação é assíncrona), pega a
- * parcela única e registra a baixa → despesa vira PAGA / compensação vira RECEBIDA. Idempotente.
- */
-async function darBaixaTaxa(
-  token: string,
-  tipo: 'contas-a-pagar' | 'contas-a-receber',
-  descricao: string,
-  valor: number,
-  dataVenda: string,
-  contaFinId: string,
-): Promise<{ ok: boolean; motivo?: string }> {
-  let idEvento: string | null = null;
-  for (let t = 0; t < 6 && !idEvento; t++) {
-    if (t) await sleep(1500);
-    const url = `${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/${tipo}/buscar?pagina=1&tamanho_pagina=200&data_vencimento_de=${dataVenda}&data_vencimento_ate=${dataVenda}`;
-    const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!r.ok) continue;
-    const j: any = await r.json().catch(() => ({}));
-    const itens: any[] = j.itens || j.items || [];
-    const ev = itens.find((x) => String(x.descricao || '') === descricao);
-    if (ev?.id) idEvento = ev.id;
-  }
-  if (!idEvento) return { ok: false, motivo: 'evento não encontrado p/ baixa' };
-
-  const pr = await fetch(`${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/${idEvento}/parcelas`, { headers: { Authorization: `Bearer ${token}` } });
-  if (!pr.ok) return { ok: false, motivo: `parcelas HTTP ${pr.status}` };
-  const parcelas: any = await pr.json().catch(() => []);
-  const parcela = Array.isArray(parcelas) ? parcelas[0] : null;
-  if (!parcela?.id) return { ok: false, motivo: 'parcela não encontrada' };
-  // já quitada? (idempotência)
-  if (String(parcela.status || '').toUpperCase() === 'QUITADO' || (Array.isArray(parcela.baixas) && parcela.baixas.length > 0)) return { ok: true };
-
-  const br = await fetch(`${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/parcelas/${parcela.id}/baixa`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      data_pagamento: dataVenda,
-      composicao_valor: { valor_bruto: round2(valor), multa: 0, juros: 0, desconto: 0, taxa: 0 },
-      conta_financeira: contaFinId,
-      metodo_pagamento: 'TRANSFERENCIA_BANCARIA',
-      observacao: 'Baixa automática Stone→CA via Zykor',
-    }),
-  });
-  if (!br.ok) { const t = await br.text().catch(() => ''); return { ok: false, motivo: `baixa HTTP ${br.status}: ${t.slice(0, 120)}` }; }
-  return { ok: true };
-}
-
 /** GET: preview do dia — não escreve nada no CA. */
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
@@ -432,11 +383,9 @@ export async function POST(request: NextRequest) {
   if (taxaTotal > 0) {
     await enviar('TAXA_DIA', 'TAXA', taxaTotal, 'contas-a-pagar', payloadTaxaTotal(cfg, data, taxaTotal), { vencimento: data });
     await enviar('COMPENSACAO_DIA', 'COMPENSACAO', taxaTotal, 'contas-a-receber', payloadCompensacao(cfg, data, taxaTotal), { vencimento: data });
-    // Baixa: o CA não cria já paga → marca a despesa como PAGA e a compensação como RECEBIDA.
-    const bDesp = await darBaixaTaxa(token, 'contas-a-pagar', `Taxa maquininha Stone ${brDate(data)}`, taxaTotal, data, cfg.taxa.conta_financeira_id);
-    resultados.push({ chave: 'TAXA_DIA', natureza: 'BAIXA', ok: bDesp.ok, erro: bDesp.motivo });
-    const bComp = await darBaixaTaxa(token, 'contas-a-receber', 'Compensação taxa maquininha', taxaTotal, data, cfg.taxa.conta_financeira_id);
-    resultados.push({ chave: 'COMPENSACAO_DIA', natureza: 'BAIXA', ok: bComp.ok, erro: bComp.motivo });
+    // A baixa (marcar paga/recebida) NÃO é feita aqui: o CA só expõe a parcela depois de
+    // sincronizar o evento (o id da parcela não existe logo após criar). Fica pra um passo
+    // pós-sync (watchdog/baixa dedicada).
   }
   // 2) Recebíveis pelo LÍQUIDO (bruto − taxa).
   for (const l of linhas) {
