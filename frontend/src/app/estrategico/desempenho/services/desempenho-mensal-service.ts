@@ -161,11 +161,12 @@ export async function getMeses(
     qtd_bebidas: number; qtd_drinks: number; qtd_comida: number;
     perc_bebidas: number; perc_drinks: number; perc_comida: number;
   }>();
-  for (const a of anosUnicos) {
-    const { data: rpcRows } = await (supabase as any).rpc('get_mix_por_mes', {
-      p_bar_id: barId,
-      p_ano: a,
-    });
+  // N+1 → Promise.all: as chamadas por ano são independentes (o processamento popula
+  // chaves distintas, ordem não importa). Mesmo resultado, em paralelo.
+  const mixResultados = await Promise.all(
+    anosUnicos.map((a) => (supabase as any).rpc('get_mix_por_mes', { p_bar_id: barId, p_ano: a }))
+  );
+  for (const { data: rpcRows } of mixResultados) {
     for (const r of (rpcRows || []) as any[]) {
       const vb = parseFloat(String(r.val_bebida || 0));
       const vd = parseFloat(String(r.val_drink || 0));
