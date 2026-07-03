@@ -76,6 +76,11 @@ type Secao = 'Cozinha' | 'Bar';
 const secaoDeCodigo = (codigo?: string | null): Secao =>
   (codigo || '').toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha';
 
+// Parse decimal tolerante a locale: aceita vírgula OU ponto como separador. Os inputs de peso/
+// rendimento/qtd são type="text" (não "number") justamente porque input number rejeita a vírgula
+// em SO/navegador com locale en-US (o Gonza só conseguia digitar ponto). Aqui normalizamos.
+const pf = (v: unknown): number => parseFloat(String(v ?? '').replace(',', '.'));
+
 interface FichaItem {
   id: number;
   componente_tipo: 'insumo' | 'producao';
@@ -259,13 +264,13 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     const mestreQtd = Number(mestre?.quantidade || 0);
     const baseMestre = (mestre as any)?.unidade_exib || null;
     const entrada = entradaPeso(baseMestre, mestreQtd);       // unidade digitada (kg/L) → base (g/ml)
-    const pesoMestreNum = (parseFloat(prod.pesoMestre) || 0) * entrada.fator; // sempre em base p/ o cálculo
+    const pesoMestreNum = (pf(prod.pesoMestre) || 0) * entrada.fator; // sempre em base p/ o cálculo
     const proporcao = (mestre && pesoMestreNum > 0 && mestreQtd > 0) ? pesoMestreNum / mestreQtd : 1;
     const linhas = prod.itens.map(it => {
       const qtdPlan = Number(it.quantidade || 0);
       const qtdCalc = it.is_mestre ? (pesoMestreNum > 0 ? pesoMestreNum : qtdPlan) : qtdPlan * proporcao;
       const ov = prod.qtdReal[it.id];
-      const real = ov != null && ov !== '' ? (parseFloat(ov) || 0) : qtdCalc;
+      const real = ov != null && ov !== '' ? (pf(ov) || 0) : qtdCalc;
       const precoUn = Number(it.preco_un || 0);
       const cPlan = qtdCalc * precoUn;
       const cReal = real * precoUn;
@@ -289,12 +294,12 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     const FATOR = 50; // diferença de ~50x+ quase sempre é confusão de unidade (g×kg, ml×L), não variação real
     const off = (val: number, ref: number) => ref > 0 && val > 0 && (val / ref >= FATOR || ref / val >= FATOR);
     const sus: { campo: string; valor: number; unidade: string | null; esperado: number }[] = [];
-    const rreal = parseFloat(prod.rendimentoReal) || 0;
+    const rreal = pf(prod.rendimentoReal) || 0;
     if (rendEsperado > 0 && off(rreal, rendEsperado)) sus.push({ campo: 'Rendimento real', valor: rreal, unidade: prod.ficha.unidade, esperado: rendEsperado });
     // pm/pb são digitados na unidade de entrada (kg/L) → converte p/ base antes de comparar com a ficha (base)
-    const pm = (parseFloat(prod.pesoMestre) || 0) * entrada.fator;
+    const pm = (pf(prod.pesoMestre) || 0) * entrada.fator;
     if (mestre && off(pm, mestreQtd)) sus.push({ campo: `${mestre.insumo_fc ? 'Peso líquido' : 'Peso'} do mestre — ${mestre.nome_componente || ''}`.trim(), valor: pm, unidade: baseMestre, esperado: mestreQtd });
-    const pb = (parseFloat(prod.pesoBruto) || 0) * entrada.fator;
+    const pb = (pf(prod.pesoBruto) || 0) * entrada.fator;
     if (mestre?.insumo_fc && off(pb, mestreQtd)) sus.push({ campo: `Peso bruto do mestre — ${mestre.nome_componente || ''}`.trim(), valor: pb, unidade: baseMestre, esperado: mestreQtd });
     for (const l of linhas) {
       if (off(l.real, l.qtdCalc)) sus.push({ campo: l.it.nome_componente || l.it.componente_codigo || 'Insumo', valor: l.real, unidade: l.it.unidade_exib, esperado: l.qtdCalc });
@@ -359,10 +364,10 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
       fim: agora.toISOString(),
       duracao_seg: prod.segundos,
       rendimento_esperado: rendEsperado || null,
-      rendimento_real: parseFloat(prod.rendimentoReal) || null,
+      rendimento_real: pf(prod.rendimentoReal) || null,
       // guarda SEMPRE na unidade-base (g/ml): o valor digitado (kg/L) × fator de entrada
-      peso_mestre_real: (parseFloat(prod.pesoMestre) * entrada.fator) || null,
-      peso_bruto: mestre?.insumo_fc ? ((parseFloat(prod.pesoBruto) * entrada.fator) || null) : null,
+      peso_mestre_real: (pf(prod.pesoMestre) * entrada.fator) || null,
+      peso_bruto: mestre?.insumo_fc ? ((pf(prod.pesoBruto) * entrada.fator) || null) : null,
       observacao: prod.observacao.trim() || null,
       insumos: linhas.map(l => ({
         insumo_codigo: l.it.insumo_codigo ?? l.it.componente_codigo ?? null,
@@ -491,8 +496,8 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
       ) : (() => {
         const { mestre, mestreQtd, baseMestre, entrada, proporcao, linhas, custoPlan, custoReal, rendEsperado } = calc(sel);
         const mestreFc = !!mestre?.insumo_fc;
-        const pbNum = parseFloat(sel.pesoBruto) || 0;
-        const plNum = parseFloat(sel.pesoMestre) || 0;
+        const pbNum = pf(sel.pesoBruto) || 0;
+        const plNum = pf(sel.pesoMestre) || 0;
         const fcReal = mestreFc && pbNum > 0 && plNum > 0 ? plNum / pbNum : 0; // aproveitamento (líquido/bruto), 0–1 — mesma convenção do FC da ficha
         // retroativa: data passada → não tem cronômetro (já foi feita); libera os campos sem precisar iniciar
         const retroativa = !!sel.dataProducao && sel.dataProducao !== new Date().toISOString().slice(0, 10);
@@ -548,11 +553,11 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
                   <div className="space-y-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] w-12 text-gray-400 shrink-0">Bruto</span>
-                      <Input type="number" inputMode="decimal" step="any" disabled={!iniciada} value={sel.pesoBruto} onChange={e => patch(sel.localId, { pesoBruto: e.target.value })} placeholder={`antes de limpar · em ${entrada.unidade || 'un'}`} className="h-9" />
+                      <Input type="text" inputMode="decimal" step="any" disabled={!iniciada} value={sel.pesoBruto} onChange={e => patch(sel.localId, { pesoBruto: e.target.value })} placeholder={`antes de limpar · em ${entrada.unidade || 'un'}`} className="h-9" />
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] w-12 text-gray-400 shrink-0">Líquido</span>
-                      <Input type="number" inputMode="decimal" step="any" disabled={!iniciada} value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })} placeholder={`limpo · ficha ${fmtPeso(mestreQtd, baseMestre)}`} className="h-9" />
+                      <Input type="text" inputMode="decimal" step="any" disabled={!iniciada} value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })} placeholder={`limpo · ficha ${fmtPeso(mestreQtd, baseMestre)}`} className="h-9" />
                     </div>
                   </div>
                   <p className="text-[11px] text-gray-400 mt-0.5">
@@ -564,13 +569,13 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
               ) : (
                 <div>
                   <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso real do mestre{mestre && entrada.unidade ? ` (${entrada.unidade})` : ''}</label>
-                  <Input type="number" inputMode="decimal" step="any" value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })}
+                  <Input type="text" inputMode="decimal" step="any" value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })}
                     placeholder={mestre ? `ficha: ${fmtPeso(mestreQtd, baseMestre)}` : 'sem insumo mestre'} disabled={!mestre || !iniciada} className="h-10" />
                 </div>
               )}
               <div>
                 <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real * {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado, 3)} {sel.ficha.unidade || ''}</span>}</label>
-                <Input type="number" inputMode="decimal" step="any" disabled={!iniciada} value={sel.rendimentoReal} onChange={e => patch(sel.localId, { rendimentoReal: e.target.value })} placeholder="produzido…" className={`h-10 ${errRend ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
+                <Input type="text" inputMode="decimal" step="any" disabled={!iniciada} value={sel.rendimentoReal} onChange={e => patch(sel.localId, { rendimentoReal: e.target.value })} placeholder="produzido…" className={`h-10 ${errRend ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
                 {errRend && <p className="text-[11px] text-red-600 dark:text-red-400 mt-0.5">Obrigatório — informe o rendimento produzido.</p>}
               </div>
             </div>
@@ -624,7 +629,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
                       <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtNum(l.qtdPlan, 3)}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(l.qtdCalc, 3)}</td>
                       <td className="px-2 py-1.5 text-right">
-                        <Input type="number" inputMode="decimal" step="any" value={sel.qtdReal[l.it.id] ?? ''} onChange={e => patch(sel.localId, { qtdReal: { ...sel.qtdReal, [l.it.id]: e.target.value } })}
+                        <Input type="text" inputMode="decimal" step="any" value={sel.qtdReal[l.it.id] ?? ''} onChange={e => patch(sel.localId, { qtdReal: { ...sel.qtdReal, [l.it.id]: e.target.value } })}
                           placeholder={l.it.is_mestre ? fmtNum(l.qtdCalc, 3) : 'obrigatório'} className={`h-8 text-right text-sm ${errUsado(l) ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
                       </td>
                       <td className="px-2 py-1.5 text-right tabular-nums">
@@ -1205,7 +1210,7 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
   // custo de uma linha = qtd(base) × precoUn ; qtd(base) = digitado × fator de entrada
   const custoLinha = (i: RefeicaoItem) => {
     const ent = entradaInsumo(i.base);
-    const qtdBase = (parseFloat(i.qtd) || 0) * ent.fator;
+    const qtdBase = (pf(i.qtd) || 0) * ent.fator;
     return qtdBase * i.precoUn;
   };
   const custoTotal = useMemo(() => (sessao?.itens || []).reduce((s, i) => s + custoLinha(i), 0), [sessao?.itens]);
@@ -1252,7 +1257,7 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
   const salvar = async () => {
     if (!sessao || !barId || salvando) return;
     if (!sessao.responsavelId) { toast({ title: 'Selecione o responsável', variant: 'destructive' }); return; }
-    const comQtd = sessao.itens.filter(i => (parseFloat(i.qtd) || 0) > 0);
+    const comQtd = sessao.itens.filter(i => (pf(i.qtd) || 0) > 0);
     if (!comQtd.length) { toast({ title: 'Adicione insumos com quantidade', variant: 'destructive' }); return; }
     // ancora início ao tempo decorrido no cronômetro (igual à execução de produção)
     const fim = new Date();
@@ -1263,7 +1268,7 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
       return {
         insumo_codigo: i.codigo,
         nome: i.nome,
-        qtd: (parseFloat(i.qtd) || 0) * ent.fator, // em unidade-base (g/ml/un)
+        qtd: (pf(i.qtd) || 0) * ent.fator, // em unidade-base (g/ml/un)
         unidade: i.base,
         preco_un: i.precoUn,
       };
@@ -1406,7 +1411,7 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
                         <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">{i.nome}<span className="text-xs text-gray-400 ml-1">{i.precoUn > 0 ? `${fmtBRL(i.precoUn * ent.fator)}/${ent.unidade}` : 'sem preço'}</span></td>
                         <td className="px-2 py-1.5 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <Input type="number" inputMode="decimal" step="any" value={i.qtd} onChange={e => setQtd(i.codigo, e.target.value)} placeholder="0" className="h-8 w-20 text-right text-sm" />
+                            <Input type="text" inputMode="decimal" step="any" value={i.qtd} onChange={e => setQtd(i.codigo, e.target.value)} placeholder="0" className="h-8 w-20 text-right text-sm" />
                             <span className="text-xs text-gray-400 w-6">{ent.unidade}</span>
                           </div>
                         </td>
@@ -1601,7 +1606,7 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
   const baseMestre = mestre?.unidade_exib || null;
   const ent = entradaPeso(baseMestre, mestreQtd);
   const mestreFc = !!mestre?.insumo_fc;
-  const pesoMestreBase = (parseFloat(pesoMestre) || 0) * ent.fator;
+  const pesoMestreBase = (pf(pesoMestre) || 0) * ent.fator;
   const proporcao = (mestre && pesoMestreBase > 0 && mestreQtd > 0) ? pesoMestreBase / mestreQtd : 1;
   const rendEsperado = Number(ficha?.rendimento || 0) * proporcao;
 
@@ -1610,7 +1615,7 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
     const qtdPlan = Number(it.quantidade || 0);
     const qtdCalc = it.is_mestre ? (pesoMestreBase > 0 ? pesoMestreBase : qtdPlan) : qtdPlan * proporcao;
     const ov = qtdReal[it.id];
-    const real = it.is_mestre ? qtdCalc : (ov != null && String(ov).trim() !== '' ? (parseFloat(ov) || 0) : qtdCalc);
+    const real = it.is_mestre ? qtdCalc : (ov != null && String(ov).trim() !== '' ? (pf(ov) || 0) : qtdCalc);
     const precoUn = Number(it.preco_un || 0);
     const desvio = qtdCalc > 0 ? (real - qtdCalc) / qtdCalc : null;
     return { qtdPlan, qtdCalc, real, precoUn, desvio, cReal: real * precoUn };
@@ -1652,9 +1657,9 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
         execucao_id: exec.id, bar_id: barId, producao_id: exec.producao_id,
         responsavel_id: resp, responsavel_nome: respNome, duracao_seg: dur,
         rendimento_esperado: rendEsperado || null,
-        rendimento_real: parseFloat(rendReal) || null,
+        rendimento_real: pf(rendReal) || null,
         peso_mestre_real: pesoMestreBase || null,
-        peso_bruto: mestreFc ? ((parseFloat(pesoBruto) || 0) * ent.fator || null) : null,
+        peso_bruto: mestreFc ? ((pf(pesoBruto) || 0) * ent.fator || null) : null,
         observacao: obs.trim() || null,
         insumos: linhas,
       });
@@ -1702,18 +1707,18 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
               {mestreFc && (
                 <div>
                   <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso bruto{ent.unidade ? ` (${ent.unidade})` : ''}</label>
-                  <Input type="number" inputMode="decimal" step="any" value={pesoBruto} onChange={e => setPesoBruto(e.target.value)} placeholder="antes de limpar" className="h-10" />
+                  <Input type="text" inputMode="decimal" step="any" value={pesoBruto} onChange={e => setPesoBruto(e.target.value)} placeholder="antes de limpar" className="h-10" />
                 </div>
               )}
               {mestre && (
                 <div>
                   <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso mestre{ent.unidade ? ` (${ent.unidade})` : ''}</label>
-                  <Input type="number" inputMode="decimal" step="any" value={pesoMestre} onChange={e => setPesoMestre(e.target.value)} placeholder={`ficha: ${fmtPeso(mestreQtd, baseMestre)}`} className="h-10" />
+                  <Input type="text" inputMode="decimal" step="any" value={pesoMestre} onChange={e => setPesoMestre(e.target.value)} placeholder={`ficha: ${fmtPeso(mestreQtd, baseMestre)}`} className="h-10" />
                 </div>
               )}
               <div>
                 <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado, 2)} {ficha?.unidade || ''}</span>}</label>
-                <Input type="number" inputMode="decimal" step="any" value={rendReal} onChange={e => setRendReal(e.target.value)} placeholder="produzido…" className="h-10" />
+                <Input type="text" inputMode="decimal" step="any" value={rendReal} onChange={e => setRendReal(e.target.value)} placeholder="produzido…" className="h-10" />
               </div>
             </div>
 
@@ -1750,7 +1755,7 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
                           <td className="px-2 py-1.5 text-right">
                             {it.is_mestre
                               ? <span className="text-xs text-gray-400">via peso</span>
-                              : <Input type="number" inputMode="decimal" step="any" value={qtdReal[it.id] ?? ''}
+                              : <Input type="text" inputMode="decimal" step="any" value={qtdReal[it.id] ?? ''}
                                   onChange={e => setQtdReal(prev => ({ ...prev, [it.id]: e.target.value }))}
                                   placeholder="obrigatório" className={`h-8 text-right text-sm ${err ? 'border-red-500 ring-1 ring-red-500' : ''}`} />}
                           </td>
