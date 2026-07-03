@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import { hasRoutePermission, getRoutePermission } from './src/lib/route-permissions';
 import { validateToken } from './src/lib/auth/jwt';
 import { isPublicRoute } from './src/lib/auth/public-routes';
+import { isApiRotaAberta } from './src/lib/auth/api-open-routes';
 
 interface User {
   id: number;
@@ -81,9 +82,93 @@ const BLOCKED_ROUTES = [
   '/configuracoes/calendario-operacional',
 ];
 
+// Verifica o JWT (HS256) no runtime EDGE usando Web Crypto — o `jsonwebtoken`/`validateToken`
+// NÃO roda no Edge (usa crypto do Node), por isso o middleware não pode depender dele. Aqui
+// checamos assinatura HMAC-SHA256 + expiração. Retorna true só p/ token realmente assinado
+// com o JWT_SECRET → trava inforjável (o sgb_user não-httpOnly não passa por aqui).
+function b64urlToBytes(s: string): Uint8Array {
+  const b64 = s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4);
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+async function verificarTokenEdge(token: string): Promise<boolean> {
+  try {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return false;
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const [h, p, s] = parts;
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(secret) as BufferSource,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify'],
+    );
+    const ok = await crypto.subtle.verify(
+      'HMAC',
+      key,
+      b64urlToBytes(s) as BufferSource,
+      new TextEncoder().encode(`${h}.${p}`) as BufferSource,
+    );
+    if (!ok) return false;
+    const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(p)));
+    if (payload.exp && Math.floor(Date.now() / 1000) > payload.exp) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// TRAVA CENTRAL de /api: exige token/sessão em toda rota de API, exceto as liberadas
+// (api-open-routes: público/webhook/cron). Só AUTENTICA (quem é você) — a autorização fina
+// por módulo continua no guard por rota (negarPorRota). Fecha o acesso ANÔNIMO direto às
+// rotas que só se protegiam pela tela.
+// Ordem: segredo de sistema → JWT assinado (auth_token/Bearer, verificado no Edge via Web
+// Crypto = INFORJÁVEL) → fallback sessão de página (sgb_user) como rede p/ não deslogar
+// ninguém que as páginas ainda aceitam.
+async function guardApi(request: NextRequest, pathname: string): Promise<NextResponse> {
+  if (request.method === 'OPTIONS') return NextResponse.next(); // preflight CORS
+  if (isApiRotaAberta(pathname)) return NextResponse.next();
+
+  const authHeader = request.headers.get('authorization');
+  const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  // 1) Chamadas de SISTEMA (Vercel cron, pg_cron, orquestrador, edge→app) com segredo de servidor.
+  if (
+    headerToken &&
+    ((process.env.CRON_SECRET && headerToken === process.env.CRON_SECRET) ||
+      (process.env.SUPABASE_SERVICE_ROLE_KEY && headerToken === process.env.SUPABASE_SERVICE_ROLE_KEY))
+  ) {
+    return NextResponse.next();
+  }
+
+  // 2) JWT assinado (real): cookie auth_token OU header Bearer, verificado no Edge.
+  const cookieToken = request.cookies.get('auth_token')?.value ?? null;
+  if (cookieToken && (await verificarTokenEdge(cookieToken))) return NextResponse.next();
+  if (headerToken && (await verificarTokenEdge(headerToken))) return NextResponse.next();
+
+  // 3) Rede de segurança: sessão que as PÁGINAS aceitam (sgb_user). Não fortalece a segurança
+  //    (é forjável), mas garante que ninguém logado seja deslogado por um edge-case do token.
+  const user = await getAuthenticatedUser(request);
+  if (user) return NextResponse.next();
+
+  return NextResponse.json(
+    { success: false, error: 'Não autenticado', code: 'NO_AUTH' },
+    { status: 401 },
+  );
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.nextUrl.hostname;
+
+  // /api entra pela trava central (401 JSON), nunca pela lógica de página (que redireciona).
+  if (pathname.startsWith('/api/')) {
+    return guardApi(request, pathname);
+  }
 
   // Ignorar rotas estáticas e API
   if (IGNORED_ROUTES.some(route => pathname.startsWith(route))) {
@@ -156,5 +241,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  // Inclui /api (trava central de auth). Continua fora: assets estáticos do Next.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
