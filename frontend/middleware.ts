@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { hasRoutePermission, getRoutePermission } from './src/lib/route-permissions';
-import { validateToken } from './src/lib/auth/jwt';
 import { isPublicRoute } from './src/lib/auth/public-routes';
 import { isApiRotaAberta } from './src/lib/auth/api-open-routes';
 
@@ -17,50 +16,30 @@ interface User {
 // Função para pegar dados do usuário validando JWT
 async function getAuthenticatedUser(request: NextRequest): Promise<User | null> {
   try {
-    // 1. Tentar pegar token JWT (prioridade)
+    // Autorização de PÁGINA = SÓ o auth_token assinado, verificado no Edge por Web Crypto
+    // (INFORJÁVEL). O jsonwebtoken não roda no Edge, por isso usamos decodificarTokenEdge.
+    // O antigo fallback no cookie sgb_user (JSON não-httpOnly, forjável) foi REMOVIDO: dava
+    // pra forjar {role:admin} e passar todos os guards de página. O login sempre seta o
+    // auth_token (7d), então todo usuário logado passa aqui.
     const authToken = request.cookies.get('auth_token')?.value;
     if (authToken) {
-      const decoded = validateToken(authToken);
+      const decoded = await decodificarTokenEdge(authToken);
       if (decoded) {
-        // (sem log de email — evitar PII em logs de produção)
+        const modulos = Array.isArray(decoded.modulos_permitidos)
+          ? decoded.modulos_permitidos
+          : typeof decoded.modulos_permitidos === 'object' && decoded.modulos_permitidos
+            ? Object.keys(decoded.modulos_permitidos).filter((k) => decoded.modulos_permitidos[k])
+            : [];
         return {
           id: decoded.user_id,
           email: decoded.email,
-          nome: '', // Nome virá do banco se necessário
+          nome: '',
           role: decoded.role as 'admin' | 'funcionario' | 'financeiro',
-          modulos_permitidos: decoded.modulos_permitidos,
-          ativo: true, // Se token é válido, usuário está ativo
+          modulos_permitidos: modulos,
+          ativo: true,
         };
-      } else {
-        console.log('⚠️ MIDDLEWARE: Token JWT inválido ou expirado');
       }
     }
-
-    // 2. Fallback para cookie sgb_user (compatibilidade temporária)
-    const sgbUserCookie = request.cookies.get('sgb_user')?.value;
-    if (sgbUserCookie) {
-      try {
-        const userData = JSON.parse(decodeURIComponent(sgbUserCookie));
-        // Normalizar modulos_permitidos como array
-        let modulosPermitidos: string[] = [];
-        if (Array.isArray(userData.modulos_permitidos)) {
-          modulosPermitidos = userData.modulos_permitidos;
-        } else if (typeof userData.modulos_permitidos === 'object') {
-          modulosPermitidos = Object.keys(userData.modulos_permitidos).filter(
-            k => userData.modulos_permitidos[k]
-          );
-        }
-        // (sem log de email — evitar PII em logs de produção)
-        return {
-          ...userData,
-          modulos_permitidos: modulosPermitidos,
-        };
-      } catch (parseError) {
-        console.error('⚠️ MIDDLEWARE: Erro ao parsear sgb_user cookie:', parseError);
-      }
-    }
-
-    console.log('🚫 MIDDLEWARE: Nenhuma autenticação válida encontrada');
     return null;
   } catch (error) {
     console.error('❌ MIDDLEWARE: Erro ao validar autenticação:', error);
@@ -93,12 +72,14 @@ function b64urlToBytes(s: string): Uint8Array {
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
   return arr;
 }
-async function verificarTokenEdge(token: string): Promise<boolean> {
+// Verifica a assinatura HS256 (Web Crypto) e devolve o PAYLOAD decodificado, ou null.
+// É a prova de identidade inforjável usada tanto na trava /api quanto no roteamento de páginas.
+async function decodificarTokenEdge(token: string): Promise<any | null> {
   try {
     const secret = process.env.JWT_SECRET;
-    if (!secret) return false;
+    if (!secret) return null;
     const parts = token.split('.');
-    if (parts.length !== 3) return false;
+    if (parts.length !== 3) return null;
     const [h, p, s] = parts;
     const key = await crypto.subtle.importKey(
       'raw',
@@ -113,13 +94,16 @@ async function verificarTokenEdge(token: string): Promise<boolean> {
       b64urlToBytes(s) as BufferSource,
       new TextEncoder().encode(`${h}.${p}`) as BufferSource,
     );
-    if (!ok) return false;
+    if (!ok) return null;
     const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(p)));
-    if (payload.exp && Math.floor(Date.now() / 1000) > payload.exp) return false;
-    return true;
+    if (payload.exp && Math.floor(Date.now() / 1000) > payload.exp) return null;
+    return payload;
   } catch {
-    return false;
+    return null;
   }
+}
+async function verificarTokenEdge(token: string): Promise<boolean> {
+  return (await decodificarTokenEdge(token)) !== null;
 }
 
 // TRAVA CENTRAL de /api: exige token/sessão em toda rota de API, exceto as liberadas
