@@ -1,12 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Banknote, Loader2, ArrowDownCircle, ListTree, CalendarDays, Wallet } from 'lucide-react';
+import { Banknote, Loader2, ArrowDownCircle, ListTree, CalendarDays, Wallet, Filter, Check, Search } from 'lucide-react';
 
 type Saida = { dt_gerencial: string; trn: number; num_lancamento: number | null; motivo: string; valor_saida: number; obs: string | null };
 type Turno = {
@@ -25,6 +27,81 @@ const MESES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'J
 const labelMes = (ym: string) => { const [y, m] = ym.split('-'); return `${MESES_PT[Number(m) - 1]}/${y}`; };
 const cell = (v: number | null | undefined) => (v == null ? <span className="text-muted-foreground/40">—</span> : fmtBRL(v));
 
+type ColAlign = 'left' | 'center' | 'right';
+
+// Cabeçalho clicável com popover de checkboxes (valores distintos + contagem), estilo /operacional/insumos.
+function ColHeader({ label, align, options, selected, onChange }: {
+  label: string; align: ColAlign;
+  options: { value: string; count: number }[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const active = selected.size > 0;
+
+  const openMenu = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - 268)), top: r.bottom + 4 });
+    setQ(''); setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    inputRef.current?.focus();
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current?.contains(e.target as Node) || btnRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onAway = () => setOpen(false);
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('resize', onAway);
+    return () => { window.removeEventListener('mousedown', onDown); window.removeEventListener('resize', onAway); };
+  }, [open]);
+
+  const shown = q ? options.filter((o) => o.value.toLowerCase().includes(q.toLowerCase())) : options;
+  const toggle = (v: string) => { const n = new Set(selected); if (n.has(v)) n.delete(v); else n.add(v); onChange(n); };
+  const alignCls = align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start';
+
+  return (
+    <>
+      <button ref={btnRef} onClick={() => (open ? setOpen(false) : openMenu())}
+        className={`inline-flex items-center gap-1 hover:text-foreground ${alignCls} ${active ? 'text-primary' : ''}`}>
+        <span>{label}</span>
+        <Filter className={`w-3 h-3 ${active ? 'fill-primary text-primary' : 'text-muted-foreground/40'}`} />
+        {active && <span className="text-[10px] rounded-full bg-primary/15 text-primary px-1 leading-4">{selected.size}</span>}
+      </button>
+      {open && pos && typeof document !== 'undefined' && createPortal(
+        <div ref={menuRef} style={{ position: 'fixed', left: pos.left, top: pos.top, width: 256 }}
+          className="z-[60] rounded-lg border bg-background shadow-xl p-2">
+          <Input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filtrar valores…" className="h-8 text-xs" />
+          <div className="flex items-center justify-between px-1 py-1.5 text-[11px] text-muted-foreground">
+            <button className="hover:text-primary" onClick={() => onChange(new Set(options.map((o) => o.value)))}>Todos</button>
+            <span>{selected.size ? `${selected.size} sel.` : `${options.length} valores`}</span>
+            <button className="hover:text-red-500" onClick={() => onChange(new Set())}>Limpar</button>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {shown.length === 0 ? <div className="px-2 py-3 text-center text-xs text-muted-foreground">Nada</div>
+              : shown.map((o) => {
+                const on = selected.has(o.value);
+                return (
+                  <button key={o.value} onClick={() => toggle(o.value)} className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-muted/60 rounded">
+                    <span className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center ${on ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/40'}`}>{on && <Check className="w-3 h-3" />}</span>
+                    <span className="flex-1 truncate">{o.value}</span>
+                    <span className="text-muted-foreground tabular-nums">{o.count}</span>
+                  </button>
+                );
+              })}
+          </div>
+        </div>, document.body)}
+    </>
+  );
+}
+
 function SaidasCaixaInner() {
   const { selectedBar } = useBar();
   const { showToast } = useToast();
@@ -36,6 +113,12 @@ function SaidasCaixaInner() {
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [resumo, setResumo] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+
+  const [busca, setBusca] = useState('');
+  const [colFilter, setColFilter] = useState<Record<string, Set<string>>>({});
+  const setCol = useCallback((id: string, next: Set<string>) => {
+    setColFilter((prev) => { const n = { ...prev }; if (next.size) n[id] = next; else delete n[id]; return n; });
+  }, []);
 
   const periodo = useMemo(() => {
     if (!mesSel) return null;
@@ -67,7 +150,47 @@ function SaidasCaixaInner() {
   }, [selectedBar?.id, periodo, mesSel, showToast]);
 
   useEffect(() => { carregar(); }, [carregar]);
+  // troca de mês zera filtros de coluna
+  useEffect(() => { setColFilter({}); setBusca(''); }, [mesSel]);
 
+  // valor textual de cada coluna filtrável
+  const colVal: Record<string, (s: Saida) => string> = {
+    dia: (s) => fmtData(s.dt_gerencial),
+    turno: (s) => `#${s.trn}`,
+    motivo: (s) => s.motivo || '—',
+  };
+
+  // opções (valores distintos + contagem) por coluna, respeitando os outros filtros + busca
+  const optionsFor = useCallback((colId: string) => {
+    const q = busca.trim().toLowerCase();
+    const counts = new Map<string, number>();
+    for (const s of saidas) {
+      if (q && !(s.motivo || '').toLowerCase().includes(q) && !`#${s.trn}`.includes(q)) continue;
+      let ok = true;
+      for (const [id, sel] of Object.entries(colFilter)) {
+        if (id === colId) continue;
+        if (!sel.has(colVal[id](s))) { ok = false; break; }
+      }
+      if (!ok) continue;
+      const v = colVal[colId](s);
+      counts.set(v, (counts.get(v) || 0) + 1);
+    }
+    return [...counts.entries()].map(([value, count]) => ({ value, count })).sort((a, b) => a.value.localeCompare(b.value, 'pt-BR', { numeric: true }));
+  }, [saidas, busca, colFilter]);
+
+  const saidasFiltradas = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return saidas.filter((s) => {
+      if (q && !(s.motivo || '').toLowerCase().includes(q) && !`#${s.trn}`.includes(q)) return false;
+      for (const [id, sel] of Object.entries(colFilter)) {
+        if (!sel.has(colVal[id](s))) return false;
+      }
+      return true;
+    });
+  }, [saidas, busca, colFilter]);
+
+  const totalFiltrado = useMemo(() => saidasFiltradas.reduce((s, r) => s + Number(r.valor_saida || 0), 0), [saidasFiltradas]);
+  const filtrando = busca.trim() !== '' || Object.keys(colFilter).length > 0;
   const ticket = resumo?.qtd_saidas ? Number(resumo.total_saidas) / Number(resumo.qtd_saidas) : 0;
 
   return (
@@ -82,6 +205,12 @@ function SaidasCaixaInner() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {aba === 'saidas' && (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar motivo/turno…" className="h-9 w-52 pl-8 text-sm" />
+            </div>
+          )}
           <select value={mesSel} onChange={(e) => setMesSel(e.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm">
             {meses.length === 0 && <option value="">—</option>}
             {meses.map((m) => <option key={m} value={m}>{labelMes(m)}</option>)}
@@ -90,13 +219,13 @@ function SaidasCaixaInner() {
         </div>
       </div>
 
-      {/* Cards resumo */}
+      {/* Cards resumo (do mês inteiro) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground flex items-center gap-1.5"><ArrowDownCircle className="h-3.5 w-3.5" /> Total de saídas</div>
             <div className="text-2xl font-semibold mt-1 text-red-600 dark:text-red-400">{fmtBRL(resumo?.total_saidas)}</div>
-            <div className="text-xs text-muted-foreground mt-1">no período selecionado</div>
+            <div className="text-xs text-muted-foreground mt-1">no mês selecionado</div>
           </CardContent>
         </Card>
         <Card>
@@ -142,14 +271,14 @@ function SaidasCaixaInner() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-muted-foreground">
-                    <th className="text-left font-medium px-4 py-2.5">Dia</th>
-                    <th className="text-left font-medium px-4 py-2.5">Turno</th>
-                    <th className="text-left font-medium px-4 py-2.5">Motivo</th>
+                    <th className="text-left font-medium px-4 py-2.5"><ColHeader label="Dia" align="left" options={optionsFor('dia')} selected={colFilter.dia || new Set()} onChange={(n) => setCol('dia', n)} /></th>
+                    <th className="text-left font-medium px-4 py-2.5"><ColHeader label="Turno" align="left" options={optionsFor('turno')} selected={colFilter.turno || new Set()} onChange={(n) => setCol('turno', n)} /></th>
+                    <th className="text-left font-medium px-4 py-2.5"><ColHeader label="Motivo" align="left" options={optionsFor('motivo')} selected={colFilter.motivo || new Set()} onChange={(n) => setCol('motivo', n)} /></th>
                     <th className="text-right font-medium px-4 py-2.5">Valor</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {saidas.map((s, i) => (
+                  {saidasFiltradas.map((s, i) => (
                     <tr key={`${s.trn}-${s.num_lancamento}-${i}`} className="border-b last:border-0 hover:bg-muted/30">
                       <td className="px-4 py-2 whitespace-nowrap">
                         <span className="font-medium">{fmtData(s.dt_gerencial)}</span>
@@ -160,15 +289,15 @@ function SaidasCaixaInner() {
                       <td className="px-4 py-2 text-right tabular-nums font-semibold text-red-600 dark:text-red-400">{fmtBRL(s.valor_saida)}</td>
                     </tr>
                   ))}
-                  {!loading && saidas.length === 0 && (
-                    <tr><td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">Nenhuma saída de caixa no período.</td></tr>
+                  {!loading && saidasFiltradas.length === 0 && (
+                    <tr><td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">{filtrando ? 'Nenhuma saída com esses filtros.' : 'Nenhuma saída de caixa no período.'}</td></tr>
                   )}
                 </tbody>
-                {saidas.length > 0 && (
+                {saidasFiltradas.length > 0 && (
                   <tfoot>
                     <tr className="border-t bg-muted/20 font-semibold">
-                      <td className="px-4 py-2.5" colSpan={3}>Total ({fmtNum(saidas.length)})</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-red-600 dark:text-red-400">{fmtBRL(resumo?.total_saidas)}</td>
+                      <td className="px-4 py-2.5" colSpan={3}>{filtrando ? `Filtrado (${fmtNum(saidasFiltradas.length)})` : `Total (${fmtNum(saidasFiltradas.length)})`}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-red-600 dark:text-red-400">{fmtBRL(totalFiltrado)}</td>
                     </tr>
                   </tfoot>
                 )}
