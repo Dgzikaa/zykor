@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Loader2, Ticket, Wallet, Percent, CalendarClock } from 'lucide-react';
+import { Loader2, Ticket, Wallet, Percent, CalendarClock, Receipt, Check } from 'lucide-react';
 
 type Item = {
   event_id: number; nome_evento: string | null; dt_evento: string | null;
@@ -27,6 +27,7 @@ export function SymplaRecebiveis() {
   const [meses, setMeses] = useState<string[]>([]);
   const [mesSel, setMesSel] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [lancandoId, setLancandoId] = useState<number | null>(null);
 
   const periodo = useMemo(() => {
     if (!mesSel) return null;
@@ -52,6 +53,16 @@ export function SymplaRecebiveis() {
   }, [selectedBar?.id, periodo, mesSel, showToast]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  const lancar = async (eventId: number) => {
+    setLancandoId(eventId);
+    try {
+      const r = await api.post('/api/financeiro/receitas/sympla/lancar', { event_id: eventId });
+      if (r?.ok || r?.skipped) { showToast({ type: 'success', title: r?.skipped ? 'Já estava lançado' : 'Lançado no Conta Azul' }); carregar(); }
+      else showToast({ type: 'error', title: 'Falha ao lançar', message: r?.erro || r?.error || 'Erro' });
+    } catch (e: any) { showToast({ type: 'error', title: 'Falha ao lançar', message: e?.message }); }
+    finally { setLancandoId(null); }
+  };
 
   return (
     <div className="space-y-4">
@@ -113,8 +124,11 @@ export function SymplaRecebiveis() {
                     <td className="px-4 py-2 whitespace-nowrap"><span className="inline-flex items-center gap-1 text-muted-foreground"><CalendarClock className="h-3.5 w-3.5" />{fmtData(e.previsao_repasse)}</span></td>
                     <td className="px-4 py-2 text-center">
                       {e.status === 'lancado'
-                        ? <span className="text-xs text-emerald-600 dark:text-emerald-400">lançado</span>
-                        : <span className="text-xs text-muted-foreground">pendente</span>}
+                        ? <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400" title="Lançado no Conta Azul"><Check className="h-3.5 w-3.5" /> lançado</span>
+                        : <button onClick={() => lancar(e.event_id)} disabled={lancandoId === e.event_id}
+                            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted/60 disabled:opacity-50" title="Lançar no CA (conta a receber, vence na previsão)">
+                            {lancandoId === e.event_id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Receipt className="h-3.5 w-3.5" />} Lançar
+                          </button>}
                     </td>
                   </tr>
                 ))}

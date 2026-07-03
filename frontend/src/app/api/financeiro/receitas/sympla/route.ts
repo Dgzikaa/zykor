@@ -60,19 +60,30 @@ export async function GET(request: NextRequest) {
       return d.toISOString().slice(0, 10);
     };
 
-    const itens = eventos.map((e) => ({
-      event_id: e.event_id,
-      nome_evento: e.nome_evento,
-      dt_evento: e.dt_evento,
-      pedidos: num(e.pedidos),
-      bruto: num(e.bruto),
-      taxa: num(e.taxa),
-      liquido: num(e.liquido),
-      cancelados: num(e.cancelados),
-      previsao_repasse: addDiasUteis(e.dt_evento, 5),
-      // Sympla→CA ainda não lança automático → status pendente. (log entra quando construirmos.)
-      status: 'pendente' as const,
-    }));
+    // eventos já lançados no CA (financial.sympla_ca_log)
+    const logRows = await paginate<any>(
+      () => (supabase as any).schema('financial').from('sympla_ca_log')
+        .select('event_id, previsao_repasse, ca_protocol_id').eq('bar_id', user.bar_id),
+      { label: 'financeiro/receitas/sympla/log' },
+    ).catch(() => [] as any[]);
+    const logByEvent = new Map<number, any>();
+    for (const l of logRows) logByEvent.set(Number(l.event_id), l);
+
+    const itens = eventos.map((e) => {
+      const log = logByEvent.get(Number(e.event_id));
+      return {
+        event_id: e.event_id,
+        nome_evento: e.nome_evento,
+        dt_evento: e.dt_evento,
+        pedidos: num(e.pedidos),
+        bruto: num(e.bruto),
+        taxa: num(e.taxa),
+        liquido: num(e.liquido),
+        cancelados: num(e.cancelados),
+        previsao_repasse: log?.previsao_repasse || addDiasUteis(e.dt_evento, 5),
+        status: log ? ('lancado' as const) : ('pendente' as const),
+      };
+    });
 
     const resumo = {
       eventos: itens.length,

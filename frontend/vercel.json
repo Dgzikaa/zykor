@@ -23,6 +23,10 @@
     {
       "path": "/api/financeiro/entradas-caixa/cron-diario",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/financeiro/receitas/sympla/cron-diario",
+      "schedule": "0 17 * * *"
     }
   ],
   "functions": {
@@ -69,6 +73,12 @@
       "maxDuration": 120
     },
     "src/app/api/financeiro/entradas-caixa/contas-a-receber-diario/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/financeiro/receitas/sympla/cron-diario/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/financeiro/receitas/sympla/lancar/route.ts": {
       "maxDuration": 120
     }
   },
