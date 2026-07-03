@@ -77,6 +77,11 @@ interface LinhaDia {
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 const brDate = (d: string) => d.split('-').reverse().join('/');
+// Código de referência do CA (coluna "nº do documento") — marca que foi lançado pelo Zykor.
+const NUM_DOC = 'zykor';
+// Rate limit do CA: espaça as requisições e faz retry no 429 pra não deixar lançamento pendente.
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const DELAY_MS = 250; // ~4 req/s entre lançamentos (folga sob o limite do CA)
 
 /** Ontem em horário de Brasília (UTC-3). */
 function ontemBRT(): string {
@@ -134,6 +139,7 @@ function payloadReceita(cfg: BarStoneConfig, l: LinhaDia, dataVenda: string) {
   return {
     data_competencia: dataVenda,
     valor,
+    numero_documento: NUM_DOC,
     observacao: `Recebível Stone líquido (${l.transacoes} transação(ões); bruto ${round2(l.bruto)} − taxa ${round2(l.taxa)}) via Zykor`,
     descricao,
     contato: cfg.cliente_id,
@@ -158,6 +164,7 @@ function payloadTaxaTotal(cfg: BarStoneConfig, dataVenda: string, valorTotal: nu
   return {
     data_competencia: dataVenda,
     valor,
+    numero_documento: NUM_DOC,
     observacao: 'Taxa total de maquininha Stone do dia (lançamos o líquido) via Zykor',
     descricao,
     contato: cfg.taxa.fornecedor_id,
@@ -182,6 +189,7 @@ function payloadCompensacao(cfg: BarStoneConfig, dataVenda: string, valorTotal: 
   return {
     data_competencia: dataVenda,
     valor,
+    numero_documento: NUM_DOC,
     observacao: 'Compensação da taxa de maquininha Stone do dia (lançamos o líquido) via Zykor',
     descricao,
     contato: cfg.cliente_id,
@@ -204,18 +212,35 @@ async function postCA(
   endpoint: 'contas-a-receber' | 'contas-a-pagar',
   body: unknown,
 ): Promise<{ ok: boolean; protocolId: string | null; status: string | null; erro?: string; raw?: unknown }> {
-  const resp = await fetch(`${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/${endpoint}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const text = await resp.text();
-  let json: any = null;
-  try { json = text ? JSON.parse(text) : null; } catch { json = null; }
-  if (!resp.ok) return { ok: false, protocolId: null, status: String(resp.status), erro: json?.message || text || 'erro', raw: json };
-  const status = json?.status || null;
-  if (status === 'ERROR') return { ok: false, protocolId: null, status, erro: 'CA rejeitou (status ERROR)', raw: json };
-  return { ok: true, protocolId: json?.protocolo || json?.protocolId || json?.id || null, status, raw: json };
+  const url = `${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/${endpoint}`;
+  const MAX = 5;
+  for (let tent = 1; tent <= MAX; tent++) {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    // Rate limit (429) ou indisponibilidade momentânea (503): espera e tenta de novo
+    // (respeita Retry-After; senão backoff exponencial). Evita deixar lançamento pendente.
+    if (resp.status === 429 || resp.status === 503) {
+      if (tent < MAX) {
+        const ra = Number(resp.headers.get('retry-after'));
+        const espera = Number.isFinite(ra) && ra > 0 ? ra * 1000 : Math.min(1000 * 2 ** (tent - 1), 8000);
+        await sleep(espera);
+        continue;
+      }
+      const text = await resp.text().catch(() => '');
+      return { ok: false, protocolId: null, status: String(resp.status), erro: `rate limit (${resp.status}) após ${MAX} tentativas`, raw: text };
+    }
+    const text = await resp.text();
+    let json: any = null;
+    try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+    if (!resp.ok) return { ok: false, protocolId: null, status: String(resp.status), erro: json?.message || text || 'erro', raw: json };
+    const status = json?.status || null;
+    if (status === 'ERROR') return { ok: false, protocolId: null, status, erro: 'CA rejeitou (status ERROR)', raw: json };
+    return { ok: true, protocolId: json?.protocolo || json?.protocolId || json?.id || null, status, raw: json };
+  }
+  return { ok: false, protocolId: null, status: '429', erro: 'rate limit persistente' };
 }
 
 /** GET: preview do dia — não escreve nada no CA. */
@@ -327,6 +352,7 @@ export async function POST(request: NextRequest) {
       return;
     }
     const r = await postCA(token, endpoint, payload);
+    await sleep(DELAY_MS); // espaça o próximo POST (respeita o rate limit do CA)
     if (r.ok) {
       await (supabase.schema('financial' as any) as any).from('stone_ca_lancamento_log').insert({
         bar_id: barId,
