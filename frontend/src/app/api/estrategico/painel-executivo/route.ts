@@ -21,7 +21,10 @@ export async function GET(req: NextRequest) {
 
   // ---- DRE (receita/lucro YTD fechado + faturamento do mês corrente) ----
   try {
-    const { data } = await (supabase as any).rpc('get_dre_por_ano', { p_bar_id: barId, p_ano: ano });
+    // gold.mv_dre_ano = DRE materializada (idêntica à função, refresh horário) — ~0,3ms vs ~2,1s
+    const { data } = await (supabase as any).schema('gold').from('mv_dre_ano')
+      .select('bar_id, mes, categoria_macro, ordem_macro, ordem_sub, categoria, sinal, valor_com_sinal, percentual_receita')
+      .eq('bar_id', barId).eq('ano', ano);
     const rows = (data || []) as any[];
     const mesNum = (m: string) => Number(String(m).slice(5, 7));
     let receitaYtd = 0, lucroYtd = 0, fatMes = 0, receitaMes = 0, despMes = 0;
