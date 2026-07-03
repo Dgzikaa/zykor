@@ -70,6 +70,32 @@ const ROLES_OPCOES = [
   { value: 'financeiro', label: 'Financeiro' },
 ];
 
+// Permissão granular por módulo (CRUD). Ver é a base; editar/inserir/excluir implicam ver.
+const ACOES = ['ver', 'editar', 'inserir', 'excluir'] as const;
+type Acao = typeof ACOES[number];
+const LETRA_ACAO: Record<Acao, string> = { ver: 'V', editar: 'E', inserir: 'I', excluir: 'X' };
+const NOME_ACAO: Record<Acao, string> = { ver: 'Ver', editar: 'Editar', inserir: 'Inserir', excluir: 'Excluir' };
+
+// ações EXPLÍCITAS de um módulo a partir dos tokens salvos (token liso = CRUD completo)
+function acoesDoModulo(id: string, arr: string[]): Record<Acao, boolean> {
+  const idl = id.toLowerCase();
+  const lower = arr.map(t => String(t).toLowerCase());
+  if (lower.includes(idl)) return { ver: true, editar: true, inserir: true, excluir: true };
+  const has = (a: string) => lower.includes(`${idl}:${a}`);
+  const editar = has('editar'), inserir = has('inserir'), excluir = has('excluir');
+  return { ver: has('ver') || editar || inserir || excluir, editar, inserir, excluir };
+}
+// remove todos os tokens de um módulo (liso + :acao)
+function semModulo(arr: string[], id: string): string[] {
+  const idl = id.toLowerCase();
+  return arr.filter(t => { const tl = String(t).toLowerCase(); return tl !== idl && !ACOES.some(a => tl === `${idl}:${a}`); });
+}
+// serializa as ações de volta em tokens (cheio → token liso; subset → :acao)
+function tokensFor(id: string, act: Record<Acao, boolean>): string[] {
+  if (act.ver && act.editar && act.inserir && act.excluir) return [id];
+  return ACOES.filter(a => act[a]).map(a => `${id}:${a}`);
+}
+
 function UsuariosPage() {
   const router = useRouter();
   const { setPageTitle } = usePageTitle();
@@ -496,45 +522,37 @@ function UsuariosPage() {
     }
   };
 
-  const handleModuloChange = (moduloId: string, checked: boolean) => {
+  // liga/desliga UMA ação (V/E/I/X) de um módulo, reserializando os tokens
+  const setAcaoModulo = (moduloId: string, acao: Acao, checked: boolean) => {
     setFormData(prev => {
-      // Garantir que modulos_permitidos é um array
-      const currentModulos = Array.isArray(prev.modulos_permitidos) ? prev.modulos_permitidos : [];
-      
-      return {
-        ...prev,
-        modulos_permitidos: checked 
-          ? [...currentModulos, moduloId]
-          : currentModulos.filter(id => id !== moduloId)
-      };
+      const arr = (Array.isArray(prev.modulos_permitidos) ? prev.modulos_permitidos.map(String) : []);
+      const act = acoesDoModulo(moduloId, arr);
+      act[acao] = checked;
+      if (acao !== 'ver' && checked) act.ver = true;                          // ação implica ver
+      if (acao === 'ver' && !checked) { act.editar = act.inserir = act.excluir = false; } // sem ver = nada
+      return { ...prev, modulos_permitidos: [...semModulo(arr, moduloId), ...tokensFor(moduloId, act)] };
     });
   };
 
   const getCategoriaSelectionState = (categoriaModulos: Modulo[]) => {
-    const selectedInCategory = categoriaModulos.filter(modulo =>
-      formData.modulos_permitidos.includes(modulo.id)
-    ).length;
+    const arr = Array.isArray(formData.modulos_permitidos) ? formData.modulos_permitidos.map(String) : [];
+    const comAcesso = categoriaModulos.filter(m => acoesDoModulo(m.id, arr).ver).length;
     const total = categoriaModulos.length;
     return {
-      allSelected: total > 0 && selectedInCategory === total,
-      hasAnySelected: selectedInCategory > 0,
-      selectedCount: selectedInCategory,
+      allSelected: total > 0 && comAcesso === total,
+      hasAnySelected: comAcesso > 0,
+      selectedCount: comAcesso,
       totalCount: total,
     };
   };
 
+  // "Marcar todos" da categoria = CRUD completo em todos; desmarcar = remove tudo
   const handleCategoriaToggle = (categoriaModulos: Modulo[], checked: boolean) => {
     setFormData(prev => {
-      const current = new Set(Array.isArray(prev.modulos_permitidos) ? prev.modulos_permitidos : []);
-      if (checked) {
-        categoriaModulos.forEach(modulo => current.add(modulo.id));
-      } else {
-        categoriaModulos.forEach(modulo => current.delete(modulo.id));
-      }
-      return {
-        ...prev,
-        modulos_permitidos: Array.from(current),
-      };
+      let arr = (Array.isArray(prev.modulos_permitidos) ? prev.modulos_permitidos.map(String) : []);
+      for (const m of categoriaModulos) arr = semModulo(arr, m.id);
+      if (checked) for (const m of categoriaModulos) arr.push(m.id);
+      return { ...prev, modulos_permitidos: arr };
     });
   };
 
@@ -960,6 +978,12 @@ function UsuariosPage() {
                 </div>
 
                 {/* Módulos específicos */}
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Acesso por módulo</span>
+                  <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                    <b>V</b> ver · <b>E</b> editar · <b>I</b> inserir · <b>X</b> excluir
+                  </span>
+                </div>
                 <div className={`rounded-lg p-3 border border-[hsl(var(--border))] max-h-64 overflow-y-auto scrollbar-thin ${isAdminUser ? 'opacity-50 pointer-events-none' : ''}`}>
                   {isAdminUser && (
                     <div className="mb-3 p-2 rounded-md bg-[hsl(var(--muted))]">
@@ -996,22 +1020,28 @@ function UsuariosPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {categoriaModulos.map(modulo => (
-                          <div key={modulo.id} className="flex items-center space-x-2 p-1.5 rounded-md hover:bg-[hsl(var(--muted))]">
-                            <Checkbox
-                              checked={isAdminUser || (Array.isArray(formData.modulos_permitidos) && formData.modulos_permitidos.includes(modulo.id))}
-                              onCheckedChange={(checked) => handleModuloChange(modulo.id, checked as boolean)}
-                              disabled={isAdminUser}
-                            />
-                            <Label 
-                              htmlFor={modulo.id} 
-                              className="text-xs text-[hsl(var(--foreground))] cursor-pointer flex-1"
-                            >
-                              {modulo.nome}
-                            </Label>
-                          </div>
-                        ))}
+                      <div className="grid grid-cols-1 gap-1">
+                        {categoriaModulos.map(modulo => {
+                          const arrAtual = Array.isArray(formData.modulos_permitidos) ? formData.modulos_permitidos.map(String) : [];
+                          const act = acoesDoModulo(modulo.id, arrAtual);
+                          return (
+                            <div key={modulo.id} className="flex items-center justify-between gap-2 p-1.5 rounded-md hover:bg-[hsl(var(--muted))]">
+                              <span className="text-xs text-[hsl(var(--foreground))] flex-1 truncate">{modulo.nome}</span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {ACOES.map(a => (
+                                  <label key={a} className="flex flex-col items-center gap-0.5 cursor-pointer" title={NOME_ACAO[a]}>
+                                    <Checkbox
+                                      checked={isAdminUser || act[a]}
+                                      disabled={isAdminUser}
+                                      onCheckedChange={(checked) => setAcaoModulo(modulo.id, a, checked as boolean)}
+                                    />
+                                    <span className="text-[9px] leading-none text-[hsl(var(--muted-foreground))]">{LETRA_ACAO[a]}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
