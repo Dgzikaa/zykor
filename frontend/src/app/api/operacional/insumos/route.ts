@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient, selectAll } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 import { recalcCmvTeorico } from '@/lib/cmv-recalc';
 import { deriveUnid } from '@/lib/insumo-unidade';
 
@@ -63,6 +64,7 @@ const mapUnidade = (b: string) => (b === 'un' ? 'unid' : (UNID_OK.includes(b) ? 
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   const body = await request.json().catch(() => ({}));
   const barId = Number(body.bar_id) || user.bar_id;
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
