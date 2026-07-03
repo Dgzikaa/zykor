@@ -6,6 +6,7 @@ export type Bar = {
   id: number;
   nome: string;
   ativo: boolean;
+  config?: Record<string, any> | null;
 };
 
 export type BarConfigOperacao = {

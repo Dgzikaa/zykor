@@ -38,6 +38,7 @@ interface Bar {
   nome: string;
   modulos_permitidos?: string[] | Record<string, any>;
   role?: string;
+  logo_url?: string | null;
 }
 
 interface BarContextType {

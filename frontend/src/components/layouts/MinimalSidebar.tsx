@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useBadges } from '@/contexts/BadgesContext';
+import { useBar } from '@/contexts/BarContext';
+import { corDoBar } from '@/lib/bar-theme';
 import { cn } from '@/lib/utils';
 import { ChevronRight } from 'lucide-react';
 import { MENU_TREE } from '@/lib/navigation/menu';
@@ -71,6 +73,7 @@ const SidebarMenuItem = memo(({ item, isActive, isExpanded, onToggle, badges }: 
 
   const content = (
     <div
+      style={isActive ? { boxShadow: 'inset 3px 0 0 0 var(--bar-accent)' } : undefined}
       className={cn(
         'flex items-center justify-between w-full px-3 py-2 rounded-md text-sm transition-colors',
         'hover:bg-[hsl(var(--muted))]',
@@ -119,6 +122,7 @@ const SidebarMenuItem = memo(({ item, isActive, isExpanded, onToggle, badges }: 
                 <Link
                   key={subItem.href}
                   href={subItem.href}
+                  style={isSubActive ? { boxShadow: 'inset 3px 0 0 0 var(--bar-accent)' } : undefined}
                   className={cn(
                     'flex items-center justify-between px-3 py-1.5 rounded-md text-sm transition-colors',
                     'hover:bg-[hsl(var(--muted))]',
@@ -156,6 +160,8 @@ export function MinimalSidebar() {
   const pathname = usePathname();
   const { hasPermission, loading: permissionsLoading } = usePermissions();
   const { badges } = useBadges();
+  const { selectedBar } = useBar();
+  const accent = corDoBar(selectedBar?.id);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(() => {
     const expanded = new Set<string>();
     defaultSidebarItems.forEach(item => {
@@ -201,12 +207,20 @@ export function MinimalSidebar() {
   }, [hasPermission, permissionsLoading]);
 
   return (
-    <aside className="hidden lg:flex lg:flex-col w-64 bg-[hsl(var(--muted))] p-2">
+    <aside
+      className="hidden lg:flex lg:flex-col w-64 bg-[hsl(var(--muted))] p-2"
+      style={{ ['--bar-accent' as string]: accent } as React.CSSProperties}
+    >
+      {/* Faixa de identidade do bar selecionado */}
+      <div className="mx-2 mt-1 h-1 rounded-full" style={{ background: accent }} />
       {/* Logo */}
       <div className="h-16 flex items-center px-4">
         <Link href="/home" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-[hsl(var(--primary))] rounded-md flex items-center justify-center">
-            <span className="text-[hsl(var(--primary-foreground))] font-bold text-sm">Z</span>
+          <div
+            className="w-8 h-8 rounded-md flex items-center justify-center"
+            style={{ background: accent }}
+          >
+            <span className="text-white font-bold text-sm">Z</span>
           </div>
           <span className="font-semibold text-lg">Zykor</span>
         </Link>

@@ -12,6 +12,7 @@ export type BarComPermissoes = {
   modulos_permitidos: string[];
   role: string;
   setor?: string | null;
+  logo_url?: string | null;
 };
 
 export type ListarBaresOutput = {
@@ -46,6 +47,7 @@ export async function listarBaresDoUsuario(email: string): Promise<ListarBaresOu
       modulos_permitidos: modulos,
       role: usuario.role ?? 'funcionario',
       setor: usuario.setor,
+      logo_url: (b.config?.logo_url as string) ?? null,
     })),
     userData: usuario,
   };

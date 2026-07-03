@@ -16,7 +16,7 @@ export class BaresRepository {
     const { data, error } = await this.client
       .schema('operations')
       .from('bares')
-      .select('id, nome, ativo')
+      .select('id, nome, ativo, config')
       .in('id', ids)
       .eq('ativo', true);
 

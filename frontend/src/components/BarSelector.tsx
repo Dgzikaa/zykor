@@ -11,6 +11,29 @@ import {
 } from '@/components/ui/select';
 import { MapPinIcon, CheckCircle2Icon } from 'lucide-react';
 import { ContaAzulSyncButton } from '@/components/ContaAzulSyncButton';
+import { corDoBar, iniciaisBar } from '@/lib/bar-theme';
+
+// Logo do bar (ou inicial colorida com a cor do bar como fallback).
+function LogoBar({ id, nome, logo, size = 20 }: { id: number; nome: string; logo?: string | null; size?: number }) {
+  if (logo) {
+    return (
+      <img
+        src={logo}
+        alt={nome}
+        style={{ height: size, width: size }}
+        className="flex-shrink-0 rounded object-contain"
+      />
+    );
+  }
+  return (
+    <span
+      style={{ height: size, width: size, background: corDoBar(id) }}
+      className="flex flex-shrink-0 items-center justify-center rounded text-[10px] font-bold text-white"
+    >
+      {iniciaisBar(nome)}
+    </span>
+  );
+}
 
 export default function BarSelector() {
   const { selectedBar, setSelectedBar, availableBars, isLoading } = useBar();
@@ -69,7 +92,10 @@ export default function BarSelector() {
           >
             <SelectTrigger className="w-full bg-white dark:bg-slate-700/50 border-gray-200 dark:border-slate-600 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-slate-700/70 transition-all duration-200">
               <SelectValue placeholder="Selecione um estabelecimento">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-2">
+                  {selectedBar && (
+                    <LogoBar id={selectedBar.id} nome={selectedBar.nome} logo={selectedBar.logo_url} />
+                  )}
                   <span className="font-medium">
                     {selectedBar?.nome || 'Selecione um estabelecimento'}
                   </span>
@@ -83,7 +109,8 @@ export default function BarSelector() {
                   value={bar.id.toString()}
                   className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 focus:bg-gray-100 dark:focus:bg-slate-700 cursor-pointer"
                 >
-                  <div className="flex items-center space-x-2 w-full">
+                  <div className="flex items-center gap-2 w-full">
+                    <LogoBar id={bar.id} nome={bar.nome} logo={bar.logo_url} />
                     <div className="font-medium truncate">
                       {bar.nome}
                     </div>
