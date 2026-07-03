@@ -340,21 +340,36 @@ export async function GET(request: NextRequest) {
       .eq('data_venda', data);
     const feito = new Set(((log as any[]) || []).map((l) => `${l.chave}::${l.natureza}`));
 
+    // Nome amigável da conta financeira (UUID -> "Ordinário BB", "OrdiBar Inter"…) p/ o preview
+    // mostrar o destino no CA antes de enviar. Fonte: sync das contas do Conta Azul.
+    const { data: contasCA } = await (supabase.schema('bronze' as any) as any)
+      .from('bronze_contaazul_contas_financeiras')
+      .select('contaazul_id, nome')
+      .eq('bar_id', barId);
+    const nomeConta = new Map<string, string>();
+    for (const c of (contasCA as any[]) || []) nomeConta.set(String(c.contaazul_id), String(c.nome));
+    const contaLabel = (uuid: string | null) => (uuid && nomeConta.get(uuid)) || uuid || '—';
+
     const recebiveis = linhas
       .filter((l) => l.bruto > 0)
-      .map((l) => ({
-        empresa: nomeCnpj(cfg, l.stone_code),
-        conta_financeira: cfg.contasPorCnpj[l.stone_code]?.[l.tipo] ?? null,
-        tipo: l.tipo,
-        bandeira: bandeiraLabel(l.brand_id),
-        descricao: descricaoDe(cfg, l),
-        bruto: round2(l.bruto),
-        taxa: round2(l.taxa),
-        valor: round2(l.bruto - l.taxa), // LÍQUIDO — é o que vai como conta a receber
-        vencimento: l.vencimento,
-        transacoes: l.transacoes,
-        ja_lancado: feito.has(`${l.chave}::RECEITA`),
-      }));
+      .map((l) => {
+        const contaFin = cfg.contasPorCnpj[l.stone_code]?.[l.tipo] ?? null;
+        return {
+          empresa: nomeCnpj(cfg, l.stone_code),
+          stone_code: l.stone_code,
+          conta_financeira: contaFin,
+          conta: contaLabel(contaFin), // nome amigável do banco no CA
+          tipo: l.tipo,
+          bandeira: bandeiraLabel(l.brand_id),
+          descricao: descricaoDe(cfg, l),
+          bruto: round2(l.bruto),
+          taxa: round2(l.taxa),
+          valor: round2(l.bruto - l.taxa), // LÍQUIDO — é o que vai como conta a receber
+          vencimento: l.vencimento,
+          transacoes: l.transacoes,
+          ja_lancado: feito.has(`${l.chave}::RECEITA`),
+        };
+      });
 
     // taxa POR CNPJ: 1 par que se compensa (despesa TAXA MAQUININHA + receita Outras Receitas) por CNPJ
     const taxaPorCnpj = new Map<string, number>();
@@ -365,8 +380,8 @@ export async function GET(request: NextRequest) {
         const nome = nomeCnpj(cfg, sc);
         const contaTaxa = cfg.contasPorCnpj[sc]?.taxa ?? null;
         return [
-          { empresa: nome, conta_financeira: contaTaxa, descricao: descTaxaDia(nome, data), tipo: 'DESPESA', categoria: 'TAXA MAQUININHA', valor: v, vencimento: data, ja_lancado: feito.has(`TAXA_DIA|${sc}::TAXA`) },
-          { empresa: nome, conta_financeira: contaTaxa, descricao: descCompensacao(nome), tipo: 'RECEITA', categoria: 'Outras Receitas', valor: v, vencimento: data, ja_lancado: feito.has(`COMPENSACAO_DIA|${sc}::COMPENSACAO`) },
+          { empresa: nome, stone_code: sc, conta_financeira: contaTaxa, conta: contaLabel(contaTaxa), descricao: descTaxaDia(nome, data), tipo: 'DESPESA', categoria: 'TAXA MAQUININHA', valor: v, vencimento: data, ja_lancado: feito.has(`TAXA_DIA|${sc}::TAXA`) },
+          { empresa: nome, stone_code: sc, conta_financeira: contaTaxa, conta: contaLabel(contaTaxa), descricao: descCompensacao(nome), tipo: 'RECEITA', categoria: 'Outras Receitas', valor: v, vencimento: data, ja_lancado: feito.has(`COMPENSACAO_DIA|${sc}::COMPENSACAO`) },
         ];
       });
     const taxaTotal = round2([...taxaPorCnpj.values()].reduce((s, v) => s + v, 0));

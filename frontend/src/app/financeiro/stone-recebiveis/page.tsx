@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api-client';
-import { CreditCard, Loader2, RefreshCw, Send, CheckCircle2, AlertTriangle, X } from 'lucide-react';
+import { CreditCard, Loader2, RefreshCw, Send, CheckCircle2, AlertTriangle, X, ChevronDown, ChevronRight, Building2, Landmark } from 'lucide-react';
 
 const fmtBRL = (v: any) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v || 0));
 const brDia = (d: string) => { const [y, m, dd] = String(d).split('-'); return dd && m ? `${dd}/${m}` : d; };
@@ -37,6 +37,8 @@ function Conteudo() {
   const [fTipos, setFTipos] = useState<Set<string>>(new Set());
   const [fBandeiras, setFBandeiras] = useState<Set<string>>(new Set());
   const [fStatus, setFStatus] = useState<'todos' | 'pendente' | 'lancado'>('todos');
+  const [colapsadas, setColapsadas] = useState<Set<string>>(new Set()); // CNPJs recolhidos
+  const toggleColapso = (emp: string) => setColapsadas((s) => { const n = new Set(s); n.has(emp) ? n.delete(emp) : n.add(emp); return n; });
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -85,6 +87,20 @@ function Conteudo() {
   const filtroAtivo = fTipos.size > 0 || fBandeiras.size > 0 || fStatus !== 'todos';
   const totalFiltrado = recebiveisView.reduce((s, r) => s + Number(r.valor || 0), 0);
   const limparFiltros = () => { setFTipos(new Set()); setFBandeiras(new Set()); setFStatus('todos'); };
+
+  // Agrupamento por CNPJ (empresa) — cada um vai para as suas contas no CA.
+  const empresas = Array.from(new Set([
+    ...recebiveisView.map((r) => r.empresa),
+    ...compensacaoView.map((c) => c.empresa),
+  ].filter(Boolean))) as string[];
+  const grupoDe = (emp: string) => {
+    const recs = recebiveisView.filter((r) => (r.empresa || '') === emp);
+    const comps = compensacaoView.filter((c) => (c.empresa || '') === emp);
+    const contas = Array.from(new Set(recs.map((r) => r.conta).filter(Boolean)));
+    const liquido = recs.reduce((s, r) => s + Number(r.valor || 0), 0);
+    const pend = recs.filter((r) => !r.ja_lancado).length + comps.filter((c) => !c.ja_lancado).length;
+    return { emp, recs, comps, contas, liquido, pend };
+  };
 
   return (
     <div className="container mx-auto px-3 py-5 max-w-5xl space-y-4">
@@ -174,72 +190,110 @@ function Conteudo() {
         </Card>
       )}
 
-      {/* Recebíveis (líquido) */}
+      {/* Recebíveis agrupados por CNPJ → conta de destino no CA */}
       {!erro && (
         <Card className="card-dark">
           <CardContent className="py-3">
-            <div className="text-sm font-medium mb-2 flex items-center justify-between">
-              <span>Recebíveis do dia (líquido)</span>
+            <div className="text-sm font-medium mb-3 flex items-center justify-between">
+              <span>Recebíveis por CNPJ (líquido → conta no CA)</span>
               {filtroAtivo && <span className="text-xs text-muted-foreground font-normal">{recebiveisView.length} de {recebiveis.length} · {fmtBRL(totalFiltrado)}</span>}
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-xs text-muted-foreground border-b"><tr>
-                  <th className="text-left font-medium px-2 py-1.5">Descrição</th>
-                  <th className="text-right font-medium px-2 py-1.5">Vencimento</th>
-                  <th className="text-right font-medium px-2 py-1.5">Tx</th>
-                  <th className="text-right font-medium px-2 py-1.5">Bruto</th>
-                  <th className="text-right font-medium px-2 py-1.5">Taxa</th>
-                  <th className="text-right font-medium px-2 py-1.5">Líquido</th>
-                  <th className="text-right font-medium px-2 py-1.5">Status</th>
-                </tr></thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {loading ? <tr><td colSpan={7} className="px-2 py-6 text-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-                  : recebiveis.length === 0 ? <tr><td colSpan={7} className="px-2 py-8 text-center text-muted-foreground">Nenhum recebível neste dia.</td></tr>
-                  : recebiveisView.length === 0 ? <tr><td colSpan={7} className="px-2 py-8 text-center text-muted-foreground">Nenhum recebível com esses filtros.</td></tr>
-                  : recebiveisView.map((r, i) => (
-                    <tr key={i}>
-                      <td className="px-2 py-1.5"><Badge variant="outline" className="text-[10px] mr-1">{tipoLabel[r.tipo] || r.tipo}</Badge>{r.descricao}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums">{brDia(r.vencimento)}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{r.transacoes}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{fmtBRL(r.bruto)}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-amber-600 dark:text-amber-400">{fmtBRL(r.taxa)}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtBRL(r.valor)}</td>
-                      <td className="px-2 py-1.5 text-right">
-                        {r.ja_lancado ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />lançado</span>
-                          : <span className="text-[11px] text-muted-foreground">pendente</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Par de taxa (compensação) */}
-      {!erro && compensacao.length > 0 && (
-        <Card className="card-dark">
-          <CardContent className="py-3">
-            <div className="text-sm font-medium mb-2">Taxa do dia — par que se compensa</div>
-            <div className="space-y-1.5">
-              {compensacaoView.length === 0 && <div className="text-xs text-muted-foreground py-1">Sem itens com esse filtro de status.</div>}
-              {compensacaoView.map((c, i) => (
-                <div key={i} className="flex items-center justify-between gap-2 rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm">
-                  <div>
-                    <Badge variant="outline" className={`text-[10px] mr-1.5 ${c.tipo === 'DESPESA' ? 'text-red-600 border-red-300' : 'text-emerald-600 border-emerald-300'}`}>{c.tipo}</Badge>
-                    {c.descricao} <span className="text-xs text-muted-foreground">· {c.categoria}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="tabular-nums font-medium">{fmtBRL(c.valor)}</span>
-                    {c.ja_lancado ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />lançado</span>
-                      : <span className="text-[11px] text-muted-foreground">pendente</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2">A despesa (TAXA MAQUININHA) e a receita (Outras Receitas · compensação) se anulam — o caixa fica no líquido.</p>
+            {loading ? (
+              <div className="py-6 text-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
+            ) : recebiveis.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">Nenhum recebível neste dia.</div>
+            ) : empresas.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground">Nenhum recebível com esses filtros.</div>
+            ) : (
+              <div className="space-y-3">
+                {empresas.map((emp) => {
+                  const g = grupoDe(emp);
+                  const aberto = !colapsadas.has(emp);
+                  return (
+                    <div key={emp} className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                      {/* header do CNPJ (clique expande/recolhe) */}
+                      <button onClick={() => toggleColapso(emp)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 bg-muted/40 hover:bg-muted/70 transition text-left">
+                        {aberto ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
+                        <Building2 className="w-4 h-4 shrink-0 text-muted-foreground" />
+                        <span className="font-semibold">{emp}</span>
+                        <div className="hidden sm:flex items-center gap-1 ml-1.5">
+                          {g.contas.map((c) => (
+                            <Badge key={c} variant="outline" className="text-[10px] inline-flex items-center gap-1"><Landmark className="w-2.5 h-2.5" />{c}</Badge>
+                          ))}
+                        </div>
+                        <div className="ml-auto flex items-center gap-3">
+                          {g.pend > 0
+                            ? <span className="text-[11px] rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-2 py-0.5">{g.pend} pendente(s)</span>
+                            : <span className="text-[11px] text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />lançado</span>}
+                          <span className="text-sm font-bold tabular-nums">{fmtBRL(g.liquido)}</span>
+                        </div>
+                      </button>
+
+                      {aberto && (
+                        <div className="pb-2">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="text-xs text-muted-foreground border-b"><tr>
+                                <th className="text-left font-medium px-2 py-1.5">Descrição</th>
+                                <th className="text-left font-medium px-2 py-1.5">Conta destino</th>
+                                <th className="text-right font-medium px-2 py-1.5">Venc.</th>
+                                <th className="text-right font-medium px-2 py-1.5">Tx</th>
+                                <th className="text-right font-medium px-2 py-1.5">Bruto</th>
+                                <th className="text-right font-medium px-2 py-1.5">Taxa</th>
+                                <th className="text-right font-medium px-2 py-1.5">Líquido</th>
+                                <th className="text-right font-medium px-2 py-1.5">Status</th>
+                              </tr></thead>
+                              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                {g.recs.length === 0 ? <tr><td colSpan={8} className="px-2 py-3 text-center text-xs text-muted-foreground">Sem recebíveis com esses filtros.</td></tr>
+                                : g.recs.map((r, i) => (
+                                  <tr key={i}>
+                                    <td className="px-2 py-1.5"><Badge variant="outline" className="text-[10px] mr-1">{tipoLabel[r.tipo] || r.tipo}</Badge>{r.descricao}</td>
+                                    <td className="px-2 py-1.5"><span className="inline-flex items-center gap-1 text-xs"><Landmark className="w-3 h-3 text-muted-foreground shrink-0" />{r.conta}</span></td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">{brDia(r.vencimento)}</td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{r.transacoes}</td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{fmtBRL(r.bruto)}</td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums text-amber-600 dark:text-amber-400">{fmtBRL(r.taxa)}</td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtBRL(r.valor)}</td>
+                                    <td className="px-2 py-1.5 text-right">
+                                      {r.ja_lancado ? <span className="text-[11px] text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />lançado</span>
+                                        : <span className="text-[11px] text-muted-foreground">pendente</span>}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          {/* par de taxa do CNPJ */}
+                          {g.comps.length > 0 && (
+                            <div className="mt-2 mx-2 rounded-md bg-muted/30 px-2.5 py-2 space-y-1">
+                              <div className="text-[11px] text-muted-foreground font-medium inline-flex items-center gap-1">
+                                <Landmark className="w-3 h-3" />Taxa do dia — par que se compensa · {g.comps[0]?.conta}
+                              </div>
+                              {g.comps.map((c, i) => (
+                                <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                                  <span>
+                                    <Badge variant="outline" className={`text-[10px] mr-1.5 ${c.tipo === 'DESPESA' ? 'text-red-600 border-red-300' : 'text-emerald-600 border-emerald-300'}`}>{c.tipo}</Badge>
+                                    {c.descricao} <span className="text-muted-foreground">· {c.categoria}</span>
+                                  </span>
+                                  <span className="flex items-center gap-2">
+                                    <span className="tabular-nums font-medium">{fmtBRL(c.valor)}</span>
+                                    {c.ja_lancado ? <span className="text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-0.5"><CheckCircle2 className="w-3 h-3" />lançado</span>
+                                      : <span className="text-muted-foreground">pendente</span>}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <p className="text-[11px] text-muted-foreground mt-2">Cada CNPJ vai para as suas contas no Conta Azul. A despesa (TAXA MAQUININHA) e a compensação (Outras Receitas) se anulam — o caixa fica no líquido.</p>
           </CardContent>
         </Card>
       )}
