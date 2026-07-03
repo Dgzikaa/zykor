@@ -3,8 +3,8 @@
  * Sutil de propósito: o resto do sistema permanece neutro/profissional.
  */
 const CORES_POR_BAR: Record<number, string> = {
-  3: '#606C38', // Ordinário — verde musgo
-  4: '#EA580C', // Deboche — laranja
+  3: '#14401E', // Ordinário — verde-floresta escuro (cor do logo)
+  4: '#E8590C', // Deboche — laranja (cor do logo)
 };
 
 const COR_PADRAO = '#0d9488'; // teal Zykor (fallback / sem bar)
