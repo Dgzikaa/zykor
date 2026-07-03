@@ -166,6 +166,15 @@ export default function AuditoriaPage() {
     return () => clearInterval(t);
   }, [auto, aba, carregar, carregarAcessos]);
 
+  const deslogarTodos = async () => {
+    if (!window.confirm('Deslogar TODOS os usuários agora?\n\nCada um (você inclusive) precisará entrar de novo. A partir daí todos passam a registrar sessão.')) return;
+    try {
+      const r = await api.post('/api/configuracoes/auth/deslogar-todos', {});
+      if (!r.success) throw new Error(r.error || 'falha');
+      window.alert('Feito. Todos serão deslogados na próxima ação (pode levar até ~1min).');
+    } catch (e: any) { window.alert('Erro: ' + (e?.message || 'desconhecido')); }
+  };
+
   const buscar = () => carregar(0, false);
   const limpar = () => { setDe(''); setAte(''); setOperation(''); setTable(''); setQ(''); setTimeout(() => carregar(0, false), 0); };
 
@@ -260,6 +269,11 @@ export default function AuditoriaPage() {
           <Card><CardContent className="p-3"><div className="text-xs text-gray-500 flex items-center gap-1"><Wifi className="h-3.5 w-3.5 text-emerald-500" />Online agora</div><div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{online_count}</div></CardContent></Card>
           <Card><CardContent className="p-3"><div className="text-xs text-gray-500 flex items-center gap-1"><Users className="h-3.5 w-3.5" />Sessões recentes</div><div className="text-2xl font-bold text-gray-900 dark:text-white">{sessoes.length}</div></CardContent></Card>
           <Card><CardContent className="p-3"><div className="text-xs text-gray-500 flex items-center gap-1"><XCircle className="h-3.5 w-3.5 text-rose-500" />Logins falhos</div><div className="text-2xl font-bold text-rose-600 dark:text-rose-400">{falhas.length}</div></CardContent></Card>
+          <div className="ml-auto self-center">
+            <Button variant="outline" size="sm" onClick={deslogarTodos} className="text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20" title="Invalida os tokens atuais: todos precisam entrar de novo">
+              <XCircle className="h-4 w-4 mr-1.5" />Deslogar todos
+            </Button>
+          </div>
         </div>
 
         <Card>

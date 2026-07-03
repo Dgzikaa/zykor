@@ -37,6 +37,20 @@ export interface PermissionCheck {
  * NOTA: x-selected-bar-id pode ser usado apenas para override de bar_id
  * após autenticação bem-sucedida, com validação de acesso.
  */
+// "Deslogar todo mundo": corte de emissão. Token com iat < min_iat é rejeitado (força re-login).
+// Lê system.auth_policy com cache de 60s (não bate no banco a cada request). Fail-open: erro → 0.
+let _minIat = { v: 0, t: 0 };
+async function getMinIat(): Promise<number> {
+  const agora = Date.now();
+  if (agora - _minIat.t < 60_000) return _minIat.v;
+  try {
+    const supabase = await getAdminClient();
+    const { data } = await (supabase as any).schema('system').from('auth_policy').select('min_iat').eq('id', 1).maybeSingle();
+    _minIat = { v: Number(data?.min_iat || 0), t: agora };
+  } catch { _minIat = { v: _minIat.v, t: agora }; }
+  return _minIat.v;
+}
+
 export async function authenticateUser(
   request: NextRequest
 ): Promise<AuthenticatedUser | null> {
@@ -51,6 +65,7 @@ export async function authenticateUser(
 
   try {
     let authenticatedUser: AuthenticatedUser | null = null;
+    let tokenIat: number | undefined; // iat do token aceito (pra checar o corte de re-login)
 
     // PRIORIDADE 1: Header Authorization Bearer (JWT)
     const authHeader = request.headers.get('authorization');
@@ -74,6 +89,7 @@ export async function authenticateUser(
             console.log('✅ Usuário autenticado via JWT:', usuario.nome);
           }
           authenticatedUser = usuario as AuthenticatedUser;
+          tokenIat = decoded.iat;
         }
       }
     }
@@ -105,6 +121,7 @@ export async function authenticateUser(
               console.log('✅ Usuário autenticado via cookie auth_token:', usuario.nome);
             }
             authenticatedUser = usuario as AuthenticatedUser;
+            tokenIat = decoded.iat;
           }
         }
       }
@@ -113,6 +130,12 @@ export async function authenticateUser(
     // Se não autenticou por nenhum método, retorna null
     if (!authenticatedUser) {
       return null;
+    }
+
+    // Corte "deslogar todo mundo": token emitido antes de min_iat → força re-login (401 → /login)
+    if (tokenIat) {
+      const minIat = await getMinIat();
+      if (minIat && tokenIat < minIat) return null;
     }
 
     // Buscar bar_id do usuário (usuarios não tem bar_id — vem de usuarios_bares)
