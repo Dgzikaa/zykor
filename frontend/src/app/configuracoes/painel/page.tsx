@@ -76,6 +76,77 @@ function KpiCard({
   );
 }
 
+interface PipelineJob {
+  camada: string; kind: string; job_name: string; bar_id: number | null;
+  status: string; records_affected: number | null; error_message: string | null;
+  idade: string | null; health_color: 'red' | 'yellow' | 'green'; descricao: string | null;
+}
+function PipelineHealth() {
+  const [jobs, setJobs] = useState<PipelineJob[] | null>(null);
+  const [resumo, setResumo] = useState<{ total: number; red: number; yellow: number; green: number } | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const carregar = useCallback(async () => {
+    try {
+      const r = await fetch('/api/configuracoes/painel/pipeline', { cache: 'no-store' });
+      const j = await r.json();
+      if (j.success) { setJobs(j.jobs); setResumo(j.resumo); }
+    } catch { /* noop */ }
+  }, []);
+  useEffect(() => { carregar(); const id = setInterval(carregar, 60_000); return () => clearInterval(id); }, [carregar]);
+
+  const cor = (c: string) => c === 'red' ? 'bg-rose-500' : c === 'yellow' ? 'bg-amber-400' : 'bg-emerald-500';
+  const idadeCurta = (s: string | null) => !s ? '' : s.replace(/\.\d+$/, '').replace(/(\d+) days?/, '$1d').replace(/:\d\d:\d\d$/, m => m.slice(0, 3) + 'h');
+  const lista = jobs && !showAll ? jobs.filter(j => j.health_color !== 'green') : jobs || [];
+
+  return (
+    <Card className="bg-white dark:bg-gray-800">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Activity className="w-4 h-4 text-emerald-600" />Saúde do pipeline de dados
+          </CardTitle>
+          {resumo && (
+            <div className="flex items-center gap-3 text-xs">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" />{resumo.green} ok</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" />{resumo.yellow} atenção</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500" />{resumo.red} erro</span>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {!jobs ? (
+          <div className="h-16 rounded-lg bg-gray-100 dark:bg-gray-700 animate-pulse" />
+        ) : lista.length === 0 ? (
+          <p className="text-sm text-emerald-600 dark:text-emerald-400">Tudo rodando normalmente ✓</p>
+        ) : (
+          <div className="space-y-1.5">
+            {lista.map((j, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-lg border border-gray-100 dark:border-gray-700 px-3 py-2">
+                <span className={cn('w-2.5 h-2.5 rounded-full flex-none', cor(j.health_color))} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{j.job_name}</span>
+                    {j.bar_id && <span className="text-[10px] text-gray-400">bar {j.bar_id}</span>}
+                    <span className="text-[10px] uppercase tracking-wide text-gray-400">{j.camada}</span>
+                  </div>
+                  {j.error_message && <p className="text-xs text-rose-500 truncate">{j.error_message}</p>}
+                </div>
+                <span className="text-xs text-gray-400 tabular-nums flex-none">{idadeCurta(j.idade)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {jobs && jobs.some(j => j.health_color === 'green') && (
+          <button onClick={() => setShowAll(v => !v)} className="mt-3 text-xs text-emerald-600 hover:underline">
+            {showAll ? 'Mostrar só o que precisa de atenção' : `Ver todos os ${jobs.length} jobs`}
+          </button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PainelSupabasePage() {
   const [data, setData] = useState<MetricsResp | null>(null);
   const [loading, setLoading] = useState(true);
@@ -126,6 +197,9 @@ export default function PainelSupabasePage() {
           </Button>
         </div>
       </div>
+
+      {/* Central de Operações — saúde do pipeline (o que pegou o ETL falhando) */}
+      <PipelineHealth />
 
       {/* Estados de erro/config */}
       {erroFetch && (
