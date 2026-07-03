@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminClient } from '@/lib/supabase-admin';
+import { getAdminClient, selectAll } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarSeNaoPode } from '@/lib/permissions/guard';
 
@@ -40,7 +40,10 @@ export async function GET(request: NextRequest) {
   const custo: Record<number, number> = {};
   const temMestre: Record<number, boolean> = {};
   {
-    const { data: itens } = await supabase.from('producao_ficha_item').select('producao_id, custo_planilha, is_mestre').not('producao_id', 'is', null);
+    // paginado (selectAll): a tabela passa de 1000 linhas → sem isto o custo/contagem vinham truncados
+    const itens = await selectAll<any>((from, to) =>
+      supabase.from('producao_ficha_item').select('producao_id, custo_planilha, is_mestre').not('producao_id', 'is', null).range(from, to)
+    );
     (itens || []).forEach((i: any) => {
       contagem[i.producao_id] = (contagem[i.producao_id] || 0) + 1;
       custo[i.producao_id] = (custo[i.producao_id] || 0) + Number(i.custo_planilha || 0);
