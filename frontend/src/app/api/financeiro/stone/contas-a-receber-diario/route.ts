@@ -37,7 +37,8 @@ function getSupabaseAdmin() {
 type TipoStone = 'CREDITO' | 'DEBITO' | 'PIX';
 
 interface BarStoneConfig {
-  cliente_id: string; // CLIENTE Stone (contato das receitas)
+  cliente_id: string;   // CLIENTE Stone (legado — hoje o contato é o Zykor)
+  contato_zykor: string; // FORNECEDOR "Zykor" — contato de TODOS os lançamentos (marca automação)
   receitas: Record<TipoStone, { categoria_id: string; conta_financeira_id: string; label: string }>;
   taxa: { categoria_id: string; conta_financeira_id: string; fornecedor_id: string; compensacao_categoria_id: string };
 }
@@ -45,7 +46,8 @@ interface BarStoneConfig {
 // De-para bar 3 (Ordinário): créd/déb → Ordinário BB; pix → Ordinário Stone.
 const CONFIG: Record<number, BarStoneConfig> = {
   3: {
-    cliente_id: 'afe2340b-9e88-40d9-acfb-0d3a71b9dcaa', // STONE INSTITUIÇÃO DE PAGAMENTO (CLIENTE)
+    cliente_id: 'afe2340b-9e88-40d9-acfb-0d3a71b9dcaa', // STONE INSTITUIÇÃO DE PAGAMENTO (CLIENTE, legado)
+    contato_zykor: 'c8f11daf-072f-47b7-9412-0145b5f09ce2', // FORNECEDOR "Zykor" (contato de tudo — marca automação)
     receitas: {
       CREDITO: { categoria_id: '0f5a3cab-0759-46a2-86b4-3a224da52a1e', conta_financeira_id: '5e0290a7-87ed-4a31-ac8d-88f107d20d8a', label: 'Crédito' },
       DEBITO: { categoria_id: '21159a4f-f665-4630-8a49-ea66b9e05965', conta_financeira_id: '5e0290a7-87ed-4a31-ac8d-88f107d20d8a', label: 'Débito' },
@@ -142,7 +144,7 @@ function payloadReceita(cfg: BarStoneConfig, l: LinhaDia, dataVenda: string) {
     numero_documento: NUM_DOC,
     observacao: `Recebível Stone líquido (${l.transacoes} transação(ões); bruto ${round2(l.bruto)} − taxa ${round2(l.taxa)}) via Zykor`,
     descricao,
-    contato: cfg.cliente_id,
+    contato: cfg.contato_zykor,
     conta_financeira: rc.conta_financeira_id,
     rateio: [{ id_categoria: rc.categoria_id, valor }],
     condicao_pagamento: {
@@ -168,7 +170,7 @@ function payloadTaxaTotal(cfg: BarStoneConfig, dataVenda: string, valorTotal: nu
     numero_documento: NUM_DOC,
     observacao: 'Taxa total de maquininha Stone do dia (lançamos o líquido) via Zykor',
     descricao,
-    contato: cfg.taxa.fornecedor_id,
+    contato: cfg.contato_zykor,
     conta_financeira: cfg.taxa.conta_financeira_id,
     rateio: [{ id_categoria: cfg.taxa.categoria_id, valor }],
     condicao_pagamento: {
@@ -194,7 +196,7 @@ function payloadCompensacao(cfg: BarStoneConfig, dataVenda: string, valorTotal: 
     numero_documento: NUM_DOC,
     observacao: 'Compensação da taxa de maquininha Stone do dia (lançamos o líquido) via Zykor',
     descricao,
-    contato: cfg.cliente_id,
+    contato: cfg.contato_zykor,
     conta_financeira: cfg.taxa.conta_financeira_id,
     rateio: [{ id_categoria: cfg.taxa.compensacao_categoria_id, valor }],
     condicao_pagamento: {
@@ -244,6 +246,55 @@ async function postCA(
     return { ok: true, protocolId: json?.protocolo || json?.protocolId || json?.id || null, status, raw: json };
   }
   return { ok: false, protocolId: null, status: '429', erro: 'rate limit persistente' };
+}
+
+/**
+ * Baixa da taxa (o CA NÃO cria já paga — testado: data_pagamento/baixa embutida são ignorados).
+ * Acha o evento recém-criado AO VIVO (buscar, com retry pois a criação é assíncrona), pega a
+ * parcela única e registra a baixa → despesa vira PAGA / compensação vira RECEBIDA. Idempotente.
+ */
+async function darBaixaTaxa(
+  token: string,
+  tipo: 'contas-a-pagar' | 'contas-a-receber',
+  descricao: string,
+  valor: number,
+  dataVenda: string,
+  contaFinId: string,
+): Promise<{ ok: boolean; motivo?: string }> {
+  let idEvento: string | null = null;
+  for (let t = 0; t < 6 && !idEvento; t++) {
+    if (t) await sleep(1500);
+    const url = `${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/${tipo}/buscar?pagina=1&tamanho_pagina=200&data_vencimento_de=${dataVenda}&data_vencimento_ate=${dataVenda}`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!r.ok) continue;
+    const j: any = await r.json().catch(() => ({}));
+    const itens: any[] = j.itens || j.items || [];
+    const ev = itens.find((x) => String(x.descricao || '') === descricao);
+    if (ev?.id) idEvento = ev.id;
+  }
+  if (!idEvento) return { ok: false, motivo: 'evento não encontrado p/ baixa' };
+
+  const pr = await fetch(`${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/${idEvento}/parcelas`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!pr.ok) return { ok: false, motivo: `parcelas HTTP ${pr.status}` };
+  const parcelas: any = await pr.json().catch(() => []);
+  const parcela = Array.isArray(parcelas) ? parcelas[0] : null;
+  if (!parcela?.id) return { ok: false, motivo: 'parcela não encontrada' };
+  // já quitada? (idempotência)
+  if (String(parcela.status || '').toUpperCase() === 'QUITADO' || (Array.isArray(parcela.baixas) && parcela.baixas.length > 0)) return { ok: true };
+
+  const br = await fetch(`${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/parcelas/${parcela.id}/baixa`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      data_pagamento: dataVenda,
+      composicao_valor: { valor_bruto: round2(valor), multa: 0, juros: 0, desconto: 0, taxa: 0 },
+      conta_financeira: contaFinId,
+      metodo_pagamento: 'TRANSFERENCIA_BANCARIA',
+      observacao: 'Baixa automática Stone→CA via Zykor',
+    }),
+  });
+  if (!br.ok) { const t = await br.text().catch(() => ''); return { ok: false, motivo: `baixa HTTP ${br.status}: ${t.slice(0, 120)}` }; }
+  return { ok: true };
 }
 
 /** GET: preview do dia — não escreve nada no CA. */
@@ -381,6 +432,11 @@ export async function POST(request: NextRequest) {
   if (taxaTotal > 0) {
     await enviar('TAXA_DIA', 'TAXA', taxaTotal, 'contas-a-pagar', payloadTaxaTotal(cfg, data, taxaTotal), { vencimento: data });
     await enviar('COMPENSACAO_DIA', 'COMPENSACAO', taxaTotal, 'contas-a-receber', payloadCompensacao(cfg, data, taxaTotal), { vencimento: data });
+    // Baixa: o CA não cria já paga → marca a despesa como PAGA e a compensação como RECEBIDA.
+    const bDesp = await darBaixaTaxa(token, 'contas-a-pagar', `Taxa maquininha Stone ${brDate(data)}`, taxaTotal, data, cfg.taxa.conta_financeira_id);
+    resultados.push({ chave: 'TAXA_DIA', natureza: 'BAIXA', ok: bDesp.ok, erro: bDesp.motivo });
+    const bComp = await darBaixaTaxa(token, 'contas-a-receber', 'Compensação taxa maquininha', taxaTotal, data, cfg.taxa.conta_financeira_id);
+    resultados.push({ chave: 'COMPENSACAO_DIA', natureza: 'BAIXA', ok: bComp.ok, erro: bComp.motivo });
   }
   // 2) Recebíveis pelo LÍQUIDO (bruto − taxa).
   for (const l of linhas) {
