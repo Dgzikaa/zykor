@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { StatCard } from '@/components/ui/stat-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -183,18 +184,15 @@ export default function CmvTeoricoPage() {
         </div>
 
         {modo === 'cardapio' ? (<>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-            <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">CMV médio</div><div className={`text-2xl font-bold ${corCmv(cmvMedio)}`}>{fmtPct(cmvMedio)}</div></CardContent></Card>
-            <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Produtos c/ CMV</div><div className="text-2xl font-bold">{comCmv.length}</div></CardContent></Card>
-            <button type="button" onClick={() => setFlag(f => f === 'sem_ficha' ? null : 'sem_ficha')} className="text-left w-full">
-              <Card className={`card-dark transition ${flag === 'sem_ficha' ? 'ring-2 ring-amber-400' : 'hover:ring-1 hover:ring-gray-300 dark:hover:ring-gray-600'}`}><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Sem ficha {flag === 'sem_ficha' && '· filtrando'}</div><div className="text-2xl font-bold text-gray-400">{semFicha}</div></CardContent></Card>
-            </button>
-            <button type="button" onClick={() => setFlag(f => f === 'ficha_sem_preco' ? null : 'ficha_sem_preco')} className="text-left w-full">
-              <Card className={`card-dark transition ${flag === 'ficha_sem_preco' ? 'ring-2 ring-amber-400' : 'hover:ring-1 hover:ring-gray-300 dark:hover:ring-gray-600'}`}><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Ficha s/ preço {flag === 'ficha_sem_preco' && '· filtrando'}</div><div className="text-2xl font-bold text-amber-500">{fichaSemPreco}</div></CardContent></Card>
-            </button>
-            <button type="button" onClick={() => setFlag(f => f === 'sem_preco' ? null : 'sem_preco')} className="text-left w-full">
-              <Card className={`card-dark transition ${flag === 'sem_preco' ? 'ring-2 ring-amber-400' : 'hover:ring-1 hover:ring-gray-300 dark:hover:ring-gray-600'}`}><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Sem preço CH {flag === 'sem_preco' && '· filtrando'}</div><div className="text-2xl font-bold text-gray-400">{semPreco}</div></CardContent></Card>
-            </button>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+            <StatCard label="CMV médio" value={fmtPct(cmvMedio)} valueClassName={corCmv(cmvMedio)} />
+            <StatCard label="Produtos c/ CMV" value={comCmv.length} />
+            <StatCard label="Sem ficha" value={semFicha} tone="muted"
+              active={flag === 'sem_ficha'} onClick={() => setFlag(f => f === 'sem_ficha' ? null : 'sem_ficha')} />
+            <StatCard label="Ficha s/ preço" value={fichaSemPreco} tone="warn"
+              active={flag === 'ficha_sem_preco'} onClick={() => setFlag(f => f === 'ficha_sem_preco' ? null : 'ficha_sem_preco')} />
+            <StatCard label="Sem preço CH" value={semPreco} tone="muted"
+              active={flag === 'sem_preco'} onClick={() => setFlag(f => f === 'sem_preco' ? null : 'sem_preco')} />
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2">
@@ -263,11 +261,11 @@ export default function CmvTeoricoPage() {
           {loadingPer ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
           : !periodo || (periodo.produtos || []).length === 0 ? <Card className="card-dark"><CardContent className="py-16 text-center text-gray-400">Sem vendas no período (ou fichas/de-para pendentes).</CardContent></Card>
           : (<>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">CMV teórico</div><div className={`text-2xl font-bold ${corCmv(periodo.headline?.cmv_pct)}`}>{fmtPct(periodo.headline?.cmv_pct)}</div></CardContent></Card>
-              <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Faturamento</div><div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{fmtBRL(periodo.headline?.faturamento)}</div></CardContent></Card>
-              <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Custo teórico</div><div className="text-2xl font-bold">{fmtBRL(periodo.headline?.custo_total)}</div></CardContent></Card>
-              <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">Margem</div><div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{fmtBRL(periodo.headline?.margem)}</div></CardContent></Card>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <StatCard label="CMV teórico" value={fmtPct(periodo.headline?.cmv_pct)} valueClassName={corCmv(periodo.headline?.cmv_pct)} />
+              <StatCard label="Faturamento" value={fmtBRL(periodo.headline?.faturamento)} valueClassName="text-blue-600 dark:text-blue-400" />
+              <StatCard label="Custo teórico" value={fmtBRL(periodo.headline?.custo_total)} />
+              <StatCard label="Margem" value={fmtBRL(periodo.headline?.margem)} tone="good" />
             </div>
             {periodo.headline?.comparativo && (() => {
               const c = periodo.headline.comparativo;
