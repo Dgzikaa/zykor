@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Shield, Search, Download, Filter, User, Clock, Database, Loader2, AlertTriangle, ListChecks, ChevronRight, ChevronDown, Users, Wifi, XCircle, CheckCircle2, BarChart3, ShieldAlert, Trash2, Activity, Zap, Timer, Smartphone, Gauge, TrendingUp, Monitor } from 'lucide-react';
+import { Shield, Search, Download, Filter, User, Clock, Database, Loader2, AlertTriangle, ListChecks, ChevronRight, ChevronDown, Users, Wifi, XCircle, CheckCircle2, BarChart3, ShieldAlert, Trash2, Activity, Zap, Timer, Smartphone, Gauge, TrendingUp, Monitor, Check } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, AreaChart, Area, Legend } from 'recharts';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
@@ -97,6 +98,88 @@ const fmtDur = (seg: number) => {
   if (m > 0) return `${m}min`;
   return `${s}s`;
 };
+
+// ---- Filtro por cabeçalho (estilo DataTable, igual /operacional/insumos) ----
+const EMPTY_SET: Set<string> = new Set();
+type ColAlign = 'left' | 'center' | 'right';
+const AUDIT_COLS: { id: string; label: string; align: ColAlign; get: (l: AuditLog) => string }[] = [
+  { id: 'usuario', label: 'Usuário', align: 'left', get: l => l.user_email || 'sistema' },
+  { id: 'papel', label: 'Papel', align: 'left', get: l => l.user_role || '—' },
+  { id: 'operacao', label: 'Operação', align: 'left', get: l => l.operation || '—' },
+  { id: 'tabela', label: 'Tabela', align: 'left', get: l => labelTabela(l.table_name) },
+  { id: 'bar', label: 'Bar', align: 'center', get: l => (l.bar_id != null ? `bar ${l.bar_id}` : '—') },
+];
+
+function ColHeader({ label, align, options, selected, onChange }: {
+  label: string; align: ColAlign;
+  options: { value: string; count: number }[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const active = selected.size > 0;
+
+  const openMenu = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - 268)), top: r.bottom + 4 });
+    setQ(''); setOpen(true);
+  };
+  useEffect(() => {
+    if (!open) return;
+    inputRef.current?.focus();
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current?.contains(e.target as Node) || btnRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onAway = () => setOpen(false);
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('resize', onAway);
+    return () => { window.removeEventListener('mousedown', onDown); window.removeEventListener('resize', onAway); };
+  }, [open]);
+
+  const shown = q ? options.filter(o => o.value.toLowerCase().includes(q.toLowerCase())) : options;
+  const toggle = (v: string) => { const n = new Set(selected); if (n.has(v)) n.delete(v); else n.add(v); onChange(n); };
+  const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
+
+  return (
+    <th className={`${alignCls} font-medium px-3 py-2`}>
+      <button ref={btnRef} onClick={() => (open ? setOpen(false) : openMenu())}
+        className={`inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200 ${active ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
+        <span>{label}</span>
+        <Filter className={`w-3 h-3 ${active ? 'fill-emerald-500 text-emerald-500' : 'text-gray-300 dark:text-gray-600'}`} />
+        {active && <span className="text-[10px] rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-1 leading-4">{selected.size}</span>}
+      </button>
+      {open && pos && typeof document !== 'undefined' && createPortal(
+        <div ref={menuRef} style={{ position: 'fixed', left: pos.left, top: pos.top, width: 256 }}
+          className="z-[60] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-2 normal-case">
+          <Input ref={inputRef} value={q} onChange={e => setQ(e.target.value)} placeholder="Filtrar valores…" className="h-8 text-xs" />
+          <div className="flex items-center justify-between px-1 py-1.5 text-[11px] text-gray-500">
+            <button className="hover:text-emerald-600" onClick={() => onChange(new Set(options.map(o => o.value)))}>Todos</button>
+            <span>{selected.size ? `${selected.size} sel.` : `${options.length} valores`}</span>
+            <button className="hover:text-red-600" onClick={() => onChange(new Set())}>Limpar</button>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {shown.length === 0 ? <div className="px-2 py-3 text-center text-xs text-gray-400">Nada</div>
+              : shown.map(o => {
+                const on = selected.has(o.value);
+                return (
+                  <button key={o.value} onClick={() => toggle(o.value)} className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-800/60 rounded">
+                    <span className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center ${on ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}>{on && <Check className="w-3 h-3" />}</span>
+                    <span className="flex-1 truncate text-gray-700 dark:text-gray-200">{o.value}</span>
+                    <span className="text-gray-400 tabular-nums">{o.count}</span>
+                  </button>
+                );
+              })}
+          </div>
+        </div>, document.body)}
+    </th>
+  );
+}
 
 export default function AuditoriaPage() {
   const { setPageTitle } = usePageTitle();
@@ -213,17 +296,29 @@ export default function AuditoriaPage() {
     URL.revokeObjectURL(url);
   };
 
-  // agrupa linhas consecutivas de uma mesma ação em massa (mesmo request_id, >1 linha)
-  const grupos = useMemo(() => {
-    const out: { key: string; reqId: string | null; itens: AuditLog[] }[] = [];
-    for (const l of logs) {
-      const prev = out[out.length - 1];
-      if (l.request_id && prev && prev.reqId === l.request_id) prev.itens.push(l);
-      else out.push({ key: l.id, reqId: l.request_id ?? null, itens: [l] });
+  // ---- filtros por cabeçalho (estilo DataTable) — client-side sobre os registros carregados ----
+  const [colFilter, setColFilter] = useState<Record<string, Set<string>>>({});
+  const setCol = (id: string, next: Set<string>) =>
+    setColFilter(prev => { const n = { ...prev }; if (next.size) n[id] = next; else delete n[id]; return n; });
+  const anyCol = Object.keys(colFilter).length > 0;
+  // opções de cada coluna = valores distintos (com contagem) respeitando os OUTROS filtros (estilo Excel)
+  const colOptions = useMemo(() => {
+    const out: Record<string, { value: string; count: number }[]> = {};
+    for (const c of AUDIT_COLS) {
+      const passOutros = logs.filter(l => AUDIT_COLS.every(o => {
+        if (o.id === c.id) return true;
+        const sel = colFilter[o.id]; if (!sel || !sel.size) return true; return sel.has(o.get(l));
+      }));
+      const counts: Record<string, number> = {};
+      for (const l of passOutros) { const v = c.get(l); counts[v] = (counts[v] || 0) + 1; }
+      out[c.id] = Object.entries(counts).map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count);
     }
     return out;
-  }, [logs]);
-  const toggleGrupo = (key: string) => setExpandidos(prev => {
+  }, [logs, colFilter]);
+  const logsView = useMemo(() => logs.filter(l => AUDIT_COLS.every(c => {
+    const sel = colFilter[c.id]; if (!sel || !sel.size) return true; return sel.has(c.get(l));
+  })), [logs, colFilter]);
+  const toggleLinha = (key: string) => setExpandidos(prev => {
     const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n;
   });
 
@@ -720,7 +815,7 @@ export default function AuditoriaPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Registros</CardTitle>
-            <CardDescription>{loading && !logs.length ? 'Carregando…' : `${logs.length} de ${total} registro(s)`}</CardDescription>
+            <CardDescription>{loading && !logs.length ? 'Carregando…' : anyCol ? `${logsView.length} filtrado(s) · ${logs.length} carregado(s) de ${total}` : `${logs.length} de ${total} registro(s)`} · clique numa linha p/ ver detalhes</CardDescription>
           </CardHeader>
           <CardContent>
             {erro ? (
@@ -733,25 +828,54 @@ export default function AuditoriaPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {grupos.map(g => {
-                  if (g.itens.length === 1) return renderLinha(g.itens[0]);
-                  // ação em massa (mesmo request_id) → 1 bloco recolhível
-                  const aberto = expandidos.has(g.key);
-                  const first = g.itens[0];
-                  const tabs = new Set(g.itens.map(i => i.table_name));
-                  const alvo = tabs.size === 1 ? labelTabela(first.table_name) : `${tabs.size} tabelas`;
-                  return (
-                    <div key={g.key} className="border border-indigo-200 dark:border-indigo-900/50 rounded-lg bg-indigo-50/40 dark:bg-indigo-900/10">
-                      <button onClick={() => toggleGrupo(g.key)} className="w-full flex items-center gap-2 p-3 text-left">
-                        {aberto ? <ChevronDown className="h-4 w-4 text-indigo-500 shrink-0" /> : <ChevronRight className="h-4 w-4 text-indigo-500 shrink-0" />}
-                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{g.itens.length} alterações em {alvo}</span>
-                        <span className="text-xs text-gray-500 inline-flex items-center gap-1"><User className="h-3 w-3" />{first.user_email || 'sistema'}</span>
-                        <span className="ml-auto text-[11px] text-gray-500 inline-flex items-center gap-1 whitespace-nowrap"><Clock className="h-3 w-3" />{fmtData(first.timestamp)}</span>
-                      </button>
-                      {aberto && <div className="px-3 pb-3 space-y-2">{g.itens.map(renderLinha)}</div>}
-                    </div>
-                  );
-                })}
+                {anyCol && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-gray-500">{logsView.length} de {logs.length} carregado(s) após filtros de coluna</span>
+                    <button onClick={() => setColFilter({})} className="text-gray-500 hover:text-rose-600 underline">✕ limpar filtros de coluna</button>
+                  </div>
+                )}
+                <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase">
+                      <tr>
+                        <th className="w-8 px-2 py-2"></th>
+                        <th className="text-left font-medium px-3 py-2">Quando</th>
+                        <ColHeader label="Usuário" align="left" options={colOptions.usuario || []} selected={colFilter.usuario || EMPTY_SET} onChange={n => setCol('usuario', n)} />
+                        <ColHeader label="Papel" align="left" options={colOptions.papel || []} selected={colFilter.papel || EMPTY_SET} onChange={n => setCol('papel', n)} />
+                        <ColHeader label="Operação" align="left" options={colOptions.operacao || []} selected={colFilter.operacao || EMPTY_SET} onChange={n => setCol('operacao', n)} />
+                        <ColHeader label="Tabela" align="left" options={colOptions.tabela || []} selected={colFilter.tabela || EMPTY_SET} onChange={n => setCol('tabela', n)} />
+                        <th className="text-left font-medium px-3 py-2">O quê</th>
+                        <ColHeader label="Bar" align="center" options={colOptions.bar || []} selected={colFilter.bar || EMPTY_SET} onChange={n => setCol('bar', n)} />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {logsView.map(l => {
+                        const aberto = expandidos.has(l.id);
+                        const diffs = diffCampos(l); const rot = rotuloRegistro(l);
+                        const oQue = l.operation === 'UPDATE' ? `Editou ${labelTabela(l.table_name)}${l.record_id ? ` #${l.record_id}` : ''}${diffs.length ? ` · ${diffs.length} campo(s)` : ''}`
+                          : l.operation === 'INSERT' ? `Criou ${labelTabela(l.table_name)}${rot ? `: ${rot}` : ''}`
+                          : l.operation === 'DELETE' ? `Excluiu ${labelTabela(l.table_name)}${rot ? `: ${rot}` : ''}`
+                          : (l.description || '—');
+                        return (
+                          <Fragment key={l.id}>
+                            <tr onClick={() => toggleLinha(l.id)} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer">
+                              <td className="px-2 py-2 text-gray-400">{aberto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</td>
+                              <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtData(l.timestamp)}</td>
+                              <td className="px-3 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap">{l.user_email || 'sistema'}</td>
+                              <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{l.user_role || '—'}</td>
+                              <td className="px-3 py-2 whitespace-nowrap"><Badge className={`${opColor(l.operation)} text-white`}>{l.operation}</Badge>{l.severity === 'critical' && <span className="ml-1 text-[10px] font-medium text-rose-600">sensível</span>}</td>
+                              <td className="px-3 py-2 text-gray-600 dark:text-gray-300 whitespace-nowrap">{labelTabela(l.table_name)}</td>
+                              <td className="px-3 py-2 text-gray-700 dark:text-gray-200 max-w-[380px] truncate" title={oQue}>{oQue}</td>
+                              <td className="px-3 py-2 text-center text-gray-400 whitespace-nowrap">{l.bar_id != null ? l.bar_id : '—'}</td>
+                            </tr>
+                            {aberto && <tr className="bg-gray-50/60 dark:bg-gray-900/40"><td colSpan={8} className="px-3 py-2">{renderLinha(l)}</td></tr>}
+                          </Fragment>
+                        );
+                      })}
+                      {logsView.length === 0 && <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">Nenhum registro para os filtros de coluna.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
                 {logs.length < total && (
                   <div className="text-center pt-2">
                     <Button variant="outline" size="sm" onClick={() => carregar(offset + PAGE, true)} disabled={loading}>
