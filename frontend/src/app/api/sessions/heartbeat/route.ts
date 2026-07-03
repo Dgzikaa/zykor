@@ -14,9 +14,10 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const active = body?.active === true;
   const path = typeof body?.path === 'string' ? body.path.slice(0, 200) : null;
+  const bar = Number.isFinite(Number(body?.bar)) && Number(body?.bar) > 0 ? Number(body.bar) : null;
   try {
     const supabase = await getAdminClient();
-    await (supabase as any).schema('system').rpc('session_heartbeat', { p_sid: sid, p_active: active, p_path: path });
+    await (supabase as any).schema('system').rpc('session_heartbeat', { p_sid: sid, p_active: active, p_path: path, p_bar: bar });
   } catch { /* auditoria nunca quebra nada */ }
   return NextResponse.json({ ok: true });
 }

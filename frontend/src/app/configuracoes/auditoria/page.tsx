@@ -510,6 +510,9 @@ export default function AuditoriaPage() {
     const telas = (analytics?.top_telas || []).map((x: any) => ({ nome: x.path, seg: Number(x.seg) }));
     const endpoints = (analytics?.top_endpoints || []).map((x: any) => ({ nome: (x.endpoint || '').replace(/^\/api\//, ''), n: Number(x.n) }));
     const usuarios = analytics?.por_usuario || [];
+    const acoesBar = (analytics?.acoes_por_bar || []).map((x: any) => ({ nome: x.nome, n: Number(x.n) }));
+    const tempoBar = (analytics?.tempo_por_bar || []).map((x: any) => ({ nome: x.nome, seg: Number(x.seg) }));
+    const temTempoBar = tempoBar.length > 0;
 
     const big = [
       { l: 'Pico simultâneo', v: a.pico_simultaneo ?? 0, sub: a.pico_quando ? fmtData(a.pico_quando) : undefined, icon: Zap, c: 'text-amber-500' },
@@ -662,6 +665,38 @@ export default function AuditoriaPage() {
           </Card>
         </div>
 
+        {/* Por bar: ações (agora) + tempo (enche com o tracker) */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4 text-violet-500" />Ações por bar</CardTitle><CardDescription>onde o pessoal está mexendo</CardDescription></CardHeader>
+            <CardContent><div style={{ width: '100%', height: 200 }}>
+              <ResponsiveContainer>
+                <BarChart data={acoesBar} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
+                  <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <YAxis type="category" dataKey="nome" tick={{ fontSize: 11 }} width={110} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Bar dataKey="n" fill="#8b5cf6" radius={[0,3,3,0]} name="ações" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div></CardContent>
+          </Card>
+          <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Timer className="h-4 w-4 text-emerald-500" />Tempo ativo por bar</CardTitle><CardDescription>{temTempoBar ? 'tempo navegando em cada bar' : 'começa a medir nos próximos acessos'}</CardDescription></CardHeader>
+            <CardContent><div style={{ width: '100%', height: 200 }}>
+              {temTempoBar ? (
+                <ResponsiveContainer>
+                  <BarChart data={tempoBar} layout="vertical" margin={{ top: 0, right: 40, left: 10, bottom: 0 }}>
+                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => fmtDur(v)} />
+                    <YAxis type="category" dataKey="nome" tick={{ fontSize: 11 }} width={110} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={((v: number) => fmtDur(Number(v))) as any} />
+                    <Bar dataKey="seg" fill="#10b981" radius={[0,3,3,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-center text-xs text-gray-400 px-4">Ainda sem dado — o tempo por bar é novo e vai aparecer conforme o pessoal navegar (depois do deploy).</div>
+              )}
+            </div></CardContent>
+          </Card>
+        </div>
+
         {/* Tabelas mais alteradas (audit) */}
         <Card><CardHeader className="pb-2"><CardTitle className="text-base">Tabelas mais alteradas</CardTitle></CardHeader>
           <CardContent><div style={{ width: '100%', height: 240 }}>
@@ -690,6 +725,7 @@ export default function AuditoriaPage() {
                 <th className="text-right px-3 py-2 text-emerald-600">Criou</th>
                 <th className="text-right px-3 py-2 text-violet-600">Editou</th>
                 <th className="text-right px-3 py-2 text-rose-600">Excluiu</th>
+                <th className="text-left px-3 py-2">Por bar (ações)</th>
                 <th className="text-left px-3 py-2">Área que mais mexe</th>
                 <th className="text-left px-3 py-2">Tela top</th>
                 <th className="text-left px-3 py-2">Últ. online</th>
@@ -708,12 +744,17 @@ export default function AuditoriaPage() {
                     <td className="px-3 py-2 text-right tabular-nums text-emerald-700 dark:text-emerald-400">{u.criou || 0}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-violet-700 dark:text-violet-400">{u.editou || 0}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-rose-700 dark:text-rose-400">{u.excluiu || 0}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-xs">
+                      {(u.acoes_por_bar || []).length ? (u.acoes_por_bar || []).map((b: any, i: number) => (
+                        <span key={i} className="inline-block mr-2"><span className="text-gray-500">{(b.nome || '').split(' ')[0]}</span> <span className="tabular-nums font-medium text-gray-800 dark:text-gray-200">{b.n}</span></span>
+                      )) : '—'}
+                    </td>
                     <td className="px-3 py-2 text-gray-600 dark:text-gray-300">{u.top_area ? labelTabela(u.top_area) : '—'}</td>
                     <td className="px-3 py-2 text-gray-600 dark:text-gray-300 whitespace-nowrap" title={u.tela_top || ''}>{u.tela_top ? `${u.tela_top} · ${fmtDur(u.tela_top_seg || 0)}` : '—'}</td>
                     <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{u.ultima ? fmtData(u.ultima) : '—'}</td>
                   </tr>
                 ))}
-                {usuarios.length === 0 && <tr><td colSpan={11} className="px-3 py-8 text-center text-gray-400">Ainda sem sessões registradas no período.</td></tr>}
+                {usuarios.length === 0 && <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400">Ainda sem sessões registradas no período.</td></tr>}
               </tbody>
             </table>
           </CardContent>

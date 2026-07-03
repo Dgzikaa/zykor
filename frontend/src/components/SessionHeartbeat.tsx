@@ -23,11 +23,14 @@ export function SessionHeartbeat() {
     const bater = () => {
       if (!logado()) return; // não bate quando deslogado
       const ativo = document.visibilityState === 'visible' && (Date.now() - ultimaAtividade.current) < 90_000;
+      // bar selecionado na aba (sessionStorage é a verdade da aba; ver BarContext)
+      let bar: number | null = null;
+      try { bar = Number(sessionStorage.getItem('sgb_selected_bar_id')) || null; } catch { /* ignore */ }
       fetch('/api/sessions/heartbeat', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        // manda a tela atual (pathname) p/ acumular tempo-por-tela na auditoria
-        body: JSON.stringify({ active: ativo, path: window.location?.pathname || null }),
+        // manda a tela atual (pathname) + o bar p/ acumular tempo-por-tela/bar na auditoria
+        body: JSON.stringify({ active: ativo, path: window.location?.pathname || null, bar }),
         keepalive: true,
       }).catch(() => { /* silencioso */ });
     };

@@ -194,7 +194,7 @@ export function calcularDestaques(r: LinhaDesempenho | null | undefined): Destaq
   const usadas = new Set([...orgulho, ...atencao].map(i => i.key));
   const monitorar = calc
     .filter(i => !usadas.has(i.key))
-    .filter(i => i.status === 'neutro' || (i._apenasAtencao && i.status === 'bom'))
+    .filter(i => { const s: StatusIndicador = i.status; return s === 'neutro' || (i._apenasAtencao && s === 'bom'); })
     .sort((a, b) => a._rank - b._rank)
     .slice(0, 2)
     .map(limpar);
