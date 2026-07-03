@@ -57,10 +57,29 @@ export async function GET(request: NextRequest) {
       { label: 'financeiro/saidas-caixa/turnos' },
     ).catch(() => [] as any[]);
 
+    // Entradas de caixa em dinheiro (por turno)
+    const entradas = await paginate<any>(
+      () => {
+        let q = (supabase as any)
+          .schema('silver').from('contahub_entrada_caixa_dinheiro')
+          .select('*')
+          .eq('bar_id', user.bar_id)
+          .order('dt_gerencial', { ascending: false })
+          .order('trn', { ascending: false });
+        if (de) q = q.gte('dt_gerencial', de);
+        if (ate) q = q.lte('dt_gerencial', ate);
+        return q;
+      },
+      { label: 'financeiro/saidas-caixa/entradas' },
+    ).catch(() => [] as any[]);
+
     const resumo = {
       dias: new Set(saidas.map((s) => s.dt_gerencial)).size,
       qtd_saidas: saidas.length,
       total_saidas: saidas.reduce((s, r) => s + num(r.valor_saida), 0),
+      dias_entrada: new Set(entradas.map((e) => e.dt_gerencial)).size,
+      qtd_entradas: entradas.length,
+      total_entradas: entradas.reduce((s, r) => s + num(r.total_liquido), 0),
     };
 
     // Meses disponíveis (varredura leve só da coluna data)
@@ -76,7 +95,7 @@ export async function GET(request: NextRequest) {
     for (const r of dimRows) if (typeof r.dt_gerencial === 'string') mesesSet.add(r.dt_gerencial.slice(0, 7));
     const meses_disponiveis = Array.from(mesesSet).sort().reverse();
 
-    return NextResponse.json({ success: true, saidas, turnos, resumo, meses_disponiveis });
+    return NextResponse.json({ success: true, saidas, entradas, turnos, resumo, meses_disponiveis });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'Erro ao buscar saídas de caixa' }, { status: 500 });
   }

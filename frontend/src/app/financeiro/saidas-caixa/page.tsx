@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Banknote, Loader2, ArrowDownCircle, ListTree, CalendarDays, Wallet, Filter, Check, Search } from 'lucide-react';
+import { Banknote, Loader2, ArrowDownCircle, ArrowUpCircle, ListTree, CalendarDays, Wallet, Filter, Check, Search, Clock } from 'lucide-react';
 
 type Saida = { dt_gerencial: string; trn: number; num_lancamento: number | null; motivo: string; valor_saida: number; obs: string | null };
+type Entrada = { dt_gerencial: string; trn: number; qtd_pagamentos: number; total_liquido: number; total_bruto: number };
 type Turno = {
   dt_gerencial: string; trn: number;
   total_saidas: number; qtd_saidas: number; total_entradas_itemizadas: number;
@@ -102,23 +103,57 @@ function ColHeader({ label, align, options, selected, onChange }: {
   );
 }
 
-function SaidasCaixaInner() {
-  const { selectedBar } = useBar();
-  const { showToast } = useToast();
-
-  const [aba, setAba] = useState<'saidas' | 'turnos'>('saidas');
-  const [meses, setMeses] = useState<string[]>([]);
-  const [mesSel, setMesSel] = useState<string>('');
-  const [saidas, setSaidas] = useState<Saida[]>([]);
-  const [turnos, setTurnos] = useState<Turno[]>([]);
-  const [resumo, setResumo] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-
+// Filtro genérico (busca livre + filtros por coluna) reaproveitado nas abas.
+function useTableFilter<T>(rows: T[], colVal: Record<string, (r: T) => string>, searchKeys: (r: T) => string) {
   const [busca, setBusca] = useState('');
   const [colFilter, setColFilter] = useState<Record<string, Set<string>>>({});
   const setCol = useCallback((id: string, next: Set<string>) => {
     setColFilter((prev) => { const n = { ...prev }; if (next.size) n[id] = next; else delete n[id]; return n; });
   }, []);
+  const reset = useCallback(() => { setBusca(''); setColFilter({}); }, []);
+
+  const optionsFor = useCallback((colId: string) => {
+    const q = busca.trim().toLowerCase();
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      if (q && !searchKeys(r).toLowerCase().includes(q)) continue;
+      let ok = true;
+      for (const [id, sel] of Object.entries(colFilter)) {
+        if (id === colId) continue;
+        if (!sel.has(colVal[id](r))) { ok = false; break; }
+      }
+      if (!ok) continue;
+      const v = colVal[colId](r);
+      counts.set(v, (counts.get(v) || 0) + 1);
+    }
+    return [...counts.entries()].map(([value, count]) => ({ value, count })).sort((a, b) => a.value.localeCompare(b.value, 'pt-BR', { numeric: true }));
+  }, [rows, busca, colFilter, colVal, searchKeys]);
+
+  const filtered = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (q && !searchKeys(r).toLowerCase().includes(q)) return false;
+      for (const [id, sel] of Object.entries(colFilter)) if (!sel.has(colVal[id](r))) return false;
+      return true;
+    });
+  }, [rows, busca, colFilter, colVal, searchKeys]);
+
+  const filtrando = busca.trim() !== '' || Object.keys(colFilter).length > 0;
+  return { busca, setBusca, colFilter, setCol, reset, optionsFor, filtered, filtrando };
+}
+
+function FluxoDinheiroInner() {
+  const { selectedBar } = useBar();
+  const { showToast } = useToast();
+
+  const [aba, setAba] = useState<'entradas' | 'saidas' | 'turnos'>('entradas');
+  const [meses, setMeses] = useState<string[]>([]);
+  const [mesSel, setMesSel] = useState<string>('');
+  const [saidas, setSaidas] = useState<Saida[]>([]);
+  const [entradas, setEntradas] = useState<Entrada[]>([]);
+  const [turnos, setTurnos] = useState<Turno[]>([]);
+  const [resumo, setResumo] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
 
   const periodo = useMemo(() => {
     if (!mesSel) return null;
@@ -136,6 +171,7 @@ function SaidasCaixaInner() {
       const r = await api.get(`/api/financeiro/saidas-caixa?${qs.toString()}`);
       if (!r?.success) throw new Error(r?.error || 'Falha ao carregar');
       setSaidas(r.saidas || []);
+      setEntradas(r.entradas || []);
       setTurnos(r.turnos || []);
       setResumo(r.resumo || null);
       if ((r.meses_disponiveis || []).length) {
@@ -143,55 +179,32 @@ function SaidasCaixaInner() {
         if (!mesSel) setMesSel(r.meses_disponiveis[0]);
       }
     } catch (e: any) {
-      showToast({ type: 'error', title: 'Erro ao carregar saídas de caixa', message: e?.message });
+      showToast({ type: 'error', title: 'Erro ao carregar fluxo de dinheiro', message: e?.message });
     } finally {
       setLoading(false);
     }
   }, [selectedBar?.id, periodo, mesSel, showToast]);
 
   useEffect(() => { carregar(); }, [carregar]);
-  // troca de mês zera filtros de coluna
-  useEffect(() => { setColFilter({}); setBusca(''); }, [mesSel]);
 
-  // valor textual de cada coluna filtrável
-  const colVal: Record<string, (s: Saida) => string> = {
-    dia: (s) => fmtData(s.dt_gerencial),
-    turno: (s) => `#${s.trn}`,
-    motivo: (s) => s.motivo || '—',
-  };
+  // Filtros por aba
+  const fSaidas = useTableFilter<Saida>(
+    saidas,
+    { dia: (s) => fmtData(s.dt_gerencial), turno: (s) => `#${s.trn}`, motivo: (s) => s.motivo || '—' },
+    (s) => `${s.motivo || ''} #${s.trn}`,
+  );
+  const fEntradas = useTableFilter<Entrada>(
+    entradas,
+    { dia: (e) => fmtData(e.dt_gerencial), turno: (e) => `#${e.trn}` },
+    (e) => `#${e.trn} ${fmtData(e.dt_gerencial)}`,
+  );
+  useEffect(() => { fSaidas.reset(); fEntradas.reset(); }, [mesSel]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // opções (valores distintos + contagem) por coluna, respeitando os outros filtros + busca
-  const optionsFor = useCallback((colId: string) => {
-    const q = busca.trim().toLowerCase();
-    const counts = new Map<string, number>();
-    for (const s of saidas) {
-      if (q && !(s.motivo || '').toLowerCase().includes(q) && !`#${s.trn}`.includes(q)) continue;
-      let ok = true;
-      for (const [id, sel] of Object.entries(colFilter)) {
-        if (id === colId) continue;
-        if (!sel.has(colVal[id](s))) { ok = false; break; }
-      }
-      if (!ok) continue;
-      const v = colVal[colId](s);
-      counts.set(v, (counts.get(v) || 0) + 1);
-    }
-    return [...counts.entries()].map(([value, count]) => ({ value, count })).sort((a, b) => a.value.localeCompare(b.value, 'pt-BR', { numeric: true }));
-  }, [saidas, busca, colFilter]);
+  const totalSaidasFiltrado = useMemo(() => fSaidas.filtered.reduce((s, r) => s + Number(r.valor_saida || 0), 0), [fSaidas.filtered]);
+  const totalEntradasFiltrado = useMemo(() => fEntradas.filtered.reduce((s, r) => s + Number(r.total_liquido || 0), 0), [fEntradas.filtered]);
 
-  const saidasFiltradas = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    return saidas.filter((s) => {
-      if (q && !(s.motivo || '').toLowerCase().includes(q) && !`#${s.trn}`.includes(q)) return false;
-      for (const [id, sel] of Object.entries(colFilter)) {
-        if (!sel.has(colVal[id](s))) return false;
-      }
-      return true;
-    });
-  }, [saidas, busca, colFilter]);
-
-  const totalFiltrado = useMemo(() => saidasFiltradas.reduce((s, r) => s + Number(r.valor_saida || 0), 0), [saidasFiltradas]);
-  const filtrando = busca.trim() !== '' || Object.keys(colFilter).length > 0;
-  const ticket = resumo?.qtd_saidas ? Number(resumo.total_saidas) / Number(resumo.qtd_saidas) : 0;
+  const ticketSaida = resumo?.qtd_saidas ? Number(resumo.total_saidas) / Number(resumo.qtd_saidas) : 0;
+  const mediaEntradaDia = resumo?.dias_entrada ? Number(resumo.total_entradas) / Number(resumo.dias_entrada) : 0;
 
   return (
     <div className="p-4 md:p-6 mx-auto space-y-5">
@@ -200,15 +213,21 @@ function SaidasCaixaInner() {
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-primary/10 p-2.5"><Banknote className="h-6 w-6 text-primary" /></div>
           <div>
-            <h1 className="text-xl font-semibold">Saídas de Caixa</h1>
-            <p className="text-sm text-muted-foreground">Dinheiro que saiu do caixa em cada turno (sangria/retirada) — ContaHub.</p>
+            <h1 className="text-xl font-semibold">Fluxo Dinheiro</h1>
+            <p className="text-sm text-muted-foreground">Entradas e saídas de dinheiro do caixa por turno — ContaHub.</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {aba === 'entradas' && (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input value={fEntradas.busca} onChange={(e) => fEntradas.setBusca(e.target.value)} placeholder="Buscar dia/turno…" className="h-9 w-52 pl-8 text-sm" />
+            </div>
+          )}
           {aba === 'saidas' && (
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar motivo/turno…" className="h-9 w-52 pl-8 text-sm" />
+              <Input value={fSaidas.busca} onChange={(e) => fSaidas.setBusca(e.target.value)} placeholder="Buscar motivo/turno…" className="h-9 w-52 pl-8 text-sm" />
             </div>
           )}
           <select value={mesSel} onChange={(e) => setMesSel(e.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm">
@@ -219,33 +238,33 @@ function SaidasCaixaInner() {
         </div>
       </div>
 
-      {/* Cards resumo (do mês inteiro) */}
+      {/* Cards resumo (do mês) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
           <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground flex items-center gap-1.5"><ArrowDownCircle className="h-3.5 w-3.5" /> Total de saídas</div>
+            <div className="text-xs text-muted-foreground flex items-center gap-1.5"><ArrowUpCircle className="h-3.5 w-3.5 text-emerald-500" /> Entradas (dinheiro)</div>
+            <div className="text-2xl font-semibold mt-1 text-emerald-600 dark:text-emerald-400">{fmtBRL(resumo?.total_entradas)}</div>
+            <div className="text-xs text-muted-foreground mt-1">{fmtNum(resumo?.dias_entrada)} dias · média {fmtBRL(mediaEntradaDia)}/dia</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground flex items-center gap-1.5"><ArrowDownCircle className="h-3.5 w-3.5 text-red-500" /> Saídas (sangria)</div>
             <div className="text-2xl font-semibold mt-1 text-red-600 dark:text-red-400">{fmtBRL(resumo?.total_saidas)}</div>
-            <div className="text-xs text-muted-foreground mt-1">no mês selecionado</div>
+            <div className="text-xs text-muted-foreground mt-1">{fmtNum(resumo?.qtd_saidas)} retiradas · {fmtNum(resumo?.dias)} dias</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground flex items-center gap-1.5"><ListTree className="h-3.5 w-3.5" /> Retiradas</div>
-            <div className="text-2xl font-semibold mt-1">{fmtNum(resumo?.qtd_saidas)}</div>
-            <div className="text-xs text-muted-foreground mt-1">lançamentos de saída</div>
+            <div className="text-xs text-muted-foreground flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> Líquido do mês</div>
+            <div className="text-2xl font-semibold mt-1">{fmtBRL(Number(resumo?.total_entradas || 0) - Number(resumo?.total_saidas || 0))}</div>
+            <div className="text-xs text-muted-foreground mt-1">entradas − saídas</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Dias com saída</div>
-            <div className="text-2xl font-semibold mt-1">{fmtNum(resumo?.dias)}</div>
-            <div className="text-xs text-muted-foreground mt-1">dias operacionais</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> Ticket médio</div>
-            <div className="text-2xl font-semibold mt-1">{fmtBRL(ticket)}</div>
+            <div className="text-xs text-muted-foreground flex items-center gap-1.5"><ListTree className="h-3.5 w-3.5" /> Ticket saída</div>
+            <div className="text-2xl font-semibold mt-1">{fmtBRL(ticketSaida)}</div>
             <div className="text-xs text-muted-foreground mt-1">por retirada</div>
           </CardContent>
         </Card>
@@ -253,7 +272,7 @@ function SaidasCaixaInner() {
 
       {/* Abas */}
       <div className="flex gap-1 border-b">
-        {([['saidas', 'Saídas', ArrowDownCircle], ['turnos', 'Por turno', ListTree]] as const).map(([id, label, Icon]) => (
+        {([['entradas', 'Entradas de Caixa', ArrowUpCircle], ['saidas', 'Saídas de Caixa', ArrowDownCircle], ['turnos', 'Por turno', ListTree]] as const).map(([id, label, Icon]) => (
           <button
             key={id}
             onClick={() => setAba(id)}
@@ -264,6 +283,55 @@ function SaidasCaixaInner() {
         ))}
       </div>
 
+      {aba === 'entradas' && (
+        <>
+          <div className="flex items-start gap-2 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-300">
+            <Clock className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>O dinheiro recebido é lançado como <b>conta a receber</b> no Conta Azul automaticamente (categoria <b>Dinheiro</b>, conta <b>Caixa Dinheiro</b>) — soma do dia, todo dia às 12h.</span>
+          </div>
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-muted-foreground">
+                      <th className="text-left font-medium px-4 py-2.5"><ColHeader label="Dia" align="left" options={fEntradas.optionsFor('dia')} selected={fEntradas.colFilter.dia || new Set()} onChange={(n) => fEntradas.setCol('dia', n)} /></th>
+                      <th className="text-left font-medium px-4 py-2.5"><ColHeader label="Turno" align="left" options={fEntradas.optionsFor('turno')} selected={fEntradas.colFilter.turno || new Set()} onChange={(n) => fEntradas.setCol('turno', n)} /></th>
+                      <th className="text-right font-medium px-4 py-2.5">Pgtos</th>
+                      <th className="text-right font-medium px-4 py-2.5">Dinheiro recebido</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fEntradas.filtered.map((e, i) => (
+                      <tr key={`${e.trn}-${e.dt_gerencial}-${i}`} className="border-b last:border-0 hover:bg-muted/30">
+                        <td className="px-4 py-2 whitespace-nowrap">
+                          <span className="font-medium">{fmtData(e.dt_gerencial)}</span>
+                          <span className="text-xs text-muted-foreground ml-1.5">{dow(e.dt_gerencial)}</span>
+                        </td>
+                        <td className="px-4 py-2 text-muted-foreground tabular-nums">#{e.trn}</td>
+                        <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{fmtNum(e.qtd_pagamentos)}</td>
+                        <td className="px-4 py-2 text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{fmtBRL(e.total_liquido)}</td>
+                      </tr>
+                    ))}
+                    {!loading && fEntradas.filtered.length === 0 && (
+                      <tr><td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">{fEntradas.filtrando ? 'Nenhuma entrada com esses filtros.' : 'Nenhuma entrada de dinheiro no período.'}</td></tr>
+                    )}
+                  </tbody>
+                  {fEntradas.filtered.length > 0 && (
+                    <tfoot>
+                      <tr className="border-t bg-muted/20 font-semibold">
+                        <td className="px-4 py-2.5" colSpan={3}>{fEntradas.filtrando ? `Filtrado (${fmtNum(fEntradas.filtered.length)})` : `Total (${fmtNum(fEntradas.filtered.length)})`}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{fmtBRL(totalEntradasFiltrado)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
       {aba === 'saidas' && (
         <Card>
           <CardContent className="p-0">
@@ -271,14 +339,14 @@ function SaidasCaixaInner() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-muted-foreground">
-                    <th className="text-left font-medium px-4 py-2.5"><ColHeader label="Dia" align="left" options={optionsFor('dia')} selected={colFilter.dia || new Set()} onChange={(n) => setCol('dia', n)} /></th>
-                    <th className="text-left font-medium px-4 py-2.5"><ColHeader label="Turno" align="left" options={optionsFor('turno')} selected={colFilter.turno || new Set()} onChange={(n) => setCol('turno', n)} /></th>
-                    <th className="text-left font-medium px-4 py-2.5"><ColHeader label="Motivo" align="left" options={optionsFor('motivo')} selected={colFilter.motivo || new Set()} onChange={(n) => setCol('motivo', n)} /></th>
+                    <th className="text-left font-medium px-4 py-2.5"><ColHeader label="Dia" align="left" options={fSaidas.optionsFor('dia')} selected={fSaidas.colFilter.dia || new Set()} onChange={(n) => fSaidas.setCol('dia', n)} /></th>
+                    <th className="text-left font-medium px-4 py-2.5"><ColHeader label="Turno" align="left" options={fSaidas.optionsFor('turno')} selected={fSaidas.colFilter.turno || new Set()} onChange={(n) => fSaidas.setCol('turno', n)} /></th>
+                    <th className="text-left font-medium px-4 py-2.5"><ColHeader label="Motivo" align="left" options={fSaidas.optionsFor('motivo')} selected={fSaidas.colFilter.motivo || new Set()} onChange={(n) => fSaidas.setCol('motivo', n)} /></th>
                     <th className="text-right font-medium px-4 py-2.5">Valor</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {saidasFiltradas.map((s, i) => (
+                  {fSaidas.filtered.map((s, i) => (
                     <tr key={`${s.trn}-${s.num_lancamento}-${i}`} className="border-b last:border-0 hover:bg-muted/30">
                       <td className="px-4 py-2 whitespace-nowrap">
                         <span className="font-medium">{fmtData(s.dt_gerencial)}</span>
@@ -289,15 +357,15 @@ function SaidasCaixaInner() {
                       <td className="px-4 py-2 text-right tabular-nums font-semibold text-red-600 dark:text-red-400">{fmtBRL(s.valor_saida)}</td>
                     </tr>
                   ))}
-                  {!loading && saidasFiltradas.length === 0 && (
-                    <tr><td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">{filtrando ? 'Nenhuma saída com esses filtros.' : 'Nenhuma saída de caixa no período.'}</td></tr>
+                  {!loading && fSaidas.filtered.length === 0 && (
+                    <tr><td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">{fSaidas.filtrando ? 'Nenhuma saída com esses filtros.' : 'Nenhuma saída de caixa no período.'}</td></tr>
                   )}
                 </tbody>
-                {saidasFiltradas.length > 0 && (
+                {fSaidas.filtered.length > 0 && (
                   <tfoot>
                     <tr className="border-t bg-muted/20 font-semibold">
-                      <td className="px-4 py-2.5" colSpan={3}>{filtrando ? `Filtrado (${fmtNum(saidasFiltradas.length)})` : `Total (${fmtNum(saidasFiltradas.length)})`}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-red-600 dark:text-red-400">{fmtBRL(totalFiltrado)}</td>
+                      <td className="px-4 py-2.5" colSpan={3}>{fSaidas.filtrando ? `Filtrado (${fmtNum(fSaidas.filtered.length)})` : `Total (${fmtNum(fSaidas.filtered.length)})`}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-red-600 dark:text-red-400">{fmtBRL(totalSaidasFiltrado)}</td>
                     </tr>
                   </tfoot>
                 )}
@@ -357,17 +425,17 @@ function SaidasCaixaInner() {
       )}
 
       <p className="text-xs text-muted-foreground">
-        Fonte: relatório de turno do ContaHub (seção &quot;Lançamentos do CAIXA&quot;). &quot;Saídas&quot; = dinheiro que saiu do caixa
-        (retirada p/ cofre/escritório, diferença de caixa etc.). O motivo vem da descrição do lançamento.
+        Fonte: ContaHub. <b>Entradas</b> = pagamentos recebidos em dinheiro (por turno). <b>Saídas</b> = seção &quot;Lançamentos do CAIXA&quot;
+        do relatório de turno (retirada p/ cofre/escritório, diferença de caixa etc.).
       </p>
     </div>
   );
 }
 
-export default function SaidasCaixaPage() {
+export default function FluxoDinheiroPage() {
   return (
     <ProtectedRoute>
-      <SaidasCaixaInner />
+      <FluxoDinheiroInner />
     </ProtectedRoute>
   );
 }

@@ -107,7 +107,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'ReceiptText', label: 'Notas Fiscais', href: '/financeiro/notas-fiscais', permission: 'financeiro_ferramentas' },
       { icon: 'FolderTree', label: 'Categorias', href: '/financeiro/categorias', permission: 'financeiro_ferramentas' },
       { icon: 'Wallet', label: 'Fluxo de Caixa', href: '/financeiro/fluxo-caixa', permission: 'financeiro_ferramentas' },
-      { icon: 'Banknote', label: 'Saídas de Caixa', href: '/financeiro/saidas-caixa', permission: 'financeiro_ferramentas' },
+      { icon: 'Banknote', label: 'Fluxo Dinheiro', href: '/financeiro/saidas-caixa', permission: 'financeiro_ferramentas' },
       { icon: 'FileSearch', label: 'Consultas CA', href: '/ferramentas/consultas', permission: 'financeiro_ferramentas' },
     ],
   },
