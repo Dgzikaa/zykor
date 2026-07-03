@@ -5,6 +5,8 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
 import { api } from '@/lib/api-client';
+import { corDoBar } from '@/lib/bar-theme';
+import { BarLogo } from '@/components/BarLogo';
 import {
   Megaphone, Pin, Trash2, Send, Users, Music2, CalendarDays, Loader2,
   Trophy, AlertTriangle, CheckCircle2, Eye, Activity,
@@ -125,26 +127,35 @@ export default function HomePage() {
 
   const hora = now ?? new Date();
   const nomeCurto = (user?.nome || '').split(' ')[0] || '';
+  const accent = corDoBar(selectedBar?.id);
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 py-8 sm:py-10">
 
-        {/* Saudação */}
-        <header className="flex flex-wrap items-end justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 dark:text-white">
-              {saudacao(hora.getHours())}{nomeCurto ? `, ${nomeCurto}` : ''} 👋
-            </h1>
-            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-              Que bom te ver de volta · <span className="font-medium text-neutral-700 dark:text-neutral-300">{selectedBar?.nome || 'Zykor'}</span>
-            </p>
+        {/* Banner do bar: identidade (logo + nome) + saudação + relógio */}
+        <header
+          className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-5 sm:p-6 text-white shadow-sm"
+          style={{ background: `linear-gradient(135deg, ${accent} 0%, ${accent}cc 100%)` }}
+        >
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex h-14 w-14 flex-none items-center justify-center rounded-xl bg-white/95 p-2 shadow-sm">
+              <BarLogo id={selectedBar?.id ?? 0} nome={selectedBar?.nome ?? 'Zykor'} logo={selectedBar?.logo_url} size={40} />
+            </div>
+            <div className="min-w-0">
+              <h1 className="truncate text-xl sm:text-2xl font-extrabold tracking-tight">
+                {saudacao(hora.getHours())}{nomeCurto ? `, ${nomeCurto}` : ''} 👋
+              </h1>
+              <p className="mt-0.5 truncate text-sm text-white/85">
+                Você está no <span className="font-semibold">{selectedBar?.nome || 'Zykor'}</span>
+              </p>
+            </div>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold tabular-nums text-neutral-900 dark:text-white">
+            <div className="text-2xl font-bold tabular-nums">
               {hora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
             </div>
-            <div className="text-xs capitalize text-neutral-500 dark:text-neutral-400">
+            <div className="text-xs capitalize text-white/80">
               {hora.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </div>
           </div>

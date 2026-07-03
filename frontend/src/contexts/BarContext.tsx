@@ -206,7 +206,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
                 }
 
                 setSelectedBar(barToSelect);
-                updateFavicon(barToSelect.nome);
+                updateFavicon(barToSelect.nome, barToSelect.logo_url);
                 // Sincronizar permissões do bar selecionado
                 syncBarPermissions(barToSelect);
                 // Fixar a seleção desta aba + garantir cookie p/ Server Components
@@ -283,27 +283,13 @@ export function BarProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [isLoading, availableBars.length, userInitialized, user?.email]);
 
-  // Função para atualizar favicon baseado no bar
-  const updateFavicon = (barName?: string) => {
+  // Função para atualizar favicon baseado no bar.
+  // Se o bar tem logo cadastrada (logoUrl), usa ela como favicon; senão, cai no Zykor.
+  const updateFavicon = (barName?: string, logoUrl?: string | null) => {
     if (typeof window === 'undefined') return;
 
-    // Mapeamento de nomes de bares para favicons
-    const getFaviconPath = (name?: string) => {
-      if (!name) return '/logos/zykor-logo-white.png';
-      
-      const normalizedName = name.toLowerCase().replace(/[^a-z]/g, '');
-      const barFavicons: Record<string, string> = {
-        'ordinario': '/logos/zykor-logo-white.png', // Temporariamente usando ZYKOR
-        'deboche': '/logos/zykor-logo-white.png',   // Temporariamente usando ZYKOR
-      };
-      
-      return barFavicons[normalizedName] || '/logos/zykor-logo-white.png';
-    };
-
-    const faviconPath = getFaviconPath(barName);
-    const appleTouchPath = barName
-      ? `/favicons/${barName.toLowerCase().replace(/[^a-z]/g, '')}/apple-touch-icon.png`
-      : '/favicons/zykor/apple-touch-icon.png';
+    const faviconPath = logoUrl || '/logos/zykor-logo-white.png';
+    const appleTouchPath = logoUrl || '/favicons/zykor/apple-touch-icon.png';
 
     // Atualizar favicon principal
     let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
@@ -354,7 +340,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
     // Cookie p/ Server Components — escrito ANTES do refresh para o servidor
     // já renderizar com o bar novo.
     setBarCookie(bar.id);
-    updateFavicon(bar.nome);
+    updateFavicon(bar.nome, bar.logo_url);
     syncBarPermissions(bar);
 
     if (previousBarId !== undefined && previousBarId !== bar.id) {

@@ -32,30 +32,40 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
-  <DialogPortal>
-    <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        'fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%]',
-        'w-full max-w-lg max-h-[90vh]',
-        'bg-[hsl(var(--card))] text-[hsl(var(--card-foreground))]',
-        'border border-[hsl(var(--border))] rounded-lg shadow-lg',
-        'flex flex-col overflow-hidden',
-        'data-[state=open]:animate-slideDown',
-        className
-      )}
-      {...props}
-    >
-      {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100 transition-opacity">
-        <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
-      </DialogPrimitive.Close>
-    </DialogPrimitive.Content>
-  </DialogPortal>
-));
+>(({ className, children, ...props }, ref) => {
+  // Fallback de descrição p/ acessibilidade: quando o diálogo não define uma
+  // `DialogDescription`, o Radix reclama no console ("Missing Description or
+  // aria-describedby"). Apontamos aria-describedby p/ um <span sr-only> vazio com id
+  // válido — silencia o warning sem mudar o visual. Se o caller passar seu próprio
+  // aria-describedby, ele prevalece (vem depois no spread).
+  const fallbackDescId = React.useId();
+  return (
+    <DialogPortal>
+      <DialogOverlay />
+      <DialogPrimitive.Content
+        ref={ref}
+        aria-describedby={fallbackDescId}
+        className={cn(
+          'fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%]',
+          'w-full max-w-lg max-h-[90vh]',
+          'bg-[hsl(var(--card))] text-[hsl(var(--card-foreground))]',
+          'border border-[hsl(var(--border))] rounded-lg shadow-lg',
+          'flex flex-col overflow-hidden',
+          'data-[state=open]:animate-slideDown',
+          className
+        )}
+        {...props}
+      >
+        {children}
+        <span id={fallbackDescId} className="sr-only" />
+        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100 transition-opacity">
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </DialogPrimitive.Close>
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  );
+});
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const DialogHeader = ({
