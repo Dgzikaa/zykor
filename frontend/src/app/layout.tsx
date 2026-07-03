@@ -24,7 +24,6 @@ import { ClientOnlyLayoutParts } from '@/components/ClientOnlyLayoutParts';
 import { PermissionGuard } from '@/components/PermissionGuard';
 import { SessionManager } from '@/components/SessionManager';
 import { SessionHeartbeat } from '@/components/SessionHeartbeat';
-import { PesquisaOnboarding } from '@/components/PesquisaOnboarding';
 
 export const metadata: Metadata = {
   title: 'Zykor - O núcleo da gestão de bares',
@@ -61,7 +60,6 @@ export default function RootLayout({
                         <ErrorBoundary>
                           <SessionManager />
                           <SessionHeartbeat />
-                          <PesquisaOnboarding />
                           <PermissionGuard>
                             <div className="min-h-screen">
                               {children}
