@@ -80,6 +80,21 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   { prefix: '/api/instagram', paths: ['/marketing/instagram'] },
   { prefix: '/api/ferramentas/nps', paths: ['/operacional/nps'] },
   { prefix: '/api/concorrencia', paths: ['/comercial'] },
+  // --- Estratégico ---
+  { prefix: '/api/estrategico/desempenho-v2', paths: ['/estrategico/desempenho'] },
+  { prefix: '/api/estrategico/desempenho', paths: ['/estrategico/desempenho'] },
+  { prefix: '/api/estrategico/marketing-mensal', paths: ['/estrategico/desempenho'] },
+  { prefix: '/api/estrategico/orcamentacao', paths: ['/estrategico/orcamentacao'] },
+  { prefix: '/api/estrategico/bp', paths: ['/estrategico/orcamentacao'] },
+  { prefix: '/api/gestao/desempenho', paths: ['/estrategico/desempenho'] },
+  { prefix: '/api/cmv', paths: ['/estrategico/visao-geral'] },
+  // --- Ferramentas (CMV semanal) ---
+  { prefix: '/api/cmv-semanal', paths: ['/ferramentas/cmv-semanal/tabela'] },
+  // --- Financeiro (dados; rotas de PAGAMENTO ficam fora por ora, revisar com o dono) ---
+  { prefix: '/api/financeiro/balanco', paths: ['/financeiro/balanco'] },
+  { prefix: '/api/financeiro/categorias', paths: ['/financeiro/categorias'] },
+  { prefix: '/api/financeiro/dfc', paths: ['/financeiro/dfc'] },
+  { prefix: '/api/financeiro/beneficiarios', paths: ['/financeiro/beneficiarios', '/financeiro/pedidos-pagamento'] },
 ];
 
 /**

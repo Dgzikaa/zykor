@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 import { createServerClient } from '@/lib/supabase-server';
 
 /**
@@ -16,6 +18,9 @@ import { createServerClient } from '@/lib/supabase-server';
  * }
  */
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const body = await request.json().catch(() => ({}));
     const barId = Number(body?.bar_id);

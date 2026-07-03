@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 import { getAdminClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
@@ -40,6 +42,9 @@ export async function GET(req: NextRequest) {
  * Body: { bar_id, categoria_pai_id, nome_grupo, dre_macro }.
  */
 export async function POST(req: NextRequest) {
+  const user = await authenticateUser(req);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, req); if (nega) return nega;
   try {
     const body = await req.json();
     const barId = Number(body.bar_id);

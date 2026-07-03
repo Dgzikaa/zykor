@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +24,9 @@ export async function GET(req: NextRequest) {
 
 /** POST { bar_id, descricao, valor, data_aquisicao, tipo, taxa_anual?, observacao? } — cadastra ativo */
 export async function POST(req: NextRequest) {
+  const user = await authenticateUser(req);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, req); if (nega) return nega;
   try {
     const b = await req.json();
     const { bar_id, descricao, valor, data_aquisicao, tipo } = b;
@@ -44,6 +49,9 @@ export async function POST(req: NextRequest) {
 
 /** DELETE /api/financeiro/balanco/imobilizado?id=123 — soft delete (ativo=false) */
 export async function DELETE(req: NextRequest) {
+  const user = await authenticateUser(req);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, req); if (nega) return nega;
   try {
     const id = Number(req.nextUrl.searchParams.get('id'));
     if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 });

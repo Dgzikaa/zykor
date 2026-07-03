@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 import { tbl } from '@/lib/supabase/table-schemas';
 
 export const dynamic = 'force-dynamic'
@@ -373,7 +375,10 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const body = await request.json();
     const { bar_id, ano, mes, categoria_nome, valor_planejado, valor_projetado, valor_realizado, valor_realizado_manual, observacao, atualizado_por } = body;
@@ -446,7 +451,10 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const body = await request.json();
     const { id, valor_planejado, observacoes } = body;

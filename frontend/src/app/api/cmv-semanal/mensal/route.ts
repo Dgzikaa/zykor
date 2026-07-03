@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { getFatorCmv, safeDivideCmv } from '@/lib/config/getFatorCmv';
 import { tbl } from '@/lib/supabase/table-schemas';
@@ -796,6 +798,9 @@ function agregarCMVProportional(
  * nenhuma da cmv_semanal. Sócio relatou "não tá salvando".
  */
 export async function PUT(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const supabase = await getAdminClient();
     const body = await request.json();

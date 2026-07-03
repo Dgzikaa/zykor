@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { logAuditEvent } from '@/lib/audit-logger';
 import { tbl } from '@/lib/supabase/table-schemas';
@@ -170,6 +172,9 @@ export async function GET(request: NextRequest) {
 
 // POST - Criar/Atualizar registro de CMV
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const body = await request.json();
     const { bar_id, registro } = body;
@@ -259,6 +264,9 @@ export async function POST(request: NextRequest) {
 
 // PUT - Atualizar campos de um registro (status, métricas manuais, etc.)
 export async function PUT(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const body = await request.json();
     const { id, ...campos } = body;
@@ -365,6 +373,9 @@ export async function PUT(request: NextRequest) {
 
 // DELETE - Excluir registro
 export async function DELETE(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

@@ -1,6 +1,8 @@
 'use server'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -68,6 +70,9 @@ export async function GET(request: NextRequest) {
 
 // POST - Inserir novo CMV
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const body: CMVManual = await request.json()
 
@@ -140,6 +145,9 @@ export async function POST(request: NextRequest) {
 
 // DELETE - Remover CMV
 export async function DELETE(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
