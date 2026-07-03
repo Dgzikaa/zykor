@@ -37,26 +37,54 @@ function getSupabaseAdmin() {
 
 type TipoStone = 'CREDITO' | 'DEBITO' | 'PIX';
 
+// Conta financeira (banco) de destino por CNPJ × tipo. Cada bar fatura em 2 CNPJs (2 StoneCodes)
+// e cada CNPJ tem contas bancárias próprias no MESMO Conta Azul — por isso o roteamento é por
+// stone_code. `taxa` = conta onde o par despesa+compensação da maquininha daquele CNPJ é lançado.
+interface CnpjContas {
+  nome: string; // rótulo curto (vai na descrição, distingue os 2 CNPJs no CA)
+  CREDITO: string;
+  DEBITO: string;
+  PIX: string;
+  taxa: string;
+}
 interface BarStoneConfig {
   cliente_id: string; // CLIENTE Stone (contato dos recebíveis e da compensação)
-  receitas: Record<TipoStone, { categoria_id: string; conta_financeira_id: string; label: string }>;
-  taxa: { categoria_id: string; conta_financeira_id: string; fornecedor_id: string; compensacao_categoria_id: string };
+  // categorias são as MESMAS entre os CNPJs do bar (só a conta financeira muda)
+  categorias: Record<TipoStone, { categoria_id: string; label: string }>;
+  taxa: { categoria_id: string; fornecedor_id: string; compensacao_categoria_id: string };
+  contasPorCnpj: Record<string, CnpjContas>; // chave = stone_code
 }
 
-// De-para bar 3 (Ordinário): créd/déb → Ordinário BB; pix → Ordinário Stone.
+// De-para bar 3: Ordinário (142630205) créd/déb→Ordinário BB, pix→Ordinário Stone; taxa→Ordinário BB.
+//               Ordibar   (149840567) créd/déb→OrdiBar Inter, pix→OrdiBar Stone; taxa→OrdiBar Inter.
 const CONFIG: Record<number, BarStoneConfig> = {
   3: {
     cliente_id: 'afe2340b-9e88-40d9-acfb-0d3a71b9dcaa', // STONE INSTITUIÇÃO DE PAGAMENTO (CLIENTE)
-    receitas: {
-      CREDITO: { categoria_id: '0f5a3cab-0759-46a2-86b4-3a224da52a1e', conta_financeira_id: '5e0290a7-87ed-4a31-ac8d-88f107d20d8a', label: 'Crédito' },
-      DEBITO: { categoria_id: '21159a4f-f665-4630-8a49-ea66b9e05965', conta_financeira_id: '5e0290a7-87ed-4a31-ac8d-88f107d20d8a', label: 'Débito' },
-      PIX: { categoria_id: '44408100-c5bb-48e7-a291-64c62d12f81d', conta_financeira_id: 'd210a889-27e1-49cb-b5c0-d8cad97a6939', label: 'PIX' },
+    categorias: {
+      CREDITO: { categoria_id: '0f5a3cab-0759-46a2-86b4-3a224da52a1e', label: 'Crédito' },
+      DEBITO: { categoria_id: '21159a4f-f665-4630-8a49-ea66b9e05965', label: 'Débito' },
+      PIX: { categoria_id: '44408100-c5bb-48e7-a291-64c62d12f81d', label: 'PIX' },
     },
     taxa: {
       categoria_id: '4374543a-57cc-42b4-a175-b9044cf83b47', // TAXA MAQUININHA (despesa)
-      conta_financeira_id: '5e0290a7-87ed-4a31-ac8d-88f107d20d8a', // Ordinário BB
       fornecedor_id: 'af680bf0-1970-465e-b8df-ae8e1b85a775', // STONE (FORNECEDOR)
-      compensacao_categoria_id: 'a8a69943-af27-46de-b308-d28a51c7847f', // Outras Receitas (compensação da taxa)
+      compensacao_categoria_id: 'a8a69943-af27-46de-b308-d28a51c7847f', // Outras Receitas (compensação)
+    },
+    contasPorCnpj: {
+      '142630205': { // Ordinário Bar
+        nome: 'Ordinário',
+        CREDITO: '5e0290a7-87ed-4a31-ac8d-88f107d20d8a', // Ordinário BB
+        DEBITO: '5e0290a7-87ed-4a31-ac8d-88f107d20d8a', // Ordinário BB
+        PIX: 'd210a889-27e1-49cb-b5c0-d8cad97a6939', // Ordinário Stone
+        taxa: '5e0290a7-87ed-4a31-ac8d-88f107d20d8a', // Ordinário BB
+      },
+      '149840567': { // Ordibar
+        nome: 'Ordibar',
+        CREDITO: '86213fcf-52aa-4c2e-9359-79a8641397a2', // OrdiBar Inter
+        DEBITO: '86213fcf-52aa-4c2e-9359-79a8641397a2', // OrdiBar Inter
+        PIX: '892449d4-a328-4b73-a6a2-38aa243983f3', // OrdiBar Stone
+        taxa: '86213fcf-52aa-4c2e-9359-79a8641397a2', // OrdiBar Inter
+      },
     },
   },
 };
@@ -66,6 +94,7 @@ const BANDEIRA: Record<number, string> = { 1: 'Visa', 2: 'Mastercard', 3: 'Amex'
 const bandeiraLabel = (id: number | null) => (id != null && BANDEIRA[id]) || (id != null ? `Bandeira ${id}` : '—');
 
 interface LinhaDia {
+  stone_code: string; // CNPJ (StoneCode) de origem — roteia a conta financeira
   tipo: TipoStone;
   brand_id: number | null;
   vencimento: string;
@@ -81,8 +110,12 @@ const brDate = (d: string) => d.split('-').reverse().join('/');
 // Marca do que o Zykor lança: prefixo "[Zykor] " na DESCRIÇÃO (não mexe no contato/fornecedor,
 // que fica livre pros módulos de pagamento mapearem o fornecedor real).
 const PREFIXO_ZYKOR = '[Zykor] ';
-const descTaxaDia = (dataVenda: string) => `${PREFIXO_ZYKOR}Taxa maquininha Stone ${brDate(dataVenda)}`;
-const DESC_COMPENSACAO = `${PREFIXO_ZYKOR}Compensação taxa maquininha`;
+// Descrições da taxa levam o nome do CNPJ p/ (a) distinguir os 2 CNPJs no CA e (b) a baixa achar
+// o lançamento certo pelo match exato de descrição (baixarTaxa busca por descrição).
+const descTaxaDia = (nome: string, dataVenda: string) => `${PREFIXO_ZYKOR}Taxa maquininha Stone ${nome} ${brDate(dataVenda)}`;
+const descCompensacao = (nome: string) => `${PREFIXO_ZYKOR}Compensação taxa maquininha ${nome}`;
+// nome curto do CNPJ (StoneCode) p/ descrição; fallback no próprio code se não mapeado.
+const nomeCnpj = (cfg: BarStoneConfig, stoneCode: string) => cfg.contasPorCnpj[stoneCode]?.nome ?? stoneCode;
 // Rate limit do CA: espaça as requisições e faz retry no 429 pra não deixar lançamento pendente.
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const DELAY_MS = 250; // ~4 req/s entre lançamentos (folga sob o limite do CA)
@@ -115,6 +148,7 @@ async function getLinhas(barId: number, data: string): Promise<LinhaDia[]> {
   });
   if (error) throw new Error(`Falha ao agregar Stone do dia: ${error.message}`);
   return ((rows as any[]) || []).map((r) => ({
+    stone_code: String(r.stone_code),
     tipo: String(r.tipo) as TipoStone,
     brand_id: r.brand_id == null ? null : Number(r.brand_id),
     vencimento: String(r.vencimento),
@@ -126,81 +160,82 @@ async function getLinhas(barId: number, data: string): Promise<LinhaDia[]> {
   }));
 }
 
-/** Descrição do recebível, sempre com o prefixo "[Zykor] " (marca automação). Sem data (o
- *  vencimento já é coluna): créd/déb = "[Zykor] Bandeira Tipo"; PIX = "[Zykor] PIX · Nome". */
-function descricaoDe(l: LinhaDia): string {
-  if (l.tipo === 'PIX') return `${PREFIXO_ZYKOR}PIX${l.pagador ? ` · ${l.pagador}` : ''}`;
+/** Descrição do recebível, com prefixo "[Zykor] " + nome do CNPJ (distingue os 2 no CA). Sem data
+ *  (o vencimento já é coluna): créd/déb = "[Zykor] Nome · Bandeira Tipo"; PIX = "[Zykor] Nome · PIX · Pagador". */
+function descricaoDe(cfg: BarStoneConfig, l: LinhaDia): string {
+  const nome = nomeCnpj(cfg, l.stone_code);
+  if (l.tipo === 'PIX') return `${PREFIXO_ZYKOR}${nome} · PIX${l.pagador ? ` · ${l.pagador}` : ''}`;
   const tipoLabel = l.tipo === 'CREDITO' ? 'Crédito' : 'Débito';
-  return `${PREFIXO_ZYKOR}${bandeiraLabel(l.brand_id)} ${tipoLabel}`;
+  return `${PREFIXO_ZYKOR}${nome} · ${bandeiraLabel(l.brand_id)} ${tipoLabel}`;
 }
 
-/** Conta a receber pelo LÍQUIDO (bruto − taxa) do recebível. */
+/** Conta a receber pelo LÍQUIDO (bruto − taxa), na conta financeira do CNPJ×tipo. */
 function payloadReceita(cfg: BarStoneConfig, l: LinhaDia, dataVenda: string) {
   const valor = round2(l.bruto - l.taxa); // LÍQUIDO
-  const rc = cfg.receitas[l.tipo];
-  const descricao = descricaoDe(l);
+  const contas = cfg.contasPorCnpj[l.stone_code];
+  const contaFin = contas[l.tipo];
+  const categoriaId = cfg.categorias[l.tipo].categoria_id;
+  const descricao = descricaoDe(cfg, l);
   return {
     data_competencia: dataVenda,
     valor,
     observacao: `Recebível Stone líquido (${l.transacoes} transação(ões); bruto ${round2(l.bruto)} − taxa ${round2(l.taxa)}) via Zykor`,
     descricao,
     contato: cfg.cliente_id,
-    conta_financeira: rc.conta_financeira_id,
-    rateio: [{ id_categoria: rc.categoria_id, valor }],
+    conta_financeira: contaFin,
+    rateio: [{ id_categoria: categoriaId, valor }],
     condicao_pagamento: {
       parcelas: [{
         descricao,
         data_vencimento: l.vencimento,
         nota: 'Recebível Stone (líquido) lançado via Zykor',
-        conta_financeira: rc.conta_financeira_id,
+        conta_financeira: contaFin,
         detalhe_valor: { valor_bruto: valor, valor_liquido: valor, juros: 0, multa: 0, desconto: 0, taxa: 0 },
       }],
     },
   };
 }
 
-/** DESPESA: taxa TOTAL de maquininha do dia (1 lançamento). */
-function payloadTaxaTotal(cfg: BarStoneConfig, dataVenda: string, valorTotal: number) {
+/** DESPESA: taxa TOTAL de maquininha do dia, POR CNPJ (1 lançamento por CNPJ). */
+function payloadTaxaTotal(cfg: BarStoneConfig, dataVenda: string, valorTotal: number, contaFin: string, descricao: string) {
   const valor = round2(valorTotal);
-  const descricao = descTaxaDia(dataVenda);
   return {
     data_competencia: dataVenda,
     valor,
-    observacao: 'Taxa total de maquininha Stone do dia (lançamos o líquido) via Zykor',
+    observacao: 'Taxa total de maquininha Stone do dia por CNPJ (lançamos o líquido) via Zykor',
     descricao,
     contato: cfg.taxa.fornecedor_id,
-    conta_financeira: cfg.taxa.conta_financeira_id,
+    conta_financeira: contaFin,
     rateio: [{ id_categoria: cfg.taxa.categoria_id, valor }],
     condicao_pagamento: {
       parcelas: [{
         descricao,
         data_vencimento: dataVenda,
-        nota: 'Taxa Stone (total do dia) lançada via Zykor',
-        conta_financeira: cfg.taxa.conta_financeira_id,
+        nota: 'Taxa Stone (total do dia por CNPJ) lançada via Zykor',
+        conta_financeira: contaFin,
         detalhe_valor: { valor_bruto: valor, valor_liquido: valor, juros: 0, multa: 0, desconto: 0, taxa: 0 },
       }],
     },
   };
 }
 
-/** RECEITA: compensação da taxa (Outras Receitas) — anula a despesa, mantém o caixa no líquido. */
-function payloadCompensacao(cfg: BarStoneConfig, dataVenda: string, valorTotal: number) {
+/** RECEITA: compensação da taxa (Outras Receitas) POR CNPJ — anula a despesa, mantém o caixa no líquido. */
+function payloadCompensacao(cfg: BarStoneConfig, dataVenda: string, valorTotal: number, contaFin: string, descricao: string) {
   const valor = round2(valorTotal);
-  const descricao = DESC_COMPENSACAO;
   return {
     data_competencia: dataVenda,
     valor,
-    observacao: 'Compensação da taxa de maquininha Stone do dia (lançamos o líquido) via Zykor',
+    observacao: 'Compensação da taxa de maquininha Stone do dia por CNPJ (lançamos o líquido) via Zykor',
     descricao,
     contato: cfg.cliente_id,
-    conta_financeira: cfg.taxa.conta_financeira_id,
+    conta_financeira: contaFin,
     rateio: [{ id_categoria: cfg.taxa.compensacao_categoria_id, valor }],
     condicao_pagamento: {
       parcelas: [{
         descricao,
         data_vencimento: dataVenda,
-        nota: 'Compensação taxa Stone (total do dia) via Zykor',
-        conta_financeira: cfg.taxa.conta_financeira_id,
+        nota: 'Compensação taxa Stone (total do dia por CNPJ) via Zykor',
+        conta_financeira: contaFin,
         detalhe_valor: { valor_bruto: valor, valor_liquido: valor, juros: 0, multa: 0, desconto: 0, taxa: 0 },
       }],
     },
@@ -308,9 +343,11 @@ export async function GET(request: NextRequest) {
     const recebiveis = linhas
       .filter((l) => l.bruto > 0)
       .map((l) => ({
+        empresa: nomeCnpj(cfg, l.stone_code),
+        conta_financeira: cfg.contasPorCnpj[l.stone_code]?.[l.tipo] ?? null,
         tipo: l.tipo,
         bandeira: bandeiraLabel(l.brand_id),
-        descricao: descricaoDe(l),
+        descricao: descricaoDe(cfg, l),
         bruto: round2(l.bruto),
         taxa: round2(l.taxa),
         valor: round2(l.bruto - l.taxa), // LÍQUIDO — é o que vai como conta a receber
@@ -319,12 +356,20 @@ export async function GET(request: NextRequest) {
         ja_lancado: feito.has(`${l.chave}::RECEITA`),
       }));
 
-    // taxa do dia = 1 valor total → par que se compensa (despesa TAXA MAQUININHA + receita Outras Receitas)
-    const taxaTotal = round2(linhas.reduce((s, l) => s + l.taxa, 0));
-    const compensacao = taxaTotal > 0 ? [
-      { descricao: descTaxaDia(data), tipo: 'DESPESA', categoria: 'TAXA MAQUININHA', valor: taxaTotal, vencimento: data, ja_lancado: feito.has('TAXA_DIA::TAXA') },
-      { descricao: DESC_COMPENSACAO, tipo: 'RECEITA', categoria: 'Outras Receitas', valor: taxaTotal, vencimento: data, ja_lancado: feito.has('COMPENSACAO_DIA::COMPENSACAO') },
-    ] : [];
+    // taxa POR CNPJ: 1 par que se compensa (despesa TAXA MAQUININHA + receita Outras Receitas) por CNPJ
+    const taxaPorCnpj = new Map<string, number>();
+    for (const l of linhas) taxaPorCnpj.set(l.stone_code, round2((taxaPorCnpj.get(l.stone_code) ?? 0) + l.taxa));
+    const compensacao = [...taxaPorCnpj.entries()]
+      .filter(([, v]) => v > 0)
+      .flatMap(([sc, v]) => {
+        const nome = nomeCnpj(cfg, sc);
+        const contaTaxa = cfg.contasPorCnpj[sc]?.taxa ?? null;
+        return [
+          { empresa: nome, conta_financeira: contaTaxa, descricao: descTaxaDia(nome, data), tipo: 'DESPESA', categoria: 'TAXA MAQUININHA', valor: v, vencimento: data, ja_lancado: feito.has(`TAXA_DIA|${sc}::TAXA`) },
+          { empresa: nome, conta_financeira: contaTaxa, descricao: descCompensacao(nome), tipo: 'RECEITA', categoria: 'Outras Receitas', valor: v, vencimento: data, ja_lancado: feito.has(`COMPENSACAO_DIA|${sc}::COMPENSACAO`) },
+        ];
+      });
+    const taxaTotal = round2([...taxaPorCnpj.values()].reduce((s, v) => s + v, 0));
 
     const totalLiquido = round2(recebiveis.reduce((s, r) => s + r.valor, 0));
     return NextResponse.json({
@@ -387,7 +432,7 @@ export async function executarStoneDiario(
     valor: number,
     endpoint: 'contas-a-receber' | 'contas-a-pagar',
     payload: unknown,
-    meta: { tipo?: TipoStone | null; brand_id?: number | null; vencimento?: string | null },
+    meta: { tipo?: TipoStone | null; brand_id?: number | null; vencimento?: string | null; stone_code?: string | null },
   ) {
     if (valor <= 0) return;
     if (feito.has(`${chave}::${natureza}`)) {
@@ -402,6 +447,7 @@ export async function executarStoneDiario(
         data_venda: data,
         chave,
         natureza,
+        stone_code: meta.stone_code ?? null,
         tipo: meta.tipo ?? null,
         brand_id: meta.brand_id ?? null,
         vencimento: meta.vencimento ?? data,
@@ -414,25 +460,40 @@ export async function executarStoneDiario(
     resultados.push({ chave, natureza, ok: r.ok, valor: round2(valor), protocolId: r.protocolId, erro: r.erro });
   }
 
+  // Trava anti-mis-book: se aparecer um StoneCode sem conta no CONFIG do bar, NÃO lança (sinaliza).
+  const cnpjSemConta = [...new Set(linhas.map((l) => l.stone_code))].filter((sc) => !cfg.contasPorCnpj[sc]);
+  for (const sc of cnpjSemConta) {
+    resultados.push({ chave: sc, natureza: 'CONFIG', ok: false, erro: `StoneCode ${sc} sem conta financeira no CONFIG do bar ${barId}` });
+  }
+  const linhasOk = linhas.filter((l) => cfg.contasPorCnpj[l.stone_code]);
+
+  // Taxa POR CNPJ (par despesa+compensação, cada um na conta do cartão daquele CNPJ).
+  const taxaPorCnpj = new Map<string, number>();
+  for (const l of linhasOk) taxaPorCnpj.set(l.stone_code, round2((taxaPorCnpj.get(l.stone_code) ?? 0) + l.taxa));
+
   // Sequencial pra respeitar o rate limit do CA (PIX pode ter muitas linhas).
-  // 1) Taxa do dia PRIMEIRO (só 2 lançamentos) → garante que o par de taxa nunca fica de fora
-  //    quando o lote de recebíveis é grande/lento (era o que deixava a taxa "pendente").
-  const taxaTotal = round2(linhas.reduce((s, l) => s + l.taxa, 0));
-  if (taxaTotal > 0) {
-    await enviar('TAXA_DIA', 'TAXA', taxaTotal, 'contas-a-pagar', payloadTaxaTotal(cfg, data, taxaTotal), { vencimento: data });
-    await enviar('COMPENSACAO_DIA', 'COMPENSACAO', taxaTotal, 'contas-a-receber', payloadCompensacao(cfg, data, taxaTotal), { vencimento: data });
+  // 1) Taxa PRIMEIRO (2 lançamentos por CNPJ) → garante que o par de taxa nunca fica de fora.
+  for (const [sc, valor] of taxaPorCnpj) {
+    if (valor <= 0) continue;
+    const nome = nomeCnpj(cfg, sc);
+    const contaTaxa = cfg.contasPorCnpj[sc].taxa;
+    await enviar(`TAXA_DIA|${sc}`, 'TAXA', valor, 'contas-a-pagar', payloadTaxaTotal(cfg, data, valor, contaTaxa, descTaxaDia(nome, data)), { vencimento: data, stone_code: sc });
+    await enviar(`COMPENSACAO_DIA|${sc}`, 'COMPENSACAO', valor, 'contas-a-receber', payloadCompensacao(cfg, data, valor, contaTaxa, descCompensacao(nome)), { vencimento: data, stone_code: sc });
   }
-  // 2) Recebíveis pelo LÍQUIDO (bruto − taxa).
-  for (const l of linhas) {
-    await enviar(l.chave, 'RECEITA', round2(l.bruto - l.taxa), 'contas-a-receber', payloadReceita(cfg, l, data), { tipo: l.tipo, brand_id: l.brand_id, vencimento: l.vencimento });
+  // 2) Recebíveis pelo LÍQUIDO (bruto − taxa), na conta do CNPJ×tipo.
+  for (const l of linhasOk) {
+    await enviar(l.chave, 'RECEITA', round2(l.bruto - l.taxa), 'contas-a-receber', payloadReceita(cfg, l, data), { tipo: l.tipo, brand_id: l.brand_id, vencimento: l.vencimento, stone_code: l.stone_code });
   }
-  // 3) Baixa das taxas (marca despesa PAGA e compensação RECEBIDA). Feita por último de propósito:
+  // 3) Baixa das taxas por CNPJ (marca despesa PAGA e compensação RECEBIDA). Por último de propósito:
   //    a criação é assíncrona e o lote de receitas acima já deu o tempo do evento aparecer no CA.
-  if (taxaTotal > 0) {
-    const bDesp = await baixarTaxa(token, 'contas-a-pagar', descTaxaDia(data), data, taxaTotal, cfg.taxa.conta_financeira_id);
-    resultados.push({ chave: 'TAXA_DIA', natureza: 'BAIXA', ok: bDesp.ok, erro: bDesp.motivo });
-    const bComp = await baixarTaxa(token, 'contas-a-receber', DESC_COMPENSACAO, data, taxaTotal, cfg.taxa.conta_financeira_id);
-    resultados.push({ chave: 'COMPENSACAO_DIA', natureza: 'BAIXA', ok: bComp.ok, erro: bComp.motivo });
+  for (const [sc, valor] of taxaPorCnpj) {
+    if (valor <= 0) continue;
+    const nome = nomeCnpj(cfg, sc);
+    const contaTaxa = cfg.contasPorCnpj[sc].taxa;
+    const bDesp = await baixarTaxa(token, 'contas-a-pagar', descTaxaDia(nome, data), data, valor, contaTaxa);
+    resultados.push({ chave: `TAXA_DIA|${sc}`, natureza: 'BAIXA', ok: bDesp.ok, erro: bDesp.motivo });
+    const bComp = await baixarTaxa(token, 'contas-a-receber', descCompensacao(nome), data, valor, contaTaxa);
+    resultados.push({ chave: `COMPENSACAO_DIA|${sc}`, natureza: 'BAIXA', ok: bComp.ok, erro: bComp.motivo });
   }
 
   const houveErro = resultados.some((r) => r.ok === false);
