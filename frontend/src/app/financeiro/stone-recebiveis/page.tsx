@@ -97,9 +97,10 @@ function Conteudo() {
     const recs = recebiveisView.filter((r) => (r.empresa || '') === emp);
     const comps = compensacaoView.filter((c) => (c.empresa || '') === emp);
     const contas = Array.from(new Set(recs.map((r) => r.conta).filter(Boolean)));
+    const bruto = recs.reduce((s, r) => s + Number(r.bruto || 0), 0);
     const liquido = recs.reduce((s, r) => s + Number(r.valor || 0), 0);
     const pend = recs.filter((r) => !r.ja_lancado).length + comps.filter((c) => !c.ja_lancado).length;
-    return { emp, recs, comps, contas, liquido, pend };
+    return { emp, recs, comps, contas, bruto, liquido, pend };
   };
 
   return (
@@ -227,7 +228,10 @@ function Conteudo() {
                           {g.pend > 0
                             ? <span className="text-[11px] rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-2 py-0.5">{g.pend} pendente(s)</span>
                             : <span className="text-[11px] text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />lançado</span>}
-                          <span className="text-sm font-bold tabular-nums">{fmtBRL(g.liquido)}</span>
+                          <div className="text-right leading-tight">
+                            <div className="text-[11px] text-muted-foreground tabular-nums">bruto {fmtBRL(g.bruto)}</div>
+                            <div className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">líq {fmtBRL(g.liquido)}</div>
+                          </div>
                         </div>
                       </button>
 
