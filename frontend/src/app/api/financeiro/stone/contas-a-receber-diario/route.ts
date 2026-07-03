@@ -248,6 +248,48 @@ async function postCA(
   return { ok: false, protocolId: null, status: '429', erro: 'rate limit persistente' };
 }
 
+/**
+ * Baixa (marca PAGA/RECEBIDA) o lançamento da taxa. O CA usa o PRÓPRIO id do lançamento como
+ * id da parcela: POST /parcelas/{id}/baixa. Acha o id via buscar (com retry, pois a criação é
+ * assíncrona — o evento leva alguns segundos pra aparecer). Se já está pago, não baixa de novo.
+ */
+async function baixarTaxa(
+  token: string,
+  tipo: 'contas-a-pagar' | 'contas-a-receber',
+  descricao: string,
+  dataVenda: string,
+  valor: number,
+  contaFinId: string,
+): Promise<{ ok: boolean; motivo?: string }> {
+  let idLanc: string | null = null;
+  for (let t = 0; t < 8 && !idLanc; t++) {
+    if (t) await sleep(2000);
+    const url = `${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/${tipo}/buscar?pagina=1&tamanho_pagina=300&data_vencimento_de=${dataVenda}&data_vencimento_ate=${dataVenda}`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!r.ok) continue;
+    const j: any = await r.json().catch(() => ({}));
+    const itens: any[] = j.itens || j.items || [];
+    const ev = itens.find((x) => String(x.descricao || '') === descricao);
+    if (ev && Number(ev.pago) > 0) return { ok: true }; // já baixado (idempotência)
+    if (ev?.id) idLanc = ev.id;
+  }
+  if (!idLanc) return { ok: false, motivo: 'lançamento não apareceu no CA p/ baixa (async)' };
+  // o próprio id do lançamento é o id da parcela (lançamento de parcela única)
+  const br = await fetch(`${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/parcelas/${idLanc}/baixa`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      data_pagamento: dataVenda,
+      composicao_valor: { valor_bruto: round2(valor), multa: 0, juros: 0, desconto: 0, taxa: 0 },
+      conta_financeira: contaFinId,
+      metodo_pagamento: 'TRANSFERENCIA_BANCARIA',
+      observacao: 'Baixa automática Stone→CA via Zykor',
+    }),
+  });
+  if (!br.ok) { const t = await br.text().catch(() => ''); return { ok: false, motivo: `baixa HTTP ${br.status}: ${t.slice(0, 120)}` }; }
+  return { ok: true };
+}
+
 /** GET: preview do dia — não escreve nada no CA. */
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
@@ -383,13 +425,18 @@ export async function POST(request: NextRequest) {
   if (taxaTotal > 0) {
     await enviar('TAXA_DIA', 'TAXA', taxaTotal, 'contas-a-pagar', payloadTaxaTotal(cfg, data, taxaTotal), { vencimento: data });
     await enviar('COMPENSACAO_DIA', 'COMPENSACAO', taxaTotal, 'contas-a-receber', payloadCompensacao(cfg, data, taxaTotal), { vencimento: data });
-    // A baixa (marcar paga/recebida) NÃO é feita aqui: o CA só expõe a parcela depois de
-    // sincronizar o evento (o id da parcela não existe logo após criar). Fica pra um passo
-    // pós-sync (watchdog/baixa dedicada).
   }
   // 2) Recebíveis pelo LÍQUIDO (bruto − taxa).
   for (const l of linhas) {
     await enviar(l.chave, 'RECEITA', round2(l.bruto - l.taxa), 'contas-a-receber', payloadReceita(cfg, l, data), { tipo: l.tipo, brand_id: l.brand_id, vencimento: l.vencimento });
+  }
+  // 3) Baixa das taxas (marca despesa PAGA e compensação RECEBIDA). Feita por último de propósito:
+  //    a criação é assíncrona e o lote de receitas acima já deu o tempo do evento aparecer no CA.
+  if (taxaTotal > 0) {
+    const bDesp = await baixarTaxa(token, 'contas-a-pagar', `Taxa maquininha Stone ${brDate(data)}`, data, taxaTotal, cfg.taxa.conta_financeira_id);
+    resultados.push({ chave: 'TAXA_DIA', natureza: 'BAIXA', ok: bDesp.ok, erro: bDesp.motivo });
+    const bComp = await baixarTaxa(token, 'contas-a-receber', 'Compensação taxa maquininha', data, taxaTotal, cfg.taxa.conta_financeira_id);
+    resultados.push({ chave: 'COMPENSACAO_DIA', natureza: 'BAIXA', ok: bComp.ok, erro: bComp.motivo });
   }
 
   const houveErro = resultados.some((r) => r.ok === false);
