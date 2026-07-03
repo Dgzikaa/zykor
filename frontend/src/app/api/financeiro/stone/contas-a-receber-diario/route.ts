@@ -37,8 +37,7 @@ function getSupabaseAdmin() {
 type TipoStone = 'CREDITO' | 'DEBITO' | 'PIX';
 
 interface BarStoneConfig {
-  cliente_id: string;   // CLIENTE Stone (legado — hoje o contato é o Zykor)
-  contato_zykor: string; // FORNECEDOR "Zykor" — contato de TODOS os lançamentos (marca automação)
+  cliente_id: string; // CLIENTE Stone (contato dos recebíveis e da compensação)
   receitas: Record<TipoStone, { categoria_id: string; conta_financeira_id: string; label: string }>;
   taxa: { categoria_id: string; conta_financeira_id: string; fornecedor_id: string; compensacao_categoria_id: string };
 }
@@ -46,8 +45,7 @@ interface BarStoneConfig {
 // De-para bar 3 (Ordinário): créd/déb → Ordinário BB; pix → Ordinário Stone.
 const CONFIG: Record<number, BarStoneConfig> = {
   3: {
-    cliente_id: 'afe2340b-9e88-40d9-acfb-0d3a71b9dcaa', // STONE INSTITUIÇÃO DE PAGAMENTO (CLIENTE, legado)
-    contato_zykor: 'c8f11daf-072f-47b7-9412-0145b5f09ce2', // FORNECEDOR "Zykor" (contato de tudo — marca automação)
+    cliente_id: 'afe2340b-9e88-40d9-acfb-0d3a71b9dcaa', // STONE INSTITUIÇÃO DE PAGAMENTO (CLIENTE)
     receitas: {
       CREDITO: { categoria_id: '0f5a3cab-0759-46a2-86b4-3a224da52a1e', conta_financeira_id: '5e0290a7-87ed-4a31-ac8d-88f107d20d8a', label: 'Crédito' },
       DEBITO: { categoria_id: '21159a4f-f665-4630-8a49-ea66b9e05965', conta_financeira_id: '5e0290a7-87ed-4a31-ac8d-88f107d20d8a', label: 'Débito' },
@@ -79,8 +77,11 @@ interface LinhaDia {
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 const brDate = (d: string) => d.split('-').reverse().join('/');
-// Código de referência do CA (coluna "nº do documento") — marca que foi lançado pelo Zykor.
-const NUM_DOC = 'zykor';
+// Marca do que o Zykor lança: prefixo "[Zykor] " na DESCRIÇÃO (não mexe no contato/fornecedor,
+// que fica livre pros módulos de pagamento mapearem o fornecedor real).
+const PREFIXO_ZYKOR = '[Zykor] ';
+const descTaxaDia = (dataVenda: string) => `${PREFIXO_ZYKOR}Taxa maquininha Stone ${brDate(dataVenda)}`;
+const DESC_COMPENSACAO = `${PREFIXO_ZYKOR}Compensação taxa maquininha`;
 // Rate limit do CA: espaça as requisições e faz retry no 429 pra não deixar lançamento pendente.
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const DELAY_MS = 250; // ~4 req/s entre lançamentos (folga sob o limite do CA)
@@ -124,34 +125,31 @@ async function getLinhas(barId: number, data: string): Promise<LinhaDia[]> {
   }));
 }
 
-/** Descrição do recebível/taxa. Sem data (o vencimento já é coluna própria):
- *  créd/déb = "Bandeira Tipo"; PIX = "PIX · Nome do pagador" (nome vem do relatório Stone). */
-function descricaoDe(l: LinhaDia, natureza: 'RECEITA' | 'TAXA'): string {
-  const prefixo = natureza === 'TAXA' ? 'Taxa ' : '';
-  if (l.tipo === 'PIX') return `${prefixo}PIX${l.pagador ? ` · ${l.pagador}` : ''}`;
+/** Descrição do recebível, sempre com o prefixo "[Zykor] " (marca automação). Sem data (o
+ *  vencimento já é coluna): créd/déb = "[Zykor] Bandeira Tipo"; PIX = "[Zykor] PIX · Nome". */
+function descricaoDe(l: LinhaDia): string {
+  if (l.tipo === 'PIX') return `${PREFIXO_ZYKOR}PIX${l.pagador ? ` · ${l.pagador}` : ''}`;
   const tipoLabel = l.tipo === 'CREDITO' ? 'Crédito' : 'Débito';
-  return `${prefixo}${bandeiraLabel(l.brand_id)} ${tipoLabel}`;
+  return `${PREFIXO_ZYKOR}${bandeiraLabel(l.brand_id)} ${tipoLabel}`;
 }
 
 /** Conta a receber pelo LÍQUIDO (bruto − taxa) do recebível. */
 function payloadReceita(cfg: BarStoneConfig, l: LinhaDia, dataVenda: string) {
   const valor = round2(l.bruto - l.taxa); // LÍQUIDO
   const rc = cfg.receitas[l.tipo];
-  const descricao = descricaoDe(l, 'RECEITA');
+  const descricao = descricaoDe(l);
   return {
     data_competencia: dataVenda,
     valor,
-    numero_documento: NUM_DOC,
     observacao: `Recebível Stone líquido (${l.transacoes} transação(ões); bruto ${round2(l.bruto)} − taxa ${round2(l.taxa)}) via Zykor`,
     descricao,
-    contato: cfg.contato_zykor,
+    contato: cfg.cliente_id,
     conta_financeira: rc.conta_financeira_id,
     rateio: [{ id_categoria: rc.categoria_id, valor }],
     condicao_pagamento: {
       parcelas: [{
         descricao,
         data_vencimento: l.vencimento,
-        numero_documento: NUM_DOC,
         nota: 'Recebível Stone (líquido) lançado via Zykor',
         conta_financeira: rc.conta_financeira_id,
         detalhe_valor: { valor_bruto: valor, valor_liquido: valor, juros: 0, multa: 0, desconto: 0, taxa: 0 },
@@ -163,21 +161,19 @@ function payloadReceita(cfg: BarStoneConfig, l: LinhaDia, dataVenda: string) {
 /** DESPESA: taxa TOTAL de maquininha do dia (1 lançamento). */
 function payloadTaxaTotal(cfg: BarStoneConfig, dataVenda: string, valorTotal: number) {
   const valor = round2(valorTotal);
-  const descricao = `Taxa maquininha Stone ${brDate(dataVenda)}`;
+  const descricao = descTaxaDia(dataVenda);
   return {
     data_competencia: dataVenda,
     valor,
-    numero_documento: NUM_DOC,
     observacao: 'Taxa total de maquininha Stone do dia (lançamos o líquido) via Zykor',
     descricao,
-    contato: cfg.contato_zykor,
+    contato: cfg.taxa.fornecedor_id,
     conta_financeira: cfg.taxa.conta_financeira_id,
     rateio: [{ id_categoria: cfg.taxa.categoria_id, valor }],
     condicao_pagamento: {
       parcelas: [{
         descricao,
         data_vencimento: dataVenda,
-        numero_documento: NUM_DOC,
         nota: 'Taxa Stone (total do dia) lançada via Zykor',
         conta_financeira: cfg.taxa.conta_financeira_id,
         detalhe_valor: { valor_bruto: valor, valor_liquido: valor, juros: 0, multa: 0, desconto: 0, taxa: 0 },
@@ -189,21 +185,19 @@ function payloadTaxaTotal(cfg: BarStoneConfig, dataVenda: string, valorTotal: nu
 /** RECEITA: compensação da taxa (Outras Receitas) — anula a despesa, mantém o caixa no líquido. */
 function payloadCompensacao(cfg: BarStoneConfig, dataVenda: string, valorTotal: number) {
   const valor = round2(valorTotal);
-  const descricao = 'Compensação taxa maquininha';
+  const descricao = DESC_COMPENSACAO;
   return {
     data_competencia: dataVenda,
     valor,
-    numero_documento: NUM_DOC,
     observacao: 'Compensação da taxa de maquininha Stone do dia (lançamos o líquido) via Zykor',
     descricao,
-    contato: cfg.contato_zykor,
+    contato: cfg.cliente_id,
     conta_financeira: cfg.taxa.conta_financeira_id,
     rateio: [{ id_categoria: cfg.taxa.compensacao_categoria_id, valor }],
     condicao_pagamento: {
       parcelas: [{
         descricao,
         data_vencimento: dataVenda,
-        numero_documento: NUM_DOC,
         nota: 'Compensação taxa Stone (total do dia) via Zykor',
         conta_financeira: cfg.taxa.conta_financeira_id,
         detalhe_valor: { valor_bruto: valor, valor_liquido: valor, juros: 0, multa: 0, desconto: 0, taxa: 0 },
@@ -315,7 +309,7 @@ export async function GET(request: NextRequest) {
       .map((l) => ({
         tipo: l.tipo,
         bandeira: bandeiraLabel(l.brand_id),
-        descricao: descricaoDe(l, 'RECEITA'),
+        descricao: descricaoDe(l),
         bruto: round2(l.bruto),
         taxa: round2(l.taxa),
         valor: round2(l.bruto - l.taxa), // LÍQUIDO — é o que vai como conta a receber
@@ -327,8 +321,8 @@ export async function GET(request: NextRequest) {
     // taxa do dia = 1 valor total → par que se compensa (despesa TAXA MAQUININHA + receita Outras Receitas)
     const taxaTotal = round2(linhas.reduce((s, l) => s + l.taxa, 0));
     const compensacao = taxaTotal > 0 ? [
-      { descricao: `Taxa maquininha Stone ${brDate(data)}`, tipo: 'DESPESA', categoria: 'TAXA MAQUININHA', valor: taxaTotal, vencimento: data, ja_lancado: feito.has('TAXA_DIA::TAXA') },
-      { descricao: 'Compensação taxa maquininha', tipo: 'RECEITA', categoria: 'Outras Receitas', valor: taxaTotal, vencimento: data, ja_lancado: feito.has('COMPENSACAO_DIA::COMPENSACAO') },
+      { descricao: descTaxaDia(data), tipo: 'DESPESA', categoria: 'TAXA MAQUININHA', valor: taxaTotal, vencimento: data, ja_lancado: feito.has('TAXA_DIA::TAXA') },
+      { descricao: DESC_COMPENSACAO, tipo: 'RECEITA', categoria: 'Outras Receitas', valor: taxaTotal, vencimento: data, ja_lancado: feito.has('COMPENSACAO_DIA::COMPENSACAO') },
     ] : [];
 
     const totalLiquido = round2(recebiveis.reduce((s, r) => s + r.valor, 0));
@@ -433,9 +427,9 @@ export async function POST(request: NextRequest) {
   // 3) Baixa das taxas (marca despesa PAGA e compensação RECEBIDA). Feita por último de propósito:
   //    a criação é assíncrona e o lote de receitas acima já deu o tempo do evento aparecer no CA.
   if (taxaTotal > 0) {
-    const bDesp = await baixarTaxa(token, 'contas-a-pagar', `Taxa maquininha Stone ${brDate(data)}`, data, taxaTotal, cfg.taxa.conta_financeira_id);
+    const bDesp = await baixarTaxa(token, 'contas-a-pagar', descTaxaDia(data), data, taxaTotal, cfg.taxa.conta_financeira_id);
     resultados.push({ chave: 'TAXA_DIA', natureza: 'BAIXA', ok: bDesp.ok, erro: bDesp.motivo });
-    const bComp = await baixarTaxa(token, 'contas-a-receber', 'Compensação taxa maquininha', data, taxaTotal, cfg.taxa.conta_financeira_id);
+    const bComp = await baixarTaxa(token, 'contas-a-receber', DESC_COMPENSACAO, data, taxaTotal, cfg.taxa.conta_financeira_id);
     resultados.push({ chave: 'COMPENSACAO_DIA', natureza: 'BAIXA', ok: bComp.ok, erro: bComp.motivo });
   }
 
