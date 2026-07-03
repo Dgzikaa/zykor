@@ -827,7 +827,7 @@ function UsuariosPage() {
                     <Label htmlFor="role" className="text-sm">
                       Função *
                     </Label>
-                    <Select value={formData.role} onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}>
+                    <Select value={formData.role} onValueChange={(value) => { setFormData(prev => ({ ...prev, role: value })); setIsAdminUser(value === 'admin'); }}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
@@ -946,7 +946,12 @@ function UsuariosPage() {
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       checked={isAdminUser}
-                      onCheckedChange={(checked) => setIsAdminUser(checked as boolean)}
+                      onCheckedChange={(checked) => {
+                        const c = checked as boolean;
+                        setIsAdminUser(c);
+                        // sincroniza a função: admin ligado → role admin; desligado → tira de admin
+                        setFormData(prev => ({ ...prev, role: c ? 'admin' : (prev.role === 'admin' ? 'funcionario' : prev.role) }));
+                      }}
                     />
                     <label className="text-sm font-medium cursor-pointer">
                       Administrador (acesso total)
