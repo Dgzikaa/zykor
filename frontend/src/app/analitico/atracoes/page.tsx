@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Music, Users, DollarSign, Calendar, Award, TrendingUp, TrendingDown, Star, Trophy, Ticket, Tag, ArrowUpRight, ArrowDownRight, Sparkles, Handshake } from 'lucide-react';
+import { Music, Users, DollarSign, Calendar, Award, TrendingUp, TrendingDown, Star, Trophy, Ticket, Tag, ArrowUpRight, ArrowDownRight, Sparkles, Handshake, Share2, Camera, X } from 'lucide-react';
 
 // ---- formatação ----
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -28,7 +28,7 @@ const haQuanto = (s?: string) => {
   return `há ${(dias / 365).toFixed(1).replace('.', ',')} anos`;
 };
 
-interface ArtistaLista { artista_id: number; nome: string; tipo: string; shows: number; primeiro: string; ultimo: string }
+interface ArtistaLista { artista_id: number; nome: string; tipo: string; foto_url?: string | null; shows: number; primeiro: string; ultimo: string }
 interface Marco { data: string; cache?: number; publico?: number; fat?: number; dow?: string; valor?: number }
 interface Trajetoria {
   total_shows: number; primeiro: Marco; atual: Marco;
@@ -158,7 +158,7 @@ export default function AtracoesPage() {
               ) : loadingTraj || !traj ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>
               ) : (
-                <TrajetoriaView traj={traj} nome={artistaSel?.nome || ''} tipo={artistaSel?.tipo || ''} evolChart={evolChart} crescPublico={crescPublico} barNome={selectedBar?.nome || 'a casa'} />
+                <TrajetoriaView traj={traj} nome={artistaSel?.nome || ''} tipo={artistaSel?.tipo || ''} foto={artistaSel?.foto_url || null} artistaId={artistaSel?.artista_id || 0} onFotoSalva={carregarLista} evolChart={evolChart} crescPublico={crescPublico} barNome={selectedBar?.nome || 'a casa'} />
               )}
           </>
         )}
@@ -168,7 +168,19 @@ export default function AtracoesPage() {
 }
 
 // ---- Trajetória ----
-function TrajetoriaView({ traj, nome, tipo, evolChart, crescPublico, barNome }: { traj: Trajetoria; nome: string; tipo: string; evolChart: any[]; crescPublico: number | null; barNome: string }) {
+function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolChart, crescPublico, barNome }: { traj: Trajetoria; nome: string; tipo: string; foto: string | null; artistaId: number; onFotoSalva: () => void; evolChart: any[]; crescPublico: number | null; barNome: string }) {
+  const [share, setShare] = useState(false);
+  const salvarFoto = async () => {
+    const url = window.prompt('Cole a URL da foto do artista:', foto || '');
+    if (url === null) return;
+    try { await fetch('/api/artistas/foto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ artista_id: artistaId, foto_url: url }) }); onFotoSalva(); }
+    catch { /* noop */ }
+  };
+  const Avatar = ({ size }: { size: number }) => (
+    foto
+      ? <img src={foto} alt={nome} className="rounded-full object-cover shrink-0" style={{ width: size, height: size }} />
+      : <div className="rounded-full bg-violet-600 text-white flex items-center justify-center font-bold shrink-0" style={{ width: size, height: size, fontSize: size * 0.4 }}>{(nome[0] || '?').toUpperCase()}</div>
+  );
   // #3 frequência
   const dp = (s?: string) => { if (!s) return null; const [y, m, d] = s.slice(0, 10).split('-').map(Number); return { y, m, d, ms: Date.UTC(y, m - 1, d) }; };
   const p0 = dp(traj.primeiro?.data), pN = dp(traj.atual?.data);
@@ -205,11 +217,15 @@ function TrajetoriaView({ traj, nome, tipo, evolChart, crescPublico, barNome }: 
       {/* Hero */}
       <Card className="bg-gradient-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-gray-900 border-violet-100 dark:border-violet-900/40">
         <CardContent className="py-5 flex items-center gap-4 flex-wrap">
-          <div className="h-14 w-14 rounded-full bg-violet-600 text-white flex items-center justify-center text-xl font-bold shrink-0">{(nome[0] || '?').toUpperCase()}</div>
-          <div className="min-w-0">
+          <div className="relative group shrink-0">
+            <Avatar size={56} />
+            <button onClick={salvarFoto} title="Adicionar/trocar foto" className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-500 hover:text-violet-600 shadow"><Camera className="h-3.5 w-3.5" /></button>
+          </div>
+          <div className="min-w-0 flex-1">
             <div className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">{nome} <Badge variant="outline" className="capitalize text-xs">{tipo}</Badge></div>
             <div className="text-sm text-gray-500 dark:text-gray-400">{num(traj.total_shows)} shows em {barNome} · desde {fmtMesAno(traj.primeiro?.data)} · toca mais às <b className="text-gray-700 dark:text-gray-200">{traj.dia_favorito || '—'}</b>{diasEntre != null && <> · em média <b className="text-gray-700 dark:text-gray-200">1 show a cada {diasEntre} dias</b>{showsMes != null && ` (~${showsMes.toFixed(1).replace('.', ',')}/mês)`}</>}</div>
           </div>
+          <button onClick={() => setShare(true)} className="inline-flex items-center gap-1.5 rounded-md bg-violet-600 hover:bg-violet-700 text-white px-3 h-9 text-sm shrink-0"><Share2 className="h-4 w-4" />Compartilhar</button>
         </CardContent>
       </Card>
 
@@ -315,6 +331,51 @@ function TrajetoriaView({ traj, nome, tipo, evolChart, crescPublico, barNome }: 
             ))}
           </CardContent>
         </Card>
+      )}
+
+      {/* #1 Card compartilhável */}
+      {share && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-start justify-center p-4 overflow-auto" onClick={() => setShare(false)}>
+          <div className="mt-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-end mb-2"><button onClick={() => setShare(false)} className="text-white/80 hover:text-white inline-flex items-center gap-1 text-sm"><X className="h-4 w-4" />fechar</button></div>
+            {/* o card em si (tire um print) */}
+            <div className="rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-violet-600 via-violet-700 to-indigo-800 text-white">
+              <div className="p-6">
+                <div className="flex items-center gap-4">
+                  <Avatar size={72} />
+                  <div className="min-w-0">
+                    <div className="text-2xl font-bold leading-tight">{nome}</div>
+                    <div className="text-white/70 text-sm capitalize">{tipo} · {barNome}</div>
+                  </div>
+                </div>
+                <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                  {[
+                    { l: 'Shows', v: num(traj.total_shows) },
+                    { l: 'Desde', v: fmtMesAno(traj.primeiro?.data) },
+                    { l: 'Público 1º → hoje', v: `${num(traj.primeiro?.publico || 0)} → ${num(traj.atual?.publico || 0)}` },
+                    { l: 'Público recorde', v: num(traj.publico_recorde?.valor || 0) },
+                    { l: 'Cachê total', v: money(traj.cache_total) },
+                    { l: 'Melhor noite', v: money(traj.melhor_cache?.valor || 0) },
+                    { l: 'Dia favorito', v: traj.dia_favorito || '—' },
+                    { l: 'Fat. recorde', v: money(traj.fat_recorde?.valor || 0) },
+                  ].map((s, i) => (
+                    <div key={i} className="rounded-lg bg-white/10 px-3 py-2">
+                      <div className="text-[11px] text-white/60">{s.l}</div>
+                      <div className="font-bold text-lg leading-tight">{s.v}</div>
+                    </div>
+                  ))}
+                </div>
+                {marcos.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {marcos.slice(0, 4).map((m, i) => <span key={i} className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium">{m.txt}</span>)}
+                  </div>
+                )}
+                <div className="mt-5 text-center text-white/50 text-xs">trajetória em {barNome} · via Zykor</div>
+              </div>
+            </div>
+            <p className="text-center text-white/70 text-xs mt-3">📸 Tire um print deste card para compartilhar com o artista.</p>
+          </div>
+        </div>
       )}
     </div>
   );
