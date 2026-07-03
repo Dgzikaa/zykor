@@ -479,6 +479,9 @@ export default function DashboardAtracoesPage() {
                     </Card>
                   </div>
 
+                  {/* Ficha / negociação do artista (editável) */}
+                  <FichaArtista key={atracaoSelecionada.artista_id} artistaId={atracaoSelecionada.artista_id} barId={barId} />
+
                   {/* Evolução temporal */}
                   {atracaoSelecionada.eventos.length >= 2 && (
                     <div>
@@ -641,5 +644,83 @@ export default function DashboardAtracoesPage() {
         </Dialog>
       </div>
     </div>
+  );
+}
+
+const ACORDOS = [
+  { v: 'cache', l: 'Cachê fixo' },
+  { v: 'sociedade', l: 'Sociedade (%)' },
+  { v: 'couvert', l: 'Couvert' },
+  { v: 'misto', l: 'Misto' },
+];
+const minToStrF = (m: number | null | undefined) => { if (m == null) return ''; const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? String(mm).padStart(2, '0') : ''}` : `${mm}m`; };
+
+// Ficha & Negociação do artista (perfil editável em operations.bar_artistas).
+// Salva cada campo no blur; abre junto dos números pro papo comercial.
+function FichaArtista({ artistaId, barId }: { artistaId: number | null; barId?: number }) {
+  const [f, setF] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!artistaId || !barId) { setF(null); setLoading(false); return; }
+    setLoading(true);
+    fetch(`/api/eventos/artistas/ficha?artista_id=${artistaId}`, { headers: { 'x-selected-bar-id': String(barId) } })
+      .then((r) => r.json()).then((j) => setF(j.ficha || {})).catch(() => setF({})).finally(() => setLoading(false));
+  }, [artistaId, barId]);
+  const save = (patch: Record<string, any>) => {
+    if (!artistaId || !barId) return;
+    setF((cur: any) => ({ ...cur, ...patch }));
+    fetch('/api/eventos/artistas/ficha', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
+      body: JSON.stringify({ artista_id: artistaId, ...patch }),
+    });
+  };
+  if (!artistaId) return null;
+  const inCls = 'w-full rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-400';
+  const isSoc = f?.tipo_acordo === 'sociedade' || f?.tipo_acordo === 'misto';
+  return (
+    <Card className="border-gray-200 dark:border-gray-700">
+      <CardContent className="p-4">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+          <Users className="w-5 h-5" /> Ficha &amp; Negociação
+        </h3>
+        {loading ? <div className="text-sm text-gray-400">carregando…</div> : (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+            <label className="block">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Tipo de acordo</span>
+              <select className={inCls} value={f?.tipo_acordo || ''} onChange={(e) => save({ tipo_acordo: e.target.value })}>
+                <option value="">—</option>
+                {ACORDOS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Cachê combinado (R$)</span>
+              <input className={inCls} type="number" step="0.01" defaultValue={f?.cachet_combinado ?? ''} onBlur={(e) => save({ cachet_combinado: e.target.value })} />
+            </label>
+            {isSoc && (
+              <label className="block">
+                <span className="text-xs text-gray-500 dark:text-gray-400">% sociedade</span>
+                <input className={inCls} type="number" step="0.1" defaultValue={f?.percentual_sociedade ?? ''} onBlur={(e) => save({ percentual_sociedade: e.target.value })} />
+              </label>
+            )}
+            <label className="block">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Duração combinada</span>
+              <input className={inCls} defaultValue={minToStrF(f?.duracao_combinada_min)} placeholder="1h30" onBlur={(e) => save({ duracao_combinada_min: e.target.value })} />
+            </label>
+            <label className="block">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Horário padrão</span>
+              <input className={inCls} type="time" defaultValue={f?.horario_padrao ? String(f.horario_padrao).slice(0, 5) : ''} onBlur={(e) => save({ horario_padrao: e.target.value })} />
+            </label>
+            <label className="block">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Contato</span>
+              <input className={inCls} defaultValue={f?.contato || ''} placeholder="@ / telefone" onBlur={(e) => save({ contato: e.target.value })} />
+            </label>
+            <label className="block col-span-2 md:col-span-3">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Anotações / negociação</span>
+              <textarea className={inCls} rows={2} defaultValue={f?.anotacoes || ''} placeholder="histórico de cachê, combinados, observações…" onBlur={(e) => save({ anotacoes: e.target.value })} />
+            </label>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
