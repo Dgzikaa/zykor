@@ -5,6 +5,7 @@ import { getInterAccessToken, clearInterTokenCache } from '@/lib/inter/getAccess
 import { realizarPagamentoPixInter } from '@/lib/inter/pixPayment';
 import { resolveInterCredential } from '@/lib/inter/resolveCredential';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -169,6 +170,7 @@ export async function POST(request: NextRequest) {
     // bar_id vem SEMPRE do usuário autenticado (nunca do corpo), evitando ação cross-tenant.
     const user = await authenticateUser(request);
     if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
     if (user.role !== 'admin' && user.role !== 'financeiro') {
       return permissionErrorResponse('Sem permissão para enviar PIX');
     }

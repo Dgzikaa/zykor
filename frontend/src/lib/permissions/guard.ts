@@ -95,6 +95,16 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   { prefix: '/api/financeiro/categorias', paths: ['/financeiro/categorias'] },
   { prefix: '/api/financeiro/dfc', paths: ['/financeiro/dfc'] },
   { prefix: '/api/financeiro/beneficiarios', paths: ['/financeiro/beneficiarios', '/financeiro/pedidos-pagamento'] },
+  // --- Financeiro PAGAMENTO (mapear a tela dona; libera quem tem o módulo do pagamento) ---
+  { prefix: '/api/financeiro/pedidos-pagamento', paths: ['/financeiro/pedidos-pagamento'] },
+  { prefix: '/api/financeiro/freelas', paths: ['/financeiro/pedidos-pagamento'] },
+  { prefix: '/api/financeiro/boleto', paths: ['/financeiro/pedidos-pagamento'] },
+  { prefix: '/api/financeiro/cartao', paths: ['/financeiro/pedidos-pagamento'] },
+  { prefix: '/api/financeiro/inter/pix', paths: ['/financeiro/agendamentos'] },
+  { prefix: '/api/financeiro/contaazul/baixa', paths: ['/financeiro/agendamentos'] },
+  { prefix: '/api/financeiro/contaazul/match-fornecedores', paths: ['/financeiro/agendamentos'] },
+  { prefix: '/api/financeiro/agendamentos', paths: ['/financeiro/agendamentos'] },
+  { prefix: '/api/financeiro/stone/contas-a-receber-diario', paths: ['/financeiro/stone-recebiveis'] },
 ];
 
 /**

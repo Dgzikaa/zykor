@@ -66,8 +66,5 @@
     "deploymentEnabled": {
       "main": true
     }
-  },
-  "github": {
-    "autoAlias": false
   }
 }
