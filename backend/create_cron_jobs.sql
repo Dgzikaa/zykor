@@ -63,3 +63,19 @@ SELECT cron.schedule(
 -- Verificar cron jobs criados
 SELECT jobname, schedule, command FROM cron.job 
 WHERE jobname IN ('contaazul-sync-2h', 'contaazul-sync-2h-deboche', 'cmv-semanal-auto-diario');
+
+-- 4. CONTAHUB CAIXA TURNO SYNC — "Saída de dinheiro do caixa" (sangria) por turno
+-- Diário 09:30 BRT (12:30 UTC), após o vendasperiodo de ontem estar populado.
+-- Sem data => ontem (BRT), ambos os bares. Idempotente por (bar_id, trn, chave).
+SELECT cron.schedule(
+  'contahub-caixa-turno-sync-diario',
+  '30 12 * * *',
+  $$
+  SELECT net.http_post(
+    url := get_supabase_url() || '/functions/v1/contahub-caixa-turno-sync',
+    headers := jsonb_build_object('Authorization','Bearer '||get_service_role_key(),'Content-Type','application/json'),
+    body := jsonb_build_object('jitter_min_ms', 2000, 'jitter_max_ms', 6000),
+    timeout_milliseconds := 280000
+  );
+  $$
+);
