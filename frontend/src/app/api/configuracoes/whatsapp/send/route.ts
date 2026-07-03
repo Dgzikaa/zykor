@@ -4,8 +4,8 @@ export const dynamic = 'force-dynamic'
 
 const EVOLUTION_API_URL =
   process.env.EVOLUTION_API_URL || 'http://localhost:8080';
-const EVOLUTION_API_KEY =
-  process.env.EVOLUTION_API_KEY || 'SGB-2024-WhatsApp-Evolution-API-Key';
+// Segredo só via env (nunca hardcoded). Se ausente, cai no modo simulação abaixo.
+const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || '';
 const EVOLUTION_INSTANCE_NAME =
   process.env.EVOLUTION_INSTANCE_NAME || 'sgb-principal';
 const WHATSAPP_SIMULATION_MODE =

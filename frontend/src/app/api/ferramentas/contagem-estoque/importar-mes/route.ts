@@ -6,7 +6,8 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutos
 
 const SPREADSHEET_ID = '1QhuD52kQrdCv4XMfKR5NSRMttx6NzVBZO0S8ajQK1H8';
-const API_KEY = 'AIzaSyBKprFuR1gpvoTB4hV16rKlBk3oF0v1BhQ';
+// Chave só via env (nunca hardcoded). Setar GOOGLE_SHEETS_API_KEY no Vercel (chave rotacionada).
+const API_KEY = process.env.GOOGLE_SHEETS_API_KEY || '';
 const BAR_ID = 3;
 
 /**
