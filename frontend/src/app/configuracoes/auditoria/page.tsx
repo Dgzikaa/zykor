@@ -299,14 +299,30 @@ export default function AuditoriaPage() {
     return (
       <div className="space-y-4">
         <div className="flex flex-wrap gap-3 items-stretch">
-          {cards.map(c => (
-            <button key={c.key} onClick={() => setFoco(c.key)} aria-pressed={foco === c.key}
-              className={`rounded-xl border bg-white dark:bg-gray-800 px-4 py-3 text-left transition min-w-[132px] ${foco === c.key ? c.ativo : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}`}>
-              <div className="text-xs text-gray-500 flex items-center gap-1"><c.icon className={`h-3.5 w-3.5 ${c.iconCor}`} />{c.label}</div>
-              <div className={`text-2xl font-bold ${c.valCor}`}>{c.valor}</div>
-              <div className="text-[10px] text-gray-400 mt-0.5">{foco === c.key ? '▼ mostrando abaixo' : 'clique p/ ver'}</div>
-            </button>
-          ))}
+          {cards.map(c => {
+            const online = c.key === 'online' ? sessoes.filter((s: any) => s.online) : [];
+            return (
+            <div key={c.key} className="relative group">
+              <button onClick={() => setFoco(c.key)} aria-pressed={foco === c.key}
+                className={`h-full w-full rounded-xl border bg-white dark:bg-gray-800 px-4 py-3 text-left transition min-w-[132px] ${foco === c.key ? c.ativo : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}`}>
+                <div className="text-xs text-gray-500 flex items-center gap-1"><c.icon className={`h-3.5 w-3.5 ${c.iconCor}`} />{c.label}</div>
+                <div className={`text-2xl font-bold ${c.valCor}`}>{c.valor}</div>
+                <div className="text-[10px] text-gray-400 mt-0.5">{foco === c.key ? '▼ mostrando abaixo' : c.key === 'online' ? 'clique ou passe o mouse' : 'clique p/ ver'}</div>
+              </button>
+              {c.key === 'online' && online.length > 0 && (
+                <div className="absolute left-0 top-full mt-1 z-30 hidden group-hover:block bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-2 min-w-[240px] max-h-72 overflow-auto">
+                  <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1 px-1">Online agora ({online.length})</div>
+                  {online.map((s: any) => (
+                    <div key={s.id} className="flex items-center justify-between gap-4 text-xs px-1 py-1 rounded hover:bg-gray-50 dark:hover:bg-gray-700/40">
+                      <span className="inline-flex items-center gap-1.5 text-gray-800 dark:text-gray-100 truncate"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />{s.user_email}</span>
+                      <span className="text-gray-400 whitespace-nowrap">{s.bar_id != null ? `bar ${s.bar_id} · ` : ''}{fmtDur(s.duracao_seg)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            );
+          })}
           <div className="ml-auto self-center">
             <Button variant="outline" size="sm" onClick={deslogarTodos} className="text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20" title="Invalida os tokens atuais: todos precisam entrar de novo">
               <XCircle className="h-4 w-4 mr-1.5" />Deslogar todos
