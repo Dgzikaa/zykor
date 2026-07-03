@@ -10,7 +10,8 @@ import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
-import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick, Pencil, Check, X } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick, Pencil, Check, X, RefreshCw } from 'lucide-react';
 
 // célula com lápis (padrão Orçamentação): mostra valor + lápis no hover; clica → input com ✓/✕; salva e recalcula.
 function PencilCell({ value, fmt, onSave, disabled }: { value: number | null; fmt: (v: any) => string; onSave: (v: number | null) => void; disabled?: boolean }) {
@@ -106,6 +107,8 @@ export default function DesviosPage() {
   const [andamentoWin, setAndamentoWin] = useState<{ ini: string; fim: string } | null>(null);
   const [andamento, setAndamento] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
+  const { toast } = useToast();
   const [res, setRes] = useState<any | null>(null);
   const [busca, setBusca] = useState('');
   const [aba, setAba] = useState('insumos');
@@ -205,6 +208,21 @@ export default function DesviosPage() {
     } catch { /* silencioso; recarrega no próximo */ }
   }, [ini, fim, tipo, andamento, carregar]);
 
+  // Atualizar estoque: puxa a contagem da planilha (últimos 14 dias, aba INSUMOS) e recarrega os desvios.
+  // Mesma sincronização da tela de Estoque — útil pra refletir uma contagem recém-lançada sem trocar de tela.
+  const sincronizarEstoque = useCallback(async () => {
+    if (!barId) return;
+    setSincronizando(true);
+    try {
+      const r = await api.post('/api/operacional/estoque-historico', { action: 'sync' });
+      if (!r.success) throw new Error(r.error);
+      toast({ title: 'Estoque atualizado', description: `${r.upserted ?? 0} linhas da planilha de contagem` });
+      if (ini && fim) await carregar(ini, fim, tipo, andamento, true);
+    } catch (e: any) {
+      toast({ title: 'Erro ao atualizar estoque', description: e?.message, variant: 'destructive' });
+    } finally { setSincronizando(false); }
+  }, [barId, ini, fim, tipo, andamento, carregar, toast]);
+
   // Insumos = só insumos (exclui produção e proteína, que têm aba própria).
   // Semanal/mensal: esconde insumo fora de ficha (nunca tem saída teórica). Filtro Só Curva A.
   const itensView = useMemo(() => {
@@ -247,12 +265,19 @@ export default function DesviosPage() {
 
   return (
     <PageShell width="wide">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-rose-100 dark:bg-rose-900/30 rounded-xl"><Scale className="w-6 h-6 text-rose-600 dark:text-rose-400" /></div>
-          <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">Desvios de Consumo{soLeitura && <BadgeSomenteLeitura />}</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Estoque real × teórico (ini + compras + produzido − vendas×ficha − desperdício) · {selectedBar?.nome || ''}</p>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-rose-100 dark:bg-rose-900/30 rounded-xl"><Scale className="w-6 h-6 text-rose-600 dark:text-rose-400" /></div>
+            <div>
+              <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">Desvios de Consumo{soLeitura && <BadgeSomenteLeitura />}</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Estoque real × teórico (ini + compras + produzido − vendas×ficha − desperdício) · {selectedBar?.nome || ''}</p>
+            </div>
           </div>
+          <button onClick={sincronizarEstoque} disabled={sincronizando || !barId}
+            title="Puxa a contagem da planilha (últimos 14 dias) e recarrega os desvios"
+            className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 shrink-0">
+            <RefreshCw className={`w-4 h-4 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Atualizando…' : 'Atualizar estoque'}
+          </button>
         </div>
 
         {/* Tipo + Período */}
