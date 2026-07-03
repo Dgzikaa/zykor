@@ -212,16 +212,17 @@ export default function PainelSupabasePage() {
         </CardHeader>
         <CardContent>
           {GRAFANA_URL ? (
-            <div className="space-y-2">
-              <iframe
-                src={GRAFANA_URL}
-                className="w-full rounded-lg border border-gray-200 dark:border-gray-700"
-                style={{ height: 600 }}
-                title="Grafana — Supabase"
-              />
-              <a href={GRAFANA_URL} target="_blank" rel="noopener noreferrer"
-                 className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1">
-                Abrir no Grafana <ExternalLink className="w-3 h-3" />
+            // O Grafana não permite ser embutido em iframe (frame-ancestors 'none'), então abrimos
+            // em nova aba em vez de mostrar uma tela grande com erro de CSP.
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                O histórico completo, os gráficos e os alertas ficam no Grafana Cloud — abre em uma nova aba.
+              </p>
+              <a href={GRAFANA_URL} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                <Button className="bg-orange-600 hover:bg-orange-700">
+                  <Activity className="w-4 h-4 mr-2" />Abrir dashboard no Grafana
+                  <ExternalLink className="w-4 h-4 ml-2" />
+                </Button>
               </a>
             </div>
           ) : (
