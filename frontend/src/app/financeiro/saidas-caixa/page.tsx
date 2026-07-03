@@ -148,11 +148,13 @@ function CategoriaCombo({ options, value, onChange }: { options: CatOpt[]; value
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const boxRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const onDown = (e: MouseEvent) => { if (!boxRef.current?.contains(e.target as Node)) setOpen(false); };
     window.addEventListener('mousedown', onDown);
     return () => window.removeEventListener('mousedown', onDown);
   }, []);
+  useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
   const shown = q ? options.filter((o) => o.nome.toLowerCase().includes(q.toLowerCase())) : options;
   return (
     <div ref={boxRef} className="relative">
@@ -163,7 +165,7 @@ function CategoriaCombo({ options, value, onChange }: { options: CatOpt[]; value
       </button>
       {open && (
         <div className="absolute z-50 mt-1 w-full rounded-lg border bg-background shadow-xl p-2">
-          <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar categoria…" className="h-8 text-xs" />
+          <Input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar categoria…" className="h-8 text-xs" />
           <div className="max-h-56 overflow-y-auto mt-1">
             {shown.length === 0 ? <div className="px-2 py-3 text-center text-xs text-muted-foreground">Nada</div>
               : shown.map((o) => (

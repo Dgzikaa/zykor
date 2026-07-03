@@ -21,6 +21,9 @@ export default function StoneRecebiveisPage() {
   return <ProtectedRoute><Conteudo /></ProtectedRoute>;
 }
 
+// Exportado p/ reuso na aba "Stone" de /financeiro/receitas (Receitas CA).
+export function StoneRecebiveisConteudo() { return <Conteudo />; }
+
 function Conteudo() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
