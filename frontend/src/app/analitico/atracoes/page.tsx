@@ -61,7 +61,12 @@ export default function AtracoesPage() {
       const j = await r.json();
       const l: ArtistaLista[] = j.lista || [];
       setLista(l);
-      setArtistaId(prev => (prev && l.some(a => String(a.artista_id) === prev) ? prev : (l[0] ? String(l[0].artista_id) : '')));
+      const urlA = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('artista') : null;
+      setArtistaId(prev => {
+        if (urlA && l.some(a => String(a.artista_id) === urlA)) return urlA;
+        if (prev && l.some(a => String(a.artista_id) === prev)) return prev;
+        return l[0] ? String(l[0].artista_id) : '';
+      });
     } catch { setLista([]); }
     finally { setLoadingLista(false); }
   }, [barId]);

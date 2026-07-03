@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     // 1) Eventos válidos do período (dias com operação) — base para métricas e baseline
     const { data: eventosRaw, error: evErr } = await supabase
       .from('eventos_base')
-      .select('id, data_evento, dia_semana, real_r, cl_real, c_art, t_medio, faturamento_bar')
+      .select('id, data_evento, dia_semana, real_r, cl_real, publico_real, c_art, t_medio, faturamento_bar')
       .eq('bar_id', barId)
       .gt('real_r', 1000)
       .gte('data_evento', dataInicialStr)
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
       data_evento: e.data_evento,
       dia_semana: e.dia_semana || '',
       real_r: parseFloat(e.real_r) || 0,
-      cl_real: e.cl_real || 0,
+      cl_real: Math.max(e.cl_real || 0, e.publico_real || 0), // público total (inclui bilheteria)
       c_art: parseFloat(e.c_art) || 0,
       t_medio: parseFloat(e.t_medio) || 0,
       faturamento_bar: parseFloat(e.faturamento_bar) || 0,
@@ -119,6 +119,11 @@ export async function GET(request: NextRequest) {
       artistasPorEvento.set(l.evento_id, (artistasPorEvento.get(l.evento_id) || 0) + 1);
     }
 
+    // cachê EXATO por (evento, artista) do Conta Azul — mesma fonte da trajetória (não rateio)
+    const { data: caCacheRaw } = await ops.rpc('fn_ca_cache_artista', { p_bar: barId, p_ini: dataInicialStr, p_fim: hojeStr });
+    const caCacheMap = new Map<string, number>();
+    for (const r of caCacheRaw || []) caCacheMap.set(`${r.evento_id}:${r.artista_id}`, Number(r.cachet) || 0);
+
     // cadastro para tipo (banda/dj/solo)
     const { data: cadastro } = await ops
       .from('bar_artistas')
@@ -142,7 +147,11 @@ export async function GET(request: NextRequest) {
       const chave = l.artista_id ? `id:${l.artista_id}` : `nome:${String(l.artista_nome || '').trim().toLowerCase()}`;
       const nArt = artistasPorEvento.get(l.evento_id) || 1;
       const custoLink = l.c_art != null && l.c_art !== '' ? parseFloat(l.c_art) : null;
-      const custo = custoLink != null && !isNaN(custoLink) ? custoLink : (nArt > 0 ? ev.c_art / nArt : ev.c_art);
+      const caMatch = l.artista_id ? caCacheMap.get(`${l.evento_id}:${l.artista_id}`) : undefined;
+      // cachê exato do CA > manual no link > c_art do evento (só noite solo) > rateio (fallback)
+      const custo = caMatch != null && caMatch > 0 ? caMatch
+        : (custoLink != null && !isNaN(custoLink) ? custoLink
+          : (nArt === 1 ? ev.c_art : (nArt > 0 ? ev.c_art / nArt : ev.c_art)));
 
       let acc = mapa.get(chave);
       if (!acc) {
