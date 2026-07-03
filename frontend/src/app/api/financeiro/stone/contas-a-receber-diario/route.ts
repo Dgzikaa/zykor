@@ -149,6 +149,7 @@ function payloadReceita(cfg: BarStoneConfig, l: LinhaDia, dataVenda: string) {
       parcelas: [{
         descricao,
         data_vencimento: l.vencimento,
+        numero_documento: NUM_DOC,
         nota: 'Recebível Stone (líquido) lançado via Zykor',
         conta_financeira: rc.conta_financeira_id,
         detalhe_valor: { valor_bruto: valor, valor_liquido: valor, juros: 0, multa: 0, desconto: 0, taxa: 0 },
@@ -174,6 +175,7 @@ function payloadTaxaTotal(cfg: BarStoneConfig, dataVenda: string, valorTotal: nu
       parcelas: [{
         descricao,
         data_vencimento: dataVenda,
+        numero_documento: NUM_DOC,
         nota: 'Taxa Stone (total do dia) lançada via Zykor',
         conta_financeira: cfg.taxa.conta_financeira_id,
         detalhe_valor: { valor_bruto: valor, valor_liquido: valor, juros: 0, multa: 0, desconto: 0, taxa: 0 },
@@ -199,6 +201,7 @@ function payloadCompensacao(cfg: BarStoneConfig, dataVenda: string, valorTotal: 
       parcelas: [{
         descricao,
         data_vencimento: dataVenda,
+        numero_documento: NUM_DOC,
         nota: 'Compensação taxa Stone (total do dia) via Zykor',
         conta_financeira: cfg.taxa.conta_financeira_id,
         detalhe_valor: { valor_bruto: valor, valor_liquido: valor, juros: 0, multa: 0, desconto: 0, taxa: 0 },
