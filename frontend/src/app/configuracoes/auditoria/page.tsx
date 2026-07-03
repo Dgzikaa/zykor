@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Shield, Search, Download, Filter, User, Clock, Database, Loader2 } from 'lucide-react';
+import { Shield, Search, Download, Filter, User, Clock, Database, Loader2, AlertTriangle, ListChecks } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 
@@ -66,6 +66,28 @@ const rotuloRegistro = (l: { new_values: any; old_values: any }) => {
   return v != null ? String(v) : null;
 };
 
+// rótulos amigáveis: nomes técnicos de tabela/campo → legível (override + fallback prettify)
+const prettify = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+const LABEL_TABELA: Record<string, string> = {
+  'operations.insumos': 'Insumo', 'public.insumo_unidade': 'Unidade de insumo',
+  'operations.producao_base': 'Ficha de produção', 'public.producao_base': 'Ficha de produção',
+  'public.producao_ficha_item': 'Item de ficha', 'operations.producao_execucao': 'Execução de produção',
+  'operations.producao_execucao_insumo': 'Insumo da execução', 'operations.producao_entrada_manual': 'Produção lançada',
+  'operations.desvio_desperdicio_manual': 'Desperdício', 'operations.pessoas_responsaveis': 'Responsável de produção',
+  'auth_custom.usuarios': 'Usuário', 'auth_custom.usuarios_bares': 'Acesso a bar',
+  'financial.pedidos_pagamento': 'Pedido de pagamento', 'meta.orcamento_planilha': 'Orçamentação',
+  'public.produto_cardapio': 'Produto do cardápio', 'public.produto_custo_manual': 'Custo do produto',
+  'operations.eventos_base': 'Evento', 'operations.bares': 'Bar',
+};
+const labelTabela = (t: string | null) => t ? (LABEL_TABELA[t] || prettify(t.split('.').pop() || t)) : '—';
+const LABEL_CAMPO: Record<string, string> = {
+  unidade_medida: 'Unidade', embalagem: 'Embalagem', preco: 'Preço', preco_un: 'Preço unitário',
+  quantidade: 'Quantidade', qtd_real: 'Qtd usada', nome: 'Nome', codigo: 'Código', ativo: 'Ativo',
+  role: 'Papel', rendimento: 'Rendimento', custo_planilha: 'Custo', bar_id: 'Bar', observacao: 'Observação',
+  responsavel_nome: 'Responsável', rendimento_real: 'Rendimento real', curva_a: 'Curva A',
+};
+const labelCampo = (c: string) => LABEL_CAMPO[c] || prettify(c);
+
 export default function AuditoriaPage() {
   const { setPageTitle } = usePageTitle();
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -76,6 +98,7 @@ export default function AuditoriaPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [auto, setAuto] = useState(true); // tempo real ligado por padrão (polling)
+  const [aba, setAba] = useState<'tudo' | 'sensiveis'>('tudo');
 
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
@@ -95,6 +118,7 @@ export default function AuditoriaPage() {
       if (operation) p.set('operation', operation);
       if (table) p.set('table', table);
       if (q.trim()) p.set('q', q.trim());
+      if (aba === 'sensiveis') p.set('sensivel', '1');
       const r = await api.get(`/api/configuracoes/auditoria?${p.toString()}`);
       if (!r.success) throw new Error(r.error || 'Falha ao carregar');
       setLogs(prev => append ? [...prev, ...(r.logs || [])] : (r.logs || []));
@@ -106,10 +130,10 @@ export default function AuditoriaPage() {
       setErro(e?.message || 'Erro');
       if (!append) setLogs([]);
     } finally { setLoading(false); }
-  }, [de, ate, operation, table, q]);
+  }, [de, ate, operation, table, q, aba]);
 
-  useEffect(() => { carregar(0, false); /* carga inicial */ // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { carregar(0, false); /* carga inicial + ao trocar de aba */ // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aba]);
 
   // tempo real: enquanto ligado, recarrega a 1ª página a cada 10s sem piscar o spinner
   useEffect(() => {
@@ -141,6 +165,19 @@ export default function AuditoriaPage() {
           </div>
         </div>
 
+        {/* Abas */}
+        <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
+          {([['tudo', 'Tudo', ListChecks], ['sensiveis', 'Ações sensíveis', AlertTriangle]] as const).map(([k, label, Icon]) => (
+            <button key={k} onClick={() => setAba(k)}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 -mb-px transition ${aba === k ? 'border-violet-500 text-violet-700 dark:text-violet-300 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}>
+              <Icon className={`h-4 w-4 ${k === 'sensiveis' ? 'text-rose-500' : ''}`} />{label}
+            </button>
+          ))}
+        </div>
+        {aba === 'sensiveis' && (
+          <p className="text-xs text-rose-600 dark:text-rose-400 -mt-1">Exclusões, mudanças de permissão de usuário e alterações de credenciais.</p>
+        )}
+
         {/* Filtros */}
         <Card>
           <CardHeader className="pb-3">
@@ -167,7 +204,7 @@ export default function AuditoriaPage() {
                 <label className="text-xs font-medium mb-1 block text-gray-500">Tabela</label>
                 <select value={table} onChange={e => setTable(e.target.value)} className="h-9 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
                   <option value="">Todas</option>
-                  {tabelas.map(t => <option key={t} value={t}>{t}</option>)}
+                  {tabelas.map(t => <option key={t} value={t}>{labelTabela(t)}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
@@ -211,13 +248,14 @@ export default function AuditoriaPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                           <Badge className={`${opColor(l.operation)} text-white`}>{l.operation}</Badge>
-                          {l.table_name && <span className="inline-flex items-center gap-1 text-xs text-gray-500"><Database className="h-3 w-3" />{l.table_name}{l.record_id ? ` · #${l.record_id}` : ''}</span>}
+                          {l.table_name && <span className="inline-flex items-center gap-1 text-xs text-gray-500" title={`${l.table_name}${l.record_id ? ` #${l.record_id}` : ''}`}><Database className="h-3 w-3" />{labelTabela(l.table_name)}{l.record_id ? ` · #${l.record_id}` : ''}</span>}
+                          {l.severity === 'critical' && <span className="text-[10px] font-medium text-rose-600 dark:text-rose-400 border border-rose-300 dark:border-rose-800 rounded px-1">sensível</span>}
                           {l.bar_id != null && <span className="text-[11px] text-gray-400">bar {l.bar_id}</span>}
                         </div>
                         <p className="text-sm text-gray-900 dark:text-gray-100">
-                          {l.operation === 'UPDATE' ? `Editou ${l.table_name?.split('.').pop() || 'registro'}${l.record_id ? ` #${l.record_id}` : ''}`
-                            : l.operation === 'INSERT' ? `Criou ${l.table_name?.split('.').pop() || 'registro'}${rot ? `: ${rot}` : ''}`
-                            : l.operation === 'DELETE' ? `Excluiu ${l.table_name?.split('.').pop() || 'registro'}${rot ? `: ${rot}` : ''}`
+                          {l.operation === 'UPDATE' ? `Editou ${labelTabela(l.table_name)}${l.record_id ? ` #${l.record_id}` : ''}`
+                            : l.operation === 'INSERT' ? `Criou ${labelTabela(l.table_name)}${rot ? `: ${rot}` : ''}`
+                            : l.operation === 'DELETE' ? `Excluiu ${labelTabela(l.table_name)}${rot ? `: ${rot}` : ''}`
                             : l.description}
                         </p>
                         {/* diff amigável na própria linha: campo antigo → novo */}
@@ -225,7 +263,7 @@ export default function AuditoriaPage() {
                           <div className="flex flex-wrap gap-1 mt-1">
                             {diffs.slice(0, 8).map((d, i) => (
                               <span key={i} className="inline-flex items-center gap-1 text-[11px] rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/15 px-1.5 py-0.5">
-                                <span className="font-medium text-gray-700 dark:text-gray-200">{d.campo}</span>
+                                <span className="font-medium text-gray-700 dark:text-gray-200">{labelCampo(d.campo)}</span>
                                 <span className="text-gray-500 line-through">{fmtVal(d.de)}</span>
                                 <span className="text-gray-400">→</span>
                                 <span className="font-medium text-emerald-700 dark:text-emerald-400">{fmtVal(d.para)}</span>
