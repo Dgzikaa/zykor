@@ -374,16 +374,17 @@ export async function POST(request: NextRequest) {
     resultados.push({ chave, natureza, ok: r.ok, valor: round2(valor), protocolId: r.protocolId, erro: r.erro });
   }
 
-  // Sequencial pra não estourar rate limit do CA (PIX pode ter muitas linhas).
-  // 1) Recebíveis pelo LÍQUIDO (bruto − taxa).
-  for (const l of linhas) {
-    await enviar(l.chave, 'RECEITA', round2(l.bruto - l.taxa), 'contas-a-receber', payloadReceita(cfg, l, data), { tipo: l.tipo, brand_id: l.brand_id, vencimento: l.vencimento });
-  }
-  // 2) Taxa do dia: 1 valor total → par que se compensa (despesa TAXA MAQUININHA + receita Outras Receitas).
+  // Sequencial pra respeitar o rate limit do CA (PIX pode ter muitas linhas).
+  // 1) Taxa do dia PRIMEIRO (só 2 lançamentos) → garante que o par de taxa nunca fica de fora
+  //    quando o lote de recebíveis é grande/lento (era o que deixava a taxa "pendente").
   const taxaTotal = round2(linhas.reduce((s, l) => s + l.taxa, 0));
   if (taxaTotal > 0) {
     await enviar('TAXA_DIA', 'TAXA', taxaTotal, 'contas-a-pagar', payloadTaxaTotal(cfg, data, taxaTotal), { vencimento: data });
     await enviar('COMPENSACAO_DIA', 'COMPENSACAO', taxaTotal, 'contas-a-receber', payloadCompensacao(cfg, data, taxaTotal), { vencimento: data });
+  }
+  // 2) Recebíveis pelo LÍQUIDO (bruto − taxa).
+  for (const l of linhas) {
+    await enviar(l.chave, 'RECEITA', round2(l.bruto - l.taxa), 'contas-a-receber', payloadReceita(cfg, l, data), { tipo: l.tipo, brand_id: l.brand_id, vencimento: l.vencimento });
   }
 
   const houveErro = resultados.some((r) => r.ok === false);
