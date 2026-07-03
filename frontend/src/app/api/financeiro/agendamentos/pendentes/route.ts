@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
+import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,7 @@ const TABELA = 'pagamentos_pendentes';
 // x-selected-bar-id), nunca de um bar_id solto no body — evita escrita cross-bar.
 
 function podeAcessar(user: { role?: string }): boolean {
-  return user.role === 'admin' || user.role === 'financeiro';
+  return podeFinanceiro(user);
 }
 
 /** Valor -> número p/ a coluna de relatório. Trata pt-BR ("R$ 1.089,10") e

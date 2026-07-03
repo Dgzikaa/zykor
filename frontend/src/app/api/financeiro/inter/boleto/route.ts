@@ -4,6 +4,7 @@ import { getInterAccessToken, clearInterTokenCache } from '@/lib/inter/getAccess
 import { realizarPagamentoBoletoInter } from '@/lib/inter/boletoPayment';
 import { resolveInterCredential } from '@/lib/inter/resolveCredential';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
+import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await authenticateUser(request);
     if (!user) return authErrorResponse('Usuário não autenticado');
-    if (user.role !== 'admin' && user.role !== 'financeiro') return permissionErrorResponse('Sem permissão para pagar boleto');
+    if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão para pagar boleto');
     const bar_id = user.bar_id;
     if (!bar_id) return NextResponse.json({ success: false, error: 'Usuário sem bar associado' }, { status: 400 });
 
