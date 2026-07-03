@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
     // tags atuais
     const { data: linksRaw } = await ops
       .from('evento_artistas')
-      .select('evento_id, artista_id, artista_nome, ordem')
+      .select('evento_id, artista_id, artista_nome, ordem, horario_inicio, horario_fim, duracao_combinada_min')
       .in('evento_id', eventoIds.length ? eventoIds : [-1])
       .order('ordem', { ascending: true });
     const tagsPorEvento = new Map<number, any[]>();
@@ -176,6 +176,9 @@ export async function GET(request: NextRequest) {
         artista_id: l.artista_id,
         artista_nome: l.artista_nome,
         tipo: (l.artista_id && tipoPorId.get(l.artista_id)) || tipoPorNome.get(String(l.artista_nome).toLowerCase()) || 'banda',
+        horario_inicio: l.horario_inicio ? String(l.horario_inicio).slice(0, 5) : null, // HH:MM
+        horario_fim: l.horario_fim ? String(l.horario_fim).slice(0, 5) : null,
+        duracao_combinada_min: l.duracao_combinada_min ?? null,
       });
       tagsPorEvento.set(l.evento_id, arr);
     }

@@ -21,6 +21,9 @@ interface ArtistaTag {
   tipo: string;
   cachet?: number;
   principal?: boolean;
+  horario_inicio?: string | null;
+  horario_fim?: string | null;
+  duracao_combinada_min?: number | null;
 }
 interface EventoRow {
   id: number;
@@ -57,6 +60,21 @@ type SaveStatus = 'saving' | 'saved' | 'error' | undefined;
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 // formata "YYYY-MM-DD" -> "DD/MM/YYYY" sem passar por Date (evita shift de fuso)
 const fmtData = (iso: string) => { const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${d}/${m}/${y}`; };
+// minutos -> "1h30" / "45m" / "2h"
+const minToStr = (m: number) => { const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? String(mm).padStart(2, '0') : ''}` : `${mm}m`; };
+// aceita "1h30" / "1:30" / "90" -> minutos
+const parseDurLocal = (v: string): number | null => {
+  const s = String(v || '').trim().toLowerCase(); if (!s) return null;
+  let m = /^(\d+)\s*h\s*(\d+)?$/.exec(s); if (m) return +m[1] * 60 + (m[2] ? +m[2] : 0);
+  m = /^(\d+):(\d+)$/.exec(s); if (m) return +m[1] * 60 + +m[2];
+  const n = parseInt(s, 10); return isNaN(n) ? null : n;
+};
+// duração real a partir de "HH:MM" início/fim (vira madrugada = cruza meia-noite)
+const durReal = (ini: string, fim: string): number | null => {
+  const toMin = (t: string) => { const p = /^(\d{1,2}):(\d{2})$/.exec(t || ''); return p ? +p[1] * 60 + +p[2] : null; };
+  const a = toMin(ini), b = toMin(fim); if (a == null || b == null) return null;
+  return ((b - a) + 1440) % 1440;
+};
 
 export default function TaggingArtistasPage() {
   const { selectedBar } = useBar();
@@ -187,6 +205,16 @@ export default function TaggingArtistasPage() {
       }),
     });
     carregar(mes);
+  };
+
+  // grava horário início/fim e duração combinada de um artista no evento
+  const salvarHorario = async (evento_id: number, artista_id: number, patch: Record<string, any>) => {
+    if (!barId) return;
+    await fetch('/api/eventos/artistas/horario', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
+      body: JSON.stringify({ evento_id, artista_id, ...patch }),
+    });
   };
 
   // desfaz a correção de um lançamento (volta pro casamento automático)
@@ -387,12 +415,76 @@ export default function TaggingArtistasPage() {
                       onDesfazer={desfazerCorrigir}
                     />
                   )}
+
+                  {/* horários do show por artista (início/fim + duração combinada) */}
+                  {row.artistas.some((a) => a.artista_id) && (
+                    <HorariosArtistas
+                      artistas={row.artistas.filter((a) => a.artista_id)}
+                      onSave={(artistaId, patch) => salvarHorario(row.id, artistaId, patch)}
+                    />
+                  )}
                 </div>
               ))}
             </CardContent>
           </Card>
         )}
       </div>
+    </div>
+  );
+}
+
+// Horários do show por artista: collapse com início/fim (time) + duração combinada.
+// Preenchido por quem acompanha o show; alimenta rankings de pontualidade/duração.
+function HorariosArtistas({ artistas, onSave }: {
+  artistas: ArtistaTag[];
+  onSave: (artistaId: number, patch: Record<string, any>) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const preenchidos = artistas.filter((a) => a.horario_inicio || a.horario_fim || a.duracao_combinada_min).length;
+  return (
+    <div className="mt-2 md:pl-[17rem]">
+      <button
+        onClick={() => setAberto((v) => !v)}
+        className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+      >
+        <ChevronRight className={`w-3 h-3 transition-transform ${aberto ? 'rotate-90' : ''}`} />
+        Horários do show{preenchidos ? ` · ${preenchidos}/${artistas.length}` : ''}
+      </button>
+      {aberto && (
+        <div className="mt-1.5 space-y-1.5 border-l-2 border-gray-100 dark:border-gray-700 pl-3">
+          {artistas.map((a) => (
+            <HorarioLinha key={a.artista_id} a={a} onSave={(patch) => onSave(a.artista_id!, patch)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HorarioLinha({ a, onSave }: { a: ArtistaTag; onSave: (patch: Record<string, any>) => void }) {
+  const [ini, setIni] = useState(a.horario_inicio || '');
+  const [fim, setFim] = useState(a.horario_fim || '');
+  const [comb, setComb] = useState(a.duracao_combinada_min != null ? minToStr(a.duracao_combinada_min) : '');
+  const realMin = durReal(ini, fim);
+  const combMin = parseDurLocal(comb);
+  const timeCls = 'rounded border border-gray-200 dark:border-gray-600 bg-transparent px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-purple-400';
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      <span className="text-gray-700 dark:text-gray-300 min-w-[7rem]">{a.artista_nome}</span>
+      <label className="text-gray-400 inline-flex items-center gap-1">início
+        <input type="time" value={ini} onChange={(e) => setIni(e.target.value)} onBlur={() => onSave({ horario_inicio: ini })} className={timeCls} /></label>
+      <label className="text-gray-400 inline-flex items-center gap-1">fim
+        <input type="time" value={fim} onChange={(e) => setFim(e.target.value)} onBlur={() => onSave({ horario_fim: fim })} className={timeCls} /></label>
+      <label className="text-gray-400 inline-flex items-center gap-1">combinado
+        <input value={comb} onChange={(e) => setComb(e.target.value)} onBlur={() => onSave({ duracao_combinada_min: comb })} placeholder="1h30"
+          className="w-14 rounded border border-gray-200 dark:border-gray-600 bg-transparent px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-purple-400" /></label>
+      {realMin != null && (
+        <span className="text-gray-500">real: <b className="text-gray-700 dark:text-gray-200">{minToStr(realMin)}</b>
+          {combMin != null && (realMin + 2 < combMin
+            ? <span className="text-red-500 dark:text-red-400"> (−{minToStr(combMin - realMin)} do combinado)</span>
+            : <span className="text-emerald-600 dark:text-emerald-400"> ✓</span>)}
+        </span>
+      )}
     </div>
   );
 }
