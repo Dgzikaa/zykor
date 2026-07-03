@@ -48,6 +48,23 @@ const corGravidade = (dif: any, status: string): string => {
   return d > 0 ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-amber-600 dark:text-amber-400 font-semibold';
 };
 
+// Dia operacional (corte 6h) só fecha 100% em D+2: a madrugada mora no arquivo Stone do dia
+// SEGUINTE, que a Stone só libera após o dia virar passado. `stone_fechado_ate` = maior
+// dia-calendário já sincronizado → `data` ainda parcial quando `data >= stone_fechado_ate`.
+const isParcial = (data: string, fechadoAte: string | null) => !!fechadoAte && data >= fechadoAte;
+const ParcialBadge = () => (
+  <span title="Dia operacional ainda fechando — aguardando o arquivo Stone do dia seguinte (regra D+2)"
+    className="ml-1 inline-flex items-center gap-0.5 text-[10px] rounded px-1.5 py-0.5 align-text-bottom bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+    <CalendarClock className="w-3 h-3" />parcial
+  </span>
+);
+const AvisoParcial = ({ fechadoAte }: { fechadoAte: string | null }) => fechadoAte ? (
+  <div className="mb-3 flex items-start gap-1.5 text-xs rounded border border-amber-200 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-900/10 px-2.5 py-2 text-amber-800 dark:text-amber-300">
+    <CalendarClock className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+    <span>Dias a partir de <strong>{fmtData(fechadoAte)}</strong> ainda não fecharam 100%: a Stone só publica o arquivo de um dia depois que ele acaba, e o corte operacional de 6h puxa a madrugada pro arquivo do dia seguinte — então cada dia fecha em <strong>D+2</strong> (se ajusta sozinho quando a Stone libera).</span>
+  </div>
+) : null;
+
 const MESES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const labelMes = (ym: string) => { const [y, m] = ym.split('-'); return `${MESES_PT[Number(m) - 1]}/${y}`; };
 
@@ -109,6 +126,7 @@ export default function ConciliacaoPage() {
   const [loadingNfStone, setLoadingNfStone] = useState(false);
   const [loadingContahubNf, setLoadingContahubNf] = useState(false);
   const [confDia, setConfDia] = useState<string | null>(null);
+  const [stoneFechadoAte, setStoneFechadoAte] = useState<string | null>(null);
   const [taxasModal, setTaxasModal] = useState<{ open: boolean; titulo: string; loading: boolean; rows: any[]; erro: string | null }>({ open: false, titulo: '', loading: false, rows: [], erro: null });
 
   const [aberto, setAberto] = useState<string | null>(null);
@@ -146,6 +164,7 @@ export default function ConciliacaoPage() {
       const r = await api.get(`/api/financeiro/conciliacao?${qs.toString()}`);
       setRows(r.conciliacao || []);
       setResumo(r.resumo || null);
+      setStoneFechadoAte(r.stone_fechado_ate ?? null);
       if ((r.meses_disponiveis || []).length) setMeses(r.meses_disponiveis);
       if ((r.cnpjs_disponiveis || []).length) setCnpjs(r.cnpjs_disponiveis);
       if (!mesSel && !usarRange && (r.meses_disponiveis || []).length) setMesSel(r.meses_disponiveis[0]);
@@ -194,6 +213,7 @@ export default function ConciliacaoPage() {
     try {
       const r = await api.get(`/api/financeiro/conciliacao/contahub-nf?de=${periodo.de}&ate=${periodo.ate}`);
       setContahubNf(r.linhas || []);
+      setStoneFechadoAte(r.stone_fechado_ate ?? null);
     } catch (e: any) {
       showToast({ type: 'error', title: 'Erro ao carregar ContaHub × NF', message: e?.message });
     } finally { setLoadingContahubNf(false); }
@@ -335,6 +355,8 @@ export default function ConciliacaoPage() {
               </div>
             )}
 
+            {rows.some((r) => isParcial(r.data, stoneFechadoAte)) && <AvisoParcial fechadoAte={stoneFechadoAte} />}
+
             {loading ? <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
             : rowsView.length === 0 ? <Card><CardContent className="py-12 text-center text-muted-foreground"><Scale className="w-9 h-9 mx-auto mb-2 opacity-40" />{cardFiltro ? <>Nenhum dia com esse status. <button onClick={() => setCardFiltro(null)} className="text-primary hover:underline">Limpar filtro</button></> : 'Sem dados no período.'}</CardContent></Card>
             : (
@@ -352,7 +374,7 @@ export default function ConciliacaoPage() {
                         <Fragment key={r.data}>
                           <tr onClick={() => abrirDia(r.data)} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer">
                             <td className="px-3 py-1.5"><ChevronDown className={`w-4 h-4 transition-transform ${aberto === r.data ? 'rotate-180' : ''}`} /></td>
-                            <td className="px-3 py-1.5 whitespace-nowrap font-medium">{fmtData(r.data)}</td>
+                            <td className="px-3 py-1.5 whitespace-nowrap font-medium">{fmtData(r.data)}{isParcial(r.data, stoneFechadoAte) && <ParcialBadge />}</td>
                             <td className="px-3 py-1.5"><StatusBadge s={r.status} dif={r.diferenca} /></td>
                             <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.contahub_cartao)}</td>
                             <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtBRL(r.stone_bruto)}</td>
@@ -491,6 +513,7 @@ export default function ConciliacaoPage() {
               return (
                 <>
                   <p className="text-xs text-muted-foreground mb-3">Conferência por dia (base gerencial): <strong>NF emitida × ContaHub-total</strong> — emitiu nota de tudo? NF abaixo do ContaHub = <span className="text-amber-600 dark:text-amber-400 font-medium">falta de emissão</span> (menos grave). <span className="text-amber-600 dark:text-amber-400 font-medium">⚠ no dia = teve venda nos 2 CNPJs</span> — confira se não vendeu/emitiu no CNPJ errado. Cartão Stone × ContaHub fica na aba <strong>Conciliação</strong>. Clique no dia p/ abrir os 2 CNPJs.</p>
+                  {contahubNf.some((r: any) => isParcial(r.data, stoneFechadoAte)) && <AvisoParcial fechadoAte={stoneFechadoAte} />}
                   {/* Totais do mês por CNPJ — um quadrado só */}
                   <Card className="mb-3"><CardContent className="py-3 space-y-3">
                     {cnpjsDoBar.map((cj, i) => { const p = porCnpjMes[cj.cnpj_indice] || { nf: 0, stone: 0 }; return (
@@ -557,7 +580,7 @@ export default function ConciliacaoPage() {
                             <Fragment key={r.data}>
                               <tr onClick={() => setConfDia(aberto ? null : r.data)} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer">
                                 <td className="px-3 py-1.5">{cnpjsDoBar.length > 0 && <ChevronDown className={`w-4 h-4 transition-transform ${aberto ? 'rotate-180' : ''}`} />}</td>
-                                <td className="px-3 py-1.5 whitespace-nowrap font-medium">{diasDoisCnpjs.has(r.data) && <AlertTriangle className="inline w-3.5 h-3.5 text-amber-500 mr-1 align-text-bottom" />}{fmtData(r.data)}</td>
+                                <td className="px-3 py-1.5 whitespace-nowrap font-medium">{diasDoisCnpjs.has(r.data) && <AlertTriangle className="inline w-3.5 h-3.5 text-amber-500 mr-1 align-text-bottom" />}{fmtData(r.data)}{isParcial(r.data, stoneFechadoAte) && <ParcialBadge />}</td>
                                 <td className="px-3 py-1.5 text-right whitespace-nowrap border-l">{fmtBRL(stone)}</td>
                                 <td className="px-3 py-1.5 text-right whitespace-nowrap border-l">{fmtBRL(nf)}</td>
                                 <td className={`px-3 py-1.5 text-right whitespace-nowrap ${corOk(fNT)}`}>{fmtBRL(total)}</td>
