@@ -118,7 +118,9 @@ async function syncNPS(barId?: number, opts?: SyncOpts): Promise<{ message: stri
       const arrayBuffer = await downloadDriveFileAsExcel(fileId, accessToken)
       console.log(`✅ Arquivo baixado! (${(arrayBuffer.byteLength / 1024).toFixed(2)} KB)`)
       
-      const workbook = read(new Uint8Array(arrayBuffer), { type: 'array' })
+      // dense:true usa bem menos memória em planilhas grandes (a de NPS acumula anos de respostas
+      // e estourava o WORKER_RESOURCE_LIMIT da edge). cellStyles/cellHTML off = só os valores.
+      const workbook = read(new Uint8Array(arrayBuffer), { type: 'array', dense: true, cellStyles: false, cellHTML: false })
       
       // Encontrar aba correta
       let targetSheet = workbook.Sheets[sheetName]
@@ -212,17 +214,18 @@ async function syncNPS(barId?: number, opts?: SyncOpts): Promise<{ message: stri
       for (let i = 0; i < registros.length; i += BATCH_SIZE) {
         const batch = registros.slice(i, i + BATCH_SIZE)
         
-        const { data: insertedData, error: insertError } = await supabase
+        // sem .select(): devolver todas as linhas gravadas de volta estourava a memória da edge.
+        // batch.length = contagem exata (ignoreDuplicates:false grava todas as linhas do lote).
+        const { error: insertError } = await supabase
           .schema('crm' as any)
           .from('nps')
           .upsert(batch, {
             onConflict: 'bar_id,data_pesquisa,funcionario_nome,setor',
             ignoreDuplicates: false
           })
-          .select()
-        
+
         if (insertError) throw insertError
-        totalInserted += insertedData?.length || 0
+        totalInserted += batch.length
       }
       
       resultados.push({
@@ -521,7 +524,9 @@ async function syncPesquisaFelicidade(barId?: number): Promise<{ message: string
       const sheetName = (config?.configuracoes as any)?.pesquisa_felicidade_sheet_name || 'Pesquisa da Felicidade'
       
       const arrayBuffer = await downloadDriveFileAsExcel(fileId, accessToken)
-      const workbook = read(new Uint8Array(arrayBuffer), { type: 'array' })
+      // dense:true usa bem menos memória em planilhas grandes (a de NPS acumula anos de respostas
+      // e estourava o WORKER_RESOURCE_LIMIT da edge). cellStyles/cellHTML off = só os valores.
+      const workbook = read(new Uint8Array(arrayBuffer), { type: 'array', dense: true, cellStyles: false, cellHTML: false })
       
       let targetSheet = workbook.Sheets[sheetName]
       if (!targetSheet) {
