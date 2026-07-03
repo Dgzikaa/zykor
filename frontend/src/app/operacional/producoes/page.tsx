@@ -127,6 +127,10 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const [confirmar, setConfirmar] = useState<{ prod: ActiveProd; suspeitos: { campo: string; valor: number; unidade: string | null; esperado: number }[] } | null>(null);
   const idRef = useRef(0);
+  // espelho de prods p/ o gravador ler sempre o valor atual sem recriar o interval
+  const prodsRef = useRef(prods);
+  prodsRef.current = prods;
+  const lastWriteRef = useRef<string>('');
 
   // timer global: incrementa todas as produções rodando, a cada 1s
   useEffect(() => {
@@ -135,6 +139,52 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     }, 1000);
     return () => clearInterval(t);
   }, []);
+
+  // PERSISTÊNCIA das produções em andamento (localStorage por bar). Antes elas viviam só em
+  // memória → trocar de página, deslogar ou o tablet desligar ZERAVA tudo (a receita sumia).
+  // Agora: ao reabrir, a produção volta "ali de baixo" até finalizarem. O cronômetro é âncora
+  // de relógio — enquanto 'rodando', soma o tempo decorrido com a tela fechada (paused fica
+  // congelado). Chave por bar → tablets diferentes (bar/cozinha) não colidem.
+  useEffect(() => {
+    if (!barId) return;
+    try {
+      const raw = localStorage.getItem(`zykor:producoes:ativas:${barId}`);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        const gap = Math.max(0, Math.floor((Date.now() - Number(saved?._ts || Date.now())) / 1000));
+        const restored: ActiveProd[] = (Array.isArray(saved?.prods) ? saved.prods : []).map((p: any) => ({
+          ...p,
+          loadingItens: false,
+          // só o que está rodando "anda" no tempo que ficou fora; pausado mantém o valor
+          segundos: p?.rodando ? (Number(p.segundos) || 0) + gap : (Number(p.segundos) || 0),
+        }));
+        if (restored.length) {
+          setProds(restored);
+          setSelId(restored[restored.length - 1].localId);
+          idRef.current = Math.max(idRef.current, ...restored.map(p => parseInt(String(p.localId).replace(/\D/g, ''), 10) || 0));
+        }
+      }
+    } catch { /* localStorage indisponível/JSON ruim → começa limpo */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barId]);
+
+  // grava a cada 1s (e ao sair da tela) — só quando muda; mantém _ts fresco enquanto roda
+  useEffect(() => {
+    if (!barId) return;
+    const key = `zykor:producoes:ativas:${barId}`;
+    const write = () => {
+      const cur = prodsRef.current;
+      const sig = cur.length ? JSON.stringify(cur) : '';
+      if (sig === lastWriteRef.current) return; // sem mudança → não escreve
+      lastWriteRef.current = sig;
+      try {
+        if (cur.length) localStorage.setItem(key, JSON.stringify({ _ts: Date.now(), prods: cur }));
+        else localStorage.removeItem(key);
+      } catch { /* ignore */ }
+    };
+    const t = setInterval(write, 1000);
+    return () => { write(); clearInterval(t); }; // persiste o estado final ao desmontar/trocar de bar
+  }, [barId]);
 
   // calendarização da semana: conversa com o Planejamento da Produção (mesmo time-frame).
   // Mostra o que/quanto foi planejado por dia (planos encerrados) p/ a semana selecionada.
