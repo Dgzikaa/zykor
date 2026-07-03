@@ -357,19 +357,41 @@ export async function getSemanas(
   if (dataMin && dataMax) {
     // Conta Assinada (de bronze.bronze_contahub_financeiro_pagamentosrecebidos)
     // Tabela renomeada na migração medallion (antes: bronze_contahub_financeiro_pagamentos).
-    const pagamentos = await fetchAllPaginated<{ dt_gerencial: string; liquido: number }>(
-      supabase,
-      'bronze_contahub_financeiro_pagamentosrecebidos',
-      'dt_gerencial, liquido',
-      [
-        { column: 'bar_id', operator: 'eq', value: barId },
-        { column: 'meio', operator: 'eq', value: 'Conta Assinada' },
-        { column: 'dt_gerencial', operator: 'gte', value: dataMin },
-        { column: 'dt_gerencial', operator: 'lte', value: dataMax },
-      ],
-      1000,
-      'bronze'
-    );
+    // As 4 fontes (Conta Assinada, descontos, Falaê diário, Falaê respostas) só dependem de
+    // barId/dataMin/dataMax → rodam EM PARALELO (antes: 4 scans paginados de ano inteiro EM FILA).
+    // Mesmos dados, mesmos agregados — só sobrepostos. Cada forEach popula um Map distinto.
+    const [pagamentos, descontosRaw, falaeDiario, falaeRespostas] = await Promise.all([
+      fetchAllPaginated<{ dt_gerencial: string; liquido: number }>(
+        supabase, 'bronze_contahub_financeiro_pagamentosrecebidos', 'dt_gerencial, liquido',
+        [
+          { column: 'bar_id', operator: 'eq', value: barId },
+          { column: 'meio', operator: 'eq', value: 'Conta Assinada' },
+          { column: 'dt_gerencial', operator: 'gte', value: dataMin },
+          { column: 'dt_gerencial', operator: 'lte', value: dataMax },
+        ], 1000, 'bronze'),
+      fetchAllPaginated<{ vd_dtgerencial: string; vd_vrdescontos: number; vd_motivodesconto: string | null }>(
+        supabase, 'bronze_contahub_avendas_vendasperiodo', 'vd_dtgerencial, vd_vrdescontos, vd_motivodesconto',
+        [
+          { column: 'bar_id', operator: 'eq', value: barId },
+          { column: 'vd_vrdescontos', operator: 'gt', value: 0 },
+          { column: 'vd_dtgerencial', operator: 'gte', value: dataMin },
+          { column: 'vd_dtgerencial', operator: 'lte', value: dataMax },
+        ], 1000, 'bronze'),
+      fetchAllPaginated<{ data_referencia: string; respostas_total: number; promotores: number; detratores: number; nps_media: number | null }>(
+        supabase, 'nps_falae_diario', 'data_referencia, respostas_total, promotores, detratores, nps_media',
+        [
+          { column: 'bar_id', operator: 'eq', value: barId },
+          { column: 'data_referencia', operator: 'gte', value: dataMin },
+          { column: 'data_referencia', operator: 'lte', value: dataMax },
+        ], 1000, 'crm'),
+      fetchAllPaginated<{ created_at: string; nps: number; criterios: unknown; discursive_question: string | null }>(
+        supabase, 'bronze_falae_respostas', 'created_at, nps, criterios, discursive_question',
+        [
+          { column: 'bar_id', operator: 'eq', value: barId },
+          { column: 'created_at', operator: 'gte', value: `${dataMin}T00:00:00` },
+          { column: 'created_at', operator: 'lte', value: `${dataMax}T23:59:59` },
+        ], 1000, 'bronze'),
+    ]);
 
     pagamentos.forEach(p => {
       const semana = semanas.find(s => p.dt_gerencial >= s.data_inicio && p.dt_gerencial <= s.data_fim);
@@ -385,24 +407,6 @@ export async function getSemanas(
     //   data_visita      → vd_dtgerencial
     //   valor_desconto   → vd_vrdescontos
     //   motivo_desconto  → vd_motivodesconto
-    const descontosRaw = await fetchAllPaginated<{
-      vd_dtgerencial: string;
-      vd_vrdescontos: number;
-      vd_motivodesconto: string | null;
-    }>(
-      supabase,
-      'bronze_contahub_avendas_vendasperiodo',
-      'vd_dtgerencial, vd_vrdescontos, vd_motivodesconto',
-      [
-        { column: 'bar_id', operator: 'eq', value: barId },
-        { column: 'vd_vrdescontos', operator: 'gt', value: 0 },
-        { column: 'vd_dtgerencial', operator: 'gte', value: dataMin },
-        { column: 'vd_dtgerencial', operator: 'lte', value: dataMax },
-      ],
-      1000,
-      'bronze'
-    );
-
     // Mapeia para o shape antigo para não tocar no resto do código de agrupamento.
     const descontos = descontosRaw.map((d) => ({
       data_visita: d.vd_dtgerencial,
@@ -445,26 +449,7 @@ export async function getSemanas(
       }
     });
 
-    // NPS Falaê diário agregado -> semanal (schema 'crm' após migração)
-    const falaeDiario = await fetchAllPaginated<{
-      data_referencia: string;
-      respostas_total: number;
-      promotores: number;
-      detratores: number;
-      nps_media: number | null;
-    }>(
-      supabase,
-      'nps_falae_diario',
-      'data_referencia, respostas_total, promotores, detratores, nps_media',
-      [
-        { column: 'bar_id', operator: 'eq', value: barId },
-        { column: 'data_referencia', operator: 'gte', value: dataMin },
-        { column: 'data_referencia', operator: 'lte', value: dataMax },
-      ],
-      1000,
-      'crm'
-    );
-
+    // NPS Falaê diário agregado -> semanal (já buscado em paralelo acima, schema 'crm')
     falaeDiario.forEach((d) => {
       const data = new Date(`${d.data_referencia}T12:00:00`);
       const { semana: numeroSemana, ano: anoSemana } = getWeekAndYear(data);
@@ -482,25 +467,7 @@ export async function getSemanas(
       cur.mediaPonderada += (Number(d.nps_media) || 0) * respostas;
     });
 
-    // Detalhes Falaê por semana (médias por tema + comentários)
-    const falaeRespostas = await fetchAllPaginated<{
-      created_at: string;
-      nps: number;
-      criterios: unknown;
-      discursive_question: string | null;
-    }>(
-      supabase,
-      'bronze_falae_respostas',
-      'created_at, nps, criterios, discursive_question',
-      [
-        { column: 'bar_id', operator: 'eq', value: barId },
-        { column: 'created_at', operator: 'gte', value: `${dataMin}T00:00:00` },
-        { column: 'created_at', operator: 'lte', value: `${dataMax}T23:59:59` },
-      ],
-      1000,
-      'bronze'
-    );
-
+    // Detalhes Falaê por semana (médias por tema + comentários) — já buscado em paralelo acima
     falaeRespostas.forEach((r) => {
       const data = new Date(String(r.created_at));
       if (Number.isNaN(data.getTime())) return;
