@@ -93,10 +93,21 @@ export async function GET(request: NextRequest) {
     // "preenchido" = evento com nome de verdade (placeholder futuro vem com nome vazio; genérico = "Evento AAAA-MM-DD")
     const preenchido = (nome: any) => { const n = String(nome || '').trim(); return n !== '' && !/^evento\s/i.test(n); };
 
+    // dias de operação do bar (fonte da verdade) — dia fechado (ex.: Deboche na segunda) NÃO
+    // conta como "dia vazio" no cálculo de 100% preenchido.
+    const { data: cfg } = await (supabase as any).schema('operations').from('bares_config')
+      .select('opera_domingo, opera_segunda, opera_terca, opera_quarta, opera_quinta, opera_sexta, opera_sabado')
+      .eq('bar_id', barId).maybeSingle();
+    const operaPorDia: Record<string, boolean> = {
+      domingo: cfg?.opera_domingo ?? true, segunda: cfg?.opera_segunda ?? true, terca: cfg?.opera_terca ?? true,
+      quarta: cfg?.opera_quarta ?? true, quinta: cfg?.opera_quinta ?? true, sexta: cfg?.opera_sexta ?? true, sabado: cfg?.opera_sabado ?? true,
+    };
+    const opera = (diaSemana: any) => operaPorDia[String(diaSemana || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()] ?? true;
+
     // meses disponíveis: passados (tudo, como sempre) + futuros que têm evento preenchido no planejamento
     const { data: datas } = await supabase
       .from('eventos_base')
-      .select('data_evento, nome')
+      .select('data_evento, nome, dia_semana')
       .eq('bar_id', barId)
       .lte('data_evento', fimAno)
       .order('data_evento', { ascending: false })
@@ -110,7 +121,7 @@ export async function GET(request: NextRequest) {
       const info = mesInfo.get(s) || { past: false, named: 0, futEmpty: 0 };
       if (dt < hojeBR) info.past = true;
       if (preenchido((d as any).nome)) info.named += 1;
-      else if (dt >= hojeBR) info.futEmpty += 1;
+      else if (dt >= hojeBR && opera((d as any).dia_semana)) info.futEmpty += 1;
       mesInfo.set(s, info);
     }
     const mesesSet = new Set<string>();
