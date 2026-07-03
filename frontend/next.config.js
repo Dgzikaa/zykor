@@ -89,6 +89,16 @@ const nextConfig = {
             value: 'origin-when-cross-origin',
           },
           {
+            // HSTS — força HTTPS por 2 anos (inclui subdomínios). Zykor é 100% HTTPS.
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
+          },
+          {
+            // Bloqueia APIs sensíveis do browser que o app não usa.
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+          },
+          {
             key: 'Content-Security-Policy',
             value: process.env.NODE_ENV === 'development' 
               ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://vercel.live https://cdn.pluggy.ai; style-src 'self' 'unsafe-inline' https://cdn.pluggy.ai; img-src 'self' data: blob: https:; connect-src 'self' https: wss: ws: https://api.pluggy.ai; font-src 'self' data: https:; worker-src 'self' blob:; frame-src 'self' https://docs.google.com https://vercel.live https://cdn.pluggy.ai https://connect.pluggy.ai https://zykor.grafana.net; frame-ancestors 'none';"
