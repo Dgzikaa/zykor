@@ -188,21 +188,18 @@ function LancarSaidaModal({ saida, barId, catOpts, conta, onClose, onDone }: {
 }) {
   const { showToast } = useToast();
   const [descricao, setDescricao] = useState(saida.motivo || '');
-  const [valor, setValor] = useState(String(saida.valor_saida ?? ''));
-  const [competencia, setCompetencia] = useState(saida.dt_gerencial);
-  const [vencimento, setVencimento] = useState(saida.dt_gerencial);
   const [categoria, setCategoria] = useState<CatOpt | null>(null);
   const [lancando, setLancando] = useState(false);
 
   const submit = async () => {
     if (!categoria) { showToast({ type: 'error', title: 'Escolha a categoria' }); return; }
-    const v = Number(String(valor).replace(/\./g, '').replace(',', '.'));
+    const v = Number(saida.valor_saida) || 0;
     if (!(v > 0)) { showToast({ type: 'error', title: 'Valor inválido' }); return; }
     setLancando(true);
     try {
       const r = await api.post('/api/financeiro/saidas-caixa/lancar', {
         bar_id: barId, trn: saida.trn, num_lancamento: saida.num_lancamento,
-        dt_gerencial: saida.dt_gerencial, data_competencia: competencia, data_vencimento: vencimento,
+        dt_gerencial: saida.dt_gerencial, data_competencia: saida.dt_gerencial, data_vencimento: saida.dt_gerencial,
         descricao, valor: v, categoria_id: categoria.id,
       });
       if (r?.ok || r?.skipped) {
@@ -232,7 +229,7 @@ function LancarSaidaModal({ saida, barId, catOpts, conta, onClose, onDone }: {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-muted-foreground">Valor</label>
-              <Input value={valor} onChange={(e) => setValor(e.target.value)} inputMode="decimal" className="h-9 mt-1 text-right tabular-nums" />
+              <div className="mt-1 h-9 flex items-center justify-end rounded-md border bg-muted/40 px-3 font-semibold tabular-nums">{fmtBRL(saida.valor_saida)}</div>
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Categoria (despesa)</label>
@@ -242,11 +239,11 @@ function LancarSaidaModal({ saida, barId, catOpts, conta, onClose, onDone }: {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-muted-foreground">Competência</label>
-              <Input type="date" value={competencia} onChange={(e) => setCompetencia(e.target.value)} className="h-9 mt-1" />
+              <div className="mt-1 h-9 flex items-center rounded-md border bg-muted/40 px-3 text-muted-foreground">{fmtData(saida.dt_gerencial)}</div>
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Vencimento</label>
-              <Input type="date" value={vencimento} onChange={(e) => setVencimento(e.target.value)} className="h-9 mt-1" />
+              <div className="mt-1 h-9 flex items-center rounded-md border bg-muted/40 px-3 text-muted-foreground">{fmtData(saida.dt_gerencial)}</div>
             </div>
           </div>
           <div>

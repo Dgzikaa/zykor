@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executarEntradaDiaria, ontemBRT } from '../contas-a-receber-diario/route';
+import { executarEntradaDiaria, varrerBaixasPendentes, ontemBRT } from '../contas-a-receber-diario/route';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -23,6 +23,9 @@ export async function GET(request: NextRequest) {
     try {
       const r = await executarEntradaDiaria(barId, data, 'cron 12:00 BRT');
       resultados.push({ bar_id: barId, status: r.status, ...r.body });
+      // Auto-cura: re-tenta a baixa de dias criados mas não baixados (últimos 5 dias).
+      const sweep = await varrerBaixasPendentes(barId, 5);
+      if (sweep.length) resultados.push({ bar_id: barId, sweep });
     } catch (e: any) {
       resultados.push({ bar_id: barId, status: 500, error: e?.message || String(e) });
     }

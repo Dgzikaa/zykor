@@ -113,8 +113,8 @@ async function postCA(token: string, body: unknown): Promise<{ ok: boolean; prot
 /** Acha o lançamento por descrição+data (criação é assíncrona) e dá baixa (recebido no dia). */
 async function baixar(token: string, descricao: string, data: string, valor: number, contaFin: string): Promise<{ ok: boolean; motivo?: string }> {
   let idLanc: string | null = null;
-  for (let t = 0; t < 8 && !idLanc; t++) {
-    if (t) await sleep(2000);
+  for (let t = 0; t < 12 && !idLanc; t++) {
+    if (t) await sleep(2500);
     const url = `${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/contas-a-receber/buscar?pagina=1&tamanho_pagina=300&data_vencimento_de=${data}&data_vencimento_ate=${data}`;
     const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!r.ok) continue;
@@ -145,26 +145,51 @@ export async function executarEntradaDiaria(barId: number, data: string, criadoP
   if (!cfg) return { status: 400, body: { error: `Bar ${barId} ainda não configurado para Entradas->CA` } };
 
   const supabase = getSupabaseAdmin();
-  const { data: jaLog } = await (supabase.schema('financial' as any) as any)
-    .from('entrada_caixa_ca_log').select('id, baixado, valor').eq('bar_id', barId).eq('dt_gerencial', data).maybeSingle();
-  if (jaLog) return { status: 200, body: { bar_id: barId, data, skipped: true, motivo: 'já lançado', valor: jaLog.valor } };
+  const financial = () => (supabase.schema('financial' as any) as any).from('entrada_caixa_ca_log');
+
+  const { data: jaLog } = await financial()
+    .select('id, baixado, valor, ca_protocol_id, ca_status')
+    .eq('bar_id', barId).eq('dt_gerencial', data).maybeSingle();
+  // Já criado E baixado -> nada a fazer (idempotente).
+  if (jaLog?.baixado) return { status: 200, body: { bar_id: barId, data, skipped: true, motivo: 'já lançado e baixado', valor: jaLog.valor } };
 
   const { total, qtd } = await getTotalDia(barId, data);
-  if (total <= 0) return { status: 200, body: { bar_id: barId, data, skipped: true, motivo: 'sem dinheiro no dia', valor: 0 } };
+  if (total <= 0 && !jaLog) return { status: 200, body: { bar_id: barId, data, skipped: true, motivo: 'sem dinheiro no dia', valor: 0 } };
 
   const tokenResult = await getCAToken(barId);
   if ('error' in tokenResult) return { status: tokenResult.status, body: { error: tokenResult.error } };
   const token = tokenResult.token;
-
   const descricao = descricaoDia(data);
-  const r = await postCA(token, payloadReceita(cfg, data, total, qtd));
-  if (!r.ok) return { status: 502, body: { bar_id: barId, data, ok: false, erro: r.erro, valor: total } };
+  const valor = jaLog ? Number(jaLog.valor) : total;
 
-  const b = await baixar(token, descricao, data, total, cfg.conta_financeira);
-  await (supabase.schema('financial' as any) as any).from('entrada_caixa_ca_log').insert({
-    bar_id: barId, dt_gerencial: data, valor: total, ca_protocol_id: r.protocolId, ca_status: r.status, baixado: b.ok, criado_por: criadoPor,
-  });
-  return { status: b.ok ? 200 : 207, body: { bar_id: barId, data, ok: true, valor: total, qtd, protocolId: r.protocolId, baixado: b.ok, baixa_erro: b.motivo } };
+  // 1) Cria a conta a receber SÓ se ainda não há log (create é o passo não-idempotente).
+  if (!jaLog) {
+    const r = await postCA(token, payloadReceita(cfg, data, valor, qtd));
+    if (!r.ok) return { status: 502, body: { bar_id: barId, data, ok: false, erro: r.erro, valor } };
+    await financial().insert({ bar_id: barId, dt_gerencial: data, valor, ca_protocol_id: r.protocolId, ca_status: r.status, baixado: false, criado_por: criadoPor });
+  }
+
+  // 2) Baixa (nova OU retry de um log não-baixado). baixar() é idempotente: se já está pago, retorna ok.
+  const b = await baixar(token, descricao, data, valor, cfg.conta_financeira);
+  if (b.ok) await financial().update({ baixado: true }).eq('bar_id', barId).eq('dt_gerencial', data);
+
+  return { status: b.ok ? 200 : 207, body: { bar_id: barId, data, ok: true, valor, qtd, baixado: b.ok, retry: !!jaLog, baixa_erro: b.motivo } };
+}
+
+/** Re-tenta a baixa dos lançamentos criados mas ainda NÃO baixados nos últimos `dias`. */
+export async function varrerBaixasPendentes(barId: number, dias: number): Promise<any[]> {
+  const supabase = getSupabaseAdmin();
+  const desde = new Date(Date.now() - dias * 86400000).toISOString().slice(0, 10);
+  const { data: pend } = await (supabase.schema('financial' as any) as any)
+    .from('entrada_caixa_ca_log')
+    .select('dt_gerencial')
+    .eq('bar_id', barId).eq('baixado', false).gte('dt_gerencial', desde);
+  const out: any[] = [];
+  for (const p of (pend as any[]) || []) {
+    const r = await executarEntradaDiaria(barId, p.dt_gerencial, 'sweep baixa pendente');
+    out.push({ data: p.dt_gerencial, baixado: r.body?.baixado });
+  }
+  return out;
 }
 
 /** GET: preview do dia — não escreve nada. */
