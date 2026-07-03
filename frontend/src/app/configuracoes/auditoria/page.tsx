@@ -75,7 +75,7 @@ export default function AuditoriaPage() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  const [auto, setAuto] = useState(false); // tempo real (polling)
+  const [auto, setAuto] = useState(true); // tempo real ligado por padrão (polling)
 
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
