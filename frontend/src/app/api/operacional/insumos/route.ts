@@ -19,20 +19,23 @@ export async function GET(request: NextRequest) {
   const supabase = await getAdminClient();
 
   try {
-    // catálogo = cadastro Zykor 1:1 (já com última compra VMarket por código)
-    const insumosRaw = await selectAll((from, to) => (supabase as any).schema('silver').from('insumo_catalogo')
-      .select('*').eq('bar_id', barId).order('nome', { ascending: true }).range(from, to));
-    // comprado no VMarket sem cadastro no Zykor (lista separada)
-    const semCadastro = await selectAll((from, to) => (supabase as any).schema('silver').from('insumo_sem_cadastro')
-      .select('*').eq('bar_id', barId).order('nome', { ascending: true }).range(from, to)).catch(() => []);
-    // insumos que estão em ficha técnica DO BAR. O código i0XXX é reusado entre bares
-    // (i0200 = Budweiser no bar 3, Caldo de Carne no bar 4), então precisa ser por bar,
-    // ligando o item de ficha ao pai (producao_base) pra pegar o bar_id.
+    // As 5 fontes são independentes (só dependem do bar) → rodam EM PARALELO (antes, em fila).
+    const [insumosRaw, semCadastro, fichaRes, secoesRes, freshRes] = await Promise.all([
+      // catálogo = cadastro Zykor 1:1 (já com última compra VMarket por código)
+      selectAll((from, to) => (supabase as any).schema('silver').from('insumo_catalogo')
+        .select('*').eq('bar_id', barId).order('nome', { ascending: true }).range(from, to)),
+      // comprado no VMarket sem cadastro no Zykor (lista separada)
+      selectAll((from, to) => (supabase as any).schema('silver').from('insumo_sem_cadastro')
+        .select('*').eq('bar_id', barId).order('nome', { ascending: true }).range(from, to)).catch(() => []),
+      // insumos em ficha técnica DO BAR (código i0XXX é reusado entre bares → por bar)
+      (supabase as any).schema('operations').rpc('fn_insumos_em_ficha', { p_bar_id: barId }),
+      supabase.from('bronze_vmarket_secoes').select('id_secao_cotacao,nome,fl_calc_cmv_faturamento').eq('bar_id', barId).order('nome', { ascending: true }),
+      supabase.from('bronze_vmarket_produtos').select('synced_em').eq('bar_id', barId).order('synced_em', { ascending: false }).limit(1),
+    ]);
     const fichaCods = new Set<string>();
-    const { data: fichaRows } = await (supabase as any).schema('operations').rpc('fn_insumos_em_ficha', { p_bar_id: barId });
-    (fichaRows || []).forEach((r: any) => { if (r.insumo_codigo) fichaCods.add(r.insumo_codigo); });
-    const { data: secoes } = await supabase.from('bronze_vmarket_secoes').select('id_secao_cotacao,nome,fl_calc_cmv_faturamento').eq('bar_id', barId).order('nome', { ascending: true });
-    const { data: fresh } = await supabase.from('bronze_vmarket_produtos').select('synced_em').eq('bar_id', barId).order('synced_em', { ascending: false }).limit(1);
+    (fichaRes?.data || []).forEach((r: any) => { if (r.insumo_codigo) fichaCods.add(r.insumo_codigo); });
+    const secoes = secoesRes?.data;
+    const fresh = freshRes?.data;
 
     const insumos = (insumosRaw || []).map((i: any) => {
       const u = (i.base && Number(i.embalagem) > 0) ? { base: i.base, embalagem: Number(i.embalagem) } : deriveUnid(i.nome, i.unidade_medida);
