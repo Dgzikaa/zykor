@@ -23,8 +23,8 @@ export default function RedefinirSenhaPage() {
       setErro('Nova senha é obrigatória');
       return false;
     }
-    if (novaSenha.length < 6) {
-      setErro('A senha deve ter pelo menos 6 caracteres');
+    if (novaSenha.length < 8 || !/[A-Za-z]/.test(novaSenha) || !/[0-9]/.test(novaSenha)) {
+      setErro('A senha deve ter pelo menos 8 caracteres, com letras e números');
       return false;
     }
     if (novaSenha !== confirmarSenha) {

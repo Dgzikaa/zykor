@@ -20,9 +20,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (novaSenha.length < 6) {
+    if (novaSenha.length < 8 || !/[A-Za-z]/.test(novaSenha) || !/[0-9]/.test(novaSenha)) {
       return NextResponse.json(
-        { success: false, error: 'A senha deve ter pelo menos 6 caracteres' },
+        { success: false, error: 'A senha deve ter pelo menos 8 caracteres, com letras e números' },
         { status: 400 }
       );
     }

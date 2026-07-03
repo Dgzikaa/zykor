@@ -123,7 +123,7 @@ class SecurityMonitor {
       event_type: 'failed_login',
       ip_address: ip,
       user_agent: userAgent,
-      endpoint: '/api/configuracoes/auth/login',
+      endpoint: '/api/auth/login',
       details: { email, attempt_count: await this.getRecentFailedLogins(ip) },
       risk_score: await this.calculateLoginRiskScore(ip, email),
     });

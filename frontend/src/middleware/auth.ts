@@ -3,8 +3,9 @@ import { getAdminClient, auditContext } from '@/lib/supabase-admin';
 import { safeErrorLog } from '@/lib/logger';
 import { validateToken } from '@/lib/auth/jwt';
 
-// 🔇 Controle de logs verbose - defina como true para debug
-const VERBOSE_AUTH_LOGS = true;
+// 🔇 Logs verbose de auth (imprimem email/PII) — DESLIGADO por padrão em produção.
+// Para debugar, setar a env AUTH_VERBOSE_LOGS=true (nunca deixar ligado em prod).
+const VERBOSE_AUTH_LOGS = process.env.AUTH_VERBOSE_LOGS === 'true';
 
 // Tipos para o usuário autenticado
 export interface AuthenticatedUser {

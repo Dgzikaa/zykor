@@ -22,7 +22,7 @@ async function getAuthenticatedUser(request: NextRequest): Promise<User | null> 
     if (authToken) {
       const decoded = validateToken(authToken);
       if (decoded) {
-        console.log(`✅ MIDDLEWARE: Token JWT válido para ${decoded.email}`);
+        // (sem log de email — evitar PII em logs de produção)
         return {
           id: decoded.user_id,
           email: decoded.email,
@@ -50,7 +50,7 @@ async function getAuthenticatedUser(request: NextRequest): Promise<User | null> 
             k => userData.modulos_permitidos[k]
           );
         }
-        console.log(`✅ MIDDLEWARE: Cookie sgb_user válido para ${userData.email}`);
+        // (sem log de email — evitar PII em logs de produção)
         return {
           ...userData,
           modulos_permitidos: modulosPermitidos,
@@ -207,7 +207,7 @@ export async function middleware(request: NextRequest) {
 
   // Verificar se usuário está ativo
   if (!user.ativo) {
-    console.log(`🚫 MIDDLEWARE: Usuário ${user.nome || user.email} está inativo`);
+    console.log('🚫 MIDDLEWARE: Usuário inativo bloqueado');
     return NextResponse.redirect(new URL('/login?error=usuario_inativo', request.url));
   }
 
@@ -225,7 +225,7 @@ export async function middleware(request: NextRequest) {
   const hasPermission = hasRoutePermission(pathname, user);
   
   if (!hasPermission) {
-    console.log(`🚫 MIDDLEWARE: Usuário ${user.nome || user.email} (${user.role}) sem permissão para ${pathname}`);
+    console.log(`🚫 MIDDLEWARE: Sem permissão para ${pathname}`);
     console.log(`   Módulos do usuário:`, user.modulos_permitidos);
     console.log(`   Módulos necessários:`, routeConfig.requiredModules);
     
