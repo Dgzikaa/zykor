@@ -147,6 +147,76 @@ function PipelineHealth() {
   );
 }
 
+interface CronJob {
+  job: string; schedule: string; status: string | null; ultima: string | null;
+  duracao_s: number | null; ha_segundos: number | null; ativo: boolean;
+}
+function CronStatus() {
+  const [jobs, setJobs] = useState<CronJob[] | null>(null);
+  const [resumo, setResumo] = useState<{ total: number; problema: number; inativos: number } | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const carregar = useCallback(async () => {
+    try {
+      const r = await fetch('/api/configuracoes/painel/crons', { cache: 'no-store' });
+      const j = await r.json();
+      if (j.success) { setJobs(j.jobs); setResumo(j.resumo); }
+    } catch { /* noop */ }
+  }, []);
+  useEffect(() => { carregar(); const id = setInterval(carregar, 120_000); return () => clearInterval(id); }, [carregar]);
+
+  const haQuanto = (s: number | null) => {
+    if (s == null) return 'nunca';
+    if (s < 90) return 'agora';
+    if (s < 5400) return `há ${Math.round(s / 60)} min`;
+    if (s < 172800) return `há ${Math.round(s / 3600)} h`;
+    return `há ${Math.round(s / 86400)} d`;
+  };
+  const problema = (j: CronJob) => j.ativo && j.status != null && j.status !== 'succeeded';
+  const lista = jobs && !showAll ? jobs.filter(problema) : (jobs || []).filter(j => j.ativo);
+
+  return (
+    <Card className="bg-white dark:bg-gray-800">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="text-base flex items-center gap-2"><RefreshCw className="w-4 h-4 text-blue-600" />Rotinas automáticas (cron)</CardTitle>
+          {resumo && (
+            <div className="flex items-center gap-3 text-xs">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" />{resumo.total - resumo.problema} ok</span>
+              {resumo.problema > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500" />{resumo.problema} com erro</span>}
+              {resumo.inativos > 0 && <span className="text-gray-400">{resumo.inativos} inativos</span>}
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {!jobs ? (
+          <div className="h-14 rounded-lg bg-gray-100 dark:bg-gray-700 animate-pulse" />
+        ) : lista.length === 0 ? (
+          <p className="text-sm text-emerald-600 dark:text-emerald-400">Todas as rotinas rodaram com sucesso ✓</p>
+        ) : (
+          <div className="space-y-1.5 max-h-96 overflow-auto">
+            {lista.map((j, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-lg border border-gray-100 dark:border-gray-700 px-3 py-2">
+                <span className={cn('w-2.5 h-2.5 rounded-full flex-none', problema(j) ? 'bg-rose-500' : 'bg-emerald-500')} />
+                <div className="min-w-0 flex-1">
+                  <span className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{j.job}</span>
+                  <span className="ml-2 text-[10px] text-gray-400 font-mono">{j.schedule}</span>
+                </div>
+                <span className="text-xs text-gray-400 tabular-nums flex-none">{haQuanto(j.ha_segundos)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {jobs && (
+          <button onClick={() => setShowAll(v => !v)} className="mt-3 text-xs text-blue-600 hover:underline">
+            {showAll ? 'Mostrar só o que precisa de atenção' : `Ver todas as ${jobs.filter(j => j.ativo).length} rotinas`}
+          </button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PainelSupabasePage() {
   const [data, setData] = useState<MetricsResp | null>(null);
   const [loading, setLoading] = useState(true);
@@ -198,8 +268,9 @@ export default function PainelSupabasePage() {
         </div>
       </div>
 
-      {/* Central de Operações — saúde do pipeline (o que pegou o ETL falhando) */}
+      {/* Central de Operações — saúde do pipeline + rotinas automáticas */}
       <PipelineHealth />
+      <CronStatus />
 
       {/* Estados de erro/config */}
       {erroFetch && (
