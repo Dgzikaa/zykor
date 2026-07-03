@@ -106,11 +106,17 @@ function Conteudo() {
           <Button variant="outline" onClick={carregar} disabled={loading || !barId} className="h-9">
             {loading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}Atualizar preview
           </Button>
-          <Button onClick={() => setConfirmar(true)} disabled={loading || lancando || !barId || pendentes === 0}
-            className="h-9 bg-emerald-600 hover:bg-emerald-700 ml-auto">
-            {lancando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Send className="w-4 h-4 mr-1.5" />}
-            Lançar no CA{pendentes > 0 ? ` (${pendentes})` : ''}
-          </Button>
+          {recebiveis.length > 0 && pendentes === 0 && !loading ? (
+            <span className="ml-auto inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+              <CheckCircle2 className="w-4 h-4" />Já lançado neste dia
+            </span>
+          ) : (
+            <Button onClick={() => setConfirmar(true)} disabled={loading || lancando || !barId || pendentes === 0}
+              className="h-9 bg-emerald-600 hover:bg-emerald-700 ml-auto">
+              {lancando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Send className="w-4 h-4 mr-1.5" />}
+              Lançar no CA{pendentes > 0 ? ` (${pendentes})` : ''}
+            </Button>
+          )}
         </CardContent>
       </Card>
 

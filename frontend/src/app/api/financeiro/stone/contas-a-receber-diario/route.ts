@@ -72,11 +72,11 @@ interface LinhaDia {
   transacoes: number;
   bruto: number;
   taxa: number;
+  pagador: string | null; // nome do pagador (só PIX)
 }
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 const brDate = (d: string) => d.split('-').reverse().join('/');
-const txTail = (chave: string) => chave.split('|').slice(1).join('|').slice(-8);
 
 /** Ontem em horário de Brasília (UTC-3). */
 function ontemBRT(): string {
@@ -113,15 +113,17 @@ async function getLinhas(barId: number, data: string): Promise<LinhaDia[]> {
     transacoes: Number(r.transacoes) || 0,
     bruto: Number(r.bruto) || 0,
     taxa: Number(r.taxa) || 0,
+    pagador: r.pagador ?? null,
   }));
 }
 
-/** Descrição do recebível/taxa (bandeira no créd/déb; identificador da transação no pix). */
+/** Descrição do recebível/taxa. Sem data (o vencimento já é coluna própria):
+ *  créd/déb = "Bandeira Tipo"; PIX = "PIX · Nome do pagador" (nome vem do relatório Stone). */
 function descricaoDe(l: LinhaDia, natureza: 'RECEITA' | 'TAXA'): string {
   const prefixo = natureza === 'TAXA' ? 'Taxa ' : '';
-  if (l.tipo === 'PIX') return `${prefixo}PIX ${brDate(l.vencimento)} · ${txTail(l.chave)}`;
+  if (l.tipo === 'PIX') return `${prefixo}PIX${l.pagador ? ` · ${l.pagador}` : ''}`;
   const tipoLabel = l.tipo === 'CREDITO' ? 'Crédito' : 'Débito';
-  return `${prefixo}${bandeiraLabel(l.brand_id)} ${tipoLabel} ${brDate(l.vencimento)}`;
+  return `${prefixo}${bandeiraLabel(l.brand_id)} ${tipoLabel}`;
 }
 
 /** Conta a receber pelo LÍQUIDO (bruto − taxa) do recebível. */
