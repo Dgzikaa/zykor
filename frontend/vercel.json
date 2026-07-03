@@ -15,6 +15,10 @@
     {
       "path": "/api/configuracoes/desempenho/recalculo-diario",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/financeiro/stone/cron-diario",
+      "schedule": "0 9 * * *"
     }
   ],
   "functions": {
@@ -49,6 +53,12 @@
       "maxDuration": 300
     },
     "src/app/api/cmv-semanal/atualizar-completo/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/financeiro/stone/cron-diario/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/financeiro/stone/contas-a-receber-diario/route.ts": {
       "maxDuration": 300
     }
   },

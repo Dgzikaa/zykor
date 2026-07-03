@@ -87,7 +87,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const DELAY_MS = 250; // ~4 req/s entre lançamentos (folga sob o limite do CA)
 
 /** Ontem em horário de Brasília (UTC-3). */
-function ontemBRT(): string {
+export function ontemBRT(): string {
   const d = new Date(Date.now() - 3 * 60 * 60 * 1000);
   d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().slice(0, 10);
@@ -346,20 +346,21 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** POST: cria os lançamentos no CA. Idempotente por (bar, dia, chave, natureza). */
-export async function POST(request: NextRequest) {
-  const user = await authenticateUser(request);
-  if (!user) return authErrorResponse('Usuário não autenticado');
-  if (user.role !== 'admin' && user.role !== 'financeiro') return permissionErrorResponse('Sem permissão para criar lançamentos');
-  const body = await request.json().catch(() => ({} as any));
-  const barId = Number(body?.bar_id) || Number(user.bar_id);
+/**
+ * Executa o lançamento diário Stone→CA (idempotente por bar/dia/chave/natureza).
+ * Reutilizado pelo POST (usuário autenticado) e pelo cron (06:00 BRT). Não faz auth — quem
+ * chama garante a autorização. Devolve { status, body } pra virar NextResponse.
+ */
+export async function executarStoneDiario(
+  barId: number,
+  data: string,
+  criadoPor: string | null,
+): Promise<{ status: number; body: any }> {
   const cfg = CONFIG[barId];
-  if (!cfg) return NextResponse.json({ error: `Bar ${barId} ainda não configurado para Stone->CA` }, { status: 400 });
-
-  const data: string = body?.data || ontemBRT();
+  if (!cfg) return { status: 400, body: { error: `Bar ${barId} ainda não configurado para Stone->CA` } };
 
   const tokenResult = await getCAToken(barId);
-  if ('error' in tokenResult) return NextResponse.json({ error: tokenResult.error }, { status: tokenResult.status });
+  if ('error' in tokenResult) return { status: tokenResult.status, body: { error: tokenResult.error } };
   const token = tokenResult.token;
   const supabase = getSupabaseAdmin();
 
@@ -367,7 +368,7 @@ export async function POST(request: NextRequest) {
   try {
     linhas = await getLinhas(barId, data);
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Erro ao agregar' }, { status: 500 });
+    return { status: 500, body: { error: e?.message || 'Erro ao agregar' } };
   }
 
   const { data: log } = await (supabase.schema('financial' as any) as any)
@@ -406,7 +407,7 @@ export async function POST(request: NextRequest) {
         valor: round2(valor),
         ca_protocol_id: r.protocolId,
         ca_status: r.status,
-        criado_por: user!.email ?? user!.nome ?? null,
+        criado_por: criadoPor,
       });
     }
     resultados.push({ chave, natureza, ok: r.ok, valor: round2(valor), protocolId: r.protocolId, erro: r.erro });
@@ -434,8 +435,20 @@ export async function POST(request: NextRequest) {
   }
 
   const houveErro = resultados.some((r) => r.ok === false);
-  return NextResponse.json(
-    { bar_id: barId, data, sucesso: !houveErro, total: resultados.length, resultados },
-    { status: houveErro ? 207 : 200 },
-  );
+  return {
+    status: houveErro ? 207 : 200,
+    body: { bar_id: barId, data, sucesso: !houveErro, total: resultados.length, resultados },
+  };
+}
+
+/** POST: cria os lançamentos no CA (usuário admin/financeiro). */
+export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  if (user.role !== 'admin' && user.role !== 'financeiro') return permissionErrorResponse('Sem permissão para criar lançamentos');
+  const body = await request.json().catch(() => ({} as any));
+  const barId = Number(body?.bar_id) || Number(user.bar_id);
+  const data: string = body?.data || ontemBRT();
+  const r = await executarStoneDiario(barId, data, user.email ?? user.nome ?? null);
+  return NextResponse.json(r.body, { status: r.status });
 }
