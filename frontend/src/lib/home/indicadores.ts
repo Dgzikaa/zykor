@@ -41,11 +41,15 @@ export interface IndicadorCalculado {
   status: StatusIndicador;
   valorTexto: string;
   detalhe?: string;
+  /** Nome do ícone lucide-react (a home mapeia para componente). */
+  icone: string;
 }
 
 export interface DestaquesHome {
   orgulho: IndicadorCalculado[];
   atencao: IndicadorCalculado[];
+  /** "De olho": os indicadores mais fracos quando não há nada crítico (evita o falso "tudo em dia"). */
+  monitorar: IndicadorCalculado[];
 }
 
 type Direcao = 'maior' | 'menor';
@@ -54,6 +58,7 @@ interface DefIndicador {
   key: string;
   label: string;
   grupo: 'cliente' | 'operacao' | 'pessoas';
+  icone: string;
   direcao: Direcao;
   /** Cortes do melhor pro pior: [otimo, bom, neutro, atencao] (o 5º nível é o resto = crítico). */
   cortes: [number, number, number, number];
@@ -70,21 +75,21 @@ const num = (v: number | null | undefined): number | null =>
 
 const CATALOGO: DefIndicador[] = [
   {
-    key: 'nps', label: 'NPS do mês', grupo: 'cliente', direcao: 'maior',
+    key: 'nps', label: 'NPS do mês', grupo: 'cliente', icone: 'Smile', direcao: 'maior',
     cortes: [75, 55, 40, 25], formato: 'nps',
     valor: r => num(r.nps_geral),
     amostraOk: r => (num(r.nps_respostas) ?? 0) >= 10,
     detalhe: r => { const n = num(r.nps_respostas); return n ? `${n} respostas` : undefined; },
   },
   {
-    key: 'google', label: 'Nota no Google', grupo: 'cliente', direcao: 'maior',
+    key: 'google', label: 'Nota no Google', grupo: 'cliente', icone: 'Star', direcao: 'maior',
     cortes: [4.8, 4.5, 4.2, 3.8], formato: 'estrelas',
     valor: r => num(r.media_avaliacoes_google),
     amostraOk: r => (num(r.google_reviews_total) ?? 0) >= 5,
     detalhe: r => { const n = num(r.google_reviews_total); return n ? `${n} avaliações` : undefined; },
   },
   {
-    key: 'pontualidade', label: 'Pontualidade cozinha/bar', grupo: 'operacao', direcao: 'maior',
+    key: 'pontualidade', label: 'Pontualidade cozinha/bar', grupo: 'operacao', icone: 'Timer', direcao: 'maior',
     cortes: [97, 92, 85, 75], formato: 'percent',
     valor: r => {
       const c = num(r.atrasos_cozinha_perc);
@@ -95,23 +100,23 @@ const CATALOGO: DefIndicador[] = [
     detalhe: () => 'pedidos no horário',
   },
   {
-    key: 'felicidade', label: 'Felicidade da equipe', grupo: 'pessoas', direcao: 'maior',
+    key: 'felicidade', label: 'Felicidade da equipe', grupo: 'pessoas', icone: 'Heart', direcao: 'maior',
     cortes: [8.5, 7.5, 6, 5], formato: 'nota10',
     valor: r => num(r.nota_felicidade_equipe),
   },
   {
-    key: 'retencao', label: 'Retenção de clientes', grupo: 'pessoas', direcao: 'maior',
+    key: 'retencao', label: 'Retenção de clientes', grupo: 'pessoas', icone: 'Repeat', direcao: 'maior',
     cortes: [35, 28, 20, 12], formato: 'percent',
     valor: r => num(r.retencao_1m),
   },
-  // --- Risco (só Pontos de Atenção) ---
+  // --- Risco (só Pontos de Atenção / De olho) ---
   {
-    key: 'no_show', label: 'No-show de reservas', grupo: 'cliente', direcao: 'menor',
+    key: 'no_show', label: 'No-show de reservas', grupo: 'cliente', icone: 'CalendarX2', direcao: 'menor',
     cortes: [10, 18, 25, 32], formato: 'percent', apenasAtencao: true,
     valor: r => num(r.reservas_quebra_pct),
   },
   {
-    key: 'stockout', label: 'Ruptura de estoque', grupo: 'operacao', direcao: 'menor',
+    key: 'stockout', label: 'Ruptura de estoque', grupo: 'operacao', icone: 'PackageX', direcao: 'menor',
     cortes: [4, 7, 12, 20], formato: 'percent', apenasAtencao: true,
     valor: r => num(r.stockout_total_perc),
   },
@@ -145,7 +150,7 @@ function formata(v: number, f: FormatoIndicador): string {
 const RANK: Record<StatusIndicador, number> = { otimo: 2, bom: 1, neutro: 0, atencao: -1, critico: -2 };
 
 export function calcularDestaques(r: LinhaDesempenho | null | undefined): DestaquesHome {
-  if (!r) return { orgulho: [], atencao: [] };
+  if (!r) return { orgulho: [], atencao: [], monitorar: [] };
 
   const calc: Array<IndicadorCalculado & { _rank: number; _apenasAtencao: boolean }> = [];
   for (const def of CATALOGO) {
@@ -157,6 +162,7 @@ export function calcularDestaques(r: LinhaDesempenho | null | undefined): Destaq
       key: def.key,
       label: def.label,
       grupo: def.grupo,
+      icone: def.icone,
       status,
       valorTexto: formata(v, def.formato),
       detalhe: def.detalhe?.(r),
@@ -166,14 +172,14 @@ export function calcularDestaques(r: LinhaDesempenho | null | undefined): Destaq
   }
 
   const limpar = (i: (typeof calc)[number]): IndicadorCalculado => ({
-    key: i.key, label: i.label, grupo: i.grupo, status: i.status,
+    key: i.key, label: i.label, grupo: i.grupo, icone: i.icone, status: i.status,
     valorTexto: i.valorTexto, detalhe: i.detalhe,
   });
 
   const orgulho = calc
     .filter(i => !i._apenasAtencao && (i.status === 'otimo' || i.status === 'bom'))
     .sort((a, b) => b._rank - a._rank)
-    .slice(0, 3)
+    .slice(0, 4)
     .map(limpar);
 
   const atencao = calc
@@ -182,5 +188,16 @@ export function calcularDestaques(r: LinhaDesempenho | null | undefined): Destaq
     .slice(0, 3)
     .map(limpar);
 
-  return { orgulho, atencao };
+  // "De olho": quando NÃO há nada crítico, mostra os indicadores mais fracos (neutros
+  // ou métricas de risco ainda ok) em vez de um falso "tudo em dia". Nunca repete o
+  // que já está em Orgulho/Atenção.
+  const usadas = new Set([...orgulho, ...atencao].map(i => i.key));
+  const monitorar = calc
+    .filter(i => !usadas.has(i.key))
+    .filter(i => i.status === 'neutro' || (i._apenasAtencao && i.status === 'bom'))
+    .sort((a, b) => a._rank - b._rank)
+    .slice(0, 2)
+    .map(limpar);
+
+  return { orgulho, atencao, monitorar };
 }

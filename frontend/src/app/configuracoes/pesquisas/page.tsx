@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { api } from '@/lib/api-client';
-import { MessageSquare, Star, MessageCircle, Clock, XCircle, Loader2 } from 'lucide-react';
+import { MessageSquare, Star, MessageCircle, Clock, XCircle, Loader2, Eye } from 'lucide-react';
+import { PesquisaModalView, type PesquisaDef } from '@/components/pesquisa/PesquisaModalView';
 
 interface ItemAgg {
   chave: string;
@@ -45,6 +47,16 @@ function corMediaTexto(m: number): string {
 function Conteudo() {
   const [pesquisas, setPesquisas] = useState<PesquisaResultado[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [preview, setPreview] = useState<PesquisaDef | null>(null);
+
+  const abrirPreview = async (slug: string) => {
+    try {
+      const r = (await api.get(`/api/feedback/definicao?slug=${encodeURIComponent(slug)}`)) as { pesquisa: PesquisaDef };
+      if (r?.pesquisa) setPreview(r.pesquisa);
+    } catch {
+      toast.error('Não consegui abrir a prévia.');
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -60,6 +72,7 @@ function Conteudo() {
   }, []);
 
   return (
+    <>
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <header className="mb-8 flex items-center gap-3">
         <div className="grid h-11 w-11 place-items-center rounded-xl bg-teal-100 dark:bg-teal-900/40">
@@ -86,15 +99,23 @@ function Conteudo() {
                   <h2 className="text-lg font-bold text-neutral-900 dark:text-white">{p.titulo}</h2>
                   {p.subtitulo && <p className="text-sm text-neutral-500 dark:text-neutral-400">{p.subtitulo}</p>}
                 </div>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                    p.ativa
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                      : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800'
-                  }`}
-                >
-                  {p.ativa ? 'Ativa' : 'Encerrada'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => abrirPreview(p.slug)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 px-2.5 py-1 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                  >
+                    <Eye className="h-3.5 w-3.5" /> Pré-visualizar
+                  </button>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      p.ativa
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                        : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800'
+                    }`}
+                  >
+                    {p.ativa ? 'Ativa' : 'Encerrada'}
+                  </span>
+                </div>
               </div>
 
               {/* Contadores */}
@@ -159,6 +180,18 @@ function Conteudo() {
         </div>
       )}
     </div>
+      {preview && (
+        <PesquisaModalView
+          pesquisa={preview}
+          preview
+          onEnviar={() => {
+            toast.info('Prévia — nada foi salvo.');
+            setPreview(null);
+          }}
+          onFechar={() => setPreview(null)}
+        />
+      )}
+    </>
   );
 }
 

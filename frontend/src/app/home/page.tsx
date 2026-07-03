@@ -7,9 +7,15 @@ import { useUser } from '@/contexts/UserContext';
 import { api } from '@/lib/api-client';
 import {
   Megaphone, Pin, Trash2, Send, Users, Music2, CalendarDays, Loader2,
-  Trophy, AlertTriangle, CheckCircle2,
+  Trophy, AlertTriangle, CheckCircle2, Eye, Activity,
+  Smile, Star, Timer, Heart, Repeat, CalendarX2, PackageX,
 } from 'lucide-react';
 import type { DestaquesHome, IndicadorCalculado } from '@/lib/home/indicadores';
+
+// Ícone (string em indicadores.ts) -> componente lucide.
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Smile, Star, Timer, Heart, Repeat, CalendarX2, PackageX,
+};
 
 interface Aviso {
   id: number;
@@ -37,11 +43,15 @@ const STATUS_COR: Record<IndicadorCalculado['status'], string> = {
 };
 
 function LinhaIndicador({ i }: { i: IndicadorCalculado }) {
+  const Icone = ICON_MAP[i.icone] ?? Activity;
   return (
     <div className="flex items-center justify-between gap-3">
-      <div className="min-w-0">
-        <div className="truncate text-sm text-neutral-600 dark:text-neutral-300">{i.label}</div>
-        {i.detalhe && <div className="text-[11px] text-neutral-400">{i.detalhe}</div>}
+      <div className="flex min-w-0 items-center gap-2.5">
+        <Icone className={`h-4 w-4 flex-none ${STATUS_COR[i.status]}`} />
+        <div className="min-w-0">
+          <div className="truncate text-sm text-neutral-600 dark:text-neutral-300">{i.label}</div>
+          {i.detalhe && <div className="text-[11px] text-neutral-400">{i.detalhe}</div>}
+        </div>
       </div>
       <div className={`text-2xl font-extrabold tabular-nums ${STATUS_COR[i.status]}`}>{i.valorTexto}</div>
     </div>
@@ -222,8 +232,8 @@ export default function HomePage() {
           {/* COLUNA LATERAL: Atração do dia + Orgulho */}
           <div className="space-y-6">
             {/* Atração */}
-            <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-gradient-to-br from-violet-600 to-indigo-700 p-5 text-white">
-              <div className="flex items-center gap-2 mb-3 text-violet-100">
+            <section className="rounded-2xl border border-orange-300/40 bg-gradient-to-br from-orange-500 to-orange-700 p-5 text-white">
+              <div className="flex items-center gap-2 mb-3 text-orange-50">
                 <Music2 className="w-4 h-4" />
                 <span className="text-xs font-semibold uppercase tracking-wide">
                   {data?.atracao?.eh_hoje ? 'Atração de hoje' : 'Próxima atração'}
@@ -234,7 +244,7 @@ export default function HomePage() {
               ) : data?.atracao ? (
                 <>
                   <p className="text-lg font-bold leading-snug">{data.atracao.titulo}</p>
-                  <div className="mt-2 flex items-center gap-1.5 text-sm text-violet-100">
+                  <div className="mt-2 flex items-center gap-1.5 text-sm text-orange-50">
                     <CalendarDays className="w-3.5 h-3.5" />
                     <span className="capitalize">
                       {data.atracao.eh_hoje ? 'Hoje' : new Date(data.atracao.data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'short' })}
@@ -242,7 +252,7 @@ export default function HomePage() {
                   </div>
                 </>
               ) : (
-                <p className="text-sm text-violet-100">Nenhum evento programado.</p>
+                <p className="text-sm text-orange-50">Nenhum evento programado.</p>
               )}
             </section>
 
@@ -278,7 +288,7 @@ export default function HomePage() {
               </div>
             </section>
 
-            {/* Pontos de atenção — o que está mais abaixo (ou estado feliz se nada) */}
+            {/* Pontos de atenção → De olho → estado feliz (nessa ordem de prioridade) */}
             {!loading && (
               data?.destaques.atencao.length ? (
                 <section className="rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 p-5">
@@ -294,13 +304,28 @@ export default function HomePage() {
                     ))}
                   </div>
                 </section>
+              ) : data?.destaques.monitorar.length ? (
+                <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 p-5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Eye className="w-5 h-5 text-neutral-500" />
+                    <h2 className="text-base font-bold text-neutral-900 dark:text-white">De olho</h2>
+                  </div>
+                  <p className="mb-4 text-xs text-neutral-500 dark:text-neutral-400">Nada crítico, mas dá pra melhorar.</p>
+                  <div className="space-y-4">
+                    {data.destaques.monitorar.map((i, idx) => (
+                      <div key={i.key} className={idx > 0 ? 'border-t border-neutral-100 dark:border-neutral-800 pt-4' : ''}>
+                        <LinhaIndicador i={i} />
+                      </div>
+                    ))}
+                  </div>
+                </section>
               ) : (
                 <section className="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-5">
                   <div className="flex items-center gap-3">
                     <CheckCircle2 className="w-6 h-6 flex-none text-emerald-500" />
                     <div>
-                      <h2 className="text-sm font-bold text-neutral-900 dark:text-white">Tá tudo em dia esse mês 🎉</h2>
-                      <p className="text-xs text-neutral-500 dark:text-neutral-400">Nenhum indicador pedindo atenção.</p>
+                      <h2 className="text-sm font-bold text-neutral-900 dark:text-white">Tá voando esse mês 🎉</h2>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">Todos os indicadores no verde.</p>
                     </div>
                   </div>
                 </section>
