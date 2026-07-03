@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useFileUpload } from '@/hooks/useFileUpload';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api-client';
-import { Store, Plus, Loader2, Save, Trash2, Target, ExternalLink, CheckCircle2, Clock, Instagram, Plug } from 'lucide-react';
+import { Store, Plus, Loader2, Save, Trash2, Target, ExternalLink, CheckCircle2, Clock, Instagram, Plug, Upload } from 'lucide-react';
 
 interface Operacao {
   opera_segunda: boolean; opera_terca: boolean; opera_quarta: boolean;
@@ -211,8 +212,9 @@ function BarEditor({ bar, criando, bars, onClose, onSaved }: {
                 <Input placeholder="@bar" value={form.config.instagram || ''} onChange={e => setCfg('instagram', e.target.value)} /></div>
               <div><Label className="text-xs">Site</Label>
                 <Input value={form.config.site || ''} onChange={e => setCfg('site', e.target.value)} /></div>
-              <div><Label className="text-xs">Logo (URL)</Label>
-                <Input value={form.config.logo_url || ''} onChange={e => setCfg('logo_url', e.target.value)} /></div>
+              <div className="col-span-2">
+                <LogoUploader value={form.config.logo_url || ''} onChange={(url) => setCfg('logo_url', url)} />
+              </div>
               <div className="col-span-2 flex items-center gap-2 pt-1">
                 <input id="ativo" type="checkbox" checked={form.ativo} onChange={e => setForm(f => ({ ...f, ativo: e.target.checked }))} />
                 <Label htmlFor="ativo" className="text-sm">Bar ativo (aparece no seletor)</Label>
@@ -300,6 +302,66 @@ function BarEditor({ bar, criando, bars, onClose, onSaved }: {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Upload da logo do bar: anexo (preserva PNG/transparência) + preview ──
+// Não redimensiona o arquivo destrutivamente; o header/seletor exibem com object-contain
+// num box de altura fixa, então qualquer logo "cabe" sem distorcer.
+function LogoUploader({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const { toast } = useToast();
+  const { uploadFile } = useFileUpload();
+  const [enviando, setEnviando] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const onFile = async (file?: File) => {
+    if (!file) return;
+    setEnviando(true);
+    try {
+      // compress:false → mantém o arquivo original (PNG transparente não vira JPEG).
+      const res = await uploadFile(file, { folder: 'bar_logos', compress: false, maxSizeMB: 5 });
+      onChange(res.url);
+      toast({ title: 'Logo enviada' });
+    } catch (e: any) {
+      toast({ title: 'Erro ao enviar logo', description: e?.message, variant: 'destructive' });
+    } finally {
+      setEnviando(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div>
+      <Label className="text-xs">Logo do bar</Label>
+      <div className="mt-1 flex items-center gap-3">
+        <div className="grid h-16 w-16 flex-none place-items-center overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-muted/40">
+          {value
+            ? <img src={value} alt="logo" className="max-h-full max-w-full object-contain" />
+            : <Store className="w-6 h-6 text-muted-foreground" />}
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={e => onFile(e.target.files?.[0])}
+          />
+          <div className="flex items-center gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={enviando}>
+              {enviando ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />}
+              {value ? 'Trocar logo' : 'Enviar logo'}
+            </Button>
+            {value && (
+              <Button type="button" size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => onChange('')}>
+                Remover
+              </Button>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground">PNG com fundo transparente fica melhor. O tamanho ajusta sozinho no header.</p>
+        </div>
+      </div>
+    </div>
   );
 }
 

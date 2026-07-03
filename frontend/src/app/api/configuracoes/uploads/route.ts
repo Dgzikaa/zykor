@@ -25,6 +25,7 @@ const FOLDERS = {
   checklist_photos: 'checklists/photos',
   signatures: 'checklists/signatures',
   profile_photos: 'usuarios/profiles',
+  bar_logos: 'bares/logos',
 };
 
 // =====================================================

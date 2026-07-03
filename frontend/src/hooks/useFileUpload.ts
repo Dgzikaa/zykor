@@ -7,7 +7,7 @@ import { useState, useCallback } from 'react';
 // =====================================================
 
 export interface UploadOptions {
-  folder: 'checklist_photos' | 'signatures' | 'profile_photos';
+  folder: 'checklist_photos' | 'signatures' | 'profile_photos' | 'bar_logos';
   compress?: boolean;
   maxWidth?: number;
   quality?: number;
