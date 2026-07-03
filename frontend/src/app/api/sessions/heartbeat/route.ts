@@ -13,9 +13,10 @@ export async function POST(request: NextRequest) {
   if (!sid) return NextResponse.json({ ok: false, reason: 'sem sessão' });
   const body = await request.json().catch(() => ({}));
   const active = body?.active === true;
+  const path = typeof body?.path === 'string' ? body.path.slice(0, 200) : null;
   try {
     const supabase = await getAdminClient();
-    await (supabase as any).schema('system').rpc('session_heartbeat', { p_sid: sid, p_active: active });
+    await (supabase as any).schema('system').rpc('session_heartbeat', { p_sid: sid, p_active: active, p_path: path });
   } catch { /* auditoria nunca quebra nada */ }
   return NextResponse.json({ ok: true });
 }

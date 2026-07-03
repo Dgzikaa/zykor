@@ -26,7 +26,8 @@ export function SessionHeartbeat() {
       fetch('/api/sessions/heartbeat', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: ativo }),
+        // manda a tela atual (pathname) p/ acumular tempo-por-tela na auditoria
+        body: JSON.stringify({ active: ativo, path: window.location?.pathname || null }),
         keepalive: true,
       }).catch(() => { /* silencioso */ });
     };

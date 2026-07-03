@@ -22,9 +22,12 @@ export async function GET(request: NextRequest) {
   if (sp.get('view') === 'stats') {
     const supabaseS = await getAdminClient();
     const dias = Math.min(Number(sp.get('dias')) || 30, 180);
-    const { data: stats, error: errS } = await (supabaseS as any).schema('system').rpc('audit_stats', { p_dias: dias });
+    const [{ data: stats, error: errS }, { data: analytics }] = await Promise.all([
+      (supabaseS as any).schema('system').rpc('audit_stats', { p_dias: dias }),
+      (supabaseS as any).schema('system').rpc('acessos_analytics', { p_dias: dias }),
+    ]);
     if (errS) return NextResponse.json({ success: false, error: errS.message }, { status: 500 });
-    return NextResponse.json({ success: true, stats });
+    return NextResponse.json({ success: true, stats, analytics });
   }
 
   const de = sp.get('de');

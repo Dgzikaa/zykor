@@ -5,8 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Shield, Search, Download, Filter, User, Clock, Database, Loader2, AlertTriangle, ListChecks, ChevronRight, ChevronDown, Users, Wifi, XCircle, CheckCircle2, BarChart3, ShieldAlert, Trash2, Activity } from 'lucide-react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { Shield, Search, Download, Filter, User, Clock, Database, Loader2, AlertTriangle, ListChecks, ChevronRight, ChevronDown, Users, Wifi, XCircle, CheckCircle2, BarChart3, ShieldAlert, Trash2, Activity, Zap, Timer, Smartphone, Gauge, TrendingUp, Monitor } from 'lucide-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, AreaChart, Area, Legend } from 'recharts';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 
@@ -105,6 +105,7 @@ export default function AuditoriaPage() {
   const [operacoes, setOperacoes] = useState<string[]>([]);
   const [tabelas, setTabelas] = useState<{ nome: string; eventos: number }[]>([]);
   const [stats, setStats] = useState<any>(null);
+  const [analytics, setAnalytics] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -163,6 +164,7 @@ export default function AuditoriaPage() {
     try {
       const r = await api.get('/api/configuracoes/auditoria?view=stats&dias=30') as any;
       setStats(r.stats || null);
+      setAnalytics(r.analytics || null);
     } catch { /* noop */ }
     finally { setStatsLoading(false); }
   }, []);
@@ -381,36 +383,64 @@ export default function AuditoriaPage() {
     const t = stats.totais || {}; const cob = stats.cobertura || {};
     const porDia = (stats.por_dia || []).map((d: any) => ({ ...d, dia: (d.dia || '').slice(5) }));
     const topTab = (stats.top_tabelas || []).map((r: any) => ({ nome: labelTabela(r.tabela), total: Number(r.total) }));
-    const porUser = (stats.por_usuario || []).map((r: any) => ({ nome: (r.usuario || '—').split('@')[0], total: Number(r.total) }));
     const cobPct = cob.auditaveis ? Math.round((cob.com_eventos / cob.auditaveis) * 100) : 0;
-    const kpis = [
-      { l: 'Eventos (30d)', v: t.eventos ?? 0, icon: Activity, c: 'text-violet-600' },
+
+    const a = analytics?.big || {};
+    // preenche 0-23h pra o gráfico ficar com o dia inteiro
+    const fillHoras = (rows: any[], keys: string[]) => Array.from({ length: 24 }, (_, h) => {
+      const f = (rows || []).find((r: any) => Number(r.hora) === h) || {};
+      const o: any = { hora: `${h}h` }; keys.forEach(k => (o[k] = Number(f[k] || 0))); return o;
+    });
+    const onlineHora = fillHoras(analytics?.online_por_hora, ['n']);
+    const acoesHora = fillHoras(analytics?.acoes_por_hora, ['inseriu', 'editou', 'excluiu']);
+    const conc = (analytics?.concorrencia || []).map((c: any) => ({ ts: (c.ts || '').slice(5, 16), n: Number(c.n) }));
+    const loginsDia = (analytics?.logins_por_dia || []).map((d: any) => ({ dia: (d.dia || '').slice(5), ok: Number(d.ok), falho: Number(d.falho) }));
+    const hist = (analytics?.hist_duracao || []).map((h: any) => ({ faixa: h.faixa, n: Number(h.n) }));
+    const telas = (analytics?.top_telas || []).map((x: any) => ({ nome: x.path, seg: Number(x.seg) }));
+    const endpoints = (analytics?.top_endpoints || []).map((x: any) => ({ nome: (x.endpoint || '').replace(/^\/api\//, ''), n: Number(x.n) }));
+    const usuarios = analytics?.por_usuario || [];
+
+    const big = [
+      { l: 'Pico simultâneo', v: a.pico_simultaneo ?? 0, sub: a.pico_quando ? fmtData(a.pico_quando) : undefined, icon: Zap, c: 'text-amber-500' },
+      { l: 'Online agora', v: a.online_agora ?? 0, icon: Wifi, c: 'text-emerald-500' },
+      { l: 'Usuários únicos', v: a.usuarios_unicos ?? 0, icon: Users, c: 'text-blue-500' },
+      { l: 'Sessões (30d)', v: a.sessoes_total ?? 0, icon: Activity, c: 'text-violet-500' },
+      { l: 'Tempo logado', v: fmtDur(a.tempo_logado_seg ?? 0), icon: Clock, c: 'text-sky-500' },
+      { l: 'Tempo ativo', v: fmtDur(a.tempo_ativo_seg ?? 0), sub: `${a.engajamento_pct ?? 0}% do logado`, icon: Timer, c: 'text-emerald-600' },
+      { l: 'Engajamento', v: `${a.engajamento_pct ?? 0}%`, icon: Gauge, c: 'text-teal-500' },
+      { l: 'Sessão média', v: fmtDur(a.sessao_media_seg ?? 0), sub: `máx ${fmtDur(a.sessao_max_seg ?? 0)}`, icon: Clock, c: 'text-indigo-500' },
+      { l: 'Mobile', v: `${a.pct_mobile ?? 0}%`, icon: Smartphone, c: 'text-pink-500' },
+      { l: 'Ações (30d)', v: a.total_acoes ?? t.eventos ?? 0, sub: `${a.acoes_por_sessao ?? 0}/sessão`, icon: Activity, c: 'text-violet-600' },
       { l: 'Exclusões', v: t.exclusoes ?? 0, icon: Trash2, c: 'text-rose-600' },
       { l: 'Ações sensíveis', v: t.sensiveis ?? 0, icon: ShieldAlert, c: 'text-amber-600' },
-      { l: 'Usuários ativos', v: t.usuarios_ativos ?? 0, icon: Users, c: 'text-emerald-600' },
+      { l: 'Logins falhos', v: a.logins_falho ?? 0, sub: `${a.login_fail_pct ?? 0}% das tentativas`, icon: XCircle, c: 'text-rose-500' },
       { l: 'Cobertura', v: `${cob.com_eventos}/${cob.auditaveis}`, sub: `${cobPct}% já registraram`, icon: Database, c: 'text-blue-600' },
     ];
+    const temTelas = telas.length > 0;
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {kpis.map((k, i) => (
-            <Card key={i}><CardContent className="p-4">
-              <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><k.icon className={`h-3.5 w-3.5 ${k.c}`} />{k.l}</div>
-              <div className="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{k.v}</div>
-              {k.sub && <div className="text-[11px] text-gray-400">{k.sub}</div>}
+        {/* Big numbers */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          {big.map((k, i) => (
+            <Card key={i}><CardContent className="p-3">
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400"><k.icon className={`h-3.5 w-3.5 ${k.c}`} />{k.l}</div>
+              <div className="mt-0.5 text-xl font-bold tabular-nums text-gray-900 dark:text-white">{k.v}</div>
+              {k.sub && <div className="text-[10px] text-gray-400 truncate" title={k.sub}>{k.sub}</div>}
             </CardContent></Card>
           ))}
         </div>
+
+        {/* Atividade por dia */}
         <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><BarChart3 className="h-4 w-4 text-violet-600" />Atividade por dia (últimos 30 dias)</CardTitle></CardHeader>
           <CardContent>
-            <div style={{ width: '100%', height: 240 }}>
+            <div style={{ width: '100%', height: 220 }}>
               <ResponsiveContainer>
                 <BarChart data={porDia} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
                   <XAxis dataKey="dia" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Bar dataKey="inseriu" stackId="a" fill="#10b981" name="Criou" radius={[0,0,0,0]} />
+                  <Bar dataKey="inseriu" stackId="a" fill="#10b981" name="Criou" />
                   <Bar dataKey="editou" stackId="a" fill="#8b5cf6" name="Editou" />
                   <Bar dataKey="excluiu" stackId="a" fill="#f43f5e" name="Excluiu" radius={[3,3,0,0]} />
                 </BarChart>
@@ -418,32 +448,165 @@ export default function AuditoriaPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Online por hora + Ações por hora */}
         <div className="grid md:grid-cols-2 gap-4">
-          <Card><CardHeader className="pb-2"><CardTitle className="text-base">Tabelas mais alteradas</CardTitle></CardHeader>
-            <CardContent><div style={{ width: '100%', height: 260 }}>
+          <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Wifi className="h-4 w-4 text-emerald-500" />Usuários online por hora do dia</CardTitle><CardDescription>quando o pessoal mais usa o sistema</CardDescription></CardHeader>
+            <CardContent><div style={{ width: '100%', height: 220 }}>
               <ResponsiveContainer>
-                <BarChart data={topTab} layout="vertical" margin={{ top: 0, right: 12, left: 10, bottom: 0 }}>
-                  <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <YAxis type="category" dataKey="nome" tick={{ fontSize: 10 }} width={120} />
+                <BarChart data={onlineHora} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="hora" tick={{ fontSize: 10 }} interval={1} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Bar dataKey="total" fill="#8b5cf6" radius={[0,3,3,0]} />
+                  <Bar dataKey="n" fill="#10b981" name="sessões" radius={[3,3,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div></CardContent>
           </Card>
-          <Card><CardHeader className="pb-2"><CardTitle className="text-base">Quem mais alterou</CardTitle></CardHeader>
-            <CardContent><div style={{ width: '100%', height: 260 }}>
+          <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4 text-violet-500" />Ações por hora do dia</CardTitle><CardDescription>pico de operação no sistema</CardDescription></CardHeader>
+            <CardContent><div style={{ width: '100%', height: 220 }}>
               <ResponsiveContainer>
-                <BarChart data={porUser} layout="vertical" margin={{ top: 0, right: 12, left: 10, bottom: 0 }}>
-                  <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <YAxis type="category" dataKey="nome" tick={{ fontSize: 10 }} width={110} />
+                <BarChart data={acoesHora} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="hora" tick={{ fontSize: 10 }} interval={1} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Bar dataKey="total" fill="#0ea5e9" radius={[0,3,3,0]} />
+                  <Bar dataKey="inseriu" stackId="a" fill="#10b981" name="Criou" />
+                  <Bar dataKey="editou" stackId="a" fill="#8b5cf6" name="Editou" />
+                  <Bar dataKey="excluiu" stackId="a" fill="#f43f5e" name="Excluiu" radius={[3,3,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div></CardContent>
           </Card>
         </div>
+
+        {/* Concorrência + Duração das sessões */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-sky-500" />Concorrência ao longo do tempo</CardTitle><CardDescription>sessões ativas por hora</CardDescription></CardHeader>
+            <CardContent><div style={{ width: '100%', height: 220 }}>
+              <ResponsiveContainer>
+                <AreaChart data={conc} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                  <defs><linearGradient id="gConc" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0ea5e9" stopOpacity={0.5} /><stop offset="100%" stopColor="#0ea5e9" stopOpacity={0} /></linearGradient></defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="ts" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Area type="monotone" dataKey="n" stroke="#0ea5e9" fill="url(#gConc)" name="online" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div></CardContent>
+          </Card>
+          <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Clock className="h-4 w-4 text-indigo-500" />Duração das sessões</CardTitle><CardDescription>quantas sessões em cada faixa de tempo</CardDescription></CardHeader>
+            <CardContent><div style={{ width: '100%', height: 220 }}>
+              <ResponsiveContainer>
+                <BarChart data={hist} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="faixa" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Bar dataKey="n" fill="#6366f1" name="sessões" radius={[3,3,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div></CardContent>
+          </Card>
+        </div>
+
+        {/* Logins por dia + Top telas/endpoints */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500" />Logins por dia</CardTitle><CardDescription>sucesso × falha</CardDescription></CardHeader>
+            <CardContent><div style={{ width: '100%', height: 220 }}>
+              <ResponsiveContainer>
+                <BarChart data={loginsDia} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="dia" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} /><Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="ok" fill="#10b981" name="ok" radius={[3,3,0,0]} />
+                  <Bar dataKey="falho" fill="#f43f5e" name="falhou" radius={[3,3,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div></CardContent>
+          </Card>
+          <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Monitor className="h-4 w-4 text-violet-500" />{temTelas ? 'Telas onde o pessoal passa mais tempo' : 'Endpoints mais acionados'}</CardTitle><CardDescription>{temTelas ? 'tempo ativo acumulado por tela' : 'começa a medir tempo por tela nos próximos acessos'}</CardDescription></CardHeader>
+            <CardContent><div style={{ width: '100%', height: 220 }}>
+              <ResponsiveContainer>
+                {temTelas ? (
+                  <BarChart data={telas} layout="vertical" margin={{ top: 0, right: 40, left: 10, bottom: 0 }}>
+                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => fmtDur(v)} />
+                    <YAxis type="category" dataKey="nome" tick={{ fontSize: 10 }} width={150} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={((v: number) => fmtDur(Number(v))) as any} />
+                    <Bar dataKey="seg" fill="#8b5cf6" radius={[0,3,3,0]} />
+                  </BarChart>
+                ) : (
+                  <BarChart data={endpoints} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
+                    <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <YAxis type="category" dataKey="nome" tick={{ fontSize: 9 }} width={160} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    <Bar dataKey="n" fill="#8b5cf6" radius={[0,3,3,0]} />
+                  </BarChart>
+                )}
+              </ResponsiveContainer>
+            </div></CardContent>
+          </Card>
+        </div>
+
+        {/* Tabelas mais alteradas (audit) */}
+        <Card><CardHeader className="pb-2"><CardTitle className="text-base">Tabelas mais alteradas</CardTitle></CardHeader>
+          <CardContent><div style={{ width: '100%', height: 240 }}>
+            <ResponsiveContainer>
+              <BarChart data={topTab} layout="vertical" margin={{ top: 0, right: 12, left: 10, bottom: 0 }}>
+                <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                <YAxis type="category" dataKey="nome" tick={{ fontSize: 10 }} width={140} />
+                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Bar dataKey="total" fill="#8b5cf6" radius={[0,3,3,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div></CardContent>
+        </Card>
+
+        {/* Resumo por usuário — a estrela */}
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Users className="h-4 w-4 text-blue-500" />Resumo por usuário</CardTitle><CardDescription>cada pessoa: tempo, engajamento, ações e onde passa mais tempo</CardDescription></CardHeader>
+          <CardContent className="p-0 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-xs text-gray-500 border-b"><tr>
+                <th className="text-left px-3 py-2">Usuário</th>
+                <th className="text-right px-3 py-2">Sessões</th>
+                <th className="text-right px-3 py-2">Logado</th>
+                <th className="text-right px-3 py-2">Ativo</th>
+                <th className="text-right px-3 py-2">Engaj.</th>
+                <th className="text-right px-3 py-2 text-emerald-600">Criou</th>
+                <th className="text-right px-3 py-2 text-violet-600">Editou</th>
+                <th className="text-right px-3 py-2 text-rose-600">Excluiu</th>
+                <th className="text-left px-3 py-2">Área que mais mexe</th>
+                <th className="text-left px-3 py-2">Tela top</th>
+                <th className="text-left px-3 py-2">Últ. online</th>
+              </tr></thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {usuarios.map((u: any) => (
+                  <tr key={u.email} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                    <td className="px-3 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                      {(u.mobile_pct ?? 0) >= 50 ? <Smartphone className="h-3.5 w-3.5 inline mr-1 text-pink-500" /> : <Monitor className="h-3.5 w-3.5 inline mr-1 text-gray-400" />}
+                      {u.email}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">{u.sessoes}</td>
+                    <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{fmtDur(u.logado_seg || 0)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{fmtDur(u.ativo_seg || 0)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums"><span className={`${(u.engajamento_pct ?? 0) >= 50 ? 'text-emerald-600' : (u.engajamento_pct ?? 0) >= 25 ? 'text-amber-600' : 'text-gray-400'}`}>{u.engajamento_pct ?? 0}%</span></td>
+                    <td className="px-3 py-2 text-right tabular-nums text-emerald-700 dark:text-emerald-400">{u.criou || 0}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-violet-700 dark:text-violet-400">{u.editou || 0}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-rose-700 dark:text-rose-400">{u.excluiu || 0}</td>
+                    <td className="px-3 py-2 text-gray-600 dark:text-gray-300">{u.top_area ? labelTabela(u.top_area) : '—'}</td>
+                    <td className="px-3 py-2 text-gray-600 dark:text-gray-300 whitespace-nowrap" title={u.tela_top || ''}>{u.tela_top ? `${u.tela_top} · ${fmtDur(u.tela_top_seg || 0)}` : '—'}</td>
+                    <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{u.ultima ? fmtData(u.ultima) : '—'}</td>
+                  </tr>
+                ))}
+                {usuarios.length === 0 && <tr><td colSpan={11} className="px-3 py-8 text-center text-gray-400">Ainda sem sessões registradas no período.</td></tr>}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
       </div>
     );
   };
