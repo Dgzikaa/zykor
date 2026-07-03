@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { requireAdmin } from '@/lib/auth/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { enviarEmailBoasVindas } from '@/lib/emails/user-welcome';
+import { normalizeEmail } from '@/lib/email-utils';
 
 export const dynamic = 'force-dynamic'
 
@@ -96,7 +97,13 @@ export const POST = requireAdmin(async (request, user) => {
       );
     }
     
-    const { email, nome, role, bar_id, bares_ids, modulos_permitidos, ativo = true, celular, telefone, cpf, data_nascimento, endereco, cep, cidade, estado } = body;
+    const { email: emailBruto, nome, role, bar_id, bares_ids, modulos_permitidos, ativo = true, celular, telefone, cpf, data_nascimento, endereco, cep, cidade, estado } = body;
+
+    // Email SEMPRE normalizado (lowercase+trim). O Supabase Auth guarda o email
+    // minúsculo; se a tabela usuarios guardasse com maiúscula, o lookup por email
+    // (redefinir-senha, .eq case-sensitive) não achava a linha e dava o enganoso
+    // "Usuário sem vínculo de autenticação" no 1º acesso.
+    const email = normalizeEmail(emailBruto || '');
 
     // Suportar tanto bar_id (legado) quanto bares_ids (novo)
     const baresParaAssociar: number[] = bares_ids 
@@ -233,7 +240,9 @@ export const PUT = requireAdmin(async (request, user) => {
   try {
     const supabase = await getAdminClient();
     const body = await request.json();
-    const { id, email, nome, role, bar_id, bares_ids, modulos_permitidos, ativo, celular, telefone, cpf, data_nascimento, endereco, cep, cidade, estado, senha_redefinida } = body;
+    const { id, email: emailBruto, nome, role, bar_id, bares_ids, modulos_permitidos, ativo, celular, telefone, cpf, data_nascimento, endereco, cep, cidade, estado, senha_redefinida } = body;
+    // Normalizar email no update também (mesma razão do POST).
+    const email = emailBruto ? normalizeEmail(emailBruto) : emailBruto;
 
     if (!id) {
       return NextResponse.json(

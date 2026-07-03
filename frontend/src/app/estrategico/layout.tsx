@@ -13,23 +13,40 @@ interface EstrategicoLayoutProps {
 }
 
 /**
- * Layout para área Estratégica - requer role admin
- * 
- * Este layout tem lógica específica de permissões que não pode ser simplificada
- * para o padrão genérico, pois precisa mostrar mensagem de acesso restrito.
+ * Módulos da área Estratégica (subitens do menu lateral). Ter QUALQUER um libera
+ * a área — a checagem FINA por página fica no middleware (route-permissions). O
+ * resolver único expande os generics da categoria (estrategico/gestao/dashboard/home),
+ * então quem tem o hub genérico também passa.
+ */
+const MODULOS_ESTRATEGICO = [
+  'estrategico_visao_geral',
+  'estrategico_desempenho',
+  'estrategico_planejamento',
+  'estrategico_orcamentacao',
+  'estrategico_metas',
+  'estrategico_analytics',
+];
+
+/**
+ * Layout para área Estratégica.
+ *
+ * ANTES gateava por `role === 'admin'`, o que expulsava (router.push('/home'))
+ * qualquer funcionário COM módulo estratégico — contradizendo o route-permissions
+ * (área liberada por módulo). Agora gateia por MÓDULO, alinhado ao guard do server.
+ * Mantém a lógica específica para exibir mensagem de acesso restrito.
  */
 export default function EstrategicoLayout({ children }: EstrategicoLayoutProps) {
   const router = useRouter();
-  const { isRole, loading } = usePermissions();
+  const { hasAnyPermission, loading } = usePermissions();
 
-  const isAdmin = isRole('admin');
+  const podeAcessar = hasAnyPermission(MODULOS_ESTRATEGICO);
 
-  // Redirecionar se não for admin (após carregamento)
+  // Redirecionar se não tiver nenhum módulo da área (após carregamento)
   useEffect(() => {
-    if (!loading && !isAdmin) {
+    if (!loading && !podeAcessar) {
       router.push('/home');
     }
-  }, [isAdmin, router, loading]);
+  }, [podeAcessar, router, loading]);
 
   // Loading state
   if (loading) {
@@ -48,7 +65,7 @@ export default function EstrategicoLayout({ children }: EstrategicoLayoutProps) 
   }
 
   // Acesso negado
-  if (!isAdmin) {
+  if (!podeAcessar) {
     return (
       <MinimalLayout>
         <div className="p-6">
@@ -62,8 +79,8 @@ export default function EstrategicoLayout({ children }: EstrategicoLayoutProps) 
                     <span className="font-semibold">Acesso Restrito</span>
                   </div>
                   <p>
-                    Esta seção é exclusiva para administradores. Você não possui
-                    as permissões necessárias para acessar a área Estratégica.
+                    Você não possui as permissões necessárias para acessar a
+                    área Estratégica.
                   </p>
                   <p className="mt-2 text-sm">
                     Entre em contato com o administrador do sistema se você

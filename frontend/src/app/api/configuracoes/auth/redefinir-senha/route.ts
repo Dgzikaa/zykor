@@ -27,13 +27,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Buscar usuário pelo email e validar token
+    // Buscar usuário pelo email e validar token.
+    // IMPORTANTE: match case-INSENSITIVE (ilike). O email pode ter sido salvo com
+    // maiúsculas em cadastros antigos, enquanto o Supabase Auth guarda minúsculo.
+    // Com .eq (case-sensitive) a linha não era encontrada e caía no erro enganoso
+    // "Usuário sem vínculo de autenticação" (o vínculo existe; só não bateu o email).
     // 1) Priorizar schema atual: usuarios
     const { data: usuariosData, error: usuariosError } = await supabase
       .schema('auth_custom')
       .from('usuarios')
       .select('id, auth_id, email, nome, reset_token, reset_token_expiry, ativo')
-      .eq('email', emailNormalizado)
+      .ilike('email', emailNormalizado)
       .eq('ativo', true)
       .limit(1);
 
@@ -41,7 +45,7 @@ export async function POST(request: NextRequest) {
     const { data: usuariosBarData, error: usuariosBarError } = await supabase
       .from('usuarios_bar')
       .select('id, user_id, email, nome, reset_token, reset_token_expiry, ativo')
-      .eq('email', emailNormalizado)
+      .ilike('email', emailNormalizado)
       .eq('ativo', true)
       .order('reset_token', { ascending: false, nullsFirst: false })
       .limit(1);
@@ -49,10 +53,8 @@ export async function POST(request: NextRequest) {
     const usuarioAtual = usuariosData?.[0];
     const usuarioLegado = usuariosBarData?.[0];
 
-    if (
-      (usuariosError && !usuarioAtual) &&
-      (usuariosBarError && !usuarioLegado)
-    ) {
+    // Nenhuma linha encontrada em nenhum schema → usuário não existe (não é falta de vínculo).
+    if (!usuarioAtual && !usuarioLegado) {
       console.error('❌ Usuário não encontrado com email:', emailNormalizado);
       return NextResponse.json(
         { success: false, error: 'Usuário não encontrado' },
@@ -65,6 +67,7 @@ export async function POST(request: NextRequest) {
       usuarioAtual?.reset_token_expiry || usuarioLegado?.reset_token_expiry;
     const authUserId = usuarioAtual?.auth_id || usuarioLegado?.user_id;
 
+    // Linha existe mas sem auth_id/user_id → aí sim é falta de vínculo de autenticação real.
     if (!authUserId) {
       return NextResponse.json(
         { success: false, error: 'Usuário sem vínculo de autenticação' },
