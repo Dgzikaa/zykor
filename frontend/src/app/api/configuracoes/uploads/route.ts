@@ -188,29 +188,18 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
 
+    // Best-effort: se o insert de metadados falhar, NÃO derruba o upload — o arquivo
+    // já está no storage e a URL pública é o que importa (ex.: logo do bar salva em
+    // config.logo_url). Só loga o aviso.
     if (dbError) {
-      console.error('❌ Erro ao salvar metadados:', dbError);
-
-      // Tentar limpar arquivo do storage se o DB falhou
-      await supabase.storage
-        .from('uploads')
-        .remove([fullPath])
-        .catch(console.error);
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Erro ao salvar informações do arquivo',
-        },
-        { status: 500 }
-      );
+      console.warn('⚠️ Upload OK no storage, mas falhou ao salvar metadados (seguindo):', dbError);
     }
 
     return NextResponse.json({
       success: true,
       message: 'Upload realizado com sucesso',
       data: {
-        id: anexo.id,
+        id: anexo?.id ?? null,
         filename: finalFileName,
         originalName: file.name,
         url: urlData.publicUrl,
