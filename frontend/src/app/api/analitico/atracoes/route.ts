@@ -177,10 +177,11 @@ export async function GET(request: NextRequest) {
       mixPorData.set(d, o);
     }
 
-    // consumação do PRÓPRIO artista por dia (cortesia classificada 'artistas' — mesma fonte da tela de consumação)
-    const { data: consArtRaw } = await ops.rpc('fn_consumo_artista_dia', { p_bar: barId, p_ini: dataInicialStr, p_fim: hojeStr });
-    const consumoArtistaPorData = new Map<string, number>();
-    for (const r of consArtRaw || []) consumoArtistaPorData.set(String(r.dia).slice(0, 10), Number(r.valor) || 0);
+    // consumação do PRÓPRIO artista, já vinculada por artista (override/nome/noite) — fonte da tela de consumação
+    const fin = (supabase as any).schema('financial');
+    const { data: consArtRaw } = await fin.rpc('fn_consumo_por_artista', { p_bar: barId, p_ini: dataInicialStr, p_fim: hojeStr });
+    const consumoPorArtista = new Map<number, number>();
+    for (const r of consArtRaw || []) if (r.artista_id != null) consumoPorArtista.set(Number(r.artista_id), Number(r.valor) || 0);
 
     const atracoes = Array.from(mapa.values())
       .filter((a) => a.shows.length >= minShows)
@@ -199,11 +200,10 @@ export async function GET(request: NextRequest) {
         // rankings extras: maior/menor noite, consumo do bar, retorno e % do fat que vira cachê
         const fat_max = shows.reduce((m, e) => Math.max(m, e.faturamento), 0);
         const fat_min = shows.reduce((m, e) => Math.min(m, e.faturamento), Infinity);
-        // datas únicas dos shows do artista (p/ consumação do artista e mix)
+        // datas únicas dos shows do artista (p/ mix)
         const datasArtista = new Set(shows.map((e) => String(e.data).slice(0, 10)));
-        // consumação = consumo do PRÓPRIO artista (cortesia dele) nas noites que tocou
-        let consumo_total = 0;
-        for (const d of datasArtista) consumo_total += (consumoArtistaPorData.get(d) || 0);
+        // consumação = consumo do PRÓPRIO artista (cortesia dele), vinculada por artista
+        const consumo_total = a.artista_id ? (consumoPorArtista.get(a.artista_id) || 0) : 0;
         const consumo_medio = n ? consumo_total / n : 0;
         const retorno = custo_total > 0 ? fat_total / custo_total : null; // R$ faturado por R$ de cachê
         const pct_cachet = fat_total > 0 ? (custo_total / fat_total) * 100 : null; // % do fat que vira cachê

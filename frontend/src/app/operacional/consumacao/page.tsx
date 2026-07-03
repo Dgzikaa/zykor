@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { RefreshCw, Download, Search, X, SlidersHorizontal } from 'lucide-react';
+import Link from 'next/link';
+import { RefreshCw, Download, Search, X, SlidersHorizontal, Users } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { toast } from 'sonner';
@@ -405,6 +406,11 @@ export default function ControleConsumacaoPage() {
               <Button variant="outline" size="icon" onClick={carregar} disabled={loading} title="Atualizar">
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
+              <Link href="/operacional/consumacao/artistas">
+                <Button variant="outline" size="sm" className="gap-1.5" title="Vincular cada consumação de artista ao artista do cadastro">
+                  <Users className="w-4 h-4" /> Por artista
+                </Button>
+              </Link>
             </div>
           </div>
 
