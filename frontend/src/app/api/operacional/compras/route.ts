@@ -59,20 +59,19 @@ export async function GET(request: NextRequest) {
   const ate = sp.get('ate');
   if (!de || !ate) return NextResponse.json({ success: false, error: 'de e ate obrigatórios' }, { status: 400 });
 
-  const [pedRes, cotRes] = await Promise.all([
-    gold.from('vmarket_pedido')
+  // paginado (selectAll): bar movimentado pode passar de 1000 pedidos/cotações no período → truncava
+  const [pedidosAll, cotacoes] = await Promise.all([
+    selectAll<any>((from, to) => gold.from('vmarket_pedido')
       .select('id_pedido,data,fornecedor,cnpj,origem,id_pedido_status,nm_status,dt_entrega,dt_prazo_entrega,qtd_itens,valor_total,url_nfe,id_cotacao_sisfood')
       .eq('bar_id', barId).gte('data', de).lte('data', ate)
-      .order('data', { ascending: false }).order('valor_total', { ascending: false }),
-    gold.from('vmarket_cotacao')
+      .order('data', { ascending: false }).order('valor_total', { ascending: false }).range(from, to)),
+    selectAll<any>((from, to) => gold.from('vmarket_cotacao')
       .select('id_cotacao_sisfood,data,nome,fornecedor,valor_economizado,cotacao_fechada')
       .eq('bar_id', barId).gte('data', de).lte('data', ate)
-      .order('data', { ascending: false }),
+      .order('data', { ascending: false }).range(from, to)),
   ]);
-  if (pedRes.error) return NextResponse.json({ success: false, error: pedRes.error.message }, { status: 500 });
 
-  let pedidos = pedRes.data ?? [];
-  const cotacoes = cotRes.data ?? [];
+  let pedidos = pedidosAll;
 
   // busca por PRODUTO (ex.: abacaxi, Spaten): filtra os pedidos que têm algum item com o nome.
   // O VMarket manda nome_cotacao em branco em ~70% dos itens (ex.: AMBEV), então além do
