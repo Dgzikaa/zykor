@@ -3,7 +3,6 @@ import type { NextRequest } from 'next/server';
 import { hasRoutePermission, getRoutePermission } from './src/lib/route-permissions';
 import { validateToken } from './src/lib/auth/jwt';
 import { isPublicRoute } from './src/lib/auth/public-routes';
-import { isApiRotaAberta } from './src/lib/auth/api-open-routes';
 
 interface User {
   id: number;
@@ -82,51 +81,9 @@ const BLOCKED_ROUTES = [
   '/configuracoes/calendario-operacional',
 ];
 
-// Token de /api: aceita as MESMAS fontes que authenticateUser (Bearer OU cookie auth_token).
-function getApiToken(request: NextRequest): string | null {
-  const h = request.headers.get('authorization');
-  if (h?.startsWith('Bearer ')) return h.slice(7);
-  return request.cookies.get('auth_token')?.value ?? null;
-}
-
-// TRAVA CENTRAL de /api: exige token válido em toda rota de API, exceto as liberadas
-// (api-open-routes: público/webhook/cron). Só AUTENTICA (quem é você) — a autorização
-// fina por módulo/ação continua no guard por rota (negarPorRota). Fecha de uma vez o
-// acesso anônimo direto às rotas que só se protegiam pela tela.
-function guardApi(request: NextRequest, pathname: string): NextResponse {
-  if (request.method === 'OPTIONS') return NextResponse.next(); // preflight CORS
-  if (isApiRotaAberta(pathname)) return NextResponse.next();
-  // Chamadas de SISTEMA (Vercel cron, pg_cron, orquestrador, edge→app) se autenticam com
-  // `Authorization: Bearer <segredo de servidor>` — CRON_SECRET ou SERVICE_ROLE_KEY. Deixa
-  // passar quem apresenta o segredo (a própria rota revalida). Cobre até rota de sistema não
-  // listada na allowlist, evitando 401 silencioso em pipeline. Segredo = confiança total.
-  const bearer = getApiToken(request);
-  if (
-    bearer &&
-    ((process.env.CRON_SECRET && bearer === process.env.CRON_SECRET) ||
-      (process.env.SUPABASE_SERVICE_ROLE_KEY && bearer === process.env.SUPABASE_SERVICE_ROLE_KEY))
-  ) {
-    return NextResponse.next();
-  }
-  const token = getApiToken(request);
-  const decoded = token ? validateToken(token) : null;
-  if (!decoded) {
-    return NextResponse.json(
-      { success: false, error: 'Não autenticado', code: 'NO_AUTH' },
-      { status: 401 },
-    );
-  }
-  return NextResponse.next();
-}
-
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.nextUrl.hostname;
-
-  // /api entra pela trava central (401 JSON), nunca pela lógica de página (que redireciona).
-  if (pathname.startsWith('/api/')) {
-    return guardApi(request, pathname);
-  }
 
   // Ignorar rotas estáticas e API
   if (IGNORED_ROUTES.some(route => pathname.startsWith(route))) {
@@ -199,6 +156,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Inclui /api (trava central de auth). Continua fora: assets estáticos do Next.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 };
