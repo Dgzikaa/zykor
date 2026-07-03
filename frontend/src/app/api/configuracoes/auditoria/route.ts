@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   if (de) query = query.gte('timestamp', de);
   if (ate) query = query.lte('timestamp', `${ate}T23:59:59.999`);
   if (operation) query = query.eq('operation', operation);
-  if (table) query = query.ilike('table_name', `%${table}%`);
+  if (table) query = query.eq('table_name', table); // dropdown manda o nome exato → usa o índice
   if (barId) query = query.eq('bar_id', Number(barId));
   if (q) query = query.or(`user_email.ilike.%${q}%,description.ilike.%${q}%,record_id.ilike.%${q}%`);
 

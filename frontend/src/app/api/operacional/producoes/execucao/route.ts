@@ -17,33 +17,9 @@ const round = (n: number, casas = 4) => {
   return Math.round((Number(n) || 0) * f) / f;
 };
 
-// Auditoria best-effort em system.audit_trail (quem/quando/o quê, com o registro inteiro em
-// old_values). NUNCA derruba a operação principal se falhar. Nasceu do incidente de duplicação:
-// execução era hard-deletada sem deixar rastro do que foi apagado.
-async function auditar(
-  supabase: any,
-  request: NextRequest,
-  p: { operation: string; barId: number; recordId: string | number; description: string; user: any; oldValues?: any; newValues?: any; severity?: string },
-) {
-  try {
-    await supabase.schema('system').from('audit_trail').insert({
-      bar_id: p.barId,
-      operation: p.operation,
-      table_name: 'operations.producao_execucao',
-      record_id: String(p.recordId),
-      user_email: p.user?.email ?? null,
-      user_role: p.user?.role ?? null,
-      user_agent: request.headers.get('user-agent'),
-      description: p.description,
-      old_values: p.oldValues ?? null,
-      new_values: p.newValues ?? null,
-      endpoint: '/api/operacional/producoes/execucao',
-      method: p.operation === 'DELETE' ? 'DELETE' : 'PUT',
-      severity: p.severity ?? 'info',
-      category: 'data',
-    });
-  } catch { /* auditoria nunca quebra a operação principal */ }
-}
+// NOTA: auditoria de exclusão/edição de execução agora é automática via trigger genérico
+// (system.fn_audit) nas tabelas operations.producao_execucao/_insumo — não há mais gancho
+// app-level aqui (evita duplo log). Ver project_audit_trail_acoes_usuario.
 
 // Snapshot de custo/desvio por insumo (usado no POST e no PUT/editar). O custo já vem
 // precificado da tela (preco_un da cascata VMarket→planilha); aqui só multiplica e agrega.
@@ -243,10 +219,10 @@ export async function PUT(request: NextRequest) {
   if (!execId || !barId) return NextResponse.json({ success: false, error: 'execucao_id e bar_id obrigatórios' }, { status: 400 });
 
   const supabase = await getAdminClient();
-  // confirma que a execução é do bar + guarda o estado ANTERIOR (auditoria da edição)
+  // confirma que a execução é do bar (o antes/depois da edição fica no trigger de auditoria)
   const { data: alvo } = await (supabase as any)
     .schema('operations').from('producao_execucao')
-    .select('*').eq('id', execId).eq('bar_id', barId).maybeSingle();
+    .select('id').eq('id', execId).eq('bar_id', barId).maybeSingle();
   if (!alvo) return NextResponse.json({ success: false, error: 'Execução não encontrada neste bar' }, { status: 404 });
 
   const { linhas, custoPlanejado, custoReal, aderenciaPct } = computarExecucao(Array.isArray(body.insumos) ? body.insumos : []);
@@ -276,12 +252,6 @@ export async function PUT(request: NextRequest) {
     if (errIns) return NextResponse.json({ success: false, error: errIns.message }, { status: 500 });
   }
 
-  await auditar(supabase, request, {
-    operation: 'UPDATE', barId, recordId: execId, user,
-    description: `Execução #${execId} (produção ${alvo.producao_id}) editada`,
-    oldValues: alvo, newValues: patch,
-  });
-
   return NextResponse.json({
     success: true, execucao_id: execId,
     custo_planejado: round(custoPlanejado, 2), custo_real: round(custoReal, 2), aderencia_pct: aderenciaPct,
@@ -305,23 +275,16 @@ export async function DELETE(request: NextRequest) {
 
   const supabase = await getAdminClient();
   // confirma que a execução é do bar antes de apagar (evita excluir de outro bar por id solto).
-  // pega a linha INTEIRA + os insumos p/ deixar registrado o que foi apagado (auditoria).
+  // o que foi apagado fica registrado automaticamente pelo trigger de auditoria (old_values).
   const { data: alvo } = await (supabase as any)
     .schema('operations').from('producao_execucao')
-    .select('*').eq('id', id).eq('bar_id', barId).maybeSingle();
+    .select('id').eq('id', id).eq('bar_id', barId).maybeSingle();
   if (!alvo) return NextResponse.json({ success: false, error: 'Execução não encontrada neste bar' }, { status: 404 });
-  const { data: insumosAlvo } = await (supabase as any)
-    .schema('operations').from('producao_execucao_insumo').select('*').eq('execucao_id', id);
 
   await (supabase as any).schema('operations').from('producao_execucao_insumo').delete().eq('execucao_id', id);
   const { error } = await (supabase as any).schema('operations').from('producao_execucao').delete().eq('id', id).eq('bar_id', barId);
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-  await auditar(supabase, request, {
-    operation: 'DELETE', barId, recordId: id, severity: 'warning', user,
-    description: `Execução #${id} (produção ${alvo.producao_id}${alvo.responsavel_nome ? ` · ${alvo.responsavel_nome}` : ''}) excluída do histórico`,
-    oldValues: { ...alvo, insumos: insumosAlvo || [] },
-  });
   return NextResponse.json({ success: true, deleted_id: id });
 }
 
