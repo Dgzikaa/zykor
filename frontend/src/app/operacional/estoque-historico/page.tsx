@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { FazerContagem } from '@/components/estoque/FazerContagem';
 import { PageShell } from '@/components/layout/PageShell';
+import { useModuloPermissao } from '@/hooks/useModuloPermissao';
+import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { CadastrarItemModal } from './GerenciarItensModal';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -38,6 +40,7 @@ const CLASSES_CADASTRO = ['limpeza', 'utensilio'];
 
 export default function EstoqueHistoricoPage() {
   const { selectedBar } = useBar();
+  const { soLeitura, podeInserir, podeEditar } = useModuloPermissao('/operacional/estoque-historico');
   const { toast } = useToast();
   const barId = selectedBar?.id;
   const [classe, setClasse] = useState('insumo');
@@ -140,16 +143,16 @@ export default function EstoqueHistoricoPage() {
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl"><Boxes className="w-6 h-6 text-amber-600 dark:text-amber-400" /></div>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Estoque — Histórico de Contagens</h1>
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">Estoque — Histórico de Contagens {soLeitura && <BadgeSomenteLeitura />}</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Valor em estoque por área e por contagem · {selectedBar?.nome || `Bar ${barId ?? ''}`}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {CLASSES_CADASTRO.includes(classe) && (
+            {podeInserir && CLASSES_CADASTRO.includes(classe) && (
               <Button onClick={() => abrirCadastro(null)} variant="outline" title="Adicionar item desta classe">
                 <Plus className="w-4 h-4 mr-1.5" />Adicionar item
               </Button>
             )}
-            <FazerContagem onSaved={() => carregar(tipo, null)} />
+            {podeInserir && <FazerContagem onSaved={() => carregar(tipo, null)} />}
             <Button onClick={sincronizar} disabled={sincronizando} variant="outline" title="Buscar o estoque dos últimos 14 dias da planilha de contagem (aba INSUMOS)">
               <RefreshCw className={`w-4 h-4 mr-1.5 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Sincronizando…' : 'Sincronizar planilha'}
             </Button>
@@ -253,7 +256,7 @@ export default function EstoqueHistoricoPage() {
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                   <td className="px-3 py-2 font-mono text-xs text-gray-500">
                     <span className="inline-flex items-center gap-1">{it.insumo_codigo || '—'}
-                      {CLASSES_CADASTRO.includes(classe) && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
+                      {podeEditar && CLASSES_CADASTRO.includes(classe) && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}</td>
@@ -290,7 +293,7 @@ export default function EstoqueHistoricoPage() {
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                   <td className="px-3 py-2 font-mono text-xs text-gray-500">
                     <span className="inline-flex items-center gap-1">{it.insumo_codigo || '—'}
-                      {CLASSES_CADASTRO.includes(classe) && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
+                      {podeEditar && CLASSES_CADASTRO.includes(classe) && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}</td>
@@ -327,7 +330,7 @@ export default function EstoqueHistoricoPage() {
                 <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                   <td className="px-3 py-2 font-mono text-xs text-gray-500">
                     <span className="inline-flex items-center gap-1">{it.insumo_codigo || '—'}
-                      {CLASSES_CADASTRO.includes(classe) && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
+                      {podeEditar && CLASSES_CADASTRO.includes(classe) && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.nome}</td>

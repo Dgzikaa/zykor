@@ -12,6 +12,8 @@ import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap, Utensils, Pencil, Plus, Trash2, Filter, Check } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
+import { useModuloPermissao } from '@/hooks/useModuloPermissao';
+import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
@@ -111,6 +113,7 @@ function ColHeader({ label, title, align, options, selected, onChange }: {
 
 export default function InsumosPage() {
   const { selectedBar } = useBar();
+  const { soLeitura, podeInserir, podeEditar, podeExcluir } = useModuloPermissao('/operacional/insumos');
   const { toast } = useToast();
   const barId = selectedBar?.id;
 
@@ -358,12 +361,12 @@ export default function InsumosPage() {
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl"><Package className="w-6 h-6 text-emerald-600 dark:text-emerald-400" /></div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Insumos</h1>
+              <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">Insumos {soLeitura && <BadgeSomenteLeitura />}</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">Cadastro do Zykor (1 insumo por nome) · {selectedBar?.nome || `Bar ${barId ?? ''}`}{syncedEm && <> · compras VMarket sync {new Date(syncedEm).toLocaleString('pt-BR')}</>}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={abrirNovoBlank} disabled={!barId}><Plus className="w-4 h-4 mr-1.5" />Adicionar insumo</Button>
+            {podeInserir && <Button onClick={abrirNovoBlank} disabled={!barId}><Plus className="w-4 h-4 mr-1.5" />Adicionar insumo</Button>}
             <Button onClick={sincronizar} disabled={sincronizando || !barId} variant="outline">
               <RefreshCw className={`w-4 h-4 mr-2 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Sincronizando…' : 'Sincronizar compras'}
             </Button>
@@ -522,10 +525,10 @@ export default function InsumosPage() {
                           <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{i.fornecedor || '—'}</td>
                           <td className="px-3 py-2 text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <button onClick={() => abrirEditIns(i)} className="text-gray-400 hover:text-indigo-600" title="Editar insumo"><Pencil className="w-4 h-4" /></button>
-                              {(i.tem_ficha || i.tem_compra)
+                              {podeEditar && <button onClick={() => abrirEditIns(i)} className="text-gray-400 hover:text-indigo-600" title="Editar insumo"><Pencil className="w-4 h-4" /></button>}
+                              {podeExcluir && ((i.tem_ficha || i.tem_compra)
                                 ? <span className="text-gray-200 dark:text-gray-700" title={i.tem_ficha ? 'Em ficha técnica — não pode excluir' : 'Tem compra vinculada no VMarket — não pode excluir'}><Trash2 className="w-4 h-4" /></span>
-                                : <button onClick={() => setDelConfirm(i)} className="text-gray-400 hover:text-red-600" title="Excluir insumo"><Trash2 className="w-4 h-4" /></button>}
+                                : <button onClick={() => setDelConfirm(i)} className="text-gray-400 hover:text-red-600" title="Excluir insumo"><Trash2 className="w-4 h-4" /></button>)}
                             </div>
                           </td>
                         </tr>
