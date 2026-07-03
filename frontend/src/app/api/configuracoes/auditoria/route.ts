@@ -22,12 +22,13 @@ export async function GET(request: NextRequest) {
   if (sp.get('view') === 'stats') {
     const supabaseS = await getAdminClient();
     const dias = Math.min(Number(sp.get('dias')) || 30, 180);
-    const [{ data: stats, error: errS }, { data: analytics }] = await Promise.all([
+    const [{ data: stats, error: errS }, { data: analytics }, { data: saude }] = await Promise.all([
       (supabaseS as any).schema('system').rpc('audit_stats', { p_dias: dias }),
       (supabaseS as any).schema('system').rpc('acessos_analytics', { p_dias: dias }),
+      (supabaseS as any).schema('system').rpc('audit_saude'),
     ]);
     if (errS) return NextResponse.json({ success: false, error: errS.message }, { status: 500 });
-    return NextResponse.json({ success: true, stats, analytics });
+    return NextResponse.json({ success: true, stats, analytics, saude });
   }
 
   const de = sp.get('de');
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
   const operation = sp.get('operation');
   const table = sp.get('table');
   const q = (sp.get('q') || '').trim();
+  const record = (sp.get('record') || '').trim(); // #7 timeline: histórico de 1 registro
   const barId = sp.get('bar_id');
   const limit = Math.min(Number(sp.get('limit')) || 100, 500);
   const offset = Math.max(Number(sp.get('offset')) || 0, 0);
@@ -51,6 +53,7 @@ export async function GET(request: NextRequest) {
   if (operation) query = query.eq('operation', operation);
   if (table) query = query.eq('table_name', table); // dropdown manda o nome exato → usa o índice
   if (sp.get('sensivel') === '1') query = query.in('severity', ['warning', 'critical']); // aba "Ações sensíveis"
+  if (record) query = query.eq('record_id', record); // #7 timeline do registro
   if (barId) query = query.eq('bar_id', Number(barId));
   if (q) query = query.or(`user_email.ilike.%${q}%,description.ilike.%${q}%,record_id.ilike.%${q}%`);
 

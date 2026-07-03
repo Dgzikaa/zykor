@@ -189,7 +189,14 @@ export default function AuditoriaPage() {
   const [tabelas, setTabelas] = useState<{ nome: string; eventos: number }[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [analytics, setAnalytics] = useState<any>(null);
+  const [saude, setSaude] = useState<any>(null);
+  const [dias, setDias] = useState(30); // período da aba Análise (#4)
   const [statsLoading, setStatsLoading] = useState(false);
+  // #2 drill de sessão (ações do usuário na janela da sessão) + #7 timeline de registro
+  const [sessaoAberta, setSessaoAberta] = useState<string | null>(null);
+  const [sessaoAcoes, setSessaoAcoes] = useState<Record<string, AuditLog[]>>({});
+  const [timeline, setTimeline] = useState<{ table: string | null; record: string; rows: AuditLog[] | null } | null>(null);
+  const [carregandoTudo, setCarregandoTudo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
@@ -245,12 +252,79 @@ export default function AuditoriaPage() {
   const carregarStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const r = await api.get('/api/configuracoes/auditoria?view=stats&dias=30') as any;
+      const r = await api.get(`/api/configuracoes/auditoria?view=stats&dias=${dias}`) as any;
       setStats(r.stats || null);
       setAnalytics(r.analytics || null);
+      setSaude(r.saude || null);
     } catch { /* noop */ }
     finally { setStatsLoading(false); }
-  }, []);
+  }, [dias]);
+
+  // #2: ações do usuário na JANELA da sessão (liga por email+intervalo — session_id é null no audit)
+  const abrirSessao = async (s: any) => {
+    if (sessaoAberta === s.id) { setSessaoAberta(null); return; }
+    setSessaoAberta(s.id);
+    if (!sessaoAcoes[s.id]) {
+      try {
+        const deD = String(s.login_at).slice(0, 10);
+        const ateD = String(s.ended_at || s.last_seen_at || s.login_at).slice(0, 10);
+        const r = await api.get(`/api/configuracoes/auditoria?q=${encodeURIComponent(s.user_email)}&de=${deD}&ate=${ateD}&limit=300`);
+        const ini = new Date(s.login_at).getTime();
+        const fim = new Date(s.ended_at || s.last_seen_at).getTime();
+        const rows = (r.logs || []).filter((l: AuditLog) => (l.user_email || '') === s.user_email && (() => { const t = new Date(l.timestamp).getTime(); return t >= ini - 60000 && t <= fim + 60000; })());
+        setSessaoAcoes(m => ({ ...m, [s.id]: rows }));
+      } catch { setSessaoAcoes(m => ({ ...m, [s.id]: [] })); }
+    }
+  };
+
+  // #7: histórico completo de um registro (timeline)
+  const abrirTimeline = async (l: AuditLog) => {
+    if (!l.record_id) return;
+    setTimeline({ table: l.table_name, record: l.record_id, rows: null });
+    try {
+      const p = new URLSearchParams({ record: l.record_id, limit: '200' });
+      if (l.table_name) p.set('table', l.table_name);
+      const r = await api.get(`/api/configuracoes/auditoria?${p.toString()}`);
+      setTimeline({ table: l.table_name, record: l.record_id!, rows: r.logs || [] });
+    } catch { setTimeline(t => (t ? { ...t, rows: [] } : t)); }
+  };
+
+  // #3: carrega TODOS os registros do período (pra os filtros de coluna cobrirem tudo, não só os 100)
+  const carregarTudo = async () => {
+    setAuto(false); // pausa tempo real p/ não clobberar a lista completa
+    setCarregandoTudo(true);
+    try {
+      let acc: AuditLog[] = []; let off = 0; const passo = 500; let tot = 0;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const p = new URLSearchParams({ limit: String(passo), offset: String(off) });
+        if (de) p.set('de', de); if (ate) p.set('ate', ate);
+        if (operation) p.set('operation', operation); if (table) p.set('table', table);
+        if (q.trim()) p.set('q', q.trim()); if (aba === 'sensiveis') p.set('sensivel', '1');
+        const r = await api.get(`/api/configuracoes/auditoria?${p.toString()}`);
+        const batch = r.logs || []; acc = acc.concat(batch); off += passo; tot = r.total || acc.length;
+        if (batch.length < passo || acc.length >= tot) break;
+      }
+      setLogs(acc); setTotal(tot); setOffset(Math.max(0, acc.length - PAGE));
+    } catch { /* noop */ }
+    finally { setCarregandoTudo(false); }
+  };
+
+  // #6: período rápido no data-table (usa os filtros de servidor de/ate)
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (tick) carregar(0, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick]);
+  const isoDay = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  const aplicarPeriodo = (tipo: 'hoje' | '7d' | 'mes' | 'tudo') => {
+    const now = new Date();
+    if (tipo === 'tudo') { setDe(''); setAte(''); }
+    else if (tipo === 'hoje') { const d = isoDay(now); setDe(d); setAte(d); }
+    else if (tipo === '7d') { const p = new Date(now); p.setDate(p.getDate() - 6); setDe(isoDay(p)); setAte(isoDay(now)); }
+    else { setDe(isoDay(new Date(now.getFullYear(), now.getMonth(), 1))); setAte(isoDay(now)); }
+    setTick(x => x + 1);
+  };
 
   useEffect(() => { // carga inicial + ao trocar de aba
     if (aba === 'acessos') carregarAcessos();
@@ -258,6 +332,12 @@ export default function AuditoriaPage() {
     else carregar(0, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aba]);
+
+  // #4: troca de período na aba Análise → recarrega stats
+  useEffect(() => {
+    if (aba === 'analise') carregarStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dias]);
 
   // tempo real: recarrega a cada 10s sem piscar o spinner (aba Análise não faz polling)
   useEffect(() => {
@@ -438,9 +518,11 @@ export default function AuditoriaPage() {
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {sessoesData.map((s: any) => {
                   const ocioso = s.duracao_seg > 0 ? Math.max(0, Math.round((1 - s.ativo_seg / s.duracao_seg) * 100)) : 0;
+                  const aberta = sessaoAberta === s.id; const acoes = sessaoAcoes[s.id];
                   return (
-                    <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{s.user_email}{s.bar_id != null && <span className="text-[11px] text-gray-400"> · bar {s.bar_id}</span>}</td>
+                    <Fragment key={s.id}>
+                    <tr onClick={() => abrirSessao(s)} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer">
+                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{aberta ? <ChevronDown className="h-3.5 w-3.5 inline mr-1 text-gray-400" /> : <ChevronRight className="h-3.5 w-3.5 inline mr-1 text-gray-400" />}{s.user_email}{s.bar_id != null && <span className="text-[11px] text-gray-400"> · bar {s.bar_id}</span>}</td>
                       <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtData(s.login_at)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtDur(s.duracao_seg)}</td>
                       <td className="px-3 py-2 text-right tabular-nums" title={`${ocioso}% do tempo ocioso`}>{fmtDur(s.ativo_seg)}<span className="text-[10px] text-gray-400"> ({100 - ocioso}%)</span></td>
@@ -448,10 +530,30 @@ export default function AuditoriaPage() {
                       <td className="px-3 py-2">
                         <span className="inline-flex items-center gap-2">
                           {s.online ? <span className="inline-flex items-center gap-1 text-emerald-600 text-xs"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />online</span> : s.ended_at ? <span className="text-xs text-gray-400">saiu {fmtData(s.ended_at)}</span> : <span className="text-xs text-gray-400">inativo</span>}
-                          {!s.ended_at && <button onClick={() => encerrarSessao(s.user_email)} className="text-[11px] text-rose-600 hover:underline" title="Deslogar este usuário">encerrar</button>}
+                          {!s.ended_at && <button onClick={(e) => { e.stopPropagation(); encerrarSessao(s.user_email); }} className="text-[11px] text-rose-600 hover:underline" title="Deslogar este usuário">encerrar</button>}
                         </span>
                       </td>
                     </tr>
+                    {aberta && (
+                      <tr className="bg-gray-50/60 dark:bg-gray-900/40"><td colSpan={6} className="px-3 py-2">
+                        {!acoes ? <div className="text-xs text-gray-400 py-2 inline-flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" />carregando ações da sessão…</div>
+                         : acoes.length === 0 ? <div className="text-xs text-gray-400 py-2">Nenhuma ação registrada nesta sessão.</div>
+                         : <div>
+                             <div className="text-[11px] text-gray-500 mb-1">{acoes.length} ação(ões) nesta sessão (janela login → fim):</div>
+                             <div className="space-y-1 max-h-64 overflow-auto">
+                               {acoes.map(l => (
+                                 <div key={l.id} className="flex items-center gap-2 text-xs">
+                                   <span className="text-gray-400 whitespace-nowrap">{fmtData(l.timestamp)}</span>
+                                   <Badge className={`${opColor(l.operation)} text-white`}>{l.operation}</Badge>
+                                   <span className="text-gray-600 dark:text-gray-300 whitespace-nowrap">{labelTabela(l.table_name)}</span>
+                                   <span className="text-gray-500 truncate">{l.description || ''}</span>
+                                 </div>
+                               ))}
+                             </div>
+                           </div>}
+                      </td></tr>
+                    )}
+                    </Fragment>
                   );
                 })}
                 {sessoesData.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-gray-400">{foco === 'online' ? 'Ninguém online agora.' : 'Nenhuma sessão ainda — começa a registrar nos próximos logins.'}</td></tr>}
@@ -513,6 +615,20 @@ export default function AuditoriaPage() {
     const acoesBar = (analytics?.acoes_por_bar || []).map((x: any) => ({ nome: x.nome, n: Number(x.n) }));
     const tempoBar = (analytics?.tempo_por_bar || []).map((x: any) => ({ nome: x.nome, seg: Number(x.seg) }));
     const temTempoBar = tempoBar.length > 0;
+    const cabecalho = (
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1">
+          {[7, 30, 90].map(d => (
+            <button key={d} onClick={() => setDias(d)}
+              className={`px-2.5 h-8 rounded-md text-sm border transition ${dias === d ? 'border-violet-400 bg-violet-50 text-violet-700 dark:bg-violet-900/25 dark:text-violet-300' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
+              {d} dias
+            </button>
+          ))}
+          {statsLoading && <Loader2 className="h-4 w-4 animate-spin text-gray-400 ml-1" />}
+        </div>
+        {saude && <div className="text-[11px] text-gray-400">{Number(saude.linhas || 0).toLocaleString('pt-BR')} eventos · {saude.tamanho} · desde {saude.mais_antigo} · retenção {saude.retencao_meses} meses</div>}
+      </div>
+    );
 
     const big = [
       { l: 'Pico simultâneo', v: a.pico_simultaneo ?? 0, sub: a.pico_quando ? fmtData(a.pico_quando) : undefined, icon: Zap, c: 'text-amber-500' },
@@ -533,6 +649,7 @@ export default function AuditoriaPage() {
     const temTelas = telas.length > 0;
     return (
       <div className="space-y-4">
+        {cabecalho}
         {/* Big numbers */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
           {big.map((k, i) => (
@@ -869,12 +986,19 @@ export default function AuditoriaPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {anyCol && (
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="text-gray-500">{logsView.length} de {logs.length} carregado(s) após filtros de coluna</span>
-                    <button onClick={() => setColFilter({})} className="text-gray-500 hover:text-rose-600 underline">✕ limpar filtros de coluna</button>
-                  </div>
-                )}
+                <div className="flex items-center gap-1.5 text-xs flex-wrap">
+                  <span className="text-gray-400">Período:</span>
+                  {([['hoje', 'Hoje'], ['7d', '7 dias'], ['mes', 'Este mês'], ['tudo', 'Tudo']] as const).map(([k, label]) => (
+                    <button key={k} onClick={() => aplicarPeriodo(k)} className="h-7 px-2 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/40">{label}</button>
+                  ))}
+                  {logs.length < total && (
+                    <button onClick={carregarTudo} disabled={carregandoTudo} className="h-7 px-2 rounded border border-violet-300 dark:border-violet-800 text-violet-600 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/20 inline-flex items-center gap-1">
+                      {carregandoTudo ? <><Loader2 className="h-3 w-3 animate-spin" />carregando…</> : `Carregar todos (${total}) p/ filtrar`}
+                    </button>
+                  )}
+                  <span className="ml-auto text-gray-400">Filtros de coluna agem sobre os {logs.length} carregados{anyCol ? ` → ${logsView.length} após filtro` : ''}.</span>
+                  {anyCol && <button onClick={() => setColFilter({})} className="text-gray-500 hover:text-rose-600 underline">✕ limpar</button>}
+                </div>
                 <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase">
@@ -906,7 +1030,12 @@ export default function AuditoriaPage() {
                               <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{l.user_role || '—'}</td>
                               <td className="px-3 py-2 whitespace-nowrap"><Badge className={`${opColor(l.operation)} text-white`}>{l.operation}</Badge>{l.severity === 'critical' && <span className="ml-1 text-[10px] font-medium text-rose-600">sensível</span>}</td>
                               <td className="px-3 py-2 text-gray-600 dark:text-gray-300 whitespace-nowrap">{labelTabela(l.table_name)}</td>
-                              <td className="px-3 py-2 text-gray-700 dark:text-gray-200 max-w-[380px] truncate" title={oQue}>{oQue}</td>
+                              <td className="px-3 py-2 text-gray-700 dark:text-gray-200 max-w-[380px]">
+                                <div className="flex items-center gap-2">
+                                  <span className="truncate" title={oQue}>{oQue}</span>
+                                  {l.record_id && <button onClick={(e) => { e.stopPropagation(); abrirTimeline(l); }} title="Ver histórico deste registro" className="shrink-0 text-gray-400 hover:text-violet-600"><Clock className="h-3.5 w-3.5" /></button>}
+                                </div>
+                              </td>
                               <td className="px-3 py-2 text-center text-gray-400 whitespace-nowrap">{l.bar_id != null ? l.bar_id : '—'}</td>
                             </tr>
                             {aberto && <tr className="bg-gray-50/60 dark:bg-gray-900/40"><td colSpan={8} className="px-3 py-2">{renderLinha(l)}</td></tr>}
@@ -930,6 +1059,26 @@ export default function AuditoriaPage() {
         </Card>
         </>)}
       </div>
+
+      {/* #7 Timeline de um registro */}
+      {timeline && (
+        <div className="fixed inset-0 z-[70] bg-black/40 flex items-start justify-center p-4 overflow-auto" onClick={() => setTimeline(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-2xl mt-10" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <div className="text-sm font-semibold text-gray-900 dark:text-white">Histórico do registro</div>
+                <div className="text-xs text-gray-500">{labelTabela(timeline.table)} · #{timeline.record}</div>
+              </div>
+              <button onClick={() => setTimeline(null)} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"><XCircle className="h-5 w-5" /></button>
+            </div>
+            <div className="p-3 max-h-[70vh] overflow-auto">
+              {!timeline.rows ? <div className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" /></div>
+                : timeline.rows.length === 0 ? <div className="text-center py-8 text-sm text-gray-400">Sem histórico para este registro.</div>
+                  : <div className="space-y-2">{timeline.rows.map(renderLinha)}</div>}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
