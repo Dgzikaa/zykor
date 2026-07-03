@@ -182,6 +182,31 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, itens: rows, headline, analise });
   }
 
+  // Dispara o cálculo do PERÍODO ANTERIOR (usado só na "análise vs período anterior") EM PARALELO
+  // com o fn_desvios principal + enriquecimento. Antes rodava em série no fim → dobrava a latência.
+  // Mesmas queries, mesmo resultado — só sobrepostos. Depende só de bar/tipo/ini (já disponíveis).
+  const analiseDataPromise: Promise<{ prevDate: string | null; prevPerdas: number; prevPerdasProd: number }> = (async () => {
+    try {
+      const { data: datasRaw } = await (sb() as any).schema('operations')
+        .rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo, p_classe: 'insumo' });
+      const ds: string[] = (datasRaw || []).map((d: any) => d.data_contagem); // desc
+      const idx = ds.indexOf(ini);
+      const prevDate = andamento ? null : (idx >= 0 && idx < ds.length - 1 ? ds[idx + 1] : null);
+      let prevPerdas = 0, prevPerdasProd = 0;
+      if (prevDate) {
+        const { data: pdata } = await (sb() as any).schema('gold')
+          .rpc('fn_desvios', { p_bar: user.bar_id, p_ini: prevDate, p_fim: ini });
+        const pbase = tipo === 'diaria' ? (pdata || []).filter((r: any) => r.curva_a === true) : (pdata || []);
+        for (const r of pbase) {
+          const v = Number(r.desvio_rs || 0);
+          if (r.is_producao) { if (v < 0) prevPerdasProd += v; }
+          else if (v < 0) prevPerdas += v;
+        }
+      }
+      return { prevDate, prevPerdas, prevPerdasProd };
+    } catch { return { prevDate: null, prevPerdas: 0, prevPerdasProd: 0 }; }
+  })();
+
   const { data, error } = await (sb() as any).schema('gold')
     .rpc('fn_desvios', { p_bar: user.bar_id, p_ini: ini, p_fim: fim });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -297,24 +322,8 @@ export async function GET(request: NextRequest) {
   let analise: any = null;
   let analiseProducao: any = null;
   try {
-    const { data: datasRaw } = await (sb() as any).schema('operations')
-      .rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo, p_classe: 'insumo' });
-    const ds: string[] = (datasRaw || []).map((d: any) => d.data_contagem); // já vem desc
-    const idx = ds.indexOf(ini);
-    // na prévia em andamento não compara: confrontar uma semana parcial com uma semana cheia engana.
-    const prevDate = andamento ? null : (idx >= 0 && idx < ds.length - 1 ? ds[idx + 1] : null);
-    let prevPerdas = 0;
-    let prevPerdasProd = 0;
-    if (prevDate) {
-      const { data: pdata } = await (sb() as any).schema('gold')
-        .rpc('fn_desvios', { p_bar: user.bar_id, p_ini: prevDate, p_fim: ini });
-      const pbase = tipo === 'diaria' ? (pdata || []).filter((r: any) => r.curva_a === true) : (pdata || []);
-      for (const r of pbase) {
-        const v = Number(r.desvio_rs || 0);
-        if (r.is_producao) { if (v < 0) prevPerdasProd += v; }
-        else if (v < 0) prevPerdas += v;
-      }
-    }
+    // já calculado em paralelo lá em cima (não compara na prévia em andamento — semana parcial engana)
+    const { prevDate, prevPerdas, prevPerdasProd } = await analiseDataPromise;
     analise = buildAnalise(itensValidos, { perdas, sobras }, { prevDate, prevPerdas }, tipo || 'semanal');
     analiseProducao = buildAnaliseSimples(
       prodRows.map((i: any) => ({ desvio_rs: i.desvio_rs, nome: i.insumo_nome })),
