@@ -33,6 +33,10 @@ function Conteudo() {
   const [lancando, setLancando] = useState(false);
   const [confirmar, setConfirmar] = useState(false);
   const [resultado, setResultado] = useState<any | null>(null);
+  // filtros (só de visualização — o lançamento sempre processa todos os pendentes)
+  const [fTipos, setFTipos] = useState<Set<string>>(new Set());
+  const [fBandeiras, setFBandeiras] = useState<Set<string>>(new Set());
+  const [fStatus, setFStatus] = useState<'todos' | 'pendente' | 'lancado'>('todos');
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -66,7 +70,21 @@ function Conteudo() {
   const recebiveis: any[] = preview?.recebiveis || [];
   const compensacao: any[] = preview?.compensacao || [];
   const pendentes = recebiveis.filter((r) => !r.ja_lancado).length + compensacao.filter((c) => !c.ja_lancado).length;
-  const totalLancamentos = recebiveis.length + compensacao.length;
+
+  // filtros
+  const bandeirasDisp = Array.from(new Set(recebiveis.map((r) => r.bandeira).filter((b: string) => b && b !== '—'))).sort();
+  const toggle = (set: Set<string>, v: string, setter: (s: Set<string>) => void) => {
+    const n = new Set(set); n.has(v) ? n.delete(v) : n.add(v); setter(n);
+  };
+  const statusOk = (ja: boolean) => fStatus === 'todos' || (fStatus === 'pendente' ? !ja : ja);
+  const recebiveisView = recebiveis.filter((r) =>
+    (fTipos.size === 0 || fTipos.has(r.tipo)) &&
+    (fBandeiras.size === 0 || fBandeiras.has(r.bandeira)) &&
+    statusOk(!!r.ja_lancado));
+  const compensacaoView = compensacao.filter((c) => statusOk(!!c.ja_lancado));
+  const filtroAtivo = fTipos.size > 0 || fBandeiras.size > 0 || fStatus !== 'todos';
+  const totalFiltrado = recebiveisView.reduce((s, r) => s + Number(r.valor || 0), 0);
+  const limparFiltros = () => { setFTipos(new Set()); setFBandeiras(new Set()); setFStatus('todos'); };
 
   return (
     <div className="container mx-auto px-3 py-5 max-w-5xl space-y-4">
@@ -114,11 +132,50 @@ function Conteudo() {
         </div>
       )}
 
+      {/* Filtros (visualização) */}
+      {!erro && recebiveis.length > 0 && (
+        <Card className="card-dark">
+          <CardContent className="py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Tipo:</span>
+              {([['CREDITO', 'Crédito'], ['DEBITO', 'Débito'], ['PIX', 'PIX']] as const).map(([v, l]) => (
+                <button key={v} onClick={() => toggle(fTipos, v, setFTipos)}
+                  className={`text-xs rounded-md px-2 py-1 border transition ${fTipos.has(v) ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 dark:border-gray-600 text-muted-foreground hover:bg-muted'}`}>{l}</button>
+              ))}
+            </div>
+            {bandeirasDisp.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Bandeira:</span>
+                {bandeirasDisp.map((b) => (
+                  <button key={b} onClick={() => toggle(fBandeiras, b, setFBandeiras)}
+                    className={`text-xs rounded-md px-2 py-1 border transition ${fBandeiras.has(b) ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 dark:border-gray-600 text-muted-foreground hover:bg-muted'}`}>{b}</button>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Status:</span>
+              <select value={fStatus} onChange={e => setFStatus(e.target.value as any)}
+                className="h-7 rounded-md border border-gray-300 dark:border-gray-600 bg-transparent px-2 text-xs">
+                <option value="todos">Todos</option>
+                <option value="pendente">Pendentes</option>
+                <option value="lancado">Lançados</option>
+              </select>
+            </div>
+            {filtroAtivo && (
+              <button onClick={limparFiltros} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline ml-auto">limpar filtros</button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Recebíveis (líquido) */}
       {!erro && (
         <Card className="card-dark">
           <CardContent className="py-3">
-            <div className="text-sm font-medium mb-2">Recebíveis do dia (líquido)</div>
+            <div className="text-sm font-medium mb-2 flex items-center justify-between">
+              <span>Recebíveis do dia (líquido)</span>
+              {filtroAtivo && <span className="text-xs text-muted-foreground font-normal">{recebiveisView.length} de {recebiveis.length} · {fmtBRL(totalFiltrado)}</span>}
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-xs text-muted-foreground border-b"><tr>
@@ -133,7 +190,8 @@ function Conteudo() {
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {loading ? <tr><td colSpan={7} className="px-2 py-6 text-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
                   : recebiveis.length === 0 ? <tr><td colSpan={7} className="px-2 py-8 text-center text-muted-foreground">Nenhum recebível neste dia.</td></tr>
-                  : recebiveis.map((r, i) => (
+                  : recebiveisView.length === 0 ? <tr><td colSpan={7} className="px-2 py-8 text-center text-muted-foreground">Nenhum recebível com esses filtros.</td></tr>
+                  : recebiveisView.map((r, i) => (
                     <tr key={i}>
                       <td className="px-2 py-1.5"><Badge variant="outline" className="text-[10px] mr-1">{tipoLabel[r.tipo] || r.tipo}</Badge>{r.descricao}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{brDia(r.vencimento)}</td>
@@ -160,7 +218,8 @@ function Conteudo() {
           <CardContent className="py-3">
             <div className="text-sm font-medium mb-2">Taxa do dia — par que se compensa</div>
             <div className="space-y-1.5">
-              {compensacao.map((c, i) => (
+              {compensacaoView.length === 0 && <div className="text-xs text-muted-foreground py-1">Sem itens com esse filtro de status.</div>}
+              {compensacaoView.map((c, i) => (
                 <div key={i} className="flex items-center justify-between gap-2 rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm">
                   <div>
                     <Badge variant="outline" className={`text-[10px] mr-1.5 ${c.tipo === 'DESPESA' ? 'text-red-600 border-red-300' : 'text-emerald-600 border-emerald-300'}`}>{c.tipo}</Badge>
