@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Banknote, Loader2, ArrowDownCircle, ArrowUpCircle, ListTree, CalendarDays, Wallet, Filter, Check, Search, Clock } from 'lucide-react';
+import { Banknote, Loader2, ArrowDownCircle, ArrowUpCircle, ListTree, CalendarDays, Wallet, Filter, Check, Search, Clock, Receipt, X, ChevronsUpDown } from 'lucide-react';
 
 type Saida = { dt_gerencial: string; trn: number; num_lancamento: number | null; motivo: string; valor_saida: number; obs: string | null };
+type CatOpt = { id: string; nome: string; macro?: string | null };
 type Entrada = { dt_gerencial: string; trn: number; qtd_pagamentos: number; total_liquido: number; total_bruto: number };
 type Turno = {
   dt_gerencial: string; trn: number;
@@ -142,6 +143,127 @@ function useTableFilter<T>(rows: T[], colVal: Record<string, (r: T) => string>, 
   return { busca, setBusca, colFilter, setCol, reset, optionsFor, filtered, filtrando };
 }
 
+// Combobox digitável de categorias (despesa) do Conta Azul.
+function CategoriaCombo({ options, value, onChange }: { options: CatOpt[]; value: CatOpt | null; onChange: (c: CatOpt) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const boxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => { if (!boxRef.current?.contains(e.target as Node)) setOpen(false); };
+    window.addEventListener('mousedown', onDown);
+    return () => window.removeEventListener('mousedown', onDown);
+  }, []);
+  const shown = q ? options.filter((o) => o.nome.toLowerCase().includes(q.toLowerCase())) : options;
+  return (
+    <div ref={boxRef} className="relative">
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 rounded-md border bg-background px-3 h-9 text-sm text-left">
+        <span className={value ? '' : 'text-muted-foreground'}>{value ? value.nome : 'Escolher categoria…'}</span>
+        <ChevronsUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-lg border bg-background shadow-xl p-2">
+          <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar categoria…" className="h-8 text-xs" />
+          <div className="max-h-56 overflow-y-auto mt-1">
+            {shown.length === 0 ? <div className="px-2 py-3 text-center text-xs text-muted-foreground">Nada</div>
+              : shown.map((o) => (
+                <button key={o.id} type="button" onClick={() => { onChange(o); setOpen(false); setQ(''); }}
+                  className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 text-left text-xs rounded hover:bg-muted/60 ${value?.id === o.id ? 'bg-muted/40' : ''}`}>
+                  <span className="truncate">{o.nome}</span>
+                  {o.macro && <span className="text-[10px] text-muted-foreground shrink-0">{o.macro}</span>}
+                </button>
+              ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LancarSaidaModal({ saida, barId, catOpts, conta, onClose, onDone }: {
+  saida: Saida; barId: number; catOpts: CatOpt[]; conta: { id: string; nome: string } | null;
+  onClose: () => void; onDone: (baixado: boolean) => void;
+}) {
+  const { showToast } = useToast();
+  const [descricao, setDescricao] = useState(saida.motivo || '');
+  const [valor, setValor] = useState(String(saida.valor_saida ?? ''));
+  const [competencia, setCompetencia] = useState(saida.dt_gerencial);
+  const [vencimento, setVencimento] = useState(saida.dt_gerencial);
+  const [categoria, setCategoria] = useState<CatOpt | null>(null);
+  const [lancando, setLancando] = useState(false);
+
+  const submit = async () => {
+    if (!categoria) { showToast({ type: 'error', title: 'Escolha a categoria' }); return; }
+    const v = Number(String(valor).replace(/\./g, '').replace(',', '.'));
+    if (!(v > 0)) { showToast({ type: 'error', title: 'Valor inválido' }); return; }
+    setLancando(true);
+    try {
+      const r = await api.post('/api/financeiro/saidas-caixa/lancar', {
+        bar_id: barId, trn: saida.trn, num_lancamento: saida.num_lancamento,
+        dt_gerencial: saida.dt_gerencial, data_competencia: competencia, data_vencimento: vencimento,
+        descricao, valor: v, categoria_id: categoria.id,
+      });
+      if (r?.ok || r?.skipped) {
+        showToast({ type: 'success', title: r?.skipped ? 'Já estava lançado' : 'Lançado no Conta Azul', message: r?.baixado === false ? 'Criado, mas a baixa falhou — confira no CA.' : undefined });
+        onDone(!!r?.baixado);
+      } else {
+        showToast({ type: 'error', title: 'Falha ao lançar', message: r?.erro || r?.error || 'Erro' });
+      }
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Falha ao lançar', message: e?.message });
+    } finally { setLancando(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onMouseDown={onClose}>
+      <div className="w-full max-w-md rounded-xl border bg-background shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div className="flex items-center gap-2"><Receipt className="h-4 w-4 text-primary" /><h3 className="font-semibold">Lançar saída no Conta Azul</h3></div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="p-4 space-y-3 text-sm">
+          <div className="text-xs text-muted-foreground">Turno #{saida.trn} · {fmtData(saida.dt_gerencial)} · conta a pagar (baixa imediata)</div>
+          <div>
+            <label className="text-xs text-muted-foreground">Descrição</label>
+            <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} className="h-9 mt-1" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Valor</label>
+              <Input value={valor} onChange={(e) => setValor(e.target.value)} inputMode="decimal" className="h-9 mt-1 text-right tabular-nums" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Categoria (despesa)</label>
+              <div className="mt-1"><CategoriaCombo options={catOpts} value={categoria} onChange={setCategoria} /></div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Competência</label>
+              <Input type="date" value={competencia} onChange={(e) => setCompetencia(e.target.value)} className="h-9 mt-1" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Vencimento</label>
+              <Input type="date" value={vencimento} onChange={(e) => setVencimento(e.target.value)} className="h-9 mt-1" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Conta</label>
+            <div className="mt-1 h-9 flex items-center rounded-md border bg-muted/40 px-3 text-muted-foreground">{conta?.nome || 'Caixa Dinheiro'}</div>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
+          <button onClick={onClose} className="rounded-md border px-3 h-9 text-sm hover:bg-muted/60">Cancelar</button>
+          <button onClick={submit} disabled={lancando || !categoria}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 h-9 text-sm font-medium text-primary-foreground disabled:opacity-50">
+            {lancando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />} Lançar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FluxoDinheiroInner() {
   const { selectedBar } = useBar();
   const { showToast } = useToast();
@@ -154,6 +276,13 @@ function FluxoDinheiroInner() {
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [resumo, setResumo] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+
+  // Lançar saída no CA
+  const [lancados, setLancados] = useState<Record<string, boolean>>({}); // "trn-num" -> baixado
+  const [catOpts, setCatOpts] = useState<CatOpt[]>([]);
+  const [contaCaixa, setContaCaixa] = useState<{ id: string; nome: string } | null>(null);
+  const [modal, setModal] = useState<Saida | null>(null);
+  const lancKey = (trn: number, num: number | null) => `${trn}-${num}`;
 
   const periodo = useMemo(() => {
     if (!mesSel) return null;
@@ -174,6 +303,9 @@ function FluxoDinheiroInner() {
       setEntradas(r.entradas || []);
       setTurnos(r.turnos || []);
       setResumo(r.resumo || null);
+      const lm: Record<string, boolean> = {};
+      for (const l of (r.lancados || [])) lm[lancKey(l.trn, l.num_lancamento)] = !!l.baixado;
+      setLancados(lm);
       if ((r.meses_disponiveis || []).length) {
         setMeses(r.meses_disponiveis);
         if (!mesSel) setMesSel(r.meses_disponiveis[0]);
@@ -186,6 +318,18 @@ function FluxoDinheiroInner() {
   }, [selectedBar?.id, periodo, mesSel, showToast]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  // categorias (despesa) + conta Caixa Dinheiro pro modal de lançamento
+  useEffect(() => {
+    if (!selectedBar?.id) return;
+    (async () => {
+      try {
+        const r = await api.get(`/api/financeiro/saidas-caixa/lancar?bar_id=${selectedBar.id}`);
+        setCatOpts(r?.categorias || []);
+        setContaCaixa(r?.conta || null);
+      } catch { /* silencioso — o modal avisa se faltar */ }
+    })();
+  }, [selectedBar?.id]);
 
   // Filtros por aba
   const fSaidas = useTableFilter<Saida>(
@@ -343,6 +487,7 @@ function FluxoDinheiroInner() {
                     <th className="text-left font-medium px-4 py-2.5"><ColHeader label="Turno" align="left" options={fSaidas.optionsFor('turno')} selected={fSaidas.colFilter.turno || new Set()} onChange={(n) => fSaidas.setCol('turno', n)} /></th>
                     <th className="text-left font-medium px-4 py-2.5"><ColHeader label="Motivo" align="left" options={fSaidas.optionsFor('motivo')} selected={fSaidas.colFilter.motivo || new Set()} onChange={(n) => fSaidas.setCol('motivo', n)} /></th>
                     <th className="text-right font-medium px-4 py-2.5">Valor</th>
+                    <th className="text-center font-medium px-4 py-2.5">CA</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -355,10 +500,20 @@ function FluxoDinheiroInner() {
                       <td className="px-4 py-2 text-muted-foreground tabular-nums">#{s.trn}</td>
                       <td className="px-4 py-2">{s.motivo || <span className="text-muted-foreground/40">—</span>}</td>
                       <td className="px-4 py-2 text-right tabular-nums font-semibold text-red-600 dark:text-red-400">{fmtBRL(s.valor_saida)}</td>
+                      <td className="px-4 py-2 text-center">
+                        {lancados[lancKey(s.trn, s.num_lancamento)] !== undefined ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400" title="Já lançado no Conta Azul"><Check className="h-3.5 w-3.5" /> lançado</span>
+                        ) : (
+                          <button onClick={() => setModal(s)} title="Lançar no Conta Azul (contas a pagar)"
+                            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted/60">
+                            <Receipt className="h-3.5 w-3.5" /> Lançar
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                   {!loading && fSaidas.filtered.length === 0 && (
-                    <tr><td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">{fSaidas.filtrando ? 'Nenhuma saída com esses filtros.' : 'Nenhuma saída de caixa no período.'}</td></tr>
+                    <tr><td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">{fSaidas.filtrando ? 'Nenhuma saída com esses filtros.' : 'Nenhuma saída de caixa no período.'}</td></tr>
                   )}
                 </tbody>
                 {fSaidas.filtered.length > 0 && (
@@ -366,6 +521,7 @@ function FluxoDinheiroInner() {
                     <tr className="border-t bg-muted/20 font-semibold">
                       <td className="px-4 py-2.5" colSpan={3}>{fSaidas.filtrando ? `Filtrado (${fmtNum(fSaidas.filtered.length)})` : `Total (${fmtNum(fSaidas.filtered.length)})`}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-red-600 dark:text-red-400">{fmtBRL(totalSaidasFiltrado)}</td>
+                      <td />
                     </tr>
                   </tfoot>
                 )}
@@ -428,6 +584,17 @@ function FluxoDinheiroInner() {
         Fonte: ContaHub. <b>Entradas</b> = pagamentos recebidos em dinheiro (por turno). <b>Saídas</b> = seção &quot;Lançamentos do CAIXA&quot;
         do relatório de turno (retirada p/ cofre/escritório, diferença de caixa etc.).
       </p>
+
+      {modal && selectedBar?.id && (
+        <LancarSaidaModal
+          saida={modal}
+          barId={selectedBar.id}
+          catOpts={catOpts}
+          conta={contaCaixa}
+          onClose={() => setModal(null)}
+          onDone={(baixado) => { setLancados((m) => ({ ...m, [lancKey(modal.trn, modal.num_lancamento)]: baixado })); setModal(null); }}
+        />
+      )}
     </div>
   );
 }

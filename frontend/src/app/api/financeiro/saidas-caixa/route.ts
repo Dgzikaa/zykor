@@ -95,7 +95,17 @@ export async function GET(request: NextRequest) {
     for (const r of dimRows) if (typeof r.dt_gerencial === 'string') mesesSet.add(r.dt_gerencial.slice(0, 7));
     const meses_disponiveis = Array.from(mesesSet).sort().reverse();
 
-    return NextResponse.json({ success: true, saidas, entradas, turnos, resumo, meses_disponiveis });
+    // Saídas já lançadas no CA (financial.saida_caixa_ca_log) — pro botão mostrar "lançado"
+    const lancRows = await paginate<any>(
+      () => (supabase as any)
+        .schema('financial').from('saida_caixa_ca_log')
+        .select('trn, num_lancamento, ca_protocol_id, baixado')
+        .eq('bar_id', user.bar_id),
+      { label: 'financeiro/saidas-caixa/lancados' },
+    ).catch(() => [] as any[]);
+    const lancados = lancRows.map((l) => ({ trn: l.trn, num_lancamento: l.num_lancamento, baixado: l.baixado }));
+
+    return NextResponse.json({ success: true, saidas, entradas, turnos, resumo, meses_disponiveis, lancados });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'Erro ao buscar saídas de caixa' }, { status: 500 });
   }
