@@ -57,6 +57,8 @@ interface BarStoneConfig {
 
 // De-para bar 3: Ordinário (142630205) créd/déb→Ordinário BB, pix→Ordinário Stone; taxa→Ordinário BB.
 //               Ordibar   (149840567) créd/déb→OrdiBar Inter, pix→OrdiBar Stone; taxa→OrdiBar Inter.
+// De-para bar 4: Deboche/Descubra (144417776) créd/déb→Descubra BB, pix→Descubra Stone; taxa→Descubra BB.
+//               DSCBR            (115466500) créd/déb→DSCBR Inter, pix→DSCBR Stone; taxa→DSCBR Inter.
 const CONFIG: Record<number, BarStoneConfig> = {
   3: {
     cliente_id: 'afe2340b-9e88-40d9-acfb-0d3a71b9dcaa', // STONE INSTITUIÇÃO DE PAGAMENTO (CLIENTE)
@@ -84,6 +86,35 @@ const CONFIG: Record<number, BarStoneConfig> = {
         DEBITO: '86213fcf-52aa-4c2e-9359-79a8641397a2', // OrdiBar Inter
         PIX: '892449d4-a328-4b73-a6a2-38aa243983f3', // OrdiBar Stone
         taxa: '86213fcf-52aa-4c2e-9359-79a8641397a2', // OrdiBar Inter
+      },
+    },
+  },
+  4: {
+    cliente_id: '3c3ce70e-6f22-4754-af56-8d93f71a4c9e', // STONE (Cliente) — perfil ["Cliente"]
+    categorias: {
+      CREDITO: { categoria_id: '93b908a2-75f1-48d8-84bf-bd823c7a7b80', label: 'Crédito' }, // Stone Crédito
+      DEBITO: { categoria_id: '157b823c-b0b5-4755-8889-ab28ef6dff6e', label: 'Débito' }, // Stone Débito
+      PIX: { categoria_id: 'bc079760-cca7-49df-8219-79c59074f7fb', label: 'PIX' }, // Stone Pix
+    },
+    taxa: {
+      categoria_id: 'b1bc192b-3afa-45d0-8a72-752ca229872d', // TAXA MAQUININHA (despesa)
+      fornecedor_id: 'ec8f40bb-17d8-4af3-aeb2-25a3f3682ab9', // STONE (Fornecedor) — perfil ["Fornecedor"]
+      compensacao_categoria_id: 'f0f84a9e-933e-4648-995d-66210e24ecbf', // Outras Receitas (compensação)
+    },
+    contasPorCnpj: {
+      '144417776': { // Deboche / Descubra Bar e Restaurante — CNPJ 40.433.371/0001-81
+        nome: 'Deboche',
+        CREDITO: '113908af-35fb-447e-a9c4-9532e9f289ba', // Descubra BB
+        DEBITO: '113908af-35fb-447e-a9c4-9532e9f289ba', // Descubra BB
+        PIX: 'a910f4dd-0491-4d61-bbb7-feaa54f81c72', // Descubra Stone
+        taxa: '113908af-35fb-447e-a9c4-9532e9f289ba', // Descubra BB
+      },
+      '115466500': { // DSCBR
+        nome: 'DSCBR',
+        CREDITO: 'bd5e3685-b9eb-49b0-a8f3-30dba4598a6c', // DSCBR Inter
+        DEBITO: 'bd5e3685-b9eb-49b0-a8f3-30dba4598a6c', // DSCBR Inter
+        PIX: 'c00c234f-1df4-437b-bdb2-17a2ebb72eaf', // DSCBR Stone
+        taxa: 'bd5e3685-b9eb-49b0-a8f3-30dba4598a6c', // DSCBR Inter
       },
     },
   },
