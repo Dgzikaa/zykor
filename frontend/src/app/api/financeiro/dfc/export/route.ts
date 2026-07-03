@@ -20,7 +20,10 @@ export async function GET(req: NextRequest) {
     const soConciliado = sp.get('conciliado') === '1';
 
     const supabase = await getAdminClient();
-    const { data, error } = await (supabase as any).rpc('get_dfc_por_ano', { p_bar_id: barId, p_ano: ano, p_so_conciliado: soConciliado });
+    // gold.mv_dfc_ano = DFC materializada (idêntica à função, refresh horário) — ~0,3ms vs ~1s
+    const { data, error } = await (supabase as any).schema('gold').from('mv_dfc_ano')
+      .select('mes, grupo_dfc, categoria, categoria_macro, ordem_macro, ordem_sub, entradas, saidas, net')
+      .eq('bar_id', barId).eq('ano', ano).eq('so_conciliado', soConciliado);
     if (error) throw error;
 
     // pivot: (grupo, categoria) -> [net por mês]
