@@ -145,7 +145,7 @@ export default function FerramentasArtistasPage() {
                 )}
           </CardContent>
         </Card>
-        <p className="text-[11px] text-gray-400">Valores do <b>período selecionado</b> ({periodo} meses) e só de noites com faturamento &gt; R$1.000 — por isso o "cachê pago" aqui difere do <b>total histórico</b> na página do artista. Cachê exato do Conta Azul por artista (mesmo critério da trajetória, sem rateio). Consumação de cortesia fora deste cálculo.</p>
+        <p className="text-[11px] text-gray-400">Valores do <b>período selecionado</b> ({periodo} meses) e só de noites com faturamento &gt; R$1.000 — por isso o &quot;cachê pago&quot; aqui difere do <b>total histórico</b> na página do artista. Cachê exato do Conta Azul por artista (mesmo critério da trajetória, sem rateio). Consumação de cortesia fora deste cálculo.</p>
       </div>
     </div>
   );
