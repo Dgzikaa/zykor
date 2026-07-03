@@ -281,6 +281,7 @@ export function FluxoContaHub({ only }: { only?: 'entradas' | 'saidas' | 'turnos
 
   // Lançar saída no CA
   const [lancados, setLancados] = useState<Record<string, boolean>>({}); // "trn-num" -> baixado
+  const [entLanc, setEntLanc] = useState<Record<string, boolean>>({}); // dt_gerencial -> baixado (entradas)
   const [catOpts, setCatOpts] = useState<CatOpt[]>([]);
   const [contaCaixa, setContaCaixa] = useState<{ id: string; nome: string } | null>(null);
   const [modal, setModal] = useState<Saida | null>(null);
@@ -308,6 +309,9 @@ export function FluxoContaHub({ only }: { only?: 'entradas' | 'saidas' | 'turnos
       const lm: Record<string, boolean> = {};
       for (const l of (r.lancados || [])) lm[lancKey(l.trn, l.num_lancamento)] = !!l.baixado;
       setLancados(lm);
+      const em: Record<string, boolean> = {};
+      for (const l of (r.entradas_lancadas || [])) em[l.dt_gerencial] = !!l.baixado;
+      setEntLanc(em);
       if ((r.meses_disponiveis || []).length) {
         setMeses(r.meses_disponiveis);
         if (!mesSel) setMesSel(r.meses_disponiveis[0]);
@@ -449,6 +453,7 @@ export function FluxoContaHub({ only }: { only?: 'entradas' | 'saidas' | 'turnos
                       <th className="text-left font-medium px-4 py-2.5"><ColHeader label="Turno" align="left" options={fEntradas.optionsFor('turno')} selected={fEntradas.colFilter.turno || new Set()} onChange={(n) => fEntradas.setCol('turno', n)} /></th>
                       <th className="text-right font-medium px-4 py-2.5">Pgtos</th>
                       <th className="text-right font-medium px-4 py-2.5">Dinheiro recebido</th>
+                      <th className="text-center font-medium px-4 py-2.5">CA</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -461,10 +466,17 @@ export function FluxoContaHub({ only }: { only?: 'entradas' | 'saidas' | 'turnos
                         <td className="px-4 py-2 text-muted-foreground tabular-nums">#{e.trn}</td>
                         <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{fmtNum(e.qtd_pagamentos)}</td>
                         <td className="px-4 py-2 text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{fmtBRL(e.total_liquido)}</td>
+                        <td className="px-4 py-2 text-center">
+                          {e.dt_gerencial in entLanc ? (
+                            <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400" title="Lançado no Conta Azul"><Check className="h-3.5 w-3.5" /> lançado</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground" title="Será lançado automaticamente (cron 12h)">pendente</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                     {!loading && fEntradas.filtered.length === 0 && (
-                      <tr><td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">{fEntradas.filtrando ? 'Nenhuma entrada com esses filtros.' : 'Nenhuma entrada de dinheiro no período.'}</td></tr>
+                      <tr><td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">{fEntradas.filtrando ? 'Nenhuma entrada com esses filtros.' : 'Nenhuma entrada de dinheiro no período.'}</td></tr>
                     )}
                   </tbody>
                   {fEntradas.filtered.length > 0 && (
@@ -472,6 +484,7 @@ export function FluxoContaHub({ only }: { only?: 'entradas' | 'saidas' | 'turnos
                       <tr className="border-t bg-muted/20 font-semibold">
                         <td className="px-4 py-2.5" colSpan={3}>{fEntradas.filtrando ? `Filtrado (${fmtNum(fEntradas.filtered.length)})` : `Total (${fmtNum(fEntradas.filtered.length)})`}</td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{fmtBRL(totalEntradasFiltrado)}</td>
+                        <td />
                       </tr>
                     </tfoot>
                   )}

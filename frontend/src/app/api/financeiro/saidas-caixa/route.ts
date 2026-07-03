@@ -105,7 +105,17 @@ export async function GET(request: NextRequest) {
     ).catch(() => [] as any[]);
     const lancados = lancRows.map((l) => ({ trn: l.trn, num_lancamento: l.num_lancamento, baixado: l.baixado }));
 
-    return NextResponse.json({ success: true, saidas, entradas, turnos, resumo, meses_disponiveis, lancados });
+    // Entradas já lançadas no CA (financial.entrada_caixa_ca_log) — status por dia
+    const entLog = await paginate<any>(
+      () => (supabase as any)
+        .schema('financial').from('entrada_caixa_ca_log')
+        .select('dt_gerencial, valor, baixado')
+        .eq('bar_id', user.bar_id),
+      { label: 'financeiro/saidas-caixa/entradas-lancadas' },
+    ).catch(() => [] as any[]);
+    const entradas_lancadas = entLog.map((l) => ({ dt_gerencial: l.dt_gerencial, valor: l.valor, baixado: l.baixado }));
+
+    return NextResponse.json({ success: true, saidas, entradas, turnos, resumo, meses_disponiveis, lancados, entradas_lancadas });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'Erro ao buscar saídas de caixa' }, { status: 500 });
   }

@@ -2,14 +2,17 @@
 
 import { useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { TrendingUp, CreditCard, Banknote } from 'lucide-react';
+import { TrendingUp, CreditCard, Banknote, Ticket, Music } from 'lucide-react';
 import { StoneRecebiveisConteudo } from '@/app/financeiro/stone-recebiveis/page';
 import { FluxoContaHub } from '@/app/financeiro/saidas-caixa/page';
+import { SymplaRecebiveis, YuzerEmConstrucao } from './SymplaRecebiveis';
 
 function ReceitasInner() {
-  const [aba, setAba] = useState<'stone' | 'dinheiro'>('stone');
+  const [aba, setAba] = useState<'stone' | 'sympla' | 'yuzer' | 'dinheiro'>('stone');
   const tabs = [
     { id: 'stone', label: 'Stone', Icon: CreditCard },
+    { id: 'sympla', label: 'Sympla', Icon: Ticket },
+    { id: 'yuzer', label: 'Yuzer', Icon: Music },
     { id: 'dinheiro', label: 'Dinheiro (ContaHub)', Icon: Banknote },
   ] as const;
 
@@ -23,16 +26,18 @@ function ReceitasInner() {
         </div>
       </div>
 
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 border-b overflow-x-auto">
         {tabs.map(({ id, label, Icon }) => (
           <button key={id} onClick={() => setAba(id)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${aba === id ? 'border-primary text-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 -mb-px whitespace-nowrap transition-colors ${aba === id ? 'border-primary text-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
             <Icon className="h-4 w-4" /> {label}
           </button>
         ))}
       </div>
 
       {aba === 'stone' && <StoneRecebiveisConteudo />}
+      {aba === 'sympla' && <SymplaRecebiveis />}
+      {aba === 'yuzer' && <YuzerEmConstrucao />}
       {aba === 'dinheiro' && <FluxoContaHub only="entradas" />}
     </div>
   );
