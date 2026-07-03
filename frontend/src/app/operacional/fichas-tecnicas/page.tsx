@@ -231,7 +231,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     if (!sel) return;
     if (!rendNome.trim()) { toast({ title: 'Informe o nome da produção', variant: 'destructive' }); return; }
     try {
-      await api.put('/api/operacional/producoes', { id: sel, nome: rendNome.trim(), codigo: rendCod.trim() || null, rendimento: Number(rendVal) || 0, unidade: rendUni, unidade_contagem: rendUniCont.trim() || null, fator_contagem: rendFator.trim() === '' ? null : Number(rendFator.replace(',', '.')) });
+      await api.put('/api/operacional/producoes', { id: sel, nome: rendNome.trim(), codigo: rendCod.trim() || null, rendimento: Number(String(rendVal).replace(',', '.')) || 0, unidade: rendUni, unidade_contagem: rendUniCont.trim() || null, fator_contagem: rendFator.trim() === '' ? null : Number(rendFator.replace(',', '.')) });
       setEditRend(false); reloadLista();
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
@@ -352,7 +352,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   const adicionar = async () => {
     if (!sel || !addEscolhido) { toast({ title: 'Escolha o componente', variant: 'destructive' }); return; }
     // unidade NÃO é escolhida — segue o cadastro do insumo (base) / preparo (rendimento)
-    const payload: any = { [parentParam]: sel, componente_tipo: addTipo, quantidade: Number(addQtd) || 0, unidade: null };
+    const payload: any = { [parentParam]: sel, componente_tipo: addTipo, quantidade: Number(String(addQtd).replace(',', '.')) || 0, unidade: null };
     if (addTipo === 'insumo') { payload.insumo_codigo = addEscolhido.codigo; payload.nome_componente = addEscolhido.nome; }
     else { payload.producao_ref = addEscolhido.id; payload.nome_componente = addEscolhido.nome; }
     try {
@@ -582,7 +582,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                         <td className="px-2 py-1.5 text-right">
                           {it.insumo_fc ? (
                             <div className="flex flex-col items-end">
-                              <input type="number" step="0.0001" min={0.01} max={1} defaultValue={it.fator_correcao ?? 1} key={`fc-${it.id}-${it.fator_correcao}`}
+                              <input type="text" inputMode="decimal" step="0.0001" min={0.01} max={1} defaultValue={it.fator_correcao ?? 1} key={`fc-${it.id}-${it.fator_correcao}`}
                                 onBlur={e => salvarFcItem(it, e.target.value, e.target)} title="Fator de Correção = aproveitamento (0 a 1). Ex.: 0,9 = 90% · filé 100/120 = 0,833"
                                 className="h-7 w-16 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 px-1 text-xs text-right" />
                               {Number(it.fator_correcao || 1) !== 1 && <span className="text-[10px] text-amber-600 dark:text-amber-400" title="Peso efetivo usado">→ {fmtPeso(it.qtd_efetiva, it.unidade_exib)}</span>}
@@ -611,7 +611,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                       <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Editar componente</h4>
                       <p className="text-sm text-gray-500 mb-3">{editItem.nome_componente}</p>
                       <div className="flex gap-2 items-end">
-                        <div className="flex-1"><label className="text-xs text-gray-500">Quantidade ({editItem.unidade_exib || '—'})</label><Input type="number" step="0.001" value={editQtd} onChange={e => setEditQtd(e.target.value)} /></div>
+                        <div className="flex-1"><label className="text-xs text-gray-500">Quantidade ({editItem.unidade_exib || '—'})</label><Input type="text" inputMode="decimal" step="0.001" value={editQtd} onChange={e => setEditQtd(e.target.value)} /></div>
                       </div>
                       <p className="text-[11px] text-gray-400 mt-1">A unidade segue o cadastro do insumo/preparo.</p>
                       <div className="flex justify-end gap-2 mt-4">
@@ -631,7 +631,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                         <div><label className="text-xs text-gray-500">Nome *</label><Input value={rendNome} onChange={e => setRendNome(e.target.value)} placeholder="Nome da produção" /></div>
                         <div className="flex gap-2">
                           <div className="w-32"><label className="text-xs text-gray-500">Código</label><Input value={rendCod} onChange={e => setRendCod(e.target.value)} placeholder="pc0000" /></div>
-                          <div className="flex-1"><label className="text-xs text-gray-500">Rendimento</label><Input type="number" step="0.001" value={rendVal} onChange={e => setRendVal(e.target.value)} /></div>
+                          <div className="flex-1"><label className="text-xs text-gray-500">Rendimento</label><Input type="text" inputMode="decimal" step="0.001" value={rendVal} onChange={e => setRendVal(e.target.value)} /></div>
                           <div className="w-24"><label className="text-xs text-gray-500">Unidade</label>
                             <select value={rendUni} onChange={e => setRendUni(e.target.value)} className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
                               {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
@@ -644,7 +644,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                             <Input value={rendUniCont} onChange={e => setRendUniCont(e.target.value)} placeholder={rendUni} />
                           </div>
                           <div className="w-32"><label className="text-xs text-gray-500" title="Quanto da unidade-base cabe em 1 unidade de contagem">Conversor p/ contagem</label>
-                            <Input type="number" step="0.001" value={rendFator} onChange={e => setRendFator(e.target.value)} placeholder="1" />
+                            <Input type="text" inputMode="decimal" step="0.001" value={rendFator} onChange={e => setRendFator(e.target.value)} placeholder="1" />
                           </div>
                         </div>
                         <p className="text-[11px] text-gray-400">Ex.: conta em <b>{rendUniCont.trim() || 'porção'}</b> e cada uma tem <b>{rendFator.trim() || '0,4'} {rendUni}</b> → na contagem você digita o nº de {rendUniCont.trim() || 'porções'} e o sistema multiplica pelo conversor pra ter {rendUni}.</p>
@@ -765,7 +765,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                           <div className="flex-1 min-w-[160px]"><label className="text-xs text-gray-500">Componente</label>
                             <div className="h-10 flex items-center px-3 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm justify-between"><span className="truncate">{addEscolhido.nome}</span><button onClick={() => setAddEscolhido(null)} className="text-gray-400 text-xs ml-2">trocar</button></div>
                           </div>
-                          <div className="w-28"><label className="text-xs text-gray-500">Qtd ({addTipo === 'insumo' ? (addEscolhido.base || '—') : (addEscolhido.unidade || '—')})</label><Input type="number" step="0.001" value={addQtd} onChange={e => setAddQtd(e.target.value)} /></div>
+                          <div className="w-28"><label className="text-xs text-gray-500">Qtd ({addTipo === 'insumo' ? (addEscolhido.base || '—') : (addEscolhido.unidade || '—')})</label><Input type="text" inputMode="decimal" step="0.001" value={addQtd} onChange={e => setAddQtd(e.target.value)} /></div>
                         </div>
                         <p className="text-[11px] text-gray-400">A unidade segue o cadastro do {addTipo === 'insumo' ? 'insumo' : 'preparo'} ({addTipo === 'insumo' ? (addEscolhido.base || 'sem unidade') : (addEscolhido.unidade || 'sem unidade')}).</p>
                         </>

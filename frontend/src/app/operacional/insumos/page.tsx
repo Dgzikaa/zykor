@@ -718,7 +718,7 @@ export default function InsumosPage() {
                     {['g', 'ml', 'un'].map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
-                <div className="flex-1"><label className="text-xs text-gray-500" title="conversão da unidade de compra para unidade de ficha técnica">Embalagem</label><Input type="number" step="0.001" value={nEmb} onChange={e => setNEmb(e.target.value)} placeholder="ex.: 1000" /></div>
+                <div className="flex-1"><label className="text-xs text-gray-500" title="conversão da unidade de compra para unidade de ficha técnica">Embalagem</label><Input type="text" inputMode="decimal" value={nEmb} onChange={e => setNEmb(e.target.value)} placeholder="ex.: 1000" /></div>
                 <div className="w-24"><label className="text-xs text-gray-500">Preço (R$)</label><Input value={nPreco} onChange={e => setNPreco(e.target.value)} placeholder="0,00" /></div>
                 <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 pb-2"><input type="checkbox" checked={nFc} onChange={e => setNFc(e.target.checked)} />FC</label>
               </div>
@@ -800,7 +800,7 @@ export default function InsumosPage() {
                     <option value="g">g</option><option value="ml">ml</option><option value="un">un</option>
                   </select>
                 </div>
-                <div className="flex-1"><label className="text-xs text-gray-500" title="conversão da unidade de compra para unidade de ficha técnica">Embalagem</label><Input type="number" step="0.001" value={fEmb} onChange={e => setFEmb(e.target.value)} /></div>
+                <div className="flex-1"><label className="text-xs text-gray-500" title="conversão da unidade de compra para unidade de ficha técnica">Embalagem</label><Input type="text" inputMode="decimal" value={fEmb} onChange={e => setFEmb(e.target.value)} /></div>
               </div>
               <div className="flex justify-end gap-2 pt-1">
                 <Button variant="outline" onClick={() => setEditIns(null)}>Cancelar</Button>
