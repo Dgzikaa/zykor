@@ -66,6 +66,13 @@ interface StatusSync {
   registros: number
 }
 
+interface CheckInfra {
+  grupo: string
+  titulo: string
+  status: 'ok' | 'falha' | 'alerta'
+  detalhe: string
+}
+
 export default function SaudeDadosPage() {
   const router = useRouter()
   const { setPageTitle } = usePageTitle()
@@ -73,6 +80,7 @@ export default function SaudeDadosPage() {
   const [alertas, setAlertas] = useState<Alerta[]>([])
   const [bloqueados, setBloqueados] = useState<DadoBloqueado[]>([])
   const [statusSyncs, setStatusSyncs] = useState<StatusSync[]>([])
+  const [smoke, setSmoke] = useState<CheckInfra[]>([])
   const [loading, setLoading] = useState(true)
   const [executandoValidacao, setExecutandoValidacao] = useState(false)
 
@@ -88,6 +96,13 @@ export default function SaudeDadosPage() {
         setBloqueados(data.bloqueados || [])
         setStatusSyncs(data.statusSyncs || [])
       }
+
+      // Smoke-check de infra (independente — best-effort)
+      try {
+        const smokeRes = await fetch('/api/saude-dados/smoke')
+        const smokeData = await smokeRes.json().catch(() => ({}))
+        if (smokeData?.success) setSmoke(smokeData.checks || [])
+      } catch { /* noop */ }
     } catch (error) {
       console.error('Erro ao buscar dados:', error)
     } finally {
@@ -139,6 +154,7 @@ export default function SaudeDadosPage() {
   }
 
   const alertasPendentes = alertas.filter(a => !a.resolvido)
+  const infraProblemas = smoke.filter(c => c.status !== 'ok').length
   const validacoesUltimos7Dias = validacoes.filter(v => {
     const data = new Date(v.data_referencia)
     return data >= subDays(new Date(), 7)
@@ -256,6 +272,12 @@ export default function SaudeDadosPage() {
             </TabsTrigger>
             <TabsTrigger value="syncs">Status Syncs</TabsTrigger>
             <TabsTrigger value="bloqueados">Dados Bloqueados</TabsTrigger>
+            <TabsTrigger value="infra">
+              Infra
+              {infraProblemas > 0 && (
+                <Badge variant="destructive" className="ml-2">{infraProblemas}</Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           {/* Tab: Validações */}
@@ -477,6 +499,51 @@ export default function SaudeDadosPage() {
                       </tbody>
                     </table>
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Tab: Infra (smoke-check de existência/config) */}
+          <TabsContent value="infra">
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-gray-900 dark:text-white">Smoke-check de infra</CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400">
+                  Existência de buckets, tabelas críticas, schemas expostos no PostgREST e crons vivos —
+                  pega o furo silencioso do tipo &quot;bucket/tabela não existe&quot;.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {smoke.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">Sem dados de infra.</div>
+                ) : (
+                  ['Storage', 'Tabelas', 'PostgREST', 'Crons'].map((grupo) => {
+                    const items = smoke.filter((c) => c.grupo === grupo)
+                    if (!items.length) return null
+                    return (
+                      <div key={grupo} className="mb-5">
+                        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{grupo}</h4>
+                        <div className="space-y-1.5">
+                          {items.map((c, i) => (
+                            <div key={i} className="flex items-start gap-2.5 rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2">
+                              {c.status === 'ok' ? (
+                                <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+                              ) : c.status === 'falha' ? (
+                                <XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                              ) : (
+                                <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />
+                              )}
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium text-gray-900 dark:text-white">{c.titulo}</div>
+                                <div className="text-xs text-gray-500 break-words">{c.detalhe}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })
                 )}
               </CardContent>
             </Card>
