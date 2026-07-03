@@ -91,7 +91,8 @@ export default function AtracoesPage() {
   useEffect(() => { if (aba === 'ranking' && ranking === null) carregarRanking(); }, [aba, ranking, carregarRanking]);
 
   const evol = traj?.evolucao || [];
-  const evolChart = evol.map(e => ({ ...e, label: fmtMesAno(e.data) }));
+  // 1 ponto POR SHOW (label = data ISO única); eixo exibe mês/ano, tooltip mostra a data exata.
+  const evolChart = evol.map(e => ({ ...e, label: e.data.slice(0, 10) }));
   const crescPublico = traj && traj.primeiro?.publico ? Math.round(((traj.atual.publico! - traj.primeiro.publico!) / traj.primeiro.publico!) * 100) : null;
 
   return (
@@ -254,9 +255,9 @@ function TrajetoriaView({ traj, nome, tipo, evolChart, crescPublico, barNome }: 
           <ResponsiveContainer>
             <LineChart data={evolChart} margin={{ top: 6, right: 12, left: 4, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={24} />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v) => fmtMesAno(String(v))} interval="preserveStartEnd" minTickGap={40} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} width={38} />
-              <RTooltip formatter={((v: number) => moneyC(Number(v))) as any} labelFormatter={(l) => String(l)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+              <RTooltip formatter={((v: number) => moneyC(Number(v))) as any} labelFormatter={(l) => fmtData(String(l))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
               <Line type="monotone" dataKey="cache" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} name="cachê" />
             </LineChart>
           </ResponsiveContainer>
@@ -272,9 +273,9 @@ function TrajetoriaView({ traj, nome, tipo, evolChart, crescPublico, barNome }: 
               <AreaChart data={evolChart} margin={{ top: 6, right: 12, left: 4, bottom: 0 }}>
                 <defs><linearGradient id="gPub" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6" stopOpacity={0.5} /><stop offset="100%" stopColor="#3b82f6" stopOpacity={0} /></linearGradient></defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={24} />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v) => fmtMesAno(String(v))} interval="preserveStartEnd" minTickGap={40} />
                 <YAxis tick={{ fontSize: 11 }} width={34} />
-                <RTooltip formatter={((v: number) => [num(Number(v)), 'público']) as any} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <RTooltip formatter={((v: number) => [num(Number(v)), 'público']) as any} labelFormatter={(l) => fmtData(String(l))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 <Area type="monotone" dataKey="publico" stroke="#3b82f6" fill="url(#gPub)" name="público" />
               </AreaChart>
             </ResponsiveContainer>
@@ -286,9 +287,9 @@ function TrajetoriaView({ traj, nome, tipo, evolChart, crescPublico, barNome }: 
             <ResponsiveContainer>
               <LineChart data={evolChart} margin={{ top: 6, right: 12, left: 4, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={24} />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v) => fmtMesAno(String(v))} interval="preserveStartEnd" minTickGap={40} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} width={38} />
-                <RTooltip formatter={((v: number) => moneyC(Number(v))) as any} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <RTooltip formatter={((v: number) => moneyC(Number(v))) as any} labelFormatter={(l) => fmtData(String(l))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 <Line type="monotone" dataKey="fat" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 2 }} name="faturamento" />
               </LineChart>
             </ResponsiveContainer>
