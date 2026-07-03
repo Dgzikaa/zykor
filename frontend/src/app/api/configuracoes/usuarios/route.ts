@@ -325,6 +325,14 @@ export const PUT = requireAdmin(async (request, user) => {
 
     if (error) throw error;
 
+    // Permissões/role podem ter mudado → força o usuário a relogar (corte por usuário) pra o novo
+    // token trazer as perms frescas em todo lugar (front + middleware). O guard do backend já é
+    // fresco (relê do banco), mas isso mantém front/token consistentes na hora. Best-effort.
+    try {
+      await (supabase as any).schema('system').from('user_token_cutoff')
+        .upsert({ email: String(email).toLowerCase(), min_iat: Math.floor(Date.now() / 1000), updated_at: new Date().toISOString() }, { onConflict: 'email' });
+    } catch { /* noop */ }
+
     // 4. Atualizar relacionamentos na tabela usuarios_bares
     //    IMPORTANTE: usuarios_bares.usuario_id referencia o auth_id (auth.users.id),
     //    NAO o public.usuarios.id. Usar o id errado aqui deixava o usuario sem vinculo

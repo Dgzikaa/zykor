@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarSeNaoPode } from '@/lib/permissions/guard';
+
+// rota usada pela tela de Fichas (e cadastro de produção); libera se puder na Fichas OU Produção
+const PATHS = ['/operacional/fichas-tecnicas', '/operacional/producoes'];
 import { recalcCmvTeorico } from '@/lib/cmv-recalc';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +53,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarSeNaoPode(user, PATHS, 'inserir'); if (nega) return nega;
   const body = await request.json().catch(() => ({}));
   const barId = Number(body.bar_id) || user.bar_id;
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
@@ -124,6 +129,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarSeNaoPode(user, PATHS, 'editar'); if (nega) return nega;
   const body = await request.json().catch(() => ({}));
   const id = Number(body.id);
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
@@ -144,6 +150,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarSeNaoPode(user, PATHS, 'excluir'); if (nega) return nega;
   const id = Number(new URL(request.url).searchParams.get('id'));
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
   const supabase = await getAdminClient();
