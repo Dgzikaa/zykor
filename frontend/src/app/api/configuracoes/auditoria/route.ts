@@ -17,6 +17,16 @@ export async function GET(request: NextRequest) {
   }
 
   const sp = new URL(request.url).searchParams;
+
+  // Aba Análise: estatísticas agregadas (server-side) + catálogo de cobertura.
+  if (sp.get('view') === 'stats') {
+    const supabaseS = await getAdminClient();
+    const dias = Math.min(Number(sp.get('dias')) || 30, 180);
+    const { data: stats, error: errS } = await (supabaseS as any).schema('system').rpc('audit_stats', { p_dias: dias });
+    if (errS) return NextResponse.json({ success: false, error: errS.message }, { status: 500 });
+    return NextResponse.json({ success: true, stats });
+  }
+
   const de = sp.get('de');
   const ate = sp.get('ate');
   const operation = sp.get('operation');
@@ -44,12 +54,16 @@ export async function GET(request: NextRequest) {
   const { data, error, count } = await query.range(offset, offset + limit - 1);
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-  // valores distintos p/ os selects (amostra dos 1000 mais recentes — barato e suficiente)
+  // Operações distintas (amostra recente — só existem 4 tipos, barato)
   const { data: amostra } = await (supabase as any)
     .schema('system').from('audit_trail')
-    .select('operation, table_name').order('timestamp', { ascending: false }).limit(1000);
+    .select('operation').order('timestamp', { ascending: false }).limit(1000);
   const operacoes = Array.from(new Set((amostra || []).map((r: any) => r.operation).filter(Boolean))).sort();
-  const tabelas = Array.from(new Set((amostra || []).map((r: any) => r.table_name).filter(Boolean))).sort();
+
+  // Tabelas: CATÁLOGO REAL (todas as auditáveis, com contagem) — não mais só as que já
+  // geraram evento. Resolve o "filtro só mostra 8 tabelas".
+  const { data: catalogo } = await (supabase as any).schema('system').rpc('audit_tabelas_catalogo');
+  const tabelas = (catalogo || []).map((r: any) => ({ nome: r.schema_tabela, eventos: Number(r.eventos) }));
 
   return NextResponse.json({ success: true, logs: data || [], total: count ?? (data?.length || 0), operacoes, tabelas, limit, offset });
 }

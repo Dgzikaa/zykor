@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Shield, Search, Download, Filter, User, Clock, Database, Loader2, AlertTriangle, ListChecks, ChevronRight, ChevronDown, Users, Wifi, XCircle, CheckCircle2 } from 'lucide-react';
+import { Shield, Search, Download, Filter, User, Clock, Database, Loader2, AlertTriangle, ListChecks, ChevronRight, ChevronDown, Users, Wifi, XCircle, CheckCircle2, BarChart3, ShieldAlert, Trash2, Activity } from 'lucide-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 
@@ -102,12 +103,14 @@ export default function AuditoriaPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [total, setTotal] = useState(0);
   const [operacoes, setOperacoes] = useState<string[]>([]);
-  const [tabelas, setTabelas] = useState<string[]>([]);
+  const [tabelas, setTabelas] = useState<{ nome: string; eventos: number }[]>([]);
+  const [stats, setStats] = useState<any>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [auto, setAuto] = useState(true); // tempo real ligado por padrão (polling)
-  const [aba, setAba] = useState<'tudo' | 'sensiveis' | 'acessos'>('tudo');
+  const [aba, setAba] = useState<'tudo' | 'sensiveis' | 'acessos' | 'analise'>('tudo');
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set()); // grupos (ações em massa) abertos
   const [acessos, setAcessos] = useState<{ sessoes: any[]; tentativas: any[]; online_count: number } | null>(null);
 
@@ -154,14 +157,25 @@ export default function AuditoriaPage() {
     finally { setLoading(false); }
   }, []);
 
+  const carregarStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const r = await api.get('/api/configuracoes/auditoria?view=stats&dias=30') as any;
+      setStats(r.stats || null);
+    } catch { /* noop */ }
+    finally { setStatsLoading(false); }
+  }, []);
+
   useEffect(() => { // carga inicial + ao trocar de aba
-    if (aba === 'acessos') carregarAcessos(); else carregar(0, false);
+    if (aba === 'acessos') carregarAcessos();
+    else if (aba === 'analise') carregarStats();
+    else carregar(0, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aba]);
 
-  // tempo real: recarrega a cada 10s sem piscar o spinner
+  // tempo real: recarrega a cada 10s sem piscar o spinner (aba Análise não faz polling)
   useEffect(() => {
-    if (!auto) return;
+    if (!auto || aba === 'analise') return;
     const t = setInterval(() => { if (aba === 'acessos') carregarAcessos(true); else carregar(0, false, true); }, 10000);
     return () => clearInterval(t);
   }, [auto, aba, carregar, carregarAcessos]);
@@ -342,6 +356,81 @@ export default function AuditoriaPage() {
     );
   };
 
+  const renderAnalise = () => {
+    if (statsLoading && !stats) {
+      return <div className="flex items-center gap-2 text-sm text-gray-500 py-16 justify-center"><Loader2 className="h-4 w-4 animate-spin" />Calculando estatísticas…</div>;
+    }
+    if (!stats) return <p className="text-sm text-gray-500 py-16 text-center">Sem dados de auditoria ainda.</p>;
+    const t = stats.totais || {}; const cob = stats.cobertura || {};
+    const porDia = (stats.por_dia || []).map((d: any) => ({ ...d, dia: (d.dia || '').slice(5) }));
+    const topTab = (stats.top_tabelas || []).map((r: any) => ({ nome: labelTabela(r.tabela), total: Number(r.total) }));
+    const porUser = (stats.por_usuario || []).map((r: any) => ({ nome: (r.usuario || '—').split('@')[0], total: Number(r.total) }));
+    const cobPct = cob.auditaveis ? Math.round((cob.com_eventos / cob.auditaveis) * 100) : 0;
+    const kpis = [
+      { l: 'Eventos (30d)', v: t.eventos ?? 0, icon: Activity, c: 'text-violet-600' },
+      { l: 'Exclusões', v: t.exclusoes ?? 0, icon: Trash2, c: 'text-rose-600' },
+      { l: 'Ações sensíveis', v: t.sensiveis ?? 0, icon: ShieldAlert, c: 'text-amber-600' },
+      { l: 'Usuários ativos', v: t.usuarios_ativos ?? 0, icon: Users, c: 'text-emerald-600' },
+      { l: 'Cobertura', v: `${cob.com_eventos}/${cob.auditaveis}`, sub: `${cobPct}% já registraram`, icon: Database, c: 'text-blue-600' },
+    ];
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {kpis.map((k, i) => (
+            <Card key={i}><CardContent className="p-4">
+              <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><k.icon className={`h-3.5 w-3.5 ${k.c}`} />{k.l}</div>
+              <div className="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{k.v}</div>
+              {k.sub && <div className="text-[11px] text-gray-400">{k.sub}</div>}
+            </CardContent></Card>
+          ))}
+        </div>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><BarChart3 className="h-4 w-4 text-violet-600" />Atividade por dia (últimos 30 dias)</CardTitle></CardHeader>
+          <CardContent>
+            <div style={{ width: '100%', height: 240 }}>
+              <ResponsiveContainer>
+                <BarChart data={porDia} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis dataKey="dia" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Bar dataKey="inseriu" stackId="a" fill="#10b981" name="Criou" radius={[0,0,0,0]} />
+                  <Bar dataKey="editou" stackId="a" fill="#8b5cf6" name="Editou" />
+                  <Bar dataKey="excluiu" stackId="a" fill="#f43f5e" name="Excluiu" radius={[3,3,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+        <div className="grid md:grid-cols-2 gap-4">
+          <Card><CardHeader className="pb-2"><CardTitle className="text-base">Tabelas mais alteradas</CardTitle></CardHeader>
+            <CardContent><div style={{ width: '100%', height: 260 }}>
+              <ResponsiveContainer>
+                <BarChart data={topTab} layout="vertical" margin={{ top: 0, right: 12, left: 10, bottom: 0 }}>
+                  <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <YAxis type="category" dataKey="nome" tick={{ fontSize: 10 }} width={120} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Bar dataKey="total" fill="#8b5cf6" radius={[0,3,3,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div></CardContent>
+          </Card>
+          <Card><CardHeader className="pb-2"><CardTitle className="text-base">Quem mais alterou</CardTitle></CardHeader>
+            <CardContent><div style={{ width: '100%', height: 260 }}>
+              <ResponsiveContainer>
+                <BarChart data={porUser} layout="vertical" margin={{ top: 0, right: 12, left: 10, bottom: 0 }}>
+                  <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <YAxis type="category" dataKey="nome" tick={{ fontSize: 10 }} width={110} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Bar dataKey="total" fill="#0ea5e9" radius={[0,3,3,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div></CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-[calc(100vh-8px)] bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-2 py-3 pb-6 max-w-[98vw] space-y-4">
@@ -355,7 +444,7 @@ export default function AuditoriaPage() {
 
         {/* Abas */}
         <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
-          {([['tudo', 'Tudo', ListChecks], ['sensiveis', 'Ações sensíveis', AlertTriangle], ['acessos', 'Acessos', Users]] as const).map(([k, label, Icon]) => (
+          {([['tudo', 'Tudo', ListChecks], ['sensiveis', 'Ações sensíveis', AlertTriangle], ['acessos', 'Acessos', Users], ['analise', 'Análise', BarChart3]] as const).map(([k, label, Icon]) => (
             <button key={k} onClick={() => setAba(k)}
               className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 -mb-px transition ${aba === k ? 'border-violet-500 text-violet-700 dark:text-violet-300 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}>
               <Icon className={`h-4 w-4 ${k === 'sensiveis' ? 'text-rose-500' : ''}`} />{label}
@@ -371,6 +460,8 @@ export default function AuditoriaPage() {
             {erro && <div className="text-sm text-red-600 dark:text-red-400">{erro}</div>}
             {renderAcessos()}
           </>
+        ) : aba === 'analise' ? (
+          renderAnalise()
         ) : (<>
 
         {/* Filtros */}
@@ -398,8 +489,17 @@ export default function AuditoriaPage() {
               <div>
                 <label className="text-xs font-medium mb-1 block text-gray-500">Tabela</label>
                 <select value={table} onChange={e => setTable(e.target.value)} className="h-9 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
-                  <option value="">Todas</option>
-                  {tabelas.map(t => <option key={t} value={t}>{labelTabela(t)}</option>)}
+                  <option value="">Todas ({tabelas.length} auditáveis)</option>
+                  {Object.entries(
+                    tabelas.reduce((acc: Record<string, typeof tabelas>, t) => {
+                      const sch = t.nome.includes('.') ? t.nome.split('.')[0] : 'outros';
+                      (acc[sch] ??= []).push(t); return acc;
+                    }, {})
+                  ).map(([sch, arr]) => (
+                    <optgroup key={sch} label={sch}>
+                      {arr.map(t => <option key={t.nome} value={t.nome}>{labelTabela(t.nome)}{t.eventos > 0 ? ` (${t.eventos})` : ''}</option>)}
+                    </optgroup>
+                  ))}
                 </select>
               </div>
               <div className="col-span-2">
