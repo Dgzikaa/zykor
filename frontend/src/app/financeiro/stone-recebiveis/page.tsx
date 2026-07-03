@@ -100,7 +100,7 @@ function Conteudo() {
       <Card className="card-dark">
         <CardContent className="py-3 flex flex-wrap items-end gap-3">
           <div>
-            <label className="text-xs text-muted-foreground block mb-1">Data (dt. gerencial)</label>
+            <label className="text-xs text-muted-foreground block mb-1">Data (dia Stone · 00h–24h)</label>
             <Input type="date" value={data} max={ontemBRT()} onChange={e => setData(e.target.value)} className="h-9 w-44" />
           </div>
           <Button variant="outline" onClick={carregar} disabled={loading || !barId} className="h-9">
