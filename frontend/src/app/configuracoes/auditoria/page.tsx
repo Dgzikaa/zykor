@@ -113,6 +113,7 @@ export default function AuditoriaPage() {
   const [aba, setAba] = useState<'tudo' | 'sensiveis' | 'acessos' | 'analise'>('tudo');
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set()); // grupos (ações em massa) abertos
   const [acessos, setAcessos] = useState<{ sessoes: any[]; tentativas: any[]; online_count: number } | null>(null);
+  const [foco, setFoco] = useState<'online' | 'recentes' | 'falhos'>('recentes'); // card clicado na aba Acessos
 
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
@@ -286,12 +287,24 @@ export default function AuditoriaPage() {
     if (!acessos) return <div className="text-center py-10"><Loader2 className="h-7 w-7 animate-spin mx-auto text-gray-400" /></div>;
     const { sessoes, tentativas, online_count } = acessos;
     const falhas = tentativas.filter((t: any) => !t.sucesso);
+    const sessoesData = foco === 'online' ? sessoes.filter((s: any) => s.online) : sessoes;
+    const tentData = foco === 'falhos' ? falhas : tentativas;
+    const cards = [
+      { key: 'online' as const, icon: Wifi, label: 'Online agora', valor: online_count, valCor: 'text-emerald-600 dark:text-emerald-400', iconCor: 'text-emerald-500', ativo: 'border-emerald-400 ring-2 ring-emerald-200 dark:ring-emerald-900/60' },
+      { key: 'recentes' as const, icon: Users, label: 'Sessões recentes', valor: sessoes.length, valCor: 'text-gray-900 dark:text-white', iconCor: 'text-gray-400', ativo: 'border-violet-400 ring-2 ring-violet-200 dark:ring-violet-900/60' },
+      { key: 'falhos' as const, icon: XCircle, label: 'Logins falhos', valor: falhas.length, valCor: 'text-rose-600 dark:text-rose-400', iconCor: 'text-rose-500', ativo: 'border-rose-400 ring-2 ring-rose-200 dark:ring-rose-900/60' },
+    ];
     return (
       <div className="space-y-4">
-        <div className="flex flex-wrap gap-3">
-          <Card><CardContent className="p-3"><div className="text-xs text-gray-500 flex items-center gap-1"><Wifi className="h-3.5 w-3.5 text-emerald-500" />Online agora</div><div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{online_count}</div></CardContent></Card>
-          <Card><CardContent className="p-3"><div className="text-xs text-gray-500 flex items-center gap-1"><Users className="h-3.5 w-3.5" />Sessões recentes</div><div className="text-2xl font-bold text-gray-900 dark:text-white">{sessoes.length}</div></CardContent></Card>
-          <Card><CardContent className="p-3"><div className="text-xs text-gray-500 flex items-center gap-1"><XCircle className="h-3.5 w-3.5 text-rose-500" />Logins falhos</div><div className="text-2xl font-bold text-rose-600 dark:text-rose-400">{falhas.length}</div></CardContent></Card>
+        <div className="flex flex-wrap gap-3 items-stretch">
+          {cards.map(c => (
+            <button key={c.key} onClick={() => setFoco(c.key)} aria-pressed={foco === c.key}
+              className={`rounded-xl border bg-white dark:bg-gray-800 px-4 py-3 text-left transition min-w-[132px] ${foco === c.key ? c.ativo : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}`}>
+              <div className="text-xs text-gray-500 flex items-center gap-1"><c.icon className={`h-3.5 w-3.5 ${c.iconCor}`} />{c.label}</div>
+              <div className={`text-2xl font-bold ${c.valCor}`}>{c.valor}</div>
+              <div className="text-[10px] text-gray-400 mt-0.5">{foco === c.key ? '▼ mostrando abaixo' : 'clique p/ ver'}</div>
+            </button>
+          ))}
           <div className="ml-auto self-center">
             <Button variant="outline" size="sm" onClick={deslogarTodos} className="text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20" title="Invalida os tokens atuais: todos precisam entrar de novo">
               <XCircle className="h-4 w-4 mr-1.5" />Deslogar todos
@@ -299,8 +312,9 @@ export default function AuditoriaPage() {
           </div>
         </div>
 
+        {foco !== 'falhos' && (
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-base">Sessões</CardTitle><CardDescription>tempo logado × tempo realmente navegando (ativo)</CardDescription></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base">{foco === 'online' ? 'Quem está online agora' : 'Sessões'}</CardTitle><CardDescription>{foco === 'online' ? 'usuários com sessão ativa neste momento' : 'tempo logado × tempo realmente navegando (ativo)'}</CardDescription></CardHeader>
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-xs text-gray-500 border-b"><tr>
@@ -309,7 +323,7 @@ export default function AuditoriaPage() {
                 <th className="text-left px-3 py-2">IP</th><th className="text-left px-3 py-2">Situação</th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {sessoes.map((s: any) => {
+                {sessoesData.map((s: any) => {
                   const ocioso = s.duracao_seg > 0 ? Math.max(0, Math.round((1 - s.ativo_seg / s.duracao_seg) * 100)) : 0;
                   return (
                     <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
@@ -327,19 +341,21 @@ export default function AuditoriaPage() {
                     </tr>
                   );
                 })}
-                {sessoes.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-gray-400">Nenhuma sessão ainda — começa a registrar nos próximos logins.</td></tr>}
+                {sessoesData.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-gray-400">{foco === 'online' ? 'Ninguém online agora.' : 'Nenhuma sessão ainda — começa a registrar nos próximos logins.'}</td></tr>}
               </tbody>
             </table>
           </CardContent>
         </Card>
+        )}
 
+        {foco !== 'online' && (
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-base">Tentativas de login</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base">{foco === 'falhos' ? 'Logins que falharam' : 'Tentativas de login'}</CardTitle></CardHeader>
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-xs text-gray-500 border-b"><tr><th className="text-left px-3 py-2">Quando</th><th className="text-left px-3 py-2">Email</th><th className="text-left px-3 py-2">IP</th><th className="text-left px-3 py-2">Resultado</th></tr></thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {tentativas.map((t: any) => (
+                {tentData.map((t: any) => (
                   <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                     <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtData(t.at)}</td>
                     <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{t.email || '—'}</td>
@@ -347,11 +363,12 @@ export default function AuditoriaPage() {
                     <td className="px-3 py-2">{t.sucesso ? <span className="inline-flex items-center gap-1 text-emerald-600 text-xs"><CheckCircle2 className="h-3.5 w-3.5" />ok</span> : <span className="inline-flex items-center gap-1 text-rose-600 text-xs"><XCircle className="h-3.5 w-3.5" />falhou{t.motivo ? ` · ${t.motivo}` : ''}</span>}</td>
                   </tr>
                 ))}
-                {tentativas.length === 0 && <tr><td colSpan={4} className="px-3 py-8 text-center text-gray-400">Nenhuma tentativa registrada ainda.</td></tr>}
+                {tentData.length === 0 && <tr><td colSpan={4} className="px-3 py-8 text-center text-gray-400">{foco === 'falhos' ? 'Nenhum login falhou — tudo certo.' : 'Nenhuma tentativa registrada ainda.'}</td></tr>}
               </tbody>
             </table>
           </CardContent>
         </Card>
+        )}
       </div>
     );
   };
