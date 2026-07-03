@@ -19,6 +19,7 @@ interface EventoRow {
   cl_real: number;
   c_art: number;
   t_medio: number;
+  faturamento_bar: number; // consumo do bar na noite
 }
 
 interface ShowArtista {
@@ -29,6 +30,7 @@ interface ShowArtista {
   publico: number;
   custo: number;
   ticket: number;
+  consumo: number; // faturamento de bar/consumo da noite
   co_headline: boolean; // evento com mais de 1 artista
 }
 
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
     // 1) Eventos válidos do período (dias com operação) — base para métricas e baseline
     const { data: eventosRaw, error: evErr } = await supabase
       .from('eventos_base')
-      .select('id, data_evento, dia_semana, real_r, cl_real, c_art, t_medio')
+      .select('id, data_evento, dia_semana, real_r, cl_real, c_art, t_medio, faturamento_bar')
       .eq('bar_id', barId)
       .gt('real_r', 1000)
       .gte('data_evento', dataInicialStr)
@@ -73,6 +75,7 @@ export async function GET(request: NextRequest) {
       cl_real: e.cl_real || 0,
       c_art: parseFloat(e.c_art) || 0,
       t_medio: parseFloat(e.t_medio) || 0,
+      faturamento_bar: parseFloat(e.faturamento_bar) || 0,
     }));
     const eventoById = new Map<number, EventoRow>(eventos.map((e) => [e.id, e]));
 
@@ -147,6 +150,7 @@ export async function GET(request: NextRequest) {
         publico: ev.cl_real,
         custo,
         ticket: ev.t_medio,
+        consumo: ev.faturamento_bar,
         co_headline: nArt > 1,
       });
     }
@@ -167,6 +171,13 @@ export async function GET(request: NextRequest) {
         const custo_medio = custo_total / n;
         const ticket_medio = media(shows.map((e) => e.ticket));
         const roi = custo_total > 0 ? ((fat_total - custo_total) / custo_total) * 100 : null;
+        // rankings extras: maior/menor noite, consumo do bar, retorno e % do fat que vira cachê
+        const fat_max = shows.reduce((m, e) => Math.max(m, e.faturamento), 0);
+        const fat_min = shows.reduce((m, e) => Math.min(m, e.faturamento), Infinity);
+        const consumo_total = shows.reduce((s, e) => s + (e.consumo || 0), 0);
+        const consumo_medio = consumo_total / n;
+        const retorno = custo_total > 0 ? fat_total / custo_total : null; // R$ faturado por R$ de cachê
+        const pct_cachet = fat_total > 0 ? (custo_total / fat_total) * 100 : null; // % do fat que vira cachê
 
         // tendência (3 shows mais recentes vs anteriores)
         let tendencia: 'subindo' | 'estavel' | 'caindo' = 'estavel';
@@ -209,6 +220,9 @@ export async function GET(request: NextRequest) {
           custo_total, custo_medio,
           ticket_medio,
           roi,
+          fat_max, fat_min: fat_min === Infinity ? 0 : fat_min,
+          consumo_total, consumo_medio,
+          retorno, pct_cachet,
           tendencia,
           ultimo_show,
           dias_sem_tocar,

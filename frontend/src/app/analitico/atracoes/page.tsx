@@ -52,6 +52,12 @@ interface Atracao {
   custo_medio: number;
   ticket_medio: number;
   roi: number | null;
+  fat_max: number;
+  fat_min: number;
+  consumo_total: number;
+  consumo_medio: number;
+  retorno: number | null;
+  pct_cachet: number | null;
   tendencia: 'subindo' | 'estavel' | 'caindo';
   ultimo_show: string;
   dias_sem_tocar: number;
@@ -91,7 +97,7 @@ export default function DashboardAtracoesPage() {
   const [loading, setLoading] = useState(true);
   const [semDados, setSemDados] = useState(false);
   const [periodo, setPeriodo] = useState('12');
-  const [ordenacao, setOrdenacao] = useState<'fat_total' | 'roi' | 'publico_medio' | 'shows' | 'lift_fat'>('fat_total');
+  const [ordenacao, setOrdenacao] = useState<'fat_total' | 'fat_medio' | 'roi' | 'retorno' | 'publico_medio' | 'custo_medio' | 'consumo_medio' | 'shows' | 'lift_fat'>('fat_total');
   const [atracaoSelecionada, setAtracaoSelecionada] = useState<Atracao | null>(null);
 
   useEffect(() => {
@@ -119,10 +125,18 @@ export default function DashboardAtracoesPage() {
 
   const atracoesOrdenadas = [...atracoes].sort((a, b) => {
     switch (ordenacao) {
+      case 'fat_medio':
+        return b.fat_medio - a.fat_medio;
       case 'roi':
         return (b.roi || 0) - (a.roi || 0);
+      case 'retorno':
+        return (b.retorno || -Infinity) - (a.retorno || -Infinity);
       case 'publico_medio':
         return b.publico_medio - a.publico_medio;
+      case 'custo_medio':
+        return b.custo_medio - a.custo_medio;
+      case 'consumo_medio':
+        return b.consumo_medio - a.consumo_medio;
       case 'shows':
         return b.shows - a.shows;
       case 'lift_fat':
@@ -208,9 +222,13 @@ export default function DashboardAtracoesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="fat_total">Faturamento Total</SelectItem>
-                <SelectItem value="roi">Melhor ROI</SelectItem>
+                <SelectItem value="fat_medio">Faturamento Médio</SelectItem>
+                <SelectItem value="retorno">Melhor Retorno (R$/cachê)</SelectItem>
+                <SelectItem value="roi">Melhor ROI (%)</SelectItem>
+                <SelectItem value="publico_medio">Maior Público (PAX)</SelectItem>
+                <SelectItem value="custo_medio">Maior Custo Médio (cachê)</SelectItem>
+                <SelectItem value="consumo_medio">Maior Consumação (bar)</SelectItem>
                 <SelectItem value="lift_fat">Maior Lift (vs média do dia)</SelectItem>
-                <SelectItem value="publico_medio">Maior Público</SelectItem>
                 <SelectItem value="shows">Mais Shows</SelectItem>
               </SelectContent>
             </Select>
@@ -379,6 +397,16 @@ export default function DashboardAtracoesPage() {
                             </div>
                           </div>
                         </div>
+                      </div>
+
+                      {/* linha extra: consumação, retorno, %cachê, maior/menor noite, ticket */}
+                      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                        <span>Consumação (bar): <b className="text-gray-700 dark:text-gray-200">{formatCurrency(atracao.consumo_medio)}</b>/noite</span>
+                        {atracao.retorno != null && <span>Retorno: <b className="text-gray-700 dark:text-gray-200">{atracao.retorno.toFixed(1)}x</b></span>}
+                        {atracao.pct_cachet != null && <span>Cachê = <b className="text-gray-700 dark:text-gray-200">{atracao.pct_cachet.toFixed(0)}%</b> do fat</span>}
+                        <span>Melhor noite: <b className="text-emerald-600 dark:text-emerald-400">{formatCurrency(atracao.fat_max)}</b></span>
+                        <span>Pior noite: <b className="text-red-500 dark:text-red-400">{formatCurrency(atracao.fat_min)}</b></span>
+                        <span>Ticket médio: <b className="text-gray-700 dark:text-gray-200">{formatCurrency(atracao.ticket_medio)}</b></span>
                       </div>
 
                       {/* Barra de progresso visual */}
