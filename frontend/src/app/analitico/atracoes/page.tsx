@@ -236,7 +236,7 @@ export default function DashboardAtracoesPage() {
                 <SelectItem value="roi">Melhor ROI (%)</SelectItem>
                 <SelectItem value="publico_medio">Maior Público (PAX)</SelectItem>
                 <SelectItem value="custo_medio">Maior Custo Médio (cachê)</SelectItem>
-                <SelectItem value="consumo_medio">Maior Consumação (bar)</SelectItem>
+                <SelectItem value="consumo_medio">Maior Consumação (artista)</SelectItem>
                 <SelectItem value="pct_drink">Maior % Drink (mix)</SelectItem>
                 <SelectItem value="lift_fat">Maior Lift (vs média do dia)</SelectItem>
                 <SelectItem value="shows">Mais Shows</SelectItem>
@@ -411,7 +411,7 @@ export default function DashboardAtracoesPage() {
 
                       {/* linha extra: consumação, retorno, %cachê, maior/menor noite, ticket */}
                       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                        <span>Consumação (bar): <b className="text-gray-700 dark:text-gray-200">{formatCurrency(atracao.consumo_medio)}</b>/noite</span>
+                        <span>Consumação (artista): <b className="text-gray-700 dark:text-gray-200">{formatCurrency(atracao.consumo_medio)}</b>/noite</span>
                         {atracao.retorno != null && <span>Retorno: <b className="text-gray-700 dark:text-gray-200">{atracao.retorno.toFixed(1)}x</b></span>}
                         {atracao.pct_cachet != null && <span>Cachê = <b className="text-gray-700 dark:text-gray-200">{atracao.pct_cachet.toFixed(0)}%</b> do fat</span>}
                         <span>Melhor noite: <b className="text-emerald-600 dark:text-emerald-400">{formatCurrency(atracao.fat_max)}</b></span>
