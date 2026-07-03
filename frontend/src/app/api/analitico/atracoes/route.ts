@@ -157,6 +157,26 @@ export async function GET(request: NextRequest) {
 
     const media = (arr: number[]) => (arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : 0);
 
+    // mix de produtos por dia (BEBIDA/DRINK/COMIDA) — compõe o mix do artista pelas datas dos shows
+    const gold = (supabase as any).schema('gold');
+    const { data: mixRaw } = await gold
+      .from('mix_produtos_diario')
+      .select('dt_gerencial, categoria_mix, faturamento')
+      .eq('bar_id', barId)
+      .gte('dt_gerencial', dataInicialStr)
+      .lte('dt_gerencial', hojeStr);
+    const mixPorData = new Map<string, { bebida: number; drink: number; comida: number }>();
+    for (const r of mixRaw || []) {
+      const d = String(r.dt_gerencial).slice(0, 10);
+      const o = mixPorData.get(d) || { bebida: 0, drink: 0, comida: 0 };
+      const cat = String(r.categoria_mix || '').toUpperCase();
+      const val = Number(r.faturamento) || 0;
+      if (cat === 'BEBIDA') o.bebida += val;
+      else if (cat === 'DRINK') o.drink += val;
+      else if (cat === 'COMIDA') o.comida += val;
+      mixPorData.set(d, o);
+    }
+
     const atracoes = Array.from(mapa.values())
       .filter((a) => a.shows.length >= minShows)
       .map((a) => {
@@ -178,6 +198,14 @@ export async function GET(request: NextRequest) {
         const consumo_medio = consumo_total / n;
         const retorno = custo_total > 0 ? fat_total / custo_total : null; // R$ faturado por R$ de cachê
         const pct_cachet = fat_total > 0 ? (custo_total / fat_total) * 100 : null; // % do fat que vira cachê
+        // mix de produtos nas noites do artista (soma por categoria nas datas únicas dos shows)
+        const datasArtista = new Set(shows.map((e) => String(e.data).slice(0, 10)));
+        let mix_bebida = 0, mix_drink = 0, mix_comida = 0;
+        for (const d of datasArtista) { const m = mixPorData.get(d); if (m) { mix_bebida += m.bebida; mix_drink += m.drink; mix_comida += m.comida; } }
+        const mix_total = mix_bebida + mix_drink + mix_comida;
+        const pct_drink = mix_total > 0 ? (mix_drink / mix_total) * 100 : null;
+        const pct_bebida = mix_total > 0 ? (mix_bebida / mix_total) * 100 : null;
+        const pct_comida = mix_total > 0 ? (mix_comida / mix_total) * 100 : null;
 
         // tendência (3 shows mais recentes vs anteriores)
         let tendencia: 'subindo' | 'estavel' | 'caindo' = 'estavel';
@@ -223,6 +251,8 @@ export async function GET(request: NextRequest) {
           fat_max, fat_min: fat_min === Infinity ? 0 : fat_min,
           consumo_total, consumo_medio,
           retorno, pct_cachet,
+          mix_bebida, mix_drink, mix_comida, mix_total,
+          pct_drink, pct_bebida, pct_comida,
           tendencia,
           ultimo_show,
           dias_sem_tocar,

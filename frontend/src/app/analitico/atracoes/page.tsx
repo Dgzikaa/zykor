@@ -58,6 +58,13 @@ interface Atracao {
   consumo_medio: number;
   retorno: number | null;
   pct_cachet: number | null;
+  mix_bebida: number;
+  mix_drink: number;
+  mix_comida: number;
+  mix_total: number;
+  pct_drink: number | null;
+  pct_bebida: number | null;
+  pct_comida: number | null;
   tendencia: 'subindo' | 'estavel' | 'caindo';
   ultimo_show: string;
   dias_sem_tocar: number;
@@ -97,7 +104,7 @@ export default function DashboardAtracoesPage() {
   const [loading, setLoading] = useState(true);
   const [semDados, setSemDados] = useState(false);
   const [periodo, setPeriodo] = useState('12');
-  const [ordenacao, setOrdenacao] = useState<'fat_total' | 'fat_medio' | 'roi' | 'retorno' | 'publico_medio' | 'custo_medio' | 'consumo_medio' | 'shows' | 'lift_fat'>('fat_total');
+  const [ordenacao, setOrdenacao] = useState<'fat_total' | 'fat_medio' | 'roi' | 'retorno' | 'publico_medio' | 'custo_medio' | 'consumo_medio' | 'pct_drink' | 'shows' | 'lift_fat'>('fat_total');
   const [atracaoSelecionada, setAtracaoSelecionada] = useState<Atracao | null>(null);
 
   useEffect(() => {
@@ -137,6 +144,8 @@ export default function DashboardAtracoesPage() {
         return b.custo_medio - a.custo_medio;
       case 'consumo_medio':
         return b.consumo_medio - a.consumo_medio;
+      case 'pct_drink':
+        return (b.pct_drink || -Infinity) - (a.pct_drink || -Infinity);
       case 'shows':
         return b.shows - a.shows;
       case 'lift_fat':
@@ -228,6 +237,7 @@ export default function DashboardAtracoesPage() {
                 <SelectItem value="publico_medio">Maior Público (PAX)</SelectItem>
                 <SelectItem value="custo_medio">Maior Custo Médio (cachê)</SelectItem>
                 <SelectItem value="consumo_medio">Maior Consumação (bar)</SelectItem>
+                <SelectItem value="pct_drink">Maior % Drink (mix)</SelectItem>
                 <SelectItem value="lift_fat">Maior Lift (vs média do dia)</SelectItem>
                 <SelectItem value="shows">Mais Shows</SelectItem>
               </SelectContent>
@@ -481,6 +491,23 @@ export default function DashboardAtracoesPage() {
 
                   {/* Ficha / negociação do artista (editável) */}
                   <FichaArtista key={atracaoSelecionada.artista_id} artistaId={atracaoSelecionada.artista_id} barId={barId} />
+
+                  {/* Mix de consumo nas noites do artista */}
+                  {atracaoSelecionada.mix_total > 0 && (
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Mix de consumo nas noites</h3>
+                      <div className="flex h-4 rounded overflow-hidden">
+                        <div className="bg-amber-500" style={{ width: `${atracaoSelecionada.pct_bebida ?? 0}%` }} title="Bebida" />
+                        <div className="bg-purple-500" style={{ width: `${atracaoSelecionada.pct_drink ?? 0}%` }} title="Drink" />
+                        <div className="bg-emerald-500" style={{ width: `${atracaoSelecionada.pct_comida ?? 0}%` }} title="Comida" />
+                      </div>
+                      <div className="flex flex-wrap gap-4 text-xs mt-1.5 text-gray-600 dark:text-gray-300">
+                        <span><span className="inline-block w-2 h-2 rounded-sm bg-amber-500 mr-1" />Bebida {(atracaoSelecionada.pct_bebida ?? 0).toFixed(0)}%</span>
+                        <span><span className="inline-block w-2 h-2 rounded-sm bg-purple-500 mr-1" />Drink {(atracaoSelecionada.pct_drink ?? 0).toFixed(0)}%</span>
+                        <span><span className="inline-block w-2 h-2 rounded-sm bg-emerald-500 mr-1" />Comida {(atracaoSelecionada.pct_comida ?? 0).toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Evolução temporal */}
                   {atracaoSelecionada.eventos.length >= 2 && (
