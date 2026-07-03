@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
+import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,7 @@ function admin() {
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (user.role !== 'admin' && user.role !== 'financeiro') return permissionErrorResponse('Sem permissão');
+  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão');
   const barId = Number(new URL(request.url).searchParams.get('bar_id')) || Number(user.bar_id);
   if (!barId) return NextResponse.json({ error: 'bar_id obrigatório' }, { status: 400 });
 
