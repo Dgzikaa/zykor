@@ -1,752 +1,318 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useBar } from '@/contexts/BarContext';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine,
-} from 'recharts';
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer } from 'recharts';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Music,
-  TrendingUp,
-  TrendingDown, 
-  Minus,
-  Users,
-  DollarSign,
-  Target,
-  Calendar,
-  Award,
-  BarChart3,
-  Sparkles,
-  ArrowUpRight,
-  ArrowDownRight
-} from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Music, Users, DollarSign, Calendar, Award, TrendingUp, TrendingDown, Star, Trophy, Ticket, Tag, ArrowUpRight, ArrowDownRight, Sparkles, Handshake } from 'lucide-react';
 
-interface Atracao {
-  artista_id: number | null;
-  nome: string;
-  tipo: string;
-  shows: number;
-  fat_total: number;
-  fat_medio: number;
-  publico_total: number;
-  publico_medio: number;
-  custo_total: number;
-  custo_medio: number;
-  ticket_medio: number;
-  roi: number | null;
-  fat_max: number;
-  fat_min: number;
-  consumo_total: number;
-  consumo_medio: number;
-  retorno: number | null;
-  pct_cachet: number | null;
-  mix_bebida: number;
-  mix_drink: number;
-  mix_comida: number;
-  mix_total: number;
-  pct_drink: number | null;
-  pct_bebida: number | null;
-  pct_comida: number | null;
-  tendencia: 'subindo' | 'estavel' | 'caindo';
-  ultimo_show: string;
-  dias_sem_tocar: number;
-  baseline_fat: number | null;
-  baseline_publico: number | null;
-  lift_fat: number | null;
-  lift_fat_pct: number | null;
-  lift_publico: number | null;
-  eventos: Array<{
-    data: string;
-    dia_semana: string;
-    faturamento: number;
-    publico: number;
-    custo: number;
-    ticket: number;
-    co_headline: boolean;
-  }>;
+// ---- formatação ----
+const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+const moneyC = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const num = (v: number) => Math.round(v || 0).toLocaleString('pt-BR');
+// parse YYYY-MM-DD sem new Date() (evita shift de fuso UTC-3)
+const fmtData = (s?: string) => { if (!s) return '—'; const [y, m, d] = s.slice(0, 10).split('-'); return `${d}/${m}/${y}`; };
+const fmtMesAno = (s?: string) => { if (!s) return '—'; const [y, m] = s.slice(0, 10).split('-'); const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']; return `${meses[Number(m) - 1]}/${y}`; };
+const haQuanto = (s?: string) => {
+  if (!s) return '';
+  const [y, m, d] = s.slice(0, 10).split('-').map(Number);
+  const then = Date.UTC(y, m - 1, d); const now = Date.now();
+  const dias = Math.floor((now - then) / 86400000);
+  if (dias < 45) return `há ${dias} dias`;
+  const meses = Math.round(dias / 30.4);
+  if (meses < 24) return `há ${meses} meses`;
+  return `há ${(dias / 365).toFixed(1).replace('.', ',')} anos`;
+};
+
+interface ArtistaLista { artista_id: number; nome: string; tipo: string; shows: number; primeiro: string; ultimo: string }
+interface Marco { data: string; cache?: number; publico?: number; fat?: number; dow?: string; valor?: number }
+interface Trajetoria {
+  total_shows: number; primeiro: Marco; atual: Marco;
+  melhor_cache: Marco; pior_cache: Marco; publico_recorde: Marco; fat_recorde: Marco;
+  cache_total: number; cache_medio: number; publico_medio: number; fat_medio: number; ticket_medio: number;
+  cobertura_cache: number; dia_favorito: string;
+  parceiros: { nome: string; juntos: number }[];
+  evolucao: { data: string; dow: string; cache: number; publico: number; fat: number; co: boolean }[];
 }
 
-interface Stats {
-  total_atracoes: number;
-  total_shows: number;
-  fat_total: number;
-  custo_total: number;
-  roi_medio: number | null;
-  top_faturamento: string | null;
-  top_roi: string | null;
-  top_publico: string | null;
-  top_lift: string | null;
-}
-
-export default function DashboardAtracoesPage() {
+export default function AtracoesPage() {
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
-  const [atracoes, setAtracoes] = useState<Atracao[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [semDados, setSemDados] = useState(false);
-  const [periodo, setPeriodo] = useState('12');
-  const [ordenacao, setOrdenacao] = useState<'fat_total' | 'fat_medio' | 'roi' | 'retorno' | 'publico_medio' | 'custo_medio' | 'consumo_medio' | 'pct_drink' | 'shows' | 'lift_fat'>('fat_total');
-  const [atracaoSelecionada, setAtracaoSelecionada] = useState<Atracao | null>(null);
 
-  useEffect(() => {
+  const [aba, setAba] = useState<'artista' | 'ranking'>('artista');
+  const [lista, setLista] = useState<ArtistaLista[]>([]);
+  const [artistaId, setArtistaId] = useState<string>('');
+  const [traj, setTraj] = useState<Trajetoria | null>(null);
+  const [loadingLista, setLoadingLista] = useState(true);
+  const [loadingTraj, setLoadingTraj] = useState(false);
+  const [ranking, setRanking] = useState<any[] | null>(null);
+
+  const artistaSel = useMemo(() => lista.find(a => String(a.artista_id) === artistaId), [lista, artistaId]);
+
+  const carregarLista = useCallback(async () => {
     if (!barId) return;
-    const fetchAtracoes = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch(`/api/analitico/atracoes?periodo=${periodo}&min_shows=2`, {
-          headers: { 'x-selected-bar-id': String(barId) },
-        });
-        const result = await response.json();
-        if (result.success) {
-          setAtracoes(result.data || []);
-          setStats(result.stats);
-          setSemDados(!!result.sem_dados);
-        }
-      } catch (error) {
-        console.error('Erro ao buscar atrações:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAtracoes();
-  }, [periodo, barId]);
+    setLoadingLista(true);
+    try {
+      const r = await fetch(`/api/analitico/atracoes?view=lista&bar_id=${barId}`, { cache: 'no-store' });
+      const j = await r.json();
+      const l: ArtistaLista[] = j.lista || [];
+      setLista(l);
+      setArtistaId(prev => (prev && l.some(a => String(a.artista_id) === prev) ? prev : (l[0] ? String(l[0].artista_id) : '')));
+    } catch { setLista([]); }
+    finally { setLoadingLista(false); }
+  }, [barId]);
 
-  const atracoesOrdenadas = [...atracoes].sort((a, b) => {
-    switch (ordenacao) {
-      case 'fat_medio':
-        return b.fat_medio - a.fat_medio;
-      case 'roi':
-        return (b.roi || 0) - (a.roi || 0);
-      case 'retorno':
-        return (b.retorno || -Infinity) - (a.retorno || -Infinity);
-      case 'publico_medio':
-        return b.publico_medio - a.publico_medio;
-      case 'custo_medio':
-        return b.custo_medio - a.custo_medio;
-      case 'consumo_medio':
-        return b.consumo_medio - a.consumo_medio;
-      case 'pct_drink':
-        return (b.pct_drink || -Infinity) - (a.pct_drink || -Infinity);
-      case 'shows':
-        return b.shows - a.shows;
-      case 'lift_fat':
-        return (b.lift_fat || -Infinity) - (a.lift_fat || -Infinity);
-      default:
-        return b.fat_total - a.fat_total;
-    }
-  });
+  const carregarTraj = useCallback(async (id: string) => {
+    if (!barId || !id) { setTraj(null); return; }
+    setLoadingTraj(true);
+    try {
+      const r = await fetch(`/api/analitico/atracoes?artista_id=${id}&bar_id=${barId}`, { cache: 'no-store' });
+      const j = await r.json();
+      setTraj(j.artista || null);
+    } catch { setTraj(null); }
+    finally { setLoadingTraj(false); }
+  }, [barId]);
 
-  const getTendenciaIcon = (tendencia: string) => {
-    switch (tendencia) {
-      case 'subindo':
-        return <TrendingUp className="w-4 h-4 text-green-500" />;
-      case 'caindo':
-        return <TrendingDown className="w-4 h-4 text-red-500" />;
-      default:
-        return <Minus className="w-4 h-4 text-gray-500" />;
-    }
-  };
+  const carregarRanking = useCallback(async () => {
+    if (!barId) return;
+    try {
+      const r = await fetch(`/api/analitico/atracoes?periodo=12&bar_id=${barId}`, { cache: 'no-store' });
+      const j = await r.json();
+      setRanking(j.data || []);
+    } catch { setRanking([]); }
+  }, [barId]);
 
-  const getRoiBadge = (roi: number | null) => {
-    if (roi === null) return <Badge variant="outline">N/A</Badge>;
-    if (roi >= 500) return <Badge className="bg-purple-600">ROI {roi.toFixed(0)}%</Badge>;
-    if (roi >= 300) return <Badge className="bg-green-600">ROI {roi.toFixed(0)}%</Badge>;
-    if (roi >= 100) return <Badge className="bg-blue-600">ROI {roi.toFixed(0)}%</Badge>;
-    if (roi >= 0) return <Badge className="bg-yellow-600">ROI {roi.toFixed(0)}%</Badge>;
-    return <Badge className="bg-red-600">ROI {roi.toFixed(0)}%</Badge>;
-  };
+  useEffect(() => { carregarLista(); }, [carregarLista]);
+  useEffect(() => { if (artistaId) carregarTraj(artistaId); }, [artistaId, carregarTraj]);
+  useEffect(() => { if (aba === 'ranking' && ranking === null) carregarRanking(); }, [aba, ranking, carregarRanking]);
 
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  };
-
-  // formata datas ISO ("YYYY-MM-DD") sem passar por Date (evita shift de fuso -> dia anterior)
-  const fmtData = (iso: string) => { const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${d}/${m}/${y}`; };
-  const fmtDiaMes = (iso: string) => { const p = String(iso).slice(0, 10).split('-'); return `${p[2]}/${p[1]}`; };
+  const evol = traj?.evolucao || [];
+  const evolChart = evol.map(e => ({ ...e, label: fmtMesAno(e.data) }));
+  const crescPublico = traj && traj.primeiro?.publico ? Math.round(((traj.atual.publico! - traj.primeiro.publico!) / traj.primeiro.publico!) * 100) : null;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-3 py-4 max-w-6xl space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
-              <Music className="w-8 h-8 text-white" />
-            </div>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Music className="h-6 w-6 text-violet-600" />
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Dashboard de Atrações
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400">
-                Análise de performance e ROI dos artistas
-              </p>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Artístico</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">A trajetória de cada artista com a casa.</p>
             </div>
           </div>
-
-          <div className="flex gap-3">
-            <Link href="/analitico/atracoes/tagging">
-              <Button variant="outline" className="bg-white dark:bg-gray-800 gap-2">
-                <Music className="w-4 h-4" /> Taggear eventos
-              </Button>
-            </Link>
-            <Link href="/analitico/atracoes/normalizar">
-              <Button variant="outline" className="bg-white dark:bg-gray-800 gap-2">
-                <Users className="w-4 h-4" /> Normalizar artistas
-              </Button>
-            </Link>
-            <Select value={periodo} onValueChange={setPeriodo}>
-              <SelectTrigger className="w-40 bg-white dark:bg-gray-800">
-                <SelectValue placeholder="Período" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="3">Últimos 3 meses</SelectItem>
-                <SelectItem value="6">Últimos 6 meses</SelectItem>
-                <SelectItem value="12">Último ano</SelectItem>
-                <SelectItem value="24">Últimos 2 anos</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={ordenacao} onValueChange={(v: any) => setOrdenacao(v)}>
-              <SelectTrigger className="w-48 bg-white dark:bg-gray-800">
-                <SelectValue placeholder="Ordenar por" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="fat_total">Faturamento Total</SelectItem>
-                <SelectItem value="fat_medio">Faturamento Médio</SelectItem>
-                <SelectItem value="retorno">Melhor Retorno (R$/cachê)</SelectItem>
-                <SelectItem value="roi">Melhor ROI (%)</SelectItem>
-                <SelectItem value="publico_medio">Maior Público (PAX)</SelectItem>
-                <SelectItem value="custo_medio">Maior Custo Médio (cachê)</SelectItem>
-                <SelectItem value="consumo_medio">Maior Consumação (artista)</SelectItem>
-                <SelectItem value="pct_drink">Maior % Drink (mix)</SelectItem>
-                <SelectItem value="lift_fat">Maior Lift (vs média do dia)</SelectItem>
-                <SelectItem value="shows">Mais Shows</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Link href="/analitico/atracoes/tagging" className="text-sm inline-flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-3 h-9 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">
+            <Tag className="h-4 w-4" />Taggear eventos
+          </Link>
         </div>
 
-        {/* Stats Cards */}
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-32" />)}
-          </div>
-        ) : stats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <Card className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border-purple-200 dark:border-purple-800">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-purple-600 dark:text-purple-400 mb-1">Atrações Ativas</div>
-                    <div className="text-3xl font-bold text-purple-700 dark:text-purple-300">{stats.total_atracoes}</div>
-                    <div className="text-xs text-purple-600 dark:text-purple-400 mt-1">{stats.total_shows} shows no período</div>
-                  </div>
-                  <Award className="w-12 h-12 text-purple-600 dark:text-purple-400 opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
+        {/* Abas */}
+        <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
+          {([['artista', 'Por artista'], ['ranking', 'Ranking']] as const).map(([k, label]) => (
+            <button key={k} onClick={() => setAba(k)}
+              className={`px-3 py-2 text-sm border-b-2 -mb-px transition ${aba === k ? 'border-violet-500 text-violet-700 dark:text-violet-300 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
 
-            <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-800">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-green-600 dark:text-green-400 mb-1">Faturamento Total</div>
-                    <div className="text-2xl font-bold text-green-700 dark:text-green-300">{formatCurrency(stats.fat_total)}</div>
-                    <div className="text-xs text-green-600 dark:text-green-400 mt-1">Top: {stats.top_faturamento}</div>
-                  </div>
-                  <DollarSign className="w-12 h-12 text-green-600 dark:text-green-400 opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
+        {aba === 'ranking' ? (
+          <RankingView ranking={ranking} onPick={(id) => { setArtistaId(String(id)); setAba('artista'); }} />
+        ) : (
+          <>
+            {/* Dropdown de artista */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm text-gray-500">Artista:</span>
+              {loadingLista ? <Skeleton className="h-10 w-72" /> : (
+                <Select value={artistaId} onValueChange={setArtistaId}>
+                  <SelectTrigger className="w-full sm:w-80 h-10"><SelectValue placeholder="Selecione um artista" /></SelectTrigger>
+                  <SelectContent className="max-h-80">
+                    {lista.map(a => (
+                      <SelectItem key={a.artista_id} value={String(a.artista_id)}>
+                        {a.nome} <span className="text-gray-400">· {a.shows} shows</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {artistaSel && <Badge variant="outline" className="capitalize">{artistaSel.tipo}</Badge>}
+            </div>
 
-            <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border-blue-200 dark:border-blue-800">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-blue-600 dark:text-blue-400 mb-1">ROI Médio</div>
-                    <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">
-                      {stats.roi_medio ? `${stats.roi_medio.toFixed(0)}%` : 'N/A'}
-                    </div>
-                    <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">Melhor: {stats.top_roi}</div>
-                  </div>
-                  <Target className="w-12 h-12 text-blue-600 dark:text-blue-400 opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 border-orange-200 dark:border-orange-800">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-orange-600 dark:text-orange-400 mb-1">Custo Total</div>
-                    <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">{formatCurrency(stats.custo_total)}</div>
-                    <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">Mais público: {stats.top_publico}</div>
-                  </div>
-                  <Users className="w-12 h-12 text-orange-600 dark:text-orange-400 opacity-50" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+            {!barId ? <p className="text-sm text-gray-500 py-10 text-center">Selecione um bar.</p>
+              : loadingLista ? null
+              : lista.length === 0 ? (
+                <Card><CardContent className="py-12 text-center text-gray-500">
+                  Nenhum artista taggeado ainda neste bar. Use <Link href="/analitico/atracoes/tagging" className="text-violet-600 underline">Taggear eventos</Link> para associar artistas às noites.
+                </CardContent></Card>
+              ) : loadingTraj || !traj ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>
+              ) : (
+                <TrajetoriaView traj={traj} nome={artistaSel?.nome || ''} tipo={artistaSel?.tipo || ''} evolChart={evolChart} crescPublico={crescPublico} barNome={selectedBar?.nome || 'a casa'} />
+              )}
+          </>
         )}
-
-        {/* Lista de Atrações */}
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-              <Sparkles className="w-5 h-5" />
-              Ranking de Atrações
-            </CardTitle>
-            <CardDescription className="text-gray-600 dark:text-gray-400">
-              Performance detalhada de cada artista no período selecionado
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="space-y-4">
-                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24" />)}
-              </div>
-            ) : semDados ? (
-              <div className="text-center py-12">
-                <Music className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Nenhum artista vinculado a eventos ainda</h3>
-                <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-                  Vincule artistas aos eventos na seção <strong>Artistas</strong> do modal Editar Evento (Planejamento Comercial).
-                  Assim que houver shows taggeados, a análise de performance aparece aqui.
-                </p>
-              </div>
-            ) : atracoesOrdenadas.length === 0 ? (
-              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                Nenhuma atração com 2+ shows no período selecionado.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {atracoesOrdenadas.map((atracao, index) => (
-                  <Card 
-                    key={atracao.nome}
-                    className="border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => setAtracaoSelecionada(atracao)}
-                  >
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        {/* Info Principal */}
-                        <div className="flex items-start gap-4">
-                          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
-                            index === 0 ? 'bg-yellow-500' :
-                            index === 1 ? 'bg-gray-400' :
-                            index === 2 ? 'bg-amber-600' :
-                            'bg-gray-600'
-                          }`}>
-                            {index + 1}
-                          </div>
-                          <div>
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                              {atracao.nome}
-                              {getTendenciaIcon(atracao.tendencia)}
-                            </h3>
-                            <div className="flex gap-2 mt-1 flex-wrap">
-                              <Badge variant="outline" className="capitalize">{atracao.tipo}</Badge>
-                              <Badge variant="outline">{atracao.shows} shows</Badge>
-                              {getRoiBadge(atracao.roi)}
-                              {atracao.lift_fat != null && (
-                                <Badge className={atracao.lift_fat >= 0 ? 'bg-emerald-600' : 'bg-red-600'}>
-                                  {atracao.lift_fat >= 0 ? '+' : ''}{formatCurrency(atracao.lift_fat)} vs média do {atracao.eventos[0]?.dia_semana || 'dia'}
-                                </Badge>
-                              )}
-                              {atracao.dias_sem_tocar > 60 && (
-                                <Badge variant="outline" className="text-orange-600 border-orange-300">
-                                  {atracao.dias_sem_tocar} dias sem tocar
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Métricas */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 text-right">
-                          <div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">Fat. Total</div>
-                            <div className="text-lg font-bold text-gray-900 dark:text-white">
-                              {formatCurrency(atracao.fat_total)}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">Fat. Médio</div>
-                            <div className="text-lg font-bold text-gray-900 dark:text-white">
-                              {formatCurrency(atracao.fat_medio)}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">Público Médio</div>
-                            <div className="text-lg font-bold text-gray-900 dark:text-white">
-                              {atracao.publico_medio} PAX
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">Custo Médio</div>
-                            <div className="text-lg font-bold text-gray-900 dark:text-white">
-                              {formatCurrency(atracao.custo_medio)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* linha extra: consumação, retorno, %cachê, maior/menor noite, ticket */}
-                      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                        <span>Consumação (artista): <b className="text-gray-700 dark:text-gray-200">{formatCurrency(atracao.consumo_medio)}</b>/noite</span>
-                        {atracao.retorno != null && <span>Retorno: <b className="text-gray-700 dark:text-gray-200">{atracao.retorno.toFixed(1)}x</b></span>}
-                        {atracao.pct_cachet != null && <span>Cachê = <b className="text-gray-700 dark:text-gray-200">{atracao.pct_cachet.toFixed(0)}%</b> do fat</span>}
-                        <span>Melhor noite: <b className="text-emerald-600 dark:text-emerald-400">{formatCurrency(atracao.fat_max)}</b></span>
-                        <span>Pior noite: <b className="text-red-500 dark:text-red-400">{formatCurrency(atracao.fat_min)}</b></span>
-                        <span>Ticket médio: <b className="text-gray-700 dark:text-gray-200">{formatCurrency(atracao.ticket_medio)}</b></span>
-                      </div>
-
-                      {/* Barra de progresso visual */}
-                      <div className="mt-4 flex items-center gap-4">
-                        <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2">
-                          <div 
-                            className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full"
-                            style={{ width: `${Math.min((atracao.fat_total / (stats?.fat_total || 1)) * 100 * 3, 100)}%` }}
-                          />
-                        </div>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          {((atracao.fat_total / (stats?.fat_total || 1)) * 100).toFixed(1)}% do total
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Modal de Detalhes */}
-        <Dialog open={!!atracaoSelecionada} onOpenChange={() => setAtracaoSelecionada(null)}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800">
-            {atracaoSelecionada && (
-              <>
-                <DialogHeader>
-                  <DialogTitle className="text-2xl text-gray-900 dark:text-white flex items-center gap-3">
-                    <Music className="w-6 h-6" />
-                    {atracaoSelecionada.nome}
-                    {getTendenciaIcon(atracaoSelecionada.tendencia)}
-                  </DialogTitle>
-                </DialogHeader>
-
-                <div className="space-y-6 mt-4">
-                  {/* Stats do artista */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-green-700 dark:text-green-300">
-                          {formatCurrency(atracaoSelecionada.fat_total)}
-                        </div>
-                        <div className="text-sm text-green-600 dark:text-green-400">Fat. Total</div>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                          {atracaoSelecionada.roi?.toFixed(0) || 'N/A'}%
-                        </div>
-                        <div className="text-sm text-blue-600 dark:text-blue-400">ROI</div>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800">
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-                          {atracaoSelecionada.publico_medio}
-                        </div>
-                        <div className="text-sm text-purple-600 dark:text-purple-400">Público Médio</div>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800">
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-                          {formatCurrency(atracaoSelecionada.ticket_medio)}
-                        </div>
-                        <div className="text-sm text-orange-600 dark:text-orange-400">Ticket Médio</div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Ficha / negociação do artista (editável) */}
-                  <FichaArtista key={atracaoSelecionada.artista_id} artistaId={atracaoSelecionada.artista_id} barId={barId} />
-
-                  {/* Mix de consumo nas noites do artista */}
-                  {atracaoSelecionada.mix_total > 0 && (
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Mix de consumo nas noites</h3>
-                      <div className="flex h-4 rounded overflow-hidden">
-                        <div className="bg-amber-500" style={{ width: `${atracaoSelecionada.pct_bebida ?? 0}%` }} title="Bebida" />
-                        <div className="bg-purple-500" style={{ width: `${atracaoSelecionada.pct_drink ?? 0}%` }} title="Drink" />
-                        <div className="bg-emerald-500" style={{ width: `${atracaoSelecionada.pct_comida ?? 0}%` }} title="Comida" />
-                      </div>
-                      <div className="flex flex-wrap gap-4 text-xs mt-1.5 text-gray-600 dark:text-gray-300">
-                        <span><span className="inline-block w-2 h-2 rounded-sm bg-amber-500 mr-1" />Bebida {(atracaoSelecionada.pct_bebida ?? 0).toFixed(0)}%</span>
-                        <span><span className="inline-block w-2 h-2 rounded-sm bg-purple-500 mr-1" />Drink {(atracaoSelecionada.pct_drink ?? 0).toFixed(0)}%</span>
-                        <span><span className="inline-block w-2 h-2 rounded-sm bg-emerald-500 mr-1" />Comida {(atracaoSelecionada.pct_comida ?? 0).toFixed(0)}%</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Evolução temporal */}
-                  {atracaoSelecionada.eventos.length >= 2 && (
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <BarChart3 className="w-5 h-5" />
-                        Evolução de Faturamento por Show
-                      </h3>
-                      <div className="h-64 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={atracaoSelecionada.eventos} margin={{ top: 5, right: 16, left: 8, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-                            <XAxis
-                              dataKey="data"
-                              tickFormatter={(d) => fmtDiaMes(d)}
-                              fontSize={11}
-                            />
-                            <YAxis
-                              tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                              fontSize={11}
-                            />
-                            <RechartsTooltip
-                              formatter={((v: number, name: string): [string, string] => [
-                                name === 'faturamento' ? formatCurrency(v) : `${v} PAX`,
-                                name === 'faturamento' ? 'Faturamento' : 'Público',
-                              ]) as any}
-                              labelFormatter={(d) => fmtData(d as string)}
-                            />
-                            {atracaoSelecionada.baseline_fat != null && (
-                              <ReferenceLine
-                                y={atracaoSelecionada.baseline_fat}
-                                stroke="#9ca3af"
-                                strokeDasharray="4 4"
-                                label={{ value: 'média do dia (sem o artista)', position: 'insideTopRight', fontSize: 10, fill: '#9ca3af' }}
-                              />
-                            )}
-                            <Line type="monotone" dataKey="faturamento" stroke="#a855f7" strokeWidth={2} dot={{ r: 3 }} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Substituição / Lift */}
-                  {atracaoSelecionada.lift_fat != null && (
-                    <Card className={`border ${atracaoSelecionada.lift_fat >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'}`}>
-                      <CardContent className="p-4">
-                        <h4 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                          <TrendingUp className="w-5 h-5" />
-                          Valor incremental (vs a casa sem esse artista)
-                        </h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <div className="text-gray-500 dark:text-gray-400">Fat. médio do artista</div>
-                            <div className="font-bold text-gray-900 dark:text-white">{formatCurrency(atracaoSelecionada.fat_medio)}</div>
-                          </div>
-                          <div>
-                            <div className="text-gray-500 dark:text-gray-400">Média do dia sem ele</div>
-                            <div className="font-bold text-gray-900 dark:text-white">{formatCurrency(atracaoSelecionada.baseline_fat || 0)}</div>
-                          </div>
-                          <div>
-                            <div className="text-gray-500 dark:text-gray-400">Lift em R$</div>
-                            <div className={`font-bold ${atracaoSelecionada.lift_fat >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                              {atracaoSelecionada.lift_fat >= 0 ? '+' : ''}{formatCurrency(atracaoSelecionada.lift_fat)}
-                              {atracaoSelecionada.lift_fat_pct != null && ` (${atracaoSelecionada.lift_fat_pct >= 0 ? '+' : ''}${atracaoSelecionada.lift_fat_pct.toFixed(0)}%)`}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-gray-500 dark:text-gray-400">Lift em público</div>
-                            <div className={`font-bold ${(atracaoSelecionada.lift_publico || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                              {(atracaoSelecionada.lift_publico || 0) >= 0 ? '+' : ''}{atracaoSelecionada.lift_publico} PAX
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Histórico de shows */}
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                      <Calendar className="w-5 h-5" />
-                      Histórico de Shows ({atracaoSelecionada.shows} shows)
-                    </h3>
-                    <div className="space-y-2 max-h-80 overflow-y-auto">
-                      {atracaoSelecionada.eventos.map((evento, index) => {
-                        const anterior = atracaoSelecionada.eventos[index + 1];
-                        const variacao = anterior 
-                          ? ((evento.faturamento - anterior.faturamento) / anterior.faturamento) * 100 
-                          : null;
-                        
-                        return (
-                          <div 
-                            key={evento.data}
-                            className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="text-sm">
-                                <div className="font-medium text-gray-900 dark:text-white">
-                                  {fmtData(evento.data)}
-                                </div>
-                                <div className="text-gray-500 dark:text-gray-400">{evento.dia_semana}</div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-6 text-right">
-                              <div>
-                                <div className="font-bold text-gray-900 dark:text-white">
-                                  {formatCurrency(evento.faturamento)}
-                                </div>
-                                {variacao !== null && (
-                                  <div className={`text-xs flex items-center justify-end gap-1 ${variacao >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {variacao >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                                    {Math.abs(variacao).toFixed(1)}%
-                                  </div>
-                                )}
-                              </div>
-                              <div className="text-gray-600 dark:text-gray-400">
-                                {evento.publico} PAX
-                              </div>
-                              <div className="text-gray-600 dark:text-gray-400">
-                                {formatCurrency(evento.custo)}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Análise */}
-                  <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-blue-200 dark:border-blue-800">
-                    <CardContent className="p-4">
-                      <h4 className="font-bold text-gray-900 dark:text-white mb-2">Análise Rápida</h4>
-                      <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                        <li>
-                          {atracaoSelecionada.roi && atracaoSelecionada.roi > 300 
-                            ? '✅ ROI excelente - Atração muito rentável'
-                            : atracaoSelecionada.roi && atracaoSelecionada.roi > 100
-                            ? '✅ ROI bom - Vale o investimento'
-                            : '⚠️ Avaliar custo-benefício'}
-                        </li>
-                        <li>
-                          {atracaoSelecionada.tendencia === 'subindo'
-                            ? '📈 Tendência de crescimento nos últimos shows'
-                            : atracaoSelecionada.tendencia === 'caindo'
-                            ? '📉 Performance caindo - avaliar renovação'
-                            : '➡️ Performance estável'}
-                        </li>
-                        <li>
-                          {atracaoSelecionada.dias_sem_tocar > 60
-                            ? `⏰ ${atracaoSelecionada.dias_sem_tocar} dias sem tocar - considerar reagendar`
-                            : `📅 Último show: ${fmtData(atracaoSelecionada.ultimo_show)}`}
-                        </li>
-                      </ul>
-                    </CardContent>
-                  </Card>
-                </div>
-              </>
-            )}
-          </DialogContent>
-        </Dialog>
       </div>
     </div>
   );
 }
 
-const ACORDOS = [
-  { v: 'cache', l: 'Cachê fixo' },
-  { v: 'sociedade', l: 'Sociedade (%)' },
-  { v: 'couvert', l: 'Couvert' },
-  { v: 'misto', l: 'Misto' },
-];
-const minToStrF = (m: number | null | undefined) => { if (m == null) return ''; const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h${mm ? String(mm).padStart(2, '0') : ''}` : `${mm}m`; };
-
-// Ficha & Negociação do artista (perfil editável em operations.bar_artistas).
-// Salva cada campo no blur; abre junto dos números pro papo comercial.
-function FichaArtista({ artistaId, barId }: { artistaId: number | null; barId?: number }) {
-  const [f, setF] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    if (!artistaId || !barId) { setF(null); setLoading(false); return; }
-    setLoading(true);
-    fetch(`/api/eventos/artistas/ficha?artista_id=${artistaId}`, { headers: { 'x-selected-bar-id': String(barId) } })
-      .then((r) => r.json()).then((j) => setF(j.ficha || {})).catch(() => setF({})).finally(() => setLoading(false));
-  }, [artistaId, barId]);
-  const save = (patch: Record<string, any>) => {
-    if (!artistaId || !barId) return;
-    setF((cur: any) => ({ ...cur, ...patch }));
-    fetch('/api/eventos/artistas/ficha', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
-      body: JSON.stringify({ artista_id: artistaId, ...patch }),
-    });
-  };
-  if (!artistaId) return null;
-  const inCls = 'w-full rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-400';
-  const isSoc = f?.tipo_acordo === 'sociedade' || f?.tipo_acordo === 'misto';
+// ---- Trajetória ----
+function TrajetoriaView({ traj, nome, tipo, evolChart, crescPublico, barNome }: { traj: Trajetoria; nome: string; tipo: string; evolChart: any[]; crescPublico: number | null; barNome: string }) {
+  const tiles = [
+    { icon: Calendar, cor: 'text-sky-500', label: '1º show', valor: fmtData(traj.primeiro?.data), sub: haQuanto(traj.primeiro?.data) },
+    { icon: DollarSign, cor: 'text-emerald-500', label: '1º cachê', valor: traj.primeiro?.cache ? money(traj.primeiro.cache) : '—', sub: 'na estreia' },
+    { icon: Music, cor: 'text-violet-500', label: 'Total de shows', valor: num(traj.total_shows), sub: `favorito: ${traj.dia_favorito || '—'}` },
+    { icon: Users, cor: 'text-blue-500', label: 'Público', valor: `${num(traj.primeiro?.publico || 0)} → ${num(traj.atual?.publico || 0)}`, sub: crescPublico != null ? `${crescPublico >= 0 ? '+' : ''}${crescPublico}% do 1º ao último` : 'estreia → atual', up: crescPublico },
+    { icon: DollarSign, cor: 'text-emerald-600', label: 'Cachê médio', valor: money(traj.cache_medio), sub: `total ${money(traj.cache_total)} · cobertura ${traj.cobertura_cache || 0}%` },
+    { icon: Ticket, cor: 'text-amber-500', label: 'Ticket médio da noite', valor: moneyC(traj.ticket_medio), sub: 'consumo por pessoa' },
+    { icon: Trophy, cor: 'text-yellow-500', label: 'Público recorde', valor: num(traj.publico_recorde?.valor || 0), sub: fmtData(traj.publico_recorde?.data) },
+    { icon: Sparkles, cor: 'text-pink-500', label: 'Faturamento recorde', valor: money(traj.fat_recorde?.valor || 0), sub: `noite de ${fmtData(traj.fat_recorde?.data)}` },
+  ];
   return (
-    <Card className="border-gray-200 dark:border-gray-700">
-      <CardContent className="p-4">
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-          <Users className="w-5 h-5" /> Ficha &amp; Negociação
-        </h3>
-        {loading ? <div className="text-sm text-gray-400">carregando…</div> : (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-            <label className="block">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Tipo de acordo</span>
-              <select className={inCls} value={f?.tipo_acordo || ''} onChange={(e) => save({ tipo_acordo: e.target.value })}>
-                <option value="">—</option>
-                {ACORDOS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Cachê combinado (R$)</span>
-              <input className={inCls} type="number" step="0.01" defaultValue={f?.cachet_combinado ?? ''} onBlur={(e) => save({ cachet_combinado: e.target.value })} />
-            </label>
-            {isSoc && (
-              <label className="block">
-                <span className="text-xs text-gray-500 dark:text-gray-400">% sociedade</span>
-                <input className={inCls} type="number" step="0.1" defaultValue={f?.percentual_sociedade ?? ''} onBlur={(e) => save({ percentual_sociedade: e.target.value })} />
-              </label>
-            )}
-            <label className="block">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Duração combinada</span>
-              <input className={inCls} defaultValue={minToStrF(f?.duracao_combinada_min)} placeholder="1h30" onBlur={(e) => save({ duracao_combinada_min: e.target.value })} />
-            </label>
-            <label className="block">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Horário padrão</span>
-              <input className={inCls} type="time" defaultValue={f?.horario_padrao ? String(f.horario_padrao).slice(0, 5) : ''} onBlur={(e) => save({ horario_padrao: e.target.value })} />
-            </label>
-            <label className="block">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Contato</span>
-              <input className={inCls} defaultValue={f?.contato || ''} placeholder="@ / telefone" onBlur={(e) => save({ contato: e.target.value })} />
-            </label>
-            <label className="block col-span-2 md:col-span-3">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Anotações / negociação</span>
-              <textarea className={inCls} rows={2} defaultValue={f?.anotacoes || ''} placeholder="histórico de cachê, combinados, observações…" onBlur={(e) => save({ anotacoes: e.target.value })} />
-            </label>
+    <div className="space-y-4">
+      {/* Hero */}
+      <Card className="bg-gradient-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-gray-900 border-violet-100 dark:border-violet-900/40">
+        <CardContent className="py-5 flex items-center gap-4 flex-wrap">
+          <div className="h-14 w-14 rounded-full bg-violet-600 text-white flex items-center justify-center text-xl font-bold shrink-0">{(nome[0] || '?').toUpperCase()}</div>
+          <div className="min-w-0">
+            <div className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">{nome} <Badge variant="outline" className="capitalize text-xs">{tipo}</Badge></div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{num(traj.total_shows)} shows em {barNome} · desde {fmtMesAno(traj.primeiro?.data)} · toca mais às <b className="text-gray-700 dark:text-gray-200">{traj.dia_favorito || '—'}</b></div>
           </div>
-        )}
+        </CardContent>
+      </Card>
+
+      {/* Big numbers */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {tiles.map((t, i) => (
+          <Card key={i}><CardContent className="p-4">
+            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"><t.icon className={`h-3.5 w-3.5 ${t.cor}`} />{t.label}</div>
+            <div className="mt-1 text-xl font-bold text-gray-900 dark:text-white flex items-center gap-1">
+              {t.valor}
+              {typeof (t as any).up === 'number' && ((t as any).up >= 0 ? <ArrowUpRight className="h-4 w-4 text-emerald-500" /> : <ArrowDownRight className="h-4 w-4 text-rose-500" />)}
+            </div>
+            {t.sub && <div className="text-[11px] text-gray-400 truncate" title={t.sub}>{t.sub}</div>}
+          </CardContent></Card>
+        ))}
+      </div>
+
+      {/* Melhor / pior noite (cachê) */}
+      <div className="grid md:grid-cols-2 gap-3">
+        <Card className="border-emerald-200 dark:border-emerald-900/50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Star className="h-6 w-6 text-emerald-500 shrink-0" />
+            <div><div className="text-xs text-gray-500">Melhor noite (cachê recebido)</div>
+              <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{money(traj.melhor_cache?.valor || 0)}</div>
+              <div className="text-[11px] text-gray-400">{fmtData(traj.melhor_cache?.data)}</div></div>
+          </CardContent>
+        </Card>
+        <Card className="border-rose-200 dark:border-rose-900/50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <TrendingDown className="h-6 w-6 text-rose-500 shrink-0" />
+            <div><div className="text-xs text-gray-500">Menor noite (cachê recebido)</div>
+              <div className="text-lg font-bold text-rose-700 dark:text-rose-400">{money(traj.pior_cache?.valor || 0)}</div>
+              <div className="text-[11px] text-gray-400">{fmtData(traj.pior_cache?.data)}</div></div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Evolução de cachê */}
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><DollarSign className="h-4 w-4 text-emerald-500" />Evolução do cachê</CardTitle><CardDescription>quanto {nome} recebeu por show ao longo do tempo</CardDescription></CardHeader>
+        <CardContent><div style={{ width: '100%', height: 240 }}>
+          <ResponsiveContainer>
+            <LineChart data={evolChart} margin={{ top: 6, right: 12, left: 4, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={24} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} width={38} />
+              <RTooltip formatter={((v: number) => moneyC(Number(v))) as any} labelFormatter={(l) => String(l)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+              <Line type="monotone" dataKey="cache" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} name="cachê" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div></CardContent>
+      </Card>
+
+      {/* Público + faturamento da noite */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Users className="h-4 w-4 text-blue-500" />Público por show</CardTitle><CardDescription>quanta gente veio nas noites de {nome}</CardDescription></CardHeader>
+          <CardContent><div style={{ width: '100%', height: 220 }}>
+            <ResponsiveContainer>
+              <AreaChart data={evolChart} margin={{ top: 6, right: 12, left: 4, bottom: 0 }}>
+                <defs><linearGradient id="gPub" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6" stopOpacity={0.5} /><stop offset="100%" stopColor="#3b82f6" stopOpacity={0} /></linearGradient></defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={24} />
+                <YAxis tick={{ fontSize: 11 }} width={34} />
+                <RTooltip formatter={((v: number) => [num(Number(v)), 'público']) as any} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Area type="monotone" dataKey="publico" stroke="#3b82f6" fill="url(#gPub)" name="público" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-violet-500" />Faturamento da noite</CardTitle><CardDescription>o quanto a casa fez nas noites de {nome}</CardDescription></CardHeader>
+          <CardContent><div style={{ width: '100%', height: 220 }}>
+            <ResponsiveContainer>
+              <LineChart data={evolChart} margin={{ top: 6, right: 12, left: 4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={24} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} width={38} />
+                <RTooltip formatter={((v: number) => moneyC(Number(v))) as any} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Line type="monotone" dataKey="fat" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 2 }} name="faturamento" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div></CardContent>
+        </Card>
+      </div>
+
+      {/* Parceiros de palco */}
+      {traj.parceiros?.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Handshake className="h-4 w-4 text-amber-500" />Parceiros de palco</CardTitle><CardDescription>com quem {nome} mais dividiu a noite</CardDescription></CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {traj.parceiros.map((p, i) => (
+              <span key={i} className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-700 px-3 py-1 text-sm">
+                {p.nome} <span className="text-xs text-gray-400">{p.juntos}×</span>
+              </span>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ---- Ranking (secundário) ----
+function RankingView({ ranking, onPick }: { ranking: any[] | null; onPick: (id: number) => void }) {
+  if (ranking === null) return <div className="grid gap-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>;
+  if (ranking.length === 0) return <Card><CardContent className="py-12 text-center text-gray-500">Sem dados de ranking no período.</CardContent></Card>;
+  return (
+    <Card>
+      <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Award className="h-4 w-4 text-amber-500" />Ranking (últimos 12 meses)</CardTitle><CardDescription>clique num artista para abrir a trajetória</CardDescription></CardHeader>
+      <CardContent className="p-0 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-xs text-gray-500 border-b"><tr>
+            <th className="text-left px-3 py-2">#</th><th className="text-left px-3 py-2">Artista</th>
+            <th className="text-right px-3 py-2">Shows</th><th className="text-right px-3 py-2">Público médio</th>
+            <th className="text-right px-3 py-2">Fat. médio/noite</th><th className="text-right px-3 py-2">Cachê médio</th>
+          </tr></thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+            {ranking.map((a, i) => (
+              <tr key={a.artista_id ?? a.nome} onClick={() => a.artista_id && onPick(a.artista_id)} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${a.artista_id ? 'cursor-pointer' : ''}`}>
+                <td className="px-3 py-2 text-gray-400 tabular-nums">{i + 1}</td>
+                <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{a.nome} <span className="text-[11px] text-gray-400 capitalize">· {a.tipo}</span></td>
+                <td className="px-3 py-2 text-right tabular-nums">{a.shows}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{num(a.publico_medio)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{money(a.fat_medio)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{money(a.custo_medio)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </CardContent>
     </Card>
   );

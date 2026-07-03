@@ -48,6 +48,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'bar_id é obrigatório' }, { status: 400 });
     }
     const { searchParams } = new URL(request.url);
+    const ops = (supabase as any).schema('operations');
+
+    // Modo artista-first: lista p/ dropdown
+    if (searchParams.get('view') === 'lista') {
+      const { data, error } = await ops.rpc('fn_artista_lista', { p_bar: barId });
+      if (error) throw error;
+      return NextResponse.json({ success: true, lista: data || [] });
+    }
+    // Modo artista-first: trajetória completa de 1 artista
+    const artistaIdParam = searchParams.get('artista_id');
+    if (artistaIdParam) {
+      const { data, error } = await ops.rpc('fn_artista_trajetoria', { p_bar: barId, p_artista_id: Number(artistaIdParam) });
+      if (error) throw error;
+      return NextResponse.json({ success: true, artista: data || null });
+    }
+
     const periodo = parseInt(searchParams.get('periodo') || '12', 10); // meses
     const minShows = parseInt(searchParams.get('min_shows') || '2', 10);
 
@@ -88,7 +104,6 @@ export async function GET(request: NextRequest) {
     }
 
     // 2) Ligações artista -> evento (só as que caem no período)
-    const ops = (supabase as any).schema('operations');
     const eventoIds = eventos.map((e) => e.id);
     const { data: linksRaw, error: lkErr } = await ops
       .from('evento_artistas')
