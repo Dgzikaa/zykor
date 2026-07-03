@@ -132,13 +132,15 @@ export default function DesviosPage() {
     });
   }, [barId, tipo]);
 
-  const carregar = useCallback(async (a: string, b: string, t: string, emAndamento = false) => {
+  // silent=true → recarrega SEM blankar a tabela com spinner (usado após salvar no lápis:
+  // a tabela fica visível e atualiza no lugar quando o recálculo volta, sem piscar).
+  const carregar = useCallback(async (a: string, b: string, t: string, emAndamento = false, silent = false) => {
     if (!barId || !a || !b) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const r = await api.get(`/api/operacional/desvios?ini=${a}&fim=${b}&tipo=${t}${emAndamento ? '&andamento=1' : ''}`);
       if (r.success) setRes(r);
-    } finally { setLoading(false); }
+    } finally { if (!silent) setLoading(false); }
   }, [barId]);
   useEffect(() => { if (ini && fim) carregar(ini, fim, tipo, andamento); }, [ini, fim, tipo, andamento, carregar]);
 
@@ -199,7 +201,7 @@ export default function DesviosPage() {
     if (!ini || !fim) return;
     try {
       await api.post('/api/operacional/desvios', { tipo: kind, codigo, data: ini, ...payload });
-      await carregar(ini, fim, tipo, andamento);
+      await carregar(ini, fim, tipo, andamento, true); // reload SILENCIOSO (não blanka a tabela)
     } catch { /* silencioso; recarrega no próximo */ }
   }, [ini, fim, tipo, andamento, carregar]);
 
