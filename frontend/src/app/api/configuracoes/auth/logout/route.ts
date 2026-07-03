@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logLogout } from '@/lib/audit-logger';
+import { getAdminClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +34,15 @@ export async function POST(request: NextRequest) {
       // Ignorar erro do cookie
     }
 
+    // encerra a sessão de acesso (auditoria) — best-effort
+    const sid = request.cookies.get('zk_sid')?.value;
+    if (sid) {
+      try {
+        const supabase = await getAdminClient();
+        await (supabase as any).schema('system').rpc('session_end', { p_sid: sid, p_reason: 'logout' });
+      } catch { /* noop */ }
+    }
+
     // Log de logout
     await logLogout({
       userId: userInfo?.id,
@@ -52,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     // Limpar TODOS os cookies de autenticação
     // TODO(rodrigo/2026-05): Após migração completa, manter apenas auth_token e refresh_token
-    const cookiesToDelete = ['auth_token', 'refresh_token', 'sgb_user', 'sgb_bar_id', 'sgb_bar_nome'];
+    const cookiesToDelete = ['auth_token', 'refresh_token', 'sgb_user', 'sgb_bar_id', 'sgb_bar_nome', 'zk_sid'];
     for (const name of cookiesToDelete) {
       response.cookies.set(name, '', {
         httpOnly: true,

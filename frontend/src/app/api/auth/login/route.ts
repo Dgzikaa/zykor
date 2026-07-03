@@ -47,6 +47,13 @@ async function handleLogin(request: NextRequest) {
       });
 
     if (authError || !authData.user) {
+      // registra a tentativa falha (auditoria de segurança) — nunca quebra o fluxo
+      try {
+        await adminClient.schema('system').rpc('login_attempt', {
+          p_email: email, p_ip: clientIp, p_ua: userAgent, p_sucesso: false,
+          p_motivo: authError?.message || 'email ou senha incorretos',
+        });
+      } catch { /* noop */ }
       return NextResponse.json(
         { success: false, error: authError?.message || 'Email ou senha incorretos' },
         { status: 401 }
@@ -82,6 +89,11 @@ async function handleLogin(request: NextRequest) {
 
         usuarios = [{ ...usuarioExistente, auth_id: authData.user.id }];
       } else {
+        try {
+          await adminClient.schema('system').rpc('login_attempt', {
+            p_email: email, p_ip: clientIp, p_ua: userAgent, p_sucesso: false, p_motivo: 'usuário não encontrado ou inativo',
+          });
+        } catch { /* noop */ }
         return NextResponse.json(
           { success: false, error: 'Usuário não encontrado ou inativo' },
           { status: 401 }
@@ -179,6 +191,19 @@ async function handleLogin(request: NextRequest) {
     // Selecionar primeiro bar como padrão
     const selectedBar = baresComNome[0] || { bar_id: 0, id: 0, nome: 'Sem bar' };
 
+    // Sessão + registro do login (auditoria de acessos) — best-effort, nunca quebra o login
+    let sessionId: string | null = null;
+    try {
+      const { data: sid } = await adminClient.schema('system').rpc('session_start', {
+        p_email: usuarioPrincipal.email, p_user_id: usuarioPrincipal.id,
+        p_bar_id: selectedBar.bar_id, p_ip: clientIp, p_ua: userAgent,
+      });
+      sessionId = (sid as string) || null;
+      await adminClient.schema('system').rpc('login_attempt', {
+        p_email: usuarioPrincipal.email, p_ip: clientIp, p_ua: userAgent, p_sucesso: true, p_motivo: null,
+      });
+    } catch { /* noop */ }
+
     // Gerar token JWT (7 dias) e refresh token (30 dias)
     const token = generateToken({
       user_id: usuarioPrincipal.id,
@@ -262,6 +287,11 @@ async function handleLogin(request: NextRequest) {
       ...cookieOptions,
       httpOnly: false, // Não httpOnly para permitir leitura client-side (cache)
     });
+
+    // id da sessão (auditoria de acessos) — httpOnly; o heartbeat lê do cookie no servidor
+    if (sessionId) {
+      response.cookies.set('zk_sid', sessionId, { ...cookieOptions, httpOnly: true });
+    }
 
     return response;
   } catch (error: unknown) {

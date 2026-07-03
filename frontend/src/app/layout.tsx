@@ -23,6 +23,7 @@ import { PageTitleProvider } from '@/contexts/PageTitleContext';
 import { ClientOnlyLayoutParts } from '@/components/ClientOnlyLayoutParts';
 import { PermissionGuard } from '@/components/PermissionGuard';
 import { SessionManager } from '@/components/SessionManager';
+import { SessionHeartbeat } from '@/components/SessionHeartbeat';
 
 export const metadata: Metadata = {
   title: 'Zykor - O núcleo da gestão de bares',
@@ -58,6 +59,7 @@ export default function RootLayout({
                       <ToastProvider>
                         <ErrorBoundary>
                           <SessionManager />
+                          <SessionHeartbeat />
                           <PermissionGuard>
                             <div className="min-h-screen">
                               {children}

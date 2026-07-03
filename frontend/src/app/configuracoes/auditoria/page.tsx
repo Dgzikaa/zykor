@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Shield, Search, Download, Filter, User, Clock, Database, Loader2, AlertTriangle, ListChecks, ChevronRight, ChevronDown } from 'lucide-react';
+import { Shield, Search, Download, Filter, User, Clock, Database, Loader2, AlertTriangle, ListChecks, ChevronRight, ChevronDown, Users, Wifi, XCircle, CheckCircle2 } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 
@@ -88,6 +88,14 @@ const LABEL_CAMPO: Record<string, string> = {
   responsavel_nome: 'Responsável', rendimento_real: 'Rendimento real', curva_a: 'Curva A',
 };
 const labelCampo = (c: string) => LABEL_CAMPO[c] || prettify(c);
+// duração amigável a partir de segundos: "2h 15min", "45min", "30s"
+const fmtDur = (seg: number) => {
+  const s = Math.max(0, Math.round(seg));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `${h}h ${m}min`;
+  if (m > 0) return `${m}min`;
+  return `${s}s`;
+};
 
 export default function AuditoriaPage() {
   const { setPageTitle } = usePageTitle();
@@ -99,8 +107,9 @@ export default function AuditoriaPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [auto, setAuto] = useState(true); // tempo real ligado por padrão (polling)
-  const [aba, setAba] = useState<'tudo' | 'sensiveis'>('tudo');
+  const [aba, setAba] = useState<'tudo' | 'sensiveis' | 'acessos'>('tudo');
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set()); // grupos (ações em massa) abertos
+  const [acessos, setAcessos] = useState<{ sessoes: any[]; tentativas: any[]; online_count: number } | null>(null);
 
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
@@ -134,15 +143,28 @@ export default function AuditoriaPage() {
     } finally { setLoading(false); }
   }, [de, ate, operation, table, q, aba]);
 
-  useEffect(() => { carregar(0, false); /* carga inicial + ao trocar de aba */ // eslint-disable-next-line react-hooks/exhaustive-deps
+  const carregarAcessos = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    setErro(null);
+    try {
+      const r = await api.get('/api/configuracoes/auditoria/acessos');
+      if (!r.success) throw new Error(r.error || 'Falha ao carregar');
+      setAcessos({ sessoes: r.sessoes || [], tentativas: r.tentativas || [], online_count: r.online_count || 0 });
+    } catch (e: any) { setErro(e?.message || 'Erro'); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { // carga inicial + ao trocar de aba
+    if (aba === 'acessos') carregarAcessos(); else carregar(0, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aba]);
 
-  // tempo real: enquanto ligado, recarrega a 1ª página a cada 10s sem piscar o spinner
+  // tempo real: recarrega a cada 10s sem piscar o spinner
   useEffect(() => {
     if (!auto) return;
-    const t = setInterval(() => carregar(0, false, true), 10000);
+    const t = setInterval(() => { if (aba === 'acessos') carregarAcessos(true); else carregar(0, false, true); }, 10000);
     return () => clearInterval(t);
-  }, [auto, carregar]);
+  }, [auto, aba, carregar, carregarAcessos]);
 
   const buscar = () => carregar(0, false);
   const limpar = () => { setDe(''); setAte(''); setOperation(''); setTable(''); setQ(''); setTimeout(() => carregar(0, false), 0); };
@@ -227,6 +249,71 @@ export default function AuditoriaPage() {
     );
   };
 
+  // aba "Acessos": sessões (tempo logado × ativo, online, IP) + tentativas de login
+  const renderAcessos = () => {
+    if (!acessos) return <div className="text-center py-10"><Loader2 className="h-7 w-7 animate-spin mx-auto text-gray-400" /></div>;
+    const { sessoes, tentativas, online_count } = acessos;
+    const falhas = tentativas.filter((t: any) => !t.sucesso);
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-3">
+          <Card><CardContent className="p-3"><div className="text-xs text-gray-500 flex items-center gap-1"><Wifi className="h-3.5 w-3.5 text-emerald-500" />Online agora</div><div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{online_count}</div></CardContent></Card>
+          <Card><CardContent className="p-3"><div className="text-xs text-gray-500 flex items-center gap-1"><Users className="h-3.5 w-3.5" />Sessões recentes</div><div className="text-2xl font-bold text-gray-900 dark:text-white">{sessoes.length}</div></CardContent></Card>
+          <Card><CardContent className="p-3"><div className="text-xs text-gray-500 flex items-center gap-1"><XCircle className="h-3.5 w-3.5 text-rose-500" />Logins falhos</div><div className="text-2xl font-bold text-rose-600 dark:text-rose-400">{falhas.length}</div></CardContent></Card>
+        </div>
+
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Sessões</CardTitle><CardDescription>tempo logado × tempo realmente navegando (ativo)</CardDescription></CardHeader>
+          <CardContent className="p-0 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-xs text-gray-500 border-b"><tr>
+                <th className="text-left px-3 py-2">Usuário</th><th className="text-left px-3 py-2">Entrada</th>
+                <th className="text-right px-3 py-2">Logado</th><th className="text-right px-3 py-2">Ativo</th>
+                <th className="text-left px-3 py-2">IP</th><th className="text-left px-3 py-2">Situação</th>
+              </tr></thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {sessoes.map((s: any) => {
+                  const ocioso = s.duracao_seg > 0 ? Math.max(0, Math.round((1 - s.ativo_seg / s.duracao_seg) * 100)) : 0;
+                  return (
+                    <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{s.user_email}{s.bar_id != null && <span className="text-[11px] text-gray-400"> · bar {s.bar_id}</span>}</td>
+                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtData(s.login_at)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtDur(s.duracao_seg)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums" title={`${ocioso}% do tempo ocioso`}>{fmtDur(s.ativo_seg)}<span className="text-[10px] text-gray-400"> ({100 - ocioso}%)</span></td>
+                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{s.ip || '—'}</td>
+                      <td className="px-3 py-2">{s.online ? <span className="inline-flex items-center gap-1 text-emerald-600 text-xs"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />online</span> : s.ended_at ? <span className="text-xs text-gray-400">saiu {fmtData(s.ended_at)}</span> : <span className="text-xs text-gray-400">inativo</span>}</td>
+                    </tr>
+                  );
+                })}
+                {sessoes.length === 0 && <tr><td colSpan={6} className="px-3 py-8 text-center text-gray-400">Nenhuma sessão ainda — começa a registrar nos próximos logins.</td></tr>}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Tentativas de login</CardTitle></CardHeader>
+          <CardContent className="p-0 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-xs text-gray-500 border-b"><tr><th className="text-left px-3 py-2">Quando</th><th className="text-left px-3 py-2">Email</th><th className="text-left px-3 py-2">IP</th><th className="text-left px-3 py-2">Resultado</th></tr></thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {tentativas.map((t: any) => (
+                  <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                    <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtData(t.at)}</td>
+                    <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{t.email || '—'}</td>
+                    <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{t.ip || '—'}</td>
+                    <td className="px-3 py-2">{t.sucesso ? <span className="inline-flex items-center gap-1 text-emerald-600 text-xs"><CheckCircle2 className="h-3.5 w-3.5" />ok</span> : <span className="inline-flex items-center gap-1 text-rose-600 text-xs"><XCircle className="h-3.5 w-3.5" />falhou{t.motivo ? ` · ${t.motivo}` : ''}</span>}</td>
+                  </tr>
+                ))}
+                {tentativas.length === 0 && <tr><td colSpan={4} className="px-3 py-8 text-center text-gray-400">Nenhuma tentativa registrada ainda.</td></tr>}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-[calc(100vh-8px)] bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-2 py-3 pb-6 max-w-[98vw] space-y-4">
@@ -240,7 +327,7 @@ export default function AuditoriaPage() {
 
         {/* Abas */}
         <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
-          {([['tudo', 'Tudo', ListChecks], ['sensiveis', 'Ações sensíveis', AlertTriangle]] as const).map(([k, label, Icon]) => (
+          {([['tudo', 'Tudo', ListChecks], ['sensiveis', 'Ações sensíveis', AlertTriangle], ['acessos', 'Acessos', Users]] as const).map(([k, label, Icon]) => (
             <button key={k} onClick={() => setAba(k)}
               className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 -mb-px transition ${aba === k ? 'border-violet-500 text-violet-700 dark:text-violet-300 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}>
               <Icon className={`h-4 w-4 ${k === 'sensiveis' ? 'text-rose-500' : ''}`} />{label}
@@ -250,6 +337,13 @@ export default function AuditoriaPage() {
         {aba === 'sensiveis' && (
           <p className="text-xs text-rose-600 dark:text-rose-400 -mt-1">Exclusões, mudanças de permissão de usuário e alterações de credenciais.</p>
         )}
+
+        {aba === 'acessos' ? (
+          <>
+            {erro && <div className="text-sm text-red-600 dark:text-red-400">{erro}</div>}
+            {renderAcessos()}
+          </>
+        ) : (<>
 
         {/* Filtros */}
         <Card>
@@ -345,6 +439,7 @@ export default function AuditoriaPage() {
             )}
           </CardContent>
         </Card>
+        </>)}
       </div>
     </div>
   );
