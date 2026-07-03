@@ -129,6 +129,21 @@ export function normalizeStoredPermissions(stored: ModulosPermitidos): string[] 
   return [];
 }
 
+/** Ações CRUD de um módulo. 'ver' é a base (editar/inserir/excluir implicam ver). */
+export type PermAction = 'ver' | 'editar' | 'inserir' | 'excluir';
+export const PERM_ACTIONS: PermAction[] = ['ver', 'editar', 'inserir', 'excluir'];
+const ACTION_SET = new Set<string>(PERM_ACTIONS);
+
+/** Separa 'modulo:acao' → { base, action }. Sem sufixo de ação conhecido → action undefined. */
+export function splitAction(token: string): { base: string; action?: PermAction } {
+  const i = token.lastIndexOf(':');
+  if (i > 0) {
+    const suffix = token.slice(i + 1).toLowerCase();
+    if (ACTION_SET.has(suffix)) return { base: token.slice(0, i).toLowerCase(), action: suffix as PermAction };
+  }
+  return { base: token.toLowerCase() };
+}
+
 /** Colapsa um token na sua classe de equivalência canônica. */
 export function canonicalize(token: string): string {
   const t = token.toLowerCase();
@@ -137,14 +152,17 @@ export function canonicalize(token: string): string {
 
 /**
  * Conjunto efetivo de permissões do usuário: tokens crus + suas formas canônicas.
- * Mantém os generics crus (ferramentas, financeiro, gestao, etc.).
+ * Mantém os generics crus (ferramentas, financeiro, gestao, etc.). Para tokens granulares
+ * ('modulo:acao'), adiciona também a forma canônica da BASE (ex.: 'crm:editar' → 'ferramentas_crm:editar').
  */
 export function expandUserPermissions(stored: ModulosPermitidos): Set<string> {
   const tokens = normalizeStoredPermissions(stored);
   const set = new Set<string>();
   for (const t of tokens) {
     set.add(t);
-    set.add(canonicalize(t));
+    const { base, action } = splitAction(t);
+    if (action) set.add(`${canonicalize(base)}:${action}`);
+    else set.add(canonicalize(t));
   }
   return set;
 }
@@ -171,17 +189,41 @@ function acceptingTokensFor(moduleId: string): Set<string> {
   return accept;
 }
 
-/** Usuário tem acesso ao módulo (resolvendo aliases + generics + 'todos')? */
-export function userHasModule(stored: ModulosPermitidos, moduleId: string): boolean {
+/**
+ * Usuário pode executar a AÇÃO (ver/editar/inserir/excluir) no módulo?
+ * Regras (retrocompatíveis):
+ *  - 'todos', token liso do módulo, ou um generic aceitante → concede TODAS as ações (como hoje).
+ *  - Granular: token '<modulo>:<acao>' concede aquela ação. Qualquer granular concede 'ver'.
+ * Pra restringir alguém a só-ver, dá '<modulo>:ver' (sem o token liso nem generics).
+ */
+export function userCan(stored: ModulosPermitidos, moduleId: string, action: PermAction): boolean {
   if (!moduleId) return false;
   const userSet = expandUserPermissions(stored);
   if (userSet.has(TODOS)) return true;
 
+  const target = canonicalize(moduleId);
+  const rawId = moduleId.toLowerCase();
+
+  // Acesso CHEIO: token liso do módulo (ou canônico) ou um generic aceitante → todas as ações.
   const accept = acceptingTokensFor(moduleId);
-  for (const a of accept) {
-    if (userSet.has(a)) return true;
+  for (const a of accept) if (userSet.has(a)) return true;
+
+  // Granular: a ação específica.
+  if (userSet.has(`${target}:${action}`) || userSet.has(`${rawId}:${action}`)) return true;
+
+  // 'ver' também é concedido por QUALQUER grant granular no módulo.
+  if (action === 'ver') {
+    for (const t of userSet) {
+      const s = splitAction(t);
+      if (s.action && (s.base === target || s.base === rawId)) return true;
+    }
   }
   return false;
+}
+
+/** Usuário tem acesso (pode ver/entrar) no módulo? (= userCan ..., 'ver') */
+export function userHasModule(stored: ModulosPermitidos, moduleId: string): boolean {
+  return userCan(stored, moduleId, 'ver');
 }
 
 /** Usuário tem acesso a PELO MENOS UM dos módulos requeridos? */
