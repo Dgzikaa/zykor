@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageShell } from '@/components/layout/PageShell';
+import { useModuloPermissao } from '@/hooks/useModuloPermissao';
+import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick, Pencil, Check, X } from 'lucide-react';
@@ -94,6 +96,7 @@ function AnaliseBlock({ analise, tipo }: { analise: any; tipo: string | null }) 
 
 export default function DesviosPage() {
   const { selectedBar } = useBar();
+  const { soLeitura } = useModuloPermissao('/operacional/desvios');
   const barId = selectedBar?.id;
   const [tipo, setTipo] = useState('diaria');
   const [datas, setDatas] = useState<string[]>([]);
@@ -245,7 +248,7 @@ export default function DesviosPage() {
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-rose-100 dark:bg-rose-900/30 rounded-xl"><Scale className="w-6 h-6 text-rose-600 dark:text-rose-400" /></div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Desvios de Consumo</h1>
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">Desvios de Consumo{soLeitura && <BadgeSomenteLeitura />}</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Estoque real × teórico (ini + compras + produzido − vendas×ficha − desperdício) · {selectedBar?.nome || ''}</p>
           </div>
         </div>

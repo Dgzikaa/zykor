@@ -12,6 +12,8 @@ import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { Clock, ChevronLeft, ChevronRight, Loader2, Trash2, Plus } from 'lucide-react';
+import { useModuloPermissao } from '@/hooks/useModuloPermissao';
+import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 
 type Reg = { id: string; funcionario_id: number; data: string; entrada: string | null; saida: string | null; intervalo_min: number; horas_previstas: number; observacao: string | null };
 type Func = { id: number; nome: string; area_id: number | null };
@@ -30,6 +32,7 @@ type CellEdit = { func: Func; data: string; r: Reg | null } | null;
 
 export default function PontoPage() {
   const { selectedBar } = useBar();
+  const { soLeitura } = useModuloPermissao('/rh/ponto');
   const { showToast } = useToast();
   const [weekStart, setWeekStart] = useState(() => segDaSemana(new Date()));
   const [registros, setRegistros] = useState<Reg[]>([]);
@@ -91,7 +94,7 @@ export default function PontoPage() {
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0"><Clock className="w-6 h-6" /></div>
               <div>
-                <h1 className="text-xl font-bold leading-tight">Ponto & Banco de Horas</h1>
+                <h1 className="flex items-center gap-2 text-xl font-bold leading-tight">Ponto & Banco de Horas{soLeitura && <BadgeSomenteLeitura />}</h1>
                 <p className="text-sm text-white/80">Entrada/saída por dia — saldo automático na semana</p>
               </div>
             </div>

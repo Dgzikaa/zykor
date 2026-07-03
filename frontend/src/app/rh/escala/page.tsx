@@ -12,6 +12,8 @@ import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { CalendarRange, ChevronLeft, ChevronRight, Loader2, Trash2, Plus } from 'lucide-react';
+import { useModuloPermissao } from '@/hooks/useModuloPermissao';
+import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 
 type Escala = {
   id: string; funcionario_id: number; data: string; turno: string;
@@ -37,6 +39,7 @@ type CellEdit = { func: Func; data: string; e: Escala | null } | null;
 
 export default function EscalaPage() {
   const { selectedBar } = useBar();
+  const { soLeitura } = useModuloPermissao('/rh/escala');
   const { showToast } = useToast();
   const [weekStart, setWeekStart] = useState(() => segDaSemana(new Date()));
   const [escalas, setEscalas] = useState<Escala[]>([]);
@@ -102,7 +105,7 @@ export default function EscalaPage() {
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0"><CalendarRange className="w-6 h-6" /></div>
               <div>
-                <h1 className="text-xl font-bold leading-tight">Escala</h1>
+                <h1 className="flex items-center gap-2 text-xl font-bold leading-tight">Escala{soLeitura && <BadgeSomenteLeitura />}</h1>
                 <p className="text-sm text-white/80">Turnos da equipe por semana — clique numa célula pra escalar</p>
               </div>
             </div>

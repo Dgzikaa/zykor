@@ -10,6 +10,8 @@ import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { Briefcase, Loader2, Plus, Trash2, UserPlus, X, ChevronRight } from 'lucide-react';
+import { useModuloPermissao } from '@/hooks/useModuloPermissao';
+import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 
 type Vaga = { id: string; titulo: string; area_id: number | null; tipo_contratacao: string | null; status: string; candidatos: number };
 type Cand = { id: string; nome: string; telefone: string | null; email: string | null; etapa: string; funcionario_id: number | null };
@@ -29,6 +31,7 @@ const iniciais = (n: string) => n.trim().split(/\s+/).slice(0, 2).map((p) => p[0
 
 export default function RecrutamentoPage() {
   const { selectedBar } = useBar();
+  const { soLeitura } = useModuloPermissao('/rh/recrutamento');
   const { showToast } = useToast();
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [areas, setAreas] = useState<Opcao[]>([]);
@@ -98,7 +101,7 @@ export default function RecrutamentoPage() {
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0"><Briefcase className="w-6 h-6" /></div>
               <div>
-                <h1 className="text-xl font-bold leading-tight">Recrutamento</h1>
+                <h1 className="flex items-center gap-2 text-xl font-bold leading-tight">Recrutamento{soLeitura && <BadgeSomenteLeitura />}</h1>
                 <p className="text-sm text-white/80">Vagas, candidatos por etapa e admissão</p>
               </div>
             </div>

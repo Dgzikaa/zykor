@@ -10,6 +10,8 @@ import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { HandCoins, Loader2, Plus, Trash2, Copy, Users } from 'lucide-react';
+import { useModuloPermissao } from '@/hooks/useModuloPermissao';
+import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 
 type Conv = { id: string; funcionario_id: number; data: string; status: string; valor_diaria: number | null; funcao: string | null };
 type Pool = { id: number; nome: string; area_id: number | null; valor_diaria: number | null; chave_pix: string | null; tipo_chave_pix: string | null };
@@ -32,6 +34,7 @@ const iniciais = (n: string) => n.trim().split(/\s+/).slice(0, 2).map((p) => p[0
 
 export default function FreelasPage() {
   const { selectedBar } = useBar();
+  const { soLeitura } = useModuloPermissao('/rh/freelas');
   const { showToast } = useToast();
   const [data, setData] = useState(() => ymd(new Date()));
   const [convocacoes, setConvocacoes] = useState<Conv[]>([]);
@@ -83,7 +86,7 @@ export default function FreelasPage() {
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0"><HandCoins className="w-6 h-6" /></div>
               <div>
-                <h1 className="text-xl font-bold leading-tight">Freelas</h1>
+                <h1 className="flex items-center gap-2 text-xl font-bold leading-tight">Freelas{soLeitura && <BadgeSomenteLeitura />}</h1>
                 <p className="text-sm text-white/80">Convocação por dia, confirmação e pagamento</p>
               </div>
             </div>

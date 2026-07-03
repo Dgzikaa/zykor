@@ -10,6 +10,8 @@ import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { Calculator, RefreshCw, Search, Loader2, TrendingUp, TrendingDown, CalendarDays, ListChecks, Download } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
+import { useModuloPermissao } from '@/hooks/useModuloPermissao';
+import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtPct = (v: any) => v == null ? '—' : `${Number(v).toFixed(1)}%`;
@@ -35,6 +37,7 @@ const ddmm = (s: string) => s.split('-').reverse().slice(0, 2).join('/');
 
 export default function CmvTeoricoPage() {
   const { selectedBar } = useBar();
+  const { soLeitura } = useModuloPermissao('/operacional/cmv-teorico');
   const { toast } = useToast();
   const barId = selectedBar?.id;
   const [modo, setModo] = useState<'cardapio' | 'periodo' | 'comparativo'>('periodo');
@@ -165,7 +168,7 @@ export default function CmvTeoricoPage() {
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl"><Calculator className="w-6 h-6 text-amber-600 dark:text-amber-400" /></div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">CMV Teórico</h1>
+              <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">CMV Teórico{soLeitura && <BadgeSomenteLeitura />}</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">{modo === 'cardapio' ? 'Custo da ficha (último preço) ÷ preço de venda (ContaHub)' : 'CMV teórico ponderado pelas vendas do período'} · {selectedBar?.nome || `Bar ${barId ?? ''}`}</p>
             </div>
           </div>

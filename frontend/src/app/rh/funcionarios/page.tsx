@@ -14,6 +14,8 @@ import { FuncionarioDialog } from './_components/FuncionarioDialog';
 import { DossieDialog } from './_components/DossieDialog';
 import { DashboardRH } from './_components/DashboardRH';
 import { IndicadoresRH } from './_components/IndicadoresRH';
+import { useModuloPermissao } from '@/hooks/useModuloPermissao';
+import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 
 export type Funcionario = {
   id: number; nome: string; cpf: string | null; telefone: string | null; email: string | null;
@@ -49,6 +51,7 @@ const tempoDeCasa = (admissao: string | null) => {
 
 export default function FuncionariosPage() {
   const { selectedBar } = useBar();
+  const { soLeitura } = useModuloPermissao('/rh/funcionarios');
   const { showToast } = useToast();
   const [lista, setLista] = useState<Funcionario[]>([]);
   const [cargos, setCargos] = useState<Opcao[]>([]);
@@ -127,7 +130,7 @@ export default function FuncionariosPage() {
                 <Users className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="text-xl font-bold leading-tight">Funcionários</h1>
+                <h1 className="flex items-center gap-2 text-xl font-bold leading-tight">Funcionários{soLeitura && <BadgeSomenteLeitura />}</h1>
                 <p className="text-sm text-white/80">Central de RH — equipe, documentos e indicadores</p>
               </div>
             </div>
