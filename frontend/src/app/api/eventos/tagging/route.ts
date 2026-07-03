@@ -86,21 +86,36 @@ export async function GET(request: NextRequest) {
     if (!barId) return NextResponse.json({ success: false, error: 'bar_id é obrigatório' }, { status: 400 });
     const { searchParams } = new URL(request.url);
     const mesParam = searchParams.get('mes'); // YYYY-MM
-    // "hoje" no fuso de Brasília (UTC-3) — só taggeamos o passado (evento < hoje)
+    // "hoje" no fuso de Brasília (UTC-3)
     const hojeBR = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    // traz também o FUTURO planejado (do planejamento comercial) até o fim do ano
+    const fimAno = `${hojeBR.slice(0, 4)}-12-31`;
+    // "preenchido" = evento com nome de verdade (placeholder futuro vem com nome vazio; genérico = "Evento AAAA-MM-DD")
+    const preenchido = (nome: any) => { const n = String(nome || '').trim(); return n !== '' && !/^evento\s/i.test(n); };
 
-    // meses disponíveis (só passados)
+    // meses disponíveis: passados (tudo, como sempre) + futuros que têm evento preenchido no planejamento
     const { data: datas } = await supabase
       .from('eventos_base')
-      .select('data_evento')
+      .select('data_evento, nome')
       .eq('bar_id', barId)
-      .lt('data_evento', hojeBR)
+      .lte('data_evento', fimAno)
       .order('data_evento', { ascending: false })
-      .limit(2000);
-    const mesesSet = new Set<string>();
+      .limit(4000);
+    // agrega por mês: mês passado/corrente (tem dia < hoje) aparece sempre; mês FUTURO só quando
+    // está 100% preenchido no planejamento — nenhum dia futuro sem nome (placeholder).
+    const mesInfo = new Map<string, { past: boolean; named: number; futEmpty: number }>();
     for (const d of datas || []) {
-      const s = String((d as any).data_evento).slice(0, 7);
-      if (s) mesesSet.add(s);
+      const dt = String((d as any).data_evento).slice(0, 10);
+      const s = dt.slice(0, 7);
+      const info = mesInfo.get(s) || { past: false, named: 0, futEmpty: 0 };
+      if (dt < hojeBR) info.past = true;
+      if (preenchido((d as any).nome)) info.named += 1;
+      else if (dt >= hojeBR) info.futEmpty += 1;
+      mesInfo.set(s, info);
+    }
+    const mesesSet = new Set<string>();
+    for (const [s, info] of mesInfo) {
+      if (info.past || (info.named > 0 && info.futEmpty === 0)) mesesSet.add(s);
     }
     const meses = Array.from(mesesSet).sort().reverse();
     const mes = mesParam && mesesSet.has(mesParam) ? mesParam : meses[0];
@@ -121,16 +136,19 @@ export async function GET(request: NextRequest) {
     const tipoPorNome = new Map<string, string>((cadastro || []).map((a: any) => [String(a.nome).toLowerCase(), a.tipo]));
     const tipoPorId = new Map<number, string>((cadastro || []).map((a: any) => [a.id, a.tipo]));
 
-    // eventos do mês (só passados: >= início do mês, <= fim do mês, e < hoje)
-    const { data: eventosRaw, error: evErr } = await supabase
+    // eventos do mês: passados (todos) + futuros preenchidos no planejamento
+    const { data: eventosRawAll, error: evErr } = await supabase
       .from('eventos_base')
       .select('id, data_evento, dia_semana, nome, real_r, cl_real, artista')
       .eq('bar_id', barId)
       .gte('data_evento', inicio)
       .lte('data_evento', fim)
-      .lt('data_evento', hojeBR)
       .order('data_evento', { ascending: false });
     if (evErr) throw evErr;
+    const eventosRaw = (eventosRawAll || []).filter((e: any) => {
+      const dt = String(e.data_evento).slice(0, 10);
+      return dt < hojeBR || preenchido(e.nome);
+    });
 
     const eventoIds = (eventosRaw || []).map((e: any) => e.id);
 
