@@ -76,6 +76,14 @@ const ALIAS_TO_CANONICAL: Record<string, string> = {
   // NPS
   ferramentas_nps: 'ferramentas_nps_funcionarios',
   nps: 'ferramentas_nps_funcionarios',
+  // Controle de Produção (perfil de tablet: producaobar@/producaocozinha@).
+  // A página /operacional/producoes é liberada pelo token dedicado `operacional_producoes`
+  // (route-permissions) e pelo `permission` do menu `controle_producao`, mas o guard de ESCRITA
+  // da API mapeia a rota pro id do menu `producao - cmv_controle_de_producao` e exigia os tokens
+  // granulares (:inserir etc). Sem isso, o tablet ABRIA a página mas tomava 403 ao salvar. Colapsar
+  // os dois tokens da página no módulo torna o perfil de tablet auto-suficiente (bar ≡ cozinha).
+  operacional_producoes: 'producao - cmv_controle_de_producao',
+  controle_producao: 'producao - cmv_controle_de_producao',
   // Estratégico
   desempenho: 'estrategico_desempenho',
   estrategico_planejamento_comercial: 'estrategico_planejamento',

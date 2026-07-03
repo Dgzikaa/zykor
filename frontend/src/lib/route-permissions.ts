@@ -31,7 +31,11 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // ========================================
   // HOME
   // ========================================
-  { path: '/home', requiredModules: ['home', 'dashboard'] },
+  // Home é livre pra QUALQUER usuário autenticado/ativo — a restrição de acesso é só no
+  // menu lateral (cada item tem seu módulo). Perfis mínimos (tablets producaobar@/
+  // producaocozinha@, sem 'home'/'dashboard') caíam em loop de redirect no /home
+  // ("página inexistente"). requiredModules: [] = público pós-login (mesmo padrão de /login).
+  { path: '/home', requiredModules: [] },
 
   // Zykor Assistant na raiz (menu fica em Configurações, mas acesso é amplo)
   { path: '/assistente-zykor', requiredModules: ['gestao', 'home', 'configuracoes'] },
