@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -731,6 +733,9 @@ export async function GET(request: NextRequest) {
 
 // POST para salvar segmentos personalizados
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body = await request.json();
@@ -785,6 +790,9 @@ export async function POST(request: NextRequest) {
 
 // GET para listar segmentos salvos (quando chamado com ?listar_segmentos=true)
 export async function DELETE(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { searchParams } = new URL(request.url);

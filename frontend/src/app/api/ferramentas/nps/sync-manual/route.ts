@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +11,9 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 // 🔄 SINCRONIZAÇÃO MANUAL NPS E FELICIDADE
 // ========================================
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const body = await request.json().catch(() => ({}));
     const { data_inicio, data_fim } = body;

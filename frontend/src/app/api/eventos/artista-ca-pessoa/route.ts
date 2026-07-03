@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +15,9 @@ function getBarId(request: NextRequest): number | null {
 // POST — mapeia um favorecido do Conta Azul a um artista do cadastro (persistente).
 // body: { ca_pessoa_nome, artista_id }
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   const barId = getBarId(request);
   const body = await request.json().catch(() => ({}));
   const caPessoa = String(body.ca_pessoa_nome || '').trim();
@@ -30,6 +35,9 @@ export async function POST(request: NextRequest) {
 
 // DELETE ?ca_pessoa_nome= — remove o mapeamento
 export async function DELETE(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   const barId = getBarId(request);
   const caPessoa = String(new URL(request.url).searchParams.get('ca_pessoa_nome') || '').trim();
   if (!barId || !caPessoa) {

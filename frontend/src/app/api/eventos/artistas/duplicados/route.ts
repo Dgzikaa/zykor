@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 import { createServiceRoleClient, selectAll } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +37,9 @@ export async function GET(request: NextRequest) {
 
 // POST — { action: 'merge', from_id, into_id } mescla; { action: 'ignorar', id_a, id_b } dispensa o par
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   const barId = getBarId(request);
   const body = await request.json().catch(() => ({}));
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });

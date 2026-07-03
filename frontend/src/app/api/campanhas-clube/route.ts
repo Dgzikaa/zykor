@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +33,9 @@ export async function GET(req: NextRequest) {
 
 /** POST { acao: 'executar', campanha_id? } — dispara edge fn */
 export async function POST(req: NextRequest) {
+  const user = await authenticateUser(req);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, req); if (nega) return nega;
   try {
     const body = await req.json();
     if (body?.acao === 'executar') {
@@ -50,6 +55,9 @@ export async function POST(req: NextRequest) {
 
 /** PATCH { execucao_id, status, notas? } — equipe marca como concluida/descartada */
 export async function PATCH(req: NextRequest) {
+  const user = await authenticateUser(req);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, req); if (nega) return nega;
   try {
     const body = await req.json();
     if (!body?.execucao_id || !body?.status) {

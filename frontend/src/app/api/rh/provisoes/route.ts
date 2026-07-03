@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 import { getAdminClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
@@ -212,6 +214,9 @@ export async function GET(request: NextRequest) {
  * Calcula e salva provisões para um mês
  */
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const body = await request.json();
     const { bar_id, mes, ano, funcionarios_dados } = body;
@@ -314,6 +319,9 @@ export async function POST(request: NextRequest) {
  * Atualiza provisão específica
  */
 export async function PUT(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const body = await request.json();
     const { id, ...updateFields } = body;
@@ -359,6 +367,9 @@ export async function PUT(request: NextRequest) {
  * Remove provisões
  */
 export async function DELETE(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

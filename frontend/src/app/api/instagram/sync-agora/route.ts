@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 /**
  * POST /api/instagram/sync-agora?bar_id=N
@@ -9,6 +11,9 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  const user = await authenticateUser(req);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, req); if (nega) return nega;
   try {
     const sp = req.nextUrl.searchParams;
     const barId = Number(sp.get('bar_id'));

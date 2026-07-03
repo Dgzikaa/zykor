@@ -62,6 +62,24 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   { prefix: '/api/operacional/plano-compras', paths: ['/operacional/plano-compras'] },
   { prefix: '/api/operacional/estoque-cadastro', paths: ['/operacional/estoque-historico'] },
   { prefix: '/api/operacional/estoque-historico', paths: ['/operacional/estoque-historico'] },
+  // --- RH ---
+  { prefix: '/api/rh/funcionarios', paths: ['/rh/funcionarios'] },
+  { prefix: '/api/rh/solicitacoes', paths: ['/rh/funcionarios'] },
+  { prefix: '/api/rh/escala', paths: ['/rh/escala'] },
+  { prefix: '/api/rh/freelas', paths: ['/rh/freelas'] },
+  { prefix: '/api/rh/ponto', paths: ['/rh/ponto'] },
+  { prefix: '/api/rh/vagas', paths: ['/rh/recrutamento'] },
+  { prefix: '/api/rh/provisoes', paths: ['/ferramentas'] },
+  // --- Analítico --- (/api/analitico/clientes/filtros-avancados é POST de LEITURA → fora do mapa)
+  { prefix: '/api/campanhas-clube', paths: ['/analitico/clientes'] },
+  { prefix: '/api/crm/lista-quente', paths: ['/analitico/clientes'] },
+  { prefix: '/api/eventos/artistas', paths: ['/analitico/atracoes'] },
+  { prefix: '/api/eventos/artista-ca-pessoa', paths: ['/analitico/atracoes'] },
+  { prefix: '/api/eventos/ca-atracao-override', paths: ['/analitico/atracoes'] },
+  // --- Marketing / NPS / Comercial ---
+  { prefix: '/api/instagram', paths: ['/marketing/instagram'] },
+  { prefix: '/api/ferramentas/nps', paths: ['/operacional/nps'] },
+  { prefix: '/api/concorrencia', paths: ['/comercial'] },
 ];
 
 /**

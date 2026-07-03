@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +35,9 @@ async function recomputarCArt(ops: any, barId: number, eventoId: number, artista
 // evento/artista certo, taggeia o artista se preciso e grava o cachê (evento_artistas.c_art).
 // body: { contaazul_id, evento_id, data_evento, artista_id?, artista_nome?, valor, pessoa_nome?, descricao?, data_competencia? }
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   const barId = getBarId(request);
   const body = await request.json().catch(() => ({}));
   const contaazulId = String(body.contaazul_id || '').trim();
@@ -110,6 +115,9 @@ export async function POST(request: NextRequest) {
 
 // DELETE ?contaazul_id= — desfaz a correção e recalcula o cachê
 export async function DELETE(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   const barId = getBarId(request);
   const contaazulId = String(new URL(request.url).searchParams.get('contaazul_id') || '').trim();
   if (!barId || !contaazulId) {
