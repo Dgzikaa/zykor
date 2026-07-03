@@ -5,9 +5,10 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 /**
- * Cron diário Stone→CA — 06:00 BRT (09:00 UTC). Lança sempre o DIA ANTERIOR (ontemBRT):
- * ex.: 03/07 às 06:00 → lança o dia 02/07. Idempotente (o log impede duplicar).
- * Bar 3 (Ordinário). Protegido pelo CRON_SECRET (Vercel injeta Authorization: Bearer <secret>).
+ * Cron diário Stone→CA — 08:00 BRT (11:00 UTC). Roda DEPOIS da ingestão da Stone do dia
+ * (cartão sync 07:00 + parse 07:20 BRT; PIX 04:10) pra ter o dia completo. Lança sempre o
+ * DIA ANTERIOR (ontemBRT): ex.: 03/07 às 08:00 → lança o dia 02/07. Idempotente (log impede
+ * duplicar). Bar 3 (Ordinário). Protegido pelo CRON_SECRET.
  */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
   const resultados: any[] = [];
   for (const barId of BARES) {
     try {
-      const r = await executarStoneDiario(barId, data, 'cron 06:00 BRT');
+      const r = await executarStoneDiario(barId, data, 'cron 08:00 BRT');
       resultados.push({ bar_id: barId, status: r.status, ...r.body });
     } catch (e: any) {
       resultados.push({ bar_id: barId, status: 500, error: e?.message || String(e) });
