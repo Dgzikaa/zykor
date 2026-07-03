@@ -266,11 +266,11 @@ function LancarSaidaModal({ saida, barId, catOpts, conta, onClose, onDone }: {
   );
 }
 
-function FluxoDinheiroInner() {
+export function FluxoContaHub({ only }: { only?: 'entradas' | 'saidas' | 'turnos' }) {
   const { selectedBar } = useBar();
   const { showToast } = useToast();
 
-  const [aba, setAba] = useState<'entradas' | 'saidas' | 'turnos'>('entradas');
+  const [aba, setAba] = useState<'entradas' | 'saidas' | 'turnos'>(only ?? 'entradas');
   const [meses, setMeses] = useState<string[]>([]);
   const [mesSel, setMesSel] = useState<string>('');
   const [saidas, setSaidas] = useState<Saida[]>([]);
@@ -356,13 +356,15 @@ function FluxoDinheiroInner() {
     <div className="p-4 md:p-6 mx-auto space-y-5">
       {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-primary/10 p-2.5"><Banknote className="h-6 w-6 text-primary" /></div>
-          <div>
-            <h1 className="text-xl font-semibold">Fluxo Dinheiro</h1>
-            <p className="text-sm text-muted-foreground">Entradas e saídas de dinheiro do caixa por turno — ContaHub.</p>
+        {only ? <div /> : (
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-primary/10 p-2.5"><Banknote className="h-6 w-6 text-primary" /></div>
+            <div>
+              <h1 className="text-xl font-semibold">Fluxo Dinheiro</h1>
+              <p className="text-sm text-muted-foreground">Entradas e saídas de dinheiro do caixa por turno — ContaHub.</p>
+            </div>
           </div>
-        </div>
+        )}
         <div className="flex items-center gap-2">
           {aba === 'entradas' && (
             <div className="relative">
@@ -416,18 +418,20 @@ function FluxoDinheiroInner() {
         </Card>
       </div>
 
-      {/* Abas */}
-      <div className="flex gap-1 border-b">
-        {([['entradas', 'Entradas de Caixa', ArrowUpCircle], ['saidas', 'Saídas de Caixa', ArrowDownCircle], ['turnos', 'Por turno', ListTree]] as const).map(([id, label, Icon]) => (
-          <button
-            key={id}
-            onClick={() => setAba(id)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${aba === id ? 'border-primary text-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-          >
-            <Icon className="h-4 w-4" /> {label}
-          </button>
-        ))}
-      </div>
+      {/* Abas (ocultas quando embutido numa única aba de Receitas/Despesas) */}
+      {!only && (
+        <div className="flex gap-1 border-b">
+          {([['entradas', 'Entradas de Caixa', ArrowUpCircle], ['saidas', 'Saídas de Caixa', ArrowDownCircle], ['turnos', 'Por turno', ListTree]] as const).map(([id, label, Icon]) => (
+            <button
+              key={id}
+              onClick={() => setAba(id)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 -mb-px transition-colors ${aba === id ? 'border-primary text-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              <Icon className="h-4 w-4" /> {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {aba === 'entradas' && (
         <>
@@ -604,7 +608,7 @@ function FluxoDinheiroInner() {
 export default function FluxoDinheiroPage() {
   return (
     <ProtectedRoute>
-      <FluxoDinheiroInner />
+      <FluxoContaHub />
     </ProtectedRoute>
   );
 }
