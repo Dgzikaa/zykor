@@ -24,10 +24,12 @@ export async function GET(request: NextRequest) {
     // comprado no VMarket sem cadastro no Zykor (lista separada)
     const semCadastro = await selectAll((from, to) => (supabase as any).schema('silver').from('insumo_sem_cadastro')
       .select('*').eq('bar_id', barId).order('nome', { ascending: true }).range(from, to)).catch(() => []);
-    // insumos que estão em alguma ficha técnica (por código)
+    // insumos que estão em ficha técnica DO BAR. O código i0XXX é reusado entre bares
+    // (i0200 = Budweiser no bar 3, Caldo de Carne no bar 4), então precisa ser por bar,
+    // ligando o item de ficha ao pai (producao_base) pra pegar o bar_id.
     const fichaCods = new Set<string>();
-    const fichaItens = await selectAll((from, to) => supabase.from('producao_ficha_item').select('insumo_codigo').eq('componente_tipo', 'insumo').range(from, to)).catch(() => []);
-    fichaItens.forEach((r: any) => { if (r.insumo_codigo) fichaCods.add(r.insumo_codigo); });
+    const { data: fichaRows } = await (supabase as any).schema('operations').rpc('fn_insumos_em_ficha', { p_bar_id: barId });
+    (fichaRows || []).forEach((r: any) => { if (r.insumo_codigo) fichaCods.add(r.insumo_codigo); });
     const { data: secoes } = await supabase.from('bronze_vmarket_secoes').select('id_secao_cotacao,nome,fl_calc_cmv_faturamento').eq('bar_id', barId).order('nome', { ascending: true });
     const { data: fresh } = await supabase.from('bronze_vmarket_produtos').select('synced_em').eq('bar_id', barId).order('synced_em', { ascending: false }).limit(1);
 
@@ -141,8 +143,9 @@ export async function POST(request: NextRequest) {
     const dup = (ativos || []).find((i: any) => norm(i.nome || '') === norm(nome));
     if (dup) {
       const dupJunk = !/^i\d+$/.test(dup.codigo);
-      const { count: dupFicha } = await supabase.from('producao_ficha_item').select('id', { count: 'exact', head: true }).eq('componente_tipo', 'insumo').eq('insumo_codigo', dup.codigo);
-      if (dupJunk && (dupFicha || 0) === 0) {
+      const { data: dupFichaRows } = await ops.rpc('fn_insumos_em_ficha', { p_bar_id: barId });
+      const dupEmFicha = (dupFichaRows || []).some((r: any) => r.insumo_codigo === dup.codigo);
+      if (dupJunk && !dupEmFicha) {
         await ops.from('insumos').update({ ativo: false }).eq('bar_id', barId).eq('codigo', dup.codigo);
       } else if (vmId > 0) {
         await supabase.from('bronze_vmarket_produtos').update({ codigo_planilha: dup.codigo }).eq('bar_id', barId).eq('id_produto_sisfood_cotacao', vmId);
@@ -172,8 +175,9 @@ export async function POST(request: NextRequest) {
     const codigo = String(body.codigo || '').trim().toLowerCase();
     if (!id && !codigo) return NextResponse.json({ success: false, error: 'insumo inválido' }, { status: 400 });
     if (codigo) {
-      const { count } = await supabase.from('producao_ficha_item').select('id', { count: 'exact', head: true }).eq('componente_tipo', 'insumo').eq('insumo_codigo', codigo);
-      if ((count || 0) > 0) return NextResponse.json({ success: false, error: 'Insumo está em ficha técnica — não pode excluir.' }, { status: 409 });
+      // em ficha DO BAR (código i0XXX é reusado entre bares — não bloquear por ficha de outro bar)
+      const { data: fichaRows } = await ops.rpc('fn_insumos_em_ficha', { p_bar_id: barId });
+      if ((fichaRows || []).some((r: any) => r.insumo_codigo === codigo)) return NextResponse.json({ success: false, error: 'Insumo está em ficha técnica — não pode excluir.' }, { status: 409 });
       // bloqueia se tem compra vinculada no VMarket
       const { data: cat } = await (supabase as any).schema('silver').from('insumo_catalogo').select('tem_compra').eq('bar_id', barId).eq('codigo', codigo).maybeSingle();
       if (cat?.tem_compra) return NextResponse.json({ success: false, error: 'Insumo tem compra vinculada no VMarket — não pode excluir.' }, { status: 409 });
