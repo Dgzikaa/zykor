@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { calcularDestaques, type LinhaDesempenho } from '@/lib/home/indicadores';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Dados da HOME (welcome hub, para todos os papéis): mural de recados, orgulho da casa
- * (NPS/Google/clientes) e a atração do dia. Leve — uma chamada só, tudo de camadas prontas.
+ * Dados da HOME (welcome hub, para todos os papéis): mural de recados, destaques do mês
+ * (Orgulho da Casa + Pontos de Atenção, calculados por régua inteligente sobre o último
+ * mês do gold.desempenho) e a atração do dia. Leve — tudo de camadas prontas.
  */
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
@@ -27,21 +29,25 @@ export async function GET(request: NextRequest) {
     .order('criado_em', { ascending: false })
     .limit(8);
 
-  // --- Orgulho: NPS do último mês fechado (desempenho mensal), nota Google, clientes no ano ---
-  const npsP = supabase
+  // --- Último mês (fechado ou em curso): base dos destaques Orgulho/Atenção ---
+  const mensalP = supabase
     .schema('gold')
     .from('desempenho')
-    .select('nps_geral, nps_respostas, data_fim')
+    .select(
+      'nps_geral, nps_respostas, media_avaliacoes_google, google_reviews_total, ' +
+      'reservas_quebra_pct, atrasos_cozinha_perc, atrasos_bar_perc, stockout_total_perc, ' +
+      'nota_felicidade_equipe, retencao_1m, data_fim'
+    )
     .eq('bar_id', barId)
     .eq('granularidade', 'mensal')
-    .not('nps_geral', 'is', null)
     .order('data_fim', { ascending: false })
     .limit(1);
 
-  const goldP = supabase
+  // --- Clientes atendidos no ano (soma das semanas) ---
+  const anoP = supabase
     .schema('gold')
     .from('desempenho')
-    .select('media_avaliacoes_google, google_reviews_total, clientes_atendidos, ano, granularidade, data_fim')
+    .select('clientes_atendidos')
     .eq('bar_id', barId)
     .eq('granularidade', 'semanal')
     .eq('ano', anoAtual);
@@ -56,28 +62,10 @@ export async function GET(request: NextRequest) {
     .order('data_evento', { ascending: true })
     .limit(1);
 
-  const [mural, nps, gold, atracao] = await Promise.all([muralP, npsP, goldP, atracaoP]);
+  const [mural, mensal, ano, atracao] = await Promise.all([muralP, mensalP, anoP, atracaoP]);
 
-  // NPS do último mês fechado (desempenho mensal)
-  let npsScore: number | null = null;
-  let npsRespostas = 0;
-  let npsMes: string | null = null;
-  if (nps.data?.length) {
-    const m = nps.data[0];
-    npsScore = Math.round(Number(m.nps_geral));
-    npsRespostas = Number(m.nps_respostas || 0);
-    npsMes = m.data_fim || null;
-  }
-
-  // Google: pega a última linha com nota
-  let google: { nota: number; total: number } | null = null;
-  let clientesAno = 0;
-  if (gold.data?.length) {
-    const ordered = [...gold.data].sort((a, b) => (a.data_fim < b.data_fim ? 1 : -1));
-    const comNota = ordered.find((r) => Number(r.media_avaliacoes_google) > 0);
-    if (comNota) google = { nota: Number(comNota.media_avaliacoes_google), total: Number(comNota.google_reviews_total || 0) };
-    clientesAno = gold.data.reduce((s, r) => s + Number(r.clientes_atendidos || 0), 0);
-  }
+  const destaques = calcularDestaques((mensal.data?.[0] ?? null) as unknown as LinhaDesempenho | null);
+  const clientesAno = (ano.data || []).reduce((s, r) => s + Number(r.clientes_atendidos || 0), 0);
 
   const ev = atracao.data?.[0];
   const atracaoDia = ev
@@ -93,14 +81,9 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     success: true,
     mural: mural.data || [],
-    orgulho: {
-      nps: npsScore,
-      nps_respostas: npsRespostas,
-      nps_mes: npsMes,
-      google,
-      clientes_ano: clientesAno,
-      ano: anoAtual,
-    },
+    destaques,
+    clientes_ano: clientesAno,
+    ano: anoAtual,
     atracao: atracaoDia,
   });
 }

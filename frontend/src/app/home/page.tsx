@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
 import { api } from '@/lib/api-client';
 import {
-  Megaphone, Pin, Trash2, Send, Star, Users, Smile, Music2, CalendarDays, Loader2,
+  Megaphone, Pin, Trash2, Send, Users, Music2, CalendarDays, Loader2,
+  Trophy, AlertTriangle, CheckCircle2,
 } from 'lucide-react';
+import type { DestaquesHome, IndicadorCalculado } from '@/lib/home/indicadores';
 
 interface Aviso {
   id: number;
@@ -19,12 +21,31 @@ interface Aviso {
 }
 interface HomeData {
   mural: Aviso[];
-  orgulho: {
-    nps: number | null; nps_respostas: number; nps_mes: string | null;
-    google: { nota: number; total: number } | null;
-    clientes_ano: number; ano: number;
-  };
+  destaques: DestaquesHome;
+  clientes_ano: number;
+  ano: number;
   atracao: { titulo: string; artista: string | null; data: string; dia_semana: string | null; eh_hoje: boolean } | null;
+}
+
+// Cor do valor por status do indicador (Orgulho = verde/teal; Atenção = âmbar/rosa).
+const STATUS_COR: Record<IndicadorCalculado['status'], string> = {
+  otimo: 'text-emerald-600 dark:text-emerald-400',
+  bom: 'text-teal-600 dark:text-teal-400',
+  neutro: 'text-neutral-600 dark:text-neutral-300',
+  atencao: 'text-amber-600 dark:text-amber-400',
+  critico: 'text-rose-600 dark:text-rose-400',
+};
+
+function LinhaIndicador({ i }: { i: IndicadorCalculado }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="truncate text-sm text-neutral-600 dark:text-neutral-300">{i.label}</div>
+        {i.detalhe && <div className="text-[11px] text-neutral-400">{i.detalhe}</div>}
+      </div>
+      <div className={`text-2xl font-extrabold tabular-nums ${STATUS_COR[i.status]}`}>{i.valorTexto}</div>
+    </div>
+  );
 }
 
 function saudacao(h: number) {
@@ -94,14 +115,6 @@ export default function HomePage() {
 
   const hora = now ?? new Date();
   const nomeCurto = (user?.nome || '').split(' ')[0] || '';
-  const npsCor = useMemo(() => {
-    const n = data?.orgulho.nps;
-    if (n == null) return 'text-gray-400';
-    if (n >= 70) return 'text-emerald-600 dark:text-emerald-400';
-    if (n >= 50) return 'text-teal-600 dark:text-teal-400';
-    if (n >= 30) return 'text-amber-600 dark:text-amber-400';
-    return 'text-rose-600 dark:text-rose-400';
-  }, [data?.orgulho.nps]);
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
@@ -233,40 +246,66 @@ export default function HomePage() {
               )}
             </section>
 
-            {/* Orgulho da casa */}
+            {/* Orgulho da casa — só indicadores genuinamente bons (com amostra) */}
             <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5">
               <div className="flex items-center gap-2 mb-4">
-                <Smile className="w-5 h-5 text-amber-500" />
+                <Trophy className="w-5 h-5 text-emerald-500" />
                 <h2 className="text-base font-bold text-neutral-900 dark:text-white">Orgulho da casa</h2>
               </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-                    <Smile className="w-4 h-4" /> NPS do mês
-                  </div>
-                  <div className={`text-2xl font-extrabold tabular-nums ${npsCor}`}>
-                    {loading ? '…' : data?.orgulho.nps ?? '—'}
-                  </div>
+              {loading ? (
+                <div className="space-y-4">
+                  {[0, 1].map(i => <div key={i} className="h-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 animate-pulse" />)}
                 </div>
-                <div className="flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800 pt-4">
-                  <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-                    <Star className="w-4 h-4" /> Nota no Google
-                  </div>
-                  <div className="text-2xl font-extrabold tabular-nums text-amber-500 flex items-center gap-1">
-                    {loading ? '…' : data?.orgulho.google ? data.orgulho.google.nota.toFixed(1) : '—'}
-                    {data?.orgulho.google && <Star className="w-4 h-4 fill-amber-400 text-amber-400" />}
-                  </div>
+              ) : data?.destaques.orgulho.length ? (
+                <div className="space-y-4">
+                  {data.destaques.orgulho.map((i, idx) => (
+                    <div key={i.key} className={idx > 0 ? 'border-t border-neutral-100 dark:border-neutral-800 pt-4' : ''}>
+                      <LinhaIndicador i={i} />
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800 pt-4">
-                  <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-                    <Users className="w-4 h-4" /> Clientes em {data?.orgulho.ano ?? ''}
-                  </div>
-                  <div className="text-2xl font-extrabold tabular-nums text-neutral-900 dark:text-white">
-                    {loading ? '…' : nf.format(data?.orgulho.clientes_ano ?? 0)}
-                  </div>
+              ) : (
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">Reunindo os destaques do mês…</p>
+              )}
+              {/* Clientes no ano — número cumulativo, sempre visível */}
+              <div className="mt-4 flex items-center justify-between border-t border-neutral-100 dark:border-neutral-800 pt-4">
+                <div className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
+                  <Users className="w-4 h-4" /> Clientes em {data?.ano ?? ''}
+                </div>
+                <div className="text-2xl font-extrabold tabular-nums text-neutral-900 dark:text-white">
+                  {loading ? '…' : nf.format(data?.clientes_ano ?? 0)}
                 </div>
               </div>
             </section>
+
+            {/* Pontos de atenção — o que está mais abaixo (ou estado feliz se nada) */}
+            {!loading && (
+              data?.destaques.atencao.length ? (
+                <section className="rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <AlertTriangle className="w-5 h-5 text-amber-500" />
+                    <h2 className="text-base font-bold text-neutral-900 dark:text-white">Pontos de atenção</h2>
+                  </div>
+                  <div className="space-y-4">
+                    {data.destaques.atencao.map((i, idx) => (
+                      <div key={i.key} className={idx > 0 ? 'border-t border-amber-100 dark:border-amber-900/40 pt-4' : ''}>
+                        <LinhaIndicador i={i} />
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : (
+                <section className="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-5">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="w-6 h-6 flex-none text-emerald-500" />
+                    <div>
+                      <h2 className="text-sm font-bold text-neutral-900 dark:text-white">Tá tudo em dia esse mês 🎉</h2>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">Nenhum indicador pedindo atenção.</p>
+                    </div>
+                  </div>
+                </section>
+              )
+            )}
           </div>
         </div>
       </div>
