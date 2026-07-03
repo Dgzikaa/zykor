@@ -163,24 +163,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('Erro ao carregar dados do usuário:', error);
-      // Tentar fallback para localStorage (compatibilidade)
-      // TODO(rodrigo/2026-05): Fallback sgb_user será removido após migração completa
-      try {
-        const userData = localStorage.getItem('sgb_user');
-        if (userData) {
-          const parsedUser = JSON.parse(userData);
-          if (parsedUser && parsedUser.id && parsedUser.email) {
-            console.warn('⚠️ Usando cache sgb_user como fallback');
-            setUser(parsedUser);
-          } else {
-            setUser(null);
-          }
-        } else {
-          setUser(null);
-        }
-      } catch {
-        setUser(null);
-      }
+      // Falha de REDE (não 401): NÃO ressuscitar role/permissões do cache sgb_user.
+      // Esse cache pode estar defasado (ex.: usuário rebaixado admin→funcionario) e
+      // ressuscitá-lo mostrava estado elevado antigo até o próximo fetch. Preservamos
+      // apenas a sessão que JÁ estava em memória (evita flash de logout num blip);
+      // se não havia sessão carregada, fica sem usuário e re-tenta no próximo evento.
+      // A autorização real é sempre server-side (guard de API relê o banco).
+      setUser(prev => prev);
     } finally {
       setLoading(false);
       setIsInitialized(true);

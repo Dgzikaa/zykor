@@ -25,6 +25,14 @@ async function getAuthenticatedUser(request: NextRequest): Promise<User | null> 
     if (authToken) {
       const decoded = await decodificarTokenEdge(authToken);
       if (decoded) {
+        // Corte de re-login: token emitido antes do corte (global ou do usuário) → rejeita
+        // → o fluxo trata como não-autenticado e manda pro /login (relogin com token fresco).
+        if (decoded.iat) {
+          const cortes = await getCortesEdge();
+          const email = String(decoded.email || '').toLowerCase();
+          const corte = Math.max(cortes.global, cortes.users[email] || 0);
+          if (corte && decoded.iat < corte) return null;
+        }
         const modulos = Array.isArray(decoded.modulos_permitidos)
           ? decoded.modulos_permitidos
           : typeof decoded.modulos_permitidos === 'object' && decoded.modulos_permitidos
@@ -104,6 +112,38 @@ async function decodificarTokenEdge(token: string): Promise<any | null> {
 }
 async function verificarTokenEdge(token: string): Promise<boolean> {
   return (await decodificarTokenEdge(token)) !== null;
+}
+
+// Cortes de re-login (mesma fonte do guard de API em src/middleware/auth.ts): corte
+// GLOBAL ("deslogar todos" = system.auth_policy.min_iat) + POR USUÁRIO ("encerrar sessão"
+// / mudança de permissão = system.user_token_cutoff). Token com iat < corte → rejeitado
+// aqui no roteamento de PÁGINAS (antes só a API rejeitava; o token velho ainda navegava).
+// Cache de 60s por isolate. FAIL-OPEN: qualquer erro de leitura mantém o valor anterior e
+// NÃO bloqueia ninguém — o pior caso é o corte não valer por 1min, nunca um lockout geral.
+let _cortesEdge: { global: number; users: Record<string, number>; t: number } = { global: 0, users: {}, t: 0 };
+async function getCortesEdge(): Promise<{ global: number; users: Record<string, number> }> {
+  const agora = Date.now();
+  if (agora - _cortesEdge.t < 60_000) return _cortesEdge;
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) return _cortesEdge;
+    const headers = { apikey: key, Authorization: `Bearer ${key}`, 'Accept-Profile': 'system' };
+    const [gRes, uRes] = await Promise.all([
+      fetch(`${url}/rest/v1/auth_policy?id=eq.1&select=min_iat`, { headers }),
+      fetch(`${url}/rest/v1/user_token_cutoff?select=email,min_iat`, { headers }),
+    ]);
+    const gJson: any = gRes.ok ? await gRes.json() : [];
+    const uJson: any = uRes.ok ? await uRes.json() : [];
+    const users: Record<string, number> = {};
+    if (Array.isArray(uJson)) {
+      for (const r of uJson) users[String(r.email).toLowerCase()] = Number(r.min_iat || 0);
+    }
+    _cortesEdge = { global: Number(gJson?.[0]?.min_iat || 0), users, t: agora };
+  } catch {
+    _cortesEdge = { ..._cortesEdge, t: agora }; // fail-open: mantém valor anterior
+  }
+  return _cortesEdge;
 }
 
 // TRAVA CENTRAL de /api: exige token/sessão em toda rota de API, exceto as liberadas
