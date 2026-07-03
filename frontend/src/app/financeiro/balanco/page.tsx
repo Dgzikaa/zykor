@@ -164,11 +164,9 @@ export default function BalancoPage() {
     try {
       const r = await fetch(`/api/financeiro/balanco?bar_id=${selectedBar.id}&ano=${ano}&mes=${mes}&n=${qtdMeses}`, { cache: 'no-store' });
       const j = await r.json();
-      // Caixa+Investimentos automático: se há snapshot do CA pro mês, usa ele (sobrepõe o manual).
-      const meses = (Array.isArray(j.meses) ? j.meses : []).map((m: any) =>
-        m.snap && m.snap.total != null
-          ? { ...m, manual: { ...(m.manual || {}), caixa_investimentos: Number(m.snap.total) } }
-          : m);
+      // Caixa+Investimentos é 100% manual — NÃO sobrepor com o snapshot do CA.
+      // (O snapshot segue sendo capturado pelo cron p/ o vigia de caixa apertado, mas não preenche este campo.)
+      const meses = Array.isArray(j.meses) ? j.meses : [];
       setMeses(meses);
       carregadoRef.current = true;
     } finally { setLoading(false); }
