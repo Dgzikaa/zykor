@@ -163,6 +163,26 @@ export default function AtracoesPage() {
 
 // ---- Trajetória ----
 function TrajetoriaView({ traj, nome, tipo, evolChart, crescPublico, barNome }: { traj: Trajetoria; nome: string; tipo: string; evolChart: any[]; crescPublico: number | null; barNome: string }) {
+  // #3 frequência
+  const dp = (s?: string) => { if (!s) return null; const [y, m, d] = s.slice(0, 10).split('-').map(Number); return { y, m, d, ms: Date.UTC(y, m - 1, d) }; };
+  const p0 = dp(traj.primeiro?.data), pN = dp(traj.atual?.data);
+  const diasEntre = (p0 && pN && traj.total_shows > 1 && pN.ms > p0.ms) ? Math.round((pN.ms - p0.ms) / 86400000 / (traj.total_shows - 1)) : null;
+  const mesesCasa = (p0 && pN) ? Math.max(1, (pN.y - p0.y) * 12 + (pN.m - p0.m) + 1) : 1;
+  const showsMes = p0 ? traj.total_shows / mesesCasa : null;
+  const anosCasa = p0 ? (Date.now() - p0.ms) / (365 * 86400000) : 0;
+  // #2 marcos
+  const marcos: { txt: string; cor: string }[] = [];
+  if (traj.total_shows >= 100) marcos.push({ txt: '💯 100+ shows', cor: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' });
+  else if (traj.total_shows >= 50) marcos.push({ txt: '🎸 50+ shows', cor: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' });
+  else if (traj.total_shows >= 25) marcos.push({ txt: '⭐ 25+ shows', cor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' });
+  else if (traj.total_shows >= 10) marcos.push({ txt: '10+ shows', cor: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' });
+  if (anosCasa >= 2) marcos.push({ txt: `🏠 ${Math.floor(anosCasa)} anos de casa`, cor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' });
+  else if (anosCasa >= 1) marcos.push({ txt: '🏠 1 ano de casa', cor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' });
+  else marcos.push({ txt: '🌱 chegando agora', cor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' });
+  if (diasEntre != null && diasEntre <= 10) marcos.push({ txt: '📆 residente', cor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' });
+  if (traj.atual?.publico && traj.publico_recorde?.valor && traj.atual.publico >= traj.publico_recorde.valor) marcos.push({ txt: '🔥 recorde de público na última!', cor: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' });
+  if ((traj.cache_medio || 0) >= 5000) marcos.push({ txt: '💰 cachê top', cor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' });
+
   const tiles = [
     { icon: Calendar, cor: 'text-sky-500', label: '1º show', valor: fmtData(traj.primeiro?.data), sub: haQuanto(traj.primeiro?.data) },
     { icon: DollarSign, cor: 'text-emerald-500', label: '1º cachê', valor: traj.primeiro?.cache ? money(traj.primeiro.cache) : '—', sub: 'na estreia' },
@@ -181,10 +201,17 @@ function TrajetoriaView({ traj, nome, tipo, evolChart, crescPublico, barNome }: 
           <div className="h-14 w-14 rounded-full bg-violet-600 text-white flex items-center justify-center text-xl font-bold shrink-0">{(nome[0] || '?').toUpperCase()}</div>
           <div className="min-w-0">
             <div className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">{nome} <Badge variant="outline" className="capitalize text-xs">{tipo}</Badge></div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">{num(traj.total_shows)} shows em {barNome} · desde {fmtMesAno(traj.primeiro?.data)} · toca mais às <b className="text-gray-700 dark:text-gray-200">{traj.dia_favorito || '—'}</b></div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{num(traj.total_shows)} shows em {barNome} · desde {fmtMesAno(traj.primeiro?.data)} · toca mais às <b className="text-gray-700 dark:text-gray-200">{traj.dia_favorito || '—'}</b>{diasEntre != null && <> · em média <b className="text-gray-700 dark:text-gray-200">1 show a cada {diasEntre} dias</b>{showsMes != null && ` (~${showsMes.toFixed(1).replace('.', ',')}/mês)`}</>}</div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Marcos */}
+      {marcos.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {marcos.map((m, i) => <span key={i} className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${m.cor}`}>{m.txt}</span>)}
+        </div>
+      )}
 
       {/* Big numbers */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
