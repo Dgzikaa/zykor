@@ -28,6 +28,9 @@ const dow = (d: string) => { try { const [y, m, dd] = d.split('-').map(Number); 
 const MESES_PT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const labelMes = (ym: string) => { const [y, m] = ym.split('-'); return `${MESES_PT[Number(m) - 1]}/${y}`; };
 const cell = (v: number | null | undefined) => (v == null ? <span className="text-muted-foreground/40">—</span> : fmtBRL(v));
+// Só mostra "Lançar" pras saídas a partir do início do uso do Zykor (04/07/2026).
+// As anteriores já foram lançadas por fora — evita duplicar no CA.
+const SAIDA_LANCAR_DESDE = '2026-07-04';
 
 type ColAlign = 'left' | 'center' | 'right';
 
@@ -519,6 +522,8 @@ export function FluxoContaHub({ only }: { only?: 'entradas' | 'saidas' | 'turnos
                       <td className="px-4 py-2 text-center">
                         {lancados[lancKey(s.trn, s.num_lancamento)] !== undefined ? (
                           <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400" title="Já lançado no Conta Azul"><Check className="h-3.5 w-3.5" /> lançado</span>
+                        ) : s.dt_gerencial < SAIDA_LANCAR_DESDE ? (
+                          <span className="text-xs text-muted-foreground/40" title="Saída anterior ao início do Zykor — já lançada por fora">—</span>
                         ) : (
                           <button onClick={() => setModal(s)} title="Lançar no Conta Azul (contas a pagar)"
                             className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted/60">

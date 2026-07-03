@@ -24,13 +24,16 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY!;
 const getSupabaseAdmin = () => createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
-interface BarSymplaConfig { categoria_id: string; cliente_id: string; conta_financeira: string; dias_repasse: number; }
+interface BarSymplaConfig { categoria_id: string; cliente_id: string; conta_financeira: string; dias_repasse: number; lancar_desde: string; }
 const CONFIG: Record<number, BarSymplaConfig> = {
   3: {
     categoria_id: 'e83f28ff-452d-45c7-adf9-0b6e98aa365c', // Receita de Eventos
     cliente_id: '01587e8b-1d57-4130-b27c-89b74b825f98',   // Sympla Internet Solucoes S A
     conta_financeira: '609d7158-ffe4-4df6-9270-fc742b288dd7', // Ordinário Inter
     dias_repasse: 5,
+    // O cron só lança eventos com dt_evento >= esta data (não mexe em eventos antigos,
+    // já lançados por fora). Ativação: 05/07 é o 1º evento valendo. O botão MANUAL ignora isso.
+    lancar_desde: '2026-07-04',
   },
 };
 
@@ -139,11 +142,16 @@ export async function lancarSymplaEvento(barId: number, eventId: number, criadoP
 
 /** Lote: eventos já passados de D+2 (janela [hoje-8, hoje-2]) com líquido>0 e ainda não lançados. */
 export async function lancarSymplaLote(barId: number, criadoPor: string | null): Promise<any[]> {
+  const cfg = CONFIG[barId];
+  if (!cfg) return [];
   const supabase = getSupabaseAdmin();
   const hoje = new Date(Date.now() - 3 * 3600 * 1000);
   const ate = new Date(hoje); ate.setUTCDate(ate.getUTCDate() - 2);
   const de = new Date(hoje); de.setUTCDate(de.getUTCDate() - 8);
-  const ateStr = ate.toISOString().slice(0, 10), deStr = de.toISOString().slice(0, 10);
+  const ateStr = ate.toISOString().slice(0, 10);
+  let deStr = de.toISOString().slice(0, 10);
+  // trava: nunca antes de lancar_desde (não re-lança eventos antigos já tratados por fora)
+  if (cfg.lancar_desde && cfg.lancar_desde > deStr) deStr = cfg.lancar_desde;
 
   const { data: evs } = await (supabase.schema('silver' as any) as any)
     .from('sympla_recebiveis_evento').select('event_id, dt_evento, liquido')
