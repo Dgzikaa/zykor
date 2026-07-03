@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomBytes } from 'crypto';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { withRateLimit, RATE_LIMIT_PRESETS } from '@/lib/rate-limiter-middleware';
 
@@ -40,10 +41,10 @@ async function handleForgotPassword(request: NextRequest) {
       );
     }
 
-    // 1. Verificar se usuário existe na tabela usuarios_bar
+    // 1. Verificar se usuário existe (public.usuarios — a tabela real; usuarios_bar não existe)
     const { data: usuario, error: fetchError } = await supabase
-      .from('usuarios_bar')
-      .select('id, user_id, email, nome, role, ativo')
+      .from('usuarios')
+      .select('id, auth_id, email, nome, role, ativo')
       .eq('email', email)
       .eq('ativo', true)
       .single();
@@ -56,12 +57,12 @@ async function handleForgotPassword(request: NextRequest) {
       });
     }
 
-    // 2. Gerar nova senha temporária
-    const senhaTemporaria = `Temp${Math.random().toString(36).substring(2, 8)}!`;
-    
-    // 3. Atualizar senha no Supabase Auth
+    // 2. Gerar nova senha temporária FORTE (CSPRNG, ~72 bits + complexidade)
+    const senhaTemporaria = `Zk${randomBytes(9).toString('base64url')}!9`;
+
+    // 3. Atualizar senha no Supabase Auth (login usa signInWithPassword → isto vale)
     const { error: authUpdateError } = await supabase.auth.admin.updateUserById(
-      usuario.user_id,
+      usuario.auth_id,
       { password: senhaTemporaria }
     );
 
@@ -75,8 +76,8 @@ async function handleForgotPassword(request: NextRequest) {
 
     // 4. Marcar que precisa redefinir senha
     const { error: updateError } = await supabase
-      .from('usuarios_bar')
-      .update({ 
+      .from('usuarios')
+      .update({
         senha_redefinida: false,
         ultima_atividade: new Date().toISOString()
       })
