@@ -148,10 +148,11 @@ export async function GET(request: NextRequest) {
       const nArt = artistasPorEvento.get(l.evento_id) || 1;
       const custoLink = l.c_art != null && l.c_art !== '' ? parseFloat(l.c_art) : null;
       const caMatch = l.artista_id ? caCacheMap.get(`${l.evento_id}:${l.artista_id}`) : undefined;
-      // cachê exato do CA > manual no link > c_art do evento (só noite solo) > rateio (fallback)
+      // MESMO critério da trajetória: cachê exato do CA > manual no link > c_art do evento SÓ em noite
+      // solo > 0 (co-headline sem match = desconhecido, NÃO rateia — pra bater com o relatório do artista)
       const custo = caMatch != null && caMatch > 0 ? caMatch
         : (custoLink != null && !isNaN(custoLink) ? custoLink
-          : (nArt === 1 ? ev.c_art : (nArt > 0 ? ev.c_art / nArt : ev.c_art)));
+          : (nArt === 1 ? ev.c_art : 0));
 
       let acc = mapa.get(chave);
       if (!acc) {

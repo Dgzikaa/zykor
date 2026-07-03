@@ -50,7 +50,7 @@ export default function FerramentasArtistasPage() {
     { icon: Music, cor: 'text-violet-500', label: 'Artistas', v: num(stats.total_atracoes) },
     { icon: Users, cor: 'text-blue-500', label: 'Shows', v: num(stats.total_shows) },
     { icon: DollarSign, cor: 'text-emerald-500', label: 'Faturamento', v: money(stats.fat_total) },
-    { icon: DollarSign, cor: 'text-rose-500', label: 'Cachê pago', v: money(stats.custo_total) },
+    { icon: DollarSign, cor: 'text-rose-500', label: `Cachê pago (${periodo}m)`, v: money(stats.custo_total) },
     { icon: Gauge, cor: 'text-amber-500', label: 'ROI médio', v: stats.roi_medio != null ? `${Math.round(stats.roi_medio)}%` : '—' },
     { icon: Sparkles, cor: 'text-pink-500', label: 'Maior lift', v: stats.top_lift || '—' },
   ] : [];
@@ -108,7 +108,7 @@ export default function FerramentasArtistasPage() {
                       <th className="text-right px-3 py-2">Shows</th>
                       <th className="text-right px-3 py-2">Fat. médio/noite</th>
                       <th className="text-right px-3 py-2">Público médio</th>
-                      <th className="text-right px-3 py-2">Cachê pago</th>
+                      <th className="text-right px-3 py-2" title={`Cachê pago no período (${periodo} meses). Na página do artista o total é do histórico completo — por isso pode diferir.`}>Cachê pago ({periodo}m)</th>
                       <th className="text-right px-3 py-2" title="R$ faturado por R$ de cachê">Retorno</th>
                       <th className="text-right px-3 py-2" title="% do faturamento que vira cachê">% cachê</th>
                       <th className="text-right px-3 py-2" title="Fat médio do artista menos a média do mesmo dia-da-semana sem ele">Lift fat</th>
@@ -145,7 +145,7 @@ export default function FerramentasArtistasPage() {
                 )}
           </CardContent>
         </Card>
-        <p className="text-[11px] text-gray-400">Cachê exato do Conta Azul por artista (não rateio). Confiável de 27/03/2026 em diante (início das compras/lançamentos completos). Consumação de cortesia do artista fora deste cálculo.</p>
+        <p className="text-[11px] text-gray-400">Valores do <b>período selecionado</b> ({periodo} meses) e só de noites com faturamento &gt; R$1.000 — por isso o "cachê pago" aqui difere do <b>total histórico</b> na página do artista. Cachê exato do Conta Azul por artista (mesmo critério da trajetória, sem rateio). Consumação de cortesia fora deste cálculo.</p>
       </div>
     </div>
   );
