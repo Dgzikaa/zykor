@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { paginate } from '@/lib/supabase/paginate';
+import { getStoneFechadoAte } from '@/lib/financeiro/stone-fechamento';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,5 +84,7 @@ export async function GET(request: NextRequest) {
   const meses_disponiveis = Array.from(mesesSet).sort().reverse();
   const cnpjs_disponiveis = Array.from(cnpjsSet).sort();
 
-  return NextResponse.json({ success: true, conciliacao: rows, resumo, meses_disponiveis, cnpjs_disponiveis });
+  const stone_fechado_ate = await getStoneFechadoAte(supabase, user.bar_id).catch(() => null);
+
+  return NextResponse.json({ success: true, conciliacao: rows, resumo, meses_disponiveis, cnpjs_disponiveis, stone_fechado_ate });
 }

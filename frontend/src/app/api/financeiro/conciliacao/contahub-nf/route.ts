@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { getStoneFechadoAte } from '@/lib/financeiro/stone-fechamento';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,5 +28,8 @@ export async function GET(request: NextRequest) {
     .order('data', { ascending: false });
 
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, linhas: data ?? [] });
+
+  const stone_fechado_ate = await getStoneFechadoAte(supabase, user.bar_id).catch(() => null);
+
+  return NextResponse.json({ success: true, linhas: data ?? [], stone_fechado_ate });
 }
