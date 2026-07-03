@@ -56,10 +56,9 @@ const CAMPOS = [
   'descontos',
   'fat_19h',
   'fat_19h_percent',
-  'fat_20h',
-  'fat_20h_percent',
-  'pessoas_ate_19h',
-  'pessoas_ate_20h',
+  // fat_20h, fat_20h_percent, pessoas_ate_19h, pessoas_ate_20h NÃO existem em
+  // gold.planejamento (pediam e quebravam a query com 500). Vêm do eventos_base
+  // ao vivo logo abaixo (Object.assign dos "cortes por hora").
   'capacidade_estimada',
   'observacoes',
 ].join(', ');
