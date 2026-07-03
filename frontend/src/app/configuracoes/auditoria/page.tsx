@@ -1,11 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Shield, Search, Download, Filter, User, Clock, Database, Loader2, AlertTriangle, ListChecks } from 'lucide-react';
+import { Shield, Search, Download, Filter, User, Clock, Database, Loader2, AlertTriangle, ListChecks, ChevronRight, ChevronDown } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 
@@ -25,6 +25,7 @@ interface AuditLog {
   category: string | null;
   endpoint: string | null;
   method: string | null;
+  request_id: string | null;
 }
 
 const PAGE = 100;
@@ -99,6 +100,7 @@ export default function AuditoriaPage() {
   const [offset, setOffset] = useState(0);
   const [auto, setAuto] = useState(true); // tempo real ligado por padrão (polling)
   const [aba, setAba] = useState<'tudo' | 'sensiveis'>('tudo');
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set()); // grupos (ações em massa) abertos
 
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
@@ -152,6 +154,77 @@ export default function AuditoriaPage() {
     const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }));
     const a = document.createElement('a'); a.href = url; a.download = `auditoria_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // agrupa linhas consecutivas de uma mesma ação em massa (mesmo request_id, >1 linha)
+  const grupos = useMemo(() => {
+    const out: { key: string; reqId: string | null; itens: AuditLog[] }[] = [];
+    for (const l of logs) {
+      const prev = out[out.length - 1];
+      if (l.request_id && prev && prev.reqId === l.request_id) prev.itens.push(l);
+      else out.push({ key: l.id, reqId: l.request_id ?? null, itens: [l] });
+    }
+    return out;
+  }, [logs]);
+  const toggleGrupo = (key: string) => setExpandidos(prev => {
+    const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n;
+  });
+
+  // renderiza UMA linha de auditoria (usada solta e dentro de um grupo expandido)
+  const renderLinha = (l: AuditLog) => {
+    const diffs = diffCampos(l); const rot = rotuloRegistro(l);
+    return (
+      <div key={l.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <Badge className={`${opColor(l.operation)} text-white`}>{l.operation}</Badge>
+              {l.table_name && <span className="inline-flex items-center gap-1 text-xs text-gray-500" title={`${l.table_name}${l.record_id ? ` #${l.record_id}` : ''}`}><Database className="h-3 w-3" />{labelTabela(l.table_name)}{l.record_id ? ` · #${l.record_id}` : ''}</span>}
+              {l.severity === 'critical' && <span className="text-[10px] font-medium text-rose-600 dark:text-rose-400 border border-rose-300 dark:border-rose-800 rounded px-1">sensível</span>}
+              {l.bar_id != null && <span className="text-[11px] text-gray-400">bar {l.bar_id}</span>}
+            </div>
+            <p className="text-sm text-gray-900 dark:text-gray-100">
+              {l.operation === 'UPDATE' ? `Editou ${labelTabela(l.table_name)}${l.record_id ? ` #${l.record_id}` : ''}`
+                : l.operation === 'INSERT' ? `Criou ${labelTabela(l.table_name)}${rot ? `: ${rot}` : ''}`
+                : l.operation === 'DELETE' ? `Excluiu ${labelTabela(l.table_name)}${rot ? `: ${rot}` : ''}`
+                : l.description}
+            </p>
+            {diffs.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {diffs.slice(0, 8).map((d, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 text-[11px] rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/15 px-1.5 py-0.5">
+                    <span className="font-medium text-gray-700 dark:text-gray-200">{labelCampo(d.campo)}</span>
+                    <span className="text-gray-500 line-through">{fmtVal(d.de)}</span>
+                    <span className="text-gray-400">→</span>
+                    <span className="font-medium text-emerald-700 dark:text-emerald-400">{fmtVal(d.para)}</span>
+                  </span>
+                ))}
+                {diffs.length > 8 && <span className="text-[11px] text-gray-400 self-center">+{diffs.length - 8} campos</span>}
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-gray-500">
+              <span className="inline-flex items-center gap-1"><User className="h-3 w-3" />{l.user_email || 'sistema'}{l.user_role ? ` (${l.user_role})` : ''}</span>
+              {(l.old_values || l.new_values) && (
+                <details>
+                  <summary className="cursor-pointer text-blue-600 hover:text-blue-700">ver dados</summary>
+                  <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {l.old_values && (
+                      <div><div className="text-[10px] uppercase text-gray-400 mb-0.5">Antes / excluído</div>
+                        <pre className="p-2 bg-gray-100 dark:bg-gray-900 rounded text-[11px] overflow-auto max-h-64">{JSON.stringify(l.old_values, null, 2)}</pre></div>
+                    )}
+                    {l.new_values && (
+                      <div><div className="text-[10px] uppercase text-gray-400 mb-0.5">Depois</div>
+                        <pre className="p-2 bg-gray-100 dark:bg-gray-900 rounded text-[11px] overflow-auto max-h-64">{JSON.stringify(l.new_values, null, 2)}</pre></div>
+                    )}
+                  </div>
+                </details>
+              )}
+            </div>
+          </div>
+          <div className="text-right text-[11px] text-gray-500 whitespace-nowrap inline-flex items-center gap-1"><Clock className="h-3 w-3" />{fmtData(l.timestamp)}</div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -242,59 +315,25 @@ export default function AuditoriaPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {logs.map(l => { const diffs = diffCampos(l); const rot = rotuloRegistro(l); return (
-                  <div key={l.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <Badge className={`${opColor(l.operation)} text-white`}>{l.operation}</Badge>
-                          {l.table_name && <span className="inline-flex items-center gap-1 text-xs text-gray-500" title={`${l.table_name}${l.record_id ? ` #${l.record_id}` : ''}`}><Database className="h-3 w-3" />{labelTabela(l.table_name)}{l.record_id ? ` · #${l.record_id}` : ''}</span>}
-                          {l.severity === 'critical' && <span className="text-[10px] font-medium text-rose-600 dark:text-rose-400 border border-rose-300 dark:border-rose-800 rounded px-1">sensível</span>}
-                          {l.bar_id != null && <span className="text-[11px] text-gray-400">bar {l.bar_id}</span>}
-                        </div>
-                        <p className="text-sm text-gray-900 dark:text-gray-100">
-                          {l.operation === 'UPDATE' ? `Editou ${labelTabela(l.table_name)}${l.record_id ? ` #${l.record_id}` : ''}`
-                            : l.operation === 'INSERT' ? `Criou ${labelTabela(l.table_name)}${rot ? `: ${rot}` : ''}`
-                            : l.operation === 'DELETE' ? `Excluiu ${labelTabela(l.table_name)}${rot ? `: ${rot}` : ''}`
-                            : l.description}
-                        </p>
-                        {/* diff amigável na própria linha: campo antigo → novo */}
-                        {diffs.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {diffs.slice(0, 8).map((d, i) => (
-                              <span key={i} className="inline-flex items-center gap-1 text-[11px] rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/15 px-1.5 py-0.5">
-                                <span className="font-medium text-gray-700 dark:text-gray-200">{labelCampo(d.campo)}</span>
-                                <span className="text-gray-500 line-through">{fmtVal(d.de)}</span>
-                                <span className="text-gray-400">→</span>
-                                <span className="font-medium text-emerald-700 dark:text-emerald-400">{fmtVal(d.para)}</span>
-                              </span>
-                            ))}
-                            {diffs.length > 8 && <span className="text-[11px] text-gray-400 self-center">+{diffs.length - 8} campos</span>}
-                          </div>
-                        )}
-                        <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-gray-500">
-                          <span className="inline-flex items-center gap-1"><User className="h-3 w-3" />{l.user_email || 'sistema'}{l.user_role ? ` (${l.user_role})` : ''}</span>
-                          {(l.old_values || l.new_values) && (
-                            <details>
-                              <summary className="cursor-pointer text-blue-600 hover:text-blue-700">ver dados</summary>
-                              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-                                {l.old_values && (
-                                  <div><div className="text-[10px] uppercase text-gray-400 mb-0.5">Antes / excluído</div>
-                                    <pre className="p-2 bg-gray-100 dark:bg-gray-900 rounded text-[11px] overflow-auto max-h-64">{JSON.stringify(l.old_values, null, 2)}</pre></div>
-                                )}
-                                {l.new_values && (
-                                  <div><div className="text-[10px] uppercase text-gray-400 mb-0.5">Depois</div>
-                                    <pre className="p-2 bg-gray-100 dark:bg-gray-900 rounded text-[11px] overflow-auto max-h-64">{JSON.stringify(l.new_values, null, 2)}</pre></div>
-                                )}
-                              </div>
-                            </details>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right text-[11px] text-gray-500 whitespace-nowrap inline-flex items-center gap-1"><Clock className="h-3 w-3" />{fmtData(l.timestamp)}</div>
+                {grupos.map(g => {
+                  if (g.itens.length === 1) return renderLinha(g.itens[0]);
+                  // ação em massa (mesmo request_id) → 1 bloco recolhível
+                  const aberto = expandidos.has(g.key);
+                  const first = g.itens[0];
+                  const tabs = new Set(g.itens.map(i => i.table_name));
+                  const alvo = tabs.size === 1 ? labelTabela(first.table_name) : `${tabs.size} tabelas`;
+                  return (
+                    <div key={g.key} className="border border-indigo-200 dark:border-indigo-900/50 rounded-lg bg-indigo-50/40 dark:bg-indigo-900/10">
+                      <button onClick={() => toggleGrupo(g.key)} className="w-full flex items-center gap-2 p-3 text-left">
+                        {aberto ? <ChevronDown className="h-4 w-4 text-indigo-500 shrink-0" /> : <ChevronRight className="h-4 w-4 text-indigo-500 shrink-0" />}
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{g.itens.length} alterações em {alvo}</span>
+                        <span className="text-xs text-gray-500 inline-flex items-center gap-1"><User className="h-3 w-3" />{first.user_email || 'sistema'}</span>
+                        <span className="ml-auto text-[11px] text-gray-500 inline-flex items-center gap-1 whitespace-nowrap"><Clock className="h-3 w-3" />{fmtData(first.timestamp)}</span>
+                      </button>
+                      {aberto && <div className="px-3 pb-3 space-y-2">{g.itens.map(renderLinha)}</div>}
                     </div>
-                  </div>
-                ); })}
+                  );
+                })}
                 {logs.length < total && (
                   <div className="text-center pt-2">
                     <Button variant="outline" size="sm" onClick={() => carregar(offset + PAGE, true)} disabled={loading}>

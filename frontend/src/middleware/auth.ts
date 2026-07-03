@@ -44,7 +44,10 @@ export async function authenticateUser(
   // ainda no contexto síncrono do handler que chamou. Só assim o enterWith propaga pro resto
   // da request (enterWith chamado DEPOIS de um await fica preso no contexto filho e não sobe).
   // O usuário é preenchido por mutação mais abaixo, quando a autenticação resolve.
-  try { auditContext.enterWith({ actor: {} }); } catch { /* noop */ }
+  try {
+    const reqId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.round(Math.random() * 1e9)}`);
+    auditContext.enterWith({ actor: {}, reqId });
+  } catch { /* noop */ }
 
   try {
     let authenticatedUser: AuthenticatedUser | null = null;

@@ -12,7 +12,20 @@ let adminClient: SupabaseClient | null = null;
  * header e por isso não são auditadas (é o gate que evita poluir a trilha com escrita de máquina).
  */
 export interface AuditActor { email?: string; role?: string; bar_id?: number }
-export const auditContext = new AsyncLocalStorage<{ actor: AuditActor; client?: SupabaseClient }>();
+// reqId = id único da requisição → agrupa no painel as N linhas de uma mesma ação em massa.
+export const auditContext = new AsyncLocalStorage<{ actor: AuditActor; reqId?: string; client?: SupabaseClient }>();
+
+// headers de auditoria a partir do contexto atual (usado pelos clients e pelo wrapper de fetch)
+function auditHeaders(store: { actor: AuditActor; reqId?: string } | undefined): Record<string, string> | undefined {
+  if (!store?.actor?.email) return undefined;
+  const h: Record<string, string> = {
+    'x-audit-email': store.actor.email,
+    'x-audit-role': store.actor.role ?? '',
+    'x-audit-bar': store.actor.bar_id != null ? String(store.actor.bar_id) : '',
+  };
+  if (store.reqId) h['x-audit-req'] = store.reqId;
+  return h;
+}
 
 function novoServiceClient(headers?: Record<string, string>): SupabaseClient {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -35,11 +48,7 @@ async function getAdminClient(): Promise<SupabaseClient> {
   const store = auditContext.getStore();
   if (store?.actor?.email) {
     if (store.client) return store.client;
-    store.client = novoServiceClient({
-      'x-audit-email': store.actor.email,
-      'x-audit-role': store.actor.role ?? '',
-      'x-audit-bar': store.actor.bar_id != null ? String(store.actor.bar_id) : '',
-    });
+    store.client = novoServiceClient(auditHeaders(store));
     return store.client;
   }
 
@@ -60,15 +69,7 @@ async function getAdminClient(): Promise<SupabaseClient> {
 // Função helper para rotas API (evita inicialização no módulo). Também carrega os headers
 // de auditoria quando há usuário no contexto da requisição (mesma lógica do getAdminClient).
 function createServiceRoleClient() {
-  const store = auditContext.getStore();
-  const headers = store?.actor?.email
-    ? {
-        'x-audit-email': store.actor.email,
-        'x-audit-role': store.actor.role ?? '',
-        'x-audit-bar': store.actor.bar_id != null ? String(store.actor.bar_id) : '',
-      }
-    : undefined;
-  return novoServiceClient(headers);
+  return novoServiceClient(auditHeaders(auditContext.getStore()));
 }
 
 /**
@@ -110,7 +111,8 @@ function instalarAuditFetch(): void {
   if (!supaHost || typeof orig !== 'function') return;
   g.fetch = function (input: any, init?: any) {
     try {
-      const actor = auditContext.getStore()?.actor;
+      const store = auditContext.getStore();
+      const actor = store?.actor;
       if (actor?.email) {
         const url = typeof input === 'string' ? input : (input?.url ?? String(input ?? ''));
         if (url.includes(supaHost)) {
@@ -120,6 +122,7 @@ function instalarAuditFetch(): void {
             h.set('x-audit-email', actor.email);
             if (actor.role) h.set('x-audit-role', actor.role);
             if (actor.bar_id != null) h.set('x-audit-bar', String(actor.bar_id));
+            if (store?.reqId) h.set('x-audit-req', store.reqId);
             init = { ...(init || {}), headers: h };
           }
         }

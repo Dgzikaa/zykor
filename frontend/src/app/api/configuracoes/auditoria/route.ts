@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
   let query = (supabase as any)
     .schema('system').from('audit_trail')
-    .select('id, timestamp, bar_id, operation, table_name, record_id, user_email, user_role, description, old_values, new_values, severity, category, endpoint, method', { count: 'exact' })
+    .select('id, timestamp, bar_id, operation, table_name, record_id, user_email, user_role, description, old_values, new_values, severity, category, endpoint, method, request_id', { count: 'exact' })
     .order('timestamp', { ascending: false });
 
   if (de) query = query.gte('timestamp', de);
