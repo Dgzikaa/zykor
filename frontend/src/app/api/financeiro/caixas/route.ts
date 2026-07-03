@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,8 @@ function formatCurrency(value: number): string {
 }
 
 export async function GET(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
   try {
     const { searchParams } = new URL(request.url);
     const tipo = searchParams.get('tipo'); // 'investimentos' | 'impostos' | 'terceiros' | 'futuros' | 'resumo'
@@ -235,6 +238,8 @@ export async function GET(request: NextRequest) {
 
 // POST - Criar novo movimento
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
   try {
     const body = await request.json();
     const { tabela, ...dados } = body;
@@ -283,6 +288,8 @@ export async function POST(request: NextRequest) {
 
 // PUT - Atualizar movimento
 export async function PUT(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
   try {
     const body = await request.json();
     const { tabela, id, ...dados } = body;
@@ -332,6 +339,8 @@ export async function PUT(request: NextRequest) {
 
 // DELETE - Remover movimento
 export async function DELETE(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
   try {
     const { searchParams } = new URL(request.url);
     const tabela = searchParams.get('tabela');

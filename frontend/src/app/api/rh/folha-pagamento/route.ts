@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { getAdminClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
@@ -139,6 +140,8 @@ function calcularFolhaFuncionario(
  * Se auto_calcular=true e não existir dados, calcula automaticamente
  */
 export async function GET(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
   try {
     const { searchParams } = new URL(request.url);
     const barId = searchParams.get('bar_id');
@@ -279,6 +282,8 @@ export async function GET(request: NextRequest) {
  * Calcula e salva folha de pagamento para um mês
  */
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
   try {
     const body = await request.json();
     const { bar_id, mes, ano, funcionarios_ajustes } = body;
@@ -398,6 +403,8 @@ export async function POST(request: NextRequest) {
  * Atualiza folha de um funcionário específico
  */
 export async function PUT(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
   try {
     const body = await request.json();
     const { id, ...updateFields } = body;
@@ -462,6 +469,8 @@ export async function PUT(request: NextRequest) {
  * Remove folha de pagamento
  */
 export async function DELETE(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

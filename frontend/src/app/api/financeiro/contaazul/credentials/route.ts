@@ -1,9 +1,13 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores');
   try {
     const body = await request.json();
     const { bar_id, client_id, client_secret } = body;

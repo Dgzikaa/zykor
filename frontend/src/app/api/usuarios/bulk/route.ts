@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic'
@@ -6,6 +7,9 @@ export const dynamic = 'force-dynamic'
 const supabase = createServiceRoleClient();
 
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores');
   try {
     const { action, userIds, data = {} } = await request.json();
 
@@ -233,7 +237,10 @@ export async function POST(request: NextRequest) {
 }
 
 // GET para listar ações disponíveis
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores');
   return NextResponse.json({
     actions: [
       {
