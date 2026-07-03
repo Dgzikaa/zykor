@@ -89,6 +89,17 @@ export function getModulosParaPermissoes(): ModuloPermissao[] {
   return MODULOS_MENU;
 }
 
+/** Módulo específico de uma rota do menu (ex.: '/operacional/fichas-tecnicas' -> id do módulo). */
+export function getModuleIdForPath(path: string): string | null {
+  for (const section of MENU_LATERAL_STRUCTURE) {
+    const grupo = GRUPO_MODULO_UNICO[section.label];
+    for (const item of section.subItems) {
+      if (item.href === path) return grupo ?? gerarIdModulo(section.label, item.label);
+    }
+  }
+  return null;
+}
+
 /**
  * Retorna módulos agrupados por categoria
  */

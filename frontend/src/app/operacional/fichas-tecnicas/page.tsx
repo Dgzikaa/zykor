@@ -9,8 +9,12 @@ import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes, Download, RefreshCw, TrendingUp, TrendingDown, Link2 } from 'lucide-react';
+import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes, Download, RefreshCw, TrendingUp, TrendingDown, Link2, Eye } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
+import { usePermissions } from '@/hooks/usePermissions';
+import { getModuleIdForPath } from '@/lib/permissions/modules';
+
+const MOD_FICHAS = getModuleIdForPath('/operacional/fichas-tecnicas') || '';
 
 const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'porção'];
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -1107,14 +1111,21 @@ function FichasInner() {
 }
 
 export default function FichasTecnicasPage() {
+  const { can } = usePermissions();
+  const soLeitura = !can(MOD_FICHAS, 'editar') && !can(MOD_FICHAS, 'inserir') && !can(MOD_FICHAS, 'excluir');
   return (
     <PageShell width="wide">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-xl"><ChefHat className="w-6 h-6 text-purple-600 dark:text-purple-400" /></div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Fichas Técnicas</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Produção (preparos) e Finalização (cardápio) — insumos, peso, custo e insumo mestre</p>
           </div>
+          {soLeitura && (
+            <Badge variant="outline" className="text-amber-600 border-amber-300 dark:text-amber-400 dark:border-amber-700 gap-1 shrink-0">
+              <Eye className="w-3.5 h-3.5" />Somente leitura
+            </Badge>
+          )}
         </div>
         <Suspense fallback={<div className="py-16 text-center text-gray-400">Carregando…</div>}>
           <FichasInner />

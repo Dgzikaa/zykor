@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarSeNaoPode } from '@/lib/permissions/guard';
 import { recalcCmvFromFichaParent } from '@/lib/cmv-recalc';
+
+// telas que usam esta rota (itens de ficha) — pra checar permissão por ação
+const FICHA_PATHS = ['/operacional/fichas-tecnicas'];
 
 export const dynamic = 'force-dynamic';
 
@@ -160,6 +164,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarSeNaoPode(user, FICHA_PATHS, 'inserir'); if (nega) return nega;
   const body = await request.json().catch(() => ({}));
   const producaoId = body.producao_id ? Number(body.producao_id) : null;
   const produtoId = body.produto_id ? Number(body.produto_id) : null;
@@ -194,6 +199,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarSeNaoPode(user, FICHA_PATHS, 'editar'); if (nega) return nega;
   const body = await request.json().catch(() => ({}));
   const id = Number(body.id);
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
@@ -240,6 +246,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarSeNaoPode(user, FICHA_PATHS, 'excluir'); if (nega) return nega;
   const id = Number(new URL(request.url).searchParams.get('id'));
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
   const supabase = await getAdminClient();

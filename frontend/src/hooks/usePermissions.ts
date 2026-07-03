@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { safeLocalStorage, isClient } from '@/lib/client-utils';
-import { userHasModule, userHasAnyModule } from '@/lib/permissions/resolver';
+import { userHasModule, userHasAnyModule, userCan, type PermAction } from '@/lib/permissions/resolver';
 import { isPublicRoute } from '@/lib/auth/public-routes';
 
 interface Usuario {
@@ -18,6 +18,8 @@ interface PermissionsHook {
   user: Usuario | null;
   hasPermission: (moduloId: string) => boolean;
   hasAnyPermission: (modulosIds: string[]) => boolean;
+  /** Pode a AÇÃO (ver/editar/inserir/excluir) no módulo? (admin sempre pode) */
+  can: (moduloId: string, action: PermAction) => boolean;
   isRole: (role: string) => boolean;
   canAccessModule: (categoria: string) => boolean;
   loading: boolean;
@@ -167,6 +169,15 @@ export function usePermissions(): PermissionsHook {
       return userHasAnyModule(user.modulos_permitidos, modulosIds);
     },
     [user, adminHasExplicitPermissions]
+  );
+
+  const can = useCallback(
+    (moduloId: string, action: PermAction): boolean => {
+      if (!user || !user.ativo) return false;
+      if (user.role === 'admin') return true; // admin faz tudo (igual ao guard do backend)
+      return userCan(user.modulos_permitidos, moduloId, action);
+    },
+    [user]
   );
 
   const isRole = useCallback(
@@ -327,6 +338,7 @@ export function usePermissions(): PermissionsHook {
     user,
     hasPermission,
     hasAnyPermission,
+    can,
     isRole,
     canAccessModule,
     loading,

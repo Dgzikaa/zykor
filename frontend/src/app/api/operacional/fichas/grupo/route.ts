@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarSeNaoPode } from '@/lib/permissions/guard';
 import { recalcCmvFromFichaParent } from '@/lib/cmv-recalc';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarSeNaoPode(user, ['/operacional/fichas-tecnicas'], 'editar'); if (nega) return nega;
   const body = await request.json().catch(() => ({}));
   const barId = Number(body.bar_id) || user.bar_id;
   const tipo = String(body.tipo || 'produto');
@@ -79,6 +81,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarSeNaoPode(user, ['/operacional/fichas-tecnicas'], 'editar'); if (nega) return nega;
   const sp = new URL(request.url).searchParams;
   const barId = Number(sp.get('bar_id')) || user.bar_id;
   const tipo = sp.get('tipo') || 'produto';
