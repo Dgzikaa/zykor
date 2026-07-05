@@ -194,6 +194,25 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Notifica os interessados conforme a regra do bar (Central de Notificações).
+  // Best-effort: qualquer erro é engolido — NUNCA quebra o registro da produção.
+  try {
+    const { dispatchNotification } = await import('@/lib/notifications/dispatch');
+    const nomeResp = body.responsavel_nome || user.nome || user.email || 'A equipe';
+    await dispatchNotification({
+      barId,
+      eventKey: 'producao_criada',
+      titulo: 'Novo controle de produção',
+      mensagem:
+        `${nomeResp} registrou uma produção` +
+        (aderenciaPct != null ? ` (aderência ${aderenciaPct}%).` : '.'),
+      url: '/operacional/producoes',
+      dados: { execucao_id: exec.id, producao_id: producaoId, responsavel_nome: nomeResp },
+    });
+  } catch (e) {
+    console.error('[notif] dispatch producao_criada falhou:', e);
+  }
+
   return NextResponse.json({
     success: true,
     execucao_id: exec.id,

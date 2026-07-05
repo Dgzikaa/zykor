@@ -79,4 +79,77 @@ export class UsuariosRepository {
     if (error) throw new RepositoryError('usuarios.temAcessoAoBar', error);
     return data !== null;
   }
+
+  /**
+   * Resolve os auth_ids dos usuarios ATIVOS de um bar com um dos cargos dados.
+   * Usado pelo dispatcher de notificacoes p/ transformar `target_roles` em destinatarios.
+   */
+  async listarAuthIdsPorBarERoles(barId: number, roles: string[]): Promise<string[]> {
+    if (!roles.length) return [];
+
+    // 1) auth_ids vinculados ao bar
+    const { data: vinculos, error: eV } = await this.client
+      .schema('auth_custom')
+      .from('usuarios_bares')
+      .select('usuario_id')
+      .eq('bar_id', barId);
+    if (eV) throw new RepositoryError('usuarios.listarAuthIdsPorBarERoles.vinculos', eV);
+
+    const authIdsDoBar = ((vinculos ?? []) as Array<{ usuario_id: string }>)
+      .map((r) => r.usuario_id)
+      .filter(Boolean);
+    if (!authIdsDoBar.length) return [];
+
+    // 2) filtra por cargo + ativo
+    const { data: users, error: eU } = await this.client
+      .schema('auth_custom')
+      .from('usuarios')
+      .select('auth_id')
+      .in('auth_id', authIdsDoBar)
+      .in('role', roles)
+      .eq('ativo', true);
+    if (eU) throw new RepositoryError('usuarios.listarAuthIdsPorBarERoles.users', eU);
+
+    return ((users ?? []) as Array<{ auth_id: string | null }>)
+      .map((u) => u.auth_id)
+      .filter((id): id is string => !!id);
+  }
+
+  /**
+   * Lista usuarios ATIVOS de um bar (auth_id, nome, email, role) —
+   * pra montar o seletor de "usuarios especificos" na tela de regras.
+   */
+  async listarDoBar(
+    barId: number
+  ): Promise<Array<{ auth_id: string; nome: string | null; email: string; role: string }>> {
+    const { data: vinculos, error: eV } = await this.client
+      .schema('auth_custom')
+      .from('usuarios_bares')
+      .select('usuario_id')
+      .eq('bar_id', barId);
+    if (eV) throw new RepositoryError('usuarios.listarDoBar.vinculos', eV);
+
+    const authIds = ((vinculos ?? []) as Array<{ usuario_id: string }>)
+      .map((r) => r.usuario_id)
+      .filter(Boolean);
+    if (!authIds.length) return [];
+
+    const { data: users, error: eU } = await this.client
+      .schema('auth_custom')
+      .from('usuarios')
+      .select('auth_id, nome, email, role')
+      .in('auth_id', authIds)
+      .eq('ativo', true)
+      .order('nome', { ascending: true });
+    if (eU) throw new RepositoryError('usuarios.listarDoBar.users', eU);
+
+    return ((users ?? []) as Array<{
+      auth_id: string | null;
+      nome: string | null;
+      email: string;
+      role: string;
+    }>)
+      .filter((u) => !!u.auth_id)
+      .map((u) => ({ auth_id: u.auth_id as string, nome: u.nome, email: u.email, role: u.role }));
+  }
 }

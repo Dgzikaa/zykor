@@ -1,775 +1,209 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   useNotifications,
-  getColorByType,
-  getColorByPriority,
+  bordaSeveridade,
+  emojiSeveridade,
   formatarTempo,
+  type NotificacaoUI,
 } from '@/hooks/useNotifications';
-import {
-  useInsightsNotifications,
-  getAlertBadgeClass,
-  formatarTempoRelativo,
-} from '@/hooks/useInsightsNotifications';
+import { CATEGORIAS, type CategoriaEvento } from '@/lib/notifications/catalog';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Switch } from '@/components/ui/switch';
-import {
-  Bell,
-  CheckCircle,
-  XCircle,
-  Info,
-  Clock,
-  User,
-  Trash2,
-  RefreshCw,
-  Sparkles,
-  AlertTriangle,
-  TrendingDown,
-  ArrowRight,
-  ExternalLink,
-} from 'lucide-react';
+import { Bell, CheckCircle, Check, Trash2, Settings, Inbox } from 'lucide-react';
 
-// Interfaces para tipagem
-interface NotificacaoAcao {
-  action: 'redirect' | 'download' | 'callback';
-  url?: string;
-  label?: string;
-  callback?: string;
+function categoriaLabel(cat: string): { label: string; emoji: string } {
+  const c = CATEGORIAS[cat as CategoriaEvento];
+  return c ?? { label: cat, emoji: '🔔' };
 }
-
-interface Notificacao {
-  id: string;
-  titulo?: string;
-  mensagem?: string;
-  tipo?: string;
-  prioridade?: string;
-  status?: string;
-  criada_em?: string;
-  acoes?: NotificacaoAcao[];
-}
-
-// Type guard
-function isNotificacaoAcao(obj: unknown): obj is NotificacaoAcao {
-  return (
-    typeof obj === 'object' &&
-    obj !== null &&
-    'action' in obj &&
-    typeof (obj as NotificacaoAcao).action === 'string'
-  );
-}
-
-// =====================================================
-// NOTIFICATION CENTER COMPONENT
-// =====================================================
 
 export function NotificationCenter() {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const [filtroTab, setFiltroTab] = useState<
-    'todas' | 'nao_lidas' | 'insights'
-  >('todas');
-  const [configuracoes, setConfiguracoes] = useState({
-    autoRefresh: false, // ✅ Desabilitado por padrão para melhor performance
-    showBadge: true,
-    playSound: false,
-    refreshInterval: 300000, // ✅ 5 minutos (só ativa se usuário habilitar)
-  });
-
-  // =====================================================
-  // HOOKS E REFS
-  // =====================================================
+  const [tab, setTab] = useState<'todas' | 'nao_lidas'>('todas');
 
   const {
     notificacoes,
-    estatisticas,
+    naoLidas,
     loading,
-    carregarNotificacoes,
-    marcarComoLida,
-    marcarTodasComoLidas,
-    excluirNotificacao,
-    recarregar,
-  } = useNotifications();
+    marcarLida,
+    marcarTodasLidas,
+    excluir,
+  } = useNotifications({ limit: 30 });
 
-  // Hook para Insights Inteligentes
-  const {
-    alertas: insightsAlertas,
-    loading: insightsLoading,
-    estatisticas: insightsStats,
-    fetchAlertas: fetchInsights,
-    marcarComoLido: marcarInsightComoLido,
-    marcarTodosComoLidos: marcarTodosInsightsComoLidos,
-  } = useInsightsNotifications();
+  const lista = tab === 'nao_lidas' ? notificacoes.filter((n) => !n.lida) : notificacoes;
 
-  const hasInitializedRef = useRef(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // =====================================================
-  // CARREGAMENTO INICIAL (APENAS UMA VEZ)
-  // =====================================================
-
-  useEffect(() => {
-    if (!hasInitializedRef.current) {
-      // Carregar notificações iniciais
-      carregarNotificacoes({ apenas_nao_lidas: false, limit: 20 });
-
-      hasInitializedRef.current = true;
-    }
-
-    // Cleanup ao desmontar
-    return () => {
-      const currentInterval = intervalRef.current;
-      if (currentInterval) {
-        clearInterval(currentInterval);
-      }
-    };
-  }, [carregarNotificacoes]); // Adicionar carregarNotificacoes como dependência
-
-  // =====================================================
-  // POLLING AUTOMÁTICO
-  // =====================================================
-
-  useEffect(() => {
-    // ✅ Só ativar polling se autoRefresh estiver habilitado
-    if (!configuracoes.autoRefresh) return;
-
-    const interval = setInterval(() => {
-      if (!loading && !isOpen) { // ✅ Só atualizar se modal estiver fechado
-        carregarNotificacoes();
-      }
-    }, configuracoes.refreshInterval); // ✅ Usar configuração dinâmica
-
-    // Armazenar o intervalo no ref
-    intervalRef.current = interval;
-
-    return () => {
-      clearInterval(interval);
-      intervalRef.current = null;
-    };
-  }, [configuracoes.autoRefresh, configuracoes.refreshInterval, loading, isOpen, carregarNotificacoes]); // ✅ Dependencies otimizadas
-
-  // ✅ useEffect duplicado removido - já existe polling otimizado acima
-
-  // =====================================================
-  // FILTRAR NOTIFICAÇÕES
-  // =====================================================
-
-  const notificacoesFiltradas = notificacoes.filter(notificacao => {
-    // Verificar se a notificação tem dados válidos
-    if (!notificacao || !notificacao.id) return false;
-
-    if (filtroTab === 'nao_lidas') {
-      return ['pendente', 'enviada'].includes(notificacao.status || '');
-    }
-    if (filtroTab === 'insights') {
-      return false; // Insights são mostrados separadamente
-    }
-    return true; // todas
-  });
-  
-  // Insights não lidos para exibição
-  const insightsNaoLidos = insightsAlertas.filter(a => !a.lido);
-
-  // =====================================================
-  // HANDLERS
-  // =====================================================
-
-  const handleMarcarComoLida = async (notificacaoId: string) => {
-    try {
-      if (!notificacaoId) return;
-      await marcarComoLida(notificacaoId);
-    } catch (error) {
-      // Erro silencioso
+  const abrir = (n: NotificacaoUI) => {
+    if (!n.lida) marcarLida(n.id);
+    if (n.url) {
+      router.push(n.url);
+      setIsOpen(false);
     }
   };
-
-  const handleMarcarTodasComoLidas = async () => {
-    try {
-      await marcarTodasComoLidas();
-    } catch (error) {
-      // Erro silencioso
-    }
-  };
-
-  const handleExcluirNotificacao = async (notificacaoId: string) => {
-    try {
-      if (!notificacaoId) return;
-      await excluirNotificacao(notificacaoId);
-    } catch (error) {
-      // Erro silencioso
-    }
-  };
-
-  const handleAcaoNotificacao = (acao: NotificacaoAcao) => {
-    try {
-      if (!acao) return;
-
-      if (acao.action === 'redirect' && acao.url) {
-        router.push(acao.url);
-        setIsOpen(false);
-      } else if (acao.action === 'download' && acao.url) {
-        window.open(acao.url, '_blank');
-      }
-    } catch (error) {
-      // Erro silencioso
-    }
-  };
-
-  const handleRefreshManual = () => {
-    carregarNotificacoes({ apenas_nao_lidas: false, limit: 20 });
-  };
-
-  const handleToggleAutoRefresh = (enabled: boolean) => {
-    setConfiguracoes(prev => ({ ...prev, autoRefresh: enabled }));
-  };
-
-  const handleChangeInterval = (interval: number) => {
-    setConfiguracoes(prev => ({ ...prev, refreshInterval: interval }));
-  };
-
-  // =====================================================
-  // CONTADORES
-  // =====================================================
-
-  const totalNaoLidas = (estatisticas?.nao_lidas || 0) + insightsStats.naoLidos;
-  const totalImportantes = estatisticas?.alta_prioridade || 0;
-  const totalInsights = insightsAlertas.length;
-
-  // =====================================================
-  // RENDER
-  // =====================================================
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" className="relative rounded-[4px] hover:text-gray-500 text-gray-500 h-8 p-2 py-2">
+        <Button
+          variant="ghost"
+          className="relative rounded-[4px] hover:text-gray-500 text-gray-500 h-8 p-2 py-2"
+          aria-label="Notificações"
+        >
           <Bell className="h-4 w-4" />
-          {/* Badge de notificações */}
-          {configuracoes.showBadge && totalNaoLidas > 0 && (
+          {naoLidas > 0 && (
             <Badge
-              variant={insightsStats.criticos > 0 ? "destructive" : "default"}
-              className={`absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs ${
-                insightsStats.criticos > 0 
-                  ? 'bg-red-500 animate-pulse' 
-                  : insightsStats.naoLidos > 0 
-                    ? 'bg-purple-500' 
-                    : 'bg-blue-500'
-              }`}
+              variant="default"
+              className="absolute -top-2 -right-2 h-5 min-w-5 px-1 flex items-center justify-center p-0 text-xs bg-blue-500"
             >
-              {totalNaoLidas > 99 ? '99+' : totalNaoLidas}
+              {naoLidas > 99 ? '99+' : naoLidas}
             </Badge>
-          )}
-          {/* Indicador de insight quando não há badge numérico */}
-          {configuracoes.showBadge && totalNaoLidas === 0 && insightsAlertas.length > 0 && (
-            <span className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full" />
           )}
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="card-dark w-[calc(100vw-1.5rem)] sm:w-96 max-w-[24rem] p-0" align="end">
-        <Card className="border-0 shadow-none">
-          <CardHeader className="border-b border-gray-200 dark:border-gray-700 pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="card-title-dark flex items-center gap-2">
-                <Bell className="h-5 w-5" />
-                Notificações
-              </CardTitle>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleRefreshManual}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Clock className="h-4 w-4" />
-                  )}
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsOpen(false)}
-                >
-                  <XCircle className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Estatísticas Rápidas */}
-            <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-              <span>📬 {totalNaoLidas} não lidas</span>
-              <span>✨ {totalInsights} insights</span>
-              <span>📊 {notificacoes.length + totalInsights} total</span>
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-0">
-            {/* Tabs de Filtro */}
-            <Tabs
-              value={filtroTab}
-              onValueChange={(value: string) =>
-                setFiltroTab(value as 'todas' | 'nao_lidas' | 'insights')
-              }
+      <PopoverContent
+        className="card-dark w-[calc(100vw-1.5rem)] sm:w-96 max-w-[24rem] p-0"
+        align="end"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+          <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
+            <Bell className="h-4 w-4" /> Notificações
+          </div>
+          <div className="flex items-center gap-1">
+            {naoLidas > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs px-2"
+                onClick={() => marcarTodasLidas()}
+              >
+                <Check className="h-3.5 w-3.5 mr-1" /> Ler tudo
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => {
+                router.push('/configuracoes/notifications');
+                setIsOpen(false);
+              }}
+              aria-label="Configurar notificações"
             >
-              <TabsList className="tabs-list-dark w-full rounded-none">
-                <TabsTrigger value="todas" className="tabs-trigger-dark">
-                  Todas ({notificacoes.length + insightsAlertas.length})
-                </TabsTrigger>
-                <TabsTrigger value="nao_lidas" className="tabs-trigger-dark">
-                  Não Lidas ({totalNaoLidas})
-                </TabsTrigger>
-                <TabsTrigger value="insights" className="tabs-trigger-dark">
-                  <Sparkles className="w-3 h-3 mr-1" />
-                  Insights ({totalInsights})
-                </TabsTrigger>
-              </TabsList>
+              <Settings className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
 
-              {/* Lista de Notificações */}
-              <ScrollArea className="h-96">
-                <div className="p-4 space-y-3">
-                  {/* Tab de Insights */}
-                  {filtroTab === 'insights' ? (
-                    <>
-                      {insightsLoading && insightsAlertas.length === 0 ? (
-                        <div className="flex items-center justify-center py-8">
-                          <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
-                          <span className="ml-2 text-sm text-gray-500">
-                            Analisando dados...
-                          </span>
-                        </div>
-                      ) : insightsAlertas.length === 0 ? (
-                        <div className="text-center py-8">
-                          <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-4" />
-                          <p className="text-gray-500 dark:text-gray-400">
-                            Tudo certo! Nenhum alerta.
-                          </p>
-                        </div>
-                      ) : (
-                        insightsAlertas.map(alerta => (
-                          <Card
-                            key={alerta.id}
-                            className={`card-dark p-3 space-y-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                              !alerta.lido ? 'border-l-4 border-l-purple-500' : ''
-                            }`}
-                            onClick={() => {
-                              marcarInsightComoLido(alerta.id);
-                              if (alerta.url) {
-                                router.push(alerta.url);
-                                setIsOpen(false);
-                              }
-                            }}
-                          >
-                            {/* Header do Insight */}
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-center gap-2">
-                                <Badge
-                                  variant="outline"
-                                  className={`${getAlertBadgeClass(alerta.tipo)} text-xs`}
-                                >
-                                  {alerta.tipo === 'critico' ? '🚨' : alerta.tipo === 'erro' ? '⚠️' : alerta.tipo === 'aviso' ? '⚡' : 'ℹ️'} {alerta.tipo.toUpperCase()}
-                                </Badge>
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-                                >
-                                  {alerta.categoria}
-                                </Badge>
-                              </div>
-                              {!alerta.lido && (
-                                <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
-                              )}
-                            </div>
+        {/* Tabs */}
+        <Tabs value={tab} onValueChange={(v) => setTab(v as 'todas' | 'nao_lidas')}>
+          <TabsList className="tabs-list-dark w-full rounded-none grid grid-cols-2">
+            <TabsTrigger value="todas" className="tabs-trigger-dark">
+              Todas
+            </TabsTrigger>
+            <TabsTrigger value="nao_lidas" className="tabs-trigger-dark">
+              Não lidas {naoLidas > 0 && `(${naoLidas})`}
+            </TabsTrigger>
+          </TabsList>
 
-                            {/* Conteúdo do Insight */}
-                            <div className="space-y-1">
-                              <h4 className="font-medium text-sm text-gray-900 dark:text-white">
-                                {alerta.titulo}
-                              </h4>
-                              <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-3 break-words">
-                                {alerta.mensagem}
-                              </p>
-                              <div className="flex items-center justify-between pt-1">
-                                <p className="text-xs text-gray-500 dark:text-gray-500">
-                                  {formatarTempoRelativo(alerta.created_at)}
-                                </p>
-                                {alerta.url && (
-                                  <span className="text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1">
-                                    Ver detalhes <ArrowRight className="w-3 h-3" />
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </Card>
-                        ))
-                      )}
-                      
-                      {/* Link para página completa */}
-                      {insightsAlertas.length > 0 && (
-                        <Button
-                          variant="ghost"
-                          className="w-full text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20"
-                          onClick={() => {
-                            router.push('/alertas');
-                            setIsOpen(false);
-                          }}
-                        >
-                          <Sparkles className="w-4 h-4 mr-2" />
-                          Ver todos os alertas
-                        </Button>
-                      )}
-                    </>
-                  ) : loading && notificacoes.length === 0 && insightsAlertas.length === 0 ? (
-                    <div className="flex items-center justify-center py-8">
-                      <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
-                      <span className="ml-2 text-sm text-gray-500">
-                        Carregando...
-                      </span>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Mostrar Insights nas abas Todas e Não Lidas também */}
-                      {filtroTab === 'nao_lidas' ? (
-                        // Aba Não Lidas: mostrar insights não lidos
-                        insightsNaoLidos.length === 0 && notificacoesFiltradas.length === 0 ? (
-                          <div className="text-center py-8">
-                            <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-4" />
-                            <p className="text-gray-500 dark:text-gray-400">
-                              Todas as notificações foram lidas
-                            </p>
-                          </div>
-                        ) : (
-                          <>
-                            {/* Insights não lidos */}
-                            {insightsNaoLidos.map(alerta => (
-                              <Card
-                                key={alerta.id}
-                                className={`card-dark p-3 space-y-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-l-4 border-l-purple-500 mb-3`}
-                                onClick={() => {
-                                  marcarInsightComoLido(alerta.id);
-                                  if (alerta.url) {
-                                    router.push(alerta.url);
-                                    setIsOpen(false);
-                                  }
-                                }}
-                              >
-                                <div className="flex items-start justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className={`${getAlertBadgeClass(alerta.tipo)} text-xs`}>
-                                      {alerta.tipo === 'critico' ? '🚨' : alerta.tipo === 'erro' ? '⚠️' : alerta.tipo === 'aviso' ? '⚡' : 'ℹ️'} {alerta.tipo.toUpperCase()}
-                                    </Badge>
-                                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                                      {alerta.categoria}
-                                    </Badge>
-                                  </div>
-                                  <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
-                                </div>
-                                <div className="space-y-1">
-                                  <h4 className="font-medium text-sm text-gray-900 dark:text-white">{alerta.titulo}</h4>
-                                  <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-3 break-words">{alerta.mensagem}</p>
-                                  <div className="flex items-center justify-between pt-1">
-                                    <p className="text-xs text-gray-500">{formatarTempoRelativo(alerta.created_at)}</p>
-                                    {alerta.url && (
-                                      <span className="text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1">
-                                        Ver detalhes <ArrowRight className="w-3 h-3" />
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </Card>
-                            ))}
-                            {/* Notificações não lidas do banco */}
-                            {notificacoesFiltradas.map(notificacao => (
-                              <Card
-                                key={notificacao.id}
-                                className="card-dark p-3 space-y-2 mb-3"
-                              >
-                                <div className="flex items-start justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <Badge
-                                      variant="outline"
-                                      className={`${getColorByType(notificacao.tipo || 'info')} text-xs`}
-                                    >
-                                      {(notificacao.tipo || 'INFO').toUpperCase()}
-                                    </Badge>
-                                    <Badge
-                                      variant="outline"
-                                      className={`${getColorByPriority(notificacao.prioridade || 'media')} text-xs`}
-                                    >
-                                      {(notificacao.prioridade || 'MEDIA').toUpperCase()}
-                                    </Badge>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    {['pendente', 'enviada'].includes(notificacao.status || '') && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleMarcarComoLida(notificacao.id)}
-                                        className="h-6 w-6 p-0"
-                                      >
-                                        <CheckCircle className="h-3 w-3" />
-                                      </Button>
-                                    )}
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleExcluirNotificacao(notificacao.id)}
-                                      className="h-6 w-6 p-0"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                </div>
-                                <div className="space-y-1">
-                                  <h4 className="font-medium text-sm text-gray-900 dark:text-white">
-                                    {notificacao.titulo || 'Notificação sem título'}
-                                  </h4>
-                                  <p className="text-xs text-gray-600 dark:text-gray-400">
-                                    {notificacao.mensagem || 'Sem mensagem'}
-                                  </p>
-                                  <p className="text-xs text-gray-500 dark:text-gray-500">
-                                    {notificacao.criada_em ? formatarTempo(notificacao.criada_em) : 'Sem data'}
-                                  </p>
-                                </div>
-                              </Card>
-                            ))}
-                          </>
-                        )
-                      ) : filtroTab === 'todas' ? (
-                        // Aba Todas: mostrar tudo
-                        insightsAlertas.length === 0 && notificacoesFiltradas.length === 0 ? (
-                          <div className="text-center py-8">
-                            <Info className="h-12 w-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-                            <p className="text-gray-500 dark:text-gray-400">
-                              Nenhuma notificação
-                            </p>
-                          </div>
-                        ) : (
-                          <>
-                            {/* Insights primeiro */}
-                            {insightsAlertas.map(alerta => (
-                              <Card
-                                key={alerta.id}
-                                className={`card-dark p-3 space-y-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors mb-3 ${
-                                  !alerta.lido ? 'border-l-4 border-l-purple-500' : ''
-                                }`}
-                                onClick={() => {
-                                  marcarInsightComoLido(alerta.id);
-                                  if (alerta.url) {
-                                    router.push(alerta.url);
-                                    setIsOpen(false);
-                                  }
-                                }}
-                              >
-                                <div className="flex items-start justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className={`${getAlertBadgeClass(alerta.tipo)} text-xs`}>
-                                      {alerta.tipo === 'critico' ? '🚨' : alerta.tipo === 'erro' ? '⚠️' : alerta.tipo === 'aviso' ? '⚡' : 'ℹ️'} {alerta.tipo.toUpperCase()}
-                                    </Badge>
-                                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                                      {alerta.categoria}
-                                    </Badge>
-                                  </div>
-                                  {!alerta.lido && <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />}
-                                </div>
-                                <div className="space-y-1">
-                                  <h4 className="font-medium text-sm text-gray-900 dark:text-white">{alerta.titulo}</h4>
-                                  <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-3 break-words">{alerta.mensagem}</p>
-                                  <div className="flex items-center justify-between pt-1">
-                                    <p className="text-xs text-gray-500">{formatarTempoRelativo(alerta.created_at)}</p>
-                                    {alerta.url && (
-                                      <span className="text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1">
-                                        Ver detalhes <ArrowRight className="w-3 h-3" />
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </Card>
-                            ))}
-                            {/* Depois notificações do banco */}
-                            {notificacoesFiltradas.map(notificacao => (
-                      <Card
-                        key={notificacao.id}
-                        className="card-dark p-3 space-y-2"
-                      >
-                        {/* Header da Notificação */}
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              variant="outline"
-                              className={`${getColorByType(notificacao.tipo || 'info')} text-xs`}
-                            >
-                              {(notificacao.tipo || 'INFO').toUpperCase()}
-                            </Badge>
-                            <Badge
-                              variant="outline"
-                              className={`${getColorByPriority(notificacao.prioridade || 'media')} text-xs`}
-                            >
-                              {(
-                                notificacao.prioridade || 'MEDIA'
-                              ).toUpperCase()}
-                            </Badge>
-                          </div>
-
-                          <div className="flex items-center gap-1">
-                            {['pendente', 'enviada'].includes(
-                              notificacao.status || ''
-                            ) && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  handleMarcarComoLida(notificacao.id)
-                                }
-                                className="h-6 w-6 p-0"
-                              >
-                                <CheckCircle className="h-3 w-3" />
-                              </Button>
-                            )}
-
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                handleExcluirNotificacao(notificacao.id)
-                              }
-                              className="h-6 w-6 p-0"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Conteúdo da Notificação */}
-                        <div className="space-y-1">
-                          <h4 className="font-medium text-sm text-gray-900 dark:text-white">
-                            {notificacao.titulo || 'Notificação sem título'}
-                          </h4>
-                          <p className="text-xs text-gray-600 dark:text-gray-400">
-                            {notificacao.mensagem || 'Sem mensagem'}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-500">
-                            {notificacao.criada_em
-                              ? formatarTempo(notificacao.criada_em)
-                              : 'Sem data'}
-                          </p>
-                        </div>
-
-                        {/* Ações da Notificação */}
-                        <div className="flex flex-wrap gap-2 pt-2">
-                          {/* Botão Ver Detalhes - sempre presente */}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              router.push(`/notificacoes/${notificacao.id}`);
-                              setIsOpen(false);
-                            }}
-                            className="h-7 text-xs px-3"
-                            leftIcon={<Info className="h-3 w-3" />}
-                          >
-                            Ver Detalhes
-                          </Button>
-                          
-                          {/* Ações específicas da notificação */}
-                          {notificacao.acoes &&
-                            Array.isArray(notificacao.acoes) &&
-                            notificacao.acoes.length > 0 &&
-                            notificacao.acoes.map((acao, index) => (
-                              <Button
-                                key={index}
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleAcaoNotificacao(acao)}
-                                className="h-7 text-xs px-3"
-                                leftIcon={<ExternalLink className="h-3 w-3" />}
-                              >
-                                {acao.label || 'Ir'}
-                              </Button>
-                            ))}
-                        </div>
-                      </Card>
-                            ))}
-                          </>
-                        )
-                      ) : null}
-                    </>
-                  )}
+          <ScrollArea className="h-96">
+            <div className="p-3 space-y-2">
+              {lista.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Inbox className="h-10 w-10 text-gray-300 dark:text-gray-600 mb-3" />
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {loading
+                      ? 'Carregando...'
+                      : tab === 'nao_lidas'
+                        ? 'Tudo em dia! Nenhuma não lida.'
+                        : 'Nenhuma notificação ainda.'}
+                  </p>
                 </div>
-              </ScrollArea>
-            </Tabs>
-
-            {/* Footer com Ações Rápidas */}
-            <div className="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3">
-              {/* Ações Rápidas */}
-              <div className="flex items-center justify-between">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleMarcarTodasComoLidas}
-                  disabled={totalNaoLidas === 0}
-                >
-                  <CheckCircle className="h-4 w-4 mr-1" />
-                  Marcar todas como lidas
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => router.push('/usuarios/notifications')}
-                >
-                  Ver todas
-                </Button>
-              </div>
-
-              {/* Configurações Rápidas */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    Atualização automática
-                  </span>
-                  <Switch
-                    checked={configuracoes.autoRefresh}
-                    onCheckedChange={handleToggleAutoRefresh}
-                  />
-                </div>
-
-                {configuracoes.autoRefresh && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 dark:text-gray-500">
-                      Intervalo:
-                    </span>
-                    <select
-                      value={configuracoes.refreshInterval}
-                      onChange={e =>
-                        handleChangeInterval(parseInt(e.target.value))
-                      }
-                      className="input-dark text-xs h-6 px-2 py-0"
+              ) : (
+                lista.map((n) => {
+                  const cat = categoriaLabel(n.categoria);
+                  return (
+                    <div
+                      key={n.id}
+                      className={`group rounded-md border-l-4 ${bordaSeveridade(
+                        n.severidade
+                      )} bg-gray-50 dark:bg-gray-800/50 px-3 py-2 ${
+                        n.url ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800' : ''
+                      } ${!n.lida ? '' : 'opacity-70'}`}
+                      onClick={() => abrir(n)}
                     >
-                      <option value={15000}>15s</option>
-                      <option value={30000}>30s</option>
-                      <option value={60000}>1min</option>
-                      <option value={300000}>5min</option>
-                    </select>
-                  </div>
-                )}
-              </div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-xs">{emojiSeveridade(n.severidade)}</span>
+                          <span className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 truncate">
+                            {cat.emoji} {cat.label}
+                          </span>
+                          {!n.lida && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {!n.lida && (
+                            <button
+                              className="h-6 w-6 flex items-center justify-center text-gray-400 hover:text-green-500"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                marcarLida(n.id);
+                              }}
+                              aria-label="Marcar como lida"
+                            >
+                              <CheckCircle className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          <button
+                            className="h-6 w-6 flex items-center justify-center text-gray-400 hover:text-red-500"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              excluir(n.id);
+                            }}
+                            aria-label="Excluir"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <h4 className="text-sm font-medium text-gray-900 dark:text-white mt-0.5">
+                        {n.titulo}
+                      </h4>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
+                        {n.mensagem}
+                      </p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+                        {formatarTempo(n.criada_em)}
+                      </p>
+                    </div>
+                  );
+                })
+              )}
             </div>
-          </CardContent>
-        </Card>
+          </ScrollArea>
+        </Tabs>
+
+        {/* Footer */}
+        <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-sm"
+            onClick={() => {
+              router.push('/configuracoes/notifications');
+              setIsOpen(false);
+            }}
+          >
+            Ver todas e configurar
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   );

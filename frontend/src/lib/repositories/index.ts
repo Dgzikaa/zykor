@@ -15,12 +15,14 @@ import { EventosRepository } from './eventos.repo';
 import { BaresRepository } from './bares.repo';
 import { UsuariosRepository } from './usuarios.repo';
 import { NotificacoesRepository } from './notificacoes.repo';
+import { NotificationRulesRepository } from './notification-rules.repo';
 
 export type Repos = {
   eventos: EventosRepository;
   bares: BaresRepository;
   usuarios: UsuariosRepository;
   notificacoes: NotificacoesRepository;
+  notificationRules: NotificationRulesRepository;
 };
 
 /**
@@ -42,6 +44,7 @@ export function reposFromClient(client: SupabaseClient): Repos {
     bares: new BaresRepository(client),
     usuarios: new UsuariosRepository(client),
     notificacoes: new NotificacoesRepository(client),
+    notificationRules: new NotificationRulesRepository(client),
   };
 }
 
@@ -50,3 +53,4 @@ export { EventosRepository } from './eventos.repo';
 export { BaresRepository } from './bares.repo';
 export { UsuariosRepository } from './usuarios.repo';
 export { NotificacoesRepository } from './notificacoes.repo';
+export { NotificationRulesRepository } from './notification-rules.repo';
