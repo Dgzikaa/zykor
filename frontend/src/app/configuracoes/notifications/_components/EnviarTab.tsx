@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Loader2, Send, Check, Users } from 'lucide-react';
 
-type Canal = 'in_app' | 'push';
+type Canal = 'in_app' | 'push' | 'whatsapp';
 type Role = 'admin' | 'financeiro' | 'funcionario';
 type Severidade = 'info' | 'sucesso' | 'alerta' | 'critico';
 
@@ -209,11 +209,10 @@ export default function EnviarTab() {
             </button>
             <button
               type="button"
-              disabled
-              className={`${pill(false)} opacity-40 cursor-not-allowed`}
-              title="Em breve (WhatsApp via Umbler)"
+              onClick={() => setCanais((s) => toggle(s, 'whatsapp'))}
+              className={pill(canais.has('whatsapp'))}
             >
-              💬 WhatsApp (em breve)
+              💬 WhatsApp
             </button>
           </div>
         </div>
