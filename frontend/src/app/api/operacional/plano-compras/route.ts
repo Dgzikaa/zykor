@@ -46,7 +46,12 @@ export async function GET(request: NextRequest) {
     .select('area').eq('bar_id', barId).eq('semana_ini', semanaSel).eq('status', 'encerrado');
   const producaoEncerrada = (planosProd || []).map((p: any) => p.area);
 
-  const NIVEL = 95;
+  // nível de serviço por insumo (config); sem config = 95%
+  const { data: cfgs } = await (sb() as any).schema('operations').from('compras_plano_config')
+    .select('insumo_codigo, nivel_servico').eq('bar_id', barId);
+  const cfgMap = new Map<string, number>();
+  (cfgs || []).forEach((c: any) => cfgMap.set(String(c.insumo_codigo).toUpperCase(), Number(c.nivel_servico)));
+
   const itens = ((data || []) as any[]).map((r) => {
     const saidas = (r.saidas || []).map(num);
     const media6 = mediaPonderada(saidas);
@@ -57,7 +62,8 @@ export async function GET(request: NextRequest) {
     const embalagem = u.embalagem || 1;
     const estoque = num(r.estoque_cont) * embalagem; // contagem vem em pacotes → unidade-base
     const ab = num(r.ab);
-    const pr = media6 + desvpad * zDe(NIVEL);
+    const nivel = cfgMap.get(String(r.insumo_codigo).toUpperCase()) ?? 95;
+    const pr = media6 + desvpad * zDe(nivel);
     const sugestaoBase = pr - estoque + ab;                 // AC = Z − AA + AB (unidade-base)
     const naoComprar = sugestaoBase <= 0;
     const sugestaoQtd = !naoComprar ? Math.ceil(sugestaoBase / embalagem) : 0; // AD = ROUNDUP(AC/embalagem) = nº de embalagens
@@ -68,7 +74,7 @@ export async function GET(request: NextRequest) {
       embalagem, base: u.base, unidade: u.base, custo: num(r.custo), curva_a: r.curva_a === true,
       estoque: r2(estoque), ab: r2(ab), comprado: num(r.comprado),
       media6: r2(media6), desvpad: r2(desvpad), saidas, semanas: r.semanas || [], ultima,
-      nivel_servico: NIVEL, pr: r2(pr), sugestao_base: r2(sugestaoBase), sugestao_qtd: sugestaoQtd, nao_comprar: naoComprar,
+      nivel_servico: nivel, pr: r2(pr), sugestao_base: r2(sugestaoBase), sugestao_qtd: sugestaoQtd, nao_comprar: naoComprar,
     };
   }).sort((a, b) => b.sugestao_qtd - a.sugestao_qtd);
 
@@ -77,4 +83,25 @@ export async function GET(request: NextRequest) {
     contagem: { data: comContagem.includes(semanaSel) ? semanaSel : null },
     producao_encerrada: producaoEncerrada, itens,
   });
+}
+
+// POST { action:'config', insumo_codigo, nivel_servico } → salva o nível de serviço do insumo.
+export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const body = await request.json().catch(() => ({}));
+  const barId = Number(body.bar_id) || user.bar_id;
+  if (!barId) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
+
+  if (body.action === 'config') {
+    const codigo = String(body.insumo_codigo || '').trim();
+    const ns = Number(body.nivel_servico);
+    if (!codigo) return NextResponse.json({ success: false, error: 'insumo_codigo obrigatório' }, { status: 400 });
+    if (!(String(ns) in NIVEL_Z)) return NextResponse.json({ success: false, error: 'nível de serviço inválido' }, { status: 400 });
+    const { error } = await (sb() as any).schema('operations').from('compras_plano_config')
+      .upsert({ bar_id: barId, insumo_codigo: codigo, nivel_servico: ns, atualizado_em: new Date().toISOString() }, { onConflict: 'bar_id,insumo_codigo' });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
+  }
+  return NextResponse.json({ success: false, error: 'ação inválida' }, { status: 400 });
 }

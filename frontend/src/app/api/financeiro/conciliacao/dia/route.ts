@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 // De-para Stone (bandeira confirmada por BIN; tipo de conta = enum padrão Stone).
 const BRAND: Record<number, string> = { 1: 'Visa', 2: 'Mastercard', 3: 'Amex', 4: 'Hipercard', 171: 'Elo' };
 // Confirmado por cruzamento com ContaHub (créd = acct 2+4; déb = acct 1+3).
-const ACCOUNT: Record<number, string> = { 1: 'Débito', 2: 'Crédito', 3: 'Voucher', 4: 'Private Label', 5: 'Outro' };
+const ACCOUNT: Record<number, string> = { 1: 'Débito', 2: 'Crédito', 3: 'Voucher', 4: 'Private Label', 5: 'Outro', 99: 'PIX' };
 const brandName = (id: any) => BRAND[Number(id)] || (id == null ? '—' : `Bandeira ${id}`);
 const accountName = (id: any) => ACCOUNT[Number(id)] || (id == null ? '—' : `Tipo ${id}`);
 
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
         .select('tipo, valor_bruto, cliente_nome, mesa_desc, meio, created_at')
         .eq('bar_id', user.bar_id)
         .eq('data_pagamento', data)
-        .in('tipo', ['Cred', 'Deb'])
+        .in('tipo', ['Cred', 'Deb', 'Outro'])
         .order('created_at', { ascending: true }),
       { label: 'conciliacao/dia/ch' },
     );
@@ -101,12 +101,18 @@ export async function GET(request: NextRequest) {
   }
   const por_bandeira = Array.from(mapa.values()).sort((a, b) => b.bruto - a.bruto);
 
-  // Casamento Stone × ContaHub por (tipo, valor): marca cada transação Stone como
+  // Casamento Stone × ContaHub por (lado, valor): marca cada transação Stone como
   // suspeita quando não tem par no ContaHub (ContaHub não fornece NSU/autorização).
-  const side = (at: any) => [2, 4].includes(Number(at)) ? 'Cred' : [1, 3].includes(Number(at)) ? 'Deb' : 'Outro';
+  // Lados: crédito (acct 2+4), débito (1+3) e PIX (acct 99 = Stone PIX via webhook).
+  // O PIX entra pela Stone E está no ContaHub (meio 'Pix Auto') — sem casá-lo, os PIX do
+  // dia caíam como "Outros" mesmo o dia batendo. Dinheiro NÃO passa pela Stone → fica fora.
+  const side = (at: any) => { const n = Number(at); return [2, 4].includes(n) ? 'Cred' : [1, 3].includes(n) ? 'Deb' : n === 99 ? 'Pix' : 'Outro'; };
+  const chSide = (p: any) => p.tipo === 'Cred' ? 'Cred' : p.tipo === 'Deb' ? 'Deb' : /pix/i.test(String(p.meio || '')) ? 'Pix' : null;
   const chBuckets = new Map<string, any[]>();
   for (const p of chPays) {
-    const k = `${p.tipo}|${num(p.valor_bruto).toFixed(2)}`;
+    const cs = chSide(p);
+    if (!cs) continue; // Dinheiro e demais meios fora da Stone não entram na conciliação
+    const k = `${cs}|${num(p.valor_bruto).toFixed(2)}`;
     if (!chBuckets.has(k)) chBuckets.set(k, []);
     chBuckets.get(k)!.push(p);
   }
@@ -144,7 +150,9 @@ export async function GET(request: NextRequest) {
   // Stone: crédito = account_type 2+4; débito = 1+3 (confirmado vs ContaHub).
   const stoneCred = tx.filter((t) => [2, 4].includes(Number(t.account_type))).reduce((s, t) => s + num(t.gross_amount), 0);
   const stoneDeb = tx.filter((t) => [1, 3].includes(Number(t.account_type))).reduce((s, t) => s + num(t.gross_amount), 0);
+  const stonePix = tx.filter((t) => Number(t.account_type) === 99).reduce((s, t) => s + num(t.gross_amount), 0);
   const stoneBruto = tx.reduce((s, t) => s + num(t.gross_amount), 0);
+  const chPix = chPays.filter((p) => /pix/i.test(String(p.meio || ''))).reduce((s, p) => s + num(p.valor_bruto), 0);
 
   let gold: any = null;
   const { data: gd } = await (supabase as any)
@@ -159,6 +167,8 @@ export async function GET(request: NextRequest) {
     linhas: [
       { tipo: 'Crédito', contahub: chCred, stone: stoneCred, dif: Number((chCred - stoneCred).toFixed(2)) },
       { tipo: 'Débito', contahub: chDeb, stone: stoneDeb, dif: Number((chDeb - stoneDeb).toFixed(2)) },
+      // PIX só aparece quando houve PIX no dia (Stone acct 99 / ContaHub 'Pix Auto')
+      ...(stonePix > 0 || chPix > 0 ? [{ tipo: 'PIX', contahub: Number(chPix.toFixed(2)), stone: Number(stonePix.toFixed(2)), dif: Number((chPix - stonePix).toFixed(2)) }] : []),
       { tipo: 'Total', contahub: chCartao, stone: stoneBruto, dif: Number((chCartao - stoneBruto).toFixed(2)) },
     ],
   };
@@ -174,7 +184,7 @@ export async function GET(request: NextRequest) {
   const so_ch: any[] = [];
   for (const [, arr] of chBuckets) for (const p of arr) {
     const hit = rawMap.get(`${String(p.mesa_desc || '').trim()}|${num(p.valor_bruto).toFixed(2)}`)?.shift();
-    so_ch.push({ tipo: p.tipo, valor: num(p.valor_bruto), cliente: p.cliente_nome, mesa: p.mesa_desc, meio: p.meio, garcom: hit?.garcom || null, comanda: hit?.comanda || null });
+    so_ch.push({ tipo: chSide(p) || p.tipo, valor: num(p.valor_bruto), cliente: p.cliente_nome, mesa: p.mesa_desc, meio: p.meio, garcom: hit?.garcom || null, comanda: hit?.comanda || null });
   }
   so_ch.sort((a, b) => Math.abs(b.valor) - Math.abs(a.valor));
   const divergencias = {

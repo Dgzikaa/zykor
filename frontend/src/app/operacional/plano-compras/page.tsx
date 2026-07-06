@@ -23,6 +23,12 @@ const fmtMedida = (v: any, base?: string) => {
 const fmtEmb = (vBase: any, emb: any) => vBase == null ? '—' : fmtN(Number(vBase) / (Number(emb) || 1));
 const fmtDM = (s: string) => s ? s.split('-').reverse().slice(0, 2).join('/') : '';
 
+// Nível de Serviço → Fator de Serviço (z), igual ao Planejamento da Produção. Entra no PR.
+const NIVEIS = [50, 60, 70, 80, 85, 90, 95, 96, 97, 98, 99, 99.9];
+const NIVEL_Z: Record<number, number> = { 50: 0, 60: 0.254, 70: 0.525, 80: 0.842, 85: 1.037, 90: 1.282, 95: 1.645, 96: 1.751, 97: 1.88, 98: 2.055, 99: 2.325, 99.9: 3.1 };
+const zDe = (n: number) => NIVEL_Z[n] ?? 1.645;
+const r2 = (v: number) => Number(v.toFixed(2));
+
 export default function PlanoComprasPage() {
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
@@ -56,6 +62,27 @@ export default function PlanoComprasPage() {
       && (!secao || i.secao_vmarket === secao)
       && (!s || (i.nome || '').toLowerCase().includes(s) || (i.codigo || '').toLowerCase().includes(s)));
   }, [res, busca, soCurvaA, filtro, secao]);
+
+  // muda o nível de serviço do insumo: recalcula PR/sugestão ao vivo (PR = Média6s + DesvPad × z)
+  // e persiste. Tudo em unidade-base (mesma dos campos da linha).
+  const salvarConfig = async (it: any, ns: number) => {
+    setRes((prev: any) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        itens: (prev.itens as any[]).map((x) => {
+          if (x.codigo !== it.codigo) return x;
+          const pr = x.media6 + x.desvpad * zDe(ns);
+          const sugestaoBase = pr - x.estoque + x.ab;
+          const naoComprar = sugestaoBase <= 0;
+          const sugestaoQtd = !naoComprar ? Math.ceil(sugestaoBase / (x.embalagem || 1)) : 0;
+          return { ...x, nivel_servico: ns, pr: r2(pr), sugestao_base: r2(sugestaoBase), sugestao_qtd: sugestaoQtd, nao_comprar: naoComprar };
+        }),
+      };
+    });
+    try { await api.post('/api/operacional/plano-compras', { bar_id: barId, action: 'config', insumo_codigo: it.codigo, nivel_servico: ns }); }
+    catch { /* fica salvo local; próximo refresh corrige */ }
+  };
 
   const totComprar = useMemo(() => linhas.filter((i) => !i.nao_comprar).length, [linhas]);
   const custoEstimado = useMemo(() => linhas.reduce((s, i) => s + (i.nao_comprar ? 0 : i.sugestao_qtd * i.custo), 0), [linhas]);
@@ -112,6 +139,7 @@ export default function PlanoComprasPage() {
               <th className="text-right font-medium px-1.5 py-2 whitespace-nowrap min-w-[64px]" title="Uso direto da última semana (em nº de embalagens)">Uso Direto</th>
               <th className="text-right font-medium px-1.5 py-2 whitespace-nowrap min-w-[64px]" title="Média ponderada do uso direto das 6 semanas (em nº de embalagens)">Média 6s</th>
               <th className="text-right font-medium px-1.5 py-2 whitespace-nowrap min-w-[64px]" title="Desvio padrão (em nº de embalagens)">Desv. Pad.</th>
+              <th className="text-center font-medium px-1.5 py-2 whitespace-nowrap min-w-[72px]" title="Define o fator de segurança do Ponto de Ressuprimento (z). Entra no PR.">Nível de Serviço</th>
               <th className="text-right font-medium px-1.5 py-2 whitespace-nowrap min-w-[64px]" title="Ponto de Ressuprimento = média + desvio × fator de serviço (em nº de embalagens)">PR</th>
               <th className="text-right font-medium px-1.5 py-2 whitespace-nowrap min-w-[64px]" title="Estoque atual (em nº de embalagens)">Estoque</th>
               <th className="text-right font-medium px-1.5 py-2 whitespace-nowrap min-w-[64px]" title="Necessidade da produção planejada, plano encerrado da semana (em nº de embalagens)">p/ Produção</th>
@@ -119,8 +147,8 @@ export default function PlanoComprasPage() {
               <th className="text-right font-medium px-1.5 py-2 whitespace-nowrap min-w-[64px]" title="O que apareceu de compra no Vmarket nesta semana">Comprado</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {loading ? <tr><td colSpan={9} className="px-3 py-12 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-              : linhas.length === 0 ? <tr><td colSpan={9} className="px-3 py-12 text-center text-gray-400">Sem insumos no filtro.</td></tr>
+              {loading ? <tr><td colSpan={10} className="px-3 py-12 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              : linhas.length === 0 ? <tr><td colSpan={10} className="px-3 py-12 text-center text-gray-400">Sem insumos no filtro.</td></tr>
               : linhas.map((it) => {
                 const expandido = aberto === it.codigo;
                 return (
@@ -138,6 +166,12 @@ export default function PlanoComprasPage() {
                     </button>
                   </td>
                   <td className="px-1.5 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmtEmb(it.desvpad, it.embalagem)}</td>
+                  <td className="px-1.5 py-2 text-center whitespace-nowrap">
+                    <select value={it.nivel_servico} onChange={e => salvarConfig(it, Number(e.target.value))} title="Nível de serviço (z do PR)"
+                      className="bg-transparent text-xs outline-none cursor-pointer rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 px-1">
+                      {NIVEIS.map(n => <option key={n} value={n} className="text-gray-900">{n}%</option>)}
+                    </select>
+                  </td>
                   <td className="px-1.5 py-2 text-right tabular-nums text-gray-700 dark:text-gray-200 font-medium whitespace-nowrap">{fmtEmb(it.pr, it.embalagem)}</td>
                   <td className="px-1.5 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmtEmb(it.estoque, it.embalagem)}</td>
                   <td className="px-1.5 py-2 text-right tabular-nums whitespace-nowrap">{it.ab > 0 ? <span className="text-indigo-600 dark:text-indigo-400">{fmtEmb(it.ab, it.embalagem)}</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
@@ -149,7 +183,7 @@ export default function PlanoComprasPage() {
                   <td className="px-1.5 py-2 text-right tabular-nums whitespace-nowrap">{it.comprado > 0 ? <span className="text-gray-700 dark:text-gray-200">{fmtI(it.comprado)} emb.</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
                 </tr>
                 {expandido && <tr className="bg-gray-50/60 dark:bg-gray-800/30">
-                  <td colSpan={9} className="px-2 py-2">
+                  <td colSpan={10} className="px-2 py-2">
                     <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
                       <span className="font-medium text-gray-600 dark:text-gray-300">Uso direto por semana:</span>
                       {(it.semanas || []).map((wk: string, i: number) => {

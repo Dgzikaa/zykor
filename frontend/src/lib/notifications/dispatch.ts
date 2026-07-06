@@ -17,6 +17,7 @@
 import { repos } from '@/lib/repositories';
 import { getEvent, type Severidade, type Canal } from './catalog';
 import { enviarPushParaUsuarios } from './push-send';
+import { enviarWhatsAppParaUsuarios } from './whatsapp-send';
 
 export interface DispatchInput {
   barId: number;
@@ -39,6 +40,7 @@ export interface DispatchInput {
 export interface DispatchResult {
   enviadas: number; // linhas in_app criadas
   push: { enviados: number; removidas: number };
+  whatsapp: { enviados: number; semTelefone: number; falhas: number };
   destinatarios: number;
   canais: Canal[];
   pulado: boolean; // true = regra desativada ou sem destinatários
@@ -48,6 +50,7 @@ export interface DispatchResult {
 const VAZIO = (canais: Canal[], motivo: string): DispatchResult => ({
   enviadas: 0,
   push: { enviados: 0, removidas: 0 },
+  whatsapp: { enviados: 0, semTelefone: 0, falhas: 0 },
   destinatarios: 0,
   canais,
   pulado: true,
@@ -137,7 +140,15 @@ export async function dispatchNotification(input: DispatchInput): Promise<Dispat
     });
   }
 
-  // whatsapp: canal reservado — Umbler Talk ainda não configurado.
+  // whatsapp (Umbler Talk — canal oficial). Só dispara se a regra incluir 'whatsapp'.
+  let whatsapp = { enviados: 0, semTelefone: 0, falhas: 0 };
+  if (canais.includes('whatsapp')) {
+    whatsapp = await enviarWhatsAppParaUsuarios(ids, {
+      titulo: input.titulo,
+      mensagem: input.mensagem,
+      url: url ?? undefined,
+    });
+  }
 
-  return { enviadas, push, destinatarios: ids.length, canais, pulado: false };
+  return { enviadas, push, whatsapp, destinatarios: ids.length, canais, pulado: false };
 }

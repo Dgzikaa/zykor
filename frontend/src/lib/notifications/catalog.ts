@@ -51,8 +51,8 @@ export const CATEGORIAS: Record<CategoriaEvento, { label: string; emoji: string 
 export const CANAIS: Record<Canal, { label: string; emoji: string; disponivel: boolean }> = {
   in_app: { label: 'No Zykor', emoji: '🔔', disponivel: true },
   push: { label: 'Push (celular)', emoji: '📱', disponivel: true },
-  // WhatsApp entra quando o Umbler Talk estiver configurado (canal oficial).
-  whatsapp: { label: 'WhatsApp', emoji: '💬', disponivel: false },
+  // WhatsApp oficial via Umbler Talk (número dedicado "Zykor Notificações").
+  whatsapp: { label: 'WhatsApp', emoji: '💬', disponivel: true },
 };
 
 /**

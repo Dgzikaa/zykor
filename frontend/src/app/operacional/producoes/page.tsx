@@ -710,6 +710,7 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
   const [semanaSel, setSemanaSel] = useState<string | null>(null);
   const [diaSel, setDiaSel] = useState<string>(''); // filtro por 1 dia (YYYY-MM-DD); '' = todos
   const [soFora, setSoFora] = useState(false); // mostrar só execuções fora do plano
+  const [rendFiltro, setRendFiltro] = useState<'todos' | 'abaixo' | 'dentro' | 'acima'>('todos'); // filtro por rendimento real vs esperado (±5%)
   const [planSemana, setPlanSemana] = useState<any | null>(null);
 
   // ao trocar de seção (Cozinha/Bar), zera o filtro de produção — ele aponta pra ficha da outra seção
@@ -800,10 +801,16 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
     let base = execsSecao;
     if (diaSel) base = base.filter((e: any) => isoLocal(e.criado_em) === diaSel);
     if (soFora) base = base.filter((e: any) => foraDoPlano(e));
+    if (rendFiltro !== 'todos') base = base.filter((e: any) => {
+      const esp = Number(e.rendimento_esperado), real = Number(e.rendimento_real);
+      if (!(e.rendimento_esperado != null && e.rendimento_real != null && esp > 0)) return false; // sem rendimento registrado
+      const r = real / esp; // dentro = ±5%
+      return rendFiltro === 'abaixo' ? r < 0.95 : rendFiltro === 'acima' ? r > 1.05 : (r >= 0.95 && r <= 1.05);
+    });
     const s = buscaProd.trim().toLowerCase();
     if (!s) return base;
     return base.filter((e: any) => (e.producao_nome || '').toLowerCase().includes(s) || (e.producao_codigo || '').toLowerCase().includes(s));
-  }, [execsSecao, buscaProd, diaSel, soFora, foraDoPlano]);
+  }, [execsSecao, buscaProd, diaSel, soFora, rendFiltro, foraDoPlano]);
 
   const abrirDetalhe = async (e: any) => {
     setDetalhe(e); setDetInsumos([]);
@@ -887,7 +894,14 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
           className={`inline-flex items-center gap-1 h-9 rounded-md border px-2.5 text-sm transition ${soFora ? 'border-rose-400 bg-rose-50 text-rose-600 dark:border-rose-800 dark:bg-rose-900/25 dark:text-rose-300' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
           <AlertTriangle className="w-3.5 h-3.5" />Só fora do plano
         </button>
-        {(fProd || fResp || semanaSel || buscaProd || diaSel || soFora) && <button onClick={() => { setFProd(null); setFResp(null); setSemanaSel(null); setBuscaProd(''); setDiaSel(''); setSoFora(false); }} className="text-xs text-gray-400 underline">limpar</button>}
+        <select value={rendFiltro} onChange={e => setRendFiltro(e.target.value as 'todos' | 'abaixo' | 'dentro' | 'acima')} title="Filtrar pelo rendimento real vs. esperado (tolerância ±5%)"
+          className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
+          <option value="todos">Rendimento: todos</option>
+          <option value="abaixo">🔻 Abaixo do rendimento</option>
+          <option value="dentro">✅ Dentro (±5%)</option>
+          <option value="acima">🔺 Acima do rendimento</option>
+        </select>
+        {(fProd || fResp || semanaSel || buscaProd || diaSel || soFora || rendFiltro !== 'todos') && <button onClick={() => { setFProd(null); setFResp(null); setSemanaSel(null); setBuscaProd(''); setDiaSel(''); setSoFora(false); setRendFiltro('todos'); }} className="text-xs text-gray-400 underline">limpar</button>}
         <span className="text-xs text-gray-400 ml-auto">{execsView.length} execuç{execsView.length === 1 ? 'ão' : 'ões'}</span>
       </div>
 
