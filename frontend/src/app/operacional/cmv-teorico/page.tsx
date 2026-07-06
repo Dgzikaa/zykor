@@ -73,6 +73,8 @@ export default function CmvTeoricoPage() {
   const [mostrarForaDp, setMostrarForaDp] = useState(false);
   const [dpBusy, setDpBusy] = useState(false);
   const [manualCod, setManualCod] = useState<Record<number, string>>({});
+  const [cadOpen, setCadOpen] = useState<number | null>(null); // prd com o mini-form de cadastro aberto
+  const [cadCat, setCadCat] = useState<'b' | 'c' | 'd' | 'o'>('b');
   const range = useMemo(() => calcRange(gran, dataRef), [gran, dataRef]);
   const carregarPeriodo = useCallback(async () => {
     if (!barId) return; setLoadingPer(true);
@@ -142,7 +144,19 @@ export default function CmvTeoricoPage() {
     } catch (e: any) { toast({ title: 'Erro ao ignorar', description: e?.message, variant: 'destructive' }); }
     finally { setDpBusy(false); }
   };
-  const exatos = useMemo(() => ((periodo?.fora_depara || []) as any[]).filter(p => p.nivel === 'exato' && !p.ambiguo && p.sugestao_codigo), [periodo]);
+  const cadastrarDepara = async (p: any, prefixo: 'b' | 'c' | 'd' | 'o') => {
+    if (!barId) return; setDpBusy(true);
+    try {
+      const r = await api.post('/api/operacional/cmv-teorico', { bar_id: barId, action: 'cadastrar_depara', prd: p.prd, prd_desc: p.prd_desc, prefixo });
+      if (!r.success) throw new Error(r.error);
+      toast({ title: `Cadastrado (${r.codigo})`, description: 'Produto criado e vinculado. Monte a ficha em Fichas Técnicas.' });
+      setCadOpen(null);
+      await carregarPeriodo();
+    } catch (e: any) { toast({ title: 'Erro ao cadastrar', description: e?.message, variant: 'destructive' }); }
+    finally { setDpBusy(false); }
+  };
+  // só entram no "vincular em massa" os exatos sem ambiguidade E cuja sugestão NÃO está mapeada a outro código
+  const exatos = useMemo(() => ((periodo?.fora_depara || []) as any[]).filter(p => p.nivel === 'exato' && !p.ambiguo && p.sugestao_codigo && !p.sugestao_ja_mapeada), [periodo]);
 
   const cats = useMemo(() => Array.from(new Set(produtos.map(p => p.categoria || 'Outros'))).sort(), [produtos]);
   const escopo = useMemo(() => {
@@ -365,27 +379,49 @@ export default function CmvTeoricoPage() {
                         <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(p.valor)}</td>
                         <td className="px-3 py-2">
                           {soLeitura ? <span className="text-xs text-gray-400">—</span> : (
-                          <div className="flex flex-wrap items-center gap-2">
-                            {p.sugestao_codigo ? (
-                              <div className="flex items-center gap-1.5">
-                                <Badge variant="outline" className={p.nivel === 'exato' ? 'border-emerald-400 text-emerald-600 dark:text-emerald-400' : 'border-amber-400 text-amber-600 dark:text-amber-400'}>
+                          <div className="flex flex-col gap-1.5">
+                            {/* sugestão de vínculo */}
+                            {p.sugestao_codigo && (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <Badge variant="outline" className={p.nivel === 'exato' && !p.sugestao_ja_mapeada ? 'border-emerald-400 text-emerald-600 dark:text-emerald-400' : 'border-amber-400 text-amber-600 dark:text-amber-400'}>
                                   {p.nivel === 'exato' ? 'exato' : `~${Math.round((p.score || 0) * 100)}%`}
                                 </Badge>
-                                <span className="text-xs text-gray-600 dark:text-gray-300">{p.sugestao_codigo} · {p.sugestao_nome}{p.sugestao_ativo === false ? ' (inativo)' : ''}</span>
-                                <Button size="sm" variant={p.nivel === 'exato' ? 'default' : 'outline'} disabled={dpBusy}
+                                <span className={`text-xs ${p.sugestao_ja_mapeada ? 'text-gray-400 line-through' : 'text-gray-600 dark:text-gray-300'}`}>{p.sugestao_codigo} · {p.sugestao_nome}{p.sugestao_ativo === false ? ' (inativo)' : ''}</span>
+                                {p.sugestao_ja_mapeada && <span className="text-[11px] text-orange-600 dark:text-orange-400">⚠ já vinculado a outro código — provável produto diferente, cadastre</span>}
+                                <Button size="sm" variant={p.nivel === 'exato' && !p.sugestao_ja_mapeada ? 'default' : 'outline'} disabled={dpBusy}
                                   onClick={() => {
-                                    if (p.nivel !== 'exato' && !confirm(`Vincular:\n\nContaHub: ${p.prd_desc}\n→ Cardápio: ${p.sugestao_codigo} ${p.sugestao_nome}\n\nConfere? (nome parecido não é garantia)`)) return;
+                                    const aviso = p.sugestao_ja_mapeada
+                                      ? `ATENÇÃO: "${p.sugestao_nome}" já está vinculado a OUTRO código do ContaHub — provavelmente é outro produto.\n\nVincular assim mesmo?\nContaHub: ${p.prd_desc} → ${p.sugestao_codigo} ${p.sugestao_nome}`
+                                      : `Vincular:\n\nContaHub: ${p.prd_desc}\n→ Cardápio: ${p.sugestao_codigo} ${p.sugestao_nome}\n\nConfere? (nome parecido não é garantia)`;
+                                    if ((p.nivel !== 'exato' || p.sugestao_ja_mapeada) && !confirm(aviso)) return;
                                     vincularDepara([{ prd: p.prd, cod_interno: p.sugestao_codigo }]);
                                   }}>Vincular</Button>
                               </div>
-                            ) : (
-                              <div className="flex items-center gap-1.5">
-                                <Input value={manualCod[p.prd] ?? ''} onChange={e => setManualCod(m => ({ ...m, [p.prd]: e.target.value }))} placeholder="código (ex.: d0341)" className="h-7 w-32 text-xs" />
-                                <Button size="sm" variant="outline" disabled={dpBusy || !cod} onClick={vincManual}>Vincular</Button>
-                              </div>
                             )}
-                            <button onClick={() => { if (confirm(`Ignorar "${p.prd_desc}"? Some da lista (use p/ ingresso, vale, taxa, embalagem…).`)) ignorarDepara([{ prd: p.prd, prd_desc: p.prd_desc }]); }}
-                              disabled={dpBusy} className="text-xs text-gray-400 hover:text-red-500">ignorar</button>
+                            {/* ações: cadastrar novo / vincular manual / ignorar */}
+                            <div className="flex flex-wrap items-center gap-2">
+                              {cadOpen === p.prd ? (
+                                <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-300 dark:border-emerald-700 bg-emerald-50/60 dark:bg-emerald-900/15 px-2 py-1">
+                                  <span className="text-[11px] text-gray-500">Cadastrar como:</span>
+                                  <select value={cadCat} onChange={e => setCadCat(e.target.value as 'b' | 'c' | 'd' | 'o')} className="h-6 text-xs bg-transparent border rounded px-1 dark:bg-gray-800">
+                                    <option value="b">Bebida</option><option value="c">Comida</option><option value="d">Drink</option><option value="o">Outros</option>
+                                  </select>
+                                  <Button size="sm" disabled={dpBusy} onClick={() => cadastrarDepara(p, cadCat)}>Criar</Button>
+                                  <button onClick={() => setCadOpen(null)} className="text-xs text-gray-400 hover:text-gray-600">cancelar</button>
+                                </span>
+                              ) : (
+                                <button onClick={() => { const pfx = ((p.sugestao_codigo || '')[0] || '').toLowerCase(); setCadCat((['b', 'c', 'd', 'o'].includes(pfx) ? pfx : 'b') as 'b' | 'c' | 'd' | 'o'); setCadOpen(p.prd); }}
+                                  disabled={dpBusy} className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline">+ Cadastrar novo</button>
+                              )}
+                              {!p.sugestao_codigo && (
+                                <span className="inline-flex items-center gap-1.5">
+                                  <Input value={manualCod[p.prd] ?? ''} onChange={e => setManualCod(m => ({ ...m, [p.prd]: e.target.value }))} placeholder="ou vincular código" className="h-7 w-36 text-xs" />
+                                  <Button size="sm" variant="outline" disabled={dpBusy || !cod} onClick={vincManual}>Vincular</Button>
+                                </span>
+                              )}
+                              <button onClick={() => { if (confirm(`Ignorar "${p.prd_desc}"? Some da lista (use p/ ingresso, vale, taxa, embalagem…).`)) ignorarDepara([{ prd: p.prd, prd_desc: p.prd_desc }]); }}
+                                disabled={dpBusy} className="text-xs text-gray-400 hover:text-red-500">ignorar</button>
+                            </div>
                           </div>
                           )}
                         </td>

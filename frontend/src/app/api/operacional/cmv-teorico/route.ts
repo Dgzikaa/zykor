@@ -237,6 +237,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, vinculados: pares.length });
   }
 
+  // ----- CADASTRAR: o item vendido NÃO existe no cardápio (nome parecido é outro produto,
+  //        já mapeado) → cria o produto novo + mapeia o prd + refresca. -----
+  if (body.action === 'cadastrar_depara') {
+    const prd = Number(body.prd);
+    const nome = String(body.prd_desc || body.nome || '').trim();
+    const prefixo = ['b', 'c', 'd', 'o'].includes(String(body.prefixo)) ? String(body.prefixo) : null;
+    if (!Number.isFinite(prd) || prd <= 0) return NextResponse.json({ success: false, error: 'prd inválido' }, { status: 400 });
+    if (!nome) return NextResponse.json({ success: false, error: 'nome obrigatório' }, { status: 400 });
+    if (!prefixo) return NextResponse.json({ success: false, error: 'categoria (b/c/d/o) obrigatória' }, { status: 400 });
+    const catDe: Record<string, string> = { b: 'Bebida', c: 'Comida', d: 'Drink', o: 'Outros' };
+    // gera o próximo código do prefixo
+    const { data: existts } = await admin.from('produto_cardapio').select('codigo').eq('bar_id', barId).ilike('codigo', `${prefixo}%`);
+    const maxn = (existts || []).reduce((m: number, r: any) => Math.max(m, Number(String(r.codigo).replace(/\D/g, '')) || 0), 0);
+    const codigo = `${prefixo}${String(maxn + 1).padStart(4, '0')}`;
+    const { data: novo, error: eNovo } = await admin.from('produto_cardapio')
+      .insert({ bar_id: barId, codigo, nome, categoria: catDe[prefixo], ativo: true, origem: 'contahub' }).select().single();
+    if (eNovo) return NextResponse.json({ success: false, error: eNovo.message }, { status: 500 });
+    const { error: eMap } = await admin.from('produto_contahub_map').upsert({ bar_id: barId, prd, cod_interno: codigo }, { onConflict: 'bar_id,prd' });
+    if (eMap) return NextResponse.json({ success: false, error: eMap.message }, { status: 500 });
+    // ficha modelo opcional (copia a receita de um produto parecido)
+    if (body.modelo_id && novo?.id) {
+      const { data: src } = await admin.from('producao_ficha_item').select('*').eq('produto_id', Number(body.modelo_id));
+      const itens = (src || []).map((it: any) => { const { id, created_at, updated_at, ...rest } = it; void id; void created_at; void updated_at; return { ...rest, produto_id: novo.id, producao_id: null }; });
+      if (itens.length) await admin.from('producao_ficha_item').insert(itens);
+    }
+    const { error: rErr } = await (admin as any).schema('silver').rpc('fn_refresh_vendas_depara');
+    if (rErr) return NextResponse.json({ success: false, error: `cadastrado (${codigo}), mas o refresh falhou (${rErr.message}) — some no próximo cron` }, { status: 500 });
+    return NextResponse.json({ success: true, codigo });
+  }
+
   // ----- IGNORAR: prd que não é produto de cardápio (ingresso, vale, taxa, embalagem…) -----
   if (body.action === 'ignorar_depara') {
     const rows = (Array.isArray(body.prds) ? body.prds : [])
