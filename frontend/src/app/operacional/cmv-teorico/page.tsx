@@ -326,7 +326,7 @@ export default function CmvTeoricoPage() {
               );
             })()}
             {periodo.headline?.qtd_cortesia > 0 && (
-              <p className="text-xs text-gray-500 dark:text-gray-400">Cortesia/consumação no período: <b>{fmtNum(periodo.headline.qtd_cortesia)}</b> itens · custo <b>{fmtBRL(periodo.headline.custo_cortesia)}</b> <span className="text-gray-400">(fora do CMV — dado de graça)</span></p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Cortesia/consumação no período: <b>{fmtNum(periodo.headline.qtd_cortesia)}</b> itens · custo <b>{fmtBRL(periodo.headline.custo_cortesia)}</b> <span className="text-gray-400">(o CMV% é só sobre o que foi vendido — a cortesia fica fora daqui, mas entra nas saídas/desvios porque consome insumo)</span></p>
             )}
             {(periodo.headline?.sem_ficha_n > 0 || periodo.headline?.ficha_sem_preco_n > 0) && (
               <div className="space-y-1.5">
