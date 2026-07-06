@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient, selectAll } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarSeNaoPode } from '@/lib/permissions/guard';
+import { recalcCmvTeorico } from '@/lib/cmv-recalc';
 
 const PATHS = ['/operacional/fichas-tecnicas'];
 
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
     // todas as queries paginadas (PostgREST corta em ~1000 linhas)
     const data = await selectAll((from, to) => supabase
       .from('produto_cardapio')
-      .select('id,codigo,nome,categoria,ativo,origem,atualizado_em,agrupado_em')
+      .select('id,codigo,nome,categoria,ativo,origem,atualizado_em,agrupado_em,multiplicador')
       .eq('bar_id', barId).order('codigo', { ascending: true }).range(from, to));
 
     // contagem de itens da ficha (finalização) por produto — via view agregada (1 linha por produto)
@@ -209,8 +210,17 @@ export async function PUT(request: NextRequest) {
   const patch: any = { atualizado_em: new Date().toISOString() };
   for (const k of ['nome', 'categoria', 'ativo', 'codigo']) if (k in body) patch[k] = body[k];
   if ('agrupado_em' in body) patch.agrupado_em = String(body.agrupado_em || '').trim() || null;
+  // Multiplicador da finalização (porção): inteiro >= 1. Custo Total = custo unitário da ficha × multiplicador.
+  if ('multiplicador' in body) {
+    const m = Math.round(Number(body.multiplicador));
+    if (!Number.isFinite(m) || m < 1) return NextResponse.json({ success: false, error: 'Multiplicador deve ser inteiro >= 1' }, { status: 400 });
+    patch.multiplicador = m;
+  }
   const { data, error } = await supabase.from('produto_cardapio').update(patch).eq('id', id).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  // mexeu no multiplicador → muda o Custo Total do produto: recalcula o CMV teórico na hora
+  // (a matview cmv_teorico_dia segue no cron diário, igual às edições de ficha).
+  if ('multiplicador' in body) await recalcCmvTeorico(supabase, data?.bar_id);
   return NextResponse.json({ success: true, produto: data });
 }
 

@@ -1133,6 +1133,200 @@ interface RefeicaoItem {
   qtd: string;           // digitado na unidade de entrada (kg/L/un)
 }
 
+// =====================================================================================
+// ABA ANÁLISE — consolida NOTA / rendimento / desvio das produções por dia / semana / mês
+// =====================================================================================
+type Gran = 'dia' | 'semana' | 'mes';
+
+// segunda-feira (ISO) da semana de uma data local YYYY-MM-DD
+const segundaDaSemana = (iso: string): string => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dow = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; // Mon=0..Sun=6
+  return addDiasIso(iso, -dow);
+};
+const MESES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const nomeMes = (ym: string): string => { const [y, m] = ym.split('-').map(Number); return `${MESES_ABREV[(m || 1) - 1]}/${y}`; };
+const labelDia = (iso: string): string => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }); };
+
+// uma produção está "dentro do rendimento esperado" quando o real fica a ±5% do esperado da ficha
+const dentroDoRendimento = (e: any): boolean =>
+  e.rendimento_real != null && e.rendimento_esperado != null && e.rendimento_esperado > 0 &&
+  Math.abs(Number(e.rendimento_real) / Number(e.rendimento_esperado) - 1) <= 0.05;
+const temRendimento = (e: any): boolean =>
+  e.rendimento_real != null && e.rendimento_esperado != null && Number(e.rendimento_esperado) > 0;
+
+function AbaAnalise({ secaoAtiva }: { secaoAtiva: Secao }) {
+  const { selectedBar } = useBar();
+  const barId = selectedBar?.id;
+  const [gran, setGran] = useState<Gran>('semana');
+  const [execs, setExecs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  // janela padrão: últimos 90 dias
+  const [de, setDe] = useState<string>(() => { const d = new Date(); d.setDate(d.getDate() - 90); return d.toISOString().slice(0, 10); });
+  const [ate, setAte] = useState<string>(() => new Date().toISOString().slice(0, 10));
+
+  const carregar = useCallback(async () => {
+    if (!barId) return;
+    setLoading(true);
+    try {
+      const qs = new URLSearchParams({ bar_id: String(barId) });
+      if (de) qs.set('de', de);
+      if (ate) qs.set('ate', `${ate}T23:59:59.999`);
+      const r = await api.get(`/api/operacional/producoes/execucao?${qs.toString()}`);
+      if (r.success) setExecs(r.execucoes || []);
+    } finally { setLoading(false); }
+  }, [barId, de, ate]);
+  useEffect(() => { carregar(); }, [carregar]);
+
+  // só a seção ativa (Cozinha/Bar)
+  const execsSecao = useMemo(() => execs.filter((e: any) => secaoDeCodigo(e.producao_codigo) === secaoAtiva), [execs, secaoAtiva]);
+
+  // consolida por período (dia / semana / mês)
+  const periodos = useMemo(() => {
+    const buckets = new Map<string, any[]>();
+    for (const e of execsSecao) {
+      const dia = isoLocal(e.criado_em);
+      const key = gran === 'dia' ? dia : gran === 'semana' ? segundaDaSemana(dia) : dia.slice(0, 7);
+      (buckets.get(key) || buckets.set(key, []).get(key)!).push(e);
+    }
+    const rows = Array.from(buckets.entries()).map(([key, list]) => {
+      const comRend = list.filter(temRendimento);
+      const dentro = comRend.filter(dentroDoRendimento).length;
+      const custoPlan = list.reduce((s: number, e: any) => s + (Number(e.custo_planejado) || 0), 0);
+      const custoReal = list.reduce((s: number, e: any) => s + (Number(e.custo_real) || 0), 0);
+      const aders = list.filter((e: any) => e.aderencia_pct != null).map((e: any) => Number(e.aderencia_pct));
+      return {
+        key,
+        n: list.length,
+        avaliaveis: comRend.length,
+        dentro,
+        nota: comRend.length ? (dentro / comRend.length) * 100 : null,
+        rendMedio: comRend.length ? comRend.reduce((s: number, e: any) => s + (Number(e.rendimento_real) / Number(e.rendimento_esperado) * 100), 0) / comRend.length : null,
+        aderMedia: aders.length ? aders.reduce((s: number, v: number) => s + v, 0) / aders.length : null,
+        desvioInsumo: custoReal - custoPlan,
+        desvioRend: list.reduce((s: number, e: any) => s + (desvioRendReais(e) ?? 0), 0),
+        tempoTotal: list.reduce((s: number, e: any) => s + (Number(e.duracao_seg) || 0), 0),
+      };
+    });
+    rows.sort((a, b) => (a.key < b.key ? 1 : -1)); // mais recente primeiro
+    return rows;
+  }, [execsSecao, gran]);
+
+  // nota geral da janela consultada (todas as produções da seção)
+  const geral = useMemo(() => {
+    const comRend = execsSecao.filter(temRendimento);
+    const dentro = comRend.filter(dentroDoRendimento).length;
+    const custoPlan = execsSecao.reduce((s: number, e: any) => s + (Number(e.custo_planejado) || 0), 0);
+    const custoReal = execsSecao.reduce((s: number, e: any) => s + (Number(e.custo_real) || 0), 0);
+    return {
+      n: execsSecao.length,
+      avaliaveis: comRend.length,
+      dentro,
+      nota: comRend.length ? (dentro / comRend.length) * 100 : null,
+      rendMedio: comRend.length ? comRend.reduce((s: number, e: any) => s + (Number(e.rendimento_real) / Number(e.rendimento_esperado) * 100), 0) / comRend.length : null,
+      desvioInsumo: custoReal - custoPlan,
+    };
+  }, [execsSecao]);
+
+  const labelPeriodo = (key: string) => gran === 'dia' ? labelDia(key) : gran === 'semana' ? `${fmtDM(key)} – ${fmtDM(addDiasIso(key, 6))}` : nomeMes(key);
+  const corNota = (n: number | null) => n == null ? 'text-gray-400' : n >= 90 ? 'text-emerald-600 dark:text-emerald-400' : n >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
+  const corDesvio = (v: number) => v > 0.005 ? 'text-red-600 dark:text-red-400' : v < -0.005 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-900 dark:text-gray-100';
+
+  return (
+    <div className="space-y-3">
+      {/* controles */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-0.5 bg-muted/30">
+          {(['dia', 'semana', 'mes'] as Gran[]).map(g => (
+            <button key={g} onClick={() => setGran(g)}
+              className={`text-sm rounded-md px-3 py-1 transition ${gran === g ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>
+              {g === 'mes' ? 'Mês' : g === 'dia' ? 'Dia' : 'Semana'}
+            </button>
+          ))}
+        </div>
+        <div className="inline-flex items-center gap-1.5 text-sm">
+          <CalendarDays className="w-4 h-4 text-violet-500" />
+          <Input type="date" value={de} max={ate} onChange={e => setDe(e.target.value)} className="h-9 w-40" />
+          <span className="text-gray-400">até</span>
+          <Input type="date" value={ate} max={new Date().toISOString().slice(0, 10)} onChange={e => setAte(e.target.value)} className="h-9 w-40" />
+        </div>
+        <span className="text-xs text-gray-400 ml-auto">{execsSecao.length} execuç{execsSecao.length === 1 ? 'ão' : 'ões'} · {secaoAtiva}</span>
+      </div>
+
+      {/* headline: nota da janela toda */}
+      <Card className="card-dark border-violet-200 dark:border-violet-900/40">
+        <CardContent className="p-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+              <div className="flex items-center gap-1 text-xs text-gray-500"><Gauge className="w-3.5 h-3.5" />Nota do período</div>
+              <div className={`text-2xl font-bold tabular-nums ${corNota(geral.nota)}`}>{fmtPct(geral.nota)}</div>
+              <div className="text-[11px] text-gray-400">{geral.dentro}/{geral.avaliaveis} no rendimento (±5%)</div>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+              <div className="flex items-center gap-1 text-xs text-gray-500"><TrendingDown className="w-3.5 h-3.5" />Rendimento médio</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{fmtPct(geral.rendMedio)}</div>
+              <div className="text-[11px] text-gray-400">real ÷ esperado</div>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+              <div className="flex items-center gap-1 text-xs text-gray-500"><Package className="w-3.5 h-3.5" />Desvio insumos</div>
+              <div className={`text-2xl font-bold tabular-nums ${corDesvio(geral.desvioInsumo)}`}>{geral.desvioInsumo >= 0 ? '+' : ''}{fmtBRL(geral.desvioInsumo)}</div>
+              <div className="text-[11px] text-gray-400">real − planejado</div>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+              <div className="flex items-center gap-1 text-xs text-gray-500"><ListChecks className="w-3.5 h-3.5" />Produções</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">{geral.n}</div>
+              <div className="text-[11px] text-gray-400">na janela consultada</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* tabela por período */}
+      <Card className="card-dark">
+        <CardContent className="p-0 overflow-x-auto">
+          {loading ? (
+            <div className="py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+          ) : periodos.length === 0 ? (
+            <div className="py-10 text-center text-gray-400">Nenhuma produção registrada nesta janela para {secaoAtiva}.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
+                <th className="text-left font-medium px-3 py-2">{gran === 'mes' ? 'Mês' : gran === 'semana' ? 'Semana' : 'Dia'}</th>
+                <th className="text-right font-medium px-3 py-2">Produções</th>
+                <th className="text-right font-medium px-3 py-2" title="% das produções com rendimento dentro de ±5% do esperado">Nota</th>
+                <th className="text-right font-medium px-3 py-2" title="Média de rendimento real ÷ esperado">Rend. médio</th>
+                <th className="text-right font-medium px-3 py-2" title="Aderência de insumos (calculado × usado)">Aderência</th>
+                <th className="text-right font-medium px-3 py-2" title="Custo real − planejado">Desvio insumos</th>
+                <th className="text-right font-medium px-3 py-2" title="Valor em R$ do rendimento acima/abaixo do esperado">Desvio rend.</th>
+                <th className="text-right font-medium px-3 py-2">Tempo</th>
+              </tr></thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {periodos.map(p => (
+                  <tr key={p.key}>
+                    <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100 capitalize whitespace-nowrap">{labelPeriodo(p.key)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{p.n}</td>
+                    <td className={`px-3 py-2 text-right tabular-nums font-bold ${corNota(p.nota)}`}>{fmtPct(p.nota)}<span className="text-gray-400 text-xs font-normal"> {p.dentro}/{p.avaliaveis}</span></td>
+                    <td className="px-3 py-2 text-right tabular-nums">{fmtPct(p.rendMedio)}</td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${p.aderMedia == null ? 'text-gray-400' : p.aderMedia >= 90 ? 'text-emerald-600 dark:text-emerald-400' : p.aderMedia >= 80 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>{fmtPct(p.aderMedia)}</td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${corDesvio(p.desvioInsumo)}`}>{p.desvioInsumo >= 0 ? '+' : ''}{fmtBRL(p.desvioInsumo)}</td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${p.desvioRend > 0.005 ? 'text-emerald-600 dark:text-emerald-400' : p.desvioRend < -0.005 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>{p.desvioRend >= 0 ? '+' : ''}{fmtBRL(p.desvioRend)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtTempo(p.tempoTotal)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
+
+      <p className="text-[11px] text-gray-400 leading-relaxed">
+        A <b>Nota</b> é o % de produções cujo rendimento real ficou dentro de <b>±5%</b> do esperado da ficha (as {geral.avaliaveis > 0 ? 'com rendimento informado' : 'que têm rendimento'} entram na conta).
+        <b> Rend. médio</b> = média de real ÷ esperado. <b>Desvio insumos</b> = custo real − planejado. <b>Desvio rend.</b> = valor em R$ do rendimento acima/abaixo do esperado.
+      </p>
+    </div>
+  );
+}
+
 function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmin: boolean }) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
@@ -1906,7 +2100,7 @@ export default function ProducoesPage() {
   const { isRole, hasPermission } = useAuth();
   const isAdmin = isRole('admin');
   const barId = selectedBar?.id;
-  const [aba, setAba] = useState<'executar' | 'historico' | 'alimentacao'>('executar');
+  const [aba, setAba] = useState<'executar' | 'historico' | 'analise' | 'alimentacao'>('executar');
   const [fichas, setFichas] = useState<any[]>([]);
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [gerirEquipe, setGerirEquipe] = useState(false);
@@ -1955,6 +2149,7 @@ export default function ProducoesPage() {
           <div className="flex items-center gap-1.5">
             <button onClick={() => setAba('executar')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'executar' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><Play className="w-4 h-4" />Executar</button>
             <button onClick={() => setAba('historico')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'historico' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><History className="w-4 h-4" />Histórico</button>
+            <button onClick={() => setAba('analise')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'analise' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><Gauge className="w-4 h-4" />Análise</button>
             <button onClick={() => setAba('alimentacao')} className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${aba === 'alimentacao' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}><UtensilsCrossed className="w-4 h-4" />Alimentação</button>
           </div>
           {/* Seletor de seção: Cozinha / Bar. Travado quando o usuário só tem acesso a uma. Não se aplica à Alimentação (é do bar todo). */}
@@ -1972,6 +2167,8 @@ export default function ProducoesPage() {
           ? <AbaExecutar fichas={fichas} responsaveis={responsaveis} secaoAtiva={secaoAtiva} />
           : aba === 'historico'
           ? <AbaHistorico fichas={fichas} responsaveis={responsaveis} secaoAtiva={secaoAtiva} isAdmin={isAdmin} />
+          : aba === 'analise'
+          ? <AbaAnalise secaoAtiva={secaoAtiva} />
           : <AbaAlimentacao responsaveis={responsaveis} isAdmin={isAdmin} />}
 
         {gerirEquipe && isAdmin && barId && (

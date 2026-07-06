@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes, Download, RefreshCw, TrendingUp, TrendingDown, Link2, Eye } from 'lucide-react';
+import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes, Download, RefreshCw, TrendingUp, TrendingDown, Link2, Eye, Layers } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
 import { usePermissions } from '@/hooks/usePermissions';
 import { getModuleIdForPath } from '@/lib/permissions/modules';
@@ -201,7 +201,11 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   // flagRevisar só ALERTA quando destoa muito da planilha (provável unidade/embalagem errada) — não zera nem esconde o valor.
   const flagRevisar = (it: any) => Number(it.custo_planilha || 0) > 0 && it.custo_atual != null && it.custo_atual > Number(it.custo_planilha) * 5;
   const custoItemAtual = (it: any) => it.custo_atual != null ? it.custo_atual : Number(it.custo_planilha || 0);
-  const custoAtualTotal = itens.reduce((s, it) => s + custoItemAtual(it), 0);
+  // custo UNITÁRIO = soma da ficha (por 1 unidade). Na finalização, o Custo Total (usado no CMV
+  // teórico) = custo unitário × multiplicador da porção. Em produção o multiplicador não existe (=1).
+  const custoUnitTotal = itens.reduce((s, it) => s + custoItemAtual(it), 0);
+  const mult = kind === 'produto' ? Math.max(1, Math.round(Number(selObj?.multiplicador || 1))) : 1;
+  const custoAtualTotal = custoUnitTotal * mult; // Custo Total (× multiplicador) — base do CMV teórico
 
   // indicador: CMV do produto vs média da categoria (CMV teórico, 90 dias) — verde se ≤ média (melhor), vermelho se acima
   const cmvVsMedia = (cmv: number) => {
@@ -321,6 +325,22 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
       await api.put('/api/operacional/produtos', { id: sel, nome: prodNome.trim(), codigo: prodCod.trim() || null });
       setEditProd(false); reloadLista();
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+
+  // multiplicador da finalização (porção): FT em 1 unidade × nº de unid da porção vendida.
+  // Ex.: Mega Coxinha (5x) — FT tem 1 coxinha, a porção vendida tem 5 → Custo Total = custo unit × 5.
+  const [savingMult, setSavingMult] = useState(false);
+  const salvarMultiplicador = async (novo: number) => {
+    if (!selObj || savingMult) return;
+    const m = Math.max(1, Math.round(Number(novo) || 1));
+    if (m === Number(selObj.multiplicador || 1)) return;
+    setSavingMult(true);
+    try {
+      const r = await api.put('/api/operacional/produtos', { id: selObj.id, multiplicador: m });
+      if (!r.success) throw new Error(r.error);
+      reloadLista();
+    } catch (e: any) { toast({ title: 'Erro ao salvar multiplicador', description: e?.message, variant: 'destructive' }); }
+    finally { setSavingMult(false); }
   };
 
   // agrupar produto num principal (canônico) — ex.: sabores de Red Bull → Red Bull principal (que leva o cód CH/venda)
@@ -485,6 +505,16 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                       {selObj.agrupado_em
                         ? <span className="text-xs text-violet-600 dark:text-violet-300 inline-flex items-center gap-1">agrupado em <b className="font-mono">{selObj.agrupado_em}</b><button onClick={() => salvarGrupo(null)} className="text-gray-400 hover:text-red-500 underline">desagrupar</button></span>
                         : <button onClick={() => { setEditGrupo(true); setGrupoBusca(''); }} className="text-violet-500 hover:text-violet-700 inline-flex items-center gap-1 text-xs" title="Agrupar este produto num principal (ex.: sabor → produto canônico que leva o código ContaHub)"><Boxes className="w-3 h-3" />agrupar</button>}
+                      {/* Multiplicador da porção: FT em 1 unid; produto vendido tem N. Custo Total = unit × N (base do CMV teórico). */}
+                      <span className="inline-flex items-center gap-1 text-xs rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-900/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-300"
+                        title="Multiplicador da porção. A ficha é por 1 unidade (a equipe conta unidade no estoque); o produto vendido tem N. Custo Total = custo unitário × N — é o que entra no CMV teórico. Ex.: Mega Coxinha 5x, Dose Dupla 2x.">
+                        <Layers className="w-3 h-3" />Porção
+                        <input type="number" min={1} step={1} defaultValue={mult} key={`mult-${selObj.id}-${selObj.multiplicador}`}
+                          disabled={savingMult} onBlur={e => salvarMultiplicador(parseInt(e.target.value, 10))}
+                          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                          className="h-6 w-12 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 px-1 text-center tabular-nums text-gray-900 dark:text-gray-100" />
+                        <span className="font-semibold">×</span>
+                      </span>
                     </div>
                   )}
                 </div>
@@ -497,9 +527,16 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                     </div>
                   )}
                   <div className="px-4 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/15 text-center">
-                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">Custo</div>
-                    <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight mt-0.5">{fmtBRL(custoAtualTotal)}</div>
+                    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">{kind === 'produto' && mult > 1 ? 'Custo Unit.' : 'Custo'}</div>
+                    <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight mt-0.5">{fmtBRL(custoUnitTotal)}</div>
                   </div>
+                  {/* Custo Total (× multiplicador) — só aparece quando é porção (mult > 1); é o custo usado no CMV teórico */}
+                  {kind === 'produto' && mult > 1 && (
+                    <div className="px-4 py-2 rounded-lg bg-emerald-100/70 dark:bg-emerald-900/25 border border-emerald-200 dark:border-emerald-800 text-center">
+                      <div className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80 uppercase tracking-wide">Custo Total ×{mult}</div>
+                      <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300 leading-tight mt-0.5">{fmtBRL(custoAtualTotal)}</div>
+                    </div>
+                  )}
                   {kind === 'produto' && (selObj.preco_venda != null || selObj.preco_yuzer != null) && (
                     <>
                       {selObj.preco_venda != null && (
