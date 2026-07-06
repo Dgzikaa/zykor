@@ -153,7 +153,8 @@ export async function GET(request: NextRequest) {
     (headline as any).dias_yuzer = Array.from(new Set((evtRows || []).map((r: any) => r.data_evento))).sort();
 
     // produtos vendidos no ContaHub FORA do de-para (sem código interno → invisíveis no CMV)
-    const { data: foraDp } = await gold.rpc('fn_vendido_fora_depara', { p_bar_id: barId, p_ini: ini, p_fim: fim });
+    // fn_depara_sugestoes = mesma lista, já com a sugestão de vínculo por nome (prefixo respeitado)
+    const { data: foraDp } = await gold.rpc('fn_depara_sugestoes', { p_bar_id: barId, p_ini: ini, p_fim: fim });
     const foraLista = (foraDp || []) as any[];
     (headline as any).fora_depara_n = foraLista.length;
     (headline as any).fora_depara_fat = Number(foraLista.reduce((s: number, r: any) => s + num(r.valor), 0).toFixed(2));
@@ -210,9 +211,45 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const barId = Number(body.bar_id) || user.bar_id;
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
-  if (body.action !== 'recalcular') return NextResponse.json({ success: false, error: 'ação inválida' }, { status: 400 });
   const admin = await getAdminClient();
   const gold = (admin as any).schema('gold');
+
+  // ----- VINCULAR de-para: mapeia prd(ContaHub) → cod_interno e refresca na hora -----
+  // (a lista "fora do de-para" lê o matview silver.vendas_produto_dia; sem refresh o
+  //  item só sumiria no cron horário — por isso refrescamos aqui).
+  if (body.action === 'vincular_depara') {
+    const pares = (Array.isArray(body.pares) ? body.pares : [])
+      .map((p: any) => ({ prd: Number(p.prd), cod_interno: String(p.cod_interno || '').trim() }))
+      .filter((p: any) => Number.isFinite(p.prd) && p.prd > 0 && p.cod_interno);
+    if (!pares.length) return NextResponse.json({ success: false, error: 'nenhum par (prd → código) válido' }, { status: 400 });
+    // valida que os códigos existem no cardápio do bar (não criar fantasma)
+    const codigos = Array.from(new Set(pares.map((p: any) => p.cod_interno)));
+    const { data: existe } = await admin.from('produto_cardapio').select('codigo').eq('bar_id', barId).in('codigo', codigos);
+    const okCod = new Set((existe || []).map((r: any) => r.codigo));
+    const invalidos = pares.filter((p: any) => !okCod.has(p.cod_interno));
+    if (invalidos.length) return NextResponse.json({ success: false, error: `código(s) inexistente(s) no cardápio: ${invalidos.map((p: any) => p.cod_interno).join(', ')}` }, { status: 400 });
+    for (const p of pares) {
+      const { error } = await admin.from('produto_contahub_map').upsert({ bar_id: barId, prd: p.prd, cod_interno: p.cod_interno }, { onConflict: 'bar_id,prd' });
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+    const { error: rErr } = await (admin as any).schema('silver').rpc('fn_refresh_vendas_depara');
+    if (rErr) return NextResponse.json({ success: false, error: `vinculado, mas o refresh falhou (${rErr.message}) — some no próximo cron` }, { status: 500 });
+    return NextResponse.json({ success: true, vinculados: pares.length });
+  }
+
+  // ----- IGNORAR: prd que não é produto de cardápio (ingresso, vale, taxa, embalagem…) -----
+  if (body.action === 'ignorar_depara') {
+    const rows = (Array.isArray(body.prds) ? body.prds : [])
+      .map((p: any) => ({ bar_id: barId, prd: Number(p.prd), prd_desc: p.prd_desc ? String(p.prd_desc) : null, motivo: p.motivo ? String(p.motivo) : 'não é produto de cardápio' }))
+      .filter((p: any) => Number.isFinite(p.prd) && p.prd > 0);
+    if (!rows.length) return NextResponse.json({ success: false, error: 'nenhum prd válido' }, { status: 400 });
+    // a lista lê a tabela de ignorados ao vivo → some no próximo GET, sem refresh de matview
+    const { error } = await admin.from('produto_contahub_ignorar').upsert(rows, { onConflict: 'bar_id,prd' });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, ignorados: rows.length });
+  }
+
+  if (body.action !== 'recalcular') return NextResponse.json({ success: false, error: 'ação inválida' }, { status: 400 });
 
   const { error } = await gold.rpc('fn_cmv_teorico', { p_bar_id: barId });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });

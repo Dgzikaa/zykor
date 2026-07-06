@@ -160,6 +160,9 @@ export async function POST(request: NextRequest) {
     const yzRemove = [...curYzSet].filter(p => !yzArr.includes(p));
     if (yzRemove.length) await supabase.from('produto_yuzer_map').delete().eq('bar_id', barId).eq('cod_interno', codInterno).in('yuzer_produto_id', yzRemove);
     for (const yid of yzArr) if (!curYzSet.has(yid)) await supabase.from('produto_yuzer_map').upsert({ bar_id: barId, cod_yuzer: String(yid), yuzer_produto_id: yid, nome: nomeProd, cod_interno: codInterno }, { onConflict: 'bar_id,cod_yuzer,cod_interno' });
+    // refresca o matview de vendas p/ o vínculo refletir na hora (senão só no cron horário);
+    // falha do refresh não derruba o salvamento (o cron é backstop)
+    try { await (supabase as any).schema('silver').rpc('fn_refresh_vendas_depara'); } catch { /* backstop: cron horário */ }
     return NextResponse.json({ success: true });
   }
 

@@ -71,6 +71,8 @@ export default function CmvTeoricoPage() {
   const [catPer, setCatPer] = useState<string | null>(null);
   const [soSemFicha, setSoSemFicha] = useState(false);
   const [mostrarForaDp, setMostrarForaDp] = useState(false);
+  const [dpBusy, setDpBusy] = useState(false);
+  const [manualCod, setManualCod] = useState<Record<number, string>>({});
   const range = useMemo(() => calcRange(gran, dataRef), [gran, dataRef]);
   const carregarPeriodo = useCallback(async () => {
     if (!barId) return; setLoadingPer(true);
@@ -118,6 +120,29 @@ export default function CmvTeoricoPage() {
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
     finally { setRecalc(false); }
   };
+
+  // ---------- FORA DO DE-PARA: vincular / ignorar ----------
+  const vincularDepara = async (pares: { prd: number; cod_interno: string }[]) => {
+    if (!barId || !pares.length) return; setDpBusy(true);
+    try {
+      const r = await api.post('/api/operacional/cmv-teorico', { bar_id: barId, action: 'vincular_depara', pares });
+      if (!r.success) throw new Error(r.error);
+      toast({ title: pares.length > 1 ? `${r.vinculados} vinculados` : 'Vinculado', description: 'Já entra no CMV.' });
+      await carregarPeriodo();
+    } catch (e: any) { toast({ title: 'Erro ao vincular', description: e?.message, variant: 'destructive' }); }
+    finally { setDpBusy(false); }
+  };
+  const ignorarDepara = async (prds: { prd: number; prd_desc?: string }[]) => {
+    if (!barId || !prds.length) return; setDpBusy(true);
+    try {
+      const r = await api.post('/api/operacional/cmv-teorico', { bar_id: barId, action: 'ignorar_depara', prds });
+      if (!r.success) throw new Error(r.error);
+      toast({ title: `${r.ignorados} ignorado(s)`, description: 'Não aparece mais na lista.' });
+      await carregarPeriodo();
+    } catch (e: any) { toast({ title: 'Erro ao ignorar', description: e?.message, variant: 'destructive' }); }
+    finally { setDpBusy(false); }
+  };
+  const exatos = useMemo(() => ((periodo?.fora_depara || []) as any[]).filter(p => p.nivel === 'exato' && !p.ambiguo && p.sugestao_codigo), [periodo]);
 
   const cats = useMemo(() => Array.from(new Set(produtos.map(p => p.categoria || 'Outros'))).sort(), [produtos]);
   const escopo = useMemo(() => {
@@ -310,23 +335,62 @@ export default function CmvTeoricoPage() {
               </button>
             )}
             {mostrarForaDp && (periodo.fora_depara || []).length > 0 && (
-              <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
+              <Card className="card-dark overflow-hidden"><CardContent className="p-0">
+                {!soLeitura && exatos.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-emerald-50/70 dark:bg-emerald-900/15 border-b border-emerald-200 dark:border-emerald-800">
+                    <span className="text-xs text-emerald-700 dark:text-emerald-300"><b>{exatos.length}</b> com nome idêntico (match exato) — seguro vincular de uma vez.</span>
+                    <Button size="sm" disabled={dpBusy} onClick={() => vincularDepara(exatos.map(p => ({ prd: p.prd, cod_interno: p.sugestao_codigo })))}>
+                      {dpBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : `✓ Vincular ${exatos.length} exatos`}
+                    </Button>
+                  </div>
+                )}
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-orange-50/60 dark:bg-orange-900/10 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
                     <th className="text-left font-medium px-3 py-2">Cód. CH</th>
                     <th className="text-left font-medium px-3 py-2">Produto (ContaHub)</th>
                     <th className="text-right font-medium px-3 py-2">Qtd</th>
                     <th className="text-right font-medium px-3 py-2">Faturamento</th>
+                    <th className="text-left font-medium px-3 py-2">Sugestão / vincular</th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {(periodo.fora_depara || []).map((p: any) => (
-                      <tr key={p.prd} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                    {(periodo.fora_depara || []).map((p: any) => {
+                      const cod = (manualCod[p.prd] ?? '').trim();
+                      const vincManual = () => { if (cod) vincularDepara([{ prd: p.prd, cod_interno: cod }]); };
+                      return (
+                      <tr key={p.prd} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 align-top">
                         <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.prd}</td>
                         <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.prd_desc}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{fmtNum(p.qtd)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(p.valor)}</td>
+                        <td className="px-3 py-2">
+                          {soLeitura ? <span className="text-xs text-gray-400">—</span> : (
+                          <div className="flex flex-wrap items-center gap-2">
+                            {p.sugestao_codigo ? (
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant="outline" className={p.nivel === 'exato' ? 'border-emerald-400 text-emerald-600 dark:text-emerald-400' : 'border-amber-400 text-amber-600 dark:text-amber-400'}>
+                                  {p.nivel === 'exato' ? 'exato' : `~${Math.round((p.score || 0) * 100)}%`}
+                                </Badge>
+                                <span className="text-xs text-gray-600 dark:text-gray-300">{p.sugestao_codigo} · {p.sugestao_nome}{p.sugestao_ativo === false ? ' (inativo)' : ''}</span>
+                                <Button size="sm" variant={p.nivel === 'exato' ? 'default' : 'outline'} disabled={dpBusy}
+                                  onClick={() => {
+                                    if (p.nivel !== 'exato' && !confirm(`Vincular:\n\nContaHub: ${p.prd_desc}\n→ Cardápio: ${p.sugestao_codigo} ${p.sugestao_nome}\n\nConfere? (nome parecido não é garantia)`)) return;
+                                    vincularDepara([{ prd: p.prd, cod_interno: p.sugestao_codigo }]);
+                                  }}>Vincular</Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <Input value={manualCod[p.prd] ?? ''} onChange={e => setManualCod(m => ({ ...m, [p.prd]: e.target.value }))} placeholder="código (ex.: d0341)" className="h-7 w-32 text-xs" />
+                                <Button size="sm" variant="outline" disabled={dpBusy || !cod} onClick={vincManual}>Vincular</Button>
+                              </div>
+                            )}
+                            <button onClick={() => { if (confirm(`Ignorar "${p.prd_desc}"? Some da lista (use p/ ingresso, vale, taxa, embalagem…).`)) ignorarDepara([{ prd: p.prd, prd_desc: p.prd_desc }]); }}
+                              disabled={dpBusy} className="text-xs text-gray-400 hover:text-red-500">ignorar</button>
+                          </div>
+                          )}
+                        </td>
                       </tr>
-                    ))}
+                    ); })}
                   </tbody>
                 </table>
               </div></CardContent></Card>
