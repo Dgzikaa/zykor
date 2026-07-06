@@ -184,10 +184,10 @@ export default function DemografiaPage() {
         </div>
         {cidades.length > 0 ? (
           <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={cidades} layout="vertical" margin={{ top: 10, right: 30, bottom: 10, left: 200 }}>
+            <BarChart data={cidades} layout="vertical" margin={{ top: 10, right: 20, bottom: 10, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis type="number" tickFormatter={fmt} fontSize={11} />
-              <YAxis type="category" dataKey="name" fontSize={11} width={200} />
+              <YAxis type="category" dataKey="name" fontSize={11} width={120} />
               <Tooltip formatter={(v: any) => fmt(v)} />
               <Bar dataKey="value" fill="#ec4899" radius={[0, 4, 4, 0]} />
             </BarChart>

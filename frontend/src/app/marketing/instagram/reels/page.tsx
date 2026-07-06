@@ -31,8 +31,8 @@ export default function ReelsPage() {
   const t = data?.totais || { qtd: 0, reach: 0, views: 0, engajamento_medio_por_reel: 0, avg_watch_time_medio_ms: null };
 
   return (
-    <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-      <div className="flex items-end justify-between gap-4">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><PlayCircle className="w-6 h-6 text-pink-600" /> Reels Analytics</h1>
           <p className="text-sm text-gray-500">Últimos {dias} dias.</p>
@@ -40,7 +40,7 @@ export default function ReelsPage() {
         <select
           value={dias}
           onChange={e => setDias(parseInt(e.target.value, 10))}
-          className="px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
+          className="w-full sm:w-auto px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
         >
           <option value={30}>30 dias</option>
           <option value={90}>90 dias</option>

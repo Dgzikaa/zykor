@@ -31,8 +31,8 @@ export default function IgRoiPage() {
   const s = data?.stats || {};
 
   return (
-    <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-      <div className="flex items-end justify-between gap-4">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><TrendingUp className="w-6 h-6 text-pink-600" /> IG ROI por post</h1>
           <p className="text-sm text-gray-500">

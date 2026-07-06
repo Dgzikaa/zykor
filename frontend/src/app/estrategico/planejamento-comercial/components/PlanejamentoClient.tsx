@@ -756,10 +756,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
             <div className="flex gap-4">
               {/* min-w-0: sem isto o flex item cresce até a largura da tabela e o
                   scroll horizontal vaza pro <main>, fazendo o position:sticky das
-                  colunas fixas (que gruda em .planejamento-container) nunca engatar. */}
-              <div className="flex-1 min-w-0 hidden md:block">
+                  colunas fixas (que gruda em .planejamento-container) nunca engatar.
+                  NÃO usar `hidden md:block` aqui: escondia os cards mobile (filhos
+                  md:hidden) e deixava o mobile em branco. Os filhos se auto-gateiam. */}
+              <div className="flex-1 min-w-0">
                 {/* Tabela Completa */}
-                <div className="bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-xl shadow-sm">
+                <div className="bg-[hsl(var(--background))] md:border md:border-[hsl(var(--border))] rounded-xl md:shadow-sm">
                   {/* MOBILE: lista de cards (a tabela densa só aparece no desktop) */}
                   <div className="md:hidden space-y-2 px-1 pb-4">
                     {dados.map((evento) => (

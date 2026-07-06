@@ -477,7 +477,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
 
   return (
     <TooltipProvider delayDuration={150}>
-    <Tabs defaultValue="orcamento" className="h-[calc(100vh-80px)] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <Tabs defaultValue="orcamento" className="h-[calc(100dvh-80px)] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
       <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 pt-2">
         <TabsList className="bg-transparent">
           <TabsTrigger value="orcamento">Orçamentação</TabsTrigger>
@@ -495,27 +495,27 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
       <TabsContent value="orcamento" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex data-[state=active]:flex-col">
       <div className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <div className="max-w-full mx-auto px-4 py-3">
-          <div className="flex items-center justify-end mb-3">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end flex-wrap gap-2 mb-3">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="px-4 py-1 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                <span className="font-semibold text-gray-900 dark:text-white">
-                  {meses.length > 0 
+                <span className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base">
+                  {meses.length > 0
                     ? `${meses[0]?.label?.split('/')[0]} - ${meses[meses.length - 1]?.label?.split('/')[0]} / ${meses[0]?.ano}`
                     : 'Carregando...'}
                 </span>
               </div>
               <Button variant="outline" size="sm" onClick={toggleTodasSecoes} className="gap-2">
                 {todasAbertas ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                {todasAbertas ? 'Recolher tudo' : 'Expandir tudo'}
+                <span className="hidden sm:inline">{todasAbertas ? 'Recolher tudo' : 'Expandir tudo'}</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={atualizarOrcamentacao} disabled={loading} className="gap-2 ml-4">
+              <Button variant="outline" size="sm" onClick={atualizarOrcamentacao} disabled={loading} className="gap-2">
                 <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-                Atualizar
+                <span className="hidden sm:inline">Atualizar</span>
               </Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-2 border border-blue-200 dark:border-blue-700">
               <div className="text-blue-700 dark:text-blue-300 text-xs font-medium mb-0.5">Receita Plan.</div>
               <AnimatedCurrency value={totaisPeriodo.receita_planejado} className="text-sm font-bold text-blue-600 dark:text-blue-400" />
@@ -542,7 +542,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
 
       <div ref={scrollContainerRef} className="flex-1 overflow-auto scrollbar-visible" style={{ scrollBehavior: 'smooth' }}>
         <div className="flex" style={{ minWidth: 'max-content' }}>
-          <div className="sticky left-0 z-20 flex-shrink-0 w-[220px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md">
+          <div className="sticky left-0 z-20 flex-shrink-0 w-[130px] sm:w-[220px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-md">
             <div className="h-[58px] border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 flex items-center justify-center sticky top-0 z-30">
               <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">CATEGORIA</span>
             </div>
@@ -631,7 +631,7 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
               {meses.map((mes, idx) => {
                 const isMesAtual = idx === mesAtualIdx;
                 return (
-                  <div key={`${mes.ano}-${mes.mes}`} ref={isMesAtual ? mesAtualRef : undefined} className={cn("flex-shrink-0 w-[330px] border-r border-gray-200 dark:border-gray-700", isMesAtual && "bg-emerald-50 dark:bg-emerald-900/20")}>
+                  <div key={`${mes.ano}-${mes.mes}`} ref={isMesAtual ? mesAtualRef : undefined} className={cn("flex-shrink-0 w-[260px] sm:w-[330px] border-r border-gray-200 dark:border-gray-700", isMesAtual && "bg-emerald-50 dark:bg-emerald-900/20")}>
                     <div className={cn("h-[58px] border-b border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center px-1 sticky top-0 z-10", isMesAtual ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-gray-50 dark:bg-gray-700")}>
                       <span className={cn("text-xs font-bold", isMesAtual ? "text-emerald-700" : "text-gray-700 dark:text-gray-300")}>{mes.label}</span>
                       <div className="flex gap-1 text-[8px] text-gray-500">

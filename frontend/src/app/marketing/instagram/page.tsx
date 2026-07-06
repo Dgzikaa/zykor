@@ -183,7 +183,7 @@ export default function InstagramDashboardPage() {
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
       {/* HEADER PERFIL */}
       <Card className="p-6">
-        <div className="flex items-start gap-6">
+        <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
           {p.profile_picture_url ? (
             <img
               src={p.profile_picture_url}
@@ -209,13 +209,13 @@ export default function InstagramDashboardPage() {
             </div>
             <p className="text-sm text-gray-500 mb-2">@{p.ig_username} · {p.account_type}</p>
             {p.biography && <p className="text-sm text-gray-700 dark:text-gray-300 mb-2 whitespace-pre-line">{p.biography}</p>}
-            <div className="flex gap-6 text-sm">
+            <div className="flex flex-wrap gap-4 text-sm">
               <span><b className="text-lg">{fmtNum(p.followers_count)}</b> seguidores</span>
               <span><b className="text-lg">{fmtNum(p.media_count)}</b> posts</span>
               <span><b className="text-lg">{fmtNum(p.follows_count)}</b> seguindo</span>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2 text-xs text-gray-500">
+          <div className="flex flex-row flex-wrap sm:flex-col items-start sm:items-end gap-x-3 gap-y-1 sm:gap-2 text-xs text-gray-500 w-full sm:w-auto">
             <Button
               size="sm"
               variant="outline"
@@ -237,7 +237,7 @@ export default function InstagramDashboardPage() {
       </Card>
 
       {/* CARDS HOJE (D-1) */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard
           icone={<Eye className="w-5 h-5" />}
           rotulo="Reach (D-1)"

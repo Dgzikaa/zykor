@@ -113,12 +113,12 @@ export default function PostDetalhePage({ params }: PageProps) {
 
       {/* HEADER POST */}
       <Card className="p-6">
-        <div className="flex gap-6">
+        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
           {(post.thumbnail_url || post.media_url) && (
             <img
               src={post.thumbnail_url || post.media_url}
               alt=""
-              className="w-48 h-48 rounded-lg object-cover flex-shrink-0"
+              className="w-full h-48 sm:w-48 rounded-lg object-cover flex-shrink-0"
             />
           )}
           <div className="flex-1 min-w-0">
@@ -140,7 +140,7 @@ export default function PostDetalhePage({ params }: PageProps) {
 
       {/* MÉTRICAS */}
       {insights_atual && (
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
           <Metric icone={<Eye className="w-4 h-4" />} rotulo="Reach" valor={fmt(insights_atual.reach)} />
           <Metric icone={<Heart className="w-4 h-4" />} rotulo="Likes" valor={fmt(insights_atual.likes)} />
           <Metric icone={<MessageCircle className="w-4 h-4" />} rotulo="Comments" valor={fmt(insights_atual.comments)} />

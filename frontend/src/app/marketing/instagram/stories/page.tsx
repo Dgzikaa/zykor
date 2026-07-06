@@ -28,8 +28,8 @@ export default function StoriesPage() {
   const t = data?.totais || { reach: 0, replies: 0, follows_ganhos: 0, profile_visits: 0, qtd: 0 };
 
   return (
-    <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-      <div className="flex items-end justify-between gap-4">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Camera className="w-6 h-6 text-pink-600" /> Stories</h1>
           <p className="text-sm text-gray-500">
@@ -39,7 +39,7 @@ export default function StoriesPage() {
         <select
           value={dias}
           onChange={e => setDias(parseInt(e.target.value, 10))}
-          className="px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
+          className="w-full sm:w-auto px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
         >
           <option value={7}>7 dias</option>
           <option value={30}>30 dias</option>
