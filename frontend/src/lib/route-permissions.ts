@@ -37,6 +37,11 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // ("página inexistente"). requiredModules: [] = público pós-login (mesmo padrão de /login).
   { path: '/home', requiredModules: [] },
 
+  // Central de Alertas — livre pra QUALQUER usuário autenticado. É onde o botão do
+  // template WhatsApp (/alertas?source=whatsapp) e o sino levam; cada um vê só as
+  // próprias notificações (RLS em system.notificacoes). Mesmo padrão do /home.
+  { path: '/alertas', requiredModules: [] },
+
   // Zykor Assistant na raiz (menu fica em Configurações, mas acesso é amplo)
   { path: '/assistente-zykor', requiredModules: ['gestao', 'home', 'configuracoes'] },
 
