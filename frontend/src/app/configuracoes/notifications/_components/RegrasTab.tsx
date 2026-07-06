@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Check, ChevronDown, ChevronRight, Users } from 'lucide-react';
+import { CANAIS } from '@/lib/notifications/catalog';
 
 type Canal = 'in_app' | 'push' | 'whatsapp';
 type Role = 'admin' | 'financeiro' | 'funcionario';
@@ -254,20 +255,20 @@ function EventoRegra({
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {evento.canaisSuportados.map((c) => {
-                  const wpp = c === 'whatsapp';
+                  const indisponivel = CANAIS[c]?.disponivel === false;
                   return (
                     <button
                       key={c}
                       type="button"
-                      disabled={wpp}
-                      onClick={() => !wpp && setCanais((s) => toggle(s, c))}
+                      disabled={indisponivel}
+                      onClick={() => !indisponivel && setCanais((s) => toggle(s, c))}
                       className={`${pill(canais.has(c))} ${
-                        wpp ? 'opacity-40 cursor-not-allowed' : ''
+                        indisponivel ? 'opacity-40 cursor-not-allowed' : ''
                       }`}
-                      title={wpp ? 'Em breve (WhatsApp via Umbler)' : undefined}
+                      title={indisponivel ? 'Em breve' : undefined}
                     >
                       {CANAL_LABEL[c]}
-                      {wpp && ' (em breve)'}
+                      {indisponivel && ' (em breve)'}
                     </button>
                   );
                 })}
