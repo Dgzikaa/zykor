@@ -81,14 +81,28 @@ export async function enviarWhatsAppParaUsuarios(
   let enviados = 0;
   let semTelefone = 0;
   let falhas = 0;
+  const logs: Record<string, unknown>[] = [];
+  const agora = () => new Date().toISOString();
 
   await Promise.all(
-    (users as Array<{ telefone: string | null }>).map(async (u) => {
+    (users as Array<{ auth_id: string; telefone: string | null }>).map(async (u) => {
       const tel = u.telefone ? normalizarTelefone(u.telefone) : null;
       if (!tel) {
         semTelefone++;
+        logs.push({
+          to_number: u.telefone || '',
+          message: payload.titulo,
+          type: 'template',
+          provider: 'umbler-notif',
+          status: 'sem_telefone',
+          provider_response: { usuario_id: u.auth_id, motivo: 'telefone_ausente_ou_invalido' },
+          sent_at: agora(),
+        });
         return;
       }
+      let ok = false;
+      let resp: any = null;
+      let erro: string | null = null;
       try {
         const res = await fetch(`${UMBLER_BASE}/template-messages/simplified/`, {
           method: 'POST',
@@ -104,13 +118,40 @@ export async function enviarWhatsAppParaUsuarios(
             Params: params,
           }),
         });
-        if (res.ok) enviados++;
-        else falhas++;
-      } catch {
-        falhas++;
+        resp = await res.json().catch(() => null);
+        ok = res.ok;
+        if (!ok) erro = `HTTP ${res.status}`;
+      } catch (e) {
+        erro = e instanceof Error ? e.message : String(e);
       }
+      if (ok) enviados++;
+      else falhas++;
+      logs.push({
+        to_number: tel,
+        message: payload.titulo,
+        type: 'template',
+        provider: 'umbler-notif',
+        status: ok ? 'sent' : 'failed',
+        provider_response: {
+          usuario_id: u.auth_id,
+          message_id: resp?.id,
+          umbler_state: resp?.messageState,
+          erro,
+          detalhe: ok ? undefined : resp,
+        },
+        sent_at: agora(),
+      });
     })
   );
+
+  // grava o log das tentativas (best-effort — não quebra o envio)
+  if (logs.length) {
+    try {
+      await supabase.from('whatsapp_messages').insert(logs);
+    } catch (e) {
+      console.error('[whatsapp-send] falha ao logar envios (ignorado):', e);
+    }
+  }
 
   // usuarioIds que nem existem em auth_custom.usuarios também contam como "sem telefone"
   semTelefone += Math.max(0, usuarioIds.length - (users as unknown[]).length);
