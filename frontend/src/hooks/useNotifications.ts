@@ -40,6 +40,8 @@ interface UseNotificationsOptions {
   categoria?: string;
   /** só não lidas */
   apenasNaoLidas?: boolean;
+  /** filtra por severidade (ex: ['alerta','critico'] p/ a Central de Alertas) */
+  severidades?: Severidade[];
   limit?: number;
   /** liga a assinatura realtime (default true) */
   realtime?: boolean;
@@ -52,7 +54,10 @@ interface UseNotificationsOptions {
 // =====================================================
 
 export function useNotifications(opts: UseNotificationsOptions = {}) {
-  const { categoria, apenasNaoLidas, limit = 30, realtime = true, onNova } = opts;
+  const { categoria, apenasNaoLidas, severidades, limit = 30, realtime = true, onNova } = opts;
+
+  // string estável p/ dependências (evita re-render por nova referência do array)
+  const severidadesKey = severidades?.length ? [...severidades].sort().join(',') : '';
 
   const [notificacoes, setNotificacoes] = useState<NotificacaoUI[]>([]);
   const [naoLidas, setNaoLidas] = useState(0);
@@ -71,6 +76,7 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
       const params = new URLSearchParams();
       if (apenasNaoLidas) params.set('apenas_nao_lidas', 'true');
       if (categoria) params.set('categoria', categoria);
+      if (severidadesKey) params.set('severidades', severidadesKey);
       params.set('limit', String(limit));
 
       const res = await api.get(`/api/configuracoes/notifications?${params.toString()}`);
@@ -86,7 +92,7 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
     } finally {
       setLoading(false);
     }
-  }, [apenasNaoLidas, categoria, limit]);
+  }, [apenasNaoLidas, categoria, severidadesKey, limit]);
 
   // -------- ações --------
   const marcarLida = useCallback(async (id: string) => {
@@ -160,6 +166,10 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
               if (!nova.lida) setNaoLidas((c) => c + 1);
               return;
             }
+            // filtro por severidade (Central de Alertas): ignora o que não é do conjunto
+            if (severidadesKey && !severidadesKey.split(',').includes(nova.severidade)) {
+              return;
+            }
             if (apenasNaoLidas && nova.lida) return;
             setNotificacoes((prev) =>
               prev.some((n) => n.id === nova.id) ? prev : [nova, ...prev]
@@ -204,7 +214,7 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [realtime, categoria, apenasNaoLidas]);
+  }, [realtime, categoria, apenasNaoLidas, severidadesKey]);
 
   return {
     notificacoes,

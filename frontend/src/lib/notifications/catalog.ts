@@ -35,6 +35,8 @@ export interface NotificationEvent {
   canaisSuportados: Canal[];
   /** caminho padrão pra abrir ao clicar (o dispatcher pode sobrescrever com id) */
   urlPadrao?: string;
+  /** rótulo da ação primária na Central de Alertas (ex: "Abrir checklist") */
+  acaoLabel?: string;
 }
 
 export const CATEGORIAS: Record<CategoriaEvento, { label: string; emoji: string }> = {
@@ -75,6 +77,7 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
     severidadePadrao: 'alerta',
     canaisSuportados: ['in_app', 'push', 'whatsapp'],
     urlPadrao: '/operacional/checklists',
+    acaoLabel: 'Abrir checklist',
   },
   {
     key: 'checklist_concluido',
@@ -95,6 +98,7 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
     severidadePadrao: 'alerta',
     canaisSuportados: ['in_app', 'push', 'whatsapp'],
     urlPadrao: '/financeiro/pendencias',
+    acaoLabel: 'Ver pendências',
   },
   {
     key: 'pedido_pagamento_novo',
@@ -113,6 +117,7 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
     severidadePadrao: 'critico',
     canaisSuportados: ['in_app', 'push', 'whatsapp'],
     urlPadrao: '/financeiro/dfc',
+    acaoLabel: 'Ver fluxo de caixa',
   },
   {
     key: 'conciliacao_pendente',
@@ -144,6 +149,7 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
     severidadePadrao: 'alerta',
     canaisSuportados: ['in_app', 'push', 'whatsapp'],
     urlPadrao: '/operacional/estoque',
+    acaoLabel: 'Ver estoque',
   },
 
   // ---- NPS & Clientes ----
@@ -155,6 +161,7 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
     severidadePadrao: 'alerta',
     canaisSuportados: ['in_app', 'push', 'whatsapp'],
     urlPadrao: '/estrategico/nps',
+    acaoLabel: 'Ver NPS',
   },
 
   // ---- Sistema ----
@@ -188,6 +195,28 @@ export function getEvent(key: string): NotificationEvent | undefined {
 
 export function isValidEventKey(key: string): key is string {
   return EVENTS_BY_KEY.has(key);
+}
+
+/** Rótulo default da ação primária por categoria (fallback quando o evento não define). */
+const ACAO_POR_CATEGORIA: Record<CategoriaEvento, string> = {
+  operacional: 'Abrir operacional',
+  financeiro: 'Ver financeiro',
+  eventos: 'Ver desempenho',
+  estoque: 'Ver estoque',
+  nps: 'Ver NPS',
+  sistema: 'Abrir no Zykor',
+};
+
+/**
+ * Rótulo da ação primária de um alerta na Central de Alertas.
+ * Usa o `acaoLabel` do evento; senão o default da categoria; senão genérico.
+ */
+export function rotuloAcaoAlerta(eventKey?: string, categoria?: string): string {
+  const ev = eventKey ? getEvent(eventKey) : undefined;
+  if (ev?.acaoLabel) return ev.acaoLabel;
+  const cat = (categoria ?? ev?.categoria) as CategoriaEvento | undefined;
+  if (cat && ACAO_POR_CATEGORIA[cat]) return ACAO_POR_CATEGORIA[cat];
+  return 'Abrir no Zykor';
 }
 
 /** Eventos agrupados por categoria, na ordem do catálogo — pra render da matriz. */

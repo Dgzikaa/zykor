@@ -46,6 +46,8 @@ export type ListarFiltros = {
   usuarioId: string;
   apenasNaoLidas?: boolean;
   categoria?: string;
+  /** filtra por severidade (ex: ['alerta','critico'] p/ a Central de Alertas) */
+  severidades?: string[];
   page: number;
   limit: number;
 };
@@ -89,6 +91,7 @@ export class NotificacoesRepository {
 
     if (f.apenasNaoLidas) q = q.eq('lida', false);
     if (f.categoria) q = q.eq('categoria', f.categoria);
+    if (f.severidades?.length) q = q.in('severidade', f.severidades);
 
     const offset = (f.page - 1) * f.limit;
     const { data, error, count } = await q

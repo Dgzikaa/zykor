@@ -11,6 +11,8 @@ export const dynamic = 'force-dynamic';
 const FiltrosSchema = z.object({
   apenas_nao_lidas: z.union([z.literal('true'), z.literal('false')]).optional(),
   categoria: z.string().optional(),
+  /** CSV de severidades, ex: "alerta,critico" (usado pela Central de Alertas) */
+  severidades: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -28,6 +30,9 @@ export const GET = withAuth(async ({ user, request }) => {
       usuarioId: user.auth_id,
       apenasNaoLidas: p.apenas_nao_lidas === 'true',
       categoria: p.categoria,
+      severidades: p.severidades
+        ? p.severidades.split(',').map((s) => s.trim()).filter(Boolean)
+        : undefined,
       page: p.page,
       limit: p.limit,
     }),
