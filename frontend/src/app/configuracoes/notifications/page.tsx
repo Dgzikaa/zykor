@@ -4,12 +4,13 @@ import { useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useUser } from '@/contexts/UserContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Bell, Inbox, SlidersHorizontal, Send, History, Smartphone } from 'lucide-react';
+import { Bell, Inbox, SlidersHorizontal, Send, History, Smartphone, Zap } from 'lucide-react';
 import InboxTab from './_components/InboxTab';
 import RegrasTab from './_components/RegrasTab';
 import EnviarTab from './_components/EnviarTab';
 import HistoricoTab from './_components/HistoricoTab';
 import DispositivosTab from './_components/DispositivosTab';
+import CondicoesTab from './_components/CondicoesTab';
 
 export default function NotificationsPage() {
   const { user } = useUser();
@@ -39,6 +40,11 @@ export default function NotificationsPage() {
               </TabsTrigger>
             )}
             {isAdmin && (
+              <TabsTrigger value="condicoes" className="gap-1.5">
+                <Zap className="w-4 h-4" /> Alertas automáticos
+              </TabsTrigger>
+            )}
+            {isAdmin && (
               <TabsTrigger value="enviar" className="gap-1.5">
                 <Send className="w-4 h-4" /> Enviar aviso
               </TabsTrigger>
@@ -60,6 +66,12 @@ export default function NotificationsPage() {
           {isAdmin && (
             <TabsContent value="regras" className="mt-4">
               <RegrasTab />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="condicoes" className="mt-4">
+              <CondicoesTab />
             </TabsContent>
           )}
 

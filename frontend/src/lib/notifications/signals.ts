@@ -38,6 +38,8 @@ export interface AlertSignal {
   severidadeSugerida: Severidade;
   /** como é avaliado. v1: todos por cron (com cooldown). */
   modo: 'cron';
+  /** false = o motor ainda não sabe calcular este sinal (UI mostra "em breve"). */
+  implementado: boolean;
 }
 
 export const ALERT_SIGNALS: AlertSignal[] = [
@@ -52,6 +54,7 @@ export const ALERT_SIGNALS: AlertSignal[] = [
     usaLimite: false, // usa o mínimo do cadastro
     severidadeSugerida: 'alerta',
     modo: 'cron',
+    implementado: false, // estoque: fonte complexa (contagem) — em breve
   },
   {
     key: 'estoque_insumo',
@@ -64,28 +67,31 @@ export const ALERT_SIGNALS: AlertSignal[] = [
     requerAlvo: { tipo: 'insumo', label: 'Insumo' },
     severidadeSugerida: 'alerta',
     modo: 'cron',
+    implementado: false, // em breve
   },
   {
     key: 'faturamento_dia',
     label: 'Faturamento do dia',
-    descricao: 'O faturamento do dia operacional cruza um limite (ex: abaixo de R$ X).',
+    descricao: 'O faturamento líquido do último dia operacional cruza um limite (ex: abaixo de R$ X).',
     categoria: 'financeiro',
     unidade: 'R$',
     operadores: ['lt', 'lte', 'gt', 'gte'],
     usaLimite: true,
     severidadeSugerida: 'alerta',
     modo: 'cron',
+    implementado: true,
   },
   {
     key: 'nps_semana',
-    label: 'NPS da semana',
-    descricao: 'A nota de NPS da semana cruza um limite (ex: abaixo de X).',
+    label: 'NPS (última medição)',
+    descricao: 'O NPS mais recente do bar cruza um limite (ex: abaixo de X).',
     categoria: 'nps',
     unidade: '',
     operadores: ['lt', 'lte'],
     usaLimite: true,
     severidadeSugerida: 'alerta',
     modo: 'cron',
+    implementado: true,
   },
 ];
 

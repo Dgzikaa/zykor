@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/configuracoes/cron/avaliar-alertas",
+      "schedule": "0 12,20 * * *"
+    },
+    {
       "path": "/api/configuracoes/desempenho/automacao-semanal",
       "schedule": "0 9 * * 1"
     },

@@ -185,6 +185,16 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
     urlPadrao: '/configuracoes/saude-dos-dados',
   },
   {
+    key: 'condicao_atingida',
+    label: 'Alerta automático (condição)',
+    descricao: 'Uma condição criada no construtor de alertas foi atingida (ex: faturamento abaixo de X).',
+    categoria: 'sistema',
+    severidadePadrao: 'alerta',
+    canaisSuportados: ['in_app', 'push', 'whatsapp'],
+    urlPadrao: '/alertas',
+    acaoLabel: 'Ver alertas',
+  },
+  {
     key: 'aviso_manual',
     label: 'Aviso manual (broadcast)',
     descricao: 'Recado enviado manualmente por um admin para a equipe (ex: reunião, comunicado).',
@@ -195,7 +205,7 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
 ];
 
 /** Eventos que NÃO aparecem na matriz de regras (roteamento próprio). */
-export const EVENTOS_OCULTOS_NA_MATRIZ = new Set<string>(['aviso_manual']);
+export const EVENTOS_OCULTOS_NA_MATRIZ = new Set<string>(['aviso_manual', 'condicao_atingida']);
 
 const EVENTS_BY_KEY = new Map(NOTIFICATION_EVENTS.map((e) => [e.key, e]));
 
