@@ -70,6 +70,16 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
     urlPadrao: '/operacional/producoes',
   },
   {
+    key: 'producao_fora_planejamento',
+    label: 'Produção fora do planejamento',
+    descricao: 'Uma produção foi iniciada sem estar no planejamento encerrado da semana.',
+    categoria: 'operacional',
+    severidadePadrao: 'alerta',
+    canaisSuportados: ['in_app', 'push', 'whatsapp'],
+    urlPadrao: '/operacional/producoes',
+    acaoLabel: 'Ver produções',
+  },
+  {
     key: 'checklist_vencido',
     label: 'Checklist vencido',
     descricao: 'Checklist obrigatório passou do horário sem ser concluído.',

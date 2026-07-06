@@ -199,18 +199,57 @@ export async function POST(request: NextRequest) {
   try {
     const { dispatchNotification } = await import('@/lib/notifications/dispatch');
     const nomeResp = body.responsavel_nome || user.nome || user.email || 'A equipe';
+
+    // "Fora do planejamento": existe plano ENCERRADO cobrindo hoje, mas esta produção não
+    // está entre as planejadas (decidido_receitas > 0). Sem plano cobrindo a data → não marca
+    // (mesma regra da tela de Produções: só marca fora-do-plano dentro da janela do plano).
+    let foraDoPlano = false;
+    try {
+      const hoje = new Date().toISOString().slice(0, 10);
+      const seisAtras = new Date(Date.now() - 6 * 86400_000).toISOString().slice(0, 10);
+      const { data: planos } = await (supabase as any)
+        .schema('operations')
+        .from('producao_plano')
+        .select('id')
+        .eq('bar_id', barId)
+        .eq('status', 'encerrado')
+        .lte('semana_ini', hoje)
+        .gte('semana_ini', seisAtras)
+        .order('semana_ini', { ascending: false })
+        .limit(1);
+      const planoId = planos?.[0]?.id;
+      if (planoId) {
+        const { data: itens } = await (supabase as any)
+          .schema('operations')
+          .from('producao_plano_item')
+          .select('producao_id')
+          .eq('plano_id', planoId)
+          .gt('decidido_receitas', 0);
+        const planejadas = new Set((itens || []).map((i: any) => Number(i.producao_id)));
+        foraDoPlano = !planejadas.has(Number(producaoId));
+      }
+    } catch (e) {
+      console.error('[notif] check fora-do-plano falhou (segue como producao_criada):', e);
+    }
+
     await dispatchNotification({
       barId,
-      eventKey: 'producao_criada',
-      titulo: 'Novo controle de produção',
-      mensagem:
-        `${nomeResp} registrou uma produção` +
-        (aderenciaPct != null ? ` (aderência ${aderenciaPct}%).` : '.'),
+      eventKey: foraDoPlano ? 'producao_fora_planejamento' : 'producao_criada',
+      titulo: foraDoPlano ? 'Produção fora do planejamento' : 'Novo controle de produção',
+      mensagem: foraDoPlano
+        ? `${nomeResp} iniciou uma produção que não estava no planejamento da semana.`
+        : `${nomeResp} registrou uma produção` +
+          (aderenciaPct != null ? ` (aderência ${aderenciaPct}%).` : '.'),
       url: '/operacional/producoes',
-      dados: { execucao_id: exec.id, producao_id: producaoId, responsavel_nome: nomeResp },
+      dados: {
+        execucao_id: exec.id,
+        producao_id: producaoId,
+        responsavel_nome: nomeResp,
+        fora_do_plano: foraDoPlano,
+      },
     });
   } catch (e) {
-    console.error('[notif] dispatch producao_criada falhou:', e);
+    console.error('[notif] dispatch producao falhou:', e);
   }
 
   return NextResponse.json({
