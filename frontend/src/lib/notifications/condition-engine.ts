@@ -153,6 +153,104 @@ async function medirSinal(
       return [{ valor: total, alvoKey: `${ini}_${fim}`, descricaoValor: `R$ ${br(total)} (7 dias)` }];
     }
 
+    case 'producao_nao_executada': {
+      const hoje = new Date().toISOString().slice(0, 10);
+      const seisAtras = new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10);
+      const { data: planos } = await supabase
+        .schema('operations')
+        .from('producao_plano')
+        .select('id')
+        .eq('bar_id', barId)
+        .eq('status', 'encerrado')
+        .lte('semana_ini', hoje)
+        .gte('semana_ini', seisAtras)
+        .order('semana_ini', { ascending: false })
+        .limit(1);
+      const planoId = planos?.[0]?.id;
+      if (!planoId) return [];
+      const { data: dias } = await supabase
+        .schema('operations')
+        .from('producao_plano_item_dia')
+        .select('producao_id')
+        .eq('plano_id', planoId)
+        .eq('dia', hoje)
+        .gt('decidido_receitas', 0);
+      const planejadasHoje = [...new Set(((dias ?? []) as Array<any>).map((d) => Number(d.producao_id)))];
+      if (!planejadasHoje.length) return [];
+      const { data: execs } = await supabase
+        .schema('operations')
+        .from('producao_execucao')
+        .select('producao_id')
+        .eq('bar_id', barId)
+        .gte('criado_em', `${hoje}T00:00:00`);
+      const feitas = new Set(((execs ?? []) as Array<any>).map((e) => Number(e.producao_id)));
+      const faltando = planejadasHoje.filter((pid) => !feitas.has(pid));
+      if (!faltando.length) return [];
+      const { data: nomes } = await supabase
+        .schema('operations')
+        .from('producao_plano_item')
+        .select('producao_id, producao_nome')
+        .eq('plano_id', planoId)
+        .in('producao_id', faltando);
+      const nomeMap = new Map(
+        ((nomes ?? []) as Array<any>).map((n) => [Number(n.producao_id), n.producao_nome])
+      );
+      return faltando.map((pid) => ({
+        valor: 1,
+        alvoKey: `prod:${pid}:${hoje}`,
+        descricaoValor: `${nomeMap.get(pid) || 'produção #' + pid} — planejada pra hoje, ainda não feita`,
+      }));
+    }
+
+    case 'rendimento_fora_esperado': {
+      const hoje = new Date().toISOString().slice(0, 10);
+      const { data } = await supabase
+        .schema('operations')
+        .from('producao_execucao')
+        .select('id, producao_id, rendimento_real, rendimento_esperado')
+        .eq('bar_id', barId)
+        .gte('criado_em', `${hoje}T00:00:00`)
+        .not('rendimento_real', 'is', null)
+        .not('rendimento_esperado', 'is', null);
+      return ((data ?? []) as Array<any>)
+        .filter((e) => Number(e.rendimento_esperado) > 0)
+        .map((e) => {
+          const desvioPct =
+            Math.abs(Number(e.rendimento_real) / Number(e.rendimento_esperado) - 1) * 100;
+          return {
+            valor: Number(desvioPct.toFixed(1)),
+            alvoKey: `exec:${e.id}`,
+            descricaoValor: `produção #${e.producao_id} — desvio ${br(desvioPct)}% (real ${br(Number(e.rendimento_real))} vs esperado ${br(Number(e.rendimento_esperado))})`,
+          };
+        });
+    }
+
+    case 'insumo_sem_contagem': {
+      const { data } = await supabase.schema('gold').rpc('fn_insumos_ultima_contagem', {
+        p_bar: barId,
+      });
+      return ((data ?? []) as Array<any>).map((r) => ({
+        valor: Number(r.dias) || 0,
+        alvoKey: `insumo:${r.insumo_codigo}`,
+        descricaoValor: `${r.insumo_nome} — última contagem há ${br(Number(r.dias) || 0)} dias (${r.ultima_contagem})`,
+      }));
+    }
+
+    case 'avaliacao_google': {
+      const { data } = await supabase
+        .schema('gold')
+        .from('desempenho')
+        .select('data_fim, media_avaliacoes_google')
+        .eq('bar_id', barId)
+        .not('media_avaliacoes_google', 'is', null)
+        .order('data_fim', { ascending: false })
+        .limit(1);
+      const row = data?.[0];
+      if (!row) return [];
+      const v = Number(row.media_avaliacoes_google) || 0;
+      return [{ valor: v, alvoKey: String(row.data_fim), descricaoValor: `${br(v)} (semana ${row.data_fim})` }];
+    }
+
     case 'pipeline_parado': {
       // v_data_freshness (schema public) — status 'atrasado' | 'sem_dados' = problema
       const { data } = await supabase
