@@ -118,10 +118,38 @@ export async function GET(request: NextRequest) {
     const { data: planos } = await ops().from('producao_plano').select('id').eq('bar_id', barId).eq('status', 'encerrado').order('semana_ini', { ascending: false }).limit(8);
     const ids = (planos || []).map((p: any) => p.id);
     if (!ids.length) return NextResponse.json({ success: true, data: hoje, itens: [] });
-    const { data: itens } = await ops().from('producao_plano_item')
-      .select('producao_id, producao_cod, producao_nome, decidido_receitas, decidido_qtd, sugestao_qtd, dia_producao')
-      .in('plano_id', ids).eq('dia_producao', hoje);
-    return NextResponse.json({ success: true, data: hoje, itens: itens || [] });
+    // itens de HOJE: por dia (multi-dia) + legado (dia_producao único). Produção com dia por
+    // dia tem prioridade (usa a qtd do dia); o legado entra só se não houver linha por dia.
+    const [{ data: itensLegado }, { data: diasHoje }] = await Promise.all([
+      ops().from('producao_plano_item')
+        .select('plano_id, producao_id, producao_cod, producao_nome, decidido_receitas, decidido_qtd, sugestao_qtd, dia_producao')
+        .in('plano_id', ids).eq('dia_producao', hoje),
+      ops().from('producao_plano_item_dia')
+        .select('plano_id, producao_id, dia, decidido_receitas, decidido_qtd').in('plano_id', ids).eq('dia', hoje),
+    ]);
+    const nomeMap = new Map<string, any>();
+    for (const it of (itensLegado || []) as any[]) nomeMap.set(`${it.plano_id}:${it.producao_id}`, it);
+    // busca nome/cod das produções que só existem na tabela por-dia
+    const faltamNome = (diasHoje || []).filter((d: any) => !nomeMap.has(`${d.plano_id}:${d.producao_id}`));
+    if (faltamNome.length) {
+      const { data: pais } = await ops().from('producao_plano_item')
+        .select('plano_id, producao_id, producao_cod, producao_nome, sugestao_qtd')
+        .in('plano_id', ids).in('producao_id', Array.from(new Set(faltamNome.map((d: any) => d.producao_id))));
+      for (const p of (pais || []) as any[]) nomeMap.set(`${p.plano_id}:${p.producao_id}`, p);
+    }
+    const comDia = new Set((diasHoje || []).map((d: any) => `${d.plano_id}:${d.producao_id}`));
+    const itensHoje: any[] = [];
+    for (const d of (diasHoje || []) as any[]) {
+      if (Number(d.decidido_receitas) <= 0) continue;
+      const p = nomeMap.get(`${d.plano_id}:${d.producao_id}`) || {};
+      itensHoje.push({ producao_id: d.producao_id, producao_cod: p.producao_cod ?? null, producao_nome: p.producao_nome ?? null, decidido_receitas: num(d.decidido_receitas), decidido_qtd: num(d.decidido_qtd), sugestao_qtd: p.sugestao_qtd ?? null, dia_producao: hoje });
+    }
+    // legado: só entra se a produção NÃO tem distribuição por dia
+    for (const it of (itensLegado || []) as any[]) {
+      if (comDia.has(`${it.plano_id}:${it.producao_id}`)) continue;
+      itensHoje.push({ producao_id: it.producao_id, producao_cod: it.producao_cod, producao_nome: it.producao_nome, decidido_receitas: num(it.decidido_receitas), decidido_qtd: num(it.decidido_qtd), sugestao_qtd: it.sugestao_qtd, dia_producao: hoje });
+    }
+    return NextResponse.json({ success: true, data: hoje, itens: itensHoje });
   }
 
   // semanas com contagem (seletor)
@@ -148,11 +176,33 @@ export async function GET(request: NextRequest) {
     const areaDeId = new Map((planos || []).map((p: any) => [p.id, p.area]));
     let itensCal: any[] = [];
     if (ids.length) {
-      const { data: its } = await ops().from('producao_plano_item')
-        .select('plano_id, producao_id, producao_cod, producao_nome, decidido_receitas, decidido_qtd, dia_producao, unidade')
-        .in('plano_id', ids);
-      itensCal = (its || []).filter((it: any) => Number(it.decidido_receitas) > 0)
-        .map((it: any) => ({ ...it, area: areaDeId.get(it.plano_id) || 'Cozinha' }));
+      const [{ data: its }, { data: diasRows }] = await Promise.all([
+        ops().from('producao_plano_item')
+          .select('plano_id, producao_id, producao_cod, producao_nome, decidido_receitas, decidido_qtd, dia_producao, unidade')
+          .in('plano_id', ids),
+        ops().from('producao_plano_item_dia')
+          .select('plano_id, producao_id, dia, decidido_receitas, decidido_qtd').in('plano_id', ids),
+      ]);
+      // distribuição por dia por produção (multi-dia)
+      const diasPorProd = new Map<string, any[]>();
+      for (const d of (diasRows || []) as any[]) {
+        const k = `${d.plano_id}:${d.producao_id}`;
+        (diasPorProd.get(k) || diasPorProd.set(k, []).get(k)!).push(d);
+      }
+      // Cada item vira UMA entrada por dia (multi-dia) OU uma entrada no dia único (legado).
+      // Toda entrada mantém 1 dia_producao → o Controle de Produção / cruzamentos não mudam.
+      for (const it of (its || []) as any[]) {
+        const dias = diasPorProd.get(`${it.plano_id}:${it.producao_id}`) || [];
+        const area = areaDeId.get(it.plano_id) || 'Cozinha';
+        if (dias.length) {
+          for (const d of dias) {
+            if (Number(d.decidido_receitas) <= 0) continue;
+            itensCal.push({ ...it, area, dia_producao: d.dia, decidido_receitas: num(d.decidido_receitas), decidido_qtd: num(d.decidido_qtd) });
+          }
+        } else if (Number(it.decidido_receitas) > 0) {
+          itensCal.push({ ...it, area });
+        }
+      }
     }
     return NextResponse.json({
       success: true, semana, semana_sel: semanaSel, semana_ativa: latest,
@@ -186,6 +236,22 @@ export async function GET(request: NextRequest) {
   for (const it of live) {
     if (planos[areaDe(it.codigo)]?.status === 'encerrado') continue; // já veio do snapshot
     itens.push({ ...it, decisao: decMap.get(it.producao_id) || null });
+  }
+
+  // distribuição por dia (multi-dia): anexa dias[] a cada item, por produção
+  const planoIds = (planosRows || []).map((p: any) => p.id);
+  if (planoIds.length) {
+    const { data: diasRows } = await ops().from('producao_plano_item_dia')
+      .select('producao_id, dia, decidido_receitas, decidido_qtd').in('plano_id', planoIds).order('dia', { ascending: true });
+    const diasMap = new Map<number, any[]>();
+    for (const d of (diasRows || []) as any[]) {
+      const arr = diasMap.get(Number(d.producao_id)) || [];
+      arr.push({ dia: d.dia, decidido_receitas: num(d.decidido_receitas), decidido_qtd: num(d.decidido_qtd) });
+      diasMap.set(Number(d.producao_id), arr);
+    }
+    for (const it of itens) it.dias = diasMap.get(Number(it.producao_id)) || [];
+  } else {
+    for (const it of itens) it.dias = [];
   }
 
   return NextResponse.json({
@@ -263,6 +329,43 @@ export async function POST(request: NextRequest) {
       const { error } = await ops().from('producao_plano_item').upsert(row, { onConflict: 'plano_id,producao_id' });
       if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
       return NextResponse.json({ success: true });
+    }
+    // decidir MULTI-DIA: distribui a produção da semana em vários dias (qtd por dia).
+    // O item-pai vira o TOTAL (soma dos dias); a distribuição vai pra producao_plano_item_dia.
+    case 'decidir_dias': {
+      const planoId = Number(body.plano_id);
+      const producaoId = Number(body.producao_id);
+      if (!planoId || !producaoId) return NextResponse.json({ success: false, error: 'plano_id e producao_id obrigatórios' }, { status: 400 });
+      const rend = num(body.rend_contagem);
+      // dias válidos: { dia: 'YYYY-MM-DD', receitas: n>0 }
+      const dias = (Array.isArray(body.dias) ? body.dias : [])
+        .map((d: any) => ({ dia: String(d.dia || ''), receitas: Math.max(0, Number(d.receitas) || 0) }))
+        .filter((d: any) => /^\d{4}-\d{2}-\d{2}$/.test(d.dia) && d.receitas > 0);
+      const totalRec = dias.reduce((s: number, d: any) => s + d.receitas, 0);
+      const diaUnico = dias.length === 1 ? dias[0].dia : null; // legado: 1 dia mantém dia_producao preenchido
+      const row: any = {
+        plano_id: planoId, producao_id: producaoId,
+        producao_cod: body.producao_cod ?? null, producao_nome: body.producao_nome ?? null,
+        media6: body.media6 ?? null, desvpad: body.desvpad ?? null,
+        nivel_servico: body.nivel_servico ?? null, fator_servico: body.nivel_servico != null ? zDe(Number(body.nivel_servico)) : null,
+        ponto_ressupr: body.ponto_ressupr ?? null, estoque: body.estoque ?? null,
+        sugestao_qtd: body.sugestao_qtd ?? null, sugestao_receitas: body.sugestao_receitas ?? null,
+        decidido_receitas: totalRec, decidido_qtd: r2(totalRec * rend),
+        seguiu_sugestao: body.sugestao_receitas != null ? totalRec === Number(body.sugestao_receitas) : true,
+        motivo_override: body.motivo_override ?? null, dia_producao: diaUnico,
+        atualizado_em: new Date().toISOString(),
+      };
+      const { error: eItem } = await ops().from('producao_plano_item').upsert(row, { onConflict: 'plano_id,producao_id' });
+      if (eItem) return NextResponse.json({ success: false, error: eItem.message }, { status: 500 });
+      // substitui a distribuição por dia (apaga + reinsere)
+      const { error: eDel } = await ops().from('producao_plano_item_dia').delete().eq('plano_id', planoId).eq('producao_id', producaoId);
+      if (eDel) return NextResponse.json({ success: false, error: eDel.message }, { status: 500 });
+      if (dias.length) {
+        const diaRows = dias.map((d: any) => ({ plano_id: planoId, producao_id: producaoId, dia: d.dia, decidido_receitas: d.receitas, decidido_qtd: r2(d.receitas * rend), atualizado_em: new Date().toISOString() }));
+        const { error: eIns } = await ops().from('producao_plano_item_dia').insert(diaRows);
+        if (eIns) return NextResponse.json({ success: false, error: eIns.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, total_receitas: totalRec, dias: dias.length });
     }
     case 'encerrar': {
       const planoId = Number(body.plano_id);

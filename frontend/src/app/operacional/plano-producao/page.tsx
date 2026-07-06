@@ -48,6 +48,8 @@ export default function PlanoProducaoPage() {
   const [aberto, setAberto] = useState<number | null>(null); // linha expandida (6 semanas)
   const [semanaSel, setSemanaSel] = useState<string | null>(null); // semana escolhida (null = mais recente)
   const [salvando, setSalvando] = useState(false);
+  const [diaModal, setDiaModal] = useState<any | null>(null); // produção com o modal de dias aberto
+  const [modalDias, setModalDias] = useState<Record<string, string>>({}); // iso → receitas (digitado)
 
   const carregar = useCallback(async () => {
     if (!barId) return; setLoading(true);
@@ -76,6 +78,15 @@ export default function PlanoProducaoPage() {
     });
   }, [res]);
 
+  // iso → abreviação do dia (Seg, Ter…) da semana em foco, p/ exibir a distribuição
+  const diaAbrev = useMemo(() => new Map(diasOpcoes.map((d, i) => [d.iso, DIAS_SEMANA[i]])), [diasOpcoes]);
+  // distribuição por dia de um item (multi-dia); cai no dia_producao legado se não houver
+  const diasDoItem = (it: any): { dia: string; receitas: number }[] => {
+    if (it.dias && it.dias.length) return it.dias.map((d: any) => ({ dia: d.dia, receitas: Number(d.decidido_receitas) || 0 }));
+    if (it.decisao?.dia_producao) return [{ dia: it.decisao.dia_producao, receitas: Number(it.decisao?.decidido_receitas ?? it.receitas) || 0 }];
+    return [];
+  };
+
   const patchItem = (id: number, patch: any) => setItens((prev) => prev.map((i) => i.producao_id === id ? { ...i, ...patch } : i));
 
   // ---- salvamentos ----
@@ -103,6 +114,35 @@ export default function PlanoProducaoPage() {
       dia_producao: novaDec.dia_producao ?? null,
     });
   };
+  // abre o modal de dias com a distribuição atual pré-preenchida
+  const abrirDias = (it: any) => {
+    const atual: Record<string, string> = {};
+    for (const d of diasDoItem(it)) if (d.receitas > 0) atual[d.dia] = String(d.receitas);
+    setModalDias(atual);
+    setDiaModal(it);
+  };
+  const toggleDiaModal = (iso: string, on: boolean) =>
+    setModalDias(prev => { const n = { ...prev }; if (on) n[iso] = n[iso] ?? '1'; else delete n[iso]; return n; });
+  const totalModal = useMemo(() => Object.values(modalDias).reduce((s, v) => s + (Number(v) || 0), 0), [modalDias]);
+  // grava a distribuição por dia (action decidir_dias) — o item-pai vira o total
+  const salvarDias = async () => {
+    const it = diaModal;
+    if (!it || !plano?.id) return;
+    const c = calcular(it);
+    const dias = Object.entries(modalDias).map(([dia, v]) => ({ dia, receitas: Number(v) || 0 })).filter(d => d.receitas > 0);
+    setSalvando(true);
+    try {
+      const r = await api.post('/api/operacional/plano-producao', {
+        action: 'decidir_dias', plano_id: plano.id, producao_id: it.producao_id, producao_cod: it.codigo, producao_nome: it.nome,
+        media6: it.media6, desvpad: it.desvpad, nivel_servico: it.nivel_servico, ponto_ressupr: c.pr, estoque: it.estoque,
+        sugestao_qtd: c.sugestaoQtd, sugestao_receitas: c.receitas, rend_contagem: it.rend_contagem, dias,
+      });
+      if (!r.success) { if (r.error) alert(r.error); return; }
+      setDiaModal(null);
+      await carregar();
+    } finally { setSalvando(false); }
+  };
+
   const acao = async (action: string, extra: any = {}) => {
     setSalvando(true);
     try { const r = await api.post('/api/operacional/plano-producao', { action, ...extra }); if (!r.success && r.error) alert(r.error); await carregar(); }
@@ -146,7 +186,7 @@ export default function PlanoProducaoPage() {
         && (filtroProd === 'todos'
           || (filtroProd === 'produzir' && !i.naoProduzir)
           || (filtroProd === 'nao' && i.naoProduzir))
-        && (!soSemDia || !i.decisao?.dia_producao)                          // sem dia cadastrado (combina com os demais)
+        && (!soSemDia || !(i.dias?.length || i.decisao?.dia_producao))       // sem dia cadastrado (multi-dia ou legado)
         && (!s || (i.nome || '').toLowerCase().includes(s) || (i.codigo || '').toLowerCase().includes(s)))
       .sort((a, b) => b.sugestaoQtd - a.sugestaoQtd);
   }, [itens, busca, aba, filtroProd, soSemDia, consumoMap]);
@@ -295,11 +335,12 @@ export default function PlanoProducaoPage() {
                       : <span className="inline-flex flex-col items-end"><span className="font-bold text-violet-700 dark:text-violet-300 tabular-nums">{it.receitas} rec.</span><span className="text-[10px] text-gray-400 whitespace-nowrap">≈ {comUni(it.sugestaoQtd, it.unidade)}</span></span>}
                   </td>
                   {planejando && <td className="px-2 py-2 text-right">
-                    <input disabled={encerrado} type="number" min={0} step={1}
+                    <input disabled={encerrado || (it.dias?.length > 0)} type="number" min={0} step={1}
                       value={decidido ?? (it.naoProduzir ? 0 : it.receitas)}
                       onChange={e => patchItem(it.producao_id, { decisao: { ...(it.decisao || {}), decidido_receitas: e.target.value === '' ? null : Number(e.target.value) } })}
                       onBlur={e => salvarDecisao(it, { decidido_receitas: e.target.value === '' ? null : Number(e.target.value) })}
-                      className={`w-16 bg-transparent text-right tabular-nums outline-none rounded border px-1 ${override ? 'border-amber-400 text-amber-600 dark:text-amber-400 font-medium' : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'}`} title={override ? 'Diferente da sugestão (override registrado)' : ''} />
+                      title={it.dias?.length > 0 ? 'Total definido pela distribuição por dia (edite nos Dias)' : (override ? 'Diferente da sugestão (override registrado)' : '')}
+                      className={`w-16 bg-transparent text-right tabular-nums outline-none rounded border px-1 disabled:opacity-60 disabled:cursor-default ${override ? 'border-amber-400 text-amber-600 dark:text-amber-400 font-medium' : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'}`} />
                     {override && <input disabled={encerrado} type="text" placeholder="motivo do override…"
                       value={it.decisao?.motivo_override ?? ''}
                       onChange={e => patchItem(it.producao_id, { decisao: { ...(it.decisao || {}), motivo_override: e.target.value } })}
@@ -307,10 +348,16 @@ export default function PlanoProducaoPage() {
                       className="block mt-1 w-32 ml-auto bg-transparent text-[11px] text-right outline-none rounded border border-amber-300 dark:border-amber-700/60 px-1 py-0.5 placeholder:text-amber-400/60" />}
                   </td>}
                   {planejando && <td className="px-2 py-2 text-center">
-                    <select disabled={encerrado} value={it.decisao?.dia_producao ?? ''} onChange={e => salvarDecisao(it, { dia_producao: e.target.value || null })} className="bg-transparent text-xs outline-none cursor-pointer disabled:cursor-default rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 px-1">
-                      <option value="" className="text-gray-900">—</option>
-                      {diasOpcoes.map(d => <option key={d.iso} value={d.iso} className="text-gray-900">{d.label}</option>)}
-                    </select>
+                    {(() => {
+                      const dd = diasDoItem(it);
+                      const resumo = dd.map(d => `${diaAbrev.get(d.dia) || fmtDM(d.dia)} ${d.receitas}`).join(' · ');
+                      return (
+                        <button disabled={encerrado} onClick={() => abrirDias(it)} title={resumo ? `Dias de produção: ${resumo} · clique p/ editar` : 'Marcar em quais dias produzir (pode ser vários, com qtd por dia)'}
+                          className={`text-xs rounded border px-2 py-1 whitespace-nowrap disabled:cursor-default ${dd.length ? 'border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300 bg-violet-50/60 dark:bg-violet-900/15' : 'border-dashed border-gray-300 dark:border-gray-600 text-gray-400 hover:border-violet-400 hover:text-violet-500'}`}>
+                          {dd.length === 0 ? '+ dias' : dd.length === 1 ? resumo : <span className="inline-flex items-center gap-1"><CalendarDays className="w-3 h-3" />{dd.length} dias</span>}
+                        </button>
+                      );
+                    })()}
                   </td>}
                 </tr>
                 {expandido && <tr className="bg-gray-50/60 dark:bg-gray-800/30">
@@ -331,6 +378,50 @@ export default function PlanoProducaoPage() {
           </table>
         </div></CardContent></Card>
         <p className="text-[11px] text-gray-400">Saída = uso indireto (vendas explodidas pela ficha técnica, inclusive preparo-dentro-de-preparo); recalcula com a ficha atual nas 6 semanas. O ponto azul liga/desliga a produção no Controle de Produção. Ao <b>encerrar</b>, os itens com dia definido viram a calendarização que aparece na tela Executar do dia.</p>
+
+        {/* Modal: distribuir a produção em vários dias (qtd por dia) */}
+        {diaModal && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={e => { if (e.target === e.currentTarget) setDiaModal(null); }}>
+            <div className="bg-white dark:bg-gray-900 rounded-xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-start justify-between p-4 border-b border-gray-100 dark:border-gray-800">
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-1.5"><CalendarDays className="w-4 h-4 text-violet-500" />Dias de produção</h4>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{diaModal.nome} · sugestão <b className="text-violet-600 dark:text-violet-300">{diaModal.receitas} rec.</b></p>
+                </div>
+                <button onClick={() => setDiaModal(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="p-4 space-y-1.5 max-h-[50vh] overflow-y-auto">
+                <p className="text-[11px] text-gray-400 mb-2">Marque os dias e informe quantas <b>receitas</b> em cada um (ex.: pastel Seg 2 · Ter 3). O total da semana é a soma dos dias.</p>
+                {diasOpcoes.map(d => {
+                  const on = d.iso in modalDias;
+                  return (
+                    <div key={d.iso} className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 ${on ? 'border-violet-300 dark:border-violet-700 bg-violet-50/50 dark:bg-violet-900/15' : 'border-gray-200 dark:border-gray-700'}`}>
+                      <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                        <input type="checkbox" checked={on} onChange={e => toggleDiaModal(d.iso, e.target.checked)} className="w-4 h-4 accent-violet-600" />
+                        <span className={`text-sm ${on ? 'text-gray-900 dark:text-gray-100 font-medium' : 'text-gray-500'}`}>{d.label}</span>
+                      </label>
+                      <input type="number" min={0} step={1} inputMode="numeric" disabled={!on}
+                        value={modalDias[d.iso] ?? ''} onChange={e => setModalDias(prev => ({ ...prev, [d.iso]: e.target.value }))}
+                        placeholder="0" className="w-20 h-8 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-right tabular-nums text-sm text-gray-900 dark:text-gray-100 disabled:opacity-40" />
+                      <span className="text-[11px] text-gray-400 w-8">rec</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-between p-4 border-t border-gray-100 dark:border-gray-800">
+                <div className="text-sm">
+                  <span className="text-gray-500">Total: </span>
+                  <b className={`tabular-nums ${totalModal === diaModal.receitas ? 'text-emerald-600 dark:text-emerald-400' : 'text-violet-700 dark:text-violet-300'}`}>{totalModal} rec.</b>
+                  {diaModal.rend_contagem > 0 && <span className="text-gray-400"> ≈ {comUni(totalModal * diaModal.rend_contagem, diaModal.unidade)}</span>}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setDiaModal(null)} className="text-sm rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">Cancelar</button>
+                  <button onClick={salvarDias} disabled={salvando} className="text-sm rounded-lg bg-violet-600 hover:bg-violet-700 text-white px-4 py-1.5 disabled:opacity-50 inline-flex items-center gap-1.5">{salvando && <Loader2 className="w-3.5 h-3.5 animate-spin" />}Salvar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
     </PageShell>
   );
 }
