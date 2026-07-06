@@ -194,18 +194,43 @@ export async function getSemanas(
   // Antes vinha de meta.desempenho_manual.cmv_teorico (legado mantido como fallback final)
   let cmvSemQuery = (supabase as unknown as { schema: (s: string) => SupabaseClient }).schema('financial')
     .from('cmv_semanal')
-    .select('ano, semana, cmv_teorico_percentual, cmv_teorico_percentual_manual')
+    .select('ano, semana, data_inicio, data_fim, cmv_teorico_percentual, cmv_teorico_percentual_manual')
     .eq('bar_id', barId);
   if (ano) cmvSemQuery = cmvSemQuery.eq('ano', ano);
   const { data: cmvSemanaisRows } = await cmvSemQuery;
+
+  // CMV teórico AUTO: calcula AO VIVO de gold.cmv_teorico_dia por semana — mesma fonte/fórmula
+  // da tela CMV Semanal (Σcusto/Σfaturamento no intervalo [data_inicio, data_fim]). O campo
+  // persistido financial.cmv_semanal.cmv_teorico_percentual fica defasado (0 nas semanas recentes),
+  // então a tabela de Desempenho ficava sem o CMV teórico da última semana. Aqui refazemos o overlay.
+  const datasIni = (cmvSemanaisRows || []).map((c: any) => c.data_inicio).filter(Boolean).sort();
+  const datasFim = (cmvSemanaisRows || []).map((c: any) => c.data_fim).filter(Boolean).sort();
+  let cmvDiaRows: Array<{ data: string; custo: number; faturamento: number }> = [];
+  if (datasIni.length && datasFim.length) {
+    const { data: cd } = await (supabase as unknown as { schema: (s: string) => SupabaseClient }).schema('gold')
+      .from('cmv_teorico_dia')
+      .select('data, custo, faturamento')
+      .eq('bar_id', barId)
+      .gte('data', datasIni[0])
+      .lte('data', datasFim[datasFim.length - 1]);
+    cmvDiaRows = (cd as unknown as typeof cmvDiaRows) || [];
+  }
+  const autoGoldDe = (ini?: string | null, fim?: string | null): number | null => {
+    if (!ini || !fim) return null;
+    let c = 0, f = 0;
+    for (const r of cmvDiaRows) if (r.data >= ini && r.data <= fim) { c += Number(r.custo) || 0; f += Number(r.faturamento) || 0; }
+    return f > 0 ? Number((c / f * 100).toFixed(2)) : null;
+  };
+
   const cmvSemanaisMap = new Map<string, { manual: number | null; auto: number | null }>();
   (cmvSemanaisRows || []).forEach((c: any) => {
     const manual = c.cmv_teorico_percentual_manual != null
       ? parseFloat(String(c.cmv_teorico_percentual_manual))
       : null;
-    const auto = c.cmv_teorico_percentual != null
-      ? parseFloat(String(c.cmv_teorico_percentual))
-      : null;
+    // auto: prioridade pro cálculo ao vivo do gold; cai no valor persistido só se o gold não cobrir a semana
+    const autoGold = autoGoldDe(c.data_inicio, c.data_fim);
+    const autoPersist = c.cmv_teorico_percentual != null ? parseFloat(String(c.cmv_teorico_percentual)) : null;
+    const auto = autoGold != null ? autoGold : autoPersist;
     cmvSemanaisMap.set(`${c.ano}-${c.semana}`, {
       manual: manual !== null && Number.isFinite(manual) && manual > 0 ? manual : null,
       auto: auto !== null && Number.isFinite(auto) && auto > 0 ? auto : null,

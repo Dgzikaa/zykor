@@ -78,15 +78,40 @@ export async function getMeses(
     .eq('bar_id', barId)
     .gte('ano', anoInicio)
     .lte('ano', anoFim);
+  // CMV teórico AUTO mensal: agrega gold.cmv_teorico_dia por mês (Σcusto/Σfaturamento) — mesma
+  // fonte da aba CMV Mensal. O campo persistido em financial.cmv_mensal fica defasado (0 no mês
+  // corrente), então a tabela de Desempenho ficava sem o CMV teórico do mês atual.
+  const autoGoldMes = new Map<string, { c: number; f: number }>();
+  {
+    const { data: cd } = await supabase
+      .schema('gold' as never)
+      .from('cmv_teorico_dia')
+      .select('data, custo, faturamento')
+      .eq('bar_id', barId)
+      .gte('data', `${anoInicio}-01-01`)
+      .lte('data', `${anoFim}-12-31`);
+    (cd as any[] || []).forEach((r) => {
+      const k = String(r.data).slice(0, 7);
+      const cur = autoGoldMes.get(k) || { c: 0, f: 0 };
+      cur.c += Number(r.custo) || 0; cur.f += Number(r.faturamento) || 0;
+      autoGoldMes.set(k, cur);
+    });
+  }
+  const autoGoldMesPct = (key: string): number | null => {
+    const a = autoGoldMes.get(key);
+    return a && a.f > 0 ? Number((a.c / a.f * 100).toFixed(2)) : null;
+  };
+
   const cmvMensalMap = new Map<string, { manual: number | null; auto: number | null }>();
   (cmvMensaisData as any[] || []).forEach((c) => {
     const key = `${c.ano}-${String(c.mes).padStart(2, '0')}`;
     const manual = c.cmv_teorico_percentual_manual != null
       ? parseFloat(String(c.cmv_teorico_percentual_manual))
       : null;
-    const auto = c.cmv_teorico_percentual != null
-      ? parseFloat(String(c.cmv_teorico_percentual))
-      : null;
+    // auto: prioridade pro cálculo ao vivo do gold; cai no persistido só se o gold não cobrir o mês
+    const autoGold = autoGoldMesPct(key);
+    const autoPersist = c.cmv_teorico_percentual != null ? parseFloat(String(c.cmv_teorico_percentual)) : null;
+    const auto = autoGold != null ? autoGold : autoPersist;
     cmvMensalMap.set(key, {
       manual: manual !== null && Number.isFinite(manual) && manual > 0 ? manual : null,
       auto: auto !== null && Number.isFinite(auto) && auto > 0 ? auto : null,
