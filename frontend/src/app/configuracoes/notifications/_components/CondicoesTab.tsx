@@ -16,6 +16,8 @@ interface Condicao {
   signal_key: string;
   operador: Operador;
   limite: number | null;
+  alvo_id: string | null;
+  alvo_label: string | null;
   titulo: string | null;
   severidade: Sev;
   canais: Canal[];
@@ -47,6 +49,8 @@ export default function CondicoesTab() {
   const [roles, setRoles] = useState<Set<string>>(new Set());
   const [userIds, setUserIds] = useState<Set<string>>(new Set());
   const [cooldown, setCooldown] = useState('12');
+  const [insumos, setInsumos] = useState<Array<{ codigo: string; nome: string }>>([]);
+  const [alvoId, setAlvoId] = useState('');
 
   const sig = getSignal(signalKey);
 
@@ -67,10 +71,19 @@ export default function CondicoesTab() {
     carregar();
   }, []);
 
-  // ao trocar de sinal, ajusta operador padrão
+  // ao trocar de sinal, ajusta operador/severidade e carrega insumos se precisar de alvo
   useEffect(() => {
     if (sig && !sig.operadores.includes(operador)) setOperador(sig.operadores[0]);
     if (sig) setSeveridade(sig.severidadeSugerida);
+    setAlvoId('');
+    if (sig?.requerAlvo) {
+      api
+        .get('/api/configuracoes/notifications/insumos')
+        .then((r) => {
+          if (r?.success) setInsumos(r.data.insumos ?? []);
+        })
+        .catch(() => {});
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signalKey]);
 
@@ -88,12 +101,15 @@ export default function CondicoesTab() {
     if (canais.size === 0) return toast.error('Escolha ao menos um canal.');
     if (semDestino) return toast.error('Escolha quem recebe (cargo ou pessoa).');
     if (!limiteValido) return toast.error('Informe o limite (número).');
+    if (sig.requerAlvo && !alvoId) return toast.error(`Escolha o ${sig.requerAlvo.label.toLowerCase()}.`);
     setSalvando(true);
     try {
       const res = await api.post('/api/configuracoes/notifications/condicoes', {
         signal_key: signalKey,
         operador,
         limite: sig.usaLimite ? Number(limite) : null,
+        alvo_id: sig.requerAlvo ? alvoId : null,
+        alvo_label: sig.requerAlvo ? insumos.find((i) => i.codigo === alvoId)?.nome ?? alvoId : null,
         titulo: titulo.trim() || null,
         severidade,
         canais: [...canais],
@@ -106,6 +122,7 @@ export default function CondicoesTab() {
         toast.success('Alerta criado!');
         setTitulo('');
         setLimite('');
+        setAlvoId('');
         setRoles(new Set());
         setUserIds(new Set());
         setCanais(new Set(['in_app']));
@@ -152,7 +169,8 @@ export default function CondicoesTab() {
     const s = getSignal(c.signal_key);
     const op = OPERADORES[c.operador]?.simbolo ?? c.operador;
     const lim = c.limite != null ? `${op} ${c.limite}${s?.unidade ? ' ' + s.unidade : ''}` : '';
-    return `${s?.label ?? c.signal_key} ${lim}`.trim();
+    const alvo = c.alvo_label ? ` [${c.alvo_label}]` : '';
+    return `${s?.label ?? c.signal_key}${alvo} ${lim}`.trim();
   };
 
   const nomeUser = (id: string) => {
@@ -191,36 +209,59 @@ export default function CondicoesTab() {
               </select>
             </label>
 
-            <div className="grid grid-cols-2 gap-2">
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground">Condição</span>
-                <select
-                  className="w-full h-9 rounded-md border bg-background px-2 text-sm"
-                  value={operador}
-                  onChange={(e) => setOperador(e.target.value as Operador)}
-                >
-                  {(sig?.operadores ?? ['lt']).map((o) => (
-                    <option key={o} value={o}>
-                      {OPERADORES[o].simbolo} {OPERADORES[o].label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm space-y-1">
-                <span className="text-muted-foreground">
-                  Limite {sig?.unidade ? `(${sig.unidade})` : ''}
-                </span>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder={sig?.usaLimite ? 'ex: 5000' : 'automático'}
-                  value={limite}
-                  disabled={!sig?.usaLimite}
-                  onChange={(e) => setLimite(e.target.value.replace(',', '.'))}
-                />
-              </label>
-            </div>
+            {sig?.usaLimite ? (
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-sm space-y-1">
+                  <span className="text-muted-foreground">Condição</span>
+                  <select
+                    className="w-full h-9 rounded-md border bg-background px-2 text-sm"
+                    value={operador}
+                    onChange={(e) => setOperador(e.target.value as Operador)}
+                  >
+                    {(sig?.operadores ?? ['lt']).map((o) => (
+                      <option key={o} value={o}>
+                        {OPERADORES[o].simbolo} {OPERADORES[o].label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm space-y-1">
+                  <span className="text-muted-foreground">
+                    Limite {sig?.unidade ? `(${sig.unidade})` : ''}
+                  </span>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="ex: 5000"
+                    value={limite}
+                    onChange={(e) => setLimite(e.target.value.replace(',', '.'))}
+                  />
+                </label>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground flex items-end pb-2">
+                ⚡ Dispara automático quando a condição acontece.
+              </div>
+            )}
           </div>
+
+          {sig?.requerAlvo && (
+            <label className="text-sm space-y-1 block">
+              <span className="text-muted-foreground">{sig.requerAlvo.label}</span>
+              <select
+                className="w-full h-9 rounded-md border bg-background px-2 text-sm"
+                value={alvoId}
+                onChange={(e) => setAlvoId(e.target.value)}
+              >
+                <option value="">Selecione…</option>
+                {insumos.map((i) => (
+                  <option key={i.codigo} value={i.codigo}>
+                    {i.codigo} — {i.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           {sig && <p className="text-xs text-muted-foreground">{sig.descricao}</p>}
 

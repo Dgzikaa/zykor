@@ -51,15 +51,15 @@ export const ALERT_SIGNALS: AlertSignal[] = [
     categoria: 'estoque',
     unidade: 'un',
     operadores: ['lt'],
-    usaLimite: false, // usa o mínimo do cadastro
+    usaLimite: false, // usa o mínimo do cadastro (última contagem por insumo)
     severidadeSugerida: 'alerta',
     modo: 'cron',
-    implementado: false, // estoque: fonte complexa (contagem) — em breve
+    implementado: true,
   },
   {
     key: 'estoque_insumo',
     label: 'Estoque de UM insumo abaixo de X',
-    descricao: 'O estoque de um insumo específico cruza um limite que você define.',
+    descricao: 'O estoque (última contagem) de um insumo específico cruza um limite que você define.',
     categoria: 'estoque',
     unidade: 'un',
     operadores: ['lt', 'lte'],
@@ -67,7 +67,42 @@ export const ALERT_SIGNALS: AlertSignal[] = [
     requerAlvo: { tipo: 'insumo', label: 'Insumo' },
     severidadeSugerida: 'alerta',
     modo: 'cron',
-    implementado: false, // em breve
+    implementado: true,
+  },
+  {
+    key: 'stockout_dia',
+    label: 'Stockout do dia (%)',
+    descricao: 'O % de produtos em ruptura (sem estoque p/ vender) no último cálculo do dia cruza um limite.',
+    categoria: 'estoque',
+    unidade: '%',
+    operadores: ['gt', 'gte'],
+    usaLimite: true,
+    severidadeSugerida: 'alerta',
+    modo: 'cron',
+    implementado: true,
+  },
+  {
+    key: 'desvio_consumo',
+    label: 'Desvio de consumo (R$, últimos 7 dias)',
+    descricao: 'O total de desvio de consumo (real − teórico, só as perdas) dos últimos 7 dias cruza um limite.',
+    categoria: 'estoque',
+    unidade: 'R$',
+    operadores: ['gt', 'gte'],
+    usaLimite: true,
+    severidadeSugerida: 'alerta',
+    modo: 'cron',
+    implementado: true,
+  },
+  {
+    key: 'pipeline_parado',
+    label: 'Pipeline de dados parado',
+    descricao: 'Algum pipeline (sync/cron) está atrasado ou sem dados além do SLA. Dispara automático por pipeline.',
+    categoria: 'sistema',
+    operadores: ['gt'],
+    usaLimite: false, // condição embutida (atrasado / sem dados)
+    severidadeSugerida: 'critico',
+    modo: 'cron',
+    implementado: true,
   },
   {
     key: 'faturamento_dia',
