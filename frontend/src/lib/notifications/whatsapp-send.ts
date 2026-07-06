@@ -4,13 +4,15 @@
  * Chamado pelo dispatcher de notificações (canal 'whatsapp'). Best-effort: nunca lança.
  * Resolve auth_id → telefone (auth_custom.usuarios.telefone) e manda pela API da Umbler.
  *
- * ⚠️ Hoje envia TEXTO LIVRE (/messages/simplified/), que o WhatsApp Business só entrega
- * DENTRO da janela de 24h (após a pessoa ter mandado mensagem pro número). Pra alerta
- * business-initiated FORA da janela é preciso TEMPLATE aprovado
- * (/template-messages/simplified/, template `zykor_alerta`) — próximo passo.
+ * Envia via TEMPLATE aprovado (`zykor_alerta`) pelo endpoint
+ * /template-messages/simplified/ → business-initiated, entrega A QUALQUER HORA (não
+ * depende da janela de 24h, ninguém precisa mandar "oi" antes). Payload confirmado:
+ * { ToPhone, FromPhone, OrganizationId, TemplateId, Params: ["{{1}}","{{2}}"] }.
+ * O template tem 2 variáveis no corpo ({{1}}=título, {{2}}=detalhe) + botão ESTÁTICO
+ * "Abrir no Zykor" → https://zykor.com.br/alertas?source=whatsapp (sem variável).
  *
- * Config do canal "Zykor Notificações" (número dedicado): FROM/ORG por env com fallback
- * pros valores conhecidos; TOKEN só via env (segredo). Ver [[project_twilio_whatsapp_onboarding]].
+ * Config do canal "Zykor Notificações" (número dedicado): FROM/ORG/TEMPLATE por env com
+ * fallback pros valores conhecidos; TOKEN só via env (segredo). Ver [[project_twilio_whatsapp_onboarding]].
  */
 import { getAdminClient } from '@/lib/supabase-admin';
 
@@ -18,6 +20,15 @@ const UMBLER_BASE = 'https://app-utalk.umbler.com/api/v1';
 const UMBLER_FROM = process.env.UMBLER_NOTIF_FROM || '5561998584761';
 const UMBLER_ORG = process.env.UMBLER_NOTIF_ORG || 'aDjKophL8jEd_D8m';
 const UMBLER_TOKEN = process.env.UMBLER_API_TOKEN || '';
+const UMBLER_TEMPLATE = process.env.UMBLER_NOTIF_TEMPLATE_ID || 'akvdZtIp0v4fiRGQ'; // zykor_alerta
+
+/**
+ * Sanitiza um parâmetro de template: a Meta rejeita quebras de linha / tabs / >4 espaços
+ * seguidos em variável. Colapsa espaços em branco e limita o tamanho.
+ */
+function sanitizeParam(s: string): string {
+  return (s || '').replace(/\s+/g, ' ').trim().slice(0, 1000);
+}
 
 export interface WhatsAppPayload {
   titulo: string;
@@ -47,7 +58,7 @@ export async function enviarWhatsAppParaUsuarios(
   usuarioIds: string[],
   payload: WhatsAppPayload
 ): Promise<WhatsAppResult> {
-  if (!UMBLER_TOKEN || !UMBLER_FROM || !UMBLER_ORG || usuarioIds.length === 0) {
+  if (!UMBLER_TOKEN || !UMBLER_FROM || !UMBLER_ORG || !UMBLER_TEMPLATE || usuarioIds.length === 0) {
     return { enviados: 0, semTelefone: usuarioIds.length, falhas: 0 };
   }
 
@@ -63,14 +74,9 @@ export async function enviarWhatsAppParaUsuarios(
     return { enviados: 0, semTelefone: usuarioIds.length, falhas: 0 };
   }
 
-  const destino = payload.url
-    ? payload.url.startsWith('http')
-      ? payload.url
-      : `https://zykor.com.br${payload.url}`
-    : null;
-  const texto =
-    `🟣 *Zykor* — ${payload.titulo}\n\n${payload.mensagem}` +
-    (destino ? `\n\n${destino}` : '');
+  // Template `zykor_alerta`: {{1}}=título, {{2}}=detalhe. O botão é estático
+  // (sempre /alertas?source=whatsapp), então payload.url não vai no WhatsApp.
+  const params = [sanitizeParam(payload.titulo), sanitizeParam(payload.mensagem)];
 
   let enviados = 0;
   let semTelefone = 0;
@@ -84,7 +90,7 @@ export async function enviarWhatsAppParaUsuarios(
         return;
       }
       try {
-        const res = await fetch(`${UMBLER_BASE}/messages/simplified/`, {
+        const res = await fetch(`${UMBLER_BASE}/template-messages/simplified/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -94,7 +100,8 @@ export async function enviarWhatsAppParaUsuarios(
             ToPhone: tel,
             FromPhone: UMBLER_FROM,
             OrganizationId: UMBLER_ORG,
-            Message: texto,
+            TemplateId: UMBLER_TEMPLATE,
+            Params: params,
           }),
         });
         if (res.ok) enviados++;
