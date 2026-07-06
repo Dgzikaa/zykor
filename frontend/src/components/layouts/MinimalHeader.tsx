@@ -25,6 +25,7 @@ import {
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { ContaAzulSyncButton } from '@/components/ContaAzulSyncButton';
 import { BarLogo } from '@/components/BarLogo';
+import { useMobileMenu } from '@/contexts/MobileMenuContext';
 
 const routeMapping: Record<string, { name: string }> = {
   '/home': { name: 'Home' },
@@ -96,6 +97,7 @@ export function MinimalHeader() {
   const { user } = useUser();
   const { theme, setTheme } = useTheme();
   const { pageTitle } = usePageTitle();
+  const { toggle: toggleMobileMenu } = useMobileMenu();
   const [showBarDropdown, setShowBarDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const barDropdownRef = useRef<HTMLDivElement>(null);
@@ -130,10 +132,11 @@ export function MinimalHeader() {
     <header className="h-16 bg-[hsl(var(--background))] flex items-center justify-between px-3 sm:px-6 gap-2 sm:gap-4 border-b border-[hsl(var(--border))]">
       {/* Left: Menu Toggle + Search + Page Title */}
       <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
-        {/* Menu Toggle Button */}
+        {/* Menu Toggle Button — abre o mesmo drawer da BottomNavigation (só no mobile) */}
         <button
-          className="lg:hidden p-2 rounded-md hover:bg-[hsl(var(--muted))] transition-colors shrink-0"
-          aria-label="Toggle menu"
+          onClick={toggleMobileMenu}
+          className="md:hidden p-2 rounded-md hover:bg-[hsl(var(--muted))] transition-colors shrink-0"
+          aria-label="Abrir menu"
         >
           <Menu className="w-5 h-5" />
         </button>

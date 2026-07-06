@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useBadges } from '@/contexts/BadgesContext';
+import { useMobileMenu } from '@/contexts/MobileMenuContext';
 import {
   Home,
   BarChart3,
@@ -127,10 +128,11 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
         tabIndex={0}
       />
 
-      {/* Menu content */}
-      <div className="fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-white dark:bg-gray-900 z-50 md:hidden transform transition-transform duration-300 ease-in-out overflow-y-auto">
+      {/* Menu content — flex column: header fixo + meio rolável + footer fixo (evita o footer
+          "Online/v2.0" sobrepor os itens quando o menu é alto) */}
+      <div className="fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-white dark:bg-gray-900 z-50 md:hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="shrink-0 flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
               <span className="text-white font-bold text-sm">S</span>
@@ -147,8 +149,8 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
           </button>
         </div>
 
-        {/* Menu items - estrutura completa */}
-        <div className="p-4 space-y-2 pb-20">
+        {/* Menu items - estrutura completa (área rolável) */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {/* Home */}
           <Link
             href="/home"
@@ -224,8 +226,8 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
           })}
         </div>
 
-        {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        {/* Footer (fixo no rodapé do drawer) */}
+        <div className="shrink-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <div className="w-2 h-2 rounded-full bg-green-500"></div>
@@ -244,7 +246,7 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
 }
 
 export function BottomNavigation() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { isOpen: isMenuOpen, open: openMenu, close: closeMenu } = useMobileMenu();
   const pathname = usePathname();
   const { badges } = useBadges();
 
@@ -308,7 +310,7 @@ export function BottomNavigation() {
                 return (
                   <button
                     key="menu"
-                    onClick={() => setIsMenuOpen(true)}
+                    onClick={openMenu}
                     className="relative flex flex-col items-center justify-center p-2 rounded-xl transition-all duration-200 min-w-[60px] touch-manipulation hover:bg-gray-50 dark:hover:bg-gray-800"
                   >
                     <div className="relative">
@@ -364,7 +366,7 @@ export function BottomNavigation() {
       {/* Mobile Hamburger Menu */}
       <MobileHamburgerMenu
         isOpen={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
+        onClose={closeMenu}
       />
 
       {/* Bottom padding para compensar fixed bottom nav - apenas no mobile */}

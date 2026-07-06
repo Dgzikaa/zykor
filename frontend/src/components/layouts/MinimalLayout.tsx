@@ -6,6 +6,7 @@ import { MinimalSidebar } from './MinimalSidebar';
 import { BottomNavigation } from './BottomNavigation';
 import AuthGuard from '@/components/auth/AuthGuard';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { MobileMenuProvider } from '@/contexts/MobileMenuContext';
 
 interface MinimalLayoutProps {
   children: ReactNode;
@@ -51,20 +52,22 @@ export function MinimalLayout({ children }: MinimalLayoutProps) {
   return (
     <AuthGuard>
       <ErrorBoundary>
-        <div className="flex min-h-screen bg-[hsl(var(--muted))]">
-          <MinimalSidebar />
-          <div className="flex-1 flex flex-col overflow-hidden p-2">
-            <div className="flex-1 flex flex-col overflow-hidden bg-[hsl(var(--background))] rounded-lg shadow-sm border border-[hsl(var(--border))]">
-              <MinimalHeader />
-              <main className="flex-1 overflow-y-auto">
-                <ErrorBoundary>
-                  {children}
-                </ErrorBoundary>
-              </main>
+        <MobileMenuProvider>
+          <div className="flex min-h-screen bg-[hsl(var(--muted))]">
+            <MinimalSidebar />
+            <div className="flex-1 flex flex-col overflow-hidden p-2">
+              <div className="flex-1 flex flex-col overflow-hidden bg-[hsl(var(--background))] rounded-lg shadow-sm border border-[hsl(var(--border))]">
+                <MinimalHeader />
+                <main className="flex-1 overflow-y-auto">
+                  <ErrorBoundary>
+                    {children}
+                  </ErrorBoundary>
+                </main>
+              </div>
             </div>
+            <BottomNavigation />
           </div>
-          <BottomNavigation />
-        </div>
+        </MobileMenuProvider>
       </ErrorBoundary>
     </AuthGuard>
   );
