@@ -11,7 +11,6 @@ import {
 } from '@/hooks/useNotifications';
 import { CATEGORIAS, type CategoriaEvento } from '@/lib/notifications/catalog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -56,12 +55,12 @@ export function NotificationCenter() {
         >
           <Bell className="h-4 w-4" />
           {naoLidas > 0 && (
-            <Badge
-              variant="default"
-              className="absolute -top-2 -right-2 h-5 min-w-5 px-1 flex items-center justify-center p-0 text-xs bg-blue-500"
+            <span
+              className="absolute -top-1.5 -right-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold leading-none text-white ring-2 ring-white dark:ring-gray-900 tabular-nums"
+              aria-label={`${naoLidas} não lidas`}
             >
               {naoLidas > 99 ? '99+' : naoLidas}
-            </Badge>
+            </span>
           )}
         </Button>
       </PopoverTrigger>
