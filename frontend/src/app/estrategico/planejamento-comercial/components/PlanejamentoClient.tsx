@@ -1682,7 +1682,13 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                         </div>
                       </div>
                     )}
-                    <CalculadoraDistribuicao barId={selectedBar?.id} />
+                    <CalculadoraDistribuicao
+                      barId={selectedBar?.id}
+                      ano={filtroAno}
+                      mes={filtroMes}
+                      mesLabel={`${meses.find(m => m.value === filtroMes)?.label || ''} ${filtroAno}`}
+                      onAplicado={() => router.refresh()}
+                    />
                   </div>
                 </Card>
               </div>

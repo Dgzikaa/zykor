@@ -14,9 +14,9 @@
  *   M1[dia]              = peso[dia] × conversão
  *   M2[dia]/M3[dia]      = M1[dia] × Target M2% / M3%
  *
- * NÃO grava nada no banco (só simulação). Config persiste em localStorage por bar.
- * O histórico das últimas 8 semanas (faturamento real por dia da semana) fica só
- * como referência ao lado — o preenchimento dos pesos é manual.
+ * Config persiste em localStorage por bar. O histórico das últimas 8 semanas
+ * (faturamento real por dia da semana) fica como referência — pesos são manuais.
+ * O botão "Aplicar" grava o M1 de cada dia da semana na Meta M1 do mês (eventos_base).
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Calculator, ArrowDownToLine } from 'lucide-react';
+import { Calculator, ArrowDownToLine, Check, Loader2, AlertTriangle } from 'lucide-react';
 
 const DIAS = [
   { dow: 1, key: 'seg', label: 'Seg' },
@@ -42,7 +42,7 @@ interface CalcCfg {
   m2: string; // % (ex.: "120")
   m3: string; // % (ex.: "140")
   diasVenda: string;
-  pesos: Record<number, string>; // dow -> R$ (texto)
+  pesos: Record<number, string>; // dow -> R$ (texto mascarado)
 }
 
 interface HistDia { dow: number; dia: string; dias_com_venda: number; media_real: number; media_m1: number; }
@@ -55,9 +55,9 @@ const cfgDefault = (): CalcCfg => ({
   pesos: { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
 });
 
-const storeKey = (barId?: number) => `zykor:calc-dist:v1:bar:${barId ?? 'na'}`;
+const storeKey = (barId?: number) => `zykor:calc-dist:v2:bar:${barId ?? 'na'}`;
 
-// aceita "12.000,00" | "12000,5" | "12000" | "120" → número
+// aceita "R$ 12.000,00" | "12000,5" | "12000" | "120" → número
 function parseNum(s: string): number {
   if (!s) return 0;
   let t = String(s).trim().replace(/[^0-9.,-]/g, '');
@@ -66,14 +66,30 @@ function parseNum(s: string): number {
   const n = parseFloat(t);
   return isNaN(n) ? 0 : n;
 }
+// máscara de moeda: dígitos → centavos → "R$ 12.000,00" (formata enquanto digita)
+function maskMoeda(raw: string): string {
+  const digits = String(raw).replace(/\D/g, '');
+  if (!digits) return '';
+  const cents = parseInt(digits, 10);
+  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 const fmt = (n: number, dec = 0) =>
   (isFinite(n) ? n : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: dec, maximumFractionDigits: dec });
 const fmtPct = (n: number) => `${(isFinite(n) ? n : 0).toFixed(1)}%`;
 
-export function CalculadoraDistribuicao({ barId }: { barId?: number }) {
+export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado }: {
+  barId?: number;
+  ano: number;
+  mes: number;
+  mesLabel: string;
+  onAplicado?: () => void;
+}) {
   const [cfg, setCfg] = useState<CalcCfg>(cfgDefault);
   const [hist, setHist] = useState<HistDia[]>([]);
   const [open, setOpen] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
+  const [aplicando, setAplicando] = useState(false);
+  const [resultado, setResultado] = useState<string | null>(null);
 
   // carrega config persistida por bar
   useEffect(() => {
@@ -102,7 +118,7 @@ export function CalculadoraDistribuicao({ barId }: { barId?: number }) {
   const preencherComHistorico = () => {
     setCfg((p) => ({
       ...p,
-      pesos: DIAS.reduce((acc, d) => { acc[d.dow] = String(histDe(d.dow)?.media_real || 0); return acc; }, {} as Record<number, string>),
+      pesos: DIAS.reduce((acc, d) => { acc[d.dow] = histDe(d.dow)?.media_real ? fmt(histDe(d.dow)!.media_real, 2) : ''; return acc; }, {} as Record<number, string>),
     }));
   };
 
@@ -128,6 +144,32 @@ export function CalculadoraDistribuicao({ barId }: { barId?: number }) {
     };
   }, [cfg]);
 
+  const aplicar = async () => {
+    if (!barId || !calc.temDados) return;
+    setAplicando(true);
+    setResultado(null);
+    try {
+      const m1PorDow: Record<number, number> = {};
+      calc.linhas.forEach((l) => { m1PorDow[l.dow] = Math.round(l.m1 * 100) / 100; });
+      const r: any = await apiCall('/api/eventos/aplicar-m1-distribuicao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
+        body: JSON.stringify({ ano, mes, m1PorDow }),
+      });
+      if (r?.success) {
+        setResultado(`✅ Meta M1 aplicada em ${r.updated} dia(s) de ${mesLabel}.`);
+        setConfirmando(false);
+        onAplicado?.();
+      } else {
+        setResultado(`❌ ${r?.error || 'Falha ao aplicar.'}`);
+      }
+    } catch (e: any) {
+      setResultado(`❌ ${e?.message || 'Falha ao aplicar.'}`);
+    } finally {
+      setAplicando(false);
+    }
+  };
+
   return (
     <div className="pt-4 border-t border-[hsl(var(--border))]">
       <h3 className="font-semibold text-[hsl(var(--foreground))] flex items-center gap-2 mb-3">
@@ -141,12 +183,13 @@ export function CalculadoraDistribuicao({ barId }: { barId?: number }) {
         <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Conversão:</span><span className="font-medium text-[hsl(var(--foreground))]">{calc.temDados ? fmtPct(calc.conversao * 100) : '—'}</span></div>
       </div>
 
+      {/* M1 por dia — uma linha por dia */}
       {calc.temDados && (
-        <div className="mt-2 grid grid-cols-7 gap-0.5 text-center">
+        <div className="mt-2 space-y-0.5">
           {calc.linhas.map((l) => (
-            <div key={l.dow} className="rounded bg-[hsl(var(--muted))] px-0.5 py-1">
-              <div className="text-[9px] text-[hsl(var(--muted-foreground))] uppercase">{l.label}</div>
-              <div className="text-[9px] font-semibold text-[hsl(var(--foreground))] leading-tight">{l.m1 > 0 ? fmt(l.m1).replace('R$ ', '') : '—'}</div>
+            <div key={l.dow} className="flex justify-between items-center text-xs rounded bg-[hsl(var(--muted))] px-2 py-1">
+              <span className="text-[hsl(var(--muted-foreground))] uppercase">{l.label}</span>
+              <span className="font-semibold text-[hsl(var(--foreground))]">{l.m1 > 0 ? fmt(l.m1) : '—'}</span>
             </div>
           ))}
         </div>
@@ -156,22 +199,22 @@ export function CalculadoraDistribuicao({ barId }: { barId?: number }) {
         {calc.temDados ? 'Editar calculadora' : 'Abrir calculadora'}
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setConfirmando(false); setResultado(null); } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Calculator className="h-5 w-5" /> Calculadora de Distribuição de Metas</DialogTitle>
-            <DialogDescription>Distribui a meta mensal pelos dias da semana pelo peso de cada dia. Não grava nada — só simulação (salva no seu navegador).</DialogDescription>
+            <DialogDescription>Distribui a meta mensal pelos dias da semana pelo peso de cada dia. Salva no seu navegador; use &ldquo;Aplicar&rdquo; para gravar a Meta M1 no mês.</DialogDescription>
           </DialogHeader>
 
           {/* Parâmetros */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div><Label className="text-xs">Target M1 (mês)</Label><Input inputMode="decimal" value={cfg.targetM1} placeholder="1.500.000" onChange={(e) => setCfg((p) => ({ ...p, targetM1: e.target.value }))} /></div>
-            <div><Label className="text-xs">Dias de Venda</Label><Input inputMode="decimal" value={cfg.diasVenda} onChange={(e) => setCfg((p) => ({ ...p, diasVenda: e.target.value }))} /></div>
+            <div><Label className="text-xs">Target M1 (mês)</Label><Input inputMode="decimal" value={cfg.targetM1} placeholder="R$ 0,00" onChange={(e) => setCfg((p) => ({ ...p, targetM1: maskMoeda(e.target.value) }))} /></div>
+            <div><Label className="text-xs">Dias de Venda</Label><Input inputMode="numeric" value={cfg.diasVenda} onChange={(e) => setCfg((p) => ({ ...p, diasVenda: e.target.value.replace(/\D/g, '') }))} /></div>
             <div><Label className="text-xs">Target M2 (%)</Label><Input inputMode="decimal" value={cfg.m2} onChange={(e) => setCfg((p) => ({ ...p, m2: e.target.value }))} /></div>
             <div><Label className="text-xs">Target M3 (%)</Label><Input inputMode="decimal" value={cfg.m3} onChange={(e) => setCfg((p) => ({ ...p, m3: e.target.value }))} /></div>
           </div>
 
-          {/* Pesos manuais por dia + hint do histórico */}
+          {/* Pesos manuais por dia (uma linha por dia) + hint do histórico */}
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
               <Label className="text-xs font-semibold">Peso por dia da semana (R$)</Label>
@@ -179,16 +222,24 @@ export function CalculadoraDistribuicao({ barId }: { barId?: number }) {
                 Preencher com média real (8 sem)
               </Button>
             </div>
-            <div className="grid grid-cols-7 gap-1.5">
-              {DIAS.map((d) => (
-                <div key={d.dow}>
-                  <div className="text-[10px] text-center text-[hsl(var(--muted-foreground))] uppercase mb-0.5">{d.label}</div>
-                  <Input inputMode="decimal" className="text-center text-xs px-1 h-8" value={cfg.pesos[d.dow] || ''} onChange={(e) => setPeso(d.dow, e.target.value)} />
-                  <div className="text-[9px] text-center text-[hsl(var(--muted-foreground))] mt-0.5" title="Média real das últimas 8 semanas">
-                    {histDe(d.dow)?.media_real ? fmt(histDe(d.dow)!.media_real) : '—'}
+            <div className="space-y-1.5">
+              {DIAS.map((d) => {
+                const h = histDe(d.dow);
+                return (
+                  <div key={d.dow} className="flex items-center gap-3">
+                    <span className="w-10 text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase shrink-0">{d.label}</span>
+                    <Input inputMode="decimal" className="flex-1 h-9" placeholder="R$ 0,00" value={cfg.pesos[d.dow] || ''} onChange={(e) => setPeso(d.dow, maskMoeda(e.target.value))} />
+                    <button
+                      type="button"
+                      onClick={() => h?.media_real && setPeso(d.dow, fmt(h.media_real, 2))}
+                      title="Usar a média real das últimas 8 semanas"
+                      className="w-32 shrink-0 text-right text-[11px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:underline"
+                    >
+                      {h?.media_real ? `8 sem: ${fmt(h.media_real)}` : '—'}
+                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -237,30 +288,38 @@ export function CalculadoraDistribuicao({ barId }: { barId?: number }) {
           {/* Histórico 8 semanas (referência) */}
           <div className="mt-4 rounded-lg border border-[hsl(var(--border))] p-3">
             <div className="text-xs font-semibold text-[hsl(var(--foreground))] mb-2">Referência — últimas 8 semanas (faturamento real por dia da semana)</div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-[11px] border-collapse">
-                <thead>
-                  <tr className="text-[hsl(var(--muted-foreground))]">
-                    <th className="text-left py-1 px-1"></th>
-                    {DIAS.map((d) => <th key={d.dow} className="text-right py-1 px-1 uppercase">{d.label}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-t border-[hsl(var(--border))]">
-                    <td className="py-1 px-1 text-[hsl(var(--muted-foreground))]">Média real</td>
-                    {DIAS.map((d) => <td key={d.dow} className="text-right py-1 px-1 font-medium">{histDe(d.dow)?.media_real ? fmt(histDe(d.dow)!.media_real) : '—'}</td>)}
-                  </tr>
-                  <tr className="border-t border-[hsl(var(--border))]/50">
-                    <td className="py-1 px-1 text-[hsl(var(--muted-foreground))]">Média M1 plan.</td>
-                    {DIAS.map((d) => <td key={d.dow} className="text-right py-1 px-1 text-[hsl(var(--muted-foreground))]">{histDe(d.dow)?.media_m1 ? fmt(histDe(d.dow)!.media_m1) : '—'}</td>)}
-                  </tr>
-                </tbody>
-              </table>
+            <div className="space-y-1">
+              {DIAS.map((d) => {
+                const h = histDe(d.dow);
+                return (
+                  <div key={d.dow} className="flex justify-between items-center text-[11px]">
+                    <span className="w-10 uppercase text-[hsl(var(--muted-foreground))]">{d.label}</span>
+                    <span className="font-medium text-[hsl(var(--foreground))]">{h?.media_real ? fmt(h.media_real) : '—'}</span>
+                    <span className="text-[hsl(var(--muted-foreground))]">M1 plan.: {h?.media_m1 ? fmt(h.media_m1) : '—'}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            {resultado && <span className="text-xs mr-auto self-center">{resultado}</span>}
+            {confirmando ? (
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> Sobrescrever Meta M1 de {mesLabel}?</span>
+                <Button size="sm" variant="outline" onClick={() => setConfirmando(false)} disabled={aplicando}>Cancelar</Button>
+                <Button size="sm" onClick={aplicar} disabled={aplicando} leftIcon={aplicando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}>
+                  Confirmar
+                </Button>
+              </div>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button>
+                <Button onClick={() => { setResultado(null); setConfirmando(true); }} disabled={!calc.temDados} leftIcon={<Check className="h-4 w-4" />}>
+                  Aplicar ao Planejamento ({mesLabel})
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
