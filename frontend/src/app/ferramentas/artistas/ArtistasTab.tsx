@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Music, DollarSign, Users, TrendingUp, TrendingDown, Minus, Gauge, ArrowUp, ArrowDown, Sparkles } from 'lucide-react';
+import { NpsArtistaDetalhe } from '@/components/nps/NpsCasa';
 
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const num = (v: number) => Math.round(v || 0).toLocaleString('pt-BR');
@@ -28,6 +29,9 @@ export default function ArtistasTab({ barId, periodo }: { barId?: number; period
   const [data, setData] = useState<any[] | null>(null);
   const [stats, setStats] = useState<any>(null);
   const [sort, setSort] = useState<Sort>('lift_fat');
+  const [npsSel, setNpsSel] = useState<{ id: number; nome: string } | null>(null);
+  const ateStr = new Date().toISOString().slice(0, 10);
+  const deStr = (() => { const d = new Date(); d.setMonth(d.getMonth() - periodo); return d.toISOString().slice(0, 10); })();
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -113,7 +117,7 @@ export default function ArtistasTab({ barId, periodo }: { barId?: number; period
                         <td className="px-3 py-2 text-right tabular-nums">{num(a.publico_medio)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">
                           {a.nps_score == null ? <span className="text-gray-400">—</span>
-                            : <span className={`font-medium ${npsCor(a.nps_score)}`}>{a.nps_score > 0 ? '+' : ''}{a.nps_score}<span className="text-[10px] text-gray-400 ml-0.5">({a.nps_respostas})</span></span>}
+                            : <button onClick={() => a.artista_id && setNpsSel({ id: a.artista_id, nome: a.nome })} title="Ver dimensões e respostas" className={`font-medium hover:underline ${npsCor(a.nps_score)}`}>{a.nps_score > 0 ? '+' : ''}{a.nps_score}<span className="text-[10px] text-gray-400 ml-0.5">({a.nps_respostas})</span></button>}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">
                           {a.pct_fideliza == null ? <span className="text-gray-400">—</span>
@@ -141,6 +145,10 @@ export default function ArtistasTab({ barId, periodo }: { barId?: number; period
               )}
         </CardContent>
       </Card>
+
+      {/* Detalhe de NPS do artista selecionado (clique no NPS) — dimensões + respostas */}
+      {npsSel && <NpsArtistaDetalhe barId={barId} artistaId={npsSel.id} nome={npsSel.nome} de={deStr} ate={ateStr} dow="" onClose={() => setNpsSel(null)} />}
+
       <p className="text-[11px] text-gray-400">Valores do <b>período selecionado</b> ({periodo} meses) e só de noites com faturamento &gt; R$1.000 — por isso o &quot;cachê pago&quot; aqui difere do <b>total histórico</b> na página do artista. Cachê exato do Conta Azul por artista (mesmo critério da trajetória, sem rateio). Consumação de cortesia fora deste cálculo.</p>
     </div>
   );

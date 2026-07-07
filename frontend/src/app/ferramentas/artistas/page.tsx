@@ -7,12 +7,17 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Award } from 'lucide-react';
 import ArtistasTab from './ArtistasTab';
 import LabelsTab from './LabelsTab';
+import { NpsRetornoCard, NpsLotacaoCard, NpsTemasCard } from '@/components/nps/NpsCasa';
 
 export default function FerramentasArtistasPage() {
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
   const [periodo, setPeriodo] = useState(12);
   const [aba, setAba] = useState('artistas');
+
+  // período em meses → intervalo de datas p/ os cards de NPS da casa (mesma janela do ranking)
+  const ateStr = new Date().toISOString().slice(0, 10);
+  const deStr = (() => { const d = new Date(); d.setMonth(d.getMonth() - periodo); return d.toISOString().slice(0, 10); })();
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -36,6 +41,17 @@ export default function FerramentasArtistasPage() {
             <Link href="/analitico/atracoes" className="text-sm rounded-md border border-gray-300 dark:border-gray-600 px-3 h-8 inline-flex items-center text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">Visão do artista →</Link>
           </div>
         </div>
+
+        {/* Painel de NPS da casa (interno) — retorno, lotação e motivos citados */}
+        {barId && (
+          <div className="space-y-3">
+            <NpsRetornoCard barId={barId} de={deStr} ate={ateStr} dow="" />
+            <div className="grid lg:grid-cols-2 gap-3 items-start">
+              <NpsLotacaoCard barId={barId} de={deStr} ate={ateStr} dow="" />
+              <NpsTemasCard barId={barId} de={deStr} ate={ateStr} dow="" />
+            </div>
+          </div>
+        )}
 
         <Tabs value={aba} onValueChange={setAba}>
           <TabsList className="dark:bg-gray-800">
