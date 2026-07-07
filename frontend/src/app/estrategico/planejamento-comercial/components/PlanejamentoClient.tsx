@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import CustoComposicaoModal, { ComposicaoAlvo } from './CustoComposicaoModal';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import './sticky-columns.css';
 import {
@@ -303,7 +304,11 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
   };
   
   const [modalOpen, setModalOpen] = useState(false);
-  const [modoEdicao, setModoEdicao] = useState(false); 
+  // modal de composição de custo (debug: de onde vem c_art / c_prod / consumação do dia)
+  const [composicaoAlvo, setComposicaoAlvo] = useState<ComposicaoAlvo | null>(null);
+  const abrirComposicao = (tipo: 'art' | 'prod' | 'consumacao', ev: PlanejamentoData) =>
+    setComposicaoAlvo({ tipo, data: ev.data_evento, nome: ev.evento_nome || '' });
+  const [modoEdicao, setModoEdicao] = useState(false);
   const [eventoSelecionado, setEventoSelecionado] = useState<PlanejamentoData | null>(null);
   const [eventoEdicao, setEventoEdicao] = useState<EventoEdicaoCompleta | null>(null);
   // cadastro de artistas do bar (operations.bar_artistas) para o combobox do modal
@@ -1345,7 +1350,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                   }}
                                   className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_art' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_art > 0 ? (
-                                    <span className={evento.c_art_is_projecao ? 'text-amber-600 dark:text-amber-400' : ''} title={evento.c_art_is_projecao ? 'Projeção (manual via modal ou média 4 semanas) — o real do Conta Azul substitui quando chega' : undefined}>{evento.c_art_is_projecao ? '⚠️ ' : ''}{formatarMoeda(evento.c_art)}</span>
+                                    <span onClick={(e) => { e.stopPropagation(); abrirComposicao('art', evento); }} className={`cursor-pointer underline decoration-dotted decoration-gray-400 underline-offset-2 hover:decoration-blue-500 ${evento.c_art_is_projecao ? 'text-amber-600 dark:text-amber-400' : ''}`} title="Ver o que compõe este valor">{evento.c_art_is_projecao ? '⚠️ ' : ''}{formatarMoeda(evento.c_art)}</span>
                                   ) : '-'}</td>
 
                                 {/* Custo Produção (computa pros 2 bares; Deboche fica 0 até ter lançamento) */}
@@ -1357,7 +1362,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                   }}
                                   className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_prod' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_prod > 0 ? (
-                                    <span className={evento.c_prod_is_projecao ? 'text-amber-600 dark:text-amber-400' : ''} title={evento.c_prod_is_projecao ? 'Projeção pré-lançada (média 4 semanas) — substitui pelo real do Conta Azul' : undefined}>{evento.c_prod_is_projecao ? '⚠️ ' : ''}{formatarMoeda(evento.c_prod)}</span>
+                                    <span onClick={(e) => { e.stopPropagation(); abrirComposicao('prod', evento); }} className={`cursor-pointer underline decoration-dotted decoration-gray-400 underline-offset-2 hover:decoration-blue-500 ${evento.c_prod_is_projecao ? 'text-amber-600 dark:text-amber-400' : ''}`} title="Ver o que compõe este valor">{evento.c_prod_is_projecao ? '⚠️ ' : ''}{formatarMoeda(evento.c_prod)}</span>
                                   ) : '-'}</td>
 
                                 {/* $ Couvert */}
@@ -1413,7 +1418,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                   className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))]"
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}
                                   title="Consumação Artistas (ContaHub: descontos com motivo 'Artistas')">
-                                  {(evento.consumacao || 0) > 0 ? formatarMoeda(evento.consumacao || 0) : '-'}
+                                  {(evento.consumacao || 0) > 0 ? (
+                                    <span onClick={(e) => { e.stopPropagation(); abrirComposicao('consumacao', evento); }} className="cursor-pointer underline decoration-dotted decoration-gray-400 underline-offset-2 hover:decoration-blue-500" title="Ver o que compõe este valor">{formatarMoeda(evento.consumacao || 0)}</span>
+                                  ) : '-'}
                                 </td>
                               </>
                             ) : (
@@ -1708,6 +1715,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
           </div>
         )}
       </div>
+
+      {/* Modal de composição de custo (debug) */}
+      <CustoComposicaoModal alvo={composicaoAlvo} barId={selectedBar?.id} onClose={() => setComposicaoAlvo(null)} />
 
       {/* Modal de Edição/Visualização */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
