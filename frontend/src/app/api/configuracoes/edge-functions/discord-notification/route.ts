@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     // Criar cliente Supabase dentro da função para evitar erro no build
     const supabaseAdmin = createClient(

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -244,6 +245,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { date, hour = '20:00:00', bar_id } = body;

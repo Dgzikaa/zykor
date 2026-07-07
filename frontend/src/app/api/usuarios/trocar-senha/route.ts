@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { getUserAuth } from '@/lib/auth-helper';
+import { authenticateUser } from '@/middleware/auth';
 
 // Força runtime dinâmico para evitar erro de static generation
 export const dynamic = 'force-dynamic';
 
 export async function PUT(request: NextRequest) {
+  await authenticateUser(request);
   try {
     // Obter dados do usuário autenticado
     const user = await getUserAuth(request);

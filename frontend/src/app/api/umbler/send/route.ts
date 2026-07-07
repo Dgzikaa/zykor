@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 const supabase = createServiceRoleClient();
 
@@ -10,6 +11,7 @@ const supabase = createServiceRoleClient();
  * Time dispara campanhas em massa direto pelo portal da Umbler.
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { bar_id, mode, to_phone, message } = body;

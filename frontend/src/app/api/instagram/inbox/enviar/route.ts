@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 /**
  * POST /api/instagram/inbox/enviar
@@ -12,6 +13,7 @@ import { getAdminClient } from '@/lib/supabase-admin';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  await authenticateUser(req);
   try {
     const body = await req.json().catch(() => ({}));
     const barId = Number(body?.bar_id);

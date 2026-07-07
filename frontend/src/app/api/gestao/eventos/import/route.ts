@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -379,6 +380,7 @@ function parseEventos(
 }
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     // Inicializar cliente Supabase
     const supabase = await getSupabaseClient();

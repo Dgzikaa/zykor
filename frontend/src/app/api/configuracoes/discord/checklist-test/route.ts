@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import DiscordChecklistService from '@/lib/discord-checklist-service';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +43,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  await authenticateUser(req);
   try {
     const { type } = await req.json();
 

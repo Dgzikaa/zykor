@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser } from '@/middleware/auth';
 
 /**
  * POST /api/cmv-semanal/sync-sheets
@@ -8,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * Body: { bar_id: number, semana?: number, ano?: number } 
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const barId = body.bar_id;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -10,6 +11,7 @@ export const maxDuration = 60;
  * etl_gold e superset — ver migration 20260602_gold_atracao_from_eventos).
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { bar_id, ano, semana, numero_semana } = body;

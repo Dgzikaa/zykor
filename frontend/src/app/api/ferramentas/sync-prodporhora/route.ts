@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser } from '@/middleware/auth';
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { data_inicial, data_final, bar_id } = await request.json();
 

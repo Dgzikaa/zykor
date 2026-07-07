@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  await authenticateUser(req);
   try {
     const body = await req.json().catch(() => ({}));
     const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/relatorio-executivo`, {

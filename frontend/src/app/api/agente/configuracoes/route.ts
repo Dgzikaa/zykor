@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase-server'
 import { cookies } from 'next/headers'
+import { authenticateUser } from '@/middleware/auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const supabase = createServerClient()
     
@@ -92,6 +94,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const supabase = createServerClient()
     

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 const supabase = createServiceRoleClient();
 
@@ -21,6 +22,7 @@ interface HistoricoMesmoDia {
 }
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { data, bar_id } = body;

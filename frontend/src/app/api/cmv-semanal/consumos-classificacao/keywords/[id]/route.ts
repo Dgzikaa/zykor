@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 const supabase = createServiceRoleClient();
 
@@ -7,6 +8,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  await authenticateUser(request);
   try {
     const { id } = await params;
     const body = await request.json();
@@ -39,6 +41,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  await authenticateUser(request);
   try {
     const { id } = await params;
     const { error } = await supabase

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser } from '@/middleware/auth';
 
 /**
  * POST /api/contaazul/sync
  * Sincroniza dados do Conta Azul
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json().catch(() => ({}));
     const barId = body.bar_id || 3;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { UTC_OFFSET_STRING_COMPACT, toBRTISOCompact } from '@/lib/timezone'
+import { authenticateUser } from '@/middleware/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,10 +9,11 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request)
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const body = await request.json()
-    
+
     const { dates, data_type = 'analitico', bar_id } = body
 
     if (!bar_id) {

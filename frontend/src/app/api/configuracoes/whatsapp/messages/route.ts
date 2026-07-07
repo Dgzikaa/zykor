@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 import { z } from 'zod';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -235,6 +236,7 @@ export async function GET(request: NextRequest) {
 // 📱 POST /api/configuracoes/whatsapp/messages
 // ========================================
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const supabase = await getSupabaseClient();
 

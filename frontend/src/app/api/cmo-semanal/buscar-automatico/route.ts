@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,7 @@ export const dynamic = 'force-dynamic';
  * fazia POST num 404 e caía no toast de erro.
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { bar_id, data_inicio, data_fim } = await request.json();
     if (!bar_id || !data_inicio || !data_fim) {

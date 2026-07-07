@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,11 +68,13 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   return GET(request);
 }
 
 // Endpoint público para teste manual (sem autenticação)
 export async function PUT(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 

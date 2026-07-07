@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseFunctionUrl } from '@/lib/supabase-functions-url';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutos
@@ -11,6 +12,7 @@ export const maxDuration = 300; // 5 minutos
  */
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json().catch(() => ({}));
     const { cronSecret, data_inicio, data_fim } = body;

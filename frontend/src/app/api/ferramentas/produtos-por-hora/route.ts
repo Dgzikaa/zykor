@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 const supabase = createServiceRoleClient();
 
@@ -22,6 +23,7 @@ interface VendaPorHorario {
 }
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { data_selecionada, bar_id } = await request.json();
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser } from '@/middleware/auth';
 
 /**
  * POST /api/cmv-semanal/sync-retroativo
@@ -8,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * semanas = quantas semanas para trás processar (ex: 60 = últimas 60 semanas)
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const barId = body.bar_id;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +56,7 @@ export async function GET(request: NextRequest) {
  * Cria uma nova área
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { bar_id, nome, adicional_noturno, cor } = body;
@@ -110,6 +112,7 @@ export async function POST(request: NextRequest) {
  * Atualiza uma área existente
  */
 export async function PUT(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { id, nome, adicional_noturno, cor, ativo } = body;
@@ -169,6 +172,7 @@ export async function PUT(request: NextRequest) {
  * Remove uma área (soft delete - marca como inativo)
  */
 export async function DELETE(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

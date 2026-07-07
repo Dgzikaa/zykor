@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutos de timeout
@@ -29,6 +30,7 @@ interface DateResult {
  * }
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body: SyncRequest = await request.json();
     

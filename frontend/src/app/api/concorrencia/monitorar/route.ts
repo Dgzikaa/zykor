@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { authenticateUser } from '@/middleware/auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,6 +9,7 @@ const supabase = createClient(
 
 // POST - Executar o agente de monitoramento
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     // Chamar a Edge Function
     const { data, error } = await supabase.functions.invoke('monitor-concorrencia', {

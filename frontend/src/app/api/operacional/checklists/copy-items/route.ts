@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -8,6 +9,7 @@ export const dynamic = 'force-dynamic'
 // =====================================================
 
 export async function POST(req: NextRequest) {
+  await authenticateUser(req);
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

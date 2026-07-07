@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { tbl } from '@/lib/supabase/table-schemas';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -111,6 +112,7 @@ export async function GET(request: NextRequest) {
  * POST - Executar detecção de anomalias
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { bar_id, data_inicio, data_fim } = body;

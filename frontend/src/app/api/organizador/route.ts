@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,7 +95,8 @@ export async function GET(request: Request) {
 }
 
 // POST - Criar novo organizador
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { bar_id, ano, trimestre, tipo, okrs, ...dados } = body;
@@ -164,7 +166,8 @@ export async function POST(request: Request) {
 }
 
 // PUT - Atualizar organizador existente
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { id, okrs, bar_id, ano, trimestre, tipo, created_at, ...dados } = body;
@@ -223,7 +226,8 @@ export async function PUT(request: Request) {
 }
 
 // DELETE - Remover organizador
-export async function DELETE(request: Request) {
+export async function DELETE(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

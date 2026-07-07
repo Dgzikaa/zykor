@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 const supabase = createServiceRoleClient();
 
@@ -8,6 +9,7 @@ const supabase = createServiceRoleClient();
  * Permite atualizar múltiplos dias de uma vez
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { datas, bar_id, status, motivo, observacao, usuario_nome } = body;

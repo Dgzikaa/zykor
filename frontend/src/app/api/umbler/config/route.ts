@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 const supabase = createServiceRoleClient();
 
@@ -43,6 +44,7 @@ export async function GET(request: NextRequest) {
  * Cria ou atualiza configuração da Umbler
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const {
@@ -103,6 +105,7 @@ export async function POST(request: NextRequest) {
  * Desativa configuração da Umbler
  */
 export async function DELETE(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { searchParams } = new URL(request.url);
     const barId = searchParams.get('bar_id');

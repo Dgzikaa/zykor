@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { tbl } from '@/lib/supabase/table-schemas';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,7 @@ const supabase = createServiceRoleClient();
  * Fórmula: CMA = Estoque Inicial + Compras - Estoque Final
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { bar_id, data_inicio, data_fim, criterio_data } = body;

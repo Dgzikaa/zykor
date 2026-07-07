@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { verificarMultiplasDatas, verificarBarAberto } from '@/lib/helpers/calendario-helper';
+import { authenticateUser } from '@/middleware/auth';
 
 const supabase = createServiceRoleClient();
 
@@ -14,6 +15,7 @@ interface HorarioPicoData {
 }
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { data_selecionada, bar_id } = await request.json();
 

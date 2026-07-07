@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,7 @@ interface CadastrarBody {
  *     perfis: [{ tipo_perfil: "Fornecedor"|"Cliente"|"Transportadora" }] }
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = (await request.json()) as CadastrarBody;
     const barId = Number(body.bar_id);

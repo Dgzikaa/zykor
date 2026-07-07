@@ -5,6 +5,7 @@ import {
   getTePlanServer, 
   getTbPlanServer
 } from '@/lib/eventos-rules'
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,7 @@ const supabase = createClient(
 )
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { barId } = await request.json()
 

@@ -7,6 +7,7 @@ import {
   buscarCustosNibo,
   calcularPercentArtFat
 } from '@/lib/eventos-rules'
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,7 @@ const supabase = createClient(
 )
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { barId, dataInicio, dataFim } = await request.json()
 

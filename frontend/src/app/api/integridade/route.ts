@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +47,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  await authenticateUser(req);
   try {
     const body = await req.json();
     if (body?.acao === 'detectar') {
@@ -64,6 +66,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  await authenticateUser(req);
   try {
     const body = await req.json();
     if (!body?.alerta_id || !body?.status) {

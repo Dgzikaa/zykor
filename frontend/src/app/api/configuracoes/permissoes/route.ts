@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getModulosParaPermissoes, ROLES_PADRAO } from '@/lib/permissions/modules';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,7 @@ export async function GET() {
 
 // POST - Atualizar permissões de uma role
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { role, modulos } = body;

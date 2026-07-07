@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseFunctionUrl } from '@/lib/supabase-functions-url'
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,7 @@ export const dynamic = 'force-dynamic'
  */
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     // Verificar se é chamada do cron job
     const body = await request.json().catch(() => ({}))

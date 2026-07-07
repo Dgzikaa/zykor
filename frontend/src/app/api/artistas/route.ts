@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 const supabase = createServiceRoleClient();
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest) {
 
 // POST — cria um artista no cadastro (idempotente por bar_id+nome).
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   const barId = getBarId(request);
   const body = await request.json().catch(() => ({}));
   const nome = String(body.nome || '').trim();

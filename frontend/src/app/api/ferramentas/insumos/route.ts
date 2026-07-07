@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { tbl } from '@/lib/supabase/table-schemas';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,6 +66,7 @@ export async function GET(request: NextRequest) {
  * (escopo mínimo). Outras edições exigem SQL direto até a UI evoluir.
  */
 export async function PATCH(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { id, custo_unitario, categoria } = body ?? {};

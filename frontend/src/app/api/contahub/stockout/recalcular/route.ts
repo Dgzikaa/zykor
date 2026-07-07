@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutos
@@ -11,6 +12,7 @@ const supabase = createServiceRoleClient();
  * Remove produtos que não devem estar no stockout (baldes, happy hour, etc)
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { bar_id } = await request.json();
 

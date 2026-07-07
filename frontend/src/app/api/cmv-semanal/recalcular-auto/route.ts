@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser } from '@/middleware/auth';
 
 /**
  * POST /api/cmv-semanal/recalcular-auto
@@ -6,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * Busca dados do Conta Azul e ContaHub automaticamente
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const barId = body.bar_id;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -15,6 +16,7 @@ const SKIP = new Set(['CARTAO_CREDITO', 'COBRANCAS_CONTA_AZUL', 'RECEBA_FACIL_CA
  * (mês corrente). Chamado por cron diário → o mês fecha com o saldo do último dia.
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
   if (!serviceKey || request.headers.get('authorization') !== `Bearer ${serviceKey}`) {
     return NextResponse.json({ success: false, error: 'não autorizado' }, { status: 401 });

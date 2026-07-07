@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -154,7 +155,8 @@ export async function GET(request: NextRequest) {
  * Restrito via SERVICE_ROLE_KEY do server. Só admins deveriam bater aqui
  * (o middleware de auth cuida). Uso esperado: botão "Atualizar agora" na tela.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { getUserAuth, isAdmin } from '@/lib/auth-helper';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'// ========================================
 // 📅 IMPORTAR EVENTOS DO GOOGLE SHEETS
 // ========================================
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const user = await getUserAuth(request);
 

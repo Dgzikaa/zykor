@@ -1,13 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase-server'
 import { cookies } from 'next/headers'
+import { authenticateUser } from '@/middleware/auth';
 
 const SUPABASE_FUNCTIONS_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(
   'https://',
   'https://'
 ).replace('.supabase.co', '.supabase.co/functions/v1')
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const supabase = createServerClient()
     

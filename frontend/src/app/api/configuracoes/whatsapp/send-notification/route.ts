@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +26,7 @@ interface NotificationRequest {
 }
 
 export async function POST(req: NextRequest) {
+  await authenticateUser(req);
   try {
     const body: NotificationRequest = await req.json();
 

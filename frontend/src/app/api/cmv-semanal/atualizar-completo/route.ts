@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser } from '@/middleware/auth';
 
 /**
  * POST /api/cmv-semanal/atualizar-completo
@@ -17,6 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const barId = body.bar_id;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { limparCacheCalendario } from '@/lib/helpers/calendario-helper';
+import { authenticateUser } from '@/middleware/auth';
 
 const supabase = createServiceRoleClient();
 
@@ -170,6 +171,7 @@ export async function GET(request: NextRequest) {
  * Body: { data, bar_id, status, motivo?, observacao? }
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { data, bar_id, status, motivo, observacao } = body;
@@ -264,6 +266,7 @@ export async function POST(request: NextRequest) {
  * Query params: data, bar_id
  */
 export async function DELETE(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { searchParams } = new URL(request.url);
     const data = searchParams.get('data');

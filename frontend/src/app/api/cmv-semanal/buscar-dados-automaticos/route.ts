@@ -4,6 +4,7 @@ import { filtrarDiasAbertos } from '@/lib/helpers/calendario-helper';
 import { getFatorCmv } from '@/lib/config/getFatorCmv';
 import { tbl } from '@/lib/supabase/table-schemas';
 import { areaDe, areaParaBucketCmv } from '@/lib/estoque/area-contagem';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,6 +83,7 @@ async function resolverDataContagemFinal(barId: number, dataFim: string): Promis
  * 4. Estoques por tipo_local (cozinha, salão, drinks)
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { bar_id, data_inicio, data_fim, criterio_data } = body;

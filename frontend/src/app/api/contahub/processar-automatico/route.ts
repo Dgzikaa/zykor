@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { authenticateUser } from '@/middleware/auth'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -145,5 +146,6 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request)
   return GET(request)
 }

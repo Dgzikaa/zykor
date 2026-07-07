@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -84,6 +85,7 @@ export async function GET(req: NextRequest) {
 
 // POST - Atualizar múltiplos usuários (para operações em lote)
 export async function POST(req: NextRequest) {
+  await authenticateUser(req);
   try {
     const { operacao, usuarios } = await req.json();
 

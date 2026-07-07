@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 /**
  * GET /api/previsao?bar_id=N → próximos 14 dias
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  await authenticateUser(req);
   try {
     const sp = req.nextUrl.searchParams;
     const barId = Number(sp.get('bar_id'));

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { tbl } from '@/lib/supabase/table-schemas';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutos
@@ -9,6 +10,7 @@ const supabase = createServiceRoleClient();
 
 // POST - Recalcular todos os CMVs com fórmula correta
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { bar_id } = await request.json();
 

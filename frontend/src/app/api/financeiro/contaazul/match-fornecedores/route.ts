@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,6 +71,7 @@ const SIM_FUZZY = 0.85; // limite pra match automático
 const SIM_SUGESTAO = 0.55; // limite pra exibir como sugestão
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const barId = Number(body.bar_id);

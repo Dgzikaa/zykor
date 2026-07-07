@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 const supabase = createServiceRoleClient();
 
@@ -145,6 +146,7 @@ function getInicioFimSemana(data: string): { inicio: string; fim: string } {
 // que inclui a coluna categoria_local já normalizada por bar
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { data_inicio, data_fim, bar_id, filtros = [] } = await request.json();
 

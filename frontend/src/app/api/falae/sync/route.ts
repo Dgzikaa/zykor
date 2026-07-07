@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,6 +74,7 @@ async function fetchAnswersPage(
 // etl_silver_nps_diario_full.
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const supabase = await getAdminClient();
 

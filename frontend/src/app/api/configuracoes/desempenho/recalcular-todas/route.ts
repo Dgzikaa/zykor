@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 min para recálculo completo
@@ -9,6 +10,7 @@ export const maxDuration = 300; // 5 min para recálculo completo
  * Escritor CANONICO: etl_gold_desempenho_all_bars (o v2 foi descontinuado como escritor).
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const authHeader = request.headers.get('authorization');
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {

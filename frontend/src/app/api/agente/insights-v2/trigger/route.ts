@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,7 @@ export const dynamic = 'force-dynamic';
  * - data (opcional, formato YYYY-MM-DD, default = ontem)
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { bar_id, data } = body;

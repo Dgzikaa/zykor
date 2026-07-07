@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +36,7 @@ interface ChecklistNotification {
 }
 
 export async function POST(req: NextRequest) {
+  await authenticateUser(req);
   try {
     const body = await req.json();
     const {

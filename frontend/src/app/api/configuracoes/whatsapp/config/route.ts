@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { headers } from 'next/headers';
 import { getSupabaseClient } from '@/lib/supabase';
 import { getServerUser, isServerAdmin } from '@/lib/auth-server';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -174,18 +175,19 @@ export async function GET(request: NextRequest) {
 // 📱 POST /api/configuracoes/whatsapp/config
 // ========================================
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const headersList = await headers();
     const barIdHeader = headersList.get('x-selected-bar-id');
     const bar_id = barIdHeader ? parseInt(barIdHeader, 10) : null;
-    
+
     if (!bar_id) {
       return NextResponse.json(
         { error: 'bar_id é obrigatório' },
         { status: 400 }
       );
     }
-    
+
     const isAdmin = await isServerAdmin();
     if (!isAdmin) {
       return NextResponse.json(
@@ -287,18 +289,19 @@ export async function POST(request: NextRequest) {
 // 📱 PUT /api/configuracoes/whatsapp/config
 // ========================================
 export async function PUT(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const headersList = await headers();
     const barIdHeader = headersList.get('x-selected-bar-id');
     const bar_id = barIdHeader ? parseInt(barIdHeader, 10) : null;
-    
+
     if (!bar_id) {
       return NextResponse.json(
         { error: 'bar_id é obrigatório' },
         { status: 400 }
       );
     }
-    
+
     const isAdmin = await isServerAdmin();
     if (!isAdmin) {
       return NextResponse.json(
@@ -405,18 +408,19 @@ export async function PUT(request: NextRequest) {
 // 📱 DELETE /api/configuracoes/whatsapp/config
 // ========================================
 export async function DELETE(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const headersList = await headers();
     const barIdHeader = headersList.get('x-selected-bar-id');
     const bar_id = barIdHeader ? parseInt(barIdHeader, 10) : null;
-    
+
     if (!bar_id) {
       return NextResponse.json(
         { error: 'bar_id é obrigatório' },
         { status: 400 }
       );
     }
-    
+
     const isAdmin = await isServerAdmin();
     if (!isAdmin) {
       return NextResponse.json(

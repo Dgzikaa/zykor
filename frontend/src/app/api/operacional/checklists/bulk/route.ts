@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,7 @@ interface BulkResult {
 const supabase = createServiceRoleClient();
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { action, checklistIds, data = {} } = await request.json();
 

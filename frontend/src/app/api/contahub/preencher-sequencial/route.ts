@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { authenticateUser } from '@/middleware/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,7 @@ interface SequentialRequest {
 }
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request)
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const body: SequentialRequest = await request.json()

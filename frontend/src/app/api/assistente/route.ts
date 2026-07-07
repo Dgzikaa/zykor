@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser } from '@/middleware/auth';
 
 /**
  * POST /api/assistente
@@ -10,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  await authenticateUser(req);
   try {
     const body = await req.json();
     const telefone = String(body?.telefone || '').replace(/\D/g, '');

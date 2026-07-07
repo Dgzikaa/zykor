@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 const supabase = createServiceRoleClient();
 
@@ -194,6 +195,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Criar ou atualizar simulação
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { bar_id, mes, ano, funcionarios, observacoes, criado_por } = body as SimulacaoCMO;
@@ -268,6 +270,7 @@ export async function POST(request: NextRequest) {
 
 // DELETE - Excluir simulação
 export async function DELETE(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { authenticateUser } from '@/middleware/auth';
 
 /**
  * POST /api/contaazul/sync-manual
@@ -18,6 +19,7 @@ const lastDay = (ano: number, mes1a12: number) => new Date(ano, mes1a12, 0).getD
 const pad = (n: number) => String(n).padStart(2, '0');
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const barId = Number(body.bar_id);

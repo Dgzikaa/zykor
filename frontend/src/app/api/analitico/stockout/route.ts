@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { verificarBarAberto } from '@/lib/helpers/calendario-helper';
+import { authenticateUser } from '@/middleware/auth';
 
 const supabase = createServiceRoleClient();
 
@@ -8,6 +9,7 @@ const supabase = createServiceRoleClient();
 // que inclui a coluna categoria_local já normalizada por bar
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { data_selecionada, bar_id, filtros = [] } = await request.json();
 

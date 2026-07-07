@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +57,7 @@ export async function GET(request: NextRequest) {
  * Cria um novo cargo
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { bar_id, nome, descricao, nivel } = body;
@@ -111,6 +113,7 @@ export async function POST(request: NextRequest) {
  * Atualiza um cargo existente
  */
 export async function PUT(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { id, nome, descricao, nivel, ativo } = body;
@@ -170,6 +173,7 @@ export async function PUT(request: NextRequest) {
  * Remove um cargo (soft delete - marca como inativo)
  */
 export async function DELETE(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

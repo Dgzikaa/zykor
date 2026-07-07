@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 /**
  * POST /api/contahub/stockout/audit
@@ -10,6 +11,7 @@ import { getAdminClient } from '@/lib/supabase-admin';
  * ContaHub com o que foi aplicado no cálculo de stockout.
  */
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const body = await request.json();
     const { data_consulta, bar_id, prd_codigo } = body;

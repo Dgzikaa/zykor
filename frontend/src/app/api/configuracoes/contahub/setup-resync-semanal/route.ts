@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  await authenticateUser(request);
   try {
     const cronJobSQL = `-- ============================================================================
 -- CRONJOB: RE-SINCRONIZAÇÃO SEMANAL CONTAHUB
