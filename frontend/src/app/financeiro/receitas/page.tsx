@@ -6,9 +6,18 @@ import { TrendingUp, CreditCard, Banknote, Ticket, Music } from 'lucide-react';
 import { StoneRecebiveisConteudo } from '@/app/financeiro/stone-recebiveis/page';
 import { FluxoContaHub } from '@/app/financeiro/saidas-caixa/page';
 import { SymplaRecebiveis, YuzerEmConstrucao } from './SymplaRecebiveis';
+import { AutoToggle } from '@/components/financeiro/AutoToggle';
+
+type ReceitaAba = 'stone' | 'sympla' | 'yuzer' | 'dinheiro';
+const AUTO: Record<ReceitaAba, { tipo: string; disponivel: boolean }> = {
+  stone: { tipo: 'stone', disponivel: true },
+  sympla: { tipo: 'sympla', disponivel: true },
+  yuzer: { tipo: 'yuzer', disponivel: false },
+  dinheiro: { tipo: 'entrada_dinheiro', disponivel: true },
+};
 
 function ReceitasInner() {
-  const [aba, setAba] = useState<'stone' | 'sympla' | 'yuzer' | 'dinheiro'>('stone');
+  const [aba, setAba] = useState<ReceitaAba>('stone');
   const tabs = [
     { id: 'stone', label: 'Stone', Icon: CreditCard },
     { id: 'sympla', label: 'Sympla', Icon: Ticket },
@@ -18,12 +27,15 @@ function ReceitasInner() {
 
   return (
     <div className="p-4 md:p-6 mx-auto space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="rounded-xl bg-emerald-500/10 p-2.5"><TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" /></div>
-        <div>
-          <h1 className="text-xl font-semibold">Receitas CA</h1>
-          <p className="text-sm text-muted-foreground">Receitas lançadas no Conta Azul — por origem.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-emerald-500/10 p-2.5"><TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" /></div>
+          <div>
+            <h1 className="text-xl font-semibold">Receitas CA</h1>
+            <p className="text-sm text-muted-foreground">Receitas lançadas no Conta Azul — por origem.</p>
+          </div>
         </div>
+        <AutoToggle tipo={AUTO[aba].tipo} disponivel={AUTO[aba].disponivel} />
       </div>
 
       <div className="flex gap-1 border-b overflow-x-auto">

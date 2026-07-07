@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executarEntradaDiaria, varrerBaixasPendentes, ontemBRT } from '../contas-a-receber-diario/route';
+import { getAutoConfig, autoDeveLancarData } from '@/lib/financeiro/contaazul-lancador';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -20,6 +21,10 @@ export async function GET(request: NextRequest) {
   const BARES = [3]; // estender p/ [3, 4] quando o bar 4 estiver validado
   const resultados: any[] = [];
   for (const barId of BARES) {
+    // Gate do toggle "Lançamento automático" (financial.lancamento_auto_config).
+    const cfg = await getAutoConfig(barId, 'entrada_dinheiro');
+    if (!cfg.ativo) { resultados.push({ bar_id: barId, skipped: true, motivo: 'automático desligado' }); continue; }
+    if (!autoDeveLancarData(cfg.cutoff, data)) { resultados.push({ bar_id: barId, skipped: true, motivo: 'antes do corte da automação' }); continue; }
     try {
       const r = await executarEntradaDiaria(barId, data, 'cron 12:00 BRT');
       resultados.push({ bar_id: barId, status: r.status, ...r.body });

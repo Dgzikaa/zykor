@@ -9,8 +9,19 @@ import { BonificacoesTab } from './components/BonificacoesTab';
 import { ConsumacoesTab } from './components/ConsumacoesTab';
 import { ImpostosTab } from './components/ImpostosTab';
 import { AjusteViradaTab } from './components/AjusteViradaTab';
+import { AutoToggle } from '@/components/financeiro/AutoToggle';
 
 type AbaId = 'dinheiro' | 'variacao' | 'bonificacoes' | 'impostos' | 'consumacoes' | 'virada';
+
+// Toggle de automação por aba (bonificações é sempre manual → sem toggle).
+const AUTO: Record<AbaId, { tipo: string; disponivel: boolean } | null> = {
+  dinheiro: { tipo: 'saida_dinheiro', disponivel: false },
+  variacao: { tipo: 'variacao_estoque', disponivel: true },
+  bonificacoes: null,
+  consumacoes: { tipo: 'consumacao', disponivel: true },
+  impostos: { tipo: 'imposto', disponivel: true },
+  virada: { tipo: 'ajuste_virada', disponivel: true },
+};
 
 const ABAS: { id: AbaId; label: string; Icon: any; disponivel: boolean }[] = [
   { id: 'dinheiro', label: 'Dinheiro em Espécie', Icon: Banknote, disponivel: true },
@@ -26,12 +37,15 @@ function DespesasInner() {
 
   return (
     <div className="p-4 md:p-6 mx-auto space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="rounded-xl bg-red-500/10 p-2.5"><TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400" /></div>
-        <div>
-          <h1 className="text-xl font-semibold">Despesas CA</h1>
-          <p className="text-sm text-muted-foreground">Lançamentos de despesa no Conta Azul feitos pelo Zykor.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-red-500/10 p-2.5"><TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400" /></div>
+          <div>
+            <h1 className="text-xl font-semibold">Despesas CA</h1>
+            <p className="text-sm text-muted-foreground">Lançamentos de despesa no Conta Azul feitos pelo Zykor.</p>
+          </div>
         </div>
+        {AUTO[aba] && <AutoToggle tipo={AUTO[aba]!.tipo} disponivel={AUTO[aba]!.disponivel} />}
       </div>
 
       <div className="flex gap-1 border-b overflow-x-auto">

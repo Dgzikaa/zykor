@@ -26,6 +26,24 @@ export const PREFIXO = '[Zykor] ';
 
 export type SinalLanc = 'DESPESA' | 'RECEITA';
 
+/**
+ * Config de lançamento AUTOMÁTICO (cron) por (bar, tipo). O botão manual NÃO depende disto.
+ * Sem linha na tabela = desligado (default off). `cutoff` = a partir de quando o automático atua.
+ */
+export async function getAutoConfig(barId: number, tipo: string): Promise<{ ativo: boolean; cutoff: string | null }> {
+  const supabase = getLancadorAdmin();
+  const { data } = await (supabase.schema('financial' as any) as any)
+    .from('lancamento_auto_config').select('ativo, cutoff').eq('bar_id', barId).eq('tipo', tipo).maybeSingle();
+  if (!data) return { ativo: false, cutoff: null };
+  return { ativo: !!(data as any).ativo, cutoff: (data as any).cutoff || null };
+}
+
+/** O automático deve lançar um item cuja data/competência é `dataItemISO` ('YYYY-MM-DD')? cutoff null = sem corte (tudo). */
+export function autoDeveLancarData(cutoff: string | null, dataItemISO: string): boolean {
+  if (!cutoff) return true;
+  return dataItemISO >= String(cutoff).slice(0, 10);
+}
+
 /** Extrai as chaves a lançar do body do POST: `chaves: string[]` ou `chave: string`. undefined = todas as pendentes. */
 export function parseChaves(body: any): string[] | undefined {
   if (Array.isArray(body?.chaves) && body.chaves.length) return body.chaves.map(String);

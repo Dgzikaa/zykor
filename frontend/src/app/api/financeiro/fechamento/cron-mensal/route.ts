@@ -1,18 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executarVariacaoEstoque } from '../variacao-estoque/route';
-import { mesAnteriorBRT } from '@/lib/financeiro/contaazul-lancador';
+import { executarImpostos } from '../impostos/route';
+import { executarAjusteVirada } from '../ajuste-virada/route';
+import { getAutoConfig, autoDeveLancarData, mesAnteriorBRT, ultimoDiaMes } from '@/lib/financeiro/contaazul-lancador';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 /**
- * Cron mensal dos lançamentos de FECHAMENTO → Conta Azul. Roda dia 05 (10:00 BRT / 13:00 UTC),
- * lançando sempre o MÊS ANTERIOR:
- *   - Variação de Estoque (3 lançamentos por categoria)
- *   - Bonificações (1 lançamento)
- * Tudo idempotente (o log impede duplicar). Bar 3 primeiro; estender BARES p/ o 4 depois de validar.
- * Protegido pelo CRON_SECRET.
+ * Cron MENSAL dos fechamentos → Conta Azul (Variação de Estoque, Impostos, Ajuste Virada),
+ * sempre do MÊS ANTERIOR. Cada (bar, tipo) só roda se o toggle "Lançamento automático" estiver
+ * LIGADO e a competência for >= o corte (só os novos). Idempotente. Protegido pelo CRON_SECRET.
  */
+const JOBS: { tipo: string; fn: (b: number, a: number, m: number, quem: string | null) => Promise<{ status: number; body: any }> }[] = [
+  { tipo: 'variacao_estoque', fn: executarVariacaoEstoque },
+  { tipo: 'imposto', fn: executarImpostos },
+  { tipo: 'ajuste_virada', fn: executarAjusteVirada },
+];
+
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -20,14 +25,20 @@ export async function GET(request: NextRequest) {
   }
 
   const { ano, mes } = mesAnteriorBRT();
-  const BARES = [3]; // estender p/ [3, 4] quando o bar 4 estiver validado
+  const competencia = ultimoDiaMes(ano, mes);
+  const BARES = [3, 4]; // o toggle (default off) decide de verdade quem roda
   const resultados: any[] = [];
   for (const barId of BARES) {
-    try {
-      const ve = await executarVariacaoEstoque(barId, ano, mes, 'cron mensal fechamento');
-      resultados.push({ bar_id: barId, feature: 'variacao_estoque', status: ve.status, ...ve.body });
-    } catch (e: any) {
-      resultados.push({ bar_id: barId, feature: 'variacao_estoque', status: 500, error: e?.message || String(e) });
+    for (const j of JOBS) {
+      const cfg = await getAutoConfig(barId, j.tipo);
+      if (!cfg.ativo) { resultados.push({ bar_id: barId, feature: j.tipo, skipped: true, motivo: 'automático desligado' }); continue; }
+      if (!autoDeveLancarData(cfg.cutoff, competencia)) { resultados.push({ bar_id: barId, feature: j.tipo, skipped: true, motivo: 'antes do corte' }); continue; }
+      try {
+        const r = await j.fn(barId, ano, mes, 'cron mensal fechamento');
+        resultados.push({ bar_id: barId, feature: j.tipo, status: r.status, ...r.body });
+      } catch (e: any) {
+        resultados.push({ bar_id: barId, feature: j.tipo, status: 500, error: e?.message || String(e) });
+      }
     }
   }
   return NextResponse.json({ ok: true, ano, mes, resultados });

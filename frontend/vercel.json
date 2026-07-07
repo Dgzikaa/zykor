@@ -31,6 +31,14 @@
     {
       "path": "/api/financeiro/receitas/sympla/cron-diario",
       "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/financeiro/fechamento/cron-diario",
+      "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/financeiro/fechamento/cron-mensal",
+      "schedule": "0 13 5 * *"
     }
   ],
   "functions": {
@@ -86,7 +94,10 @@
       "maxDuration": 120
     },
     "src/app/api/financeiro/fechamento/cron-mensal/route.ts": {
-      "maxDuration": 120
+      "maxDuration": 300
+    },
+    "src/app/api/financeiro/fechamento/cron-diario/route.ts": {
+      "maxDuration": 300
     },
     "src/app/api/financeiro/fechamento/variacao-estoque/route.ts": {
       "maxDuration": 120
