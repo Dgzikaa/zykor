@@ -56,6 +56,7 @@ import {
   CreditCard,
   Banknote,
   TrendingDown,
+  History,
 } from 'lucide-react';
 
 export type MenuIcon = ComponentType<{ className?: string }>;
@@ -110,6 +111,7 @@ export const MENU_ICONS: Record<string, MenuIcon> = {
   CreditCard,
   Banknote,
   TrendingDown,
+  History,
 };
 
 /** Componente do ícone pelo nome; fallback em Activity se faltar. */

@@ -13,9 +13,9 @@ import { AutoToggle } from '@/components/financeiro/AutoToggle';
 
 type AbaId = 'dinheiro' | 'variacao' | 'bonificacoes' | 'impostos' | 'consumacoes' | 'virada';
 
-// Toggle de automação por aba (bonificações é sempre manual → sem toggle).
+// Toggle de automação por aba. Bonificações e Saídas em dinheiro são sempre manuais → sem toggle.
 const AUTO: Record<AbaId, { tipo: string; disponivel: boolean } | null> = {
-  dinheiro: { tipo: 'saida_dinheiro', disponivel: false },
+  dinheiro: null,
   variacao: { tipo: 'variacao_estoque', disponivel: true },
   bonificacoes: null,
   consumacoes: { tipo: 'consumacao', disponivel: true },

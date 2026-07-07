@@ -105,6 +105,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Scale', label: 'Conciliação', href: '/financeiro/conciliacao', permission: 'financeiro_ferramentas' },
       { icon: 'TrendingUp', label: 'Receitas CA', href: '/financeiro/receitas', permission: 'financeiro_ferramentas' },
       { icon: 'TrendingDown', label: 'Despesas CA', href: '/financeiro/despesas', permission: 'financeiro_ferramentas' },
+      { icon: 'History', label: 'Histórico CA', href: '/financeiro/ca-historico', permission: 'financeiro_ferramentas' },
       { icon: 'ReceiptText', label: 'Notas Fiscais', href: '/financeiro/notas-fiscais', permission: 'financeiro_ferramentas' },
       { icon: 'FolderTree', label: 'Categorias', href: '/financeiro/categorias', permission: 'financeiro_ferramentas' },
       { icon: 'Wallet', label: 'Fluxo de Caixa', href: '/financeiro/fluxo-caixa', permission: 'financeiro_ferramentas' },
