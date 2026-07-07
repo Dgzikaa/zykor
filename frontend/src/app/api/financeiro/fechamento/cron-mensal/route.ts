@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executarVariacaoEstoque } from '../variacao-estoque/route';
-import { executarBonificacao } from '../bonificacoes/route';
 import { mesAnteriorBRT } from '@/lib/financeiro/contaazul-lancador';
 
 export const dynamic = 'force-dynamic';
@@ -29,12 +28,6 @@ export async function GET(request: NextRequest) {
       resultados.push({ bar_id: barId, feature: 'variacao_estoque', status: ve.status, ...ve.body });
     } catch (e: any) {
       resultados.push({ bar_id: barId, feature: 'variacao_estoque', status: 500, error: e?.message || String(e) });
-    }
-    try {
-      const bo = await executarBonificacao(barId, ano, mes, 'cron mensal fechamento');
-      resultados.push({ bar_id: barId, feature: 'bonificacao', status: bo.status, ...bo.body });
-    } catch (e: any) {
-      resultados.push({ bar_id: barId, feature: 'bonificacao', status: 500, error: e?.message || String(e) });
     }
   }
   return NextResponse.json({ ok: true, ano, mes, resultados });

@@ -1,108 +1,97 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
-import {
-  getLancadorAdmin, getCAToken, resolveCategoriaId, resolveContaPadrao, criarLancamentoCA,
-  round2, ultimoDiaMes, mesAnteriorBRT,
-} from '@/lib/financeiro/contaazul-lancador';
+import { getLancadorAdmin, round2, primeiroDiaMes, mesAnteriorBRT } from '@/lib/financeiro/contaazul-lancador';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /**
- * BONIFICAÇÕES (fechamento mensal) → Conta Azul.
- * 1 despesa/mês na categoria "Ajuste Bonificações" = total preenchido em Gestão CMV mensal
- * (financial.cmv_mensal.bonificacoes) do mês anterior. Competência = mês anterior. Sem baixa.
- * Idempotente por financial.lancamento_manual_ca_log (tipo='bonificacao', chave='').
+ * CADASTRO DE BONIFICAÇÕES (financial.bonificacoes). A galera insere a bonificação quando ela chega
+ * (fornecedor, valor, referente, competência, data que chegou). É a fonte pra Gestão CMV mensal e
+ * pro lançamento 1 a 1 no Conta Azul (ver ./lancar). Categoria "Ajuste Bonificações".
  *
- *  - GET  : preview do mês (não escreve).
- *  - POST : cria o lançamento se faltar (admin/financeiro).
+ *  - GET    : lista as bonificações de uma competência (mês) + total.
+ *  - POST   : cadastra 1 bonificação.
+ *  - DELETE : exclui 1 bonificação (só se ainda não foi lançada no CA).
  */
 
-const TIPO = 'bonificacao';
-const CAT_NOME = 'Ajuste Bonificações';
-const MES_LABEL = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
-/** Total de bonificações preenchido na Gestão CMV mensal (com fallback pro esquema legado). */
-export async function getBonificacaoMes(barId: number, ano: number, mes: number): Promise<number> {
-  const supabase = getLancadorAdmin();
-  const { data } = await (supabase.schema('financial' as any) as any)
-    .from('cmv_mensal')
-    .select('bonificacoes, bonificacao_contrato_anual, bonificacao_cashback_mensal')
-    .eq('bar_id', barId).eq('ano', ano).eq('mes', mes).maybeSingle();
-  if (!data) return 0;
-  const unificado = data.bonificacoes;
-  if (unificado != null) return round2(Number(unificado));
-  return round2(Number(data.bonificacao_contrato_anual || 0) + Number(data.bonificacao_cashback_mensal || 0));
+function anoMesAlvo(url: URL): { ano: number; mes: number } {
+  const ano = Number(url.searchParams.get('ano'));
+  const mes = Number(url.searchParams.get('mes'));
+  if (Number.isFinite(ano) && Number.isFinite(mes) && mes >= 1 && mes <= 12) return { ano, mes };
+  return mesAnteriorBRT();
 }
 
-/** Executa (idempotente) o lançamento de bonificação do mês. Sem auth — quem chama garante. */
-export async function executarBonificacao(barId: number, ano: number, mes: number, criadoPor: string | null): Promise<{ status: number; body: any }> {
-  const supabase = getLancadorAdmin();
-  const competencia = ultimoDiaMes(ano, mes);
-  const valor = await getBonificacaoMes(barId, ano, mes);
-
-  const log = () => (supabase.schema('financial' as any) as any).from('lancamento_manual_ca_log');
-  const { data: jaLog } = await log().select('id, valor, ca_status').eq('bar_id', barId).eq('tipo', TIPO).eq('competencia', competencia).eq('chave', '').maybeSingle();
-  if (jaLog) return { status: 200, body: { bar_id: barId, ano, mes, competencia, skipped: true, motivo: 'já lançado', valor: jaLog.valor } };
-  if (!(valor > 0)) return { status: 200, body: { bar_id: barId, ano, mes, competencia, skipped: true, motivo: 'sem bonificação preenchida no mês', valor: 0 } };
-
-  const tokenResult = await getCAToken(barId);
-  if ('error' in tokenResult) return { status: tokenResult.status, body: { error: tokenResult.error } };
-  const token = tokenResult.token;
-  const cat = await resolveCategoriaId(barId, CAT_NOME, 'DESPESA');
-  if (!cat) return { status: 400, body: { error: `Categoria "${CAT_NOME}" (DESPESA) não existe no Conta Azul deste bar — crie e sincronize.` } };
-  const conta = await resolveContaPadrao(barId);
-  if (!conta) return { status: 400, body: { error: 'Nenhuma conta financeira ativa no Conta Azul' } };
-
-  const descricao = `Bonificações ${MES_LABEL[mes]}/${ano}`;
-  const r = await criarLancamentoCA({
-    token, sinal: 'DESPESA', competencia, vencimento: competencia, valor,
-    descricao, observacao: `Bonificações ${MES_LABEL[mes]}/${ano} (Gestão CMV mensal) via Zykor`,
-    categoriaId: cat.id, contaId: conta.id,
-  });
-  if (!r.ok) return { status: 502, body: { bar_id: barId, ano, mes, competencia, ok: false, erro: r.erro, valor } };
-
-  await log().insert({
-    bar_id: barId, tipo: TIPO, competencia, chave: '', sinal: 'DESPESA', valor,
-    descricao, categoria_id: cat.id, categoria_nome: cat.nome, conta_id: conta.id, data_vencimento: competencia,
-    ca_protocol_id: r.protocolId, ca_status: r.status, baixado: false, criado_por: criadoPor,
-  });
-  return { status: 200, body: { bar_id: barId, ano, mes, competencia, ok: true, valor, protocolId: r.protocolId } };
-}
-
-/** GET: preview do mês — não escreve. */
+/** GET: lista da competência. */
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
   if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão');
   const url = new URL(request.url);
   const barId = Number(url.searchParams.get('bar_id')) || Number(user.bar_id);
-  const ano = Number(url.searchParams.get('ano'));
-  const mes = Number(url.searchParams.get('mes'));
-  const alvo = (Number.isFinite(ano) && Number.isFinite(mes) && mes >= 1 && mes <= 12) ? { ano, mes } : mesAnteriorBRT();
-  const competencia = ultimoDiaMes(alvo.ano, alvo.mes);
+  const { ano, mes } = anoMesAlvo(url);
+  const competencia = primeiroDiaMes(ano, mes);
 
-  const valor = await getBonificacaoMes(barId, alvo.ano, alvo.mes);
   const supabase = getLancadorAdmin();
-  const { data: log } = await (supabase.schema('financial' as any) as any)
-    .from('lancamento_manual_ca_log').select('valor, ca_status').eq('bar_id', barId).eq('tipo', TIPO).eq('competencia', competencia).eq('chave', '').maybeSingle();
-  return NextResponse.json({
-    bar_id: barId, ano: alvo.ano, mes: alvo.mes, competencia,
-    categoria: CAT_NOME, descricao: `Bonificações ${MES_LABEL[alvo.mes]}/${alvo.ano}`,
-    valor, ja_lancado: !!log, valor_lancado: log?.valor ?? null,
-  });
+  const { data, error } = await (supabase.schema('financial' as any) as any)
+    .from('bonificacoes')
+    .select('id, fornecedor, referente, valor, competencia, data_chegada, categoria_nome, ca_lancado, ca_protocol_id, lancado_em')
+    .eq('bar_id', barId).eq('competencia', competencia)
+    .order('data_chegada', { ascending: true }).order('id', { ascending: true });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const bonificacoes = (data as any[]) || [];
+  const total = bonificacoes.reduce((s, b) => s + Number(b.valor || 0), 0);
+  const total_lancado = bonificacoes.filter((b) => b.ca_lancado).reduce((s, b) => s + Number(b.valor || 0), 0);
+  return NextResponse.json({ bar_id: barId, ano, mes, competencia, total: round2(total), total_lancado: round2(total_lancado), bonificacoes });
 }
 
-/** POST: cria o lançamento se faltar (admin/financeiro). Body: { bar_id?, ano?, mes? }. */
+/** POST: cadastra 1 bonificação. Body: { bar_id?, fornecedor, valor, referente?, ano, mes, data_chegada? }. */
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão para criar lançamentos');
+  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão para cadastrar');
   const body = await request.json().catch(() => ({} as any));
   const barId = Number(body?.bar_id) || Number(user.bar_id);
-  const { ano, mes } = (Number.isFinite(Number(body?.ano)) && Number.isFinite(Number(body?.mes)))
-    ? { ano: Number(body.ano), mes: Number(body.mes) } : mesAnteriorBRT();
-  const r = await executarBonificacao(barId, ano, mes, user.email ?? user.nome ?? null);
-  return NextResponse.json(r.body, { status: r.status });
+  const fornecedor = String(body?.fornecedor || '').trim();
+  const referente = body?.referente != null ? String(body.referente).trim() : null;
+  const valor = round2(Number(body?.valor));
+  const ano = Number(body?.ano);
+  const mes = Number(body?.mes);
+  const dataChegada = body?.data_chegada ? String(body.data_chegada) : null;
+
+  if (!barId || !fornecedor || !(valor > 0) || !Number.isFinite(ano) || !(mes >= 1 && mes <= 12)) {
+    return NextResponse.json({ error: 'fornecedor, valor (>0), ano e mes são obrigatórios' }, { status: 400 });
+  }
+  const competencia = primeiroDiaMes(ano, mes);
+
+  const supabase = getLancadorAdmin();
+  const { data, error } = await (supabase.schema('financial' as any) as any)
+    .from('bonificacoes')
+    .insert({ bar_id: barId, fornecedor, referente, valor, competencia, data_chegada: dataChegada, criado_por: user.email ?? user.nome ?? null })
+    .select('id').single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true, id: (data as any)?.id }, { status: 201 });
+}
+
+/** DELETE: exclui 1 bonificação (só se não lançada). Query: ?id= &bar_id=. */
+export async function DELETE(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão para excluir');
+  const url = new URL(request.url);
+  const id = Number(url.searchParams.get('id'));
+  const barId = Number(url.searchParams.get('bar_id')) || Number(user.bar_id);
+  if (!Number.isFinite(id)) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 });
+
+  const supabase = getLancadorAdmin();
+  const { data: bonif } = await (supabase.schema('financial' as any) as any)
+    .from('bonificacoes').select('id, ca_lancado').eq('id', id).eq('bar_id', barId).maybeSingle();
+  if (!bonif) return NextResponse.json({ error: 'Bonificação não encontrada' }, { status: 404 });
+  if ((bonif as any).ca_lancado) return NextResponse.json({ error: 'Já lançada no Conta Azul — não pode excluir (CA não tem DELETE).' }, { status: 409 });
+
+  const { error } = await (supabase.schema('financial' as any) as any).from('bonificacoes').delete().eq('id', id).eq('bar_id', barId);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }
