@@ -55,7 +55,7 @@ const cfgDefault = (): CalcCfg => ({
   pesos: { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
 });
 
-const storeKey = (barId?: number) => `zykor:calc-dist:v2:bar:${barId ?? 'na'}`;
+const storeKey = (barId: number | undefined, ano: number, mes: number) => `zykor:calc-dist:v2:bar:${barId ?? 'na'}:${ano}-${mes}`;
 
 // aceita "R$ 12.000,00" | "12000,5" | "12000" | "120" → número
 function parseNum(s: string): number {
@@ -77,6 +77,22 @@ const fmt = (n: number, dec = 0) =>
   (isFinite(n) ? n : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: dec, maximumFractionDigits: dec });
 const fmtPct = (n: number) => `${(isFinite(n) ? n : 0).toFixed(1)}%`;
 
+// linha do banco (números) → config da UI (strings mascaradas)
+function cfgFromDb(row: any): CalcCfg {
+  const pesos: Record<number, string> = { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' };
+  for (const d of DIAS) {
+    const v = row?.pesos?.[d.dow];
+    pesos[d.dow] = v ? fmt(Number(v), 2) : '';
+  }
+  return {
+    targetM1: row?.target_m1 ? fmt(Number(row.target_m1), 2) : '',
+    m2: row?.m2_pct != null ? String(row.m2_pct) : '120',
+    m3: row?.m3_pct != null ? String(row.m3_pct) : '140',
+    diasVenda: row?.dias_venda != null ? String(row.dias_venda) : '31',
+    pesos,
+  };
+}
+
 export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado }: {
   barId?: number;
   ano: number;
@@ -90,19 +106,31 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
   const [confirmando, setConfirmando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
   const [resultado, setResultado] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
-  // carrega config persistida por bar
+  // carrega config por bar+mês: rascunho local (instantâneo) OU, se não houver,
+  // a config salva no banco (durável, gravada ao clicar Aplicar).
   useEffect(() => {
+    setHydrated(false);
+    let cancel = false;
+    let draft: CalcCfg | null = null;
     try {
-      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(storeKey(barId)) : null;
-      setCfg(raw ? { ...cfgDefault(), ...JSON.parse(raw) } : cfgDefault());
-    } catch { setCfg(cfgDefault()); }
-  }, [barId]);
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(storeKey(barId, ano, mes)) : null;
+      if (raw) draft = { ...cfgDefault(), ...JSON.parse(raw) };
+    } catch { draft = null; }
+    if (draft) { setCfg(draft); setHydrated(true); return; }
+    if (!barId) { setCfg(cfgDefault()); setHydrated(true); return; }
+    apiCall(`/api/eventos/distribuicao-config?ano=${ano}&mes=${mes}`, { headers: { 'x-selected-bar-id': String(barId) } })
+      .then((r: any) => { if (!cancel) { setCfg(r?.config ? cfgFromDb(r.config) : cfgDefault()); setHydrated(true); } })
+      .catch(() => { if (!cancel) { setCfg(cfgDefault()); setHydrated(true); } });
+    return () => { cancel = true; };
+  }, [barId, ano, mes]);
 
-  // persiste
+  // persiste rascunho local (só depois de hidratar, pra não gravar default por cima)
   useEffect(() => {
-    try { if (typeof window !== 'undefined') window.localStorage.setItem(storeKey(barId), JSON.stringify(cfg)); } catch { /* ignore */ }
-  }, [cfg, barId]);
+    if (!hydrated) return;
+    try { if (typeof window !== 'undefined') window.localStorage.setItem(storeKey(barId, ano, mes), JSON.stringify(cfg)); } catch { /* ignore */ }
+  }, [cfg, barId, ano, mes, hydrated]);
 
   // histórico 8 semanas
   useEffect(() => {
@@ -149,6 +177,16 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
     setAplicando(true);
     setResultado(null);
     try {
+      // 1) salva a config da calculadora no banco (durável, por bar+mês)
+      const pesosNum: Record<number, number> = {};
+      DIAS.forEach((d) => { pesosNum[d.dow] = parseNum(cfg.pesos[d.dow] || ''); });
+      await apiCall('/api/eventos/distribuicao-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
+        body: JSON.stringify({ ano, mes, target_m1: parseNum(cfg.targetM1), m2_pct: parseNum(cfg.m2), m3_pct: parseNum(cfg.m3), dias_venda: parseNum(cfg.diasVenda), pesos: pesosNum }),
+      }).catch(() => {});
+
+      // 2) aplica o M1 de cada dia da semana na Meta M1 do mês
       const m1PorDow: Record<number, number> = {};
       calc.linhas.forEach((l) => { m1PorDow[l.dow] = Math.round(l.m1 * 100) / 100; });
       const r: any = await apiCall('/api/eventos/aplicar-m1-distribuicao', {
@@ -200,7 +238,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
       </Button>
 
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setConfirmando(false); setResultado(null); } }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Calculator className="h-5 w-5" /> Calculadora de Distribuição de Metas</DialogTitle>
             <DialogDescription>Distribui a meta mensal pelos dias da semana pelo peso de cada dia. Salva no seu navegador; use &ldquo;Aplicar&rdquo; para gravar a Meta M1 no mês.</DialogDescription>
