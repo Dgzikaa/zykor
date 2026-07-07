@@ -27,15 +27,17 @@ function TendIcon({ t }: { t: string }) {
   return <Minus className="h-4 w-4 text-gray-400 inline" />;
 }
 
-type Sort = 'fat_total' | 'fat_medio' | 'publico_medio' | 'retorno' | 'shows' | 'meta_atingimento' | 'cv';
+type Sort = 'fat_total' | 'fat_medio' | 'publico_medio' | 'retorno' | 'shows' | 'meta_atingimento' | 'cv' | 'nps_score';
 const SORTS: { key: Sort; label: string }[] = [
   { key: 'fat_total', label: 'Faturamento' },
+  { key: 'nps_score', label: 'Melhor NPS' },
   { key: 'fat_medio', label: 'Fat. médio' },
   { key: 'publico_medio', label: 'Público' },
   { key: 'retorno', label: 'Retorno' },
   { key: 'meta_atingimento', label: 'Meta' },
   { key: 'shows', label: 'Nº shows' },
 ];
+const npsCor = (s: number) => s >= 50 ? 'text-emerald-600 dark:text-emerald-400' : s >= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
 
 export default function LabelsTab({ barId, periodo }: { barId?: number; periodo: number }) {
   const [resp, setResp] = useState<any>(null);
@@ -173,6 +175,7 @@ export default function LabelsTab({ barId, periodo }: { barId?: number; periodo:
               <th className="text-right px-3 py-2">Shows</th>
               <th className="text-right px-3 py-2">Fat. médio</th>
               <th className="text-right px-3 py-2">Público méd.</th>
+              <th className="text-right px-3 py-2" title="Score NPS (promotores − detratores) no período · nº de respostas entre parênteses">NPS</th>
               <th className="text-right px-3 py-2" title="Ticket médio (t_medio)">Ticket</th>
               <th className="text-right px-3 py-2" title="R$ faturado por R$ de cachê">Retorno</th>
               <th className="text-right px-3 py-2" title="% do fat que vira cachê">% cachê</th>
@@ -192,6 +195,10 @@ export default function LabelsTab({ barId, periodo }: { barId?: number; periodo:
                     <td className="px-3 py-2 text-right tabular-nums">{l.shows}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{money(l.fat_medio)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{num(l.publico_medio)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {l.nps_score == null ? <span className="text-gray-400">—</span>
+                        : <span className={`font-medium ${npsCor(l.nps_score)}`}>{l.nps_score > 0 ? '+' : ''}{l.nps_score}<span className="text-[10px] text-gray-400 ml-0.5">({l.nps_respostas})</span></span>}
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums text-gray-500">{l.ticket_medio ? money(l.ticket_medio) : '—'}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{l.retorno != null ? `${l.retorno.toFixed(1).replace('.', ',')}×` : '—'}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-gray-500">{l.pct_cachet != null ? `${Math.round(l.pct_cachet)}%` : '—'}</td>
@@ -276,11 +283,12 @@ function LabelDetalhe({ l }: { l: any }) {
       </CardHeader>
       <CardContent className="space-y-4">
         {/* mini KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-sm">
           <MiniKpi label="Fat. médio/noite" v={money(l.fat_medio)} />
           <MiniKpi label="Público médio" v={num(l.publico_medio)} />
           <MiniKpi label="Retorno (fat/cachê)" v={l.retorno != null ? `${l.retorno.toFixed(1).replace('.', ',')}×` : '—'} />
           <MiniKpi label="Atingimento de meta" v={l.meta_atingimento != null ? `${Math.round(l.meta_atingimento)}%` : '—'} />
+          <MiniKpi label="NPS do público" v={l.nps_score != null ? `${l.nps_score > 0 ? '+' : ''}${l.nps_score} · ${l.nps_respostas} resp.` : '—'} />
         </div>
 
         {/* melhor / pior noite */}

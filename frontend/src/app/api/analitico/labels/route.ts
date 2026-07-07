@@ -180,6 +180,22 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // 2.5) NPS por evento no período → agrega por label canônica (independe de artista taggeado,
+    // então funciona no Deboche). Mapeia evento_id → canon via evById pra casar 1:1 com o label.
+    const { data: npsRows } = await (supabase as any).schema('silver')
+      .from('nps_evento_respostas')
+      .select('evento_id, nps, categoria')
+      .eq('bar_id', barId)
+      .gte('data_visita', iniStr).lte('data_visita', hojeStr);
+    const npsPorCanon = new Map<string, { n: number; soma: number; promot: number; detrat: number }>();
+    for (const r of npsRows || []) {
+      const ev = evById.get(r.evento_id); if (!ev) continue;
+      const a = npsPorCanon.get(ev.canon) || { n: 0, soma: 0, promot: 0, detrat: 0 };
+      a.n++; a.soma += Number(r.nps) || 0;
+      if (r.categoria === 'promotor') a.promot++; else if (r.categoria === 'detrator') a.detrat++;
+      npsPorCanon.set(ev.canon, a);
+    }
+
     // 3) agrupa eventos por label canônica
     interface LabelAcc {
       canon: string;
@@ -268,6 +284,12 @@ export async function GET(request: NextRequest) {
         const diaDom = [...l.diaCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
         const display = [...l.displayCount.entries()].sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0]?.[0] || l.canon;
 
+        // NPS da label no período (agregado por evento → canon). null quando não há respostas.
+        const npsAcc = npsPorCanon.get(l.canon);
+        const nps_respostas = npsAcc?.n || 0;
+        const nps_medio = npsAcc && npsAcc.n ? Math.round((npsAcc.soma / npsAcc.n) * 100) / 100 : null;
+        const nps_score = npsAcc && npsAcc.n ? Math.round((npsAcc.promot / npsAcc.n) * 100 - (npsAcc.detrat / npsAcc.n) * 100) : null;
+
         // série semanal (agrega por semana ISO — em geral 1 show/semana)
         const porSemana = new Map<string, { fat: number; publico: number; meta: number; n: number }>();
         for (const e of evs) {
@@ -307,6 +329,7 @@ export async function GET(request: NextRequest) {
           dia: diaDom,
           dia_label: DIA_LABEL[diaDom] || display,
           shows: n,
+          nps_respostas, nps_medio, nps_score,
           fat_total, fat_medio,
           publico_total: publicos.reduce((s, x) => s + x, 0), publico_medio,
           ticket_medio,
