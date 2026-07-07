@@ -175,8 +175,9 @@ export default function AtracoesPage() {
               </CardContent>
             </Card>
 
-            {/* #2 O NPS prevê retorno? (métrica da casa) */}
+            {/* #2 O NPS prevê retorno? + #6 Motivos citados (métricas da casa) */}
             {barId ? <NpsRetornoCard barId={barId} de={de} ate={ate} dow={dow} /> : null}
+            {barId ? <NpsTemasCard barId={barId} de={de} ate={ate} dow={dow} /> : null}
 
             {/* Dropdown de artista */}
             <div className="flex items-center gap-3 flex-wrap">
@@ -437,6 +438,45 @@ const npsDimCor = (nota: number) => nota >= 4.2 ? 'bg-emerald-100 text-emerald-7
 const npsCat = (c: string) => c === 'promotor' ? { emoji: '😍', cor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' }
   : c === 'neutro' ? { emoji: '😐', cor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' }
   : { emoji: '😕', cor: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' };
+
+// #6 — Motivos citados nos comentários (reclamações: detratores + neutros).
+function NpsTemasCard({ barId, de, ate, dow }: { barId?: number; de: string; ate: string; dow: string }) {
+  const [d, setD] = useState<any>(null);
+  const [aberto, setAberto] = useState<string | null>(null);
+  useEffect(() => {
+    if (!barId) return;
+    const qs = new URLSearchParams({ view: 'nps-temas', bar_id: String(barId) });
+    if (de) qs.set('de', de); if (ate) qs.set('ate', ate); if (dow !== '') qs.set('dow', dow);
+    fetch(`/api/analitico/atracoes?${qs.toString()}`, { cache: 'no-store' }).then(r => r.json()).then(setD).catch(() => setD(null));
+  }, [barId, de, ate, dow]);
+  if (!d || !d.temas?.length) return null;
+  const max = d.temas[0]?.n || 1;
+  return (
+    <Card className="border-rose-100 dark:border-rose-900/40">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2"><MessageSquare className="h-4 w-4 text-rose-500" />Motivos citados nos comentários</CardTitle>
+        <CardDescription>o que mais aparece nas {d.total_reclamacoes} reclamações (detratores + neutros) — clique num tema pra ler exemplos</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-1">
+        {d.temas.slice(0, 8).map((t: any) => (
+          <div key={t.tema}>
+            <button onClick={() => setAberto(aberto === t.tema ? null : t.tema)} className="w-full flex items-center gap-3 text-sm py-0.5 hover:opacity-90">
+              <span className="w-36 sm:w-44 shrink-0 text-left text-gray-800 dark:text-gray-200 truncate">{t.tema}</span>
+              <div className="flex-1 bg-gray-100 dark:bg-gray-800 rounded h-3 overflow-hidden"><div className="h-full bg-rose-400 dark:bg-rose-500" style={{ width: `${Math.max(6, (t.n / max) * 100)}%` }} /></div>
+              <span className="w-8 text-right tabular-nums text-gray-700 dark:text-gray-300">{t.n}</span>
+              <span className="w-16 text-right text-[11px] text-gray-400">NPS {t.nps_medio.toFixed(1).replace('.', ',')}</span>
+            </button>
+            {aberto === t.tema && (
+              <ul className="ml-1 mt-1 mb-2 space-y-1 text-[12px] text-gray-600 dark:text-gray-300 border-l-2 border-rose-200 dark:border-rose-900/50 pl-2">
+                {t.exemplos.map((e: string, i: number) => <li key={i} className="italic">“{e}”</li>)}
+              </ul>
+            )}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
 
 // #2 — O NPS prevê retorno? Taxa de retorno ao bar por categoria (métrica da casa).
 function NpsRetornoCard({ barId, de, ate, dow }: { barId?: number; de: string; ate: string; dow: string }) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { agregarDimensoes } from '@/lib/analytics/nps-dimensoes';
+import { temasDe } from '@/lib/analytics/nps-temas';
 
 export const dynamic = 'force-dynamic';
 const supabase = createServiceRoleClient();
@@ -130,6 +131,35 @@ export async function GET(request: NextRequest) {
         total, voltaram: voltaramTotal, pct: total ? Math.round((voltaramTotal / total) * 100) : null,
         promotor: agg('promotor'), neutro: agg('neutro'), detrator: agg('detrator'),
       });
+    }
+
+    // #6 Comentários → temas (motivos citados, foco em reclamações: detrator+neutro)
+    if (searchParams.get('view') === 'nps-temas') {
+      const { data: rows, error } = await (supabase as any).schema('silver').from('nps_comentarios')
+        .select('nps, categoria, comentario, data_visita, data_resposta').eq('bar_id', barId);
+      if (error) throw error;
+      const dref = (r: any) => r.data_visita || r.data_resposta;
+      const com = (rows || []).filter((r: any) => {
+        const d = dref(r); if (!d) return true;
+        if (de && d < de) return false;
+        if (ate && d > ate) return false;
+        if (dow != null && new Date(d + 'T12:00:00Z').getUTCDay() !== dow) return false;
+        return true;
+      });
+      const reclam = com.filter((r: any) => r.categoria !== 'promotor');
+      const map = new Map<string, { n: number; somaNps: number; exemplos: string[] }>();
+      for (const r of reclam) {
+        for (const tema of temasDe(r.comentario)) {
+          const a = map.get(tema) || { n: 0, somaNps: 0, exemplos: [] };
+          a.n++; a.somaNps += Number(r.nps) || 0;
+          if (a.exemplos.length < 4 && r.comentario) a.exemplos.push(String(r.comentario).slice(0, 180));
+          map.set(tema, a);
+        }
+      }
+      const temas = [...map.entries()]
+        .map(([tema, a]) => ({ tema, n: a.n, nps_medio: Math.round((a.somaNps / a.n) * 10) / 10, exemplos: a.exemplos }))
+        .sort((a, b) => b.n - a.n);
+      return NextResponse.json({ success: true, total_reclamacoes: reclam.length, total_comentarios: com.length, temas });
     }
 
     // Modo artista-first: trajetória completa de 1 artista
