@@ -246,8 +246,11 @@ export async function getSemanas(
   const semanas = semanasGoldFilt.map(g => {
     const meta = metaMap.get(`${g.ano}-${g.numero_semana}`);
     const cmvSem = cmvSemanaisMap.get(`${g.ano}-${g.numero_semana}`);
-    // Cascata cmv_teorico: cmv_semanal.manual -> meta.desempenho_manual (legado) -> cmv_semanal.auto -> gold
-    const cmvTeoricoFinal = cmvSem?.manual ?? meta?.cmv_teorico ?? cmvSem?.auto ?? g.cmv_teorico;
+    // Cascata cmv_teorico: cmv_semanal.manual -> meta.desempenho_manual (legado, só se > 0) -> cmv_semanal.auto (gold ao vivo) -> gold.
+    // O legado meta.cmv_teorico vem 0 (NÃO null) nas semanas novas; o ?? travava no 0 e escondia o auto
+    // do gold (ex.: S27 mostrava 0,0% com o gold em ~27%). Tratar 0/negativo como "não informado".
+    const legadoMeta = meta?.cmv_teorico != null && Number(meta.cmv_teorico) > 0 ? Number(meta.cmv_teorico) : null;
+    const cmvTeoricoFinal = cmvSem?.manual ?? legadoMeta ?? cmvSem?.auto ?? g.cmv_teorico;
     return {
       ...g,
       // Campos puramente manuais: meta sempre ganha, sem fallback pro gold

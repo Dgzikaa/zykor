@@ -249,9 +249,10 @@ export async function getMeses(
         ? Number(manual.cmo)
         : (toNum(g.cmo) != null && faturamentoTotal > 0 ? (Number(g.cmo) / faturamentoTotal * 100) : 0),
 
-      // CMV Teorico: cascata cmv_mensal.manual -> meta.desempenho_manual (legado) -> cmv_mensal.auto
+      // CMV Teorico: cascata cmv_mensal.manual -> meta.desempenho_manual (legado, só se > 0) -> cmv_mensal.auto.
+      // O legado manual.cmv_teorico vem 0 (NÃO null); o ?? travava no 0 e escondia o auto do gold.
       cmv_teorico: cmvMensalMap.get(g.periodo)?.manual
-        ?? manual.cmv_teorico
+        ?? (manual.cmv_teorico != null && Number(manual.cmv_teorico) > 0 ? Number(manual.cmv_teorico) : null)
         ?? cmvMensalMap.get(g.periodo)?.auto
         ?? 0,
       cmv_limpo: toNum(g.cmv_percentual) ?? manual.cmv_limpo ?? 0,
