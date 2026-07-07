@@ -108,23 +108,13 @@ export default function AtracoesPage() {
           <div className="flex items-center gap-2">
             <Music className="h-6 w-6 text-violet-600" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Artístico</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">A trajetória de cada artista com a casa.</p>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Visão do Artista</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">A trajetória de cada artista com a casa — feita pra mostrar pro artista.</p>
             </div>
           </div>
           <Link href="/analitico/atracoes/tagging" className="text-sm inline-flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-3 h-9 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">
             <Tag className="h-4 w-4" />Taggear eventos
           </Link>
-        </div>
-
-        {/* Abas */}
-        <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
-          {([['artista', 'Por artista'], ['ranking', 'Ranking']] as const).map(([k, label]) => (
-            <button key={k} onClick={() => setAba(k)}
-              className={`px-3 py-2 text-sm border-b-2 -mb-px transition ${aba === k ? 'border-violet-500 text-violet-700 dark:text-violet-300 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}>
-              {label}
-            </button>
-          ))}
         </div>
 
         {aba === 'ranking' ? (
