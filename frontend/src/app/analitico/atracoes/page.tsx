@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Music, Users, DollarSign, Calendar, Award, TrendingUp, TrendingDown, Star, Trophy, Ticket, Tag, ArrowUpRight, ArrowDownRight, Sparkles, Handshake, Share2, Camera, X } from 'lucide-react';
+import { Music, Users, DollarSign, Calendar, Award, TrendingUp, TrendingDown, Star, Trophy, Ticket, Tag, ArrowUpRight, ArrowDownRight, Sparkles, Handshake, Share2, Camera, X, Smile, MessageSquare } from 'lucide-react';
 
 // ---- formatação ----
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -148,7 +148,7 @@ export default function AtracoesPage() {
               ) : loadingTraj || !traj ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>
               ) : (
-                <TrajetoriaView traj={traj} nome={artistaSel?.nome || ''} tipo={artistaSel?.tipo || ''} foto={artistaSel?.foto_url || null} artistaId={artistaSel?.artista_id || 0} onFotoSalva={carregarLista} evolChart={evolChart} crescPublico={crescPublico} barNome={selectedBar?.nome || 'a casa'} />
+                <TrajetoriaView traj={traj} nome={artistaSel?.nome || ''} tipo={artistaSel?.tipo || ''} foto={artistaSel?.foto_url || null} artistaId={artistaSel?.artista_id || 0} onFotoSalva={carregarLista} evolChart={evolChart} crescPublico={crescPublico} barNome={selectedBar?.nome || 'a casa'} barId={barId} />
               )}
           </>
         )}
@@ -158,7 +158,7 @@ export default function AtracoesPage() {
 }
 
 // ---- Trajetória ----
-function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolChart, crescPublico, barNome }: { traj: Trajetoria; nome: string; tipo: string; foto: string | null; artistaId: number; onFotoSalva: () => void; evolChart: any[]; crescPublico: number | null; barNome: string }) {
+function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolChart, crescPublico, barNome, barId }: { traj: Trajetoria; nome: string; tipo: string; foto: string | null; artistaId: number; onFotoSalva: () => void; evolChart: any[]; crescPublico: number | null; barNome: string; barId?: number }) {
   const [share, setShare] = useState(false);
   const salvarFoto = async () => {
     const url = window.prompt('Cole a URL da foto do artista:', foto || '');
@@ -239,6 +239,9 @@ function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolCh
           </CardContent></Card>
         ))}
       </div>
+
+      {/* NPS do público vinculado ao artista (Falae · Data da Visita) */}
+      {artistaId ? <NpsArtistaCard barId={barId} artistaId={artistaId} nome={nome} /> : null}
 
       {/* Melhor / pior noite (cachê) */}
       <div className="grid md:grid-cols-2 gap-3">
@@ -368,6 +371,115 @@ function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolCh
         </div>
       )}
     </div>
+  );
+}
+
+// ---- NPS por artista (Falae · Data da Visita → artista da noite) ----
+const npsScoreCor = (s: number) => s >= 50 ? 'text-emerald-600 dark:text-emerald-400' : s >= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
+const npsCat = (c: string) => c === 'promotor' ? { emoji: '😍', cor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' }
+  : c === 'neutro' ? { emoji: '😐', cor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' }
+  : { emoji: '😕', cor: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' };
+
+function NpsArtistaCard({ barId, artistaId, nome }: { barId?: number; artistaId: number; nome: string }) {
+  const anoAtual = new Date().getFullYear();
+  const PERIODOS = [
+    { key: 'tudo', label: 'Tudo' },
+    { key: String(anoAtual), label: String(anoAtual) },
+    { key: String(anoAtual - 1), label: String(anoAtual - 1) },
+    { key: 'mes', label: 'Este mês' },
+  ];
+  const [periodo, setPeriodo] = useState('tudo');
+  const [loading, setLoading] = useState(true);
+  const [resumo, setResumo] = useState<any>(null);
+  const [respostas, setRespostas] = useState<any[]>([]);
+  const [aberto, setAberto] = useState(false);
+
+  const range = useMemo(() => {
+    if (/^\d{4}$/.test(periodo)) return { de: `${periodo}-01-01`, ate: `${periodo}-12-31` };
+    if (periodo === 'mes') { const n = new Date(); return { de: `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-01` } as { de?: string; ate?: string }; }
+    return {} as { de?: string; ate?: string };
+  }, [periodo]);
+
+  useEffect(() => {
+    if (!barId || !artistaId) return;
+    setLoading(true);
+    const qs = new URLSearchParams({ view: 'nps', artista_id: String(artistaId), bar_id: String(barId) });
+    if (range.de) qs.set('de', range.de);
+    if (range.ate) qs.set('ate', range.ate);
+    fetch(`/api/analitico/atracoes?${qs.toString()}`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(j => { setResumo(j.resumo || null); setRespostas(j.respostas || []); })
+      .catch(() => { setResumo(null); setRespostas([]); })
+      .finally(() => setLoading(false));
+  }, [barId, artistaId, range.de, range.ate]);
+
+  return (
+    <Card className="border-sky-100 dark:border-sky-900/40">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <CardTitle className="text-base flex items-center gap-2"><Smile className="h-4 w-4 text-sky-500" />NPS do público</CardTitle>
+          <div className="flex flex-wrap gap-1.5">
+            {PERIODOS.map(p => (
+              <button key={p.key} onClick={() => setPeriodo(p.key)}
+                className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${periodo === p.key ? 'bg-sky-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <CardDescription>satisfação de quem foi nas noites de {nome} (Falae · vinculado pela data da visita)</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? <Skeleton className="h-20 w-full" />
+          : !resumo ? <p className="text-sm text-gray-500 py-4 text-center">Sem respostas de NPS vinculadas a {nome} neste período.</p>
+          : (
+            <div className="flex items-center gap-5 flex-wrap">
+              <div className="text-center shrink-0">
+                <div className={`text-4xl font-extrabold leading-none ${npsScoreCor(resumo.nps_score)}`}>{resumo.nps_score > 0 ? '+' : ''}{resumo.nps_score}</div>
+                <div className="text-[11px] text-gray-400 mt-1">score NPS</div>
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>NPS médio <b>{resumo.nps_medio.toFixed(1).replace('.', ',')}</b> · <b>{resumo.respostas}</b> resposta{resumo.respostas === 1 ? '' : 's'}</div>
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 px-2 py-0.5 text-xs">😍 {resumo.promotores} promot.</span>
+                  <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-2 py-0.5 text-xs">😐 {resumo.neutros} neutro</span>
+                  <span className="inline-flex items-center rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 px-2 py-0.5 text-xs">😕 {resumo.detratores} detrat.</span>
+                </div>
+              </div>
+              <button onClick={() => setAberto(true)} className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 px-3 h-9 text-sm hover:bg-sky-50 dark:hover:bg-sky-900/20 shrink-0">
+                <MessageSquare className="h-4 w-4" />Ver respostas
+              </button>
+            </div>
+          )}
+      </CardContent>
+
+      {aberto && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-start justify-center p-4 overflow-auto" onClick={() => setAberto(false)}>
+          <div className="mt-6 w-full max-w-lg bg-white dark:bg-gray-900 rounded-xl shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+              <div className="font-semibold text-gray-900 dark:text-white">Respostas de NPS · {nome}</div>
+              <button onClick={() => setAberto(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="max-h-[70vh] overflow-auto divide-y divide-gray-100 dark:divide-gray-800">
+              {respostas.length === 0 ? <p className="text-sm text-gray-500 py-8 text-center">Sem respostas no período.</p>
+                : respostas.map((r, i) => {
+                  const cat = npsCat(r.categoria);
+                  return (
+                    <div key={i} className="px-4 py-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cat.cor}`}>{cat.emoji} {r.nps}</span>
+                        <span className="text-xs text-gray-500">{fmtData(r.data_visita)}</span>
+                        {r.evento_nome && <span className="text-xs text-gray-400">· {r.evento_nome}</span>}
+                      </div>
+                      {r.comentario && <p className="text-sm text-gray-700 dark:text-gray-300 mt-1.5 italic">“{r.comentario}”</p>}
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 

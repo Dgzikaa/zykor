@@ -56,6 +56,35 @@ export async function GET(request: NextRequest) {
       if (error) throw error;
       return NextResponse.json({ success: true, lista: data || [] });
     }
+    // NPS por artista (silver.nps_artista_respostas) — resumo + cada resposta, com filtro de período.
+    // NPS vem da "Data da Visita" do Falae vinculada ao artista da noite (ver project_nps_por_artista).
+    if (searchParams.get('view') === 'nps') {
+      const artistaId = Number(searchParams.get('artista_id'));
+      if (!artistaId) return NextResponse.json({ success: true, resumo: null, respostas: [] });
+      const de = searchParams.get('de');
+      const ate = searchParams.get('ate');
+      let q = (supabase as any).schema('silver')
+        .from('nps_artista_respostas')
+        .select('nps, data_visita, categoria, evento_nome, comentario')
+        .eq('bar_id', barId).eq('artista_id', artistaId);
+      if (de) q = q.gte('data_visita', de);
+      if (ate) q = q.lte('data_visita', ate);
+      const { data, error } = await q.order('data_visita', { ascending: false });
+      if (error) throw error;
+      const respostas = data || [];
+      const n = respostas.length;
+      const promot = respostas.filter((r: any) => r.categoria === 'promotor').length;
+      const detrat = respostas.filter((r: any) => r.categoria === 'detrator').length;
+      const soma = respostas.reduce((s: number, r: any) => s + (Number(r.nps) || 0), 0);
+      const resumo = n === 0 ? null : {
+        respostas: n,
+        nps_medio: Math.round((soma / n) * 100) / 100,
+        nps_score: Math.round((promot / n) * 100 - (detrat / n) * 100),
+        promotores: promot, neutros: n - promot - detrat, detratores: detrat,
+      };
+      return NextResponse.json({ success: true, resumo, respostas });
+    }
+
     // Modo artista-first: trajetória completa de 1 artista
     const artistaIdParam = searchParams.get('artista_id');
     if (artistaIdParam) {
