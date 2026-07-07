@@ -42,6 +42,9 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // próprias notificações (RLS em system.notificacoes). Mesmo padrão do /home.
   { path: '/alertas', requiredModules: [] },
 
+  // Revisão de feedbacks (só admin). O widget de envio é global; a REVISÃO é restrita.
+  { path: '/configuracoes/feedbacks', adminOnly: true },
+
   // Zykor Assistant na raiz (menu fica em Configurações, mas acesso é amplo)
   { path: '/assistente-zykor', requiredModules: ['gestao', 'home', 'configuracoes'] },
 

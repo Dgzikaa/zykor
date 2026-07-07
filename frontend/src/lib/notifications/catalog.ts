@@ -185,6 +185,16 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
     urlPadrao: '/configuracoes/saude-dos-dados',
   },
   {
+    key: 'feedback_novo',
+    label: 'Novo feedback recebido',
+    descricao: 'Alguém enviou um feedback pelo widget flutuante (com a tela e o autor).',
+    categoria: 'sistema',
+    severidadePadrao: 'info',
+    canaisSuportados: ['in_app', 'push', 'whatsapp'],
+    urlPadrao: '/configuracoes/feedbacks',
+    acaoLabel: 'Ver feedbacks',
+  },
+  {
     key: 'condicao_atingida',
     label: 'Alerta automático (condição)',
     descricao: 'Uma condição criada no construtor de alertas foi atingida (ex: faturamento abaixo de X).',
@@ -205,7 +215,11 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
 ];
 
 /** Eventos que NÃO aparecem na matriz de regras (roteamento próprio). */
-export const EVENTOS_OCULTOS_NA_MATRIZ = new Set<string>(['aviso_manual', 'condicao_atingida']);
+export const EVENTOS_OCULTOS_NA_MATRIZ = new Set<string>([
+  'aviso_manual',
+  'condicao_atingida',
+  'feedback_novo',
+]);
 
 const EVENTS_BY_KEY = new Map(NOTIFICATION_EVENTS.map((e) => [e.key, e]));
 
