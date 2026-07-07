@@ -68,6 +68,20 @@ const fmtTempo = (seg: any) => {
   const pad = (n: number) => n.toString().padStart(2, '0');
   return h > 0 ? `${h}:${pad(m)}:${pad(ss)}` : `${pad(m)}:${pad(ss)}`;
 };
+
+// device_id estável por navegador/tablet — escopo dos rascunhos de produção no servidor
+// (cada tablet só recupera o que ELE MESMO começou; não "adota" produção de outro device).
+// Criado 1x e guardado no localStorage. Chamado só no cliente (dentro de effects/useState).
+function getDeviceId(): string {
+  try {
+    let id = localStorage.getItem('zykor:device_id');
+    if (!id) {
+      id = (globalThis.crypto?.randomUUID?.() ?? `dev-${Date.now()}-${Math.round(Math.random() * 1e9)}`);
+      localStorage.setItem('zykor:device_id', id);
+    }
+    return id;
+  } catch { return 'no-storage'; }
+}
 const fmtData = (iso: any) => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
 
 // Seção da produção pelo código da ficha: pd* = Bar (drinks), demais = Cozinha.
@@ -107,8 +121,13 @@ interface ActiveProd {
   rendimentoReal: string;
   observacao: string;
   qtdReal: Record<number, string>;
+  // Cronômetro por ÂNCORA DE RELÓGIO (wall-clock), não acumulador: `segundos` = tempo já "bancado"
+  // (dos segmentos pausados); `rodandoDesde` = epoch ms em que o segmento atual começou a rodar
+  // (null quando pausado). Tempo exibido = segundos + (rodando ? agora − rodandoDesde : 0).
+  // Reconstrói do relógio → reload/deploy/aba em background não perdem nem distorcem o tempo.
   segundos: number;
   rodando: boolean;
+  rodandoDesde?: number | null;
   dataProducao?: string; // retroativa: data (YYYY-MM-DD) em que a produção foi feita; vazio = hoje
   tentouSalvar?: boolean; // já tentou salvar → destaca em vermelho os obrigatórios vazios
   idempotencyKey: string; // 1 por instância → duplo/triplo submit (internet ruim) colide no banco, não duplica
@@ -131,65 +150,170 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
   const [selId, setSelId] = useState<string | null>(null);
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const [confirmar, setConfirmar] = useState<{ prod: ActiveProd; suspeitos: { campo: string; valor: number; unidade: string | null; esperado: number }[] } | null>(null);
+  // status do autosave no servidor (feedback pro operador: "tá salvo, pode recarregar")
+  const [saveInfo, setSaveInfo] = useState<{ status: 'salvando' | 'salvo' | 'offline'; at: number } | null>(null);
+  // confirmação de ação destrutiva (descartar/zerar) — evita perda por toque acidental no tablet
+  const [confirmarAcao, setConfirmarAcao] = useState<{ tipo: 'descartar' | 'zerar'; localId: string; nome: string } | null>(null);
+  // produção em andamento achada em OUTRO device do bar (cache do tablet limpo / trocou de aparelho)
+  const [resumivel, setResumivel] = useState<any[] | null>(null);
   const idRef = useRef(0);
-  // espelho de prods p/ o gravador ler sempre o valor atual sem recriar o interval
+  // espelho de prods p/ os gravadores lerem sempre o valor atual sem recriar os intervals
   const prodsRef = useRef(prods);
   prodsRef.current = prods;
-  const lastWriteRef = useRef<string>('');
 
-  // timer global: incrementa todas as produções rodando, a cada 1s
-  useEffect(() => {
-    const t = setInterval(() => {
-      setProds(prev => prev.some(p => p.rodando) ? prev.map(p => p.rodando ? { ...p, segundos: p.segundos + 1 } : p) : prev);
-    }, 1000);
-    return () => clearInterval(t);
+  const [deviceId] = useState(getDeviceId);          // id do tablet (escopo dos rascunhos no servidor)
+  const [nowTick, setNowTick] = useState(() => Date.now()); // re-render de 1/1s p/ o cronômetro "andar"
+  const lastLocalRef = useRef<string>('');           // assinatura do último write no localStorage
+  const lastServerRef = useRef<string>('');          // assinatura do último autosave no servidor
+  const persistLocalErroRef = useRef(false);         // já avisei que o localStorage falhou? (não spamar)
+
+  // tempo decorrido REAL de uma produção (âncora de relógio): segundos bancados + segmento em curso.
+  const elapsedOf = (p: { segundos: number; rodando: boolean; rodandoDesde?: number | null }, now = Date.now()) =>
+    Math.max(0, Math.round((Number(p.segundos) || 0) + (p.rodando && p.rodandoDesde ? (now - p.rodandoDesde) / 1000 : 0)));
+
+  // snapshot serializável (sem flags de UI voláteis) — base dos writes local/servidor
+  const snapshotProds = () => prodsRef.current.map(p => ({ ...p, loadingItens: false }));
+
+  // aplica um conjunto de estados salvos (servidor ou local) na tela. Usado na hidratação e no
+  // "retomar por bar". Marca as assinaturas atuais p/ não reescrever local/servidor logo após.
+  const aplicarEstados = useCallback((estados: any[]): boolean => {
+    const restored: ActiveProd[] = (Array.isArray(estados) ? estados : [])
+      .filter((p: any) => p && p.localId && p.ficha)
+      .map((p: any) => ({
+        ...p,
+        loadingItens: false,
+        segundos: Number(p.segundos) || 0,
+        rodandoDesde: p.rodando ? (Number(p.rodandoDesde) || Date.now()) : null,
+      }));
+    if (!restored.length) return false;
+    setProds(restored);
+    setSelId(restored[restored.length - 1].localId);
+    idRef.current = Math.max(idRef.current, ...restored.map(p => parseInt(String(p.localId).replace(/\D/g, ''), 10) || 0));
+    const sig = JSON.stringify(restored.map(p => ({ ...p, loadingItens: false })));
+    lastLocalRef.current = sig; lastServerRef.current = sig;
+    return true;
   }, []);
 
-  // PERSISTÊNCIA das produções em andamento (localStorage por bar). Antes elas viviam só em
-  // memória → trocar de página, deslogar ou o tablet desligar ZERAVA tudo (a receita sumia).
-  // Agora: ao reabrir, a produção volta "ali de baixo" até finalizarem. O cronômetro é âncora
-  // de relógio — enquanto 'rodando', soma o tempo decorrido com a tela fechada (paused fica
-  // congelado). Chave por bar → tablets diferentes (bar/cozinha) não colidem.
+  // tick de 1s só enquanto há algo rodando → o cronômetro exibido "anda" sem acumular drift
+  const anyRodando = prods.some(p => p.rodando);
   useEffect(() => {
+    if (!anyRodando) return;
+    const t = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [anyRodando]);
+
+  // grava no localStorage (cache offline). C: se falhar (quota/modo privado), AVISA em vez de
+  // engolir em silêncio — o servidor continua sendo a fonte durável.
+  const writeLocal = useCallback(() => {
     if (!barId) return;
+    const cur = snapshotProds();
+    const sig = cur.length ? JSON.stringify(cur) : '';
+    if (sig === lastLocalRef.current) return;
+    lastLocalRef.current = sig;
     try {
-      const raw = localStorage.getItem(`zykor:producoes:ativas:${barId}`);
-      if (raw) {
-        const saved = JSON.parse(raw);
-        const gap = Math.max(0, Math.floor((Date.now() - Number(saved?._ts || Date.now())) / 1000));
-        const restored: ActiveProd[] = (Array.isArray(saved?.prods) ? saved.prods : []).map((p: any) => ({
-          ...p,
-          loadingItens: false,
-          // só o que está rodando "anda" no tempo que ficou fora; pausado mantém o valor
-          segundos: p?.rodando ? (Number(p.segundos) || 0) + gap : (Number(p.segundos) || 0),
-        }));
-        if (restored.length) {
-          setProds(restored);
-          setSelId(restored[restored.length - 1].localId);
-          idRef.current = Math.max(idRef.current, ...restored.map(p => parseInt(String(p.localId).replace(/\D/g, ''), 10) || 0));
-        }
+      const key = `zykor:producoes:ativas:${barId}`;
+      if (cur.length) localStorage.setItem(key, JSON.stringify({ _ts: Date.now(), prods: cur }));
+      else localStorage.removeItem(key);
+      persistLocalErroRef.current = false;
+    } catch {
+      if (!persistLocalErroRef.current) {
+        persistLocalErroRef.current = true;
+        toast({ title: 'Armazenamento local cheio', description: 'Não consegui salvar o progresso neste aparelho, mas ele está sendo salvo no servidor. Finalize as produções abertas para liberar espaço.', variant: 'destructive' });
       }
-    } catch { /* localStorage indisponível/JSON ruim → começa limpo */ }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [barId]);
 
-  // grava a cada 1s (e ao sair da tela) — só quando muda; mantém _ts fresco enquanto roda
+  // A: autosave no SERVIDOR (rascunho) — fonte durável que sobrevive a reload/deploy/quota/descarte
+  // de aba. Só reenvia quando muda. Remoções vão por DELETE em remover()/no finalizar.
+  const writeServer = useCallback(async () => {
+    if (!barId) return;
+    const cur = snapshotProds();
+    if (!cur.length) return;
+    const sig = JSON.stringify(cur);
+    if (sig === lastServerRef.current) return;
+    lastServerRef.current = sig;
+    const now = Date.now();
+    const rascunhos = cur.map(p => ({
+      idempotencia_key: p.idempotencyKey,
+      secao: p.ficha?.codigo ? secaoDeCodigo(p.ficha.codigo) : secaoAtiva,
+      producao_id: p.ficha?.id ?? null,
+      responsavel_id: p.responsavelId ?? null,
+      rodando: !!p.rodando,
+      duracao_seg: elapsedOf(p, now),
+      estado: p,
+    }));
+    setSaveInfo({ status: 'salvando', at: Date.now() });
+    try {
+      const r = await api.put('/api/operacional/producoes/execucao/rascunho', { bar_id: barId, device_id: deviceId, rascunhos });
+      if (r?.success === false) throw new Error(r?.error || 'falha');
+      setSaveInfo({ status: 'salvo', at: Date.now() });
+    } catch {
+      lastServerRef.current = '';            // falhou → retenta no próximo ciclo
+      setSaveInfo({ status: 'offline', at: Date.now() });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barId, secaoAtiva, deviceId]);
+
+  // HIDRATAÇÃO ao abrir/trocar de bar: (1) servidor deste device (autoritativo) → (2) cache local
+  // offline → (3) "retomar por bar": rascunho de OUTRO device (cache limpo/trocou de tablet), que
+  // NÃO auto-aplica — oferece retomar. Com a âncora de relógio, o tempo é reconstruído exato.
   useEffect(() => {
     if (!barId) return;
-    const key = `zykor:producoes:ativas:${barId}`;
-    const write = () => {
-      const cur = prodsRef.current;
-      const sig = cur.length ? JSON.stringify(cur) : '';
-      if (sig === lastWriteRef.current) return; // sem mudança → não escreve
-      lastWriteRef.current = sig;
+    let cancel = false;
+    (async () => {
+      let applied = false;
       try {
-        if (cur.length) localStorage.setItem(key, JSON.stringify({ _ts: Date.now(), prods: cur }));
-        else localStorage.removeItem(key);
+        const r = await api.get(`/api/operacional/producoes/execucao/rascunho?bar_id=${barId}&device_id=${encodeURIComponent(deviceId)}`);
+        if (!cancel && r?.success && Array.isArray(r.rascunhos) && r.rascunhos.length) applied = aplicarEstados(r.rascunhos.map((x: any) => x.estado));
+      } catch { /* offline/servidor fora → cai no cache local */ }
+      if (cancel || applied) return;
+      try {
+        const raw = localStorage.getItem(`zykor:producoes:ativas:${barId}`);
+        if (raw) { const saved = JSON.parse(raw); applied = aplicarEstados(Array.isArray(saved?.prods) ? saved.prods : []); }
       } catch { /* ignore */ }
+      if (cancel || applied) return;
+      try {
+        const r = await api.get(`/api/operacional/producoes/execucao/rascunho?bar_id=${barId}`); // sem device = bar inteiro
+        if (!cancel && r?.success && Array.isArray(r.rascunhos) && r.rascunhos.length) {
+          const estados = r.rascunhos.map((x: any) => x.estado).filter((e: any) => e && e.localId && e.ficha);
+          if (estados.length) setResumivel(estados);
+        }
+      } catch { /* ignore */ }
+    })();
+    return () => { cancel = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barId, deviceId]);
+
+  // Gravação periódica + flush ao sair/backgroundear a tela. localStorage a cada 1s (barato);
+  // servidor a cada 10s; ambos no pagehide/visibilitychange (tablet indo pra background = o caso
+  // clássico de "sumiu"). Flush final ao desmontar/trocar de bar.
+  useEffect(() => {
+    if (!barId) return;
+    const localT = setInterval(writeLocal, 1000);
+    const serverT = setInterval(() => { void writeServer(); }, 10000);
+    const flush = () => { writeLocal(); void writeServer(); };
+    const onVis = () => { if (typeof document !== 'undefined' && document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearInterval(localT); clearInterval(serverT);
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onVis);
+      flush();
     };
-    const t = setInterval(write, 1000);
-    return () => { write(); clearInterval(t); }; // persiste o estado final ao desmontar/trocar de bar
-  }, [barId]);
+  }, [barId, writeLocal, writeServer]);
+
+  // Salvamento IMEDIATO (debounce 1,5s) em mudança estrutural — iniciar/pausar/adicionar/remover/
+  // trocar responsável. Encurta a janela de perda: o momento crítico (âncora de início) não espera
+  // os 10s do ciclo. Edições de campo (peso/rendimento) seguem no ciclo periódico + flush.
+  const structSig = prods.map(p => `${p.localId}:${p.rodando ? 1 : 0}:${p.rodandoDesde ?? ''}:${p.responsavelId ?? ''}`).join('|');
+  useEffect(() => {
+    if (!barId || !prods.length) return;
+    const t = setTimeout(() => { writeLocal(); void writeServer(); }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [structSig, barId]);
 
   // calendarização da semana: conversa com o Planejamento da Produção (mesmo time-frame).
   // Mostra o que/quanto foi planejado por dia (planos encerrados) p/ a semana selecionada.
@@ -238,7 +362,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     const localId = `p${++idRef.current}`;
     const nova: ActiveProd = {
       localId, ficha: f, itens: [], loadingItens: true, responsavelId: null,
-      pesoBruto: '', pesoMestre: '', rendimentoReal: '', observacao: '', qtdReal: {}, segundos: 0, rodando: false, dataProducao: '',
+      pesoBruto: '', pesoMestre: '', rendimentoReal: '', observacao: '', qtdReal: {}, segundos: 0, rodando: false, rodandoDesde: null, dataProducao: '',
       idempotencyKey: (globalThis.crypto?.randomUUID?.() ?? `${localId}-${Date.now()}-${Math.round(Math.random() * 1e9)}`),
     };
     setProds(prev => [...prev, nova]);
@@ -251,11 +375,18 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
   };
 
   const remover = (id: string) => {
+    const alvo = prodsRef.current.find(p => p.localId === id);
     setProds(prev => {
       const next = prev.filter(p => p.localId !== id);
       setSelId(s => s === id ? (next[next.length - 1]?.localId ?? null) : s);
       return next;
     });
+    // apaga o rascunho no servidor (descartou ou finalizou). Best-effort; o POST da execução
+    // também apaga como backstop. Reseta a assinatura p/ o próximo autosave re-sincronizar o resto.
+    lastServerRef.current = '';
+    if (alvo?.idempotencyKey && barId) {
+      api.delete(`/api/operacional/producoes/execucao/rascunho?bar_id=${barId}&key=${encodeURIComponent(alvo.idempotencyKey)}`).catch(() => {});
+    }
   };
 
   // cálculos derivados de uma produção (proporção do mestre, custo, desvio)
@@ -285,8 +416,33 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
 
   const iniciar = (prod: ActiveProd) => {
     if (!prod.responsavelId) { toast({ title: 'Selecione o responsável', variant: 'destructive' }); return; }
-    patch(prod.localId, { rodando: true });
+    // ancora o início do segmento no relógio; `segundos` (bancado) permanece → "Continuar" soma certo
+    patch(prod.localId, { rodando: true, rodandoDesde: Date.now() });
   };
+
+  // tem trabalho de verdade lançado? (usado p/ decidir se pede confirmação antes de descartar/zerar)
+  const temProgresso = (p: ActiveProd) =>
+    elapsedOf(p) > 0 || !!p.pesoBruto || !!p.pesoMestre || !!p.rendimentoReal || !!p.observacao ||
+    Object.values(p.qtdReal || {}).some(v => String(v ?? '').trim() !== '');
+
+  // ações destrutivas com confirmação (só quando há progresso) — no tablet, um toque errado no X/
+  // Descartar/Zerar apagava a produção sem volta (agora o descarte também remove o rascunho no servidor).
+  const pedirDescartar = (prod: ActiveProd) =>
+    temProgresso(prod)
+      ? setConfirmarAcao({ tipo: 'descartar', localId: prod.localId, nome: prod.ficha?.nome || 'produção' })
+      : remover(prod.localId);
+  const pedirZerar = (prod: ActiveProd) =>
+    elapsedOf(prod) > 0
+      ? setConfirmarAcao({ tipo: 'zerar', localId: prod.localId, nome: prod.ficha?.nome || 'produção' })
+      : patch(prod.localId, { rodando: false, segundos: 0, rodandoDesde: null });
+  const confirmarAcaoExec = () => {
+    if (!confirmarAcao) return;
+    if (confirmarAcao.tipo === 'descartar') remover(confirmarAcao.localId);
+    else patch(confirmarAcao.localId, { rodando: false, segundos: 0, rodandoDesde: null });
+    setConfirmarAcao(null);
+  };
+  // adota as produções em andamento achadas em outro device do bar (o autosave passa a marcá-las neste)
+  const retomarDoBar = () => { if (resumivel) { aplicarEstados(resumivel); setResumivel(null); } };
 
   // detecta valores prováveis de erro de unidade (ex.: digitou 1,2 como se fosse kg onde a meta é 1.020 g)
   const checarUnidades = (prod: ActiveProd) => {
@@ -345,14 +501,16 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     if (!barId) return;
     setConfirmar(null);
     setSalvandoId(prod.localId);
-    patch(prod.localId, { rodando: false });
+    // congela o cronômetro na duração real (âncora de relógio) antes de gravar
+    const seg = elapsedOf(prod);
+    patch(prod.localId, { rodando: false, segundos: seg, rodandoDesde: null });
     const { linhas, rendEsperado, mestre, entrada } = calc(prod);
     // retroativa: se lançou uma data passada, ancora fim ao meio-dia dela (o desvio usa inicio::date)
     const hoje = new Date().toISOString().slice(0, 10);
     const agora = (prod.dataProducao && prod.dataProducao !== hoje)
       ? new Date(`${prod.dataProducao}T12:00:00`)
       : new Date();
-    const inicio = new Date(agora.getTime() - prod.segundos * 1000);
+    const inicio = new Date(agora.getTime() - seg * 1000);
     const resp = responsaveis.find(r => r.id === prod.responsavelId);
     const payload = {
       bar_id: barId,
@@ -362,7 +520,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
       responsavel_nome: resp?.nome ?? null,
       inicio: inicio.toISOString(),
       fim: agora.toISOString(),
-      duracao_seg: prod.segundos,
+      duracao_seg: seg,
       rendimento_esperado: rendEsperado || null,
       rendimento_real: pf(prod.rendimentoReal) || null,
       // guarda SEMPRE na unidade-base (g/ml): o valor digitado (kg/L) × fator de entrada
@@ -394,6 +552,22 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
 
   return (
     <div className="space-y-4">
+      {/* Retomar produção em andamento achada em outro aparelho do bar (rede de segurança) */}
+      {resumivel && prods.length === 0 && (
+        <Card className="card-dark border-amber-300 dark:border-amber-800">
+          <CardContent className="py-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
+              <History className="w-4 h-4 shrink-0" />
+              <span>Há <b>{resumivel.length}</b> produção(ões) em andamento neste bar (iniciada em outro aparelho ou antes de limpar os dados). Retomar?</span>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button size="sm" variant="ghost" onClick={() => setResumivel(null)}>Ignorar</Button>
+              <Button size="sm" onClick={retomarDoBar} className="bg-amber-600 hover:bg-amber-700"><RotateCcw className="w-4 h-4 mr-1" />Retomar</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Calendário do Planejamento da Produção (mesma semana do Planejamento) */}
       {planSemana && (
         <Card className="card-dark border-violet-200 dark:border-violet-900/40">
@@ -475,16 +649,26 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
 
           {/* Tabs das produções ativas (timers simultâneos) */}
           {prods.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {prods.map(p => (
-                <button key={p.localId} onClick={() => setSelId(p.localId)}
-                  className={`group flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm transition ${selId === p.localId ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
-                  <span className={`w-2 h-2 rounded-full ${p.rodando ? 'bg-green-500 animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
-                  <span className="font-medium text-gray-900 dark:text-gray-100 max-w-[160px] truncate">{p.ficha.nome}</span>
-                  <span className="font-mono text-xs text-blue-600 dark:text-blue-400">{fmtTempo(p.segundos)}</span>
-                  <span onClick={(e) => { e.stopPropagation(); remover(p.localId); }} className="text-gray-300 hover:text-red-500" title="Remover"><X className="w-3.5 h-3.5" /></span>
-                </button>
-              ))}
+            <div className="pt-1 space-y-1">
+              <div className="flex flex-wrap gap-1.5">
+                {prods.map(p => (
+                  <button key={p.localId} onClick={() => setSelId(p.localId)}
+                    className={`group flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm transition ${selId === p.localId ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
+                    <span className={`w-2 h-2 rounded-full ${p.rodando ? 'bg-green-500 animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                    <span className="font-medium text-gray-900 dark:text-gray-100 max-w-[160px] truncate">{p.ficha.nome}</span>
+                    <span className="font-mono text-xs text-blue-600 dark:text-blue-400">{fmtTempo(elapsedOf(p, nowTick))}</span>
+                    <span onClick={(e) => { e.stopPropagation(); pedirDescartar(p); }} className="text-gray-300 hover:text-red-500" title="Descartar"><X className="w-3.5 h-3.5" /></span>
+                  </button>
+                ))}
+              </div>
+              {/* Indicador de autosave — dá segurança pro operador ("pode recarregar, tá salvo") e
+                  denuncia quando cai a conexão (aí o dado fica só no aparelho até voltar). */}
+              {saveInfo && (
+                <div className={`flex items-center gap-1 text-[11px] ${saveInfo.status === 'salvo' ? 'text-emerald-600 dark:text-emerald-400' : saveInfo.status === 'offline' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'}`}>
+                  {saveInfo.status === 'salvando' ? <Loader2 className="w-3 h-3 animate-spin" /> : saveInfo.status === 'salvo' ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                  {saveInfo.status === 'salvando' ? 'Salvando…' : saveInfo.status === 'salvo' ? 'Progresso salvo no servidor — pode recarregar sem perder' : 'Sem conexão com o servidor — salvo só neste aparelho por enquanto'}
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -501,7 +685,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
         const fcReal = mestreFc && pbNum > 0 && plNum > 0 ? plNum / pbNum : 0; // aproveitamento (líquido/bruto), 0–1 — mesma convenção do FC da ficha
         // retroativa: data passada → não tem cronômetro (já foi feita); libera os campos sem precisar iniciar
         const retroativa = !!sel.dataProducao && sel.dataProducao !== new Date().toISOString().slice(0, 10);
-        const iniciada = sel.rodando || sel.segundos > 0 || retroativa; // peso/rendimento liberam ao iniciar OU se for retroativa
+        const iniciada = sel.rodando || elapsedOf(sel, nowTick) > 0 || retroativa; // peso/rendimento liberam ao iniciar OU se for retroativa
         const t = !!sel.tentouSalvar;                       // já clicou em salvar → destaca obrigatórios vazios
         const errResp = t && !sel.responsavelId;            // responsável vazio
         const errRend = t && !sel.rendimentoReal.trim();    // rendimento real vazio
@@ -517,12 +701,12 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
               <div className="flex items-center gap-2">
                 <div className="px-4 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-center min-w-[110px]">
                   <div className="text-[10px] text-blue-600/80 dark:text-blue-300/80 uppercase tracking-wide flex items-center justify-center gap-1"><Clock className="w-3 h-3" />Tempo</div>
-                  <div className="text-2xl font-mono font-bold text-blue-700 dark:text-blue-300 leading-tight">{fmtTempo(sel.segundos)}</div>
+                  <div className="text-2xl font-mono font-bold text-blue-700 dark:text-blue-300 leading-tight">{fmtTempo(elapsedOf(sel, nowTick))}</div>
                 </div>
                 {!sel.rodando
-                  ? <Button size="sm" onClick={() => iniciar(sel)} className="bg-green-600 hover:bg-green-700"><Play className="w-4 h-4 mr-1" />{sel.segundos > 0 ? 'Continuar' : 'Iniciar'}</Button>
-                  : <Button size="sm" onClick={() => patch(sel.localId, { rodando: false })} variant="outline"><Pause className="w-4 h-4 mr-1" />Pausar</Button>}
-                <Button size="sm" variant="ghost" onClick={() => patch(sel.localId, { rodando: false, segundos: 0 })} title="Zerar tempo"><RotateCcw className="w-4 h-4" /></Button>
+                  ? <Button size="sm" onClick={() => iniciar(sel)} className="bg-green-600 hover:bg-green-700"><Play className="w-4 h-4 mr-1" />{elapsedOf(sel, nowTick) > 0 ? 'Continuar' : 'Iniciar'}</Button>
+                  : <Button size="sm" onClick={() => patch(sel.localId, { rodando: false, segundos: elapsedOf(sel), rodandoDesde: null })} variant="outline"><Pause className="w-4 h-4 mr-1" />Pausar</Button>}
+                <Button size="sm" variant="ghost" onClick={() => pedirZerar(sel)} title="Zerar tempo"><RotateCcw className="w-4 h-4" /></Button>
               </div>
             </div>
 
@@ -649,7 +833,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
             {/* Observação + ações */}
             <div className="flex flex-col sm:flex-row gap-2 items-stretch">
               <Input value={sel.observacao} onChange={e => patch(sel.localId, { observacao: e.target.value })} placeholder="Observação (opcional)…" className="flex-1" />
-              <Button variant="outline" onClick={() => remover(sel.localId)} className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4 mr-1" />Descartar</Button>
+              <Button variant="outline" onClick={() => pedirDescartar(sel)} className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4 mr-1" />Descartar</Button>
               <Button onClick={() => pedirSalvar(sel)} disabled={salvandoId === sel.localId} className="bg-indigo-600 hover:bg-indigo-700">
                 {salvandoId === sel.localId ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}Salvar execução
               </Button>
@@ -679,6 +863,29 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
               <Button variant="outline" onClick={() => setConfirmar(null)}>Voltar e corrigir</Button>
               <Button onClick={() => executarSalvar(confirmar.prod)} disabled={salvandoId === confirmar.prod.localId} className="bg-amber-600 hover:bg-amber-700">
                 {salvandoId === confirmar.prod.localId ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}Está correto, salvar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmação de ação destrutiva (descartar / zerar) — evita perda por toque acidental */}
+      {confirmarAcao && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setConfirmarAcao(null); }}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              <h4 className="font-semibold">{confirmarAcao.tipo === 'descartar' ? 'Descartar produção?' : 'Zerar o tempo?'}</h4>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              {confirmarAcao.tipo === 'descartar'
+                ? <>Isso apaga <b>{confirmarAcao.nome}</b> e tudo que você já lançou (tempo, pesos, anotações). Não dá pra desfazer.</>
+                : <>Isso volta o cronômetro de <b>{confirmarAcao.nome}</b> pra zero. Os campos preenchidos continuam.</>}
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setConfirmarAcao(null)}>Voltar</Button>
+              <Button onClick={confirmarAcaoExec} className="bg-red-600 hover:bg-red-700">
+                {confirmarAcao.tipo === 'descartar' ? 'Sim, descartar' : 'Sim, zerar'}
               </Button>
             </div>
           </div>
@@ -1394,28 +1601,153 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
   // refeição em montagem (null = nenhuma aberta). Painel inline na página (não é modal).
   // O cronômetro NÃO começa ao abrir: a pessoa preenche/seleciona insumos e só clica
   // "Iniciar" quando começa a fazer de fato — igual ao fluxo da execução de produção.
+  // Cronômetro por âncora de relógio (igual à aba Executar): `segundos` = bancado, `rodandoDesde`
+  // = epoch ms do segmento atual. `idempotencyKey` = chave estável do rascunho no servidor.
   const [sessao, setSessao] = useState<null | {
-    segundos: number; rodando: boolean;
+    segundos: number; rodando: boolean; rodandoDesde?: number | null; idempotencyKey: string;
     responsavelId: number | null; data: string; tipo: string; numPessoas: string;
     observacao: string; itens: RefeicaoItem[];
   }>(null);
   const [salvando, setSalvando] = useState(false);
   const [busca, setBusca] = useState('');
   const [picker, setPicker] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const [saveInfo, setSaveInfo] = useState<{ status: 'salvando' | 'salvo' | 'offline'; at: number } | null>(null);
+  const [confirmarDescartar, setConfirmarDescartar] = useState(false);
+  const [resumivel, setResumivel] = useState<any | null>(null); // refeição em andamento de outro aparelho
+  const [deviceId] = useState(getDeviceId);
+  const sessaoRef = useRef(sessao); sessaoRef.current = sessao;
+  const lastLocalRef = useRef(''); const lastServerRef = useRef(''); const persistErroRef = useRef(false);
 
-  // timer: incrementa a cada 1s enquanto a sessão está rodando
+  const elapsedOf = (s: { segundos: number; rodando: boolean; rodandoDesde?: number | null } | null, now = Date.now()) =>
+    s ? Math.max(0, Math.round((Number(s.segundos) || 0) + (s.rodando && s.rodandoDesde ? (now - s.rodandoDesde) / 1000 : 0))) : 0;
+
+  // tick de 1s só enquanto rodando → cronômetro "anda" sem acumular drift
   useEffect(() => {
     if (!sessao?.rodando) return;
-    const t = setInterval(() => setSessao(s => (s && s.rodando ? { ...s, segundos: s.segundos + 1 } : s)), 1000);
+    const t = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(t);
   }, [sessao?.rodando]);
 
   const patch = (p: Partial<NonNullable<typeof sessao>>) => setSessao(s => s ? { ...s, ...p } : s);
 
+  // ---- Persistência (autosave) da refeição em montagem: mesma blindagem da produção ----
+  const writeLocal = useCallback(() => {
+    if (!barId) return;
+    const cur = sessaoRef.current;
+    const sig = cur ? JSON.stringify(cur) : '';
+    if (sig === lastLocalRef.current) return;
+    lastLocalRef.current = sig;
+    try {
+      const key = `zykor:alimentacao:ativa:${barId}`;
+      if (cur) localStorage.setItem(key, JSON.stringify({ _ts: Date.now(), sessao: cur }));
+      else localStorage.removeItem(key);
+      persistErroRef.current = false;
+    } catch {
+      if (!persistErroRef.current) { persistErroRef.current = true; toast({ title: 'Armazenamento local cheio', description: 'A refeição está sendo salva no servidor. Finalize pra liberar espaço.', variant: 'destructive' }); }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barId]);
+
+  const writeServer = useCallback(async () => {
+    if (!barId) return;
+    const cur = sessaoRef.current;
+    const sig = cur ? JSON.stringify(cur) : '';
+    if (sig === lastServerRef.current) return;
+    lastServerRef.current = sig;
+    if (!cur || !cur.idempotencyKey) return;
+    const rascunhos = [{
+      idempotencia_key: cur.idempotencyKey, secao: null, producao_id: null,
+      responsavel_id: cur.responsavelId ?? null, rodando: !!cur.rodando,
+      duracao_seg: elapsedOf(cur, Date.now()), estado: cur,
+    }];
+    setSaveInfo({ status: 'salvando', at: Date.now() });
+    try {
+      const r = await api.put('/api/operacional/producoes/execucao/rascunho', { bar_id: barId, device_id: deviceId, kind: 'alimentacao', rascunhos });
+      if (r?.success === false) throw new Error(r?.error || 'falha');
+      setSaveInfo({ status: 'salvo', at: Date.now() });
+    } catch { lastServerRef.current = ''; setSaveInfo({ status: 'offline', at: Date.now() }); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barId, deviceId]);
+
+  const apagarRascunho = useCallback((key?: string) => {
+    lastServerRef.current = '';
+    if (key && barId) api.delete(`/api/operacional/producoes/execucao/rascunho?bar_id=${barId}&key=${encodeURIComponent(key)}`).catch(() => {});
+  }, [barId]);
+
+  const aplicarSessao = useCallback((est: any): boolean => {
+    if (!est || typeof est !== 'object' || !est.idempotencyKey) return false;
+    const s = { ...est, segundos: Number(est.segundos) || 0, rodandoDesde: est.rodando ? (Number(est.rodandoDesde) || Date.now()) : null };
+    setSessao(s);
+    const sig = JSON.stringify(s);
+    lastLocalRef.current = sig; lastServerRef.current = sig;
+    return true;
+  }, []);
+
+  // hidratação: servidor deste device → cache local → "retomar por bar" (outro aparelho)
+  useEffect(() => {
+    if (!barId) return;
+    let cancel = false;
+    (async () => {
+      if (sessaoRef.current) return; // não clobbera refeição já aberta
+      let applied = false;
+      try {
+        const r = await api.get(`/api/operacional/producoes/execucao/rascunho?bar_id=${barId}&device_id=${encodeURIComponent(deviceId)}&kind=alimentacao`);
+        const est = r?.success && Array.isArray(r.rascunhos) && r.rascunhos.length ? r.rascunhos[r.rascunhos.length - 1].estado : null;
+        if (!cancel && !sessaoRef.current && est) applied = aplicarSessao(est);
+      } catch { /* offline */ }
+      if (cancel || applied || sessaoRef.current) return;
+      try {
+        const raw = localStorage.getItem(`zykor:alimentacao:ativa:${barId}`);
+        if (raw) { const saved = JSON.parse(raw); applied = aplicarSessao(saved?.sessao); }
+      } catch { /* ignore */ }
+      if (cancel || applied || sessaoRef.current) return;
+      try {
+        const r = await api.get(`/api/operacional/producoes/execucao/rascunho?bar_id=${barId}&kind=alimentacao`);
+        const est = r?.success && Array.isArray(r.rascunhos) && r.rascunhos.length ? r.rascunhos[r.rascunhos.length - 1].estado : null;
+        if (!cancel && est && est.idempotencyKey) setResumivel(est);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancel = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barId, deviceId]);
+
+  // gravação periódica + flush ao sair/backgroundear
+  useEffect(() => {
+    if (!barId) return;
+    const localT = setInterval(writeLocal, 1000);
+    const serverT = setInterval(() => { void writeServer(); }, 10000);
+    const flush = () => { writeLocal(); void writeServer(); };
+    const onVis = () => { if (typeof document !== 'undefined' && document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(localT); clearInterval(serverT); window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', onVis); flush(); };
+  }, [barId, writeLocal, writeServer]);
+
+  // save imediato (1,5s) em mudança estrutural (iniciar/pausar/responsável)
+  const structSig = sessao ? `${sessao.idempotencyKey}:${sessao.rodando ? 1 : 0}:${sessao.rodandoDesde ?? ''}:${sessao.responsavelId ?? ''}` : '';
+  useEffect(() => {
+    if (!barId || !sessao) return;
+    const t = setTimeout(() => { writeLocal(); void writeServer(); }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [structSig, barId]);
+
+  const retomarDoBar = () => { if (resumivel && aplicarSessao(resumivel)) setResumivel(null); };
+  const descartarRefeicao = () => {
+    const key = sessaoRef.current?.idempotencyKey;
+    setSessao(null); setConfirmarDescartar(false);
+    apagarRascunho(key);
+  };
+  // descartar só pede confirmação se já tem trabalho lançado (evita perda por toque acidental)
+  const temProgressoRefeicao = () => !!sessao && (elapsedOf(sessao) > 0 || !!sessao.responsavelId || sessao.itens.length > 0 || !!sessao.observacao.trim() || !!sessao.numPessoas);
+  const pedirDescartarRefeicao = () => temProgressoRefeicao() ? setConfirmarDescartar(true) : descartarRefeicao();
+
   // abre o painel (sem começar o cronômetro)
   const novaRefeicao = () => {
     setSessao({
-      segundos: 0, rodando: false,
+      segundos: 0, rodando: false, rodandoDesde: null,
+      idempotencyKey: (globalThis.crypto?.randomUUID?.() ?? `alim-${deviceId}-${Date.now()}`),
       responsavelId: null, data: hojeIso, tipo: 'janta', numPessoas: '',
       observacao: '', itens: [],
     });
@@ -1424,7 +1756,7 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
   // liga o cronômetro (exige responsável — igual à execução de produção)
   const iniciarTimer = () => {
     if (!sessao?.responsavelId) { toast({ title: 'Selecione o responsável antes de iniciar', variant: 'destructive' }); return; }
-    patch({ rodando: true });
+    patch({ rodando: true, rodandoDesde: Date.now() });
   };
 
   const addInsumo = (c: { codigo: string; nome: string; base: string | null; precoUn: number }) => {
@@ -1490,9 +1822,10 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
     if (!sessao.responsavelId) { toast({ title: 'Selecione o responsável', variant: 'destructive' }); return; }
     const comQtd = sessao.itens.filter(i => (pf(i.qtd) || 0) > 0);
     if (!comQtd.length) { toast({ title: 'Adicione insumos com quantidade', variant: 'destructive' }); return; }
-    // ancora início ao tempo decorrido no cronômetro (igual à execução de produção)
+    // ancora início ao tempo decorrido no cronômetro (âncora de relógio, igual à execução)
+    const seg = elapsedOf(sessao);
     const fim = new Date();
-    const inicio = new Date(fim.getTime() - sessao.segundos * 1000);
+    const inicio = new Date(fim.getTime() - seg * 1000);
     const respNome = responsaveis.find(r => r.id === sessao.responsavelId)?.nome ?? null;
     const linhas = comQtd.map(i => {
       const ent = entradaInsumo(i.base);
@@ -1515,12 +1848,13 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
         num_pessoas: sessao.numPessoas || null,
         inicio: inicio.toISOString(),
         fim: fim.toISOString(),
-        duracao_seg: sessao.segundos,
+        duracao_seg: seg,
         observacao: sessao.observacao.trim() || null,
         insumos: linhas,
       });
       if (!r.success) throw new Error(r.error);
       toast({ title: 'Refeição registrada', description: `${tipoLabel(sessao.tipo)} · custo ${fmtBRL(r.custo_total)}` });
+      apagarRascunho(sessao.idempotencyKey);   // finalizou → some o rascunho
       setSessao(null);
       carregarHist();
     } catch (e: any) { toast({ title: 'Erro ao salvar', description: e?.message, variant: 'destructive' }); }
@@ -1529,6 +1863,22 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
 
   return (
     <div className="space-y-4">
+      {/* Retomar refeição em andamento achada em outro aparelho do bar (rede de segurança) */}
+      {resumivel && !sessao && (
+        <Card className="card-dark border-amber-300 dark:border-amber-800">
+          <CardContent className="py-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
+              <History className="w-4 h-4 shrink-0" />
+              <span>Há uma <b>refeição em andamento</b> neste bar (iniciada em outro aparelho ou antes de limpar os dados). Retomar?</span>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button size="sm" variant="ghost" onClick={() => setResumivel(null)}>Ignorar</Button>
+              <Button size="sm" onClick={retomarDoBar} className="bg-amber-600 hover:bg-amber-700"><RotateCcw className="w-4 h-4 mr-1" />Retomar</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Abrir nova refeição (só quando não há uma em montagem) */}
       {!sessao && (
         <Card className="card-dark">
@@ -1549,7 +1899,7 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
 
       {/* Painel inline de montagem da refeição (na página, não é modal) */}
       {sessao && (() => {
-        const iniciada = sessao.rodando || sessao.segundos > 0;
+        const iniciada = sessao.rodando || elapsedOf(sessao, nowTick) > 0;
         return (
         <Card className="card-dark border-amber-200 dark:border-amber-900/40">
           <CardContent className="py-3 space-y-4">
@@ -1562,14 +1912,21 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
               <div className="flex items-center gap-2">
                 <div className="px-4 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-center min-w-[110px]">
                   <div className="text-[10px] text-blue-600/80 dark:text-blue-300/80 uppercase tracking-wide flex items-center justify-center gap-1"><Clock className="w-3 h-3" />Tempo</div>
-                  <div className="text-2xl font-mono font-bold text-blue-700 dark:text-blue-300 leading-tight">{fmtTempo(sessao.segundos)}</div>
+                  <div className="text-2xl font-mono font-bold text-blue-700 dark:text-blue-300 leading-tight">{fmtTempo(elapsedOf(sessao, nowTick))}</div>
                 </div>
                 {!sessao.rodando
-                  ? <Button size="sm" onClick={iniciarTimer} className="bg-green-600 hover:bg-green-700"><Play className="w-4 h-4 mr-1" />{sessao.segundos > 0 ? 'Continuar' : 'Iniciar'}</Button>
-                  : <Button size="sm" onClick={() => patch({ rodando: false })} variant="outline"><Pause className="w-4 h-4 mr-1" />Pausar</Button>}
-                <Button size="sm" variant="ghost" onClick={() => patch({ rodando: false, segundos: 0 })} title="Zerar tempo"><RotateCcw className="w-4 h-4" /></Button>
+                  ? <Button size="sm" onClick={iniciarTimer} className="bg-green-600 hover:bg-green-700"><Play className="w-4 h-4 mr-1" />{elapsedOf(sessao, nowTick) > 0 ? 'Continuar' : 'Iniciar'}</Button>
+                  : <Button size="sm" onClick={() => patch({ rodando: false, segundos: elapsedOf(sessao), rodandoDesde: null })} variant="outline"><Pause className="w-4 h-4 mr-1" />Pausar</Button>}
+                <Button size="sm" variant="ghost" onClick={() => patch({ rodando: false, segundos: 0, rodandoDesde: null })} title="Zerar tempo"><RotateCcw className="w-4 h-4" /></Button>
               </div>
             </div>
+
+            {saveInfo && (
+              <div className={`flex items-center gap-1 text-[11px] ${saveInfo.status === 'salvo' ? 'text-emerald-600 dark:text-emerald-400' : saveInfo.status === 'offline' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'}`}>
+                {saveInfo.status === 'salvando' ? <Loader2 className="w-3 h-3 animate-spin" /> : saveInfo.status === 'salvo' ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                {saveInfo.status === 'salvando' ? 'Salvando…' : saveInfo.status === 'salvo' ? 'Progresso salvo no servidor — pode recarregar sem perder' : 'Sem conexão — salvo só neste aparelho por enquanto'}
+              </div>
+            )}
 
             {!iniciada && <div className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1"><Play className="w-3 h-3" />Preencha o responsável e os insumos; clique <b>Iniciar</b> quando começar a fazer a refeição de fato.</div>}
 
@@ -1671,7 +2028,7 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
 
             <div className="flex flex-col sm:flex-row gap-2 items-stretch">
               <Input value={sessao.observacao} onChange={e => patch({ observacao: e.target.value })} placeholder="Observação (opcional)…" className="flex-1" />
-              <Button variant="outline" onClick={() => !salvando && setSessao(null)} className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4 mr-1" />Descartar</Button>
+              <Button variant="outline" onClick={() => !salvando && pedirDescartarRefeicao()} className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4 mr-1" />Descartar</Button>
               <Button onClick={salvar} disabled={salvando} className="bg-amber-600 hover:bg-amber-700">
                 {salvando ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}Registrar refeição
               </Button>
@@ -1760,6 +2117,23 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
                 <span className="text-gray-500">Total{detalhe.num_pessoas > 0 ? ` · ${detalhe.num_pessoas} pessoas` : ''}</span>
                 <span className="font-bold text-amber-600 dark:text-amber-400">{fmtBRL(detalhe.custo_total)}</span>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmação de descarte da refeição (só aparece se há trabalho lançado) */}
+      {confirmarDescartar && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setConfirmarDescartar(false); }}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              <h4 className="font-semibold">Descartar refeição?</h4>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300">Isso apaga a refeição e tudo que você já lançou (tempo, insumos, anotações). Não dá pra desfazer.</p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setConfirmarDescartar(false)}>Voltar</Button>
+              <Button onClick={descartarRefeicao} className="bg-red-600 hover:bg-red-700">Sim, descartar</Button>
             </div>
           </div>
         </div>

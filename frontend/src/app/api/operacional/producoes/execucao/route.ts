@@ -194,6 +194,15 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Finalizou → o rascunho de autosave dessa instância não é mais necessário (backstop caso o
+  // DELETE do cliente não chegue). Best-effort: falha aqui nunca quebra o registro da produção.
+  if (idemKey) {
+    try {
+      await (supabase as any).schema('operations').from('producao_execucao_rascunho')
+        .delete().eq('bar_id', barId).eq('idempotencia_key', idemKey);
+    } catch (e) { console.error('[rascunho] limpeza pós-finalização falhou:', e); }
+  }
+
   // Notifica os interessados conforme a regra do bar (Central de Notificações).
   // Best-effort: qualquer erro é engolido — NUNCA quebra o registro da produção.
   try {
