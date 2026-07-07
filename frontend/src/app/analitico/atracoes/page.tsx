@@ -430,6 +430,7 @@ function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolCh
 
 // ---- NPS por artista (Falae · Data da Visita → artista da noite) ----
 const npsScoreCor = (s: number) => s >= 50 ? 'text-emerald-600 dark:text-emerald-400' : s >= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
+const npsDimCor = (nota: number) => nota >= 4.2 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : nota >= 3.5 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
 const npsCat = (c: string) => c === 'promotor' ? { emoji: '😍', cor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' }
   : c === 'neutro' ? { emoji: '😐', cor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' }
   : { emoji: '😕', cor: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' };
@@ -438,6 +439,7 @@ function NpsArtistaCard({ barId, artistaId, nome, de, ate, dow }: { barId?: numb
   const [loading, setLoading] = useState(true);
   const [resumo, setResumo] = useState<any>(null);
   const [respostas, setRespostas] = useState<any[]>([]);
+  const [dimensoes, setDimensoes] = useState<any[]>([]);
   const [aberto, setAberto] = useState(false);
   const [filtroCat, setFiltroCat] = useState<'todos' | 'promotor' | 'neutro' | 'detrator'>('todos');
 
@@ -450,8 +452,8 @@ function NpsArtistaCard({ barId, artistaId, nome, de, ate, dow }: { barId?: numb
     if (dow !== '') qs.set('dow', dow);
     fetch(`/api/analitico/atracoes?${qs.toString()}`, { cache: 'no-store' })
       .then(r => r.json())
-      .then(j => { setResumo(j.resumo || null); setRespostas(j.respostas || []); })
-      .catch(() => { setResumo(null); setRespostas([]); })
+      .then(j => { setResumo(j.resumo || null); setRespostas(j.respostas || []); setDimensoes(j.dimensoes || []); })
+      .catch(() => { setResumo(null); setRespostas([]); setDimensoes([]); })
       .finally(() => setLoading(false));
   }, [barId, artistaId, de, ate, dow]);
 
@@ -470,6 +472,7 @@ function NpsArtistaCard({ barId, artistaId, nome, de, ate, dow }: { barId?: numb
         {loading ? <Skeleton className="h-20 w-full" />
           : !resumo ? <p className="text-sm text-gray-500 py-4 text-center">Sem respostas de NPS vinculadas a {nome} neste período.</p>
           : (
+            <>
             <div className="flex items-center gap-5 flex-wrap">
               <div className="text-center shrink-0">
                 <div className={`text-4xl font-extrabold leading-none ${npsScoreCor(resumo.nps_score)}`}>{resumo.nps_score > 0 ? '+' : ''}{resumo.nps_score}</div>
@@ -487,6 +490,19 @@ function NpsArtistaCard({ barId, artistaId, nome, de, ate, dow }: { barId?: numb
                 <MessageSquare className="h-4 w-4" />Ver respostas
               </button>
             </div>
+            {dimensoes.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <div className="text-[11px] text-gray-400 mb-1.5">Notas por dimensão (1–5) — o mais baixo é o gargalo</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {dimensoes.map((d: any) => (
+                    <span key={d.dimensao} className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${npsDimCor(d.nota_media)}`} title={`${d.n} avaliações`}>
+                      {d.dimensao} <b className="ml-1">{d.nota_media.toFixed(1).replace('.', ',')}</b>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            </>
           )}
       </CardContent>
 

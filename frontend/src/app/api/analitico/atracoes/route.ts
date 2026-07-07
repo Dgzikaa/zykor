@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { agregarDimensoes } from '@/lib/analytics/nps-dimensoes';
 
 export const dynamic = 'force-dynamic';
 const supabase = createServiceRoleClient();
@@ -92,7 +93,20 @@ export async function GET(request: NextRequest) {
         nps_score: Math.round((promot / n) * 100 - (detrat / n) * 100),
         promotores: promot, neutros: n - promot - detrat, detratores: detrat,
       };
-      return NextResponse.json({ success: true, resumo, respostas });
+      // #1 dimensões: notas por sub-critério (Atendimento/Comida/Música/Tempo...) das noites do artista
+      let dimensoes: any[] = [];
+      const { data: linkRows } = await ops.from('evento_artistas').select('evento_id').eq('bar_id', barId).eq('artista_id', artistaId);
+      const evIds = (linkRows || []).map((l: any) => l.evento_id);
+      if (evIds.length) {
+        let cq = (supabase as any).schema('silver').from('nps_criterio_evento')
+          .select('criterio_raw, nota, data_visita').eq('bar_id', barId).in('evento_id', evIds);
+        if (de) cq = cq.gte('data_visita', de);
+        if (ate) cq = cq.lte('data_visita', ate);
+        const { data: critRows } = await cq;
+        const critF = dow == null ? (critRows || []) : (critRows || []).filter((r: any) => r.data_visita && new Date(r.data_visita + 'T12:00:00Z').getUTCDay() === dow);
+        dimensoes = agregarDimensoes(critF);
+      }
+      return NextResponse.json({ success: true, resumo, respostas, dimensoes });
     }
 
     // Modo artista-first: trajetória completa de 1 artista
