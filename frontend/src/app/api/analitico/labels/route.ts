@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { agregarDimensoes } from '@/lib/analytics/nps-dimensoes';
 
 export const dynamic = 'force-dynamic';
 const supabase = createServiceRoleClient();
@@ -85,6 +86,8 @@ interface Ev {
   meta: number; // m1_r
   reservas: number;
   capacidade: number;
+  bar: number; // faturamento_bar (consumo)
+  couvert: number; // faturamento_couvert (entrada/couvert ContaHub)
 }
 
 interface ArtAcc {
@@ -116,7 +119,7 @@ export async function GET(request: NextRequest) {
     // 1) eventos válidos do período (mesma régua da tela de artistas: real_r > 1000)
     const { data: eventosRaw, error: evErr } = await supabase
       .from('eventos_base')
-      .select('id, data_evento, dia_semana, nome, real_r, cl_real, publico_real, c_art, t_medio, m1_r, res_tot, lot_max, capacidade_estimada')
+      .select('id, data_evento, dia_semana, nome, real_r, cl_real, publico_real, c_art, t_medio, m1_r, res_tot, lot_max, capacidade_estimada, faturamento_bar, faturamento_couvert')
       .eq('bar_id', barId)
       .gt('real_r', 1000)
       .not('nome', 'is', null)
@@ -141,6 +144,8 @@ export async function GET(request: NextRequest) {
           meta: parseFloat(e.m1_r) || 0,
           reservas: e.res_tot || 0,
           capacidade: Math.max(e.lot_max || 0, e.capacidade_estimada || 0),
+          bar: parseFloat(e.faturamento_bar) || 0,
+          couvert: parseFloat(e.faturamento_couvert) || 0,
         };
       })
       .filter((e: Ev) => e.canon.length > 0);
@@ -194,6 +199,19 @@ export async function GET(request: NextRequest) {
       a.n++; a.soma += Number(r.nps) || 0;
       if (r.categoria === 'promotor') a.promot++; else if (r.categoria === 'detrator') a.detrat++;
       npsPorCanon.set(ev.canon, a);
+    }
+
+    // #1 dimensões (Atendimento/Comida/Música/Tempo...) por evento → agregadas por label no map abaixo
+    const { data: critRows } = await (supabase as any).schema('silver')
+      .from('nps_criterio_evento')
+      .select('evento_id, criterio_raw, nota')
+      .eq('bar_id', barId)
+      .gte('data_visita', iniStr).lte('data_visita', hojeStr);
+    const critPorEvento = new Map<number, Array<{ criterio_raw: string; nota: number }>>();
+    for (const r of critRows || []) {
+      const a = critPorEvento.get(r.evento_id) || [];
+      a.push({ criterio_raw: r.criterio_raw, nota: r.nota });
+      critPorEvento.set(r.evento_id, a);
     }
 
     // 3) agrupa eventos por label canônica
@@ -250,6 +268,19 @@ export async function GET(request: NextRequest) {
         const pct_cachet = fat_total > 0 ? (cache_total / fat_total) * 100 : null;
         const retorno = cache_total > 0 ? fat_total / cache_total : null;
 
+        // composição do faturamento: Bar (consumo) × Couvert × Bilheteria (Yuzer/Sympla).
+        // bilheteria = real_r − bar − couvert (o que sobra é ticketing das plataformas).
+        const bar_total = evs.reduce((s, e) => s + e.bar, 0);
+        const couvert_total = evs.reduce((s, e) => s + e.couvert, 0);
+        const bilheteria_total = Math.max(0, fat_total - bar_total - couvert_total);
+        const compDenom = bar_total + couvert_total + bilheteria_total || 1;
+        const composicao = {
+          bar: bar_total, couvert: couvert_total, bilheteria: bilheteria_total,
+          pct_bar: (bar_total / compDenom) * 100,
+          pct_couvert: (couvert_total / compDenom) * 100,
+          pct_bilheteria: (bilheteria_total / compDenom) * 100,
+        };
+
         // meta (m1_r) — só onde há meta lançada
         const comMeta = evs.filter((e) => e.meta > 0);
         const metaSum = comMeta.reduce((s, e) => s + e.meta, 0);
@@ -289,6 +320,7 @@ export async function GET(request: NextRequest) {
         const nps_respostas = npsAcc?.n || 0;
         const nps_medio = npsAcc && npsAcc.n ? Math.round((npsAcc.soma / npsAcc.n) * 100) / 100 : null;
         const nps_score = npsAcc && npsAcc.n ? Math.round((npsAcc.promot / npsAcc.n) * 100 - (npsAcc.detrat / npsAcc.n) * 100) : null;
+        const dimensoes = agregarDimensoes(l.evs.flatMap((e) => critPorEvento.get(e.id) || []));
 
         // série semanal (agrega por semana ISO — em geral 1 show/semana)
         const porSemana = new Map<string, { fat: number; publico: number; meta: number; n: number }>();
@@ -329,11 +361,12 @@ export async function GET(request: NextRequest) {
           dia: diaDom,
           dia_label: DIA_LABEL[diaDom] || display,
           shows: n,
-          nps_respostas, nps_medio, nps_score,
+          nps_respostas, nps_medio, nps_score, dimensoes,
           fat_total, fat_medio,
           publico_total: publicos.reduce((s, x) => s + x, 0), publico_medio,
           ticket_medio,
           cache_total, cache_medio, pct_cachet, retorno,
+          composicao,
           meta_atingimento,
           ocupacao,
           reservas_medio,

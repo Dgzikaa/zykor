@@ -38,6 +38,7 @@ const SORTS: { key: Sort; label: string }[] = [
   { key: 'shows', label: 'Nº shows' },
 ];
 const npsCor = (s: number) => s >= 50 ? 'text-emerald-600 dark:text-emerald-400' : s >= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
+const npsDimCor = (nota: number) => nota >= 4.2 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : nota >= 3.5 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
 
 export default function LabelsTab({ barId, periodo }: { barId?: number; periodo: number }) {
   const [resp, setResp] = useState<any>(null);
@@ -291,6 +292,20 @@ function LabelDetalhe({ l }: { l: any }) {
           <MiniKpi label="NPS do público" v={l.nps_score != null ? `${l.nps_score > 0 ? '+' : ''}${l.nps_score} · ${l.nps_respostas} resp.` : '—'} />
         </div>
 
+        {/* dimensões da experiência (Falae) — o mais baixo é o gargalo */}
+        {l.dimensoes?.length > 0 && (
+          <div>
+            <div className="text-xs text-gray-500 mb-1.5">Dimensões da experiência (nota 1–5) — o mais baixo é o gargalo</div>
+            <div className="flex flex-wrap gap-1.5">
+              {l.dimensoes.map((d: any) => (
+                <span key={d.dimensao} className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${npsDimCor(d.nota_media)}`} title={`${d.n} avaliações`}>
+                  {d.dimensao} <b className="ml-1">{Number(d.nota_media).toFixed(1).replace('.', ',')}</b>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* melhor / pior noite */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="rounded-lg border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/60 dark:bg-emerald-900/15 p-3">
@@ -304,6 +319,9 @@ function LabelDetalhe({ l }: { l: any }) {
             <div className="text-[11px] text-gray-500">{fmtData(l.pior_noite?.data)} · {num(l.pior_noite?.publico)} pessoas{l.pior_noite?.artista ? ` · ${l.pior_noite.artista}` : ''}</div>
           </div>
         </div>
+
+        {/* composição do faturamento: Bar × Couvert × Bilheteria (Yuzer/Sympla) */}
+        {l.composicao && <ComposicaoFat c={l.composicao} />}
 
         {/* evolução semanal da label */}
         {l.serie?.length > 1 && (
@@ -365,6 +383,36 @@ function MiniKpi({ label, v }: { label: string; v: string }) {
     <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
       <div className="text-[11px] text-gray-500">{label}</div>
       <div className="text-lg font-bold text-gray-900 dark:text-white truncate" title={v}>{v}</div>
+    </div>
+  );
+}
+
+// composição do faturamento da label em Bar (consumo) × Couvert × Bilheteria (Yuzer/Sympla)
+function ComposicaoFat({ c }: { c: any }) {
+  const segs = [
+    { key: 'bar', label: 'Bar (consumo)', cor: '#10b981', val: c.bar, pct: c.pct_bar },
+    { key: 'couvert', label: 'Couvert', cor: '#8b5cf6', val: c.couvert, pct: c.pct_couvert },
+    { key: 'bilheteria', label: 'Bilheteria (Yuzer/Sympla)', cor: '#f59e0b', val: c.bilheteria, pct: c.pct_bilheteria },
+  ].filter((s) => s.val > 0);
+  if (!segs.length) return null;
+  return (
+    <div>
+      <div className="text-xs text-gray-500 mb-1.5">Composição do faturamento — de onde vem o dinheiro da label</div>
+      <div className="flex h-5 w-full rounded-md overflow-hidden bg-gray-100 dark:bg-gray-800">
+        {segs.map((s) => (
+          <div key={s.key} style={{ width: `${s.pct}%`, background: s.cor }} className="h-full" title={`${s.label}: ${money(s.val)} (${Math.round(s.pct)}%)`} />
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+        {segs.map((s) => (
+          <div key={s.key} className="flex items-center gap-1.5 text-xs">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: s.cor }} />
+            <span className="text-gray-500">{s.label}</span>
+            <span className="font-medium text-gray-800 dark:text-gray-200 tabular-nums">{money(s.val)}</span>
+            <span className="text-gray-400 tabular-nums">{Math.round(s.pct)}%</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
