@@ -43,6 +43,8 @@ interface CalcCfg {
   m3: string; // % (ex.: "140")
   diasVenda: string;
   pesos: Record<number, string>; // dow -> R$ (texto mascarado)
+  artPct: Record<number, string>; // dow -> % custo artístico projetado
+  prodPct: Record<number, string>; // dow -> % custo produção projetado
 }
 
 interface HistDia { dow: number; dia: string; dias_com_venda: number; media_real: number; media_m1: number; }
@@ -53,6 +55,8 @@ const cfgDefault = (): CalcCfg => ({
   m3: '140',
   diasVenda: '31',
   pesos: { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
+  artPct: { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
+  prodPct: { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
 });
 
 const storeKey = (barId: number | undefined, ano: number, mes: number) => `zykor:calc-dist:v2:bar:${barId ?? 'na'}:${ano}-${mes}`;
@@ -89,6 +93,7 @@ function cfgFromDb(row: any): CalcCfg {
     pesos[d.dow] = v ? fmt(Number(v), 2) : '';
   }
   return {
+    ...cfgDefault(), // garante artPct/prodPct default (não persistidos no banco de config)
     targetM1: row?.target_m1 ? fmt(Number(row.target_m1), 2) : '',
     m2: row?.m2_pct != null ? String(row.m2_pct) : '120',
     m3: row?.m3_pct != null ? String(row.m3_pct) : '140',
@@ -113,9 +118,13 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
   const [aplicando, setAplicando] = useState(false);
   const [resultado, setResultado] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
-  const [aba, setAba] = useState<'calc' | 'hist'>('calc');
+  const [aba, setAba] = useState<'calc' | 'custos' | 'hist'>('calc');
   const [cenario, setCenario] = useState<'m1' | 'm2' | 'm3'>('m1');
   const [preservarManuais, setPreservarManuais] = useState(true);
+  // aba "Custos projetados" (% de custo artístico/produção por dia da semana → previsão do mês)
+  const [confirmandoCustos, setConfirmandoCustos] = useState(false);
+  const [aplicandoCustos, setAplicandoCustos] = useState(false);
+  const [resultadoCustos, setResultadoCustos] = useState<string | null>(null);
   const [histRows, setHistRows] = useState<Array<{ data_evento: string | null; dia: string | null; de: number | null; para: number | null; user_email: string | null; timestamp: string }>>([]);
   const [histLoading, setHistLoading] = useState(false);
 
@@ -163,6 +172,44 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
 
   const setPeso = (dow: number, v: string) => setCfg((p) => ({ ...p, pesos: { ...p.pesos, [dow]: v } }));
   const histDe = useCallback((dow: number) => hist.find((h) => h.dow === dow), [hist]);
+
+  // % de custo projetado por dia da semana (só dígitos/vírgula/ponto)
+  const limpaPct = (v: string) => v.replace(/[^\d.,]/g, '');
+  const setArtPct = (dow: number, v: string) => setCfg((p) => ({ ...p, artPct: { ...p.artPct, [dow]: limpaPct(v) } }));
+  const setProdPct = (dow: number, v: string) => setCfg((p) => ({ ...p, prodPct: { ...p.prodPct, [dow]: limpaPct(v) } }));
+  const preencherPct = (campo: 'artPct' | 'prodPct', v: string) =>
+    setCfg((p) => ({ ...p, [campo]: DIAS.reduce((a, d) => { a[d.dow] = limpaPct(v); return a; }, {} as Record<number, string>) }));
+  const temCustos = DIAS.some((d) => parseNum(cfg.artPct?.[d.dow] || '') > 0 || parseNum(cfg.prodPct?.[d.dow] || '') > 0);
+
+  const aplicarCustos = async () => {
+    if (!barId || !temCustos) return;
+    setAplicandoCustos(true);
+    setResultadoCustos(null);
+    try {
+      const artPorDow: Record<number, number> = {};
+      const prodPorDow: Record<number, number> = {};
+      DIAS.forEach((d) => {
+        const a = parseNum(cfg.artPct?.[d.dow] || ''); if (a > 0) artPorDow[d.dow] = a;
+        const pr = parseNum(cfg.prodPct?.[d.dow] || ''); if (pr > 0) prodPorDow[d.dow] = pr;
+      });
+      const r: any = await apiCall('/api/eventos/aplicar-custos-projetados', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
+        body: JSON.stringify({ ano, mes, artPorDow, prodPorDow }),
+      });
+      if (r?.success) {
+        setResultadoCustos(`✅ Projeção aplicada em ${mesLabel}: custo artístico em ${r.updated_art} dia(s), produção em ${r.updated_prod} dia(s).`);
+        setConfirmandoCustos(false);
+        onAplicado?.();
+      } else {
+        setResultadoCustos(`❌ ${r?.error || 'Falha ao aplicar.'}`);
+      }
+    } catch (e: any) {
+      setResultadoCustos(`❌ ${e?.message || 'Falha ao aplicar.'}`);
+    } finally {
+      setAplicandoCustos(false);
+    }
+  };
 
   const preencherComHistorico = () => {
     setCfg((p) => ({
@@ -262,7 +309,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
         {calc.temDados ? 'Editar calculadora' : 'Abrir calculadora'}
       </Button>
 
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setConfirmando(false); setResultado(null); setAba('calc'); } }}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setConfirmando(false); setResultado(null); setConfirmandoCustos(false); setResultadoCustos(null); setAba('calc'); } }}>
         <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Calculator className="h-5 w-5" /> Calculadora de Distribuição de Metas</DialogTitle>
@@ -270,14 +317,14 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
           </DialogHeader>
 
           <div className="px-6 flex gap-4 border-b border-[hsl(var(--border))]">
-            {(['calc', 'hist'] as const).map((t) => (
+            {(['calc', 'custos', 'hist'] as const).map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => setAba(t)}
                 className={`pb-2 -mb-px text-sm font-medium border-b-2 transition-colors ${aba === t ? 'border-[hsl(var(--primary))] text-[hsl(var(--foreground))]' : 'border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'}`}
               >
-                {t === 'calc' ? 'Calculadora' : 'Histórico do mês'}
+                {t === 'calc' ? 'Calculadora' : t === 'custos' ? 'Custos projetados' : 'Histórico do mês'}
               </button>
             ))}
           </div>
@@ -382,6 +429,41 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
           </div>
           )}
 
+          {aba === 'custos' && (
+          <div className="px-6 pb-2">
+            <div className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
+              Projeta o custo <b>artístico</b> e de <b>produção</b> de cada dia como <b>% do faturamento</b>, pro mês todo de {mesLabel}.
+              Base do dia: <b>realizado</b>; se ainda não houver, a <b>Meta M1</b>. Grava na <b>previsão</b> (c_artistico_plan / c_prod_plan) —
+              não sobrescreve lançamento real do Conta Azul (o real sempre ganha) e sobrevive à projeção automática.
+            </div>
+
+            {/* preencher todos os dias de uma vez */}
+            <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
+              <span className="text-[hsl(var(--muted-foreground))]">Aplicar % em todos os dias:</span>
+              <span className="text-[hsl(var(--muted-foreground))]">Artístico</span>
+              <div className="relative"><Input inputMode="decimal" className="h-8 w-20 pr-5 text-right" placeholder="0" onChange={(e) => preencherPct('artPct', e.target.value)} /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))]">%</span></div>
+              <span className="text-[hsl(var(--muted-foreground))]">Produção</span>
+              <div className="relative"><Input inputMode="decimal" className="h-8 w-20 pr-5 text-right" placeholder="0" onChange={(e) => preencherPct('prodPct', e.target.value)} /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))]">%</span></div>
+            </div>
+
+            {/* % por dia da semana */}
+            <div className="flex items-center gap-3 text-[11px] uppercase text-[hsl(var(--muted-foreground))] mb-1">
+              <span className="w-10 shrink-0" />
+              <span className="flex-1 text-center">% Custo Artístico</span>
+              <span className="flex-1 text-center">% Custo Produção</span>
+            </div>
+            <div className="space-y-1.5">
+              {DIAS.map((d) => (
+                <div key={d.dow} className="flex items-center gap-3">
+                  <span className="w-10 text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase shrink-0">{d.label}</span>
+                  <div className="relative flex-1"><Input inputMode="decimal" className="h-9 pr-6 text-right" placeholder="0" value={cfg.artPct?.[d.dow] || ''} onChange={(e) => setArtPct(d.dow, e.target.value)} /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))]">%</span></div>
+                  <div className="relative flex-1"><Input inputMode="decimal" className="h-9 pr-6 text-right" placeholder="0" value={cfg.prodPct?.[d.dow] || ''} onChange={(e) => setProdPct(d.dow, e.target.value)} /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))]">%</span></div>
+                </div>
+              ))}
+            </div>
+          </div>
+          )}
+
           {aba === 'hist' && (
           <div className="px-6 pb-2">
             <div className="text-xs text-[hsl(var(--muted-foreground))] mb-3">Alterações da Meta M1 dos dias de {mesLabel} — quem mudou, quando e de→para.</div>
@@ -415,6 +497,22 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
             {aba === 'calc' && resultado && <span className="text-xs mr-auto self-center">{resultado}</span>}
             {aba === 'hist' ? (
               <Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button>
+            ) : aba === 'custos' ? (
+              confirmandoCustos ? (
+                <div className="flex flex-col gap-2 w-full">
+                  <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Aplicar a projeção de custos (artístico/produção) em {mesLabel}? Só aparece nos dias sem lançamento real do Conta Azul.</span>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setConfirmandoCustos(false)} disabled={aplicandoCustos}>Cancelar</Button>
+                    <Button size="sm" onClick={aplicarCustos} disabled={aplicandoCustos} leftIcon={aplicandoCustos ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}>Confirmar</Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {resultadoCustos && <span className="text-xs mr-auto self-center">{resultadoCustos}</span>}
+                  <Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button>
+                  <Button onClick={() => { setResultadoCustos(null); setConfirmandoCustos(true); }} disabled={!temCustos} leftIcon={<Check className="h-4 w-4" />}>Aplicar custos ({mesLabel})</Button>
+                </>
+              )
             ) : confirmando ? (
               <div className="flex flex-col gap-2 w-full">
                 <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Aplicar cenário {cenario.toUpperCase()} na Meta M1 de {mesLabel}?</span>
