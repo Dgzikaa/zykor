@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient, selectAll } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
   // paginado (selectAll): bar movimentado pode passar de 1000 pedidos/cotações no período → truncava
   const [pedidosAll, cotacoes] = await Promise.all([
     selectAll<any>((from, to) => gold.from('vmarket_pedido')
-      .select('id_pedido,data,fornecedor,cnpj,origem,id_pedido_status,nm_status,dt_entrega,dt_prazo_entrega,qtd_itens,valor_total,url_nfe,id_cotacao_sisfood')
+      .select('id_pedido,data,fornecedor,cnpj,origem,id_pedido_status,nm_status,dt_entrega,dt_entrega_vmarket,dt_entrega_manual,dt_prazo_entrega,qtd_itens,valor_total,url_nfe,id_cotacao_sisfood')
       .eq('bar_id', barId).gte('data', de).lte('data', ate)
       .order('data', { ascending: false }).order('valor_total', { ascending: false }).range(from, to)),
     selectAll<any>((from, to) => gold.from('vmarket_cotacao')
@@ -118,4 +119,37 @@ export async function GET(request: NextRequest) {
     },
     topFornecedores,
   });
+}
+
+/**
+ * POST /api/operacional/compras — altera na mão a data de ENTREGA de um pedido VMarket.
+ *  body: { id_pedido, dt_entrega: 'YYYY-MM-DD' | null }  (null/'' limpa o override → volta pro VMarket)
+ * Grava em operations.pedido_entrega_manual; a gold.vmarket_pedido faz coalesce(manual, vmarket),
+ * então o Desvio de Consumo passa a contar a compra na data ajustada automaticamente.
+ */
+export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
+  if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
+
+  const body = await request.json().catch(() => ({}));
+  const idPedido = Number(body.id_pedido);
+  if (!Number.isFinite(idPedido) || idPedido <= 0) return NextResponse.json({ success: false, error: 'id_pedido obrigatório' }, { status: 400 });
+
+  const supabase = await getAdminClient();
+  const ops = (supabase as any).schema('operations');
+  const dt = body.dt_entrega == null || body.dt_entrega === '' ? null : String(body.dt_entrega).slice(0, 10);
+
+  if (dt === null) {
+    const { error } = await ops.from('pedido_entrega_manual').delete().eq('bar_id', user.bar_id).eq('id_pedido', idPedido);
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, removido: true });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dt)) return NextResponse.json({ success: false, error: 'dt_entrega inválida (YYYY-MM-DD)' }, { status: 400 });
+  const { error } = await ops.from('pedido_entrega_manual').upsert({
+    bar_id: user.bar_id, id_pedido: idPedido, dt_entrega: dt, usuario: user.email || 'app', atualizado_em: new Date().toISOString(),
+  }, { onConflict: 'bar_id,id_pedido' });
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true, dt_entrega: dt });
 }

@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { ShoppingCart, Search, ChevronDown, Loader2, ExternalLink, Tag, BarChart3, TrendingUp, Users, Package, ArrowRightLeft } from 'lucide-react';
+import { ShoppingCart, Search, ChevronDown, Loader2, ExternalLink, Tag, BarChart3, TrendingUp, Users, Package, ArrowRightLeft, Pencil, Check, X } from 'lucide-react';
 
 const fmtBRL = (v: any) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
@@ -29,6 +29,36 @@ const corStatus = (id: number): string => {
   if (id === 1 || id === 2) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
   return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300';
 };
+
+// Célula da data de Entrega editável: mostra a data (azul quando alterada na mão + selo "manual"),
+// clica → date input com ✓/✕; se manual, botão "VMarket" volta pro valor original. stopPropagation
+// pra não abrir/fechar a linha do pedido.
+function EntregaCell({ p, onSave }: { p: any; onSave: (id: number, dt: string | null) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [v, setV] = useState('');
+  const stop = (e: any) => e.stopPropagation();
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1" onClick={stop}>
+        <input type="date" value={v} onChange={(e) => setV(e.target.value)}
+          className="h-7 rounded border border-indigo-400 bg-transparent px-1 text-xs" />
+        <button onClick={() => { setEditing(false); onSave(p.id_pedido, v || null); }} className="text-emerald-600 hover:text-emerald-700"><Check className="w-3.5 h-3.5" /></button>
+        <button onClick={() => setEditing(false)} className="text-red-500 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
+        {p.dt_entrega_manual && <button title="Voltar para a data do VMarket" onClick={() => { setEditing(false); onSave(p.id_pedido, null); }} className="text-[10px] text-gray-400 underline ml-0.5">VMarket</button>}
+      </span>
+    );
+  }
+  return (
+    <span className="group/ent inline-flex items-center gap-1 cursor-pointer"
+      title={p.dt_entrega_manual ? `Alterado na mão · VMarket: ${p.dt_entrega_vmarket ? fmtData(p.dt_entrega_vmarket) : '—'}` : 'Clique para alterar a data de entrega'}
+      onClick={(e) => { stop(e); setV(p.dt_entrega || p.dt_entrega_vmarket || ''); setEditing(true); }}>
+      {p.dt_entrega ? <span className={p.dt_entrega_manual ? 'text-indigo-600 dark:text-indigo-400 font-medium' : ''}>{fmtData(p.dt_entrega)}</span>
+        : (p.dt_prazo_entrega ? <span className="italic text-gray-400" title="Previsão de entrega (dt_prazo_entrega)">prev. {fmtPrazo(p.dt_prazo_entrega)}</span> : <span className="text-gray-400">—</span>)}
+      {p.dt_entrega_manual && <span className="text-[9px] rounded bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-1 leading-4">manual</span>}
+      <Pencil className="w-3 h-3 text-indigo-400 opacity-0 group-hover/ent:opacity-100" />
+    </span>
+  );
+}
 
 export default function ComprasPage() {
   const { selectedBar } = useBar();
@@ -85,6 +115,20 @@ export default function ComprasPage() {
     } finally { setLoadingAn(false); }
   }, [barId, de, ate, toast]);
   useEffect(() => { if (tab === 'analises') carregarAnalises(); }, [tab, carregarAnalises]);
+
+  // altera na mão a data de entrega do pedido (item 4). Atualiza a linha localmente sem reload cheio.
+  const salvarEntrega = useCallback(async (idPedido: number, dt: string | null) => {
+    try {
+      const r = await api.post('/api/operacional/compras', { id_pedido: idPedido, dt_entrega: dt });
+      if (!r.success) throw new Error(r.error);
+      setPedidos((ps) => ps.map((p) => p.id_pedido === idPedido
+        ? { ...p, dt_entrega: dt ?? p.dt_entrega_vmarket ?? null, dt_entrega_manual: dt != null }
+        : p));
+      toast({ title: 'Entrega atualizada', description: dt ? `Data ajustada para ${dt.split('-').reverse().join('/')}` : 'Voltou para a data do VMarket' });
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e?.message || 'Falha ao alterar a data de entrega', variant: 'destructive' });
+    }
+  }, [toast]);
 
   const abrir = async (id: number) => {
     if (aberto === id) { setAberto(null); return; }
@@ -223,7 +267,7 @@ export default function ComprasPage() {
                             <tr onClick={() => abrir(p.id_pedido)} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer">
                               <td className="px-3 py-2"><ChevronDown className={`w-4 h-4 transition-transform ${aberto === p.id_pedido ? 'rotate-180' : ''}`} /></td>
                               <td className="px-3 py-2 whitespace-nowrap">{fmtData(p.data)}</td>
-                              <td className="px-3 py-2 whitespace-nowrap text-gray-500">{p.dt_entrega ? fmtData(p.dt_entrega) : (p.dt_prazo_entrega ? <span className="italic text-gray-400" title="Previsão de entrega (dt_prazo_entrega)">prev. {fmtPrazo(p.dt_prazo_entrega)}</span> : '—')}</td>
+                              <td className="px-3 py-2 whitespace-nowrap text-gray-500"><EntregaCell p={p} onSave={salvarEntrega} /></td>
                               <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.fornecedor}</td>
                               <td className="px-3 py-2"><span className={`text-[10px] rounded px-1.5 py-0.5 ${corStatus(p.id_pedido_status)}`}>{p.nm_status || '—'}</span></td>
                               <td className="px-3 py-2"><span className={`text-[10px] rounded px-1.5 py-0.5 ${o.cls}`}>{o.txt}</span></td>

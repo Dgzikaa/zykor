@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -11,7 +12,7 @@ import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitur
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick, Pencil, Check, X, RefreshCw } from 'lucide-react';
+import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick, Pencil, Check, X, RefreshCw, Filter } from 'lucide-react';
 
 // célula com lápis (padrão Orçamentação): mostra valor + lápis no hover; clica → input com ✓/✕; salva e recalcula.
 function PencilCell({ value, fmt, onSave, disabled }: { value: number | null; fmt: (v: any) => string; onSave: (v: number | null) => void; disabled?: boolean }) {
@@ -37,6 +38,80 @@ function PencilCell({ value, fmt, onSave, disabled }: { value: number | null; fm
     </span>
   );
 }
+
+// Filtro por coluna numérica (estilo Excel): ≥ mín / ≤ máx + atalhos. `abs` = filtra pelo módulo
+// do valor (usado nas colunas de Desvio, p/ "desvio ≥ R$1000" pegar tanto perda quanto sobra).
+type NumCond = { min: number | null; max: number | null };
+const NUM_ABS = new Set(['desvio_qtd', 'desvio_rs']); // colunas filtradas pelo módulo
+function NumHeader({ label, title, cond, onChange, abs }: {
+  label: string; title?: string; cond: NumCond; onChange: (c: NumCond) => void; abs?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const active = cond.min != null || cond.max != null;
+  const openMenu = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ left: Math.max(8, Math.min(r.right - 224, window.innerWidth - 232)), top: r.bottom + 4 });
+    setOpen(true);
+  };
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current?.contains(e.target as Node) || btnRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const away = () => setOpen(false);
+    window.addEventListener('mousedown', onDown); window.addEventListener('resize', away);
+    return () => { window.removeEventListener('mousedown', onDown); window.removeEventListener('resize', away); };
+  }, [open]);
+  const set = (k: 'min' | 'max', v: string) => {
+    const t = v.trim(); const n = t === '' ? null : Number(t.replace(',', '.'));
+    onChange({ ...cond, [k]: n == null || Number.isNaN(n) ? null : n });
+  };
+  return (
+    <th className="text-right font-medium px-3 py-2" title={title}>
+      <button ref={btnRef} onClick={() => (open ? setOpen(false) : openMenu())}
+        className={`inline-flex items-center gap-1 justify-end hover:text-gray-700 dark:hover:text-gray-200 ${active ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
+        <span>{label}</span>
+        <Filter className={`w-3 h-3 ${active ? 'fill-emerald-500 text-emerald-500' : 'text-gray-300 dark:text-gray-600'}`} />
+      </button>
+      {open && pos && typeof document !== 'undefined' && createPortal(
+        <div ref={menuRef} style={{ position: 'fixed', left: pos.left, top: pos.top, width: 216 }}
+          className="z-[60] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-2 normal-case text-left">
+          <div className="text-[11px] text-gray-500 mb-1.5">{label}{abs ? ' — filtra pelo valor absoluto' : ''}</div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="text-xs text-gray-500 w-5 text-right">≥</span>
+            <input value={cond.min ?? ''} inputMode="decimal" onChange={e => set('min', e.target.value)} placeholder="mín"
+              className="flex-1 h-8 text-xs text-right tabular-nums rounded border border-gray-300 dark:border-gray-600 bg-transparent px-2" />
+          </div>
+          <div className="flex items-center gap-1.5 mb-2">
+            <span className="text-xs text-gray-500 w-5 text-right">≤</span>
+            <input value={cond.max ?? ''} inputMode="decimal" onChange={e => set('max', e.target.value)} placeholder="máx"
+              className="flex-1 h-8 text-xs text-right tabular-nums rounded border border-gray-300 dark:border-gray-600 bg-transparent px-2" />
+          </div>
+          <div className="flex items-center gap-1 flex-wrap">
+            <button onClick={() => onChange({ min: 0.0001, max: null })} className="text-[11px] px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">&gt; 0</button>
+            {abs && <button onClick={() => onChange({ min: 1000, max: null })} className="text-[11px] px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">≥ 1.000</button>}
+            <button onClick={() => onChange({ min: null, max: null })} className="text-[11px] px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400">limpar</button>
+          </div>
+        </div>, document.body)}
+    </th>
+  );
+}
+
+// aplica os filtros numéricos de coluna a uma linha (só as colunas presentes na aba são consideradas)
+const passNum = (row: any, numF: Record<string, NumCond>) => Object.entries(numF).every(([id, c]) => {
+  if (!c || (c.min == null && c.max == null)) return true;
+  const raw = row[id];
+  if (raw === undefined) return true; // coluna não existe nesta aba
+  const v = NUM_ABS.has(id) ? Math.abs(Number(raw) || 0) : (Number(raw) || 0);
+  if (c.min != null && v < c.min) return false;
+  if (c.max != null && v > c.max) return false;
+  return true;
+});
+const numAtivo = (numF: Record<string, NumCond>) => Object.values(numF).some(c => c && (c.min != null || c.max != null));
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtQtd = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
@@ -116,6 +191,10 @@ export default function DesviosPage() {
   const [filtroDado, setFiltroDado] = useState<'sem_contagem' | 'sem_ficha' | null>(null);
   const [filtroArea, setFiltroArea] = useState<string | null>(null);
   const [filtroSecaoProd, setFiltroSecaoProd] = useState<'Comida' | 'Drinks' | null>(null);
+  // filtros por coluna numérica (estilo Excel) — compartilhados entre as 3 abas por id de coluna
+  const [numF, setNumF] = useState<Record<string, NumCond>>({});
+  const setNum = useCallback((id: string, c: NumCond) => setNumF(p => ({ ...p, [id]: c })), []);
+  const condOf = (id: string): NumCond => numF[id] ?? { min: null, max: null };
   const [rowsProt, setRowsProt] = useState<any[]>([]);
   const [protAnalise, setProtAnalise] = useState<any>(null);
   const [loadingAba, setLoadingAba] = useState(false);
@@ -188,18 +267,22 @@ export default function DesviosPage() {
     return (res?.itens || []).filter((i: any) => i.is_producao
       && ((tipo !== 'diaria' && !andamento) || i.curva_a === true) // diária / semana em andamento: só Curva A
       && (!soCurvaA || i.curva_a === true)         // filtro Só Curva A (semanal/mensal)
+      && passNum(i, numF)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
-  }, [res, busca, tipo, soCurvaA, andamento]);
+  }, [res, busca, tipo, soCurvaA, andamento, numF]);
   const cntProdComida = useMemo(() => prodBase.filter((i: any) => i.secao_prod === 'Comida').length, [prodBase]);
   const cntProdDrinks = useMemo(() => prodBase.filter((i: any) => i.secao_prod === 'Drinks').length, [prodBase]);
   const prodView = useMemo(() => prodBase.filter((i: any) => !filtroSecaoProd || i.secao_prod === filtroSecaoProd), [prodBase, filtroSecaoProd]);
   const protView = useMemo(() => {
     const s = busca.trim().toLowerCase();
-    return rowsProt.filter((i: any) => !s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_cod || '').toLowerCase().includes(s));
-  }, [rowsProt, busca]);
+    return rowsProt.filter((i: any) => passNum(i, numF) && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_cod || '').toLowerCase().includes(s)));
+  }, [rowsProt, busca, numF]);
 
   // edita em qualquer granularidade (lápis); salva no dia de início do período
   const editavel = !!ini; // edita em qualquer granularidade; salva no dia de início do período
+  // Desperdício: input manual SÓ na Diária (Gonza). Semanal/Mensal apenas consolidam (somam) o que
+  // foi lançado no diário — o fn_desvios já soma desvio_desperdicio_manual no período [ini, fim).
+  const desperdEditavel = tipo === 'diaria' && editavel;
   const salvar = useCallback(async (kind: 'produzido' | 'desperdicio' | 'utilizado', codigo: string, payload: { fornadas?: number | null; qtd?: number | null }) => {
     if (!ini || !fim) return;
     try {
@@ -232,8 +315,9 @@ export default function DesviosPage() {
       && (!soCurvaA || i.curva_a === true)
       && (!filtroDado || i.dado_faltando === filtroDado)
       && (!filtroArea || i.area === filtroArea)
+      && passNum(i, numF)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
-  }, [res, busca, tipo, soCurvaA, filtroDado, filtroArea, andamento]);
+  }, [res, busca, tipo, soCurvaA, filtroDado, filtroArea, andamento, numF]);
 
   // contadores dos chips de filtro (igual /operacional/insumos) — base = aba ativa sem o filtro Curva A
   const baseRows = useMemo(() => {
@@ -332,6 +416,12 @@ export default function DesviosPage() {
           <div className="relative mt-3">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9" />
+            {numAtivo(numF) && (
+              <button onClick={() => setNumF({})}
+                className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100">
+                <Filter className="w-3 h-3" />Limpar filtros<X className="w-3 h-3" />
+              </button>
+            )}
           </div>
           {/* Filtros (contadores clicáveis, igual /operacional/insumos): total, Curva A, área, dado faltando */}
           {(aba === 'insumos' || (aba === 'producoes' && tipo !== 'diaria')) && (
@@ -358,14 +448,14 @@ export default function DesviosPage() {
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
               <th className="text-left font-medium px-3 py-2">Insumo</th>
               <th className="text-left font-medium px-3 py-2">Área</th>
-              <th className="text-right font-medium px-3 py-2" title="Contagem no início do período">Estoque ini</th>
-              <th className="text-right font-medium px-3 py-2">Compras</th>
-              <th className="text-right font-medium px-3 py-2" title="Vendas × ficha técnica (consumo esperado)">Saída teórica</th>
-              <th className="text-right font-medium px-3 py-2" title="Saída manual: lata que estourou, item que deu problema. Conta no fim do turno.">Desperdício</th>
-              <th className="text-right font-medium px-3 py-2" title="ini + compras + produzido − saída teórica − desperdício">Estoque fim teórico</th>
-              <th className="text-right font-medium px-3 py-2" title="Contagem do dia seguinte (estoque que sobrou de fato)">Estoque real</th>
-              <th className="text-right font-medium px-3 py-2" title="Estoque real − estoque fim teórico (negativo = faltou)">Desvio (qtd)</th>
-              <th className="text-right font-medium px-3 py-2">Desvio (R$)</th>
+              <NumHeader label="Estoque ini" title="Contagem no início do período" cond={condOf('estoque_ini')} onChange={c => setNum('estoque_ini', c)} />
+              <NumHeader label="Compras" cond={condOf('compra')} onChange={c => setNum('compra', c)} />
+              <NumHeader label="Saída teórica" title="Vendas × ficha técnica (consumo esperado)" cond={condOf('saida_teorica')} onChange={c => setNum('saida_teorica', c)} />
+              <NumHeader label="Desperdício" title="Saída manual: lata que estourou, item que deu problema. Conta no fim do turno." cond={condOf('desperdicio')} onChange={c => setNum('desperdicio', c)} />
+              <NumHeader label="Estoque fim teórico" title="ini + compras + produzido − saída teórica − desperdício" cond={condOf('estoque_fim_teorico')} onChange={c => setNum('estoque_fim_teorico', c)} />
+              <NumHeader label="Estoque real" title="Contagem do dia seguinte (estoque que sobrou de fato)" cond={condOf('estoque_fim_real')} onChange={c => setNum('estoque_fim_real', c)} />
+              <NumHeader label="Desvio (qtd)" title="Estoque real − estoque fim teórico (negativo = faltou). Filtra pelo módulo." cond={condOf('desvio_qtd')} onChange={c => setNum('desvio_qtd', c)} abs />
+              <NumHeader label="Desvio (R$)" title="Filtra pelo módulo (perda ou sobra)." cond={condOf('desvio_rs')} onChange={c => setNum('desvio_rs', c)} abs />
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading ? <tr><td colSpan={10} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
@@ -381,7 +471,7 @@ export default function DesviosPage() {
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.compra)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
-                  <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
+                  <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!desperdEditavel} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${it.pendente ? 'text-gray-300' : it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : `${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
@@ -412,14 +502,14 @@ export default function DesviosPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
                   <th className="text-left font-medium px-3 py-2">Produção</th>
-                  <th className="text-right font-medium px-3 py-2">Estoque ini</th>
-                  <th className="text-right font-medium px-3 py-2" title="Produção feita no período. Na diária: nº de fornadas (× rendimento).">Produzido</th>
-                  <th className="text-right font-medium px-3 py-2" title="Vendas × ficha técnica">Saída teórica</th>
-                  <th className="text-right font-medium px-3 py-2">Desperdício</th>
-                  <th className="text-right font-medium px-3 py-2" title="ini + produzido − saída teórica − desperdício">Estoque fim teórico</th>
-                  <th className="text-right font-medium px-3 py-2">Estoque real</th>
-                  <th className="text-right font-medium px-3 py-2">Desvio (qtd)</th>
-                  <th className="text-right font-medium px-3 py-2">Desvio (R$)</th>
+                  <NumHeader label="Estoque ini" cond={condOf('estoque_ini')} onChange={c => setNum('estoque_ini', c)} />
+                  <NumHeader label="Produzido" title="Produção feita no período. Na diária: nº de fornadas (× rendimento)." cond={condOf('produzido')} onChange={c => setNum('produzido', c)} />
+                  <NumHeader label="Saída teórica" title="Vendas × ficha técnica" cond={condOf('saida_teorica')} onChange={c => setNum('saida_teorica', c)} />
+                  <NumHeader label="Desperdício" cond={condOf('desperdicio')} onChange={c => setNum('desperdicio', c)} />
+                  <NumHeader label="Estoque fim teórico" title="ini + produzido − saída teórica − desperdício" cond={condOf('estoque_fim_teorico')} onChange={c => setNum('estoque_fim_teorico', c)} />
+                  <NumHeader label="Estoque real" cond={condOf('estoque_fim_real')} onChange={c => setNum('estoque_fim_real', c)} />
+                  <NumHeader label="Desvio (qtd)" title="Filtra pelo módulo." cond={condOf('desvio_qtd')} onChange={c => setNum('desvio_qtd', c)} abs />
+                  <NumHeader label="Desvio (R$)" title="Filtra pelo módulo (perda ou sobra)." cond={condOf('desvio_rs')} onChange={c => setNum('desvio_rs', c)} abs />
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {loading ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
@@ -430,7 +520,7 @@ export default function DesviosPage() {
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
                       <td className="px-3 py-2 text-right"><PencilCell value={it.produzido} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('produzido', it.insumo_codigo, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
-                      <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
+                      <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!desperdEditavel} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
                       <td className={`px-3 py-2 text-right tabular-nums ${it.pendente ? 'text-gray-300' : it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : `${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
@@ -446,30 +536,32 @@ export default function DesviosPage() {
           <TabsContent value="proteinas" className="space-y-3 mt-3">
             <HeadCards head={hProt} />
             <AnaliseBlock analise={protAnalise} tipo={tipo} />
-            <p className="text-xs text-gray-500 dark:text-gray-400">Balanço da proteína: estoque ini + <b>Compras</b> (VMarket) − <b>Utilizado Produção</b> (fornadas × proteína na ficha — automático) − desperdício. Desvio negativo = faltou (perda/furo). Em kg.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Balanço da proteína: estoque ini + <b>Compras</b> (VMarket) − <b>Utilizado Produção</b> (processada em preparos) − <b>Saída Direta</b> (vendida direto no produto) − desperdício. Desvio negativo = faltou (perda/furo). Em kg.</p>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
                   <th className="text-left font-medium px-3 py-2">Proteína</th>
-                  <th className="text-right font-medium px-3 py-2">Estoque ini</th>
-                  <th className="text-right font-medium px-3 py-2" title="Compras VMarket no período">Compras</th>
-                  <th className="text-right font-medium px-3 py-2" title="Entrou nas produções (fornadas × ficha)">Utilizado Produção</th>
-                  <th className="text-right font-medium px-3 py-2">Desperdício</th>
-                  <th className="text-right font-medium px-3 py-2" title="ini + compras − utilizado − desperdício">Estoque fim teórico</th>
-                  <th className="text-right font-medium px-3 py-2">Estoque real</th>
-                  <th className="text-right font-medium px-3 py-2">Desvio (qtd)</th>
-                  <th className="text-right font-medium px-3 py-2">Desvio (R$)</th>
+                  <NumHeader label="Estoque ini" cond={condOf('estoque_ini')} onChange={c => setNum('estoque_ini', c)} />
+                  <NumHeader label="Compras" title="Compras VMarket no período" cond={condOf('comprou')} onChange={c => setNum('comprou', c)} />
+                  <NumHeader label="Utilizado Produção" title="Proteína processada em preparos (Controle de Produção / fornadas × ficha)" cond={condOf('utilizado_producao')} onChange={c => setNum('utilizado_producao', c)} />
+                  <NumHeader label="Saída Direta" title="Proteína vendida direto no produto (vendas × ficha)" cond={condOf('saida_direta')} onChange={c => setNum('saida_direta', c)} />
+                  <NumHeader label="Desperdício" cond={condOf('desperdicio')} onChange={c => setNum('desperdicio', c)} />
+                  <NumHeader label="Estoque fim teórico" title="ini + compras − utilizado produção − saída direta − desperdício" cond={condOf('estoque_fim_teorico')} onChange={c => setNum('estoque_fim_teorico', c)} />
+                  <NumHeader label="Estoque real" cond={condOf('estoque_fim_real')} onChange={c => setNum('estoque_fim_real', c)} />
+                  <NumHeader label="Desvio (qtd)" title="Filtra pelo módulo." cond={condOf('desvio_qtd')} onChange={c => setNum('desvio_qtd', c)} abs />
+                  <NumHeader label="Desvio (R$)" title="Filtra pelo módulo (perda ou sobra)." cond={condOf('desvio_rs')} onChange={c => setNum('desvio_rs', c)} abs />
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {loadingAba ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-                  : protView.length === 0 ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400">Sem proteína (marque com o badge P em Insumos) comprada/contada nesse período.</td></tr>
+                  {loadingAba ? <tr><td colSpan={10} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+                  : protView.length === 0 ? <tr><td colSpan={10} className="px-3 py-10 text-center text-gray-400">Sem proteína (marque com o badge P em Insumos) comprada/contada nesse período.</td></tr>
                   : protView.map((it: any, i: number) => (
                     <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                       <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}<span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_cod}</span></td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.comprou)}</td>
                       <td className="px-3 py-2 text-right"><PencilCell value={it.utilizado_producao} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('utilizado', it.insumo_cod, { qtd: v })} /></td>
-                      <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('desperdicio', it.insumo_cod, { qtd: v })} /></td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.saida_direta)}</td>
+                      <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!desperdEditavel} onSave={(v) => salvar('desperdicio', it.insumo_cod, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
                       <td className={`px-3 py-2 text-right tabular-nums ${it.desvio_qtd < -0.05 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0.05 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.desvio_qtd > 0 ? '+' : ''}{fmtQtd(it.desvio_qtd)}</td>

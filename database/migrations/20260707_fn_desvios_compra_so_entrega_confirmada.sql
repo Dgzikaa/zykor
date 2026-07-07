@@ -1,0 +1,225 @@
+-- Desvio de consumo: a COMPRA só conta como entrada quando o pedido está CONFERIDO/ENTREGUE.
+--
+-- Bug reportado (07/07, print Del Maipo I0? pedido 3928779, bar 3, R$1.343,28): o pedido foi
+-- FEITO em 06/07 mas ainda estava em status 1 ("Pedido realizado - aguardando fornecedor"),
+-- sem dt_entrega. A CTE `compras` filtrava só por data (coalesce(dt_entrega, data)) SEM olhar o
+-- status, então o fallback pra data do pedido lançava a entrada em 06/07 mesmo sem ninguém ter
+-- conferido a mercadoria. Pior: pedidos CANCELADOS (status 9) e "Separação" (status 2) também
+-- entravam como entrada de estoque.
+--
+-- Status do pedido VMarket (gold.vmarket_pedido.id_pedido_status / nm_status):
+--   1 = Pedido realizado - aguardando fornecedor   (NÃO recebido)
+--   2 = Separação / Embalagem                       (NÃO recebido)
+--   6 = Entrega Confirmada                           (RECEBIDO/CONFERIDO)  <-- único que conta
+--   9 = Cancelado pelo Comprador                     (NÃO conta)
+--  14 = Agrupado com outro pedido                    (NÃO conta)
+--
+-- Correção: no CTE `compras` de gold.fn_desvios e gold.fn_desvios_proteina, exigir
+-- pp.id_pedido_status = 6. Todo pedido status 6 tem dt_entrega preenchido, então a compra
+-- continua entrando na data de ENTREGA. Confirmado com o sócio (Gonza): toda mercadoria que
+-- chega vira "Entrega Confirmada" no VMarket, logo status 1/2 = não recebido. A função é STABLE
+-- e recalcula ao vivo: quando a entrega é confirmada, a compra aparece sozinha na data certa.
+
+CREATE OR REPLACE FUNCTION gold.fn_desvios(p_bar integer, p_ini date, p_fim date)
+ RETURNS TABLE(insumo_codigo text, insumo_nome text, categoria text, unidade text, curva_a boolean, is_producao boolean, estoque_ini numeric, compra numeric, produzido numeric, saida_teorica numeric, desperdicio numeric, estoque_fim_teorico numeric, estoque_fim_real numeric, desvio_qtd numeric, preco numeric, desvio_rs numeric, produzido_informado boolean)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'gold', 'public', 'operations', 'silver'
+AS $function$
+  with recursive
+  expl as (
+    select fi.produto_id as raiz, fi.componente_tipo, upper(fi.insumo_codigo) as cod, fi.producao_ref,
+           fi.quantidade::numeric as qtd, 1::numeric as fator, 0 as lvl
+    from public.producao_ficha_item fi where fi.produto_id is not null
+    union all
+    select e.raiz, fi.componente_tipo, upper(fi.insumo_codigo), fi.producao_ref,
+           fi.quantidade::numeric, e.fator * (e.qtd / nullif(pb.rendimento,0)), e.lvl+1
+    from expl e join public.producao_base pb on pb.id=e.producao_ref
+    join public.producao_ficha_item fi on fi.producao_id=e.producao_ref
+    where e.componente_tipo='producao' and e.lvl < 6
+  ),
+  prod_imult as (
+    select pb.id as rid, upper(pb.codigo) as rcod, fi.componente_tipo as ct, upper(fi.insumo_codigo) as icod, fi.producao_ref,
+           (fi.quantidade / nullif(pb.rendimento,0))::numeric as q, 0 as lvl
+    from public.producao_base pb join public.producao_ficha_item fi on fi.producao_id=pb.id where pb.bar_id=p_bar
+    union all
+    select r.rid, r.rcod, fi.componente_tipo, upper(fi.insumo_codigo), fi.producao_ref,
+           r.q * (fi.quantidade / nullif(sub.rendimento,0)), r.lvl+1
+    from prod_imult r
+    join public.producao_base sub on sub.id=r.producao_ref and sub.bar_id=p_bar and not coalesce(sub.entra_contagem,true)
+    join public.producao_ficha_item fi on fi.producao_id=r.producao_ref
+    where r.ct='producao' and r.lvl < 6
+  ),
+  cad as (select upper(codigo) as cod, max(nome) as nome, max(categoria) as cat, max(unidade_medida) as un, bool_or(curva_a) as curva_a
+    from operations.insumos where bar_id=p_bar group by upper(codigo)),
+  prod_base as (select id, upper(codigo) as cod, nome, coalesce(rendimento,0) as rendimento, coalesce(fator_contagem,1) as fator_contagem,
+           unidade_contagem, coalesce(curva_a,false) as curva_a, coalesce(entra_contagem,true) as entra_contagem, coalesce(decompor_contagem,false) as decompor_contagem
+    from public.producao_base where bar_id=p_bar and codigo is not null),
+  prod_custo as (select pb.cod, case when pb.rendimento>0 then sum(coalesce(fi.custo_planilha,0))/pb.rendimento*pb.fator_contagem else null end as custo_cu
+    from prod_base pb join public.producao_ficha_item fi on fi.producao_id=pb.id group by pb.cod, pb.rendimento, pb.fator_contagem),
+  preco_emb as (
+    select upper(i.codigo) as cod, max(vp.preco_atual) as preco,
+           coalesce(max(iu.embalagem), operations.derive_embalagem(max(i.nome), max(i.unidade_medida))) as embalagem
+    from operations.insumos i
+    left join operations.v_insumo_preco_atual vp on vp.bar_id=i.bar_id and vp.cod_u=upper(i.codigo)
+    left join public.bronze_vmarket_produtos b on b.bar_id=i.bar_id and (b.codigo_planilha=i.codigo or b.cod_interno=i.codigo)
+    left join public.insumo_unidade iu on iu.bar_id=i.bar_id and iu.id_prod=b.id_produto_sisfood_cotacao
+    where i.bar_id=p_bar group by upper(i.codigo)
+  ),
+  prod_insumo_mult as (select rcod, icod as cod, sum(q) as q from prod_imult where ct='insumo' and icod is not null group by rcod, icod),
+  -- decomposição de pré-batch por insumo componente, na data de início e de fim
+  prebatch_ini as (
+    select mult.cod, sum(s.estoque_final * pbb.fator_contagem * mult.q / nullif(pe.embalagem,0)) q
+    from silver.estoque_contagem s
+    join prod_base pbb on pbb.cod=upper(s.insumo_codigo) and pbb.decompor_contagem
+    join prod_insumo_mult mult on mult.rcod=pbb.cod
+    join preco_emb pe on pe.cod=mult.cod
+    where s.bar_id=p_bar and s.data_contagem=p_ini group by mult.cod
+  ),
+  prebatch_fim as (
+    select mult.cod, sum(s.estoque_final * pbb.fator_contagem * mult.q / nullif(pe.embalagem,0)) q
+    from silver.estoque_contagem s
+    join prod_base pbb on pbb.cod=upper(s.insumo_codigo) and pbb.decompor_contagem
+    join prod_insumo_mult mult on mult.rcod=pbb.cod
+    join preco_emb pe on pe.cod=mult.cod
+    where s.bar_id=p_bar and s.data_contagem=p_fim group by mult.cod
+  ),
+  vendas as (select pc.id as produto_id, sum(v.qtd_consumo)::numeric as qtd
+    from silver.vendas_consolidada_dia v join public.produto_cardapio pc on pc.bar_id=v.bar_id and pc.codigo=v.cod_interno
+    where v.bar_id=p_bar and v.data >= p_ini and v.data < p_fim group by pc.id),
+  producao_por_produto as (select e.raiz as produto_id, pb.cod, sum(e.qtd*e.fator) as qtd_cu
+    from expl e join prod_base pb on pb.id=e.producao_ref where e.componente_tipo='producao' and e.producao_ref is not null group by e.raiz, pb.cod),
+  teorico_ins as (select upper(insumo_codigo) cod, sum(qtd_teorica) as base from silver.consumo_teorico_insumo_dia
+    where bar_id=p_bar and data >= p_ini and data < p_fim group by upper(insumo_codigo)),
+  exec_no_periodo as (select distinct producao_id from operations.producao_execucao where bar_id=p_bar and inicio::date >= p_ini and inicio::date < p_fim),
+  exec_rend as (select pe.producao_id, sum(pe.rendimento_real) rr from operations.producao_execucao pe
+    where pe.bar_id=p_bar and pe.inicio::date >= p_ini and pe.inicio::date < p_fim and pe.rendimento_real is not null group by pe.producao_id),
+  real_prod as (select upper(pei.insumo_codigo) cod, sum(pei.qtd_real) as base
+    from operations.producao_execucao_insumo pei join operations.producao_execucao pe on pe.id=pei.execucao_id
+    where pe.bar_id=p_bar and pe.inicio::date >= p_ini and pe.inicio::date < p_fim
+      and pei.qtd_real is not null and pei.insumo_codigo is not null and pei.insumo_codigo !~* '^p[cd]' group by upper(pei.insumo_codigo)),
+  entrada_manual as (select upper(producao_codigo) cod, sum(produzido_qtd) qtd from operations.producao_entrada_manual
+    where bar_id=p_bar and data >= p_ini and data < p_fim group by 1),
+  entrada as (select pb.cod, coalesce(er.rr / nullif(pb.fator_contagem,0), em.qtd) as qtd
+    from prod_base pb left join exec_rend er on er.producao_id=pb.id left join entrada_manual em on em.cod=pb.cod
+    where er.rr is not null or em.qtd is not null),
+  teorico_ins_prod as (select pim.cod, sum(em.qtd * pb.fator_contagem * pim.q) as base
+    from entrada_manual em join prod_base pb on pb.cod = em.cod and pb.entra_contagem join prod_insumo_mult pim on pim.rcod = em.cod
+    where not exists (select 1 from exec_no_periodo x where x.producao_id = pb.id) group by pim.cod),
+  teorico_prod as (select ppp.cod, sum(ppp.qtd_cu * vd.qtd) as base from producao_por_produto ppp join vendas vd on vd.produto_id=ppp.produto_id group by ppp.cod),
+  -- compra entra pela data de ENTREGA e SÓ conta quando o pedido está conferido (status 6 = Entrega Confirmada)
+  compras as (select upper(coalesce(b.codigo_planilha,b.cod_interno)) as cod, sum(pi.quantidade) as qtd
+    from gold.vmarket_pedido_item pi join gold.vmarket_pedido pp on pp.id_pedido=pi.id_pedido and pp.bar_id=pi.bar_id
+    join public.bronze_vmarket_produtos b on b.id_produto_sisfood_cotacao=pi.id_produto_sisfood_cotacao and b.bar_id=pi.bar_id
+    where pi.bar_id=p_bar and pp.id_pedido_status = 6
+      and coalesce(pp.dt_entrega, pp.data) >= p_ini and coalesce(pp.dt_entrega, pp.data) < p_fim group by 1),
+  desperd as (select upper(insumo_codigo) cod, sum(qtd) qtd from operations.desvio_desperdicio_manual where bar_id=p_bar and data >= p_ini and data < p_fim group by 1),
+  est_ini as (select upper(insumo_codigo) cod, sum(estoque_final) q from silver.estoque_contagem where bar_id=p_bar and data_contagem=p_ini group by 1),
+  est_fim as (select upper(insumo_codigo) cod, sum(estoque_final) q from silver.estoque_contagem where bar_id=p_bar and data_contagem=p_fim group by 1),
+  keys as (select cod from est_ini union select cod from est_fim union select cod from compras
+           union select cod from teorico_ins union select cod from teorico_prod union select cod from entrada union select cod from desperd
+           union select cod from prebatch_ini union select cod from prebatch_fim),
+  joined as (
+    select k.cod, coalesce(pb.nome, cd.nome) as nome, cd.cat, coalesce(pb.unidade_contagem, cd.un) as un,
+      coalesce(pb.curva_a, cd.curva_a, false) as curva_a, (pb.cod is not null) as is_producao,
+      coalesce(pb.entra_contagem, true) as entra_contagem,
+      coalesce(ei.q,0) + coalesce(pbi.q,0) as e_ini, coalesce(c.qtd,0) as compra, coalesce(en.qtd,0) as produzido,
+      case when pb.cod is not null then coalesce(round(tp.base / nullif(pb.fator_contagem,0),3),0)
+           else coalesce(round((coalesce(ti.base,0) + coalesce(tip.base,0) + coalesce(rp.base,0)) / nullif(pe.embalagem,0),3),0) end as saida_teo,
+      coalesce(dp.qtd,0) as desperdicio, coalesce(ef.q,0) + coalesce(pbf.q,0) as e_fim_real,
+      coalesce(pe.preco, pcu.custo_cu) as preco, (en.cod is not null) as produzido_informado
+    from keys k
+    left join cad cd on cd.cod=k.cod left join prod_base pb on pb.cod=k.cod left join prod_custo pcu on pcu.cod=k.cod
+    left join est_ini ei on ei.cod=k.cod left join est_fim ef on ef.cod=k.cod left join compras c on c.cod=k.cod
+    left join prebatch_ini pbi on pbi.cod=k.cod left join prebatch_fim pbf on pbf.cod=k.cod
+    left join teorico_ins ti on ti.cod=k.cod left join teorico_ins_prod tip on tip.cod=k.cod left join real_prod rp on rp.cod=k.cod
+    left join teorico_prod tp on tp.cod=k.cod left join entrada en on en.cod=k.cod left join desperd dp on dp.cod=k.cod
+    left join preco_emb pe on pe.cod=k.cod
+  )
+  select cod, nome, cat, un, curva_a, is_producao, e_ini, compra, produzido, saida_teo, desperdicio,
+    round(e_ini + compra + produzido - saida_teo - desperdicio, 3) as estoque_fim_teorico, e_fim_real,
+    round(e_fim_real - (e_ini + compra + produzido - saida_teo - desperdicio), 3) as desvio_qtd,
+    round(preco,2) as preco,
+    round((e_fim_real - (e_ini + compra + produzido - saida_teo - desperdicio)) * coalesce(preco,0), 2) as desvio_rs,
+    produzido_informado
+  from joined where not (is_producao and not entra_contagem)
+$function$;
+
+
+CREATE OR REPLACE FUNCTION gold.fn_desvios_proteina(p_bar integer, p_ini date, p_fim date)
+ RETURNS TABLE(insumo_cod text, insumo_nome text, unidade text, estoque_ini numeric, comprou numeric, utilizado_producao numeric, desperdicio numeric, estoque_fim_teorico numeric, estoque_fim_real numeric, desvio_qtd numeric, preco numeric, desvio_rs numeric)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'gold', 'public', 'operations', 'silver'
+AS $function$
+  with prot as (
+    select codigo, nome from operations.insumos where bar_id=p_bar and ativo and curva_a_proteina = true
+  ),
+  est_ini as (select upper(insumo_codigo) cod, sum(estoque_final) q from silver.estoque_contagem where bar_id=p_bar and data_contagem=p_ini group by 1),
+  est_fim as (select upper(insumo_codigo) cod, sum(estoque_final) q from silver.estoque_contagem where bar_id=p_bar and data_contagem=p_fim group by 1),
+  -- compra entra pela data de ENTREGA e SÓ conta quando o pedido está conferido (status 6 = Entrega Confirmada)
+  compras as (
+    select upper(coalesce(b.codigo_planilha,b.cod_interno)) cod, sum(pi.quantidade) q
+    from gold.vmarket_pedido_item pi
+    join gold.vmarket_pedido pp on pp.id_pedido=pi.id_pedido and pp.bar_id=pi.bar_id
+    join public.bronze_vmarket_produtos b on b.id_produto_sisfood_cotacao=pi.id_produto_sisfood_cotacao and b.bar_id=pi.bar_id
+    where pi.bar_id=p_bar and pp.id_pedido_status = 6
+      and coalesce(pp.dt_entrega, pp.data) >= p_ini and coalesce(pp.dt_entrega, pp.data) < p_fim group by 1
+  ),
+  -- utilizado REAL do Controle de Produção: mestre proteína = peso_bruto; demais = qtd_real (g → kg)
+  usou_controle as (
+    select upper(pei.insumo_codigo) cod,
+      sum( case when pei.is_mestre and pe.peso_bruto is not null then pe.peso_bruto else pei.qtd_real end ) / 1000.0 q
+    from operations.producao_execucao_insumo pei
+    join operations.producao_execucao pe on pe.id=pei.execucao_id
+    join operations.insumos i on i.bar_id=p_bar and upper(i.codigo)=upper(pei.insumo_codigo) and i.curva_a_proteina = true
+    where pe.bar_id=p_bar and pe.inicio::date >= p_ini and pe.inicio::date < p_fim and pei.qtd_real is not null
+    group by upper(pei.insumo_codigo)
+  ),
+  -- utilizado automático (fornadas × proteína na ficha) — fallback p/ quem não tem Controle
+  usou_auto as (
+    select upper(fi.insumo_codigo) cod,
+      sum( coalesce(nullif(pe.produzido_qtd,0), pe.fornadas*pb.rendimento) / nullif(pb.rendimento,0)
+           * (fi.quantidade / coalesce(nullif(fi.fator_correcao,0),1)) / 1000 ) q
+    from operations.producao_entrada_manual pe
+    join public.producao_base pb on pb.bar_id=p_bar and upper(pb.codigo)=upper(pe.producao_codigo)
+    join public.producao_ficha_item fi on fi.producao_id=pb.id and fi.componente_tipo='insumo'
+    join operations.insumos i on i.bar_id=p_bar and upper(i.codigo)=upper(fi.insumo_codigo) and i.curva_a_proteina = true
+    where pe.bar_id=p_bar and pe.data >= p_ini and pe.data < p_fim
+    group by upper(fi.insumo_codigo)
+  ),
+  -- utilizado manual (override) — se preenchido, ganha de todos
+  usou_man as (
+    select upper(insumo_codigo) cod, sum(qtd) q from operations.proteina_utilizado_manual
+    where bar_id=p_bar and data >= p_ini and data < p_fim group by 1
+  ),
+  desperd as (
+    select upper(insumo_codigo) cod, sum(qtd) qtd from operations.desvio_desperdicio_manual
+    where bar_id=p_bar and data >= p_ini and data < p_fim group by 1
+  ),
+  prc as (
+    select upper(i.codigo) cod, max(vp.preco_atual) preco
+    from operations.insumos i
+    left join operations.v_insumo_preco_atual vp on vp.bar_id=i.bar_id and vp.cod_u=upper(i.codigo)
+    where i.bar_id=p_bar group by upper(i.codigo)
+  )
+  select pr.codigo, pr.nome::text, 'kg'::text,
+    coalesce(ei.q,0), coalesce(c.q,0),
+    round(coalesce(um.q, uc.q, ua.q, 0),3) as utilizado_producao,
+    coalesce(dp.qtd,0),
+    round(coalesce(ei.q,0)+coalesce(c.q,0)-coalesce(um.q, uc.q, ua.q, 0)-coalesce(dp.qtd,0),3) as estoque_fim_teorico,
+    coalesce(ef.q,0),
+    round(coalesce(ef.q,0) - (coalesce(ei.q,0)+coalesce(c.q,0)-coalesce(um.q, uc.q, ua.q, 0)-coalesce(dp.qtd,0)),3) as desvio_qtd,
+    round(p.preco,2),
+    round((coalesce(ef.q,0) - (coalesce(ei.q,0)+coalesce(c.q,0)-coalesce(um.q, uc.q, ua.q, 0)-coalesce(dp.qtd,0))) * coalesce(p.preco,0),2) as desvio_rs
+  from prot pr
+  left join est_ini ei on ei.cod=upper(pr.codigo)
+  left join est_fim ef on ef.cod=upper(pr.codigo)
+  left join compras c on c.cod=upper(pr.codigo)
+  left join usou_controle uc on uc.cod=upper(pr.codigo)
+  left join usou_auto ua on ua.cod=upper(pr.codigo)
+  left join usou_man um on um.cod=upper(pr.codigo)
+  left join desperd dp on dp.cod=upper(pr.codigo)
+  left join prc p on p.cod=upper(pr.codigo)
+  order by coalesce(c.q,0) desc, pr.nome;
+$function$;
