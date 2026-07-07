@@ -231,15 +231,17 @@ export async function POST(request: NextRequest) {
       const company = answer?.company || {};
       const criterios = answer?.criteria || [];
 
-      // Extrair "Data do pedido" dos critérios (data real da visita)
+      // Extrair a data real da visita dos critérios. O Falae usa o rótulo "Data da Visita"
+      // (formulários antigos usavam "Data do pedido") — aceita os dois. Antes só casava
+      // "data do pedido", então data_visita vinha SEMPRE null (a coluna ficava vazia).
       let dataVisita: string | null = null;
       if (Array.isArray(criterios)) {
-        const dataCriterio = criterios.find(
-          (c: any) => c?.nick?.toLowerCase().includes('data do pedido') && c?.type === 'Data'
-        );
-        if (dataCriterio?.name && /^\d{4}-\d{2}-\d{2}$/.test(dataCriterio.name)) {
-          dataVisita = dataCriterio.name;
-        }
+        const dataCriterio = criterios.find((c: any) => {
+          const nick = (c?.nick || '').toLowerCase();
+          return (nick.includes('data da visita') || nick.includes('data do pedido'))
+            && /^\d{4}-\d{2}-\d{2}$/.test(c?.name || '');
+        });
+        if (dataCriterio?.name) dataVisita = dataCriterio.name;
       }
 
       const searchId = search?.id || answer?.search_id || null;
