@@ -13,13 +13,22 @@ const num = (v: number) => Math.round(v || 0).toLocaleString('pt-BR');
 const pct = (v: number | null) => v == null ? '—' : `${v > 0 ? '+' : ''}${v}%`;
 const DIAS_CURTO = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
+// piso de amostra: abaixo disso o selo não decide (evita renovar/cortar em cima de ruído)
+const SELO_MIN_SHOWS = 4;   // shows mínimos pra emitir uma decisão
+const NPS_MIN_RESP = 5;     // respostas mínimas pra o NPS pesar no selo
+
 // selo de decisão por artista (combina tendência + retorno + NPS + momentum de público)
-function seloArtista(a: any, momPubUp: boolean | null): { txt: string; cls: string } {
-  let pts = 0;
-  if (a.tendencia === 'subindo') pts += 1; else if (a.tendencia === 'caindo') pts -= 1;
-  if (a.retorno != null) { if (a.retorno >= 2) pts += 1; else if (a.retorno < 1) pts -= 1; }
-  if (a.nps_score != null) { if (a.nps_score >= 40) pts += 1; else if (a.nps_score < 15) pts -= 1; }
-  if (momPubUp === true) pts += 1; else if (momPubUp === false) pts -= 1;
+// só emite quando há amostra suficiente; senão devolve "poucos dados" (insuf).
+function seloArtista(a: any, momPubUp: boolean | null): { txt: string; cls: string; insuf?: boolean; motivo?: string } {
+  if ((a.shows || 0) < SELO_MIN_SHOWS) {
+    return { txt: 'Poucos dados', insuf: true, motivo: `${a.shows} show${a.shows === 1 ? '' : 's'} — mín. ${SELO_MIN_SHOWS} p/ avaliar`, cls: 'text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800' };
+  }
+  let pts = 0, sinais = 0;
+  if (a.tendencia === 'subindo') { pts += 1; sinais++; } else if (a.tendencia === 'caindo') { pts -= 1; sinais++; }
+  if (a.retorno != null) { sinais++; if (a.retorno >= 2) pts += 1; else if (a.retorno < 1) pts -= 1; }
+  if (a.nps_score != null && (a.nps_respostas || 0) >= NPS_MIN_RESP) { sinais++; if (a.nps_score >= 40) pts += 1; else if (a.nps_score < 15) pts -= 1; }
+  if (momPubUp === true) { pts += 1; sinais++; } else if (momPubUp === false) { pts -= 1; sinais++; }
+  if (sinais < 2) return { txt: 'Poucos dados', insuf: true, motivo: 'sinais insuficientes (sem tendência/retorno/NPS confiável)', cls: 'text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800' };
   if (pts >= 2) return { txt: 'Manter', cls: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-900/25' };
   if (pts <= -2) return { txt: 'Renovar', cls: 'text-rose-700 bg-rose-50 dark:text-rose-300 dark:bg-rose-900/25' };
   return { txt: 'Observar', cls: 'text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-900/25' };
@@ -208,18 +217,26 @@ export default function InsightsTab({ barId, periodo }: { barId?: number; period
                   <td className="px-3 py-2 text-right tabular-nums">{a.shows}</td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     <div>{money(a.fatRec)}</div>
-                    <div className={`text-[11px] ${a.dFat == null ? 'text-gray-400' : a.dFat >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{pct(a.dFat)}</div>
+                    {a.dFat == null ? <div className="text-[11px] text-gray-400" title="sem base (precisa de ~5+ shows p/ comparar 3×3)">sem base</div>
+                      : <div className={`text-[11px] ${a.dFat >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{pct(a.dFat)}</div>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     <div>{num(a.pubRec)}</div>
-                    <div className={`text-[11px] ${a.dPub == null ? 'text-gray-400' : a.dPub >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{pct(a.dPub)}</div>
+                    {a.dPub == null ? <div className="text-[11px] text-gray-400">sem base</div>
+                      : <div className={`text-[11px] ${a.dPub >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{pct(a.dPub)}</div>}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-500">{a.nps_score == null ? '—' : `${a.nps_score > 0 ? '+' : ''}${a.nps_score}`}</td>
-                  <td className="px-3 py-2 text-center"><span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${a.selo.cls}`}>{a.selo.txt}</span></td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {a.nps_score == null ? <span className="text-gray-400">—</span>
+                      : <span className={(a.nps_respostas || 0) < NPS_MIN_RESP ? 'text-gray-400' : 'text-gray-600 dark:text-gray-300'} title={`${a.nps_respostas || 0} resposta${a.nps_respostas === 1 ? '' : 's'}${(a.nps_respostas || 0) < NPS_MIN_RESP ? ' — amostra baixa, não pesa no selo' : ''}`}>{a.nps_score > 0 ? '+' : ''}{a.nps_score}<span className="text-[10px] text-gray-400"> ·{a.nps_respostas || 0}</span></span>}
+                  </td>
+                  <td className="px-3 py-2 text-center"><span title={a.selo.motivo || ''} className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${a.selo.cls}`}>{a.selo.txt}</span></td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <p className="px-3 py-2 text-[11px] text-gray-400 border-t border-gray-100 dark:border-gray-800">
+            O selo só decide com <b>≥ {SELO_MIN_SHOWS} shows</b> e pelo menos 2 sinais confiáveis; o NPS só pesa com <b>≥ {NPS_MIN_RESP} respostas</b>. Abaixo disso mostra <b>Poucos dados</b> — de propósito, pra ninguém renovar/cortar em cima de ruído.
+          </p>
         </CardContent>
       </Card>
 
