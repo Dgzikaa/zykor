@@ -4,6 +4,11 @@ import { createServiceRoleClient } from '@/lib/supabase-admin';
 export const dynamic = 'force-dynamic';
 const supabase = createServiceRoleClient();
 
+// Cache em memória do ranking (instância morna do Fluid Compute). O dado muda ~1x/dia
+// (ETL), então servir de cache por alguns minutos deixa a re-navegação instantânea.
+const rankingCache = new Map<string, { at: number; payload: any }>();
+const RANKING_TTL_MS = 5 * 60 * 1000;
+
 function getBarId(request: NextRequest): number | null {
   const { searchParams } = new URL(request.url);
   const h = request.headers.get('x-selected-bar-id');
@@ -106,16 +111,44 @@ export async function GET(request: NextRequest) {
     const dataInicialStr = dataInicial.toISOString().split('T')[0];
     const hojeStr = new Date().toISOString().split('T')[0];
 
-    // 1) Eventos válidos do período (dias com operação) — base para métricas e baseline
-    const { data: eventosRaw, error: evErr } = await supabase
-      .from('eventos_base')
-      .select('id, data_evento, dia_semana, real_r, cl_real, publico_real, c_art, t_medio, faturamento_bar')
-      .eq('bar_id', barId)
-      .gt('real_r', 1000)
-      .gte('data_evento', dataInicialStr)
-      .lte('data_evento', hojeStr)
-      .order('data_evento', { ascending: true });
-    if (evErr) throw evErr;
+    // mix + consumação são pesados (fn_consumo_por_artista ~12s) e nenhuma tela do ranking
+    // exibe esses campos → só computa com ?extras=1. Off por padrão.
+    const extras = searchParams.get('extras') === '1';
+
+    // cache morno (instância do Fluid Compute): re-navegação no mesmo período volta instantânea
+    const cacheKey = `rank:${barId}:${periodo}:${minShows}:${extras ? 1 : 0}`;
+    const hit = rankingCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < RANKING_TTL_MS) return NextResponse.json(hit.payload);
+
+    const gold = (supabase as any).schema('gold');
+    const fin = (supabase as any).schema('financial');
+    const silver = (supabase as any).schema('silver');
+
+    // 1) Todas as queries independentes em PARALELO (antes eram awaits sequenciais → somavam o tempo).
+    const [evRes, lkRes, caRes, cadRes, npsRes, mixRes, consRes] = await Promise.all([
+      supabase.from('eventos_base')
+        .select('id, data_evento, dia_semana, real_r, cl_real, publico_real, c_art, t_medio, faturamento_bar')
+        .eq('bar_id', barId).gt('real_r', 1000)
+        .gte('data_evento', dataInicialStr).lte('data_evento', hojeStr)
+        .order('data_evento', { ascending: true }),
+      ops.from('evento_artistas')
+        .select('evento_id, artista_id, artista_nome, c_art, horario_inicio, horario_fim')
+        .eq('bar_id', barId),
+      ops.rpc('fn_ca_cache_artista', { p_bar: barId, p_ini: dataInicialStr, p_fim: hojeStr }),
+      ops.from('bar_artistas').select('id, nome, tipo').eq('bar_id', barId),
+      silver.from('nps_artista_respostas')
+        .select('artista_id, nps, categoria')
+        .eq('bar_id', barId).gte('data_visita', dataInicialStr).lte('data_visita', hojeStr),
+      extras
+        ? gold.from('mix_produtos_diario').select('dt_gerencial, categoria_mix, faturamento')
+            .eq('bar_id', barId).gte('dt_gerencial', dataInicialStr).lte('dt_gerencial', hojeStr)
+        : Promise.resolve({ data: [] as any[] }),
+      extras
+        ? fin.rpc('fn_consumo_por_artista', { p_bar: barId, p_ini: dataInicialStr, p_fim: hojeStr })
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+    if (evRes.error) throw evRes.error;
+    const eventosRaw = evRes.data;
 
     const eventos: EventoRow[] = (eventosRaw || []).map((e: any) => ({
       id: e.id,
@@ -138,13 +171,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 2) Ligações artista -> evento (só as que caem no período)
-    const eventoIds = eventos.map((e) => e.id);
-    const { data: linksRaw, error: lkErr } = await ops
-      .from('evento_artistas')
-      .select('evento_id, artista_id, artista_nome, c_art, horario_inicio, horario_fim')
-      .eq('bar_id', barId);
-    if (lkErr) throw lkErr;
-
+    const linksRaw = lkRes.data;
     const links = (linksRaw || []).filter((l: any) => eventoById.has(l.evento_id));
 
     // quantos artistas por evento (para ratear custo em co-headline)
@@ -154,7 +181,7 @@ export async function GET(request: NextRequest) {
     }
 
     // cachê EXATO por (evento, artista) do Conta Azul — mesma fonte da trajetória (não rateio)
-    const { data: caCacheRaw } = await ops.rpc('fn_ca_cache_artista', { p_bar: barId, p_ini: dataInicialStr, p_fim: hojeStr });
+    const caCacheRaw = caRes.data;
     const caCacheMap = new Map<string, number>();
     for (const r of caCacheRaw || []) caCacheMap.set(`${r.evento_id}:${r.artista_id}`, Number(r.cachet) || 0);
 
@@ -176,10 +203,7 @@ export async function GET(request: NextRequest) {
     }
 
     // cadastro para tipo (banda/dj/solo)
-    const { data: cadastro } = await ops
-      .from('bar_artistas')
-      .select('id, nome, tipo')
-      .eq('bar_id', barId);
+    const cadastro = cadRes.data;
     const tipoPorId = new Map<number, string>((cadastro || []).map((a: any) => [a.id, a.tipo]));
     const tipoPorNome = new Map<string, string>((cadastro || []).map((a: any) => [a.nome, a.tipo]));
 
@@ -235,14 +259,8 @@ export async function GET(request: NextRequest) {
 
     const media = (arr: number[]) => (arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : 0);
 
-    // mix de produtos por dia (BEBIDA/DRINK/COMIDA) — compõe o mix do artista pelas datas dos shows
-    const gold = (supabase as any).schema('gold');
-    const { data: mixRaw } = await gold
-      .from('mix_produtos_diario')
-      .select('dt_gerencial, categoria_mix, faturamento')
-      .eq('bar_id', barId)
-      .gte('dt_gerencial', dataInicialStr)
-      .lte('dt_gerencial', hojeStr);
+    // mix de produtos por dia (BEBIDA/DRINK/COMIDA) — só com ?extras=1 (view pesada ~1s)
+    const mixRaw = mixRes.data;
     const mixPorData = new Map<string, { bebida: number; drink: number; comida: number }>();
     for (const r of mixRaw || []) {
       const d = String(r.dt_gerencial).slice(0, 10);
@@ -255,19 +273,13 @@ export async function GET(request: NextRequest) {
       mixPorData.set(d, o);
     }
 
-    // consumação do PRÓPRIO artista, já vinculada por artista (override/nome/noite) — fonte da tela de consumação
-    const fin = (supabase as any).schema('financial');
-    const { data: consArtRaw } = await fin.rpc('fn_consumo_por_artista', { p_bar: barId, p_ini: dataInicialStr, p_fim: hojeStr });
+    // consumação do PRÓPRIO artista (só com ?extras=1 — fn_consumo_por_artista ~12s)
+    const consArtRaw = consRes.data;
     const consumoPorArtista = new Map<number, number>();
     for (const r of consArtRaw || []) if (r.artista_id != null) consumoPorArtista.set(Number(r.artista_id), Number(r.valor) || 0);
 
     // NPS por artista no MESMO período do ranking (Falae · Data da Visita → artista da noite).
-    const { data: npsRows } = await (supabase as any).schema('silver')
-      .from('nps_artista_respostas')
-      .select('artista_id, nps, categoria')
-      .eq('bar_id', barId)
-      .gte('data_visita', dataInicialStr)
-      .lte('data_visita', hojeStr);
+    const npsRows = npsRes.data;
     const npsPorArtista = new Map<number, { n: number; soma: number; promot: number; detrat: number }>();
     for (const r of npsRows || []) {
       if (r.artista_id == null) continue;
@@ -394,13 +406,15 @@ export async function GET(request: NextRequest) {
       top_lift: [...atracoes].filter((a) => a.lift_fat != null).sort((a, b) => (b.lift_fat || 0) - (a.lift_fat || 0))[0]?.nome || null,
     };
 
-    return NextResponse.json({
+    const payload = {
       success: true,
       sem_dados: links.length === 0,
       data: atracoes,
       stats,
       periodo: { inicio: dataInicialStr, fim: hojeStr, meses: periodo },
-    });
+    };
+    rankingCache.set(cacheKey, { at: Date.now(), payload });
+    return NextResponse.json(payload);
   } catch (error: any) {
     console.error('Erro ao buscar atrações:', error);
     return NextResponse.json({ success: false, error: error?.message || 'Erro ao buscar dados de atrações' }, { status: 500 });
