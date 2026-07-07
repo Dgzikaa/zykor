@@ -22,6 +22,12 @@ const addDiasIso = (iso: string, n: number) => {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 };
 const fmtDM = (iso: any) => iso ? `${String(iso).slice(8, 10)}/${String(iso).slice(5, 7)}` : '—';
+// segundos -> "1h 23m" / "23m 04s" (preview do tempo decorrido das produções em andamento)
+const fmtCrono = (seg: number) => {
+  const s = Math.max(0, Math.round(seg || 0));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m ${String(s % 60).padStart(2, '0')}s`;
+};
 // data local (BRT do navegador) de um timestamp — casa 1:1 com a coluna "Data" do histórico
 // (que usa toLocaleString). Evita o bug de virada de dia UTC: produção lançada à noite (ex.: 21h)
 // fica no dia certo, não "pula" pro dia seguinte por causa do fuso.
@@ -558,17 +564,43 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
 
   return (
     <div className="space-y-4">
-      {/* Retomar produção em andamento achada em outro aparelho do bar (rede de segurança) */}
+      {/* Retomar produção em andamento achada em outro aparelho do bar (rede de segurança).
+          Mostra o PREVIEW de cada produção (nome/status/tempo/responsável) antes de retomar —
+          assim dá pra ver o que ficou pausado de um dia pro outro sem atrapalhar quem produz. */}
       {resumivel && prods.length === 0 && (
         <Card className="card-dark border-amber-300 dark:border-amber-800">
-          <CardContent className="py-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
-              <History className="w-4 h-4 shrink-0" />
-              <span>Há <b>{resumivel.length}</b> produção(ões) em andamento neste bar (iniciada em outro aparelho ou antes de limpar os dados). Retomar?</span>
+          <CardContent className="py-3 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
+                <History className="w-4 h-4 shrink-0" />
+                <span>Há <b>{resumivel.length}</b> produção(ões) em andamento neste bar (iniciada em outro aparelho ou antes de limpar os dados). Confira abaixo antes de retomar.</span>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button size="sm" variant="ghost" onClick={() => setResumivel(null)}>Ignorar</Button>
+                <Button size="sm" onClick={retomarDoBar} className="bg-amber-600 hover:bg-amber-700"><RotateCcw className="w-4 h-4 mr-1" />Retomar{resumivel.length > 1 ? ' todas' : ''}</Button>
+              </div>
             </div>
-            <div className="flex gap-2 shrink-0">
-              <Button size="sm" variant="ghost" onClick={() => setResumivel(null)}>Ignorar</Button>
-              <Button size="sm" onClick={retomarDoBar} className="bg-amber-600 hover:bg-amber-700"><RotateCcw className="w-4 h-4 mr-1" />Retomar</Button>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {resumivel.map((p: any, i: number) => {
+                const resp = responsaveis.find((r: any) => r.id === p.responsavelId);
+                const nItens = Array.isArray(p.itens) ? p.itens.length : 0;
+                return (
+                  <div key={p.localId || i} className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/10 p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" title={p.ficha?.nome}>{p.ficha?.nome || 'Produção'}</span>
+                      <span className={`text-[11px] px-1.5 py-0.5 rounded shrink-0 inline-flex items-center gap-1 ${p.rodando ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}>
+                        {p.rodando ? <><Play className="w-3 h-3" />rodando</> : <><Pause className="w-3 h-3" />pausada</>}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-gray-500">
+                      <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /><span className="tabular-nums">{fmtCrono(elapsedOf(p))}</span></span>
+                      {resp && <span className="inline-flex items-center gap-1"><User className="w-3 h-3" />{resp.nome}</span>}
+                      {p.dataProducao && <span>Data {fmtDM(p.dataProducao)}</span>}
+                    </div>
+                    {(p.ficha?.codigo || nItens > 0) && <div className="text-[10px] text-gray-400 mt-0.5">{p.ficha?.codigo || ''}{p.ficha?.codigo && nItens ? ' · ' : ''}{nItens ? `${nItens} itens` : ''}</div>}
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
