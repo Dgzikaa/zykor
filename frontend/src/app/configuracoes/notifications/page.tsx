@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useUser } from '@/contexts/UserContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Bell, Inbox, SlidersHorizontal, Send, History, Smartphone, Zap } from 'lucide-react';
+import { Bell, Inbox, Send, History, Smartphone, Zap } from 'lucide-react';
 import InboxTab from './_components/InboxTab';
 import RegrasTab from './_components/RegrasTab';
 import EnviarTab from './_components/EnviarTab';
@@ -35,13 +35,8 @@ export default function NotificationsPage() {
               <Inbox className="w-4 h-4" /> Caixa de entrada
             </TabsTrigger>
             {isAdmin && (
-              <TabsTrigger value="regras" className="gap-1.5">
-                <SlidersHorizontal className="w-4 h-4" /> Regras
-              </TabsTrigger>
-            )}
-            {isAdmin && (
-              <TabsTrigger value="condicoes" className="gap-1.5">
-                <Zap className="w-4 h-4" /> Alertas automáticos
+              <TabsTrigger value="alertas" className="gap-1.5">
+                <Zap className="w-4 h-4" /> Alertas
               </TabsTrigger>
             )}
             {isAdmin && (
@@ -64,14 +59,29 @@ export default function NotificationsPage() {
           </TabsContent>
 
           {isAdmin && (
-            <TabsContent value="regras" className="mt-4">
-              <RegrasTab />
-            </TabsContent>
-          )}
-
-          {isAdmin && (
-            <TabsContent value="condicoes" className="mt-4">
-              <CondicoesTab />
+            <TabsContent value="alertas" className="mt-4 space-y-8">
+              <section className="space-y-3">
+                <div>
+                  <h2 className="text-base font-semibold">Alertas do sistema</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Eventos que o Zykor já detecta (produção, checklist, financeiro…). Escolha quem
+                    recebe e por quais canais.
+                  </p>
+                </div>
+                <RegrasTab />
+              </section>
+              <section className="space-y-3 border-t pt-6">
+                <div>
+                  <h2 className="text-base font-semibold flex items-center gap-1.5">
+                    <Zap className="w-4 h-4 text-amber-500" /> Meus alertas
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    Crie alertas sob medida — você define a condição (estoque &lt; X, faturamento
+                    abaixo da meta, compra cara…).
+                  </p>
+                </div>
+                <CondicoesTab />
+              </section>
             </TabsContent>
           )}
 
