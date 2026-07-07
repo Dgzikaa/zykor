@@ -214,6 +214,11 @@ export async function GET(request: NextRequest) {
       critPorEvento.set(r.evento_id, a);
     }
 
+    // #5 fidelização por evento → rollup por label (cliente cuja 1ª visita foi na noite da label)
+    const { data: aqRaw } = await ops.rpc('fn_aquisicao_por_evento', { p_bar: barId, p_ini: iniStr, p_fim: hojeStr });
+    const aqPorEvento = new Map<number, { novos: number; fidelizados: number }>();
+    for (const r of aqRaw || []) aqPorEvento.set(Number(r.evento_id), { novos: Number(r.novos) || 0, fidelizados: Number(r.fidelizados) || 0 });
+
     // 3) agrupa eventos por label canônica
     interface LabelAcc {
       canon: string;
@@ -321,6 +326,9 @@ export async function GET(request: NextRequest) {
         const nps_medio = npsAcc && npsAcc.n ? Math.round((npsAcc.soma / npsAcc.n) * 100) / 100 : null;
         const nps_score = npsAcc && npsAcc.n ? Math.round((npsAcc.promot / npsAcc.n) * 100 - (npsAcc.detrat / npsAcc.n) * 100) : null;
         const dimensoes = agregarDimensoes(l.evs.flatMap((e) => critPorEvento.get(e.id) || []));
+        let novos = 0, fidelizados = 0;
+        for (const e of l.evs) { const aq = aqPorEvento.get(e.id); if (aq) { novos += aq.novos; fidelizados += aq.fidelizados; } }
+        const pct_fideliza = novos > 0 ? Math.round((fidelizados / novos) * 100) : null;
 
         // série semanal (agrega por semana ISO — em geral 1 show/semana)
         const porSemana = new Map<string, { fat: number; publico: number; meta: number; n: number }>();
@@ -362,6 +370,7 @@ export async function GET(request: NextRequest) {
           dia_label: DIA_LABEL[diaDom] || display,
           shows: n,
           nps_respostas, nps_medio, nps_score, dimensoes,
+          novos, fidelizados, pct_fideliza,
           fat_total, fat_medio,
           publico_total: publicos.reduce((s, x) => s + x, 0), publico_medio,
           ticket_medio,

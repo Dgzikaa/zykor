@@ -27,10 +27,11 @@ function TendIcon({ t }: { t: string }) {
   return <Minus className="h-4 w-4 text-gray-400 inline" />;
 }
 
-type Sort = 'fat_total' | 'fat_medio' | 'publico_medio' | 'retorno' | 'shows' | 'meta_atingimento' | 'cv' | 'nps_score';
+type Sort = 'fat_total' | 'fat_medio' | 'publico_medio' | 'retorno' | 'shows' | 'meta_atingimento' | 'cv' | 'nps_score' | 'pct_fideliza';
 const SORTS: { key: Sort; label: string }[] = [
   { key: 'fat_total', label: 'Faturamento' },
   { key: 'nps_score', label: 'Melhor NPS' },
+  { key: 'pct_fideliza', label: 'Mais fideliza' },
   { key: 'fat_medio', label: 'Fat. médio' },
   { key: 'publico_medio', label: 'Público' },
   { key: 'retorno', label: 'Retorno' },
@@ -38,6 +39,7 @@ const SORTS: { key: Sort; label: string }[] = [
   { key: 'shows', label: 'Nº shows' },
 ];
 const npsCor = (s: number) => s >= 50 ? 'text-emerald-600 dark:text-emerald-400' : s >= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
+const fidelizaCor = (p: number) => p >= 25 ? 'text-emerald-600 dark:text-emerald-400' : p >= 15 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
 const npsDimCor = (nota: number) => nota >= 4.2 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : nota >= 3.5 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
 
 export default function LabelsTab({ barId, periodo }: { barId?: number; periodo: number }) {
@@ -177,6 +179,7 @@ export default function LabelsTab({ barId, periodo }: { barId?: number; periodo:
               <th className="text-right px-3 py-2">Fat. médio</th>
               <th className="text-right px-3 py-2">Público méd.</th>
               <th className="text-right px-3 py-2" title="Score NPS (promotores − detratores) no período · nº de respostas entre parênteses">NPS</th>
+              <th className="text-right px-3 py-2" title="% dos clientes cuja 1ª visita foi numa noite desta label que viraram recorrentes · nº de novos entre parênteses">Fideliza</th>
               <th className="text-right px-3 py-2" title="Ticket médio (t_medio)">Ticket</th>
               <th className="text-right px-3 py-2" title="R$ faturado por R$ de cachê">Retorno</th>
               <th className="text-right px-3 py-2" title="% do fat que vira cachê">% cachê</th>
@@ -200,6 +203,10 @@ export default function LabelsTab({ barId, periodo }: { barId?: number; periodo:
                     <td className="px-3 py-2 text-right tabular-nums">
                       {l.nps_score == null ? <span className="text-gray-400">—</span>
                         : <span className={`font-medium ${npsCor(l.nps_score)}`}>{l.nps_score > 0 ? '+' : ''}{l.nps_score}<span className="text-[10px] text-gray-400 ml-0.5">({l.nps_respostas})</span></span>}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {l.pct_fideliza == null ? <span className="text-gray-400">—</span>
+                        : <span className={`font-medium ${fidelizaCor(l.pct_fideliza)}`}>{l.pct_fideliza}%<span className="text-[10px] text-gray-400 ml-0.5">({num(l.novos)})</span></span>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-gray-500">{l.ticket_medio ? money(l.ticket_medio) : '—'}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{l.retorno != null ? `${l.retorno.toFixed(1).replace('.', ',')}×` : '—'}</td>
