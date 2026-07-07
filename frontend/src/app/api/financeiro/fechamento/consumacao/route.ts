@@ -45,9 +45,9 @@ const KEY_LABEL: Record<string, string> = {
 interface ItemConsumacao { chave: string; label: string; categoria: string; sinal: SinalLanc; valor: number; }
 
 /** Monta os itens (despesas + Ajuste CMV receita) de um dia. Fonte: get_consumos_9_custo_semana (custo da ficha). */
-export async function montarConsumacaoDia(barId: number, dia: string): Promise<{ itens: ItemConsumacao[]; ignorado: number; totalDespesas: number }> {
+export async function montarConsumacaoDia(barId: number, dia: string, fatorPre?: number): Promise<{ itens: ItemConsumacao[]; ignorado: number; totalDespesas: number }> {
   const supabase = getLancadorAdmin();
-  const fator = await getFatorCmv(supabase, barId).catch(() => 0.35);
+  const fator = fatorPre ?? await getFatorCmv(supabase, barId).catch(() => 0.35);
   const { data } = await (supabase as any).rpc('get_consumos_9_custo_semana', {
     input_bar_id: barId, input_data_inicio: dia, input_data_fim: dia, p_fator: fator,
   });
@@ -119,13 +119,49 @@ export async function executarConsumacaoDia(barId: number, dia: string, criadoPo
   return { status: algumErro ? 207 : 200, body: { bar_id: barId, dia, ok: !algumErro, resultados, ignorado, totalDespesas } };
 }
 
-/** GET: preview do dia — não escreve. */
+function enumerarDias(de: string, ate: string): string[] {
+  const out: string[] = [];
+  const d = new Date(`${de}T00:00:00Z`);
+  const fim = new Date(`${ate}T00:00:00Z`);
+  let guard = 0;
+  while (d <= fim && guard < 400) { out.push(d.toISOString().slice(0, 10)); d.setUTCDate(d.getUTCDate() + 1); guard++; }
+  return out;
+}
+
+/** Resumo por DIA de um período (pra navegação Semana/Mês). Só dias com movimento. */
+async function resumoPeriodo(barId: number, de: string, ate: string) {
+  const supabase = getLancadorAdmin();
+  const fator = await getFatorCmv(supabase, barId).catch(() => 0.35);
+  const { data: logs } = await (supabase.schema('financial' as any) as any)
+    .from('lancamento_manual_ca_log').select('competencia, chave').eq('bar_id', barId).eq('tipo', TIPO).gte('competencia', de).lte('competencia', ate);
+  const feitosPorDia: Record<string, Set<string>> = {};
+  for (const r of ((logs as any[]) || [])) { const d = String(r.competencia).slice(0, 10); (feitosPorDia[d] ||= new Set()).add((r as any).chave); }
+
+  const dias = enumerarDias(de, ate);
+  const resumos = await Promise.all(dias.map(async (d) => {
+    const { itens, totalDespesas } = await montarConsumacaoDia(barId, d, fator);
+    const feitos = feitosPorDia[d] || new Set<string>();
+    const nPend = itens.filter((i) => !feitos.has(i.chave)).length;
+    return { dia: d, total: round2(totalDespesas), n_itens: itens.length, n_lancados: itens.length - nPend, n_pendentes: nPend };
+  }));
+  return resumos.filter((r) => r.n_itens > 0);
+}
+
+/** GET: preview do dia (data=) OU resumo por dia de um período (de=&ate=). Não escreve. */
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
   if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão');
   const url = new URL(request.url);
   const barId = Number(url.searchParams.get('bar_id')) || Number(user.bar_id);
+  const de = url.searchParams.get('de');
+  const ate = url.searchParams.get('ate');
+  if (de && ate) {
+    const dias = await resumoPeriodo(barId, de, ate);
+    const total = dias.reduce((s, d) => s + d.total, 0);
+    const pendentes = dias.filter((d) => d.n_pendentes > 0).map((d) => d.dia);
+    return NextResponse.json({ modo: 'periodo', bar_id: barId, de, ate, total: round2(total), dias, dias_pendentes: pendentes });
+  }
   const dia = url.searchParams.get('data') || ontemBRT();
 
   const { itens, ignorado, totalDespesas } = await montarConsumacaoDia(barId, dia);
@@ -135,7 +171,7 @@ export async function GET(request: NextRequest) {
   const feitos = new Set(((logs as any[]) || []).map((r) => r.chave));
 
   return NextResponse.json({
-    bar_id: barId, dia, totalDespesas, ignorado,
+    modo: 'dia', bar_id: barId, dia, totalDespesas, ignorado,
     soma_zero: round2(totalDespesas - (itens.find((i) => i.chave === 'ajuste_cmv')?.valor || 0)),
     itens: itens.map((i) => ({ ...i, ja_lancado: feitos.has(i.chave) })),
   });
