@@ -3,7 +3,7 @@ import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/
 import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
 import {
   getLancadorAdmin, getCAToken, resolveCategoriaId, resolveContaPadrao, criarLancamentoCA,
-  round2, ultimoDiaMes, mesAnteriorBRT, type SinalLanc,
+  round2, ultimoDiaMes, mesAnteriorBRT, parseChaves, type SinalLanc,
 } from '@/lib/financeiro/contaazul-lancador';
 
 export const dynamic = 'force-dynamic';
@@ -69,8 +69,8 @@ export async function calcularVariacao(barId: number, ano: number, mes: number):
   return { linhas, semanaIni: `${wi.ano}-S${wi.semana}`, semanaFim: `${wf.ano}-S${wf.semana}` };
 }
 
-/** Executa (idempotente) os lançamentos de variação do mês. Sem auth — quem chama garante. */
-export async function executarVariacaoEstoque(barId: number, ano: number, mes: number, criadoPor: string | null): Promise<{ status: number; body: any }> {
+/** Executa (idempotente) os lançamentos de variação do mês. `chaves` (opcional) limita a linhas específicas. Sem auth — quem chama garante. */
+export async function executarVariacaoEstoque(barId: number, ano: number, mes: number, criadoPor: string | null, chaves?: string[]): Promise<{ status: number; body: any }> {
   const supabase = getLancadorAdmin();
   const competencia = ultimoDiaMes(ano, mes);
   const { linhas } = await calcularVariacao(barId, ano, mes);
@@ -79,7 +79,8 @@ export async function executarVariacaoEstoque(barId: number, ano: number, mes: n
   const { data: jaLogs } = await log().select('chave, valor, sinal, baixado').eq('bar_id', barId).eq('tipo', TIPO).eq('competencia', competencia);
   const feitos = new Set(((jaLogs as any[]) || []).map((r) => r.chave));
 
-  const pendentes = linhas.filter((l) => Math.abs(l.variacao) >= 0.01 && !feitos.has(l.key));
+  const filtro = chaves?.length ? new Set(chaves) : null;
+  const pendentes = linhas.filter((l) => Math.abs(l.variacao) >= 0.01 && !feitos.has(l.key) && (!filtro || filtro.has(l.key)));
   if (pendentes.length === 0) {
     return { status: 200, body: { bar_id: barId, ano, mes, competencia, skipped: true, motivo: feitos.size ? 'já lançado' : 'sem variação no mês', linhas } };
   }
@@ -156,6 +157,7 @@ export async function POST(request: NextRequest) {
   const barId = Number(body?.bar_id) || Number(user.bar_id);
   const { ano, mes } = (Number.isFinite(Number(body?.ano)) && Number.isFinite(Number(body?.mes)))
     ? { ano: Number(body.ano), mes: Number(body.mes) } : mesAnteriorBRT();
-  const r = await executarVariacaoEstoque(barId, ano, mes, user.email ?? user.nome ?? null);
+  const chaves = parseChaves(body);
+  const r = await executarVariacaoEstoque(barId, ano, mes, user.email ?? user.nome ?? null, chaves);
   return NextResponse.json(r.body, { status: r.status });
 }

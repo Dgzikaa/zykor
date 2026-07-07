@@ -4,7 +4,7 @@ import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
 import { getFatorCmv } from '@/lib/config/getFatorCmv';
 import {
   getLancadorAdmin, getCAToken, resolveCategoriaId, resolveContaPadrao, criarLancamentoCA,
-  round2, brDate, ontemBRT, type SinalLanc,
+  round2, brDate, ontemBRT, parseChaves, type SinalLanc,
 } from '@/lib/financeiro/contaazul-lancador';
 
 export const dynamic = 'force-dynamic';
@@ -72,8 +72,8 @@ export async function montarConsumacaoDia(barId: number, dia: string): Promise<{
   return { itens, ignorado, totalDespesas };
 }
 
-/** Executa (idempotente) os lançamentos de consumação de um dia. Sem auth — quem chama garante. */
-export async function executarConsumacaoDia(barId: number, dia: string, criadoPor: string | null): Promise<{ status: number; body: any }> {
+/** Executa (idempotente) os lançamentos de consumação de um dia. `chaves` (opcional) limita a categorias específicas. Sem auth — quem chama garante. */
+export async function executarConsumacaoDia(barId: number, dia: string, criadoPor: string | null, chaves?: string[]): Promise<{ status: number; body: any }> {
   const supabase = getLancadorAdmin();
   const { itens, ignorado, totalDespesas } = await montarConsumacaoDia(barId, dia);
 
@@ -81,7 +81,8 @@ export async function executarConsumacaoDia(barId: number, dia: string, criadoPo
   const { data: jaLogs } = await log().select('chave').eq('bar_id', barId).eq('tipo', TIPO).eq('competencia', dia);
   const feitos = new Set(((jaLogs as any[]) || []).map((r) => r.chave));
 
-  const pendentes = itens.filter((i) => !feitos.has(i.chave));
+  const filtro = chaves?.length ? new Set(chaves) : null;
+  const pendentes = itens.filter((i) => !feitos.has(i.chave) && (!filtro || filtro.has(i.chave)));
   if (pendentes.length === 0) {
     return { status: 200, body: { bar_id: barId, dia, skipped: true, motivo: feitos.size ? 'já lançado' : 'sem consumação no dia', itens, ignorado, totalDespesas } };
   }
@@ -148,6 +149,6 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({} as any));
   const barId = Number(body?.bar_id) || Number(user.bar_id);
   const dia: string = body?.data || ontemBRT();
-  const r = await executarConsumacaoDia(barId, dia, user.email ?? user.nome ?? null);
+  const r = await executarConsumacaoDia(barId, dia, user.email ?? user.nome ?? null, parseChaves(body));
   return NextResponse.json(r.body, { status: r.status });
 }

@@ -53,11 +53,12 @@ export function ImpostosTab() {
   const pendentes = tributos.filter((t) => t.valor >= 0.01 && !t.ja_lancado);
   const totalImpostos = tributos.reduce((s, t) => s + Number(t.valor || 0), 0);
 
-  const lancar = async () => {
+  const [lancandoChave, setLancandoChave] = useState<string | null>(null);
+
+  const postLancar = async (extra: any) => {
     if (!selectedBar?.id) return;
-    setLancando(true);
     try {
-      const r = await api.post('/api/financeiro/fechamento/impostos', { bar_id: selectedBar.id, ano, mes });
+      const r = await api.post('/api/financeiro/fechamento/impostos', { bar_id: selectedBar.id, ano, mes, ...extra });
       if (r?.ok || r?.skipped) showToast({ type: 'success', title: r?.skipped ? 'Nada a lançar' : 'Impostos lançados no Conta Azul' });
       else {
         const err = (r?.resultados || []).find((x: any) => !x.ok)?.erro || r?.error || 'Erro';
@@ -66,8 +67,11 @@ export function ImpostosTab() {
       await carregar();
     } catch (e: any) {
       showToast({ type: 'error', title: 'Falha ao lançar', message: e?.message });
-    } finally { setLancando(false); setConfirmando(false); }
+    }
   };
+  const lancarTodos = async () => { setLancando(true); try { await postLancar({}); } finally { setLancando(false); setConfirmando(false); } };
+  const lancarUm = async (sigla: string) => { setLancandoChave(sigla); try { await postLancar({ chave: sigla }); } finally { setLancandoChave(null); } };
+  const ocupado = lancando || lancandoChave !== null;
 
   const b = data?.base;
 
@@ -125,8 +129,12 @@ export function ImpostosTab() {
                     <td className="px-4 py-2 text-right tabular-nums font-semibold">{fmtBRL(t.valor)}</td>
                     <td className="px-4 py-2 text-center">
                       {t.ja_lancado ? <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400"><Check className="h-3.5 w-3.5" /> lançado</span>
-                        : t.valor >= 0.01 ? <span className="text-xs text-amber-600 dark:text-amber-400">pendente</span>
-                        : <span className="text-xs text-muted-foreground/40">—</span>}
+                        : t.valor >= 0.01 ? (
+                          <button onClick={() => lancarUm(t.sigla)} disabled={ocupado}
+                            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted/60 disabled:opacity-50" title="Lançar este imposto no Conta Azul">
+                            {lancandoChave === t.sigla ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Lançar
+                          </button>
+                        ) : <span className="text-xs text-muted-foreground/40">—</span>}
                     </td>
                   </tr>
                 ))}
@@ -145,14 +153,14 @@ export function ImpostosTab() {
           <>
             <span className="text-xs text-muted-foreground">Confirmar {pendentes.length} imposto(s) no CA?</span>
             <button onClick={() => setConfirmando(false)} className="rounded-md border px-3 h-9 text-sm hover:bg-muted/60">Cancelar</button>
-            <button onClick={lancar} disabled={lancando} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 h-9 text-sm font-medium text-primary-foreground disabled:opacity-50">
+            <button onClick={lancarTodos} disabled={ocupado} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 h-9 text-sm font-medium text-primary-foreground disabled:opacity-50">
               {lancando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Confirmar
             </button>
           </>
         ) : (
-          <button onClick={() => setConfirmando(true)} disabled={loading || lancando || pendentes.length === 0}
+          <button onClick={() => setConfirmando(true)} disabled={loading || ocupado || pendentes.length === 0}
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 h-9 text-sm font-medium text-primary-foreground disabled:opacity-50">
-            <Send className="h-4 w-4" /> Lançar no Conta Azul{pendentes.length ? ` (${pendentes.length})` : ''}
+            <Send className="h-4 w-4" /> Lançar todos os pendentes{pendentes.length ? ` (${pendentes.length})` : ''}
           </button>
         )}
       </div>

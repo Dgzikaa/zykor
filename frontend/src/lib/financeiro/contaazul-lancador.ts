@@ -26,6 +26,13 @@ export const PREFIXO = '[Zykor] ';
 
 export type SinalLanc = 'DESPESA' | 'RECEITA';
 
+/** Extrai as chaves a lançar do body do POST: `chaves: string[]` ou `chave: string`. undefined = todas as pendentes. */
+export function parseChaves(body: any): string[] | undefined {
+  if (Array.isArray(body?.chaves) && body.chaves.length) return body.chaves.map(String);
+  if (body?.chave != null && String(body.chave) !== '') return [String(body.chave)];
+  return undefined;
+}
+
 /** lower + sem acento + colapsa espaços — pra casar nome de categoria entre bares (acentuação não normalizada). */
 export const normalizar = (s: string) =>
   String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();

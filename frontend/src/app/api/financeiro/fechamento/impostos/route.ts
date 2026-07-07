@@ -3,7 +3,7 @@ import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/
 import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
 import {
   getLancadorAdmin, getCAToken, resolveCategoriaId, resolveContaPadrao, criarLancamentoCA,
-  round2, ultimoDiaMes, mesAnteriorBRT, mesSeguinte, vencimentoTrimestral,
+  round2, ultimoDiaMes, mesAnteriorBRT, mesSeguinte, vencimentoTrimestral, parseChaves,
 } from '@/lib/financeiro/contaazul-lancador';
 
 export const dynamic = 'force-dynamic';
@@ -77,8 +77,8 @@ async function getBase(barId: number, ano: number, mes: number): Promise<BaseImp
   };
 }
 
-/** Executa (idempotente) os 5 impostos do mês. Sem auth — quem chama garante. */
-export async function executarImpostos(barId: number, ano: number, mes: number, criadoPor: string | null): Promise<{ status: number; body: any }> {
+/** Executa (idempotente) os 5 impostos do mês. `chaves` (opcional) limita a tributos específicos (siglas). Sem auth — quem chama garante. */
+export async function executarImpostos(barId: number, ano: number, mes: number, criadoPor: string | null, chaves?: string[]): Promise<{ status: number; body: any }> {
   const supabase = getLancadorAdmin();
   const competencia = ultimoDiaMes(ano, mes);
   const base = await getBase(barId, ano, mes);
@@ -88,7 +88,8 @@ export async function executarImpostos(barId: number, ano: number, mes: number, 
   const { data: jaLogs } = await log().select('chave').eq('bar_id', barId).eq('tipo', TIPO).eq('competencia', competencia);
   const feitos = new Set(((jaLogs as any[]) || []).map((r) => r.chave));
 
-  const pendentes = tributos.filter((t) => t.valor >= 0.01 && !feitos.has(t.sigla));
+  const filtro = chaves?.length ? new Set(chaves) : null;
+  const pendentes = tributos.filter((t) => t.valor >= 0.01 && !feitos.has(t.sigla) && (!filtro || filtro.has(t.sigla)));
   if (pendentes.length === 0) {
     return { status: 200, body: { bar_id: barId, ano, mes, competencia, skipped: true, motivo: feitos.size ? 'já lançado' : 'sem base no mês', tributos } };
   }
@@ -158,6 +159,6 @@ export async function POST(request: NextRequest) {
   const barId = Number(body?.bar_id) || Number(user.bar_id);
   const { ano, mes } = (Number.isFinite(Number(body?.ano)) && Number.isFinite(Number(body?.mes)))
     ? { ano: Number(body.ano), mes: Number(body.mes) } : mesAnteriorBRT();
-  const r = await executarImpostos(barId, ano, mes, user.email ?? user.nome ?? null);
+  const r = await executarImpostos(barId, ano, mes, user.email ?? user.nome ?? null, parseChaves(body));
   return NextResponse.json(r.body, { status: r.status });
 }

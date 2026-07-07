@@ -74,11 +74,12 @@ export function VariacaoEstoqueTab() {
   const pendentes = linhas.filter((l) => Math.abs(l.variacao) >= 0.01 && !l.ja_lancado);
   const todosZerados = linhas.every((l) => Math.abs(l.variacao) < 0.01);
 
-  const lancar = async () => {
+  const [lancandoChave, setLancandoChave] = useState<string | null>(null);
+
+  const postLancar = async (extra: any) => {
     if (!selectedBar?.id) return;
-    setLancando(true);
     try {
-      const r = await api.post('/api/financeiro/fechamento/variacao-estoque', { bar_id: selectedBar.id, ano, mes });
+      const r = await api.post('/api/financeiro/fechamento/variacao-estoque', { bar_id: selectedBar.id, ano, mes, ...extra });
       if (r?.ok || r?.skipped) {
         showToast({ type: 'success', title: r?.skipped ? 'Nada a lançar' : 'Variação lançada no Conta Azul' });
       } else {
@@ -88,11 +89,11 @@ export function VariacaoEstoqueTab() {
       await carregar();
     } catch (e: any) {
       showToast({ type: 'error', title: 'Falha ao lançar', message: e?.message });
-    } finally {
-      setLancando(false);
-      setConfirmando(false);
     }
   };
+  const lancarTodos = async () => { setLancando(true); try { await postLancar({}); } finally { setLancando(false); setConfirmando(false); } };
+  const lancarUm = async (key: string) => { setLancandoChave(key); try { await postLancar({ chave: key }); } finally { setLancandoChave(null); } };
+  const ocupado = lancando || lancandoChave !== null;
 
   return (
     <div className="space-y-4">
@@ -156,7 +157,10 @@ export function VariacaoEstoqueTab() {
                         ) : zero ? (
                           <span className="text-xs text-muted-foreground/40">—</span>
                         ) : (
-                          <span className="text-xs text-amber-600 dark:text-amber-400">pendente</span>
+                          <button onClick={() => lancarUm(l.key)} disabled={ocupado}
+                            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted/60 disabled:opacity-50" title="Lançar esta linha no Conta Azul">
+                            {lancandoChave === l.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Lançar
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -179,18 +183,18 @@ export function VariacaoEstoqueTab() {
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Confirmar {pendentes.length} lançamento(s) no CA?</span>
             <button onClick={() => setConfirmando(false)} className="rounded-md border px-3 h-9 text-sm hover:bg-muted/60">Cancelar</button>
-            <button onClick={lancar} disabled={lancando} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 h-9 text-sm font-medium text-primary-foreground disabled:opacity-50">
+            <button onClick={lancarTodos} disabled={ocupado} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 h-9 text-sm font-medium text-primary-foreground disabled:opacity-50">
               {lancando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Confirmar
             </button>
           </div>
         ) : (
           <button
             onClick={() => setConfirmando(true)}
-            disabled={loading || lancando || pendentes.length === 0 || todosZerados}
+            disabled={loading || ocupado || pendentes.length === 0 || todosZerados}
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 h-9 text-sm font-medium text-primary-foreground disabled:opacity-50"
-            title={pendentes.length === 0 ? 'Nada pendente para lançar' : `Lançar ${pendentes.length} no Conta Azul`}
+            title={pendentes.length === 0 ? 'Nada pendente para lançar' : `Lançar todos os ${pendentes.length} no Conta Azul`}
           >
-            <Send className="h-4 w-4" /> Lançar no Conta Azul{pendentes.length ? ` (${pendentes.length})` : ''}
+            <Send className="h-4 w-4" /> Lançar todos os pendentes{pendentes.length ? ` (${pendentes.length})` : ''}
           </button>
         )}
       </div>

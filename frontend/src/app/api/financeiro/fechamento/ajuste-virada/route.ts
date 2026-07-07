@@ -3,7 +3,7 @@ import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/
 import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
 import {
   getLancadorAdmin, getCAToken, resolveCategoriaId, resolveContaPadrao, criarLancamentoCA,
-  round2, brDate, ultimoDiaMes, primeiroDiaMes, mesAnteriorBRT, mesSeguinte, type SinalLanc,
+  round2, brDate, ultimoDiaMes, primeiroDiaMes, mesAnteriorBRT, mesSeguinte, parseChaves, type SinalLanc,
 } from '@/lib/financeiro/contaazul-lancador';
 
 export const dynamic = 'force-dynamic';
@@ -50,8 +50,8 @@ function pernas(ano: number, mes: number): PernaVirada[] {
   ];
 }
 
-/** Executa (idempotente) as 2 pernas da virada. Sem auth — quem chama garante. */
-export async function executarAjusteVirada(barId: number, ano: number, mes: number, criadoPor: string | null): Promise<{ status: number; body: any }> {
+/** Executa (idempotente) as 2 pernas da virada. `chaves` (opcional) limita a 'receita'/'despesa'. Sem auth — quem chama garante. */
+export async function executarAjusteVirada(barId: number, ano: number, mes: number, criadoPor: string | null, chaves?: string[]): Promise<{ status: number; body: any }> {
   const supabase = getLancadorAdmin();
   const competenciaRef = ultimoDiaMes(ano, mes); // chave de agrupamento no log
   const { valor } = await getFaturamentoMadrugada(barId, ano, mes);
@@ -62,7 +62,8 @@ export async function executarAjusteVirada(barId: number, ano: number, mes: numb
   const feitos = new Set(((jaLogs as any[]) || []).map((r) => r.chave));
 
   if (!(valor > 0)) return { status: 200, body: { bar_id: barId, ano, mes, competencia: competenciaRef, skipped: true, motivo: 'sem faturamento na madrugada do último dia', valor: 0 } };
-  const pendentes = ps.filter((p) => !feitos.has(p.chave));
+  const filtro = chaves?.length ? new Set(chaves) : null;
+  const pendentes = ps.filter((p) => !feitos.has(p.chave) && (!filtro || filtro.has(p.chave)));
   if (pendentes.length === 0) return { status: 200, body: { bar_id: barId, ano, mes, competencia: competenciaRef, skipped: true, motivo: 'já lançado', valor } };
 
   const tokenResult = await getCAToken(barId);
@@ -131,6 +132,6 @@ export async function POST(request: NextRequest) {
   const barId = Number(body?.bar_id) || Number(user.bar_id);
   const { ano, mes } = (Number.isFinite(Number(body?.ano)) && Number.isFinite(Number(body?.mes)))
     ? { ano: Number(body.ano), mes: Number(body.mes) } : mesAnteriorBRT();
-  const r = await executarAjusteVirada(barId, ano, mes, user.email ?? user.nome ?? null);
+  const r = await executarAjusteVirada(barId, ano, mes, user.email ?? user.nome ?? null, parseChaves(body));
   return NextResponse.json(r.body, { status: r.status });
 }
