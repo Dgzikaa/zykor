@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
   const ano = parseInt(String(body.ano), 10);
   const mes = parseInt(String(body.mes), 10); // 1..12
   const m1PorDow: Record<number, number> = body.m1PorDow || {};
+  const preservarManuais = body.preservarManuais === true;
   if (!ano || !mes || mes < 1 || mes > 12) {
     return NextResponse.json({ success: false, error: 'ano/mes inválidos' }, { status: 400 });
   }
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
   const ops = (supabase as any).schema('operations');
   const { data: eventos, error } = await ops
     .from('eventos_base')
-    .select('id, data_evento')
+    .select('id, data_evento, m1_manual')
     .eq('bar_id', barId)
     .gte('data_evento', inicio)
     .lt('data_evento', proxMes);
@@ -47,8 +48,10 @@ export async function POST(request: NextRequest) {
 
   let updated = 0;
   let skipped = 0;
+  let preservados = 0;
   const agora = new Date().toISOString();
   for (const ev of eventos || []) {
+    if (preservarManuais && ev.m1_manual) { preservados++; continue; } // não sobrescreve dias 🔔
     const dow = new Date(`${ev.data_evento}T12:00:00Z`).getUTCDay();
     const m1 = Number(m1PorDow[dow]);
     if (!m1 || m1 <= 0) { skipped++; continue; }
@@ -61,5 +64,5 @@ export async function POST(request: NextRequest) {
     updated++;
   }
 
-  return NextResponse.json({ success: true, updated, skipped, total: (eventos || []).length });
+  return NextResponse.json({ success: true, updated, skipped, preservados, total: (eventos || []).length });
 }

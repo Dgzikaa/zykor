@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';const supabase = createServiceRoleClient();
 
@@ -21,6 +22,10 @@ function getISOWeekAndYear(dateStr: string): { semana: number; ano: number } {
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // authenticateUser PRIMEIRO (antes de qualquer await, incl. params) → auditoria (trg_audit).
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+
   const { id } = await params;
 
   try {

@@ -828,7 +828,18 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
               <div className="flex-1 min-w-0">
                 {/* Tabela Completa */}
                 <div className="bg-[hsl(var(--background))] md:border md:border-[hsl(var(--border))] rounded-xl md:shadow-sm">
-                  {/* MOBILE: lista de cards (a tabela densa só aparece no desktop) */}
+                  {/* MOBILE: calculadora (a sidebar de Controles é desktop-only) + lista de cards */}
+                  <div className="md:hidden px-1 pt-2 pb-1">
+                    <CalculadoraDistribuicao
+                      barId={selectedBar?.id}
+                      ano={filtroAno}
+                      mes={filtroMes}
+                      mesLabel={`${meses.find(m => m.value === filtroMes)?.label || ''} ${filtroAno}`}
+                      diasManuais={dados.filter(e => e.m1_manual).length}
+                      variant="card"
+                      onAplicado={() => router.refresh()}
+                    />
+                  </div>
                   <div className="md:hidden space-y-2 px-1 pb-4">
                     {dados.map((evento) => (
                       <div key={evento.evento_id} className={`rounded-lg border p-3 ${evento.flag_urgente ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30' : 'border-[hsl(var(--border))] bg-white dark:bg-gray-800'}`}>
@@ -1687,6 +1698,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                       ano={filtroAno}
                       mes={filtroMes}
                       mesLabel={`${meses.find(m => m.value === filtroMes)?.label || ''} ${filtroAno}`}
+                      diasManuais={dados.filter(e => e.m1_manual).length}
                       onAplicado={() => router.refresh()}
                     />
                   </div>

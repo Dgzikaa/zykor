@@ -97,11 +97,13 @@ function cfgFromDb(row: any): CalcCfg {
   };
 }
 
-export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado }: {
+export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais = 0, variant = 'sidebar', onAplicado }: {
   barId?: number;
   ano: number;
   mes: number;
   mesLabel: string;
+  diasManuais?: number;
+  variant?: 'sidebar' | 'card';
   onAplicado?: () => void;
 }) {
   const [cfg, setCfg] = useState<CalcCfg>(cfgDefault);
@@ -113,6 +115,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
   const [hydrated, setHydrated] = useState(false);
   const [aba, setAba] = useState<'calc' | 'hist'>('calc');
   const [cenario, setCenario] = useState<'m1' | 'm2' | 'm3'>('m1');
+  const [preservarManuais, setPreservarManuais] = useState(true);
   const [histRows, setHistRows] = useState<Array<{ data_evento: string | null; dia: string | null; de: number | null; para: number | null; user_email: string | null; timestamp: string }>>([]);
   const [histLoading, setHistLoading] = useState(false);
 
@@ -213,10 +216,11 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
       const r: any = await apiCall('/api/eventos/aplicar-m1-distribuicao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
-        body: JSON.stringify({ ano, mes, m1PorDow }),
+        body: JSON.stringify({ ano, mes, m1PorDow, preservarManuais }),
       });
       if (r?.success) {
-        setResultado(`✅ Cenário ${cenario.toUpperCase()} aplicado na Meta M1 de ${r.updated} dia(s) de ${mesLabel}.`);
+        const extra = r.preservados > 0 ? ` (${r.preservados} manual(is) 🔔 preservado(s))` : '';
+        setResultado(`✅ Cenário ${cenario.toUpperCase()} aplicado na Meta M1 de ${r.updated} dia(s) de ${mesLabel}${extra}.`);
         setConfirmando(false);
         onAplicado?.();
       } else {
@@ -230,7 +234,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
   };
 
   return (
-    <div className="pt-4 border-t border-[hsl(var(--border))]">
+    <div className={variant === 'card' ? 'rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3' : 'pt-4 border-t border-[hsl(var(--border))]'}>
       <h3 className="font-semibold text-[hsl(var(--foreground))] flex items-center gap-2 mb-3">
         <Calculator className="h-4 w-4" /> Distribuição de Metas
       </h3>
@@ -412,12 +416,20 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
             {aba === 'hist' ? (
               <Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button>
             ) : confirmando ? (
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> Sobrescrever a Meta M1 de {mesLabel} com o cenário {cenario.toUpperCase()}?</span>
-                <Button size="sm" variant="outline" onClick={() => setConfirmando(false)} disabled={aplicando}>Cancelar</Button>
-                <Button size="sm" onClick={aplicar} disabled={aplicando} leftIcon={aplicando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}>
-                  Confirmar
-                </Button>
+              <div className="flex flex-col gap-2 w-full">
+                <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Aplicar cenário {cenario.toUpperCase()} na Meta M1 de {mesLabel}?</span>
+                {diasManuais > 0 && (
+                  <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                    <input type="checkbox" className="h-3.5 w-3.5 accent-amber-600" checked={preservarManuais} onChange={(e) => setPreservarManuais(e.target.checked)} />
+                    <span>Preservar {diasManuais} dia(s) editado(s) manualmente (🔔){preservarManuais ? '' : ' — serão sobrescritos'}</span>
+                  </label>
+                )}
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setConfirmando(false)} disabled={aplicando}>Cancelar</Button>
+                  <Button size="sm" onClick={aplicar} disabled={aplicando} leftIcon={aplicando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}>
+                    Confirmar
+                  </Button>
+                </div>
               </div>
             ) : (
               <>

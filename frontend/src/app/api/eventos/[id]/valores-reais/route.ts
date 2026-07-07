@@ -64,14 +64,14 @@ async function getLocaisMapeamento(barId: number): Promise<LocalMapeamento | nul
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // authenticateUser PRIMEIRO (antes de qualquer await, incl. params) → publica o ator no
+  // auditContext pro trigger trg_audit atribuir a escrita. Chamado depois do await não propaga.
+  const user = await authenticateUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
   try {
     const { id } = await params;
-
-    // Autenticação
-    const user = await authenticateUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    }
 
     const eventoId = parseInt(id);
     if (!eventoId) {
