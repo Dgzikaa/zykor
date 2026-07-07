@@ -175,6 +175,9 @@ export default function AtracoesPage() {
               </CardContent>
             </Card>
 
+            {/* #2 O NPS prevê retorno? (métrica da casa) */}
+            {barId ? <NpsRetornoCard barId={barId} de={de} ate={ate} dow={dow} /> : null}
+
             {/* Dropdown de artista */}
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-sm text-gray-500">Artista:</span>
@@ -434,6 +437,42 @@ const npsDimCor = (nota: number) => nota >= 4.2 ? 'bg-emerald-100 text-emerald-7
 const npsCat = (c: string) => c === 'promotor' ? { emoji: '😍', cor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' }
   : c === 'neutro' ? { emoji: '😐', cor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' }
   : { emoji: '😕', cor: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' };
+
+// #2 — O NPS prevê retorno? Taxa de retorno ao bar por categoria (métrica da casa).
+function NpsRetornoCard({ barId, de, ate, dow }: { barId?: number; de: string; ate: string; dow: string }) {
+  const [d, setD] = useState<any>(null);
+  useEffect(() => {
+    if (!barId) return;
+    const qs = new URLSearchParams({ view: 'nps-retorno', bar_id: String(barId) });
+    if (de) qs.set('de', de); if (ate) qs.set('ate', ate); if (dow !== '') qs.set('dow', dow);
+    fetch(`/api/analitico/atracoes?${qs.toString()}`, { cache: 'no-store' }).then(r => r.json()).then(setD).catch(() => setD(null));
+  }, [barId, de, ate, dow]);
+  if (!d || !d.total) return null;
+  const Faixa = ({ label, c, cor }: { label: string; c: any; cor: string }) => (
+    <div className="text-center px-1">
+      <div className={`text-xl font-bold leading-none ${cor}`}>{c.pct == null ? '—' : `${c.pct}%`}</div>
+      <div className="text-[11px] text-gray-400 mt-1">{label} <span className="text-gray-300 dark:text-gray-600">({c.voltaram}/{c.respostas})</span></div>
+    </div>
+  );
+  return (
+    <Card className="border-indigo-100 dark:border-indigo-900/40">
+      <CardContent className="py-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Users className="h-4 w-4 text-indigo-500 shrink-0" />
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">O NPS prevê retorno?</div>
+            <div className="text-[11px] text-gray-400">de {d.total} respostas com telefone rastreável, <b>{d.pct}%</b> voltaram ao bar depois</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-5 ml-auto">
+          <Faixa label="Promotores" c={d.promotor} cor="text-emerald-600 dark:text-emerald-400" />
+          <Faixa label="Neutros" c={d.neutro} cor="text-amber-600 dark:text-amber-400" />
+          <Faixa label="Detratores" c={d.detrator} cor="text-rose-600 dark:text-rose-400" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function NpsArtistaCard({ barId, artistaId, nome, de, ate, dow }: { barId?: number; artistaId: number; nome: string; de: string; ate: string; dow: string }) {
   const [loading, setLoading] = useState(true);

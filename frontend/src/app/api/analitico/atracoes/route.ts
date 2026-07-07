@@ -109,6 +109,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, resumo, respostas, dimensoes });
     }
 
+    // #2 NPS → o cliente volta? (taxa de retorno por categoria — métrica da casa)
+    if (searchParams.get('view') === 'nps-retorno') {
+      let q = (supabase as any).schema('silver').from('nps_retorno_respostas')
+        .select('categoria, voltou, data_visita').eq('bar_id', barId);
+      if (de) q = q.gte('data_visita', de);
+      if (ate) q = q.lte('data_visita', ate);
+      const { data: rows, error } = await q;
+      if (error) throw error;
+      const linhas = dow == null ? (rows || []) : (rows || []).filter((r: any) => r.data_visita && new Date(r.data_visita + 'T12:00:00Z').getUTCDay() === dow);
+      const agg = (cat: string) => {
+        const arr = linhas.filter((r: any) => r.categoria === cat);
+        const v = arr.filter((r: any) => r.voltou).length;
+        return { respostas: arr.length, voltaram: v, pct: arr.length ? Math.round((v / arr.length) * 100) : null };
+      };
+      const total = linhas.length;
+      const voltaramTotal = linhas.filter((r: any) => r.voltou).length;
+      return NextResponse.json({
+        success: true,
+        total, voltaram: voltaramTotal, pct: total ? Math.round((voltaramTotal / total) * 100) : null,
+        promotor: agg('promotor'), neutro: agg('neutro'), detrator: agg('detrator'),
+      });
+    }
+
     // Modo artista-first: trajetória completa de 1 artista
     const artistaIdParam = searchParams.get('artista_id');
     if (artistaIdParam) {
