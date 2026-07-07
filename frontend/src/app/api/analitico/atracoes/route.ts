@@ -261,6 +261,22 @@ export async function GET(request: NextRequest) {
     const consumoPorArtista = new Map<number, number>();
     for (const r of consArtRaw || []) if (r.artista_id != null) consumoPorArtista.set(Number(r.artista_id), Number(r.valor) || 0);
 
+    // NPS por artista no MESMO período do ranking (Falae · Data da Visita → artista da noite).
+    const { data: npsRows } = await (supabase as any).schema('silver')
+      .from('nps_artista_respostas')
+      .select('artista_id, nps, categoria')
+      .eq('bar_id', barId)
+      .gte('data_visita', dataInicialStr)
+      .lte('data_visita', hojeStr);
+    const npsPorArtista = new Map<number, { n: number; soma: number; promot: number; detrat: number }>();
+    for (const r of npsRows || []) {
+      if (r.artista_id == null) continue;
+      const a = npsPorArtista.get(Number(r.artista_id)) || { n: 0, soma: 0, promot: 0, detrat: 0 };
+      a.n++; a.soma += Number(r.nps) || 0;
+      if (r.categoria === 'promotor') a.promot++; else if (r.categoria === 'detrator') a.detrat++;
+      npsPorArtista.set(Number(r.artista_id), a);
+    }
+
     const atracoes = Array.from(mapa.values())
       .filter((a) => a.shows.length >= minShows)
       .map((a) => {
@@ -324,11 +340,18 @@ export async function GET(request: NextRequest) {
         const lift_fat_pct = baseline_fat && baseline_fat > 0 ? ((fat_medio - baseline_fat) / baseline_fat) * 100 : null;
         const lift_publico = baseline_publico != null ? publico_medio - baseline_publico : null;
 
+        // NPS do artista no período (null quando não há respostas vinculadas)
+        const npsAcc = a.artista_id ? npsPorArtista.get(a.artista_id) : null;
+        const nps_respostas = npsAcc?.n || 0;
+        const nps_medio = npsAcc && npsAcc.n ? Math.round((npsAcc.soma / npsAcc.n) * 100) / 100 : null;
+        const nps_score = npsAcc && npsAcc.n ? Math.round((npsAcc.promot / npsAcc.n) * 100 - (npsAcc.detrat / npsAcc.n) * 100) : null;
+
         return {
           artista_id: a.artista_id,
           nome: a.nome,
           tipo: a.tipo,
           shows: n,
+          nps_respostas, nps_medio, nps_score,
           fat_total, fat_medio,
           publico_total, publico_medio,
           custo_total, custo_medio,
