@@ -300,6 +300,47 @@ async function medirSinal(
       ];
     }
 
+    case 'cmv_alto': {
+      const { data } = await supabase
+        .schema('gold')
+        .from('desempenho')
+        .select('data_fim, cmv_percentual')
+        .eq('bar_id', barId)
+        .eq('granularidade', 'semanal')
+        .not('cmv_percentual', 'is', null)
+        .order('data_fim', { ascending: false })
+        .limit(1);
+      const row = data?.[0];
+      if (!row) return [];
+      const v = Number(row.cmv_percentual) || 0;
+      return [{ valor: v, alvoKey: String(row.data_fim), descricaoValor: `${br(v)}% (semana ${row.data_fim})` }];
+    }
+
+    case 'caixa_apertado': {
+      const hoje = new Date().toISOString().slice(0, 10);
+      const fim = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+      const { data } = await supabase
+        .schema('financial')
+        .from('fluxo_caixa_previsto')
+        .select('data_referencia, saldo_dia')
+        .eq('bar_id', barId)
+        .eq('cenario', 'base')
+        .gte('data_referencia', hoje)
+        .lte('data_referencia', fim)
+        .order('saldo_dia', { ascending: true })
+        .limit(1);
+      const row = data?.[0];
+      if (!row) return [];
+      const v = Number(row.saldo_dia) || 0;
+      return [
+        {
+          valor: v,
+          alvoKey: `caixa:${row.data_referencia}`,
+          descricaoValor: `menor saldo previsto R$ ${br(v)} em ${row.data_referencia}`,
+        },
+      ];
+    }
+
     case 'pipeline_parado': {
       // v_data_freshness (schema public) — status 'atrasado' | 'sem_dados' = problema
       const { data } = await supabase
