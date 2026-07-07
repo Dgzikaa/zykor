@@ -29,9 +29,8 @@ export const POST = withAuth(async ({ user, request }) => {
 
   const body = EnviarSchema.parse(await request.json());
 
-  // WhatsApp ainda não disponível (Umbler Talk não configurado) → ignora esse canal.
-  const canais = body.canais.filter((c) => c !== 'whatsapp');
-  if (canais.length === 0) return fail('WhatsApp ainda não está disponível — escolha No Zykor e/ou Push', 400);
+  const canais = body.canais;
+  if (canais.length === 0) return fail('Escolha ao menos um canal', 400);
 
   const resultado = await dispatchNotification({
     barId: user.bar_id,
