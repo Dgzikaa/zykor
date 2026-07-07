@@ -83,7 +83,8 @@ interface ScheduleToInsert {
 // ========================================
 
 export async function POST(req: NextRequest) {
-  await authenticateUser(req);
+  const authUser = await authenticateUser(req);
+  if (!authUser) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -263,7 +264,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  await authenticateUser(req);
+  const authUser = await authenticateUser(req);
+  if (!authUser) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -375,7 +377,8 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  await authenticateUser(req);
+  const authUser = await authenticateUser(req);
+  if (!authUser) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

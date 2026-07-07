@@ -431,7 +431,8 @@ export async function GET(request: NextRequest) {
 // ============================================
 
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await request.json();
     const {
@@ -650,7 +651,8 @@ export async function POST(request: NextRequest) {
 // ============================================
 
 export async function PUT(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await request.json();
     const { id, ...updates } = body;
@@ -689,7 +691,8 @@ export async function PUT(request: NextRequest) {
 // ============================================
 
 export async function DELETE(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

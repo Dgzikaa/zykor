@@ -28,7 +28,8 @@ export async function GET() {
 
 // POST - Atualizar permissões de uma role
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await request.json();
     const { role, modulos } = body;

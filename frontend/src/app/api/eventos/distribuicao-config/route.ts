@@ -32,7 +32,8 @@ export async function GET(request: NextRequest) {
 
 // POST — salva (upsert) a config da calculadora para (bar, ano, mes).
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   const barId = getBarId(request);
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id é obrigatório' }, { status: 400 });
   // apiCall (cliente) manda o body double-encoded → request.json() pode vir STRING.

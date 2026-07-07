@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
 
 // POST — cria um artista no cadastro (idempotente por bar_id+nome).
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   const barId = getBarId(request);
   const body = await request.json().catch(() => ({}));
   const nome = String(body.nome || '').trim();

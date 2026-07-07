@@ -37,7 +37,8 @@ export async function GET(request: NextRequest) {
 
 // Salva (upsert) a categoria de um grupo.
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await request.json();
     const barId = parseInt(String(body.bar_id || 0));

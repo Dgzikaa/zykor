@@ -57,7 +57,8 @@ export async function GET(request: NextRequest) {
  * Cria um novo cargo
  */
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await request.json();
     const { bar_id, nome, descricao, nivel } = body;
@@ -113,7 +114,8 @@ export async function POST(request: NextRequest) {
  * Atualiza um cargo existente
  */
 export async function PUT(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await request.json();
     const { id, nome, descricao, nivel, ativo } = body;
@@ -173,7 +175,8 @@ export async function PUT(request: NextRequest) {
  * Remove um cargo (soft delete - marca como inativo)
  */
 export async function DELETE(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

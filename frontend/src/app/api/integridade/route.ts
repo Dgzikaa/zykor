@@ -47,7 +47,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  await authenticateUser(req);
+  const user = await authenticateUser(req);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await req.json();
     if (body?.acao === 'detectar') {
@@ -66,7 +67,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  await authenticateUser(req);
+  const user = await authenticateUser(req);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await req.json();
     if (!body?.alerta_id || !body?.status) {

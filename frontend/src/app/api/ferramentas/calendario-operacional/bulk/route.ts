@@ -9,7 +9,8 @@ const supabase = createServiceRoleClient();
  * Permite atualizar múltiplos dias de uma vez
  */
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await request.json();
     const { datas, bar_id, status, motivo, observacao, usuario_nome } = body;

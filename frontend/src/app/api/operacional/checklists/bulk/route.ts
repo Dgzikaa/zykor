@@ -15,7 +15,8 @@ interface BulkResult {
 const supabase = createServiceRoleClient();
 
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const { action, checklistIds, data = {} } = await request.json();
 

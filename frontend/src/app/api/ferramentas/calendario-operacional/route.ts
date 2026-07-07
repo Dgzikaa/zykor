@@ -171,7 +171,8 @@ export async function GET(request: NextRequest) {
  * Body: { data, bar_id, status, motivo?, observacao? }
  */
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await request.json();
     const { data, bar_id, status, motivo, observacao } = body;
@@ -266,7 +267,8 @@ export async function POST(request: NextRequest) {
  * Query params: data, bar_id
  */
 export async function DELETE(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const { searchParams } = new URL(request.url);
     const data = searchParams.get('data');

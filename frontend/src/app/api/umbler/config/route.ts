@@ -44,7 +44,8 @@ export async function GET(request: NextRequest) {
  * Cria ou atualiza configuração da Umbler
  */
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await request.json();
     const {
@@ -105,7 +106,8 @@ export async function POST(request: NextRequest) {
  * Desativa configuração da Umbler
  */
 export async function DELETE(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const { searchParams } = new URL(request.url);
     const barId = searchParams.get('bar_id');

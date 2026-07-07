@@ -96,7 +96,8 @@ export async function GET(request: Request) {
 
 // POST - Criar novo organizador
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await request.json();
     const { bar_id, ano, trimestre, tipo, okrs, ...dados } = body;
@@ -167,7 +168,8 @@ export async function POST(request: NextRequest) {
 
 // PUT - Atualizar organizador existente
 export async function PUT(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await request.json();
     const { id, okrs, bar_id, ano, trimestre, tipo, created_at, ...dados } = body;
@@ -227,7 +229,8 @@ export async function PUT(request: NextRequest) {
 
 // DELETE - Remover organizador
 export async function DELETE(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

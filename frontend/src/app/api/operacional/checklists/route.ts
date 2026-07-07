@@ -110,7 +110,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  await authenticateUser(req);
+  const user = await authenticateUser(req);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await req.json();
 

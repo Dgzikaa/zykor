@@ -7,7 +7,8 @@ import { authenticateUser } from '@/middleware/auth';
 export const dynamic = 'force-dynamic';
 
 export async function PUT(request: NextRequest) {
-  await authenticateUser(request);
+  const authUser = await authenticateUser(request);
+  if (!authUser) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     // Obter dados do usuário autenticado
     const user = await getUserAuth(request);

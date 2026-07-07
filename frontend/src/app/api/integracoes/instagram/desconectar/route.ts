@@ -12,7 +12,8 @@ import { authenticateUser } from '@/middleware/auth';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  await authenticateUser(req);
+  const user = await authenticateUser(req);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const body = await req.json().catch(() => ({}));
     const barId = Number(body?.bar_id);

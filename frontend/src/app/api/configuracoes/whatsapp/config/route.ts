@@ -175,7 +175,8 @@ export async function GET(request: NextRequest) {
 // 📱 POST /api/configuracoes/whatsapp/config
 // ========================================
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const headersList = await headers();
     const barIdHeader = headersList.get('x-selected-bar-id');
@@ -289,7 +290,8 @@ export async function POST(request: NextRequest) {
 // 📱 PUT /api/configuracoes/whatsapp/config
 // ========================================
 export async function PUT(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const headersList = await headers();
     const barIdHeader = headersList.get('x-selected-bar-id');
@@ -408,7 +410,8 @@ export async function PUT(request: NextRequest) {
 // 📱 DELETE /api/configuracoes/whatsapp/config
 // ========================================
 export async function DELETE(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   try {
     const headersList = await headers();
     const barIdHeader = headersList.get('x-selected-bar-id');
