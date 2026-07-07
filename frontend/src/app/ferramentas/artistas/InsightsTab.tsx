@@ -16,19 +16,27 @@ const DIAS_CURTO = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 // piso de amostra: abaixo disso o selo não decide (evita renovar/cortar em cima de ruído)
 const SELO_MIN_SHOWS = 4;   // shows mínimos pra emitir uma decisão
 const NPS_MIN_RESP = 5;     // respostas mínimas pra o NPS pesar no selo
+// recência: "em ascensão"/encaixe/estreia têm que ser sobre quem ANDA tocando
+const DIAS_ATIVO = 75;      // além disso não é "em ascensão" nem entra em encaixe
+const DIAS_INATIVO = 120;   // além disso o selo vira "Inativo" (manter/renovar não faz sentido)
+const DIAS_ESTREIA = 90;    // estreia = primeiro show dentro dessa janela (artista novo de fato)
+const GRAY = 'text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800';
 
 // selo de decisão por artista (combina tendência + retorno + NPS + momentum de público)
-// só emite quando há amostra suficiente; senão devolve "poucos dados" (insuf).
+// só emite quando há amostra suficiente E o artista anda tocando; senão sinaliza o motivo.
 function seloArtista(a: any, momPubUp: boolean | null): { txt: string; cls: string; insuf?: boolean; motivo?: string } {
+  if ((a.dias_sem_tocar ?? 0) > DIAS_INATIVO) {
+    return { txt: 'Inativo', insuf: true, motivo: `sem tocar há ${a.dias_sem_tocar} dias`, cls: GRAY };
+  }
   if ((a.shows || 0) < SELO_MIN_SHOWS) {
-    return { txt: 'Poucos dados', insuf: true, motivo: `${a.shows} show${a.shows === 1 ? '' : 's'} — mín. ${SELO_MIN_SHOWS} p/ avaliar`, cls: 'text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800' };
+    return { txt: 'Poucos dados', insuf: true, motivo: `${a.shows} show${a.shows === 1 ? '' : 's'} — mín. ${SELO_MIN_SHOWS} p/ avaliar`, cls: GRAY };
   }
   let pts = 0, sinais = 0;
   if (a.tendencia === 'subindo') { pts += 1; sinais++; } else if (a.tendencia === 'caindo') { pts -= 1; sinais++; }
   if (a.retorno != null) { sinais++; if (a.retorno >= 2) pts += 1; else if (a.retorno < 1) pts -= 1; }
   if (a.nps_score != null && (a.nps_respostas || 0) >= NPS_MIN_RESP) { sinais++; if (a.nps_score >= 40) pts += 1; else if (a.nps_score < 15) pts -= 1; }
   if (momPubUp === true) { pts += 1; sinais++; } else if (momPubUp === false) { pts -= 1; sinais++; }
-  if (sinais < 2) return { txt: 'Poucos dados', insuf: true, motivo: 'sinais insuficientes (sem tendência/retorno/NPS confiável)', cls: 'text-gray-500 bg-gray-100 dark:text-gray-400 dark:bg-gray-800' };
+  if (sinais < 2) return { txt: 'Poucos dados', insuf: true, motivo: 'sinais insuficientes (sem tendência/retorno/NPS confiável)', cls: GRAY };
   if (pts >= 2) return { txt: 'Manter', cls: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-900/25' };
   if (pts <= -2) return { txt: 'Renovar', cls: 'text-rose-700 bg-rose-50 dark:text-rose-300 dark:bg-rose-900/25' };
   return { txt: 'Observar', cls: 'text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-900/25' };
@@ -63,8 +71,11 @@ export default function InsightsTab({ barId, periodo }: { barId?: number; period
       const dPub = podeMom && pubPrev > 0 ? Math.round((pubRec - pubPrev) / pubPrev * 100) : null;
       const cadencia = a.shows / Math.max(periodo, 1); // shows por mês
       const bucket = cadencia >= 3 ? 'Residente' : cadencia >= 1 ? 'Frequente' : 'Pontual';
+      const ativo = (a.dias_sem_tocar ?? 999) <= DIAS_ATIVO;
+      const inativo = (a.dias_sem_tocar ?? 0) > DIAS_INATIVO;
+      const primeiro = evs[0]?.data ? Math.floor((Date.now() - new Date(String(evs[0].data).slice(0, 10) + 'T12:00:00Z').getTime()) / 86400000) : null;
       const selo = seloArtista(a, dPub == null ? null : dPub >= 0);
-      return { ...a, fatRec, pubRec, dFat, dPub, cadencia, bucket, selo };
+      return { ...a, fatRec, pubRec, dFat, dPub, cadencia, bucket, ativo, inativo, estreouDias: primeiro, selo };
     });
   }, [rank, periodo]);
 
@@ -77,8 +88,8 @@ export default function InsightsTab({ barId, periodo }: { barId?: number; period
     const top3Share = fatTotalCasa > 0 ? Math.round(porFat.slice(0, 3).reduce((s, a) => s + a.fat_total, 0) / fatTotalCasa * 100) : 0;
     // artistas que somam 80% do faturamento
     let acc = 0, n80 = 0; for (const a of porFat) { acc += a.fat_total; n80++; if (acc >= fatTotalCasa * 0.8) break; }
-    const subindo = artistas.filter(a => a.dFat != null && a.dFat >= 15 && a.shows >= 3).sort((a, b) => (b.dFat || 0) - (a.dFat || 0));
-    const caindo = artistas.filter(a => a.dFat != null && a.dFat <= -15 && a.shows >= 3).sort((a, b) => (a.dFat || 0) - (b.dFat || 0));
+    const subindo = artistas.filter(a => a.ativo && a.dFat != null && a.dFat >= 15).sort((a, b) => (b.dFat || 0) - (a.dFat || 0));
+    const caindo = artistas.filter(a => a.ativo && a.dFat != null && a.dFat <= -15).sort((a, b) => (a.dFat || 0) - (b.dFat || 0));
     const diaForte = [...dias].sort((a, b) => b.fat_medio - a.fat_medio)[0];
     const diaFraco = [...dias].filter(d => d.n >= 3).sort((a, b) => a.fat_medio - b.fat_medio)[0];
     const diaEsquenta = [...dias].filter(d => d.delta_fat_pct != null).sort((a, b) => (b.delta_fat_pct || 0) - (a.delta_fat_pct || 0))[0];
@@ -86,20 +97,21 @@ export default function InsightsTab({ barId, periodo }: { barId?: number; period
     return { top3Share, n80, subindo, caindo, diaForte, diaFraco, diaEsquenta, diaEsfria, top3: porFat.slice(0, 3) };
   }, [artistas, dias]);
 
-  // estreias: poucos shows, comparado à média da casa
+  // estreias: quem ESTREOU de fato (1º show recente), comparado à média da casa
   const estreias = useMemo(() => {
     if (!artistas.length) return [];
     const comShows = artistas.filter(a => a.shows >= 2);
     const fatMedioCasa = comShows.length ? comShows.reduce((s, a) => s + a.fat_medio, 0) / comShows.length : 0;
-    return artistas.filter(a => a.shows >= 1 && a.shows <= 3)
+    return artistas.filter(a => a.estreouDias != null && a.estreouDias <= DIAS_ESTREIA)
       .map(a => ({ ...a, vsCasa: fatMedioCasa > 0 ? Math.round((a.fat_medio - fatMedioCasa) / fatMedioCasa * 100) : null }))
-      .sort((a, b) => (b.vsCasa || -999) - (a.vsCasa || -999)).slice(0, 6);
+      .sort((a, b) => (a.estreouDias ?? 999) - (b.estreouDias ?? 999)).slice(0, 6);
   }, [artistas]);
 
   // encaixe artista × dia: melhor artista por dia da semana (min 2 shows no dia)
   const encaixe = useMemo(() => {
     const porDia = new Map<number, Map<string, { nome: string; fat: number[]; id: number | null }>>();
     for (const a of artistas) {
+      if (!a.ativo) continue; // só quem anda tocando entra no "melhor encaixe" (serve pra escalar a grade)
       for (const e of (a.eventos || [])) {
         const dow = new Date(String(e.data).slice(0, 10) + 'T12:00:00Z').getUTCDay();
         const m = porDia.get(dow) || new Map(); porDia.set(dow, m);
@@ -208,12 +220,15 @@ export default function InsightsTab({ barId, periodo }: { barId?: number; period
               <th className="text-center px-3 py-2">Selo</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {artistas.filter((a: any) => a.shows >= 2).sort((a: any, b: any) => (b.dFat ?? -999) - (a.dFat ?? -999)).map((a: any) => (
+              {artistas.filter((a: any) => a.shows >= 2).sort((a: any, b: any) => (b.ativo ? 1 : 0) - (a.ativo ? 1 : 0) || (b.dFat ?? -999) - (a.dFat ?? -999)).map((a: any) => (
                 <tr key={a.artista_id ?? a.nome} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap">
                     {a.artista_id ? <Link href={`/analitico/atracoes?artista=${a.artista_id}`} className="hover:text-violet-600 hover:underline">{a.nome}</Link> : a.nome}
                   </td>
-                  <td className="px-3 py-2 text-gray-500 whitespace-nowrap"><span className="text-[11px]">{a.bucket}</span> <span className="text-[10px] text-gray-400">{a.cadencia.toFixed(1).replace('.', ',')}/mês</span></td>
+                  <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
+                    <span className="text-[11px]">{a.bucket}</span> <span className="text-[10px] text-gray-400">{a.cadencia.toFixed(1).replace('.', ',')}/mês</span>
+                    {!a.ativo && <span className="ml-1 text-[10px] text-amber-600 dark:text-amber-400" title={`último show há ${a.dias_sem_tocar} dias`}>· inativo {a.dias_sem_tocar}d</span>}
+                  </td>
                   <td className="px-3 py-2 text-right tabular-nums">{a.shows}</td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     <div>{money(a.fatRec)}</div>
@@ -243,12 +258,12 @@ export default function InsightsTab({ barId, periodo }: { barId?: number; period
       {/* Estreias + Encaixe */}
       <div className="grid lg:grid-cols-2 gap-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-4 w-4 text-pink-500" />Estreias & novos</CardTitle><CardDescription>artistas com até 3 shows — como foram vs a média da casa</CardDescription></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-4 w-4 text-pink-500" />Estreias & novos</CardTitle><CardDescription>quem estreou nos últimos {DIAS_ESTREIA} dias — e como foi vs a média da casa</CardDescription></CardHeader>
           <CardContent className="space-y-1.5">
             {estreias.length === 0 ? <p className="text-sm text-gray-500 py-2">Sem estreias no período.</p>
               : estreias.map((a: any) => (
                 <div key={a.artista_id ?? a.nome} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-800 dark:text-gray-200">{a.nome} <span className="text-[11px] text-gray-400">· {a.shows} show{a.shows > 1 ? 's' : ''}</span></span>
+                  <span className="text-gray-800 dark:text-gray-200">{a.nome} <span className="text-[11px] text-gray-400">· estreou há {a.estreouDias}d · {a.shows} show{a.shows > 1 ? 's' : ''}</span></span>
                   <span className={`text-[12px] font-medium ${a.vsCasa == null ? 'text-gray-400' : a.vsCasa >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{money(a.fat_medio)} · {pct(a.vsCasa)} vs casa</span>
                 </div>
               ))}
