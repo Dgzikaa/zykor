@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Music, Users, DollarSign, Calendar, Award, TrendingUp, TrendingDown, Star, Trophy, Ticket, Tag, ArrowUpRight, ArrowDownRight, Sparkles, Handshake, Share2, Camera, X, Smile, MessageSquare } from 'lucide-react';
+import { Music, Users, DollarSign, Calendar, Award, TrendingUp, TrendingDown, Star, Trophy, Ticket, ArrowUpRight, ArrowDownRight, Sparkles, Handshake, Share2, Camera, X, Smile, MessageSquare } from 'lucide-react';
 
 // ---- formatação ----
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -51,13 +51,36 @@ export default function AtracoesPage() {
   const [loadingTraj, setLoadingTraj] = useState(false);
   const [ranking, setRanking] = useState<any[] | null>(null);
 
+  // Filtro global: período (de/ate) + dia da semana (dow 0=dom..6=sáb). Afeta lista, trajetória e NPS.
+  const anoAtual = new Date().getFullYear();
+  const [de, setDe] = useState('');
+  const [ate, setAte] = useState('');
+  const [dow, setDow] = useState('');
+  const [presetAtivo, setPresetAtivo] = useState('tudo');
+  const aplicarPreset = useCallback((key: string) => {
+    const now = new Date(); const y = now.getFullYear(); const p2 = (n: number) => String(n).padStart(2, '0');
+    if (key === 'tudo') { setDe(''); setAte(''); }
+    else if (key === 'mes') { setDe(`${y}-${p2(now.getMonth() + 1)}-01`); setAte(''); }
+    else if (key === 'mesAnt') { const m0 = now.getMonth(); const my = m0 === 0 ? y - 1 : y; const mm = m0 === 0 ? 12 : m0; const last = new Date(my, mm, 0).getDate(); setDe(`${my}-${p2(mm)}-01`); setAte(`${my}-${p2(mm)}-${p2(last)}`); }
+    else if (/^\d{4}$/.test(key)) { setDe(`${key}-01-01`); setAte(`${key}-12-31`); }
+    setPresetAtivo(key);
+  }, []);
+  const filtroQS = useCallback(() => {
+    const p = new URLSearchParams();
+    if (de) p.set('de', de);
+    if (ate) p.set('ate', ate);
+    if (dow !== '') p.set('dow', dow);
+    const s = p.toString();
+    return s ? `&${s}` : '';
+  }, [de, ate, dow]);
+
   const artistaSel = useMemo(() => lista.find(a => String(a.artista_id) === artistaId), [lista, artistaId]);
 
   const carregarLista = useCallback(async () => {
     if (!barId) return;
     setLoadingLista(true);
     try {
-      const r = await fetch(`/api/analitico/atracoes?view=lista&bar_id=${barId}`, { cache: 'no-store' });
+      const r = await fetch(`/api/analitico/atracoes?view=lista&bar_id=${barId}${filtroQS()}`, { cache: 'no-store' });
       const j = await r.json();
       const l: ArtistaLista[] = j.lista || [];
       setLista(l);
@@ -69,18 +92,18 @@ export default function AtracoesPage() {
       });
     } catch { setLista([]); }
     finally { setLoadingLista(false); }
-  }, [barId]);
+  }, [barId, filtroQS]);
 
   const carregarTraj = useCallback(async (id: string) => {
     if (!barId || !id) { setTraj(null); return; }
     setLoadingTraj(true);
     try {
-      const r = await fetch(`/api/analitico/atracoes?artista_id=${id}&bar_id=${barId}`, { cache: 'no-store' });
+      const r = await fetch(`/api/analitico/atracoes?artista_id=${id}&bar_id=${barId}${filtroQS()}`, { cache: 'no-store' });
       const j = await r.json();
       setTraj(j.artista || null);
     } catch { setTraj(null); }
     finally { setLoadingTraj(false); }
-  }, [barId]);
+  }, [barId, filtroQS]);
 
   const carregarRanking = useCallback(async () => {
     if (!barId) return;
@@ -104,23 +127,54 @@ export default function AtracoesPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-3 py-4 max-w-6xl space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Music className="h-6 w-6 text-violet-600" />
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Visão do Artista</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">A trajetória de cada artista com a casa — feita pra mostrar pro artista.</p>
-            </div>
+        <div className="flex items-center gap-2">
+          <Music className="h-6 w-6 text-violet-600" />
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Visão do Artista</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">A trajetória de cada artista com a casa — feita pra mostrar pro artista.</p>
           </div>
-          <Link href="/analitico/atracoes/tagging" className="text-sm inline-flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-3 h-9 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">
-            <Tag className="h-4 w-4" />Taggear eventos
-          </Link>
         </div>
 
         {aba === 'ranking' ? (
           <RankingView ranking={ranking} onPick={(id) => { setArtistaId(String(id)); setAba('artista'); }} />
         ) : (
           <>
+            {/* Filtro global: período + dia da semana (afeta lista, trajetória e NPS) */}
+            <Card>
+              <CardContent className="p-3 flex flex-wrap items-end gap-x-4 gap-y-3">
+                <div>
+                  <span className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">Período</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[{ k: 'tudo', l: 'Tudo' }, { k: String(anoAtual), l: String(anoAtual) }, { k: String(anoAtual - 1), l: String(anoAtual - 1) }, { k: 'mes', l: 'Este mês' }, { k: 'mesAnt', l: 'Mês passado' }].map(p => (
+                      <button key={p.k} onClick={() => aplicarPreset(p.k)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${presetAtivo === p.k ? 'bg-violet-600 text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>{p.l}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">De</span>
+                  <input type="date" value={de} onChange={e => { setDe(e.target.value); setPresetAtivo(''); }} className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-transparent px-2 text-sm w-[9.5rem]" />
+                </div>
+                <div>
+                  <span className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">Até</span>
+                  <input type="date" value={ate} onChange={e => { setAte(e.target.value); setPresetAtivo(''); }} className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-transparent px-2 text-sm w-[9.5rem]" />
+                </div>
+                <div>
+                  <span className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">Dia da semana</span>
+                  <select value={dow} onChange={e => setDow(e.target.value)} className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-transparent px-2 text-sm">
+                    <option value="">Todos</option>
+                    <option value="0">Domingo</option>
+                    <option value="1">Segunda</option>
+                    <option value="2">Terça</option>
+                    <option value="3">Quarta</option>
+                    <option value="4">Quinta</option>
+                    <option value="5">Sexta</option>
+                    <option value="6">Sábado</option>
+                  </select>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Dropdown de artista */}
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-sm text-gray-500">Artista:</span>
@@ -148,7 +202,7 @@ export default function AtracoesPage() {
               ) : loadingTraj || !traj ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>
               ) : (
-                <TrajetoriaView traj={traj} nome={artistaSel?.nome || ''} tipo={artistaSel?.tipo || ''} foto={artistaSel?.foto_url || null} artistaId={artistaSel?.artista_id || 0} onFotoSalva={carregarLista} evolChart={evolChart} crescPublico={crescPublico} barNome={selectedBar?.nome || 'a casa'} barId={barId} />
+                <TrajetoriaView traj={traj} nome={artistaSel?.nome || ''} tipo={artistaSel?.tipo || ''} foto={artistaSel?.foto_url || null} artistaId={artistaSel?.artista_id || 0} onFotoSalva={carregarLista} evolChart={evolChart} crescPublico={crescPublico} barNome={selectedBar?.nome || 'a casa'} barId={barId} de={de} ate={ate} dow={dow} />
               )}
           </>
         )}
@@ -158,7 +212,7 @@ export default function AtracoesPage() {
 }
 
 // ---- Trajetória ----
-function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolChart, crescPublico, barNome, barId }: { traj: Trajetoria; nome: string; tipo: string; foto: string | null; artistaId: number; onFotoSalva: () => void; evolChart: any[]; crescPublico: number | null; barNome: string; barId?: number }) {
+function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolChart, crescPublico, barNome, barId, de, ate, dow }: { traj: Trajetoria; nome: string; tipo: string; foto: string | null; artistaId: number; onFotoSalva: () => void; evolChart: any[]; crescPublico: number | null; barNome: string; barId?: number; de: string; ate: string; dow: string }) {
   const [share, setShare] = useState(false);
   const salvarFoto = async () => {
     const url = window.prompt('Cole a URL da foto do artista:', foto || '');
@@ -241,7 +295,7 @@ function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolCh
       </div>
 
       {/* NPS do público vinculado ao artista (Falae · Data da Visita) */}
-      {artistaId ? <NpsArtistaCard barId={barId} artistaId={artistaId} nome={nome} /> : null}
+      {artistaId ? <NpsArtistaCard barId={barId} artistaId={artistaId} nome={nome} de={de} ate={ate} dow={dow} /> : null}
 
       {/* Melhor / pior noite (cachê) */}
       <div className="grid md:grid-cols-2 gap-3">
@@ -380,54 +434,37 @@ const npsCat = (c: string) => c === 'promotor' ? { emoji: '😍', cor: 'bg-emera
   : c === 'neutro' ? { emoji: '😐', cor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' }
   : { emoji: '😕', cor: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' };
 
-function NpsArtistaCard({ barId, artistaId, nome }: { barId?: number; artistaId: number; nome: string }) {
-  const anoAtual = new Date().getFullYear();
-  const PERIODOS = [
-    { key: 'tudo', label: 'Tudo' },
-    { key: String(anoAtual), label: String(anoAtual) },
-    { key: String(anoAtual - 1), label: String(anoAtual - 1) },
-    { key: 'mes', label: 'Este mês' },
-  ];
-  const [periodo, setPeriodo] = useState('tudo');
+function NpsArtistaCard({ barId, artistaId, nome, de, ate, dow }: { barId?: number; artistaId: number; nome: string; de: string; ate: string; dow: string }) {
   const [loading, setLoading] = useState(true);
   const [resumo, setResumo] = useState<any>(null);
   const [respostas, setRespostas] = useState<any[]>([]);
   const [aberto, setAberto] = useState(false);
-
-  const range = useMemo(() => {
-    if (/^\d{4}$/.test(periodo)) return { de: `${periodo}-01-01`, ate: `${periodo}-12-31` };
-    if (periodo === 'mes') { const n = new Date(); return { de: `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-01` } as { de?: string; ate?: string }; }
-    return {} as { de?: string; ate?: string };
-  }, [periodo]);
+  const [filtroCat, setFiltroCat] = useState<'todos' | 'promotor' | 'neutro' | 'detrator'>('todos');
 
   useEffect(() => {
     if (!barId || !artistaId) return;
     setLoading(true);
     const qs = new URLSearchParams({ view: 'nps', artista_id: String(artistaId), bar_id: String(barId) });
-    if (range.de) qs.set('de', range.de);
-    if (range.ate) qs.set('ate', range.ate);
+    if (de) qs.set('de', de);
+    if (ate) qs.set('ate', ate);
+    if (dow !== '') qs.set('dow', dow);
     fetch(`/api/analitico/atracoes?${qs.toString()}`, { cache: 'no-store' })
       .then(r => r.json())
       .then(j => { setResumo(j.resumo || null); setRespostas(j.respostas || []); })
       .catch(() => { setResumo(null); setRespostas([]); })
       .finally(() => setLoading(false));
-  }, [barId, artistaId, range.de, range.ate]);
+  }, [barId, artistaId, de, ate, dow]);
+
+  // abre o modal já filtrado pela categoria clicada (ou 'todos' no botão "Ver respostas")
+  const abrir = (cat: 'todos' | 'promotor' | 'neutro' | 'detrator') => { setFiltroCat(cat); setAberto(true); };
+  const respostasView = filtroCat === 'todos' ? respostas : respostas.filter(r => r.categoria === filtroCat);
+  const chipCat = 'cursor-pointer transition-opacity hover:opacity-80';
 
   return (
     <Card className="border-sky-100 dark:border-sky-900/40">
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <CardTitle className="text-base flex items-center gap-2"><Smile className="h-4 w-4 text-sky-500" />NPS do público</CardTitle>
-          <div className="flex flex-wrap gap-1.5">
-            {PERIODOS.map(p => (
-              <button key={p.key} onClick={() => setPeriodo(p.key)}
-                className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${periodo === p.key ? 'bg-sky-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <CardDescription>satisfação de quem foi nas noites de {nome} (Falae · vinculado pela data da visita)</CardDescription>
+        <CardTitle className="text-base flex items-center gap-2"><Smile className="h-4 w-4 text-sky-500" />NPS do público</CardTitle>
+        <CardDescription>satisfação de quem foi nas noites de {nome} (Falae · vinculado pela data da visita) — clique numa faixa pra ver as respostas</CardDescription>
       </CardHeader>
       <CardContent>
         {loading ? <Skeleton className="h-20 w-full" />
@@ -441,12 +478,12 @@ function NpsArtistaCard({ barId, artistaId, nome }: { barId?: number; artistaId:
               <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
                 <div>NPS médio <b>{resumo.nps_medio.toFixed(1).replace('.', ',')}</b> · <b>{resumo.respostas}</b> resposta{resumo.respostas === 1 ? '' : 's'}</div>
                 <div className="flex flex-wrap gap-1.5">
-                  <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 px-2 py-0.5 text-xs">😍 {resumo.promotores} promot.</span>
-                  <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-2 py-0.5 text-xs">😐 {resumo.neutros} neutro</span>
-                  <span className="inline-flex items-center rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 px-2 py-0.5 text-xs">😕 {resumo.detratores} detrat.</span>
+                  <button onClick={() => abrir('promotor')} title="Ver respostas dos promotores" className={`inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 px-2 py-0.5 text-xs ${chipCat}`}>😍 {resumo.promotores} promot.</button>
+                  <button onClick={() => abrir('neutro')} title="Ver respostas dos neutros" className={`inline-flex items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-2 py-0.5 text-xs ${chipCat}`}>😐 {resumo.neutros} neutro</button>
+                  <button onClick={() => abrir('detrator')} title="Ver respostas dos detratores" className={`inline-flex items-center rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 px-2 py-0.5 text-xs ${chipCat}`}>😕 {resumo.detratores} detrat.</button>
                 </div>
               </div>
-              <button onClick={() => setAberto(true)} className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 px-3 h-9 text-sm hover:bg-sky-50 dark:hover:bg-sky-900/20 shrink-0">
+              <button onClick={() => abrir('todos')} className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 px-3 h-9 text-sm hover:bg-sky-50 dark:hover:bg-sky-900/20 shrink-0">
                 <MessageSquare className="h-4 w-4" />Ver respostas
               </button>
             </div>
@@ -460,9 +497,23 @@ function NpsArtistaCard({ barId, artistaId, nome }: { barId?: number; artistaId:
               <div className="font-semibold text-gray-900 dark:text-white">Respostas de NPS · {nome}</div>
               <button onClick={() => setAberto(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
             </div>
-            <div className="max-h-[70vh] overflow-auto divide-y divide-gray-100 dark:divide-gray-800">
-              {respostas.length === 0 ? <p className="text-sm text-gray-500 py-8 text-center">Sem respostas no período.</p>
-                : respostas.map((r, i) => {
+            {/* filtro por categoria dentro do modal */}
+            <div className="flex flex-wrap gap-1.5 px-4 py-2 border-b border-gray-100 dark:border-gray-800">
+              {([
+                { k: 'todos', l: `Todos (${resumo?.respostas ?? 0})` },
+                { k: 'promotor', l: `😍 Promotores (${resumo?.promotores ?? 0})` },
+                { k: 'neutro', l: `😐 Neutros (${resumo?.neutros ?? 0})` },
+                { k: 'detrator', l: `😕 Detratores (${resumo?.detratores ?? 0})` },
+              ] as const).map(f => (
+                <button key={f.k} onClick={() => setFiltroCat(f.k)}
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${filtroCat === f.k ? 'bg-sky-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+                  {f.l}
+                </button>
+              ))}
+            </div>
+            <div className="max-h-[65vh] overflow-auto divide-y divide-gray-100 dark:divide-gray-800">
+              {respostasView.length === 0 ? <p className="text-sm text-gray-500 py-8 text-center">Nenhuma resposta nesta faixa.</p>
+                : respostasView.map((r, i) => {
                   const cat = npsCat(r.categoria);
                   return (
                     <div key={i} className="px-4 py-3">

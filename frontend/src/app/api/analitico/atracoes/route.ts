@@ -50,19 +50,23 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const ops = (supabase as any).schema('operations');
 
-    // Modo artista-first: lista p/ dropdown
+    // Filtros globais da Visão do Artista: período (de/ate) + dia da semana (dow 0=dom..6=sáb).
+    const de = searchParams.get('de') || null;
+    const ate = searchParams.get('ate') || null;
+    const dowRaw = searchParams.get('dow');
+    const dow = dowRaw != null && dowRaw !== '' ? Number(dowRaw) : null;
+
+    // Modo artista-first: lista p/ dropdown (respeita o filtro → só artistas que tocaram no período)
     if (searchParams.get('view') === 'lista') {
-      const { data, error } = await ops.rpc('fn_artista_lista', { p_bar: barId });
+      const { data, error } = await ops.rpc('fn_artista_lista', { p_bar: barId, p_ini: de, p_fim: ate, p_dow: dow });
       if (error) throw error;
       return NextResponse.json({ success: true, lista: data || [] });
     }
-    // NPS por artista (silver.nps_artista_respostas) — resumo + cada resposta, com filtro de período.
+    // NPS por artista (silver.nps_artista_respostas) — resumo + cada resposta, com filtro de período + dow.
     // NPS vem da "Data da Visita" do Falae vinculada ao artista da noite (ver project_nps_por_artista).
     if (searchParams.get('view') === 'nps') {
       const artistaId = Number(searchParams.get('artista_id'));
       if (!artistaId) return NextResponse.json({ success: true, resumo: null, respostas: [] });
-      const de = searchParams.get('de');
-      const ate = searchParams.get('ate');
       let q = (supabase as any).schema('silver')
         .from('nps_artista_respostas')
         .select('nps, data_visita, categoria, evento_nome, comentario')
@@ -71,7 +75,8 @@ export async function GET(request: NextRequest) {
       if (ate) q = q.lte('data_visita', ate);
       const { data, error } = await q.order('data_visita', { ascending: false });
       if (error) throw error;
-      const respostas = data || [];
+      // dia da semana: filtra pela data da visita (getUTCDay p/ casar com o corte ISO do frontend)
+      const respostas = (dow == null ? (data || []) : (data || []).filter((r: any) => r.data_visita && new Date(r.data_visita + 'T12:00:00Z').getUTCDay() === dow));
       const n = respostas.length;
       const promot = respostas.filter((r: any) => r.categoria === 'promotor').length;
       const detrat = respostas.filter((r: any) => r.categoria === 'detrator').length;
@@ -88,7 +93,7 @@ export async function GET(request: NextRequest) {
     // Modo artista-first: trajetória completa de 1 artista
     const artistaIdParam = searchParams.get('artista_id');
     if (artistaIdParam) {
-      const { data, error } = await ops.rpc('fn_artista_trajetoria', { p_bar: barId, p_artista_id: Number(artistaIdParam) });
+      const { data, error } = await ops.rpc('fn_artista_trajetoria', { p_bar: barId, p_artista_id: Number(artistaIdParam), p_ini: de, p_fim: ate, p_dow: dow });
       if (error) throw error;
       return NextResponse.json({ success: true, artista: data || null });
     }
