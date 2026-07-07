@@ -33,7 +33,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const barId = getBarId(request);
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id é obrigatório' }, { status: 400 });
-  const body = await request.json().catch(() => ({}));
+  // apiCall (cliente) manda o body double-encoded → request.json() pode vir STRING.
+  let body: any = {};
+  try { const raw = await request.json(); body = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { body = {}; }
   const ano = parseInt(String(body.ano), 10);
   const mes = parseInt(String(body.mes), 10);
   if (!ano || !mes || mes < 1 || mes > 12) return NextResponse.json({ success: false, error: 'ano/mes inválidos' }, { status: 400 });
