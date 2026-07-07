@@ -22,6 +22,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { CalculadoraDistribuicao } from './CalculadoraDistribuicao';
 import { 
   Calendar, 
   Edit, 
@@ -1681,6 +1682,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                         </div>
                       </div>
                     )}
+                    <CalculadoraDistribuicao barId={selectedBar?.id} />
                   </div>
                 </Card>
               </div>
