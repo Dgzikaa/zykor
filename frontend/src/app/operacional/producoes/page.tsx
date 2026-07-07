@@ -67,6 +67,22 @@ function entradaPeso(base: string | null, refQtd: number): { unidade: string; fa
   if (base === 'ml') return refQtd >= 1000 ? { unidade: 'L', fator: 1000 } : { unidade: 'ml', fator: 1 };
   return { unidade: base || '', fator: 1 };
 }
+// Aviso INLINE de provável erro de unidade (g×kg, ml×L): quando o valor digitado (já em base)
+// fica ~25×+ longe do esperado da ficha. Mostra o valor interpretado em unidade amigável + a
+// referência da ficha, na hora de digitar — pega o "8.325 kg em vez de 8,3 kg" antes de salvar.
+const FATOR_AVISO_UNID = 25;
+function AvisoUnidade({ valorBase, esperadoBase, base }: { valorBase: number; esperadoBase: number; base: string | null }) {
+  if (!(valorBase > 0) || !(esperadoBase > 0)) return null;
+  const ratio = valorBase / esperadoBase;
+  if (ratio < FATOR_AVISO_UNID && ratio > 1 / FATOR_AVISO_UNID) return null;
+  const mult = ratio >= 1 ? `${Math.round(ratio).toLocaleString('pt-BR')}×` : `1/${Math.round(1 / ratio).toLocaleString('pt-BR')}`;
+  return (
+    <p className="text-[11px] text-red-600 dark:text-red-400 mt-0.5 flex items-start gap-1 leading-tight">
+      <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+      <span>= <b>{fmtPeso(valorBase, base)}</b> · ~{mult} a ficha ({fmtPeso(esperadoBase, base)}). Confira g × kg.</span>
+    </p>
+  );
+}
 const fmtPct = (v: any, d = 1) => v == null ? '—' : `${Number(v).toLocaleString('pt-BR', { maximumFractionDigits: d })}%`;
 const fmtTempo = (seg: any) => {
   const s = Math.max(0, Math.round(Number(seg) || 0));
@@ -777,10 +793,12 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
                       <span className="text-[10px] w-12 text-gray-400 shrink-0">Bruto</span>
                       <Input type="text" inputMode="decimal" step="any" disabled={!iniciada} value={sel.pesoBruto} onChange={e => patch(sel.localId, { pesoBruto: e.target.value })} placeholder={`antes de limpar · em ${entrada.unidade || 'un'}`} className="h-9" />
                     </div>
+                    <AvisoUnidade valorBase={pbNum * entrada.fator} esperadoBase={mestreQtd} base={baseMestre} />
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] w-12 text-gray-400 shrink-0">Líquido</span>
                       <Input type="text" inputMode="decimal" step="any" disabled={!iniciada} value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })} placeholder={`limpo · ficha ${fmtPeso(mestreQtd, baseMestre)}`} className="h-9" />
                     </div>
+                    <AvisoUnidade valorBase={plNum * entrada.fator} esperadoBase={mestreQtd} base={baseMestre} />
                   </div>
                   <p className="text-[11px] text-gray-400 mt-0.5">
                     {(() => { const fcEsp = Number((mestre as any)?.fator_correcao) || 0; return fcReal > 0 ? (
@@ -793,12 +811,14 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
                   <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Scale className="w-3.5 h-3.5" />Peso real do mestre{mestre && entrada.unidade ? ` (${entrada.unidade})` : ''}</label>
                   <Input type="text" inputMode="decimal" step="any" value={sel.pesoMestre} onChange={e => patch(sel.localId, { pesoMestre: e.target.value })}
                     placeholder={mestre ? `ficha: ${fmtPeso(mestreQtd, baseMestre)}` : 'sem insumo mestre'} disabled={!mestre || !iniciada} className="h-10" />
+                  {mestre && <AvisoUnidade valorBase={plNum * entrada.fator} esperadoBase={mestreQtd} base={baseMestre} />}
                 </div>
               )}
               <div>
                 <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real * {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado, 3)} {sel.ficha.unidade || ''}</span>}</label>
                 <Input type="text" inputMode="decimal" step="any" disabled={!iniciada} value={sel.rendimentoReal} onChange={e => patch(sel.localId, { rendimentoReal: e.target.value })} placeholder="produzido…" className={`h-10 ${errRend ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
                 {errRend && <p className="text-[11px] text-red-600 dark:text-red-400 mt-0.5">Obrigatório — informe o rendimento produzido.</p>}
+                <AvisoUnidade valorBase={pf(sel.rendimentoReal) || 0} esperadoBase={rendEsperado} base={sel.ficha.unidade} />
               </div>
             </div>
 
