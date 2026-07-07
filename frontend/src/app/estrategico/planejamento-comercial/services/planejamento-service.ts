@@ -54,6 +54,8 @@ export interface PlanejamentoData {
   data_evento: string;
   dia_semana: string;
   evento_nome: string;
+  /** nomes dos artistas taggeados no evento (coluna Artistas do grid) */
+  artistas?: string[];
   usa_yuzer?: boolean;
   usa_sympla?: boolean;
   dia: number;
@@ -296,6 +298,26 @@ export async function getPlanejamentoComercial(
     (eventosManuais || []).map((m: any) => [m.data_evento, m])
   );
 
+  // Artistas taggeados por evento (operations.evento_artistas) → coluna "Artistas" do grid.
+  const idsEventosBase = ((eventosManuais || []) as any[]).map((m) => m.id).filter((x) => x != null);
+  const artistasPorEvento = new Map<number, string[]>();
+  if (idsEventosBase.length) {
+    const { data: eaRows } = await supabase
+      .schema('operations' as never)
+      .from('evento_artistas')
+      .select('evento_id, artista_nome, horario_inicio')
+      .eq('bar_id', barId)
+      .in('evento_id', idsEventosBase)
+      .order('horario_inicio', { ascending: true, nullsFirst: true });
+    for (const r of (eaRows || []) as any[]) {
+      const nome = String(r.artista_nome || '').trim();
+      if (!nome) continue;
+      const arr = artistasPorEvento.get(r.evento_id) || [];
+      arr.push(nome);
+      artistasPorEvento.set(r.evento_id, arr);
+    }
+  }
+
   const eventosFiltrados = (eventosGold || []).filter(evento => {
     const [anoEvento, mesEvento] = evento.data_evento.split('-').map(Number);
     return mesEvento === mes && anoEvento === ano;
@@ -374,6 +396,8 @@ export async function getPlanejamentoComercial(
         : String(evento.dia_semana || ''),
       // nome vem do eventos_base (onde o edit grava) — gold.planejamento.nome só atualiza no ETL
       evento_nome: manual?.nome ?? evento.nome ?? '',
+      // artistas taggeados (evento_artistas), pela chave eventos_base.id
+      artistas: manual?.id ? (artistasPorEvento.get(manual.id) || []) : [],
       // Marcadores de bilheteria externa (toggle) — vêm do eventos_base
       usa_yuzer: manual?.usa_yuzer ?? false,
       usa_sympla: manual?.usa_sympla ?? false,

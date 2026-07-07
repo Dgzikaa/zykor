@@ -1,11 +1,12 @@
 /* Colunas congeladas via position: sticky (sem JS).
-   Offsets = soma acumulada das larguras das 5 colunas fixas:
-   Data 48 · Dia 38 · Artista 140 · Receita Real 110 · Meta M1 110  (total 446px) */
+   Offsets = soma acumulada das larguras das 6 colunas fixas:
+   Data 48 · Dia 38 · Label 140 · Artistas 160 · Receita Real 110 · Meta M1 110  (total 606px) */
 .sticky-col-1,
 .sticky-col-2,
 .sticky-col-3,
 .sticky-col-4,
-.sticky-col-5 {
+.sticky-col-5,
+.sticky-col-6 {
   position: -webkit-sticky;
   position: sticky;
   z-index: 10;
@@ -14,8 +15,9 @@
 .sticky-col-1 { left: 0; }
 .sticky-col-2 { left: 48px; }
 .sticky-col-3 { left: 86px; }
-.sticky-col-4 { left: 226px; }
-.sticky-col-5 { left: 336px; }
+.sticky-col-4 { left: 226px; }  /* Artistas */
+.sticky-col-5 { left: 386px; }  /* Receita Real */
+.sticky-col-6 { left: 496px; }  /* Meta M1 */
 
 /* Cabeçalhos das colunas fixas: congelam nos DOIS eixos —
    vertical (top: 32px, logo abaixo da linha de grupos) e horizontal (left). */
@@ -23,7 +25,8 @@
 .sticky-header-2,
 .sticky-header-3,
 .sticky-header-4,
-.sticky-header-5 {
+.sticky-header-5,
+.sticky-header-6 {
   position: -webkit-sticky;
   position: sticky;
   top: 32px;
@@ -34,7 +37,8 @@
 .sticky-header-2 { left: 48px; }
 .sticky-header-3 { left: 86px; }
 .sticky-header-4 { left: 226px; }
-.sticky-header-5 { left: 336px; }
+.sticky-header-5 { left: 386px; }
+.sticky-header-6 { left: 496px; }
 
 /* Canto superior-esquerdo (célula vazia da linha de grupos) fica pinado */
 .sticky-corner {
