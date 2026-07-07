@@ -50,8 +50,21 @@ export default function AtracoesPage() {
   const [loadingLista, setLoadingLista] = useState(true);
   const [loadingTraj, setLoadingTraj] = useState(false);
   const [ranking, setRanking] = useState<any[] | null>(null);
+  const [rankList, setRankList] = useState<any[] | null>(null);
 
   const artistaSel = useMemo(() => lista.find(a => String(a.artista_id) === artistaId), [lista, artistaId]);
+
+  // Posição do artista no ranking de cachê da casa (pra "você é um dos mais bem pagos").
+  const rankCache = useMemo(() => {
+    if (!rankList || !artistaId) return null;
+    const comCache = rankList
+      .filter((a: any) => Number(a.custo_total) > 0)
+      .sort((a: any, b: any) => Number(b.custo_total) - Number(a.custo_total));
+    const total = comCache.length;
+    const idx = comCache.findIndex((a: any) => String(a.artista_id) === artistaId);
+    if (idx < 0 || total === 0) return null;
+    return { posicao: idx + 1, total, percentilTop: Math.max(1, Math.round(((idx + 1) / total) * 100)) };
+  }, [rankList, artistaId]);
 
   const carregarLista = useCallback(async () => {
     if (!barId) return;
@@ -91,7 +104,17 @@ export default function AtracoesPage() {
     } catch { setRanking([]); }
   }, [barId]);
 
+  const carregarRankList = useCallback(async () => {
+    if (!barId) return;
+    try {
+      const r = await fetch(`/api/analitico/atracoes?periodo=120&bar_id=${barId}`, { cache: 'no-store' });
+      const j = await r.json();
+      setRankList(j.data || []);
+    } catch { setRankList([]); }
+  }, [barId]);
+
   useEffect(() => { carregarLista(); }, [carregarLista]);
+  useEffect(() => { carregarRankList(); }, [carregarRankList]);
   useEffect(() => { if (artistaId) carregarTraj(artistaId); }, [artistaId, carregarTraj]);
   useEffect(() => { if (aba === 'ranking' && ranking === null) carregarRanking(); }, [aba, ranking, carregarRanking]);
 
@@ -148,7 +171,7 @@ export default function AtracoesPage() {
               ) : loadingTraj || !traj ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>
               ) : (
-                <TrajetoriaView traj={traj} nome={artistaSel?.nome || ''} tipo={artistaSel?.tipo || ''} foto={artistaSel?.foto_url || null} artistaId={artistaSel?.artista_id || 0} onFotoSalva={carregarLista} evolChart={evolChart} crescPublico={crescPublico} barNome={selectedBar?.nome || 'a casa'} />
+                <TrajetoriaView traj={traj} nome={artistaSel?.nome || ''} tipo={artistaSel?.tipo || ''} foto={artistaSel?.foto_url || null} artistaId={artistaSel?.artista_id || 0} onFotoSalva={carregarLista} evolChart={evolChart} crescPublico={crescPublico} barNome={selectedBar?.nome || 'a casa'} rankCache={rankCache} />
               )}
           </>
         )}
@@ -158,7 +181,7 @@ export default function AtracoesPage() {
 }
 
 // ---- Trajetória ----
-function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolChart, crescPublico, barNome }: { traj: Trajetoria; nome: string; tipo: string; foto: string | null; artistaId: number; onFotoSalva: () => void; evolChart: any[]; crescPublico: number | null; barNome: string }) {
+function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolChart, crescPublico, barNome, rankCache }: { traj: Trajetoria; nome: string; tipo: string; foto: string | null; artistaId: number; onFotoSalva: () => void; evolChart: any[]; crescPublico: number | null; barNome: string; rankCache: { posicao: number; total: number; percentilTop: number } | null }) {
   const [share, setShare] = useState(false);
   const salvarFoto = async () => {
     const url = window.prompt('Cole a URL da foto do artista:', foto || '');
@@ -190,6 +213,7 @@ function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolCh
   if (diasEntre != null && diasEntre <= 10) marcos.push({ txt: '📆 residente', cor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' });
   if (traj.atual?.publico && traj.publico_recorde?.valor && traj.atual.publico >= traj.publico_recorde.valor) marcos.push({ txt: '🔥 recorde de público na última!', cor: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' });
   if ((traj.cache_medio || 0) >= 5000) marcos.push({ txt: '💰 cachê top', cor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' });
+  if (rankCache && rankCache.percentilTop <= 10) marcos.push({ txt: `🏆 top ${rankCache.percentilTop}% em cachê da casa`, cor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' });
 
   const tiles = [
     { icon: Calendar, cor: 'text-sky-500', label: '1º show', valor: fmtData(traj.primeiro?.data), sub: haQuanto(traj.primeiro?.data) },
@@ -224,6 +248,28 @@ function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolCh
         <div className="flex flex-wrap gap-2">
           {marcos.map((m, i) => <span key={i} className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${m.cor}`}>{m.txt}</span>)}
         </div>
+      )}
+
+      {/* Posição no cachê da casa — peça de negociação ("te pagamos bem") */}
+      {rankCache && (
+        <Card className="border-amber-200 dark:border-amber-900/50 bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/20 dark:to-gray-900">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Trophy className="h-8 w-8 text-amber-500 shrink-0" />
+            <div>
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                {rankCache.percentilTop <= 10
+                  ? 'Um dos artistas mais bem pagos da casa'
+                  : 'Posição em cachê pago pela casa'}
+              </div>
+              <div className="text-lg font-bold text-amber-700 dark:text-amber-300">
+                #{rankCache.posicao} de {rankCache.total} artistas
+                <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                  {' '}· top {rankCache.percentilTop}% em cachê
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Big numbers */}
