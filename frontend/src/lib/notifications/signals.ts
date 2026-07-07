@@ -193,6 +193,19 @@ export const ALERT_SIGNALS: AlertSignal[] = [
     implementado: true,
   },
   {
+    key: 'compra_cara',
+    label: 'Compra acima da média (%)',
+    descricao:
+      'Uma compra recente (7 dias) saiu acima do preço médio histórico do insumo em mais de X%. Dispara por compra.',
+    categoria: 'estoque',
+    unidade: '%',
+    operadores: ['gt', 'gte'],
+    usaLimite: true,
+    severidadeSugerida: 'alerta',
+    modo: 'cron',
+    implementado: true,
+  },
+  {
     key: 'pipeline_parado',
     label: 'Pipeline de dados parado',
     descricao: 'Algum pipeline (sync/cron) está atrasado ou sem dados além do SLA. Dispara automático por pipeline.',

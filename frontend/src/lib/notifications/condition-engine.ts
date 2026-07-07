@@ -341,6 +341,18 @@ async function medirSinal(
       ];
     }
 
+    case 'compra_cara': {
+      const { data } = await supabase.schema('gold').rpc('fn_compras_caras', {
+        p_bar: barId,
+        p_dias: 7,
+      });
+      return ((data ?? []) as Array<any>).map((r) => ({
+        valor: Number(r.desvio_pct) || 0,
+        alvoKey: `compra:${r.cod_interno}:${r.data}`,
+        descricaoValor: `${r.nome || r.cod_interno} — R$ ${br(Number(r.preco) || 0)} (média R$ ${br(Number(r.preco_medio) || 0)}, +${br(Number(r.desvio_pct) || 0)}%) em ${r.data}`,
+      }));
+    }
+
     case 'pipeline_parado': {
       // v_data_freshness (schema public) — status 'atrasado' | 'sem_dados' = problema
       const { data } = await supabase
