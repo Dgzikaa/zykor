@@ -187,6 +187,45 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, faixas });
     }
 
+    // Insights — performance por DIA DA SEMANA (recente × base do próprio dia + série)
+    if (searchParams.get('view') === 'insights-dias') {
+      const periodoM = parseInt(searchParams.get('periodo') || '12', 10);
+      const ini = new Date(); ini.setMonth(ini.getMonth() - periodoM);
+      const iniS = ini.toISOString().slice(0, 10);
+      const hojeS = new Date().toISOString().slice(0, 10);
+      const { data: evs, error } = await supabase.from('eventos_base')
+        .select('data_evento, real_r, cl_real, publico_real')
+        .eq('bar_id', barId).gt('real_r', 1000).gte('data_evento', iniS).lte('data_evento', hojeS)
+        .order('data_evento', { ascending: true });
+      if (error) throw error;
+      const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+      const byDow = new Map<number, Array<{ data: string; fat: number; pub: number }>>();
+      for (const e of evs || []) {
+        const dd = String(e.data_evento).slice(0, 10);
+        const dow = new Date(dd + 'T12:00:00Z').getUTCDay();
+        const arr = byDow.get(dow) || [];
+        arr.push({ data: dd, fat: Number(e.real_r) || 0, pub: Math.max(Number(e.cl_real) || 0, Number(e.publico_real) || 0) });
+        byDow.set(dow, arr);
+      }
+      const dias = [...byDow.entries()].map(([dow, arr]) => {
+        const n = arr.length;
+        const fatBase = arr.reduce((s, x) => s + x.fat, 0) / n;
+        const pubBase = arr.reduce((s, x) => s + x.pub, 0) / n;
+        const rec = arr.slice(-4); const rn = rec.length || 1;
+        const fatRec = rec.reduce((s, x) => s + x.fat, 0) / rn;
+        const pubRec = rec.reduce((s, x) => s + x.pub, 0) / rn;
+        return {
+          dow, dia: DIAS[dow], n,
+          fat_medio: Math.round(fatBase), publico_medio: Math.round(pubBase),
+          fat_recente: Math.round(fatRec), publico_recente: Math.round(pubRec),
+          delta_fat_pct: fatBase > 0 ? Math.round(((fatRec - fatBase) / fatBase) * 100) : null,
+          delta_pub_pct: pubBase > 0 ? Math.round(((pubRec - pubBase) / pubBase) * 100) : null,
+          serie: arr.slice(-12).map(x => ({ data: x.data, fat: x.fat, publico: x.pub })),
+        };
+      }).sort((a, b) => (a.dow === 0 ? 7 : a.dow) - (b.dow === 0 ? 7 : b.dow));
+      return NextResponse.json({ success: true, dias });
+    }
+
     // Modo artista-first: trajetória completa de 1 artista
     const artistaIdParam = searchParams.get('artista_id');
     if (artistaIdParam) {

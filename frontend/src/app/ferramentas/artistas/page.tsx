@@ -7,17 +7,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Award } from 'lucide-react';
 import ArtistasTab from './ArtistasTab';
 import LabelsTab from './LabelsTab';
-import { NpsRetornoCard, NpsLotacaoCard, NpsTemasCard } from '@/components/nps/NpsCasa';
+import InsightsTab from './InsightsTab';
 
 export default function FerramentasArtistasPage() {
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
   const [periodo, setPeriodo] = useState(12);
   const [aba, setAba] = useState('artistas');
-
-  // período em meses → intervalo de datas p/ os cards de NPS da casa (mesma janela do ranking)
-  const ateStr = new Date().toISOString().slice(0, 10);
-  const deStr = (() => { const d = new Date(); d.setMonth(d.getMonth() - periodo); return d.toISOString().slice(0, 10); })();
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -30,7 +26,9 @@ export default function FerramentasArtistasPage() {
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {aba === 'artistas'
                   ? <>ROI, retorno e <b>lift</b> por artista. Cada noite conta pro <b>principal</b> dela (maior cachê) — apoio não herda o público.</>
-                  : <>Como cada <b>label</b> (noite recorrente) evolui semana a semana e quais <b>artistas</b> rendem mais em cada uma.</>}
+                  : aba === 'labels'
+                  ? <>Como cada <b>label</b> (noite recorrente) evolui semana a semana e quais <b>artistas</b> rendem mais em cada uma.</>
+                  : <>Leitura rápida de <b>cada dia da semana</b> e do <b>momentum de cada artista</b> — pra dar previsibilidade e embasar manter/renovar.</>}
               </p>
             </div>
           </div>
@@ -42,24 +40,15 @@ export default function FerramentasArtistasPage() {
           </div>
         </div>
 
-        {/* Painel de NPS da casa (interno) — retorno, lotação e motivos citados */}
-        {barId && (
-          <div className="space-y-3">
-            <NpsRetornoCard barId={barId} de={deStr} ate={ateStr} dow="" />
-            <div className="grid lg:grid-cols-2 gap-3 items-start">
-              <NpsLotacaoCard barId={barId} de={deStr} ate={ateStr} dow="" />
-              <NpsTemasCard barId={barId} de={deStr} ate={ateStr} dow="" />
-            </div>
-          </div>
-        )}
-
         <Tabs value={aba} onValueChange={setAba}>
           <TabsList className="dark:bg-gray-800">
             <TabsTrigger value="artistas" className="dark:data-[state=active]:bg-gray-900 dark:text-gray-300 dark:data-[state=active]:text-white">Artistas</TabsTrigger>
             <TabsTrigger value="labels" className="dark:data-[state=active]:bg-gray-900 dark:text-gray-300 dark:data-[state=active]:text-white">Labels</TabsTrigger>
+            <TabsTrigger value="insights" className="dark:data-[state=active]:bg-gray-900 dark:text-gray-300 dark:data-[state=active]:text-white">Insights</TabsTrigger>
           </TabsList>
           <TabsContent value="artistas"><ArtistasTab barId={barId} periodo={periodo} /></TabsContent>
           <TabsContent value="labels"><LabelsTab barId={barId} periodo={periodo} /></TabsContent>
+          <TabsContent value="insights"><InsightsTab barId={barId} periodo={periodo} /></TabsContent>
         </Tabs>
       </div>
     </div>
