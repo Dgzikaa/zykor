@@ -10,7 +10,7 @@
 import { NextRequest } from 'next/server';
 import { validateToken } from './jwt';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { userHasModule } from '@/lib/permissions/resolver';
+import { userHasModule, type ModulosPermitidos } from '@/lib/permissions/resolver';
 import type { AuthenticatedUser } from './types';
 
 export type { AuthenticatedUser };
@@ -222,10 +222,13 @@ export function getBarIdFromRequest(
 /**
  * Verifica se usuário tem permissão para um módulo
  */
+// Aceita qualquer objeto de usuário com role + modulos_permitidos (há 2 tipos AuthenticatedUser
+// no projeto — o de @/middleware/auth tem bar_id opcional; aqui só usamos role/modulos).
 export function hasPermission(
-  user: AuthenticatedUser,
+  user: { role?: string | null; modulos_permitidos?: ModulosPermitidos } | null | undefined,
   module: string
 ): boolean {
+  if (!user) return false;
   // Admin tem todas as permissões
   if (user.role === 'admin') {
     return true;

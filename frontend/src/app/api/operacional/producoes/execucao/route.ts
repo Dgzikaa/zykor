@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PUT — edita uma execução existente (admin only). Recomputa custo/aderência a partir das
+ * PUT — edita uma execução existente (permissão 'editar' no módulo Controle de Produção). Recomputa custo/aderência a partir das
  * linhas enviadas (mesma lógica do POST) e substitui os insumos. Usado pelo modal de edição
  * rápida do histórico pra corrigir lançamento errado (ex.: peso mestre em unidade trocada)
  * sem perder o registro. Não mexe em inicio/fim salvo se vierem no body.
@@ -279,10 +279,9 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  // Escrita gateada pelo módulo da rota (negarPorRota → 'editar' em producao - cmv_controle_de_producao).
+  // Antes exigia role admin; agora respeita a config do usuário (admin continua passando).
   const nega = negarPorRota(user, request); if (nega) return nega;
-  if (user.role !== 'admin') {
-    return NextResponse.json({ success: false, error: 'Apenas admin pode editar execuções' }, { status: 403 });
-  }
   const body = await request.json().catch(() => ({}));
   const execId = Number(body.execucao_id);
   const barId = Number(body.bar_id) || user.bar_id;
@@ -329,16 +328,15 @@ export async function PUT(request: NextRequest) {
 }
 
 /**
- * DELETE ?id=&bar_id= — remove uma execução do histórico (admin only). Usado pra corrigir
+ * DELETE ?id=&bar_id= — remove uma execução do histórico (permissão 'excluir' no módulo Controle de Produção). Usado pra corrigir
  * lançamentos errados/duplicados (ex.: duplo submit). Apaga os insumos e a execução.
  */
 export async function DELETE(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  // Escrita gateada pelo módulo da rota (negarPorRota → 'excluir' em producao - cmv_controle_de_producao).
+  // Antes exigia role admin; agora respeita a config do usuário (admin continua passando).
   const nega = negarPorRota(user, request); if (nega) return nega;
-  if (user.role !== 'admin') {
-    return NextResponse.json({ success: false, error: 'Apenas admin pode excluir execuções' }, { status: 403 });
-  }
   const sp = new URL(request.url).searchParams;
   const id = Number(sp.get('id'));
   const barId = Number(sp.get('bar_id')) || user.bar_id;

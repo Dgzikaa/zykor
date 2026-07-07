@@ -1,4 +1,5 @@
 import { withAuth } from '@/lib/http/with-auth';
+import { hasPermission } from '@/lib/auth/get-user';
 import { fail, success } from '@/lib/http/responses';
 import { getAdminClient } from '@/lib/supabase-admin';
 
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic';
  */
 export const GET = withAuth(async ({ user }) => {
   if (!user.bar_id) return fail('Bar nao selecionado', 400);
-  if (user.role !== 'admin') return fail('Apenas admin', 403);
+  if (!hasPermission(user, 'configuracoes')) return fail('Sem permissão', 403);
   const supabase = await getAdminClient();
   const { data, error } = await supabase
     .schema('operations')

@@ -92,7 +92,8 @@ export default function HomePage() {
   const [rascunho, setRascunho] = useState('');
   const [enviando, setEnviando] = useState(false);
 
-  const podeMural = user?.role === 'admin' || (user?.role as string) === 'manager';
+  // Mural liberado a qualquer usuário autenticado (decisão do dono). Admin vê/remove tudo.
+  const podeMural = !!user;
 
   useEffect(() => { setPageTitle('Início'); }, [setPageTitle]);
   useEffect(() => {
@@ -225,7 +226,7 @@ export default function HomePage() {
                         {a.bar_id === null && <span className="rounded bg-violet-100 dark:bg-violet-900/40 px-1.5 text-violet-600 dark:text-violet-300">todos os bares</span>}
                       </div>
                     </div>
-                    {(user?.role === 'admin' || podeMural) && (
+                    {(user?.role === 'admin' || (!!a.autor_nome && a.autor_nome === (user as any)?.nome)) && (
                       <button
                         onClick={() => remover(a.id)}
                         className="flex-none self-start rounded-md p-1 text-neutral-300 opacity-0 group-hover:opacity-100 hover:text-rose-500 transition-all"

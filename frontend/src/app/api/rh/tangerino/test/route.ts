@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'crypto';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { resolveTangerinoCredential, tangerinoAuthHeader, TANGERINO } from '@/lib/tangerino/resolveCredential';
+import { podeRH } from '@/lib/auth/rh-guard';
 
 /**
  * Valida a credencial Tangerino do bar chamando o GET /test deles ("Hello, [nome]").
@@ -10,10 +11,6 @@ import { resolveTangerinoCredential, tangerinoAuthHeader, TANGERINO } from '@/li
  * é p/ debug/tooling. Retorna o status + corpo cru.
  */
 export const dynamic = 'force-dynamic';
-
-function podeUsar(role?: string) {
-  return role === 'admin' || role === 'rh' || role === 'financeiro';
-}
 
 async function rodar(barId: number) {
   const supabase = await getAdminClient();
@@ -43,7 +40,7 @@ async function rodar(barId: number) {
 export async function GET(req: NextRequest) {
   const user = await authenticateUser(req);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeUsar(user.role)) return permissionErrorResponse('Apenas admin/RH');
+  if (!podeRH(user)) return permissionErrorResponse('Sem permissão de RH');
   if (!user.bar_id) return NextResponse.json({ error: 'Nenhum bar selecionado' }, { status: 400 });
   return rodar(user.bar_id);
 }

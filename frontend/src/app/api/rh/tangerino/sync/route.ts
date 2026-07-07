@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'crypto';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { resolveTangerinoCredential, tangerinoAuthHeader, TANGERINO } from '@/lib/tangerino/resolveCredential';
+import { podeRH } from '@/lib/auth/rh-guard';
 
 /**
  * POST /api/rh/tangerino/sync — puxa as marcações de ponto da Tangerino (paginado) pro
@@ -16,10 +17,6 @@ import { resolveTangerinoCredential, tangerinoAuthHeader, TANGERINO } from '@/li
  */
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
-
-function podeUsar(role?: string) {
-  return role === 'admin' || role === 'rh' || role === 'financeiro';
-}
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({} as any));
@@ -35,7 +32,7 @@ export async function POST(req: NextRequest) {
   } else {
     const user = await authenticateUser(req);
     if (!user) return authErrorResponse('Usuário não autenticado');
-    if (!podeUsar(user.role)) return permissionErrorResponse('Apenas admin/RH');
+    if (!podeRH(user)) return permissionErrorResponse('Sem permissão de RH');
     barId = user.bar_id ?? null;
   }
   if (!barId) return NextResponse.json({ error: 'bar_id ausente' }, { status: 400 });

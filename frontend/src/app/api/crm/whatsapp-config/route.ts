@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { hasPermission } from '@/lib/auth/get-user';
 
 const supabase = createServiceRoleClient();
 
@@ -8,7 +9,7 @@ const supabase = createServiceRoleClient();
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores');
+  if (!hasPermission(user, 'ferramentas_crm')) return permissionErrorResponse('Sem permissão');
   try {
     const { searchParams } = new URL(request.url);
     const barId = searchParams.get('bar_id');
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores');
+  if (!hasPermission(user, 'ferramentas_crm')) return permissionErrorResponse('Sem permissão');
   try {
     const body = await request.json();
     const {
@@ -146,7 +147,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores');
+  if (!hasPermission(user, 'ferramentas_crm')) return permissionErrorResponse('Sem permissão');
   try {
     const body = await request.json();
     const { phone_number_id, access_token, api_version } = body;
@@ -201,7 +202,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores');
+  if (!hasPermission(user, 'ferramentas_crm')) return permissionErrorResponse('Sem permissão');
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

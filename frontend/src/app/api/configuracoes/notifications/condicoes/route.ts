@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { withAuth } from '@/lib/http/with-auth';
+import { hasPermission } from '@/lib/auth/get-user';
 import { fail, success } from '@/lib/http/responses';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { getSignal } from '@/lib/notifications/signals';
@@ -25,14 +26,11 @@ const CondicaoSchema = z.object({
   ativo: z.boolean().default(true),
 });
 
-function assertAdmin(user: { role?: string }) {
-  return user.role === 'admin';
-}
 
 // GET — lista as condições do bar (admin)
 export const GET = withAuth(async ({ user }) => {
   if (!user.bar_id) return fail('Bar nao selecionado', 400);
-  if (!assertAdmin(user)) return fail('Apenas admin', 403);
+  if (!hasPermission(user, 'configuracoes')) return fail('Sem permissão', 403);
   const supabase = await getAdminClient();
   const { data, error } = await supabase
     .schema('system')
@@ -47,7 +45,7 @@ export const GET = withAuth(async ({ user }) => {
 // POST — cria condição, OU ?action=testar&id=... avalia uma condição agora (dry-run)
 export const POST = withAuth(async ({ user, request }) => {
   if (!user.bar_id) return fail('Bar nao selecionado', 400);
-  if (!assertAdmin(user)) return fail('Apenas admin', 403);
+  if (!hasPermission(user, 'configuracoes')) return fail('Sem permissão', 403);
 
   const url = new URL(request.url);
   if (url.searchParams.get('action') === 'testar') {
@@ -79,7 +77,7 @@ export const POST = withAuth(async ({ user, request }) => {
 // PUT — atualiza uma condição (?id=...)
 export const PUT = withAuth(async ({ user, request }) => {
   if (!user.bar_id) return fail('Bar nao selecionado', 400);
-  if (!assertAdmin(user)) return fail('Apenas admin', 403);
+  if (!hasPermission(user, 'configuracoes')) return fail('Sem permissão', 403);
   const id = new URL(request.url).searchParams.get('id');
   if (!id) return fail('id obrigatorio', 400);
 
@@ -103,7 +101,7 @@ export const PUT = withAuth(async ({ user, request }) => {
 // DELETE — remove uma condição (?id=...)
 export const DELETE = withAuth(async ({ user, request }) => {
   if (!user.bar_id) return fail('Bar nao selecionado', 400);
-  if (!assertAdmin(user)) return fail('Apenas admin', 403);
+  if (!hasPermission(user, 'configuracoes')) return fail('Sem permissão', 403);
   const id = new URL(request.url).searchParams.get('id');
   if (!id) return fail('id obrigatorio', 400);
   const supabase = await getAdminClient();

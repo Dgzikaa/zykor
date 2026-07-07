@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (user.role !== 'admin') return permissionErrorResponse('Apenas admin pode alterar a antecipação');
+  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão para alterar a antecipação');
   const body = await request.json().catch(() => ({} as any));
   const barId = Number(body.bar_id);
   if (!barId) return NextResponse.json({ error: 'bar_id obrigatório' }, { status: 400 });

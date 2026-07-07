@@ -4,16 +4,10 @@ import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/
 
 export const dynamic = 'force-dynamic';
 
-// Quem pode deixar recado no mural: admin e gerente (manager).
-function podeMural(role: string): boolean {
-  return role === 'admin' || role === 'manager';
-}
-
-/** Deixar um recado no mural da casa. */
+/** Deixar um recado no mural da casa. Liberado a qualquer usuário autenticado (admin vê tudo). */
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeMural(user.role)) return permissionErrorResponse('Apenas gestores podem deixar recados no mural');
 
   const body = await request.json().catch(() => ({}));
   const mensagem = String(body.mensagem || '').trim();

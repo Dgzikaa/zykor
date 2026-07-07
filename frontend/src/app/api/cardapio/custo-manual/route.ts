@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
 
 /**
  * Custo manual de produtos do cardapio (operations.produto_custo_manual).
@@ -13,10 +14,6 @@ import { getAdminClient } from '@/lib/supabase-admin';
  * Escrita exige admin ou financeiro (custo e dado financeiro).
  */
 export const dynamic = 'force-dynamic';
-
-function podeEditar(role?: string) {
-  return role === 'admin' || role === 'financeiro';
-}
 
 export async function GET(req: NextRequest) {
   const user = await authenticateUser(req);
@@ -35,7 +32,7 @@ export async function GET(req: NextRequest) {
     success: true,
     bar_id: user.bar_id,
     dias,
-    pode_editar: podeEditar(user.role),
+    pode_editar: podeFinanceiro(user),
     produtos: data ?? [],
   });
 }
@@ -44,7 +41,7 @@ export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
   if (!user) return authErrorResponse('Usuário não autenticado');
   if (!user.ativo) return authErrorResponse('Usuário inativo', 403);
-  if (!podeEditar(user.role))
+  if (!podeFinanceiro(user))
     return permissionErrorResponse('Apenas admin ou financeiro podem editar custo de produto');
 
   let body: any;

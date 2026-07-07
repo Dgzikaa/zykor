@@ -90,6 +90,11 @@ type Secao = 'Cozinha' | 'Bar';
 const secaoDeCodigo = (codigo?: string | null): Secao =>
   (codigo || '').toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha';
 
+// Módulo canônico da página (= getModuleIdForPath('/operacional/producoes')). Editar/excluir
+// do histórico respeitam a AÇÃO deste módulo (não mais role admin): quem tem o módulo com
+// permissão de editar/excluir consegue; admin sempre passa. Bate 1:1 com o guard da API.
+const MOD_CONTROLE_PRODUCAO = 'producao - cmv_controle_de_producao';
+
 // Parse decimal tolerante a locale: aceita vírgula OU ponto como separador. Os inputs de peso/
 // rendimento/qtd são type="text" (não "number") justamente porque input number rejeita a vírgula
 // em SO/navegador com locale en-US (o Gonza só conseguia digitar ponto). Aqui normalizamos.
@@ -899,7 +904,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
 // =====================================================================================
 // ABA HISTÓRICO
 // =====================================================================================
-function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: any[]; responsaveis: any[]; secaoAtiva: Secao; isAdmin: boolean }) {
+function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, podeExcluir }: { fichas: any[]; responsaveis: any[]; secaoAtiva: Secao; podeEditar: boolean; podeExcluir: boolean }) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
@@ -1254,17 +1259,17 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
                 )}
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                {isAdmin && (
+                {podeEditar && (
                   <button onClick={() => { setEditando(detalhe); setDetalhe(null); }}
                     className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 border border-indigo-200 dark:border-indigo-800 rounded-md px-2 py-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
-                    title="Editar esta execução (admin)">
+                    title="Editar esta execução">
                     <Pencil className="w-3.5 h-3.5" />Editar
                   </button>
                 )}
-                {isAdmin && (
+                {podeExcluir && (
                   <button onClick={() => excluir(detalhe)} disabled={excluindo}
                     className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 border border-red-200 dark:border-red-800 rounded-md px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
-                    title="Excluir esta execução do histórico (admin)">
+                    title="Excluir esta execução do histórico">
                     {excluindo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}Excluir
                   </button>
                 )}
@@ -1315,7 +1320,7 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, isAdmin }: { fichas: a
       )}
 
       {/* Modal de edição rápida (admin) — corrige lançamento errado sem perder o registro */}
-      {editando && isAdmin && barId && (
+      {editando && podeEditar && barId && (
         <EditarExecucaoModal
           exec={editando} fichas={fichas} responsaveis={responsaveis} barId={barId}
           onClose={() => setEditando(null)}
@@ -1572,7 +1577,7 @@ function AbaAnalise({ secaoAtiva }: { secaoAtiva: Secao }) {
   );
 }
 
-function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmin: boolean }) {
+function AbaAlimentacao({ responsaveis, podeExcluir }: { responsaveis: any[]; podeExcluir: boolean }) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
@@ -2077,7 +2082,7 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
                       <td className="px-2 py-1.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{cpp != null ? fmtBRL(cpp) : '—'}</td>
                       <td className="px-2 py-1.5 text-right whitespace-nowrap">
                         <button onClick={() => abrirDetalhe(ref)} title="Ver insumos" className="p-1 text-gray-400 hover:text-indigo-600"><ListChecks className="w-4 h-4" /></button>
-                        {isAdmin && <button onClick={() => excluir(ref)} title="Excluir" className="p-1 text-gray-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
+                        {podeExcluir && <button onClick={() => excluir(ref)} title="Excluir" className="p-1 text-gray-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
                       </td>
                     </tr>
                   );
@@ -2509,8 +2514,13 @@ function GerirEquipeModal({ barId, responsaveis, onClose, onChanged }: {
 // =====================================================================================
 export default function ProducoesPage() {
   const { selectedBar } = useBar();
-  const { isRole, hasPermission } = useAuth();
+  const { isRole, hasPermission, can } = useAuth();
   const isAdmin = isRole('admin');
+  // Editar/excluir execução seguem o MÓDULO (config do usuário), não o role. Admin sempre pode.
+  // "Gerir equipe" continua isAdmin de propósito: escreve em /pessoas-responsaveis, que é
+  // admin-only por design no backend (liberar o botão sem liberar a API daria "abre mas 403").
+  const podeEditarProducao = can(MOD_CONTROLE_PRODUCAO, 'editar');
+  const podeExcluirProducao = can(MOD_CONTROLE_PRODUCAO, 'excluir');
   const barId = selectedBar?.id;
   const [aba, setAba] = useState<'executar' | 'historico' | 'analise' | 'alimentacao'>('executar');
   const [fichas, setFichas] = useState<any[]>([]);
@@ -2578,10 +2588,10 @@ export default function ProducoesPage() {
         {aba === 'executar'
           ? <AbaExecutar fichas={fichas} responsaveis={responsaveis} secaoAtiva={secaoAtiva} />
           : aba === 'historico'
-          ? <AbaHistorico fichas={fichas} responsaveis={responsaveis} secaoAtiva={secaoAtiva} isAdmin={isAdmin} />
+          ? <AbaHistorico fichas={fichas} responsaveis={responsaveis} secaoAtiva={secaoAtiva} podeEditar={podeEditarProducao} podeExcluir={podeExcluirProducao} />
           : aba === 'analise'
           ? <AbaAnalise secaoAtiva={secaoAtiva} />
-          : <AbaAlimentacao responsaveis={responsaveis} isAdmin={isAdmin} />}
+          : <AbaAlimentacao responsaveis={responsaveis} podeExcluir={podeExcluirProducao} />}
 
         {gerirEquipe && isAdmin && barId && (
           <GerirEquipeModal

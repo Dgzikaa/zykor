@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { withAuth } from '@/lib/http/with-auth';
+import { hasPermission } from '@/lib/auth/get-user';
 import { fail, success } from '@/lib/http/responses';
 import { ForbiddenError } from '@/lib/errors';
 import { repos } from '@/lib/repositories';
@@ -16,7 +17,7 @@ const FiltrosSchema = z.object({
 
 export const GET = withAuth(async ({ user, request }) => {
   if (!user.bar_id) return fail('Bar nao selecionado', 400);
-  if (user.role !== 'admin') throw new ForbiddenError('Apenas admin vê o histórico do bar');
+  if (!hasPermission(user, 'configuracoes')) throw new ForbiddenError('Sem permissão para ver o histórico do bar');
 
   const url = new URL(request.url);
   const p = FiltrosSchema.parse(Object.fromEntries(url.searchParams));

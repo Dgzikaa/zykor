@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { userHasModule } from '@/lib/permissions/resolver';
+import { userHasModule, userCan, type PermAction } from '@/lib/permissions/resolver';
 
 interface UserInfo {
   id: number;
@@ -92,6 +92,14 @@ export function useAuth() {
     return permissions.some(permission => hasPermission(permission));
   };
 
+  // Pode a AÇÃO (ver/editar/inserir/excluir) no módulo? Admin sempre pode (igual ao guard do
+  // backend). Usar isto — e não hasPermission (que é só 'ver') — pra gatear ações destrutivas na UI.
+  const can = (moduleId: string, action: PermAction) => {
+    if (!user) return false;
+    if (user.role?.toLowerCase() === 'admin') return true;
+    return userCan(user.modulos_permitidos ?? [], moduleId, action);
+  };
+
   const isRole = (role: string) => {
     return user?.role?.toLowerCase() === role.toLowerCase();
   };
@@ -115,6 +123,7 @@ export function useAuth() {
     error,
     hasPermission,
     hasAnyPermission,
+    can,
     isRole,
     roleDisplayName: user ? roleDisplayName(user.role) : null,
   };

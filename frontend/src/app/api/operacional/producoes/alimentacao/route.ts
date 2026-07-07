@@ -116,15 +116,14 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * DELETE ?id=&bar_id= — remove uma refeição (admin only). Cascata apaga os insumos.
+ * DELETE ?id=&bar_id= — remove uma refeição (permissão 'excluir' no módulo Controle de Produção). Cascata apaga os insumos.
  */
 export async function DELETE(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  // Escrita gateada pelo módulo da rota (negarPorRota → 'excluir' em producao - cmv_controle_de_producao).
+  // Antes exigia role admin; agora respeita a config do usuário (admin continua passando).
   const nega = negarPorRota(user, request); if (nega) return nega;
-  if (user.role !== 'admin') {
-    return NextResponse.json({ success: false, error: 'Apenas admin pode excluir refeições' }, { status: 403 });
-  }
   const sp = new URL(request.url).searchParams;
   const id = Number(sp.get('id'));
   const barId = Number(sp.get('bar_id')) || user.bar_id;

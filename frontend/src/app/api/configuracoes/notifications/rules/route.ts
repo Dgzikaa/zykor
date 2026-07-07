@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { withAuth } from '@/lib/http/with-auth';
+import { hasPermission } from '@/lib/auth/get-user';
 import { fail, success } from '@/lib/http/responses';
 import { ForbiddenError } from '@/lib/errors';
 import { repos } from '@/lib/repositories';
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic';
 // GET — catálogo (grupos) + regras atuais do bar (mapa por event_key)
 export const GET = withAuth(async ({ user }) => {
   if (!user.bar_id) return fail('Bar nao selecionado', 400);
-  if (user.role !== 'admin') throw new ForbiddenError('Apenas admin configura regras');
+  if (!hasPermission(user, 'configuracoes')) throw new ForbiddenError('Sem permissão para configurar regras');
 
   const { notificationRules } = await repos();
   const regras = await notificationRules.listarDoBar(user.bar_id);
@@ -40,7 +41,7 @@ const RuleSchema = z.object({
 
 export const PUT = withAuth(async ({ user, request }) => {
   if (!user.bar_id) return fail('Bar nao selecionado', 400);
-  if (user.role !== 'admin') throw new ForbiddenError('Apenas admin configura regras');
+  if (!hasPermission(user, 'configuracoes')) throw new ForbiddenError('Sem permissão para configurar regras');
 
   const body = RuleSchema.parse(await request.json());
 

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useUser } from '@/contexts/UserContext';
+import { userHasModule } from '@/lib/permissions/resolver';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Bell, Inbox, Send, History, Smartphone, Zap } from 'lucide-react';
 import InboxTab from './_components/InboxTab';
@@ -14,7 +15,10 @@ import CondicoesTab from './_components/CondicoesTab';
 
 export default function NotificationsPage() {
   const { user } = useUser();
-  const isAdmin = user?.role === 'admin';
+  // Gestão das notificações (Alertas/Enviar/Histórico) segue o MÓDULO Configurações, não o role.
+  // Admin sempre passa. Quem não tem o módulo vê só a Caixa de entrada + Dispositivos.
+  const podeGerir =
+    user?.role === 'admin' || userHasModule((user as any)?.modulos_permitidos, 'configuracoes');
   const [tab, setTab] = useState('inbox');
 
   return (
@@ -34,17 +38,17 @@ export default function NotificationsPage() {
             <TabsTrigger value="inbox" className="gap-1.5">
               <Inbox className="w-4 h-4" /> Caixa de entrada
             </TabsTrigger>
-            {isAdmin && (
+            {podeGerir && (
               <TabsTrigger value="alertas" className="gap-1.5">
                 <Zap className="w-4 h-4" /> Alertas
               </TabsTrigger>
             )}
-            {isAdmin && (
+            {podeGerir && (
               <TabsTrigger value="enviar" className="gap-1.5">
                 <Send className="w-4 h-4" /> Enviar aviso
               </TabsTrigger>
             )}
-            {isAdmin && (
+            {podeGerir && (
               <TabsTrigger value="historico" className="gap-1.5">
                 <History className="w-4 h-4" /> Histórico
               </TabsTrigger>
@@ -58,7 +62,7 @@ export default function NotificationsPage() {
             <InboxTab />
           </TabsContent>
 
-          {isAdmin && (
+          {podeGerir && (
             <TabsContent value="alertas" className="mt-4 space-y-8">
               <section className="space-y-3">
                 <div>
@@ -85,13 +89,13 @@ export default function NotificationsPage() {
             </TabsContent>
           )}
 
-          {isAdmin && (
+          {podeGerir && (
             <TabsContent value="enviar" className="mt-4">
               <EnviarTab />
             </TabsContent>
           )}
 
-          {isAdmin && (
+          {podeGerir && (
             <TabsContent value="historico" className="mt-4">
               <HistoricoTab />
             </TabsContent>

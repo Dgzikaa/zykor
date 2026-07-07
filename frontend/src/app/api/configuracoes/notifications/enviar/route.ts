@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { withAuth } from '@/lib/http/with-auth';
+import { hasPermission } from '@/lib/auth/get-user';
 import { fail, success } from '@/lib/http/responses';
 import { ForbiddenError } from '@/lib/errors';
 import { dispatchNotification } from '@/lib/notifications/dispatch';
@@ -25,7 +26,7 @@ const EnviarSchema = z
 
 export const POST = withAuth(async ({ user, request }) => {
   if (!user.bar_id) return fail('Bar nao selecionado', 400);
-  if (user.role !== 'admin') throw new ForbiddenError('Apenas admin envia avisos');
+  if (!hasPermission(user, 'configuracoes')) throw new ForbiddenError('Sem permissão para enviar avisos');
 
   const body = EnviarSchema.parse(await request.json());
 

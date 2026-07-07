@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
-import { getUserAuth, isAdmin } from '@/lib/auth-helper';
 import { authenticateUser } from '@/middleware/auth';
+import { hasPermission } from '@/lib/auth/get-user';
 
 export const dynamic = 'force-dynamic'// ========================================
 // 📅 IMPORTAR EVENTOS DO GOOGLE SHEETS
 // ========================================
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
   try {
-    const user = await getUserAuth(request);
-
-    // Verificar permissões
-    if (!user || !isAdmin(user)) {
+    // Acesso por MÓDULO (Planejamento), não mais por role admin. Admin sempre passa.
+    if (!user || !hasPermission(user, 'estrategico_planejamento')) {
       return NextResponse.json(
         {
-          error: 'Apenas administradores podem importar eventos',
+          error: 'Sem permissão para importar eventos',
         },
         { status: 403 }
       );

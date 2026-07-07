@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { encryptSecret } from '@/lib/crypto/secretBox';
+import { podeRH } from '@/lib/auth/rh-guard';
 
 /**
  * GET  /api/rh/tangerino/cadastrar — status da credencial Tangerino do bar (existe? quando).
@@ -10,14 +11,10 @@ import { encryptSecret } from '@/lib/crypto/secretBox';
  */
 export const dynamic = 'force-dynamic';
 
-function podeUsar(role?: string) {
-  return role === 'admin' || role === 'rh' || role === 'financeiro';
-}
-
 export async function GET(req: NextRequest) {
   const user = await authenticateUser(req);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeUsar(user.role)) return permissionErrorResponse('Apenas admin/RH');
+  if (!podeRH(user)) return permissionErrorResponse('Sem permissão de RH');
   if (!user.bar_id) return NextResponse.json({ error: 'Nenhum bar selecionado' }, { status: 400 });
 
   const supabase = await getAdminClient();
@@ -30,7 +27,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeUsar(user.role)) return permissionErrorResponse('Apenas admin/RH podem cadastrar');
+  if (!podeRH(user)) return permissionErrorResponse('Sem permissão de RH para cadastrar');
   if (!user.bar_id) return NextResponse.json({ error: 'Nenhum bar selecionado' }, { status: 400 });
 
   const body = await req.json().catch(() => ({} as any));
