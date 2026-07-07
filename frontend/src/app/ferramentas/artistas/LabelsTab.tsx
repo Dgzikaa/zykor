@@ -180,6 +180,7 @@ export default function LabelsTab({ barId, periodo }: { barId?: number; periodo:
               <th className="text-right px-3 py-2" title="Ticket médio (t_medio)">Ticket</th>
               <th className="text-right px-3 py-2" title="R$ faturado por R$ de cachê">Retorno</th>
               <th className="text-right px-3 py-2" title="% do fat que vira cachê">% cachê</th>
+              <th className="text-left px-3 py-2" title="De onde vem o faturamento: Bar (consumo) × Couvert × Bilheteria (Yuzer/Sympla)">Composição</th>
               <th className="text-right px-3 py-2" title="Realizado ÷ Meta M1 (onde há meta lançada)">Meta</th>
               <th className="text-right px-3 py-2" title="Público médio ÷ capacidade">Ocup.</th>
               <th className="text-left px-3 py-2" title="Coef. de variação do faturamento — quão previsível é a label">Consistência</th>
@@ -203,6 +204,7 @@ export default function LabelsTab({ barId, periodo }: { barId?: number; periodo:
                     <td className="px-3 py-2 text-right tabular-nums text-gray-500">{l.ticket_medio ? money(l.ticket_medio) : '—'}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{l.retorno != null ? `${l.retorno.toFixed(1).replace('.', ',')}×` : '—'}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-gray-500">{l.pct_cachet != null ? `${Math.round(l.pct_cachet)}%` : '—'}</td>
+                    <td className="px-3 py-2"><MiniComp c={l.composicao} /></td>
                     <td className={`px-3 py-2 text-right tabular-nums ${l.meta_atingimento == null ? 'text-gray-400' : l.meta_atingimento >= 100 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{l.meta_atingimento != null ? `${Math.round(l.meta_atingimento)}%` : '—'}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-gray-500">{l.ocupacao != null ? `${Math.round(l.ocupacao)}%` : '—'}</td>
                     <td className="px-3 py-2"><span className={`text-[11px] px-1.5 py-0.5 rounded ${selo.cls}`}>{selo.txt}</span></td>
@@ -383,6 +385,25 @@ function MiniKpi({ label, v }: { label: string; v: string }) {
     <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
       <div className="text-[11px] text-gray-500">{label}</div>
       <div className="text-lg font-bold text-gray-900 dark:text-white truncate" title={v}>{v}</div>
+    </div>
+  );
+}
+
+// mini-barra de composição p/ a linha do ranking (bar/couvert/bilheteria)
+function MiniComp({ c }: { c: any }) {
+  if (!c) return <span className="text-gray-300">—</span>;
+  const segs = [
+    { cor: '#10b981', pct: c.pct_bar, val: c.bar, nome: 'Bar' },
+    { cor: '#8b5cf6', pct: c.pct_couvert, val: c.couvert, nome: 'Couvert' },
+    { cor: '#f59e0b', pct: c.pct_bilheteria, val: c.bilheteria, nome: 'Bilheteria' },
+  ].filter((s) => s.val > 0);
+  const titulo = segs.map((s) => `${s.nome} ${money(s.val)} (${Math.round(s.pct)}%)`).join(' · ');
+  return (
+    <div className="flex items-center gap-2" title={titulo}>
+      <div className="flex h-2.5 w-[68px] rounded-sm overflow-hidden bg-gray-100 dark:bg-gray-800 shrink-0">
+        {segs.map((s, i) => <div key={i} style={{ width: `${s.pct}%`, background: s.cor }} />)}
+      </div>
+      <span className="text-[11px] text-gray-400 tabular-nums">{Math.round(c.pct_bar)}%<span className="text-gray-300"> bar</span></span>
     </div>
   );
 }
