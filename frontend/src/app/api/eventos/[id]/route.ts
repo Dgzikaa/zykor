@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';const supabase = createServiceRoleClient();
 
@@ -11,6 +12,11 @@ function getBarIdFromRequest(request: NextRequest): number | null {
 
 // PUT - Atualizar dados de planejamento do evento
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // authenticateUser PRIMEIRO (antes de qualquer await, incl. params) → publica o ator
+  // no auditContext pro trigger trg_audit registrar quem alterou (ex.: Meta M1).
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+
   const { id } = await params;
 
   try {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 const supabase = createServiceRoleClient();
@@ -14,6 +15,11 @@ function getBarId(request: NextRequest): number | null {
 // mês conforme o M1 do seu dia da semana. Só toca m1_r (não mexe em outros campos).
 // body: { ano, mes, m1PorDow: { "0".."6": number } }  (dow: 0=dom .. 6=sab)
 export async function POST(request: NextRequest) {
+  // authenticateUser PRIMEIRO (antes de qualquer await) → publica o ator no auditContext,
+  // pra o trigger trg_audit atribuir quem alterou a Meta M1 de cada dia.
+  const user = await authenticateUser(request);
+  if (!user) return NextResponse.json({ success: false, error: 'Não autenticado' }, { status: 401 });
+
   const barId = getBarId(request);
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id é obrigatório' }, { status: 400 });
 

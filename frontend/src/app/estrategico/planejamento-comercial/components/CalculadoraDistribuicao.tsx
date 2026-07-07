@@ -76,6 +76,10 @@ function maskMoeda(raw: string): string {
 const fmt = (n: number, dec = 0) =>
   (isFinite(n) ? n : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: dec, maximumFractionDigits: dec });
 const fmtPct = (n: number) => `${(isFinite(n) ? n : 0).toFixed(1)}%`;
+const fmtData = (iso: string) => {
+  try { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+  catch { return ''; }
+};
 
 // linha do banco (números) → config da UI (strings mascaradas)
 function cfgFromDb(row: any): CalcCfg {
@@ -107,6 +111,19 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
   const [aplicando, setAplicando] = useState(false);
   const [resultado, setResultado] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [aba, setAba] = useState<'calc' | 'hist'>('calc');
+  const [histRows, setHistRows] = useState<Array<{ data_evento: string | null; dia: string | null; de: number | null; para: number | null; user_email: string | null; timestamp: string }>>([]);
+  const [histLoading, setHistLoading] = useState(false);
+
+  // carrega o histórico de mudanças da Meta M1 do mês (audit_trail) ao abrir a aba
+  useEffect(() => {
+    if (!open || aba !== 'hist' || !barId) return;
+    setHistLoading(true);
+    apiCall(`/api/eventos/distribuicao-historico?ano=${ano}&mes=${mes}`, { headers: { 'x-selected-bar-id': String(barId) } })
+      .then((r: any) => setHistRows(r?.success ? (r.historico || []) : []))
+      .catch(() => setHistRows([]))
+      .finally(() => setHistLoading(false));
+  }, [open, aba, barId, ano, mes]);
 
   // carrega config por bar+mês: rascunho local (instantâneo) OU, se não houver,
   // a config salva no banco (durável, gravada ao clicar Aplicar).
@@ -237,13 +254,27 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
         {calc.temDados ? 'Editar calculadora' : 'Abrir calculadora'}
       </Button>
 
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setConfirmando(false); setResultado(null); } }}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setConfirmando(false); setResultado(null); setAba('calc'); } }}>
         <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Calculator className="h-5 w-5" /> Calculadora de Distribuição de Metas</DialogTitle>
             <DialogDescription>Distribui a meta mensal pelos dias da semana pelo peso de cada dia. Salva no seu navegador; use &ldquo;Aplicar&rdquo; para gravar a Meta M1 no mês.</DialogDescription>
           </DialogHeader>
 
+          <div className="px-6 flex gap-4 border-b border-[hsl(var(--border))]">
+            {(['calc', 'hist'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setAba(t)}
+                className={`pb-2 -mb-px text-sm font-medium border-b-2 transition-colors ${aba === t ? 'border-[hsl(var(--primary))] text-[hsl(var(--foreground))]' : 'border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'}`}
+              >
+                {t === 'calc' ? 'Calculadora' : 'Histórico do mês'}
+              </button>
+            ))}
+          </div>
+
+          {aba === 'calc' && (
           <div className="px-6 pb-2">
           {/* Parâmetros */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -341,10 +372,42 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
             </div>
           </div>
           </div>
+          )}
+
+          {aba === 'hist' && (
+          <div className="px-6 pb-2">
+            <div className="text-xs text-[hsl(var(--muted-foreground))] mb-3">Alterações da Meta M1 dos dias de {mesLabel} — quem mudou, quando e de→para.</div>
+            {histLoading ? (
+              <div className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))] flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>
+            ) : histRows.length === 0 ? (
+              <div className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">Nenhuma alteração de Meta M1 registrada ainda neste mês.</div>
+            ) : (
+              <div className="space-y-1.5 max-h-[55vh] overflow-y-auto">
+                {histRows.map((h, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 text-xs rounded border border-[hsl(var(--border))] px-3 py-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="uppercase text-[hsl(var(--muted-foreground))] w-8 shrink-0">{h.dia || '—'}</span>
+                      <span className="font-medium text-[hsl(var(--foreground))] shrink-0">{h.data_evento ? h.data_evento.split('-').reverse().join('/') : '—'}</span>
+                      <span className="text-[hsl(var(--muted-foreground))] truncate">
+                        {h.de != null ? fmt(h.de) : '—'}<span className="mx-1">→</span><span className="font-semibold text-[hsl(var(--foreground))]">{h.para != null ? fmt(h.para) : '—'}</span>
+                      </span>
+                    </div>
+                    <div className="text-right shrink-0 text-[10px] text-[hsl(var(--muted-foreground))]">
+                      <div className="truncate max-w-[140px]">{h.user_email || 'sistema'}</div>
+                      <div>{fmtData(h.timestamp)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          )}
 
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            {resultado && <span className="text-xs mr-auto self-center">{resultado}</span>}
-            {confirmando ? (
+            {aba === 'calc' && resultado && <span className="text-xs mr-auto self-center">{resultado}</span>}
+            {aba === 'hist' ? (
+              <Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button>
+            ) : confirmando ? (
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> Sobrescrever Meta M1 de {mesLabel}?</span>
                 <Button size="sm" variant="outline" onClick={() => setConfirmando(false)} disabled={aplicando}>Cancelar</Button>
