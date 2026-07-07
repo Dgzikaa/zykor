@@ -244,6 +244,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
             <DialogDescription>Distribui a meta mensal pelos dias da semana pelo peso de cada dia. Salva no seu navegador; use &ldquo;Aplicar&rdquo; para gravar a Meta M1 no mês.</DialogDescription>
           </DialogHeader>
 
+          <div className="px-6 pb-2">
           {/* Parâmetros */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div><Label className="text-xs">Target M1 (mês)</Label><Input inputMode="decimal" value={cfg.targetM1} placeholder="R$ 0,00" onChange={(e) => setCfg((p) => ({ ...p, targetM1: maskMoeda(e.target.value) }))} /></div>
@@ -338,6 +339,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
                 );
               })}
             </div>
+          </div>
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2">
