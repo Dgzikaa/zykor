@@ -251,6 +251,55 @@ async function medirSinal(
       return [{ valor: v, alvoKey: String(row.data_fim), descricaoValor: `${br(v)} (semana ${row.data_fim})` }];
     }
 
+    case 'lancamento_vencido': {
+      const desde = new Date(Date.now() - 60 * 86_400_000).toISOString().slice(0, 10);
+      const { data } = await supabase
+        .schema('silver')
+        .from('contaazul_lancamentos_diarios')
+        .select('lancamentos_atrasados, tipo, data_competencia')
+        .eq('bar_id', barId)
+        .ilike('tipo', 'despesa')
+        .gte('data_competencia', desde);
+      const total = ((data ?? []) as Array<any>).reduce(
+        (s, r) => s + (Number(r.lancamentos_atrasados) || 0),
+        0
+      );
+      if (total === 0) return [];
+      return [
+        { valor: total, alvoKey: 'vencidos_60d', descricaoValor: `${total} despesa(s) vencida(s) nos últimos 60 dias` },
+      ];
+    }
+
+    case 'faturamento_abaixo_meta': {
+      const { data: vd } = await supabase
+        .schema('silver')
+        .from('vendas_diarias')
+        .select('dt_gerencial, faturamento_liquido_r')
+        .eq('bar_id', barId)
+        .order('dt_gerencial', { ascending: false })
+        .limit(1);
+      const row = vd?.[0];
+      if (!row) return [];
+      const fat = Number(row.faturamento_liquido_r) || 0;
+      const dow = new Date(`${String(row.dt_gerencial)}T12:00:00Z`).getUTCDay(); // 0=dom..6=sáb
+      const { data: metas } = await supabase
+        .schema('operations')
+        .from('bar_metas_periodo')
+        .select('meta_m1')
+        .eq('bar_id', barId)
+        .eq('dia_semana', dow)
+        .limit(1);
+      const meta = Number(metas?.[0]?.meta_m1) || 0;
+      if (meta <= 0 || fat >= meta) return []; // sem meta pro dia OU bateu a meta
+      return [
+        {
+          valor: fat,
+          alvoKey: `meta:${row.dt_gerencial}`,
+          descricaoValor: `R$ ${br(fat)} (meta R$ ${br(meta)}) em ${row.dt_gerencial}`,
+        },
+      ];
+    }
+
     case 'pipeline_parado': {
       // v_data_freshness (schema public) — status 'atrasado' | 'sem_dados' = problema
       const { data } = await supabase

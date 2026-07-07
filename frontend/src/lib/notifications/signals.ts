@@ -142,6 +142,32 @@ export const ALERT_SIGNALS: AlertSignal[] = [
     implementado: true,
   },
   {
+    key: 'lancamento_vencido',
+    label: 'Lançamentos vencidos (despesas, 60 dias)',
+    descricao:
+      'Total de despesas vencidas/atrasadas no Conta Azul (últimos 60 dias de competência) cruza um limite.',
+    categoria: 'financeiro',
+    unidade: 'lançamentos',
+    operadores: ['gt', 'gte'],
+    usaLimite: true,
+    severidadeSugerida: 'alerta',
+    modo: 'cron',
+    implementado: true,
+  },
+  {
+    key: 'faturamento_abaixo_meta',
+    label: 'Faturamento do dia abaixo da meta',
+    descricao:
+      'O faturamento do último dia ficou abaixo da meta cadastrada para aquele dia da semana (Orçamentação). Dispara automático.',
+    categoria: 'financeiro',
+    unidade: 'R$',
+    operadores: ['lt'],
+    usaLimite: false,
+    severidadeSugerida: 'alerta',
+    modo: 'cron',
+    implementado: true,
+  },
+  {
     key: 'pipeline_parado',
     label: 'Pipeline de dados parado',
     descricao: 'Algum pipeline (sync/cron) está atrasado ou sem dados além do SLA. Dispara automático por pipeline.',
