@@ -84,6 +84,15 @@
     },
     "src/app/api/financeiro/receitas/sympla/lancar/route.ts": {
       "maxDuration": 120
+    },
+    "src/app/api/financeiro/fechamento/cron-mensal/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/financeiro/fechamento/variacao-estoque/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/financeiro/fechamento/bonificacoes/route.ts": {
+      "maxDuration": 60
     }
   },
   "git": {

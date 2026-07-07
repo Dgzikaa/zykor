@@ -1,21 +1,64 @@
 'use client';
 
+import { useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { TrendingDown } from 'lucide-react';
+import { TrendingDown, Banknote, Boxes, Gift, Receipt, HandCoins, CalendarSync } from 'lucide-react';
 import { FluxoContaHub } from '@/app/financeiro/saidas-caixa/page';
+import { VariacaoEstoqueTab } from './components/VariacaoEstoqueTab';
+import { BonificacoesTab } from './components/BonificacoesTab';
+import { ConsumacoesTab } from './components/ConsumacoesTab';
+import { ImpostosTab } from './components/ImpostosTab';
+import { AjusteViradaTab } from './components/AjusteViradaTab';
+
+type AbaId = 'dinheiro' | 'variacao' | 'bonificacoes' | 'impostos' | 'consumacoes' | 'virada';
+
+const ABAS: { id: AbaId; label: string; Icon: any; disponivel: boolean }[] = [
+  { id: 'dinheiro', label: 'Dinheiro em Espécie', Icon: Banknote, disponivel: true },
+  { id: 'variacao', label: 'Variação de Estoque', Icon: Boxes, disponivel: true },
+  { id: 'bonificacoes', label: 'Bonificações', Icon: Gift, disponivel: true },
+  { id: 'consumacoes', label: 'Consumações', Icon: HandCoins, disponivel: true },
+  { id: 'impostos', label: 'Simulação Impostos', Icon: Receipt, disponivel: true },
+  { id: 'virada', label: 'Ajuste Virada do Mês', Icon: CalendarSync, disponivel: true },
+];
 
 function DespesasInner() {
+  const [aba, setAba] = useState<AbaId>('dinheiro');
+
   return (
     <div className="p-4 md:p-6 mx-auto space-y-4">
       <div className="flex items-center gap-3">
         <div className="rounded-xl bg-red-500/10 p-2.5"><TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400" /></div>
         <div>
           <h1 className="text-xl font-semibold">Despesas CA</h1>
-          <p className="text-sm text-muted-foreground">Despesas lançadas no Conta Azul. Por ora: dinheiro que saiu do caixa (ContaHub).</p>
+          <p className="text-sm text-muted-foreground">Lançamentos de despesa no Conta Azul feitos pelo Zykor.</p>
         </div>
       </div>
 
-      <FluxoContaHub only="saidas" />
+      <div className="flex gap-1 border-b overflow-x-auto">
+        {ABAS.map(({ id, label, Icon, disponivel }) => (
+          <button
+            key={id}
+            onClick={() => disponivel && setAba(id)}
+            disabled={!disponivel}
+            title={disponivel ? undefined : 'Em breve'}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 -mb-px whitespace-nowrap transition-colors ${
+              aba === id ? 'border-primary text-primary font-medium'
+              : disponivel ? 'border-transparent text-muted-foreground hover:text-foreground'
+              : 'border-transparent text-muted-foreground/40 cursor-not-allowed'
+            }`}
+          >
+            <Icon className="h-4 w-4" /> {label}
+            {!disponivel && <span className="text-[10px] rounded-full bg-muted px-1.5 py-0.5 ml-0.5">em breve</span>}
+          </button>
+        ))}
+      </div>
+
+      {aba === 'dinheiro' && <FluxoContaHub only="saidas" />}
+      {aba === 'variacao' && <VariacaoEstoqueTab />}
+      {aba === 'bonificacoes' && <BonificacoesTab />}
+      {aba === 'consumacoes' && <ConsumacoesTab />}
+      {aba === 'impostos' && <ImpostosTab />}
+      {aba === 'virada' && <AjusteViradaTab />}
     </div>
   );
 }
