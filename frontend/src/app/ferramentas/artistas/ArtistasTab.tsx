@@ -9,9 +9,10 @@ import { Music, DollarSign, Users, TrendingUp, TrendingDown, Minus, Gauge, Arrow
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const num = (v: number) => Math.round(v || 0).toLocaleString('pt-BR');
 
-type Sort = 'fat_total' | 'roi' | 'lift_fat' | 'publico_medio' | 'custo_total' | 'retorno' | 'nps_score' | 'pct_fideliza';
+type Sort = 'fat_total' | 'roi' | 'lift_fat' | 'publico_medio' | 'custo_total' | 'retorno' | 'nps_score' | 'pct_fideliza' | 'saldo_cachet';
 const SORTS: { key: Sort; label: string }[] = [
   { key: 'lift_fat', label: 'Maior lift' },
+  { key: 'saldo_cachet', label: 'Vale o cachê' },
   { key: 'nps_score', label: 'Melhor NPS' },
   { key: 'pct_fideliza', label: 'Mais fideliza' },
   { key: 'fat_total', label: 'Faturamento' },
@@ -94,6 +95,7 @@ export default function ArtistasTab({ barId, periodo }: { barId?: number; period
                     <th className="text-right px-3 py-2" title={`Cachê pago no período (${periodo} meses). Na página do artista o total é do histórico completo — por isso pode diferir.`}>Cachê pago ({periodo}m)</th>
                     <th className="text-right px-3 py-2" title="R$ faturado por R$ de cachê">Retorno</th>
                     <th className="text-right px-3 py-2" title="% do faturamento que vira cachê">% cachê</th>
+                    <th className="text-right px-3 py-2" title="Lift (fat incremental por show) menos o cachê médio por show. Positivo = o artista traz mais do que custa.">Vale o cachê?</th>
                     <th className="text-right px-3 py-2" title="Fat médio do artista menos a média do mesmo dia-da-semana sem ele">Lift fat</th>
                     <th className="text-right px-3 py-2" title="Público médio acima da média do mesmo dia sem ele">Lift púb.</th>
                     <th className="text-center px-3 py-2">Tend.</th>
@@ -120,6 +122,9 @@ export default function ArtistasTab({ barId, periodo }: { barId?: number; period
                         <td className="px-3 py-2 text-right tabular-nums">{money(a.custo_total)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{a.retorno != null ? `${a.retorno.toFixed(1).replace('.', ',')}×` : '—'}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-gray-500">{a.pct_cachet != null ? `${Math.round(a.pct_cachet)}%` : '—'}</td>
+                        <td className={`px-3 py-2 text-right tabular-nums font-medium ${a.saldo_cachet == null ? 'text-gray-400' : a.saldo_cachet >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                          {a.saldo_cachet == null ? '—' : <span className="inline-flex items-center gap-0.5">{a.saldo_cachet >= 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}{money(Math.abs(a.saldo_cachet))}</span>}
+                        </td>
                         <td className={`px-3 py-2 text-right tabular-nums font-medium ${a.lift_fat == null ? 'text-gray-400' : a.lift_fat >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                           {a.lift_fat == null ? '—' : <span className="inline-flex items-center gap-0.5">{a.lift_fat >= 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}{money(Math.abs(a.lift_fat))}</span>}
                         </td>

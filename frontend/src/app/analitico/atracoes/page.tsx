@@ -177,6 +177,7 @@ export default function AtracoesPage() {
 
             {/* #2 O NPS prevê retorno? + #6 Motivos citados (métricas da casa) */}
             {barId ? <NpsRetornoCard barId={barId} de={de} ate={ate} dow={dow} /> : null}
+            {barId ? <NpsLotacaoCard barId={barId} de={de} ate={ate} dow={dow} /> : null}
             {barId ? <NpsTemasCard barId={barId} de={de} ate={ate} dow={dow} /> : null}
 
             {/* Dropdown de artista */}
@@ -438,6 +439,37 @@ const npsDimCor = (nota: number) => nota >= 4.2 ? 'bg-emerald-100 text-emerald-7
 const npsCat = (c: string) => c === 'promotor' ? { emoji: '😍', cor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' }
   : c === 'neutro' ? { emoji: '😐', cor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' }
   : { emoji: '😕', cor: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' };
+
+// #3 — NPS × lotação: a nota cai quando a casa enche? (tercis de público da noite)
+function NpsLotacaoCard({ barId, de, ate, dow }: { barId?: number; de: string; ate: string; dow: string }) {
+  const [d, setD] = useState<any>(null);
+  useEffect(() => {
+    if (!barId) return;
+    const qs = new URLSearchParams({ view: 'nps-lotacao', bar_id: String(barId) });
+    if (de) qs.set('de', de); if (ate) qs.set('ate', ate); if (dow !== '') qs.set('dow', dow);
+    fetch(`/api/analitico/atracoes?${qs.toString()}`, { cache: 'no-store' }).then(r => r.json()).then(setD).catch(() => setD(null));
+  }, [barId, de, ate, dow]);
+  if (!d || !d.faixas || d.faixas.length < 3) return null;
+  const f = d.faixas;
+  const caiu = f[0].nps_score - f[f.length - 1].nps_score;
+  return (
+    <Card className="border-amber-100 dark:border-amber-900/40">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2"><Users className="h-4 w-4 text-amber-500" />NPS × lotação</CardTitle>
+        <CardDescription>a nota muda quando a casa enche? (público da noite){caiu >= 4 ? ` · mais cheio derruba ~${caiu} pts de NPS` : ''}</CardDescription>
+      </CardHeader>
+      <CardContent className="grid grid-cols-3 gap-3 text-center">
+        {f.map((x: any) => (
+          <div key={x.faixa}>
+            <div className={`text-2xl font-bold leading-none ${npsScoreCor(x.nps_score)}`}>{x.nps_score > 0 ? '+' : ''}{x.nps_score}</div>
+            <div className="text-xs font-medium text-gray-700 dark:text-gray-200 mt-1">{x.faixa}</div>
+            <div className="text-[11px] text-gray-400">{x.pub_min}–{x.pub_max} pessoas · {x.n} resp.</div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
 
 // #6 — Motivos citados nos comentários (reclamações: detratores + neutros).
 function NpsTemasCard({ barId, de, ate, dow }: { barId?: number; de: string; ate: string; dow: string }) {

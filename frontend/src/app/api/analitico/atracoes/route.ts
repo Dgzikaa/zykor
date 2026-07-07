@@ -162,6 +162,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, total_reclamacoes: reclam.length, total_comentarios: com.length, temas });
     }
 
+    // #3 NPS × lotação: casa cheia derruba a nota? (tercis de público da noite)
+    if (searchParams.get('view') === 'nps-lotacao') {
+      let q = (supabase as any).schema('silver').from('nps_lotacao').select('nps, publico, data_visita').eq('bar_id', barId);
+      if (de) q = q.gte('data_visita', de);
+      if (ate) q = q.lte('data_visita', ate);
+      const { data: rows, error } = await q;
+      if (error) throw error;
+      const arr = (dow == null ? (rows || []) : (rows || []).filter((r: any) => r.data_visita && new Date(r.data_visita + 'T12:00:00Z').getUTCDay() === dow))
+        .filter((r: any) => r.publico > 0).sort((a: any, b: any) => a.publico - b.publico);
+      if (arr.length < 9) return NextResponse.json({ success: true, faixas: [] });
+      const t = Math.floor(arr.length / 3);
+      const partes: Array<[string, any[]]> = [['Menos cheio', arr.slice(0, t)], ['Meio cheio', arr.slice(t, 2 * t)], ['Mais cheio', arr.slice(2 * t)]];
+      const faixas = partes.map(([faixa, part]) => {
+        const n = part.length;
+        const prom = part.filter((r: any) => r.nps >= 9).length;
+        const det = part.filter((r: any) => r.nps <= 6).length;
+        return {
+          faixa, n, pub_min: part[0]?.publico || 0, pub_max: part[n - 1]?.publico || 0,
+          nps_medio: Math.round((part.reduce((s: number, r: any) => s + (Number(r.nps) || 0), 0) / n) * 10) / 10,
+          nps_score: Math.round((prom / n) * 100 - (det / n) * 100),
+        };
+      });
+      return NextResponse.json({ success: true, faixas });
+    }
+
     // Modo artista-first: trajetória completa de 1 artista
     const artistaIdParam = searchParams.get('artista_id');
     if (artistaIdParam) {
@@ -435,6 +460,10 @@ export async function GET(request: NextRequest) {
         for (const eid of a.eventoIds) { const aq = aqPorEvento.get(eid); if (aq) { novos += aq.novos; fidelizados += aq.fidelizados; } }
         const pct_fideliza = novos > 0 ? Math.round((fidelizados / novos) * 100) : null;
 
+        // #4 "vale o cachê?": faturamento incremental por show (lift) menos o cachê médio por show.
+        // Positivo = o artista traz mais do que custa (acima da média do mesmo dia sem ele).
+        const saldo_cachet = (lift_fat != null && custo_medio > 0) ? lift_fat - custo_medio : null;
+
         return {
           artista_id: a.artista_id,
           nome: a.nome,
@@ -442,6 +471,7 @@ export async function GET(request: NextRequest) {
           shows: n,
           nps_respostas, nps_medio, nps_score,
           novos, fidelizados, pct_fideliza,
+          saldo_cachet,
           fat_total, fat_medio,
           publico_total, publico_medio,
           custo_total, custo_medio,
