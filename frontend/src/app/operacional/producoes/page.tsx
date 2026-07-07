@@ -174,9 +174,11 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
   // snapshot serializável (sem flags de UI voláteis) — base dos writes local/servidor
   const snapshotProds = () => prodsRef.current.map(p => ({ ...p, loadingItens: false }));
 
-  // aplica um conjunto de estados salvos (servidor ou local) na tela. Usado na hidratação e no
-  // "retomar por bar". Marca as assinaturas atuais p/ não reescrever local/servidor logo após.
-  const aplicarEstados = useCallback((estados: any[]): boolean => {
+  // aplica um conjunto de estados salvos na tela. Usado na hidratação e no "retomar por bar".
+  // fromServer=true SÓ quando o dado veio do servidor DESTE device → aí suprime o echo do PUT.
+  // Se veio do localStorage (ou de outro device no retomar), NÃO suprime → o writeServer empurra
+  // pro servidor (senão o rascunho ficava só no aparelho). O localStorage sempre re-sincroniza.
+  const aplicarEstados = useCallback((estados: any[], fromServer = false): boolean => {
     const restored: ActiveProd[] = (Array.isArray(estados) ? estados : [])
       .filter((p: any) => p && p.localId && p.ficha)
       .map((p: any) => ({
@@ -189,8 +191,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     setProds(restored);
     setSelId(restored[restored.length - 1].localId);
     idRef.current = Math.max(idRef.current, ...restored.map(p => parseInt(String(p.localId).replace(/\D/g, ''), 10) || 0));
-    const sig = JSON.stringify(restored.map(p => ({ ...p, loadingItens: false })));
-    lastLocalRef.current = sig; lastServerRef.current = sig;
+    if (fromServer) lastServerRef.current = JSON.stringify(restored.map(p => ({ ...p, loadingItens: false })));
     return true;
   }, []);
 
@@ -265,7 +266,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
       let applied = false;
       try {
         const r = await api.get(`/api/operacional/producoes/execucao/rascunho?bar_id=${barId}&device_id=${encodeURIComponent(deviceId)}`);
-        if (!cancel && r?.success && Array.isArray(r.rascunhos) && r.rascunhos.length) applied = aplicarEstados(r.rascunhos.map((x: any) => x.estado));
+        if (!cancel && r?.success && Array.isArray(r.rascunhos) && r.rascunhos.length) applied = aplicarEstados(r.rascunhos.map((x: any) => x.estado), true);
       } catch { /* offline/servidor fora → cai no cache local */ }
       if (cancel || applied) return;
       try {
@@ -1675,12 +1676,12 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
     if (key && barId) api.delete(`/api/operacional/producoes/execucao/rascunho?bar_id=${barId}&key=${encodeURIComponent(key)}`).catch(() => {});
   }, [barId]);
 
-  const aplicarSessao = useCallback((est: any): boolean => {
+  const aplicarSessao = useCallback((est: any, fromServer = false): boolean => {
     if (!est || typeof est !== 'object' || !est.idempotencyKey) return false;
     const s = { ...est, segundos: Number(est.segundos) || 0, rodandoDesde: est.rodando ? (Number(est.rodandoDesde) || Date.now()) : null };
     setSessao(s);
-    const sig = JSON.stringify(s);
-    lastLocalRef.current = sig; lastServerRef.current = sig;
+    // só suprime o echo do servidor quando o dado veio do servidor deste device (ver aplicarEstados)
+    if (fromServer) lastServerRef.current = JSON.stringify(s);
     return true;
   }, []);
 
@@ -1694,7 +1695,7 @@ function AbaAlimentacao({ responsaveis, isAdmin }: { responsaveis: any[]; isAdmi
       try {
         const r = await api.get(`/api/operacional/producoes/execucao/rascunho?bar_id=${barId}&device_id=${encodeURIComponent(deviceId)}&kind=alimentacao`);
         const est = r?.success && Array.isArray(r.rascunhos) && r.rascunhos.length ? r.rascunhos[r.rascunhos.length - 1].estado : null;
-        if (!cancel && !sessaoRef.current && est) applied = aplicarSessao(est);
+        if (!cancel && !sessaoRef.current && est) applied = aplicarSessao(est, true);
       } catch { /* offline */ }
       if (cancel || applied || sessaoRef.current) return;
       try {
