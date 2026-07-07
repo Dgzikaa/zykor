@@ -8,7 +8,7 @@ import { api } from '@/lib/api-client';
 import { CalendarSync, Loader2, Send, Check, AlertTriangle } from 'lucide-react';
 
 type Perna = { chave: 'receita' | 'despesa'; sinal: 'RECEITA' | 'DESPESA'; competencia: string; label: string; valor: number; ja_lancado: boolean };
-type Preview = { bar_id: number; ano: number; mes: number; competencia: string; valor: number; pernas: Perna[] };
+type Preview = { bar_id: number; ano: number; mes: number; competencia: string; valor: number; madrugadaDia?: string; pernas: Perna[] };
 
 const fmtBRL = (v: any) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v || 0));
 const brDate = (d: string) => (d ? d.split('-').reverse().join('/') : '—');
@@ -79,7 +79,7 @@ export function AjusteViradaTab() {
           <div className="rounded-xl bg-primary/10 p-2.5"><CalendarSync className="h-5 w-5 text-primary" /></div>
           <div>
             <h2 className="font-semibold">Ajuste Receita Virada do Mês</h2>
-            <p className="text-sm text-muted-foreground">Faturamento Stone 00h–06h do último dia, movido pra competência certa.</p>
+            <p className="text-sm text-muted-foreground">Faturamento Stone da madrugada (00h–06h) que fecha o mês, movido pra competência certa.</p>
           </div>
         </div>
         <select value={sel} onChange={(e) => setSel(e.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm">
@@ -94,7 +94,7 @@ export function AjusteViradaTab() {
 
       <Card>
         <CardContent className="p-4">
-          <div className="text-xs text-muted-foreground">Faturamento Stone na madrugada (00:00–06:00) do último dia</div>
+          <div className="text-xs text-muted-foreground">Faturamento Stone na madrugada 00:00–06:00{data?.madrugadaDia ? ` de ${brDate(data.madrugadaDia)}` : ''} (última noite operacional do mês — soma todas as empresas do bar)</div>
           <div className="text-3xl font-semibold mt-1">{loading ? <Loader2 className="h-6 w-6 animate-spin" /> : fmtBRL(data?.valor)}</div>
         </CardContent>
       </Card>

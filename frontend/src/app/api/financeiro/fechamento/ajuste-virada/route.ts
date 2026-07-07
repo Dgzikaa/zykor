@@ -11,12 +11,13 @@ export const maxDuration = 120;
 
 /**
  * AJUSTE RECEITA VIRADA DO MÊS (fechamento mensal) → Conta Azul.
- * A receita do último dia é lançada no CA de 00:00-23:59, mas o faturamento da MADRUGADA
- * (00:00-06:00 do último dia, hora real) precisa cair na competência certa. Então:
- *   + RECEITA (valor) na competência do ÚLTIMO DIA do mês
+ * A operação da última NOITE do mês vai até ~06:00 do dia 01 do mês seguinte (corte 6h), mas
+ * essa madrugada é lançada no CA no dia civil 01 (mês seguinte). Corrige-se assim:
+ *   + RECEITA (valor) na competência do ÚLTIMO DIA do mês que fechou
  *   − DESPESA (mesmo valor) na competência do DIA 01 do mês seguinte
  * Ambos na categoria "Ajuste Receita Virada do Mês". Sem baixa. Soma total = 0.
- * Fonte do valor: Stone bruto 00:00-06:00 do último dia (fn_stone_bruto_intervalo).
+ * Fonte do valor: Stone bruto 00:00-06:00 da MADRUGADA do dia 01 do mês seguinte
+ * (fn_stone_bruto_intervalo, hora local real; soma todas as empresas do bar — ex. Ordibar + Ordinário Bar).
  * Idempotente por financial.lancamento_manual_ca_log (tipo='ajuste_virada', chave='receita'|'despesa').
  *
  *  - GET  : preview do mês (não escreve).
@@ -28,14 +29,15 @@ const TIPO = 'ajuste_virada';
 const CAT_NOME = ['Ajuste Receita Virada do Mês', '[Manual] Ajuste Receita Virada do Mês'];
 const MES_LABEL = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-/** Faturamento bruto Stone da madrugada (00:00-06:00) do último dia do mês. */
-export async function getFaturamentoMadrugada(barId: number, ano: number, mes: number): Promise<{ valor: number; ultimoDia: string }> {
+/** Faturamento bruto Stone da MADRUGADA (00:00-06:00) do dia 01 do mês seguinte = última noite operacional do mês. */
+export async function getFaturamentoMadrugada(barId: number, ano: number, mes: number): Promise<{ valor: number; madrugadaDia: string }> {
   const supabase = getLancadorAdmin();
-  const ultimoDia = ultimoDiaMes(ano, mes);
+  const seg = mesSeguinte(ano, mes);
+  const madrugadaDia = primeiroDiaMes(seg.ano, seg.mes); // dia 01 do mês seguinte
   const { data } = await (supabase as any).rpc('fn_stone_bruto_intervalo', {
-    p_bar: barId, p_ini: `${ultimoDia} 00:00:00`, p_fim: `${ultimoDia} 06:00:00`,
+    p_bar: barId, p_ini: `${madrugadaDia} 00:00:00`, p_fim: `${madrugadaDia} 06:00:00`,
   });
-  return { valor: round2(Number(data || 0)), ultimoDia };
+  return { valor: round2(Number(data || 0)), madrugadaDia };
 }
 
 interface PernaVirada { chave: 'receita' | 'despesa'; sinal: SinalLanc; competencia: string; label: string; }
@@ -54,7 +56,7 @@ function pernas(ano: number, mes: number): PernaVirada[] {
 export async function executarAjusteVirada(barId: number, ano: number, mes: number, criadoPor: string | null, chaves?: string[]): Promise<{ status: number; body: any }> {
   const supabase = getLancadorAdmin();
   const competenciaRef = ultimoDiaMes(ano, mes); // chave de agrupamento no log
-  const { valor } = await getFaturamentoMadrugada(barId, ano, mes);
+  const { valor, madrugadaDia } = await getFaturamentoMadrugada(barId, ano, mes);
   const ps = pernas(ano, mes);
 
   const log = () => (supabase.schema('financial' as any) as any).from('lancamento_manual_ca_log');
@@ -82,7 +84,7 @@ export async function executarAjusteVirada(barId: number, ano: number, mes: numb
     const descricao = `Ajuste Receita Virada do Mês ${MES_LABEL[mes]}/${ano}`;
     const r = await criarLancamentoCA({
       token, sinal: p.sinal, competencia: p.competencia, vencimento: p.competencia, valor,
-      descricao, observacao: `Ajuste receita virada do mês (${p.sinal === 'RECEITA' ? 'receita mês' : 'estorno mês seguinte'}) — Stone 00h-06h de ${brDate(competenciaRef)} via Zykor`,
+      descricao, observacao: `Ajuste receita virada do mês (${p.sinal === 'RECEITA' ? 'receita mês' : 'estorno mês seguinte'}) — Stone 00h-06h de ${brDate(madrugadaDia)} via Zykor`,
       categoriaId: cat.id, contaId: conta.id,
     });
     if (r.ok) {
@@ -110,7 +112,7 @@ export async function GET(request: NextRequest) {
   const alvo = (Number.isFinite(ano) && Number.isFinite(mes) && mes >= 1 && mes <= 12) ? { ano, mes } : mesAnteriorBRT();
   const competenciaRef = ultimoDiaMes(alvo.ano, alvo.mes);
 
-  const { valor } = await getFaturamentoMadrugada(barId, alvo.ano, alvo.mes);
+  const { valor, madrugadaDia } = await getFaturamentoMadrugada(barId, alvo.ano, alvo.mes);
   const ps = pernas(alvo.ano, alvo.mes);
   const supabase = getLancadorAdmin();
   const { data: logs } = await (supabase.schema('financial' as any) as any)
@@ -118,7 +120,7 @@ export async function GET(request: NextRequest) {
   const feitos = new Set(((logs as any[]) || []).map((r) => r.chave));
 
   return NextResponse.json({
-    bar_id: barId, ano: alvo.ano, mes: alvo.mes, competencia: competenciaRef, valor,
+    bar_id: barId, ano: alvo.ano, mes: alvo.mes, competencia: competenciaRef, valor, madrugadaDia,
     pernas: ps.map((p) => ({ chave: p.chave, sinal: p.sinal, competencia: p.competencia, label: p.label, valor, ja_lancado: feitos.has(p.chave) })),
   });
 }
