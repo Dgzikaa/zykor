@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     if (!m1 || m1 <= 0) { skipped++; continue; }
     const { error: upErr } = await ops
       .from('eventos_base')
-      .update({ m1_r: Math.round(m1 * 100) / 100, atualizado_em: agora })
+      .update({ m1_r: Math.round(m1 * 100) / 100, m1_manual: false, atualizado_em: agora })
       .eq('id', ev.id)
       .eq('bar_id', barId);
     if (upErr) { skipped++; continue; }

@@ -842,7 +842,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 mt-2 text-xs">
                           <div className="flex justify-between"><span className="text-gray-500">Receita</span><span className={`font-medium ${evento.real_vs_m1_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.real_receita > 0 ? formatarMoeda(evento.real_receita) : '-'}</span></div>
-                          <div className="flex justify-between"><span className="text-gray-500">Meta M1</span><span className="font-medium">{formatarMoeda(evento.m1_receita)}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Meta M1</span><span className="font-medium">{formatarMoeda(evento.m1_receita)}{evento.m1_manual && <span title="Editada manualmente" className="ml-1 text-amber-500">🔔</span>}</span></div>
                           <div className="flex justify-between"><span className="text-gray-500">Clientes</span><span className="font-medium">{(evento.clientes_real || 0).toLocaleString('pt-BR')}</span></div>
                           <div className="flex justify-between"><span className="text-gray-500">C. Art</span><span className="font-medium">{evento.c_art > 0 ? formatarMoeda(evento.c_art) : '-'}</span></div>
                         </div>
@@ -1187,7 +1187,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                 setColunaHighlight(prev => prev === 'm1_receita' ? null : 'm1_receita');
                               }}
                               className="sticky-col-6 px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer"
-                              style={{width: '110px', minWidth: '110px', backgroundColor: colunaHighlight === 'm1_receita' ? 'rgb(239, 246, 255)' : (linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white'))}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}</td>
+                              style={{width: '110px', minWidth: '110px', backgroundColor: colunaHighlight === 'm1_receita' ? 'rgb(239, 246, 255)' : (linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white'))}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}{evento.m1_manual && evento.m1_receita > 0 && <span title="Meta M1 editada manualmente (não veio da calculadora)" className="ml-0.5 text-amber-500 cursor-help text-[9px] align-top">🔔</span>}</td>
                             
                             {/* Grupo CLIENTES */}
                             {gruposAbertos.clientes ? (

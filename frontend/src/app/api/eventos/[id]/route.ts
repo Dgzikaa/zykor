@@ -64,15 +64,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const DIAS_PT = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     const dataEvento: string | undefined = body.data_evento;
 
-    let evento: { id: number; nome: string; versao_calculo: number | null } | null = null;
+    let evento: { id: number; nome: string; versao_calculo: number | null; m1_r: number | null } | null = null;
     const { data: porId } = await supabase
-      .from('eventos_base').select('id, nome, versao_calculo')
+      .from('eventos_base').select('id, nome, versao_calculo, m1_r')
       .eq('id', eventoId).eq('bar_id', barId).maybeSingle();
     if (porId) evento = porId as any;
 
     if (!evento && dataEvento) {
       const { data: porData } = await supabase
-        .from('eventos_base').select('id, nome, versao_calculo')
+        .from('eventos_base').select('id, nome, versao_calculo, m1_r')
         .eq('bar_id', barId).eq('data_evento', dataEvento).maybeSingle();
       if (porData) evento = porData as any;
     }
@@ -91,6 +91,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     };
     // flag urgente só é tocado quando o payload envia (evita zerar em saves que não sabem do campo)
     if (flag_urgente !== undefined) updateData.flag_urgente = flag_urgente === true;
+    // marca origem MANUAL da Meta M1 (mostra 🔔 no Planejamento) só quando o valor muda de fato
+    // pelo modal — assim o Aplicar da calculadora (que zera m1_manual) não é confundido.
+    const m1Num = (m1_r !== undefined && m1_r !== null && !isNaN(m1_r)) ? Number(m1_r) : null;
+    if (m1Num !== null && (!evento || Number(evento.m1_r ?? NaN) !== m1Num)) updateData.m1_manual = true;
     // Só alterar versao_calculo se não for manual (999)
     if (evento?.versao_calculo !== 999) {
       updateData.precisa_recalculo = true;

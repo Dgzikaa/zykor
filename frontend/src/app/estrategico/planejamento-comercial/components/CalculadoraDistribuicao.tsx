@@ -112,6 +112,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
   const [resultado, setResultado] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [aba, setAba] = useState<'calc' | 'hist'>('calc');
+  const [cenario, setCenario] = useState<'m1' | 'm2' | 'm3'>('m1');
   const [histRows, setHistRows] = useState<Array<{ data_evento: string | null; dia: string | null; de: number | null; para: number | null; user_email: string | null; timestamp: string }>>([]);
   const [histLoading, setHistLoading] = useState(false);
 
@@ -203,16 +204,19 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
         body: JSON.stringify({ ano, mes, target_m1: parseNum(cfg.targetM1), m2_pct: parseNum(cfg.m2), m3_pct: parseNum(cfg.m3), dias_venda: parseNum(cfg.diasVenda), pesos: pesosNum }),
       }).catch(() => {});
 
-      // 2) aplica o M1 de cada dia da semana na Meta M1 do mês
+      // 2) aplica o cenário escolhido (M1/M2/M3) de cada dia da semana na Meta M1 do mês
       const m1PorDow: Record<number, number> = {};
-      calc.linhas.forEach((l) => { m1PorDow[l.dow] = Math.round(l.m1 * 100) / 100; });
+      calc.linhas.forEach((l) => {
+        const v = cenario === 'm2' ? l.m2 : cenario === 'm3' ? l.m3 : l.m1;
+        m1PorDow[l.dow] = Math.round(v * 100) / 100;
+      });
       const r: any = await apiCall('/api/eventos/aplicar-m1-distribuicao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
         body: JSON.stringify({ ano, mes, m1PorDow }),
       });
       if (r?.success) {
-        setResultado(`✅ Meta M1 aplicada em ${r.updated} dia(s) de ${mesLabel}.`);
+        setResultado(`✅ Cenário ${cenario.toUpperCase()} aplicado na Meta M1 de ${r.updated} dia(s) de ${mesLabel}.`);
         setConfirmando(false);
         onAplicado?.();
       } else {
@@ -409,7 +413,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
               <Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button>
             ) : confirmando ? (
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> Sobrescrever Meta M1 de {mesLabel}?</span>
+                <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> Sobrescrever a Meta M1 de {mesLabel} com o cenário {cenario.toUpperCase()}?</span>
                 <Button size="sm" variant="outline" onClick={() => setConfirmando(false)} disabled={aplicando}>Cancelar</Button>
                 <Button size="sm" onClick={aplicar} disabled={aplicando} leftIcon={aplicando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}>
                   Confirmar
@@ -417,9 +421,22 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, onAplicado 
               </div>
             ) : (
               <>
+                <div className="flex items-center gap-1 mr-auto">
+                  <span className="text-xs text-[hsl(var(--muted-foreground))]">Cenário:</span>
+                  {(['m1', 'm2', 'm3'] as const).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setCenario(c)}
+                      className={`px-2 py-1 rounded text-xs font-medium border ${cenario === c ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10 text-[hsl(var(--foreground))]' : 'border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'}`}
+                    >
+                      {c.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
                 <Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button>
                 <Button onClick={() => { setResultado(null); setConfirmando(true); }} disabled={!calc.temDados} leftIcon={<Check className="h-4 w-4" />}>
-                  Aplicar ao Planejamento ({mesLabel})
+                  Aplicar {cenario.toUpperCase()} ({mesLabel})
                 </Button>
               </>
             )}
