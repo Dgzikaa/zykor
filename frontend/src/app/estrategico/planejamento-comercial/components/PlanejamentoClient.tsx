@@ -1030,14 +1030,19 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                               </Link>
                             </td>
                             <td className="sticky-col-2 px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
-                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))]" style={{width: '140px', minWidth: '140px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}} title={evento.evento_nome || 'Sem atração'}>
-                              <Link
-                                href={`/analitico/eventos?data=${evento.data_evento}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="block truncate text-blue-700 dark:text-blue-300 hover:underline"
-                              >
-                                {evento.evento_nome || '-'}
-                              </Link>
+                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))]" style={{width: '140px', minWidth: '140px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}} title={evento.observacoes ? `${evento.evento_nome || 'Sem atração'}\n📌 ${evento.observacoes}` : (evento.evento_nome || 'Sem atração')}>
+                              <div className="flex items-center gap-1 min-w-0">
+                                <Link
+                                  href={`/analitico/eventos?data=${evento.data_evento}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="block truncate text-blue-700 dark:text-blue-300 hover:underline"
+                                >
+                                  {evento.evento_nome || '-'}
+                                </Link>
+                                {evento.observacoes && (
+                                  <span title={evento.observacoes} onClick={(e) => e.stopPropagation()} className="shrink-0 text-amber-500 cursor-help text-[10px]">📌</span>
+                                )}
+                              </div>
                               {/* Bilheteria externa: marcar p/ o calculate_evento_metrics puxar Yuzer/Sympla */}
                               <div className="flex gap-1 mt-0.5">
                                 <button
@@ -1620,10 +1625,16 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
               <DialogHeader className="bg-[hsl(var(--muted))] p-4 border-b border-[hsl(var(--border))]"><DialogTitle className="flex items-center gap-3 text-xl font-semibold text-[hsl(var(--foreground))]"><BarChart3 className="h-6 w-6 text-[hsl(var(--muted-foreground))]" />{modoEdicao ? 'Editar Evento' : 'Visualizar Evento'} - {eventoEdicao?.nome}</DialogTitle><DialogDescription>{modoEdicao ? 'Edite os dados planejados e reais' : 'Comparativo Planejado vs Realizado'}</DialogDescription></DialogHeader>
               <div className="flex-1 overflow-y-auto p-3">
                 <div className="mb-3 p-3 bg-[hsl(var(--muted))] rounded border">
-                  <Label>Nome do Evento / Atração</Label>
+                  <Label>Nome / Label do Evento</Label>
                   {modoEdicao
-                    ? <Input value={eventoEdicao?.nome || ''} onChange={e => setEventoEdicao(p => p ? {...p, nome: e.target.value} : null)} placeholder="Ex: Pagode Vira Lata - Bonsai e convidados" />
+                    ? <Input value={eventoEdicao?.nome || ''} onChange={e => setEventoEdicao(p => p ? {...p, nome: e.target.value} : null)} placeholder="Ex: Quarta de Bamba" />
                     : <div className="p-2 bg-[hsl(var(--background))] rounded border">{eventoEdicao?.nome || '-'}</div>}
+                </div>
+                <div className="mb-3 p-3 bg-[hsl(var(--muted))] rounded border">
+                  <Label>Observação <span className="text-xs text-muted-foreground font-normal">(ex: Copa do Mundo - Brasil x Noruega 17h)</span></Label>
+                  {modoEdicao
+                    ? <Input value={eventoEdicao?.observacoes || ''} onChange={e => setEventoEdicao(p => p ? {...p, observacoes: e.target.value} : null)} placeholder="Contexto extra do dia (aparece no 📌 da tabela)" />
+                    : <div className="p-2 bg-[hsl(var(--background))] rounded border">{eventoEdicao?.observacoes || '—'}</div>}
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                    <div className="space-y-3">

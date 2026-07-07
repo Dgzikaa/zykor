@@ -56,6 +56,8 @@ export interface PlanejamentoData {
   evento_nome: string;
   /** nomes dos artistas taggeados no evento (coluna Artistas do grid) */
   artistas?: string[];
+  /** observação/contexto do evento (Copa, telão, co-evento…) — hover no Label + modal */
+  observacoes?: string | null;
   usa_yuzer?: boolean;
   usa_sympla?: boolean;
   dia: number;
@@ -398,6 +400,8 @@ export async function getPlanejamentoComercial(
       evento_nome: manual?.nome ?? evento.nome ?? '',
       // artistas taggeados (evento_artistas), pela chave eventos_base.id
       artistas: manual?.id ? (artistasPorEvento.get(manual.id) || []) : [],
+      // observação/contexto (do eventos_base, campo manual)
+      observacoes: manual?.observacoes ?? null,
       // Marcadores de bilheteria externa (toggle) — vêm do eventos_base
       usa_yuzer: manual?.usa_yuzer ?? false,
       usa_sympla: manual?.usa_sympla ?? false,
