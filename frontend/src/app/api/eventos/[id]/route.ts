@@ -49,6 +49,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const c_artistico_plan = body.c_artistico_plan;
     const c_prod_plan = body.c_prod_plan;
     const observacoes = body.observacoes;
+    const flag_urgente = body.flag_urgente;
 
     // Resolve a entidade editável. gold.planejamento.id ≠ eventos_base.id: eventos que
     // são só PROJEÇÃO (futuros) não têm linha no eventos_base, então o planejamento manda
@@ -82,6 +83,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       observacoes: observacoes || null,
       atualizado_em: new Date().toISOString()
     };
+    // flag urgente só é tocado quando o payload envia (evita zerar em saves que não sabem do campo)
+    if (flag_urgente !== undefined) updateData.flag_urgente = flag_urgente === true;
     // Só alterar versao_calculo se não for manual (999)
     if (evento?.versao_calculo !== 999) {
       updateData.precisa_recalculo = true;

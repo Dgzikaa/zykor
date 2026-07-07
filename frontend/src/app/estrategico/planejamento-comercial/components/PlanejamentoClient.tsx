@@ -111,6 +111,62 @@ function ArtistaField({
   );
 }
 
+// Combobox digitável de LABEL do evento: sugere as labels que já existem no bar
+// (operations.eventos_base.nome), evitando variantes ("Quarta de Bamba" vs "…bamba").
+// Sempre permite digitar uma label nova.
+function LabelField({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: { nome: string; qtd: number }[];
+  onChange: (nome: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const q = value.trim().toLowerCase();
+  const filtered = (q ? options.filter((o) => o.nome.toLowerCase().includes(q)) : options).slice(0, 60);
+  const exato = options.some((o) => o.nome.toLowerCase() === q);
+  return (
+    <div className="relative">
+      <Input
+        value={value}
+        placeholder="Ex: Quarta de Bamba"
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && (filtered.length > 0 || (!!q && !exato)) && (
+        <ul className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-lg text-sm">
+          {filtered.map((o) => (
+            <li key={o.nome}>
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); onChange(o.nome); setOpen(false); }}
+                className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-[hsl(var(--muted))]"
+              >
+                <span className="truncate">{o.nome}</span>
+                <span className="shrink-0 text-xs text-[hsl(var(--muted-foreground))]">{o.qtd}×</span>
+              </button>
+            </li>
+          ))}
+          {!!q && !exato && (
+            <li>
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); onChange(value.trim()); setOpen(false); }}
+                className="block w-full px-3 py-1.5 text-left text-emerald-600 dark:text-emerald-400 hover:bg-[hsl(var(--muted))]"
+              >
+                + usar &ldquo;{value.trim()}&rdquo; (label nova)
+              </button>
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 interface EventoEdicaoCompleta {
   id: number;
   nome: string;
@@ -157,6 +213,7 @@ interface EventoEdicaoCompleta {
   atrasos_cozinha?: number;
   atrasos_bar?: number;
   observacoes: string;
+  flag_urgente?: boolean;
   artistas?: ArtistaLinha[];
 }
 
@@ -250,10 +307,16 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
   const [eventoEdicao, setEventoEdicao] = useState<EventoEdicaoCompleta | null>(null);
   // cadastro de artistas do bar (operations.bar_artistas) para o combobox do modal
   const [artistasCadastro, setArtistasCadastro] = useState<{ id: number; nome: string; tipo: string }[]>([]);
+  // labels existentes (operations.eventos_base.nome) para o combobox digitável do Nome
+  const [labelsCadastro, setLabelsCadastro] = useState<{ nome: string; qtd: number }[]>([]);
   useEffect(() => {
     if (!selectedBar?.id) return;
-    apiCall('/api/artistas', { headers: { 'x-selected-bar-id': String(selectedBar.id) } })
+    const h = { 'x-selected-bar-id': String(selectedBar.id) };
+    apiCall('/api/artistas', { headers: h })
       .then((r: any) => { if (r?.success) setArtistasCadastro(r.artistas || []); })
+      .catch(() => {});
+    apiCall('/api/eventos/labels', { headers: h })
+      .then((r: any) => { if (r?.success) setLabelsCadastro(r.labels || []); })
       .catch(() => {});
   }, [selectedBar?.id]);
   const [salvando, setSalvando] = useState(false);
@@ -443,7 +506,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
       ...dadosSymplaYuzer,
       atrasos_cozinha: atrasosData.atrasos_cozinha,
       atrasos_bar: atrasosData.atrasos_bar,
-      observacoes: '',
+      observacoes: evento.observacoes || '',
+      flag_urgente: evento.flag_urgente || false,
       faturamento_couvert_manual: evento.faturamento_couvert_manual,
       faturamento_bar_manual: evento.faturamento_bar_manual,
       artistas: artistasEvento
@@ -493,7 +557,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
           tb_plan: eventoEdicao.tb_plan,
           c_artistico_plan: eventoEdicao.c_artistico_plan,
           c_prod_plan: eventoEdicao.c_prod_plan,
-          observacoes: eventoEdicao.observacoes
+          observacoes: eventoEdicao.observacoes,
+          flag_urgente: eventoEdicao.flag_urgente || false
         })
       });
 
@@ -765,11 +830,11 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                   {/* MOBILE: lista de cards (a tabela densa só aparece no desktop) */}
                   <div className="md:hidden space-y-2 px-1 pb-4">
                     {dados.map((evento) => (
-                      <div key={evento.evento_id} className="rounded-lg border border-[hsl(var(--border))] bg-white dark:bg-gray-800 p-3">
+                      <div key={evento.evento_id} className={`rounded-lg border p-3 ${evento.flag_urgente ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30' : 'border-[hsl(var(--border))] bg-white dark:bg-gray-800'}`}>
                         <div className="flex items-center justify-between gap-2">
                           <Link href={`/analitico/eventos?data=${evento.data_evento}`} className="min-w-0">
                             <div className="text-[11px] text-[hsl(var(--muted-foreground))]">{evento.data_curta} · {evento.dia_semana?.substring(0, 3).toUpperCase()}</div>
-                            <div className="text-sm font-semibold text-blue-700 dark:text-blue-300 truncate">{evento.evento_nome || 'Sem atração'}</div>
+                            <div className="text-sm font-semibold text-blue-700 dark:text-blue-300 truncate">{evento.flag_urgente && '🚩 '}{evento.evento_nome || 'Sem atração'}</div>
                             {(evento.artistas || []).length > 0 && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">🎤 {(evento.artistas || []).join(', ')}</div>}
                           </Link>
                           <Button size="sm" variant="outline" className="shrink-0" onClick={() => abrirModal(evento, true)}>Editar</Button>
@@ -1015,11 +1080,13 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                             className={`group cursor-pointer transition-colors ${
                               linhaHighlight === idx
                                 ? 'bg-blue-200 dark:bg-blue-800/60 ring-2 ring-blue-500 ring-inset shadow-sm'
-                                : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'
+                                : evento.flag_urgente
+                                  ? 'bg-red-100 dark:bg-red-950/40 hover:bg-red-200/70 dark:hover:bg-red-900/40'
+                                  : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'
                             }`}
                           >
                             {/* Colunas Fixas (Data, Dia, Artista, Receita Real, Meta M1) */}
-                            <td className="sticky-col-1 px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))]" style={{width: '48px', minWidth: '48px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}}>
+                            <td className="sticky-col-1 px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))]" style={{width: '48px', minWidth: '48px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}}>
                               <Link
                                 href={`/analitico/eventos?data=${evento.data_evento}`}
                                 onClick={(e) => e.stopPropagation()}
@@ -1029,9 +1096,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                 {evento.data_curta}
                               </Link>
                             </td>
-                            <td className="sticky-col-2 px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
-                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))]" style={{width: '140px', minWidth: '140px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}} title={evento.observacoes ? `${evento.evento_nome || 'Sem atração'}\n📌 ${evento.observacoes}` : (evento.evento_nome || 'Sem atração')}>
+                            <td className="sticky-col-2 px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
+                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))]" style={{width: '140px', minWidth: '140px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}} title={evento.observacoes ? `${evento.evento_nome || 'Sem atração'}\n📌 ${evento.observacoes}` : (evento.evento_nome || 'Sem atração')}>
                               <div className="flex items-center gap-1 min-w-0">
+                                {evento.flag_urgente && (
+                                  <span title="Urgente (ex.: artista ainda não definido)" className="shrink-0 text-[10px]">🚩</span>
+                                )}
                                 <Link
                                   href={`/analitico/eventos?data=${evento.data_evento}`}
                                   onClick={(e) => e.stopPropagation()}
@@ -1057,7 +1127,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                 >SY</button>
                               </div>
                             </td>
-                            <td className="sticky-col-4 px-2 py-1.5 text-left text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))] cursor-pointer" style={{width: '160px', minWidth: '160px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white'}} title={(evento.artistas || []).join(', ') || 'Sem artista taggeado'} onClick={() => abrirModal(evento, true)}>
+                            <td className="sticky-col-4 px-2 py-1.5 text-left text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))] cursor-pointer" style={{width: '160px', minWidth: '160px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}} title={(evento.artistas || []).join(', ') || 'Sem artista taggeado'} onClick={() => abrirModal(evento, true)}>
                               <div className="truncate">{(evento.artistas || []).length ? (evento.artistas || []).join(', ') : <span className="text-gray-300 dark:text-gray-600">—</span>}</div>
                             </td>
                             <td
@@ -1067,7 +1137,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                 setColunaHighlight(prev => prev === 'real_receita' ? null : 'real_receita');
                               }}
                               className="sticky-col-5 px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer"
-                              style={{width: '110px', minWidth: '110px', backgroundColor: colunaHighlight === 'real_receita' ? 'rgb(239, 246, 255)' : (linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white')}}>
+                              style={{width: '110px', minWidth: '110px', backgroundColor: colunaHighlight === 'real_receita' ? 'rgb(239, 246, 255)' : (linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white'))}}>
                               {evento.real_receita > 0 ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -1116,7 +1186,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                 setColunaHighlight(prev => prev === 'm1_receita' ? null : 'm1_receita');
                               }}
                               className="sticky-col-6 px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer"
-                              style={{width: '110px', minWidth: '110px', backgroundColor: colunaHighlight === 'm1_receita' ? 'rgb(239, 246, 255)' : (linhaHighlight === idx ? 'rgb(191, 219, 254)' : 'white')}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}</td>
+                              style={{width: '110px', minWidth: '110px', backgroundColor: colunaHighlight === 'm1_receita' ? 'rgb(239, 246, 255)' : (linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white'))}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}</td>
                             
                             {/* Grupo CLIENTES */}
                             {gruposAbertos.clientes ? (
@@ -1627,9 +1697,19 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                 <div className="mb-3 p-3 bg-[hsl(var(--muted))] rounded border">
                   <Label>Nome / Label do Evento</Label>
                   {modoEdicao
-                    ? <Input value={eventoEdicao?.nome || ''} onChange={e => setEventoEdicao(p => p ? {...p, nome: e.target.value} : null)} placeholder="Ex: Quarta de Bamba" />
+                    ? <LabelField value={eventoEdicao?.nome || ''} options={labelsCadastro} onChange={(nome) => setEventoEdicao(p => p ? {...p, nome} : null)} />
                     : <div className="p-2 bg-[hsl(var(--background))] rounded border">{eventoEdicao?.nome || '-'}</div>}
                 </div>
+                <label className={`mb-3 flex items-center gap-2 p-3 rounded border cursor-pointer select-none ${eventoEdicao?.flag_urgente ? 'bg-red-50 border-red-300 dark:bg-red-950/30 dark:border-red-800' : 'bg-[hsl(var(--muted))] border-[hsl(var(--border))]'} ${modoEdicao ? '' : 'pointer-events-none opacity-80'}`}>
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-red-600"
+                    checked={!!eventoEdicao?.flag_urgente}
+                    disabled={!modoEdicao}
+                    onChange={(e) => setEventoEdicao(p => p ? {...p, flag_urgente: e.target.checked} : null)}
+                  />
+                  <span className="text-sm font-medium">🚩 Marcar como urgente <span className="font-normal text-[hsl(var(--muted-foreground))]">(pinta a linha de vermelho — ex.: artista ainda não definido)</span></span>
+                </label>
                 <div className="mb-3 p-3 bg-[hsl(var(--muted))] rounded border">
                   <Label>Observação <span className="text-xs text-muted-foreground font-normal">(ex: Copa do Mundo - Brasil x Noruega 17h)</span></Label>
                   {modoEdicao
