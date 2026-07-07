@@ -9,10 +9,11 @@ import { Music, DollarSign, Users, TrendingUp, TrendingDown, Minus, Gauge, Arrow
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const num = (v: number) => Math.round(v || 0).toLocaleString('pt-BR');
 
-type Sort = 'fat_total' | 'roi' | 'lift_fat' | 'publico_medio' | 'custo_total' | 'retorno' | 'nps_score';
+type Sort = 'fat_total' | 'roi' | 'lift_fat' | 'publico_medio' | 'custo_total' | 'retorno' | 'nps_score' | 'pct_fideliza';
 const SORTS: { key: Sort; label: string }[] = [
   { key: 'lift_fat', label: 'Maior lift' },
   { key: 'nps_score', label: 'Melhor NPS' },
+  { key: 'pct_fideliza', label: 'Mais fideliza' },
   { key: 'fat_total', label: 'Faturamento' },
   { key: 'roi', label: 'ROI' },
   { key: 'retorno', label: 'Retorno' },
@@ -20,6 +21,7 @@ const SORTS: { key: Sort; label: string }[] = [
   { key: 'custo_total', label: 'Cachê pago' },
 ];
 const npsCor = (s: number) => s >= 50 ? 'text-emerald-600 dark:text-emerald-400' : s >= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
+const fidelizaCor = (p: number) => p >= 25 ? 'text-emerald-600 dark:text-emerald-400' : p >= 15 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
 
 export default function ArtistasTab({ barId, periodo }: { barId?: number; periodo: number }) {
   const [data, setData] = useState<any[] | null>(null);
@@ -88,6 +90,7 @@ export default function ArtistasTab({ barId, periodo }: { barId?: number; period
                     <th className="text-right px-3 py-2">Fat. médio/noite</th>
                     <th className="text-right px-3 py-2">Público médio</th>
                     <th className="text-right px-3 py-2" title="Score NPS (promotores − detratores) no período · nº de respostas entre parênteses">NPS</th>
+                    <th className="text-right px-3 py-2" title="% dos clientes cuja 1ª visita foi numa noite do artista que viraram recorrentes (voltaram) · nº de novos entre parênteses">Fideliza</th>
                     <th className="text-right px-3 py-2" title={`Cachê pago no período (${periodo} meses). Na página do artista o total é do histórico completo — por isso pode diferir.`}>Cachê pago ({periodo}m)</th>
                     <th className="text-right px-3 py-2" title="R$ faturado por R$ de cachê">Retorno</th>
                     <th className="text-right px-3 py-2" title="% do faturamento que vira cachê">% cachê</th>
@@ -109,6 +112,10 @@ export default function ArtistasTab({ barId, periodo }: { barId?: number; period
                         <td className="px-3 py-2 text-right tabular-nums">
                           {a.nps_score == null ? <span className="text-gray-400">—</span>
                             : <span className={`font-medium ${npsCor(a.nps_score)}`}>{a.nps_score > 0 ? '+' : ''}{a.nps_score}<span className="text-[10px] text-gray-400 ml-0.5">({a.nps_respostas})</span></span>}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {a.pct_fideliza == null ? <span className="text-gray-400">—</span>
+                            : <span className={`font-medium ${fidelizaCor(a.pct_fideliza)}`}>{a.pct_fideliza}%<span className="text-[10px] text-gray-400 ml-0.5">({num(a.novos)})</span></span>}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{money(a.custo_total)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{a.retorno != null ? `${a.retorno.toFixed(1).replace('.', ',')}×` : '—'}</td>

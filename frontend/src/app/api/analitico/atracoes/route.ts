@@ -356,6 +356,11 @@ export async function GET(request: NextRequest) {
       npsPorArtista.set(Number(r.artista_id), a);
     }
 
+    // #5 aquisição/fidelização por evento (cliente cuja 1ª visita foi naquela noite → virou recorrente)
+    const { data: aqRaw } = await ops.rpc('fn_aquisicao_por_evento', { p_bar: barId, p_ini: dataInicialStr, p_fim: hojeStr });
+    const aqPorEvento = new Map<number, { novos: number; fidelizados: number }>();
+    for (const r of aqRaw || []) aqPorEvento.set(Number(r.evento_id), { novos: Number(r.novos) || 0, fidelizados: Number(r.fidelizados) || 0 });
+
     const atracoes = Array.from(mapa.values())
       .filter((a) => a.shows.length >= minShows)
       .map((a) => {
@@ -425,12 +430,18 @@ export async function GET(request: NextRequest) {
         const nps_medio = npsAcc && npsAcc.n ? Math.round((npsAcc.soma / npsAcc.n) * 100) / 100 : null;
         const nps_score = npsAcc && npsAcc.n ? Math.round((npsAcc.promot / npsAcc.n) * 100 - (npsAcc.detrat / npsAcc.n) * 100) : null;
 
+        // #5 novos clientes adquiridos nas noites do artista (1ª visita) e quantos fidelizaram
+        let novos = 0, fidelizados = 0;
+        for (const eid of a.eventoIds) { const aq = aqPorEvento.get(eid); if (aq) { novos += aq.novos; fidelizados += aq.fidelizados; } }
+        const pct_fideliza = novos > 0 ? Math.round((fidelizados / novos) * 100) : null;
+
         return {
           artista_id: a.artista_id,
           nome: a.nome,
           tipo: a.tipo,
           shows: n,
           nps_respostas, nps_medio, nps_score,
+          novos, fidelizados, pct_fideliza,
           fat_total, fat_medio,
           publico_total, publico_medio,
           custo_total, custo_medio,
