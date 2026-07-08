@@ -45,6 +45,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import Link from 'next/link';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface Campanha {
   id: string;
@@ -110,6 +111,13 @@ interface AnaliseCampanha {
 }
 
 export default function AnaliseCampanhasPage() {
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('📣 Análise de Campanhas');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const [campanhas, setCampanhas] = useState<Campanha[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCampanha, setSelectedCampanha] = useState<AnaliseCampanha | null>(null);

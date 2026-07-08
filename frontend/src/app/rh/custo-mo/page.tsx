@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent } from '@/components/ui/card';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Coins, Loader2 } from 'lucide-react';
@@ -16,6 +17,13 @@ const fmtData = (d: string) => { try { const [, m, dd] = d.split('-'); const dow
 export default function CustoMoPage() {
   const { selectedBar } = useBar();
   const { showToast } = useToast();
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('💰 Custo de Mão de Obra');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const [mesAno, setMesAno] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [total, setTotal] = useState<{ freelas: number; fixo: number; total: number } | null>(null);

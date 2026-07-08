@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -79,6 +80,12 @@ const durReal = (ini: string, fim: string): number | null => {
 export default function TaggingArtistasPage() {
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🏷️ Taggear Artistas');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const [loading, setLoading] = useState(true);
   const [meses, setMeses] = useState<string[]>([]);

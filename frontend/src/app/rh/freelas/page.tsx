@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
@@ -36,6 +37,13 @@ export default function FreelasPage() {
   const { selectedBar } = useBar();
   const { soLeitura } = useModuloPermissao('/rh/freelas');
   const { showToast } = useToast();
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🤝 Freelas');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const [data, setData] = useState(() => ymd(new Date()));
   const [convocacoes, setConvocacoes] = useState<Conv[]>([]);
   const [pool, setPool] = useState<Pool[]>([]);

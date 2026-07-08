@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users } from 'lucide-react';
@@ -24,8 +25,14 @@ const coorteLabel = (iso: string) => {
  */
 export default function RetencaoPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<Row[]>([]);
+
+  useEffect(() => {
+    setPageTitle('🔁 Retenção de Clientes');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     if (!selectedBar?.id) return;

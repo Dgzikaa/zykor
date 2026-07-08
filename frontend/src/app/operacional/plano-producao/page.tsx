@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { PageShell } from '@/components/layout/PageShell';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { ChefHat, Search, Loader2, CalendarDays, Sparkles, RefreshCw, Play, Lock, Unlock, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Beer, X } from 'lucide-react';
@@ -37,6 +38,8 @@ function calcular(it: any) {
 export default function PlanoProducaoPage() {
   const { selectedBar } = useBar();
   const { soLeitura } = useModuloPermissao('/operacional/plano-producao');
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('👨‍🍳 Planejamento da Produção'); return () => setPageTitle(''); }, [setPageTitle]);
   const barId = selectedBar?.id;
   const [res, setRes] = useState<any | null>(null);
   const [itens, setItens] = useState<any[]>([]);

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,11 @@ interface Resumo { saldo_final: number; total_entradas: number; total_saidas: nu
 export default function FluxoCaixaPage() {
   const { selectedBar } = useBar();
   const { showToast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('💰 Fluxo de Caixa');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const [saldo, setSaldo] = useState('');
   const [dias, setDias] = useState(60);
   const [puxando, setPuxando] = useState(false);

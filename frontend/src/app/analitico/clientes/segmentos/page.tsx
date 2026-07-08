@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Download } from 'lucide-react';
@@ -35,10 +36,16 @@ interface ClienteRow {
 
 export default function SegmentosRfmPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const [resumo, setResumo] = useState<ResumoRow[]>([]);
   const [clientes, setClientes] = useState<ClienteRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [segSel, setSegSel] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPageTitle('👥 Segmentos');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     if (!selectedBar?.id) return;

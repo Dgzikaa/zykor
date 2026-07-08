@@ -6,6 +6,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { ArrowLeft, Loader2, Music, TrendingUp, CalendarClock, Users2 } from 'lucide-react';
@@ -33,6 +34,7 @@ export default function ArtistaPerfilPage() {
   const router = useRouter();
   const { selectedBar } = useBar();
   const { showToast } = useToast();
+  const { setPageTitle } = usePageTitle();
   const key = decodeURIComponent((params?.key as string) || '');
 
   const [loading, setLoading] = useState(true);
@@ -61,6 +63,11 @@ export default function ArtistaPerfilPage() {
   }, [selectedBar, key, showToast]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  useEffect(() => {
+    setPageTitle(header?.nome ? `🎵 ${header.nome}` : '🎵 Beneficiário');
+    return () => setPageTitle('');
+  }, [setPageTitle, header?.nome]);
 
   const chartData = useMemo(() => shows.filter((s) => !s.futuro).map((s) => ({
     data: fmtData(s.data), fat: s.fat, custo: s.custo_total, publico: s.publico,

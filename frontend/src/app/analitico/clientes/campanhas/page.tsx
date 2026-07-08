@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,6 +37,12 @@ export default function CampanhasClubePage() {
   const [executando, setExecutando] = useState(false);
   const [barFilter, setBarFilter] = useState<number | 'todos'>('todos');
   const [statusFilter, setStatusFilter] = useState<string>('sugerida');
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('📣 Campanhas');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const carregar = async () => {
     setCarregando(true);

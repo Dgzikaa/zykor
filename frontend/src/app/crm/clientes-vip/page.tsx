@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useBar } from '@/contexts/BarContext'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 import { AnimatedCounter, AnimatedCurrency } from '@/components/ui/animated-counter'
 import { motion } from 'framer-motion'
 
@@ -56,6 +57,13 @@ interface Estatisticas {
 }
 
 export default function ClientesVIPPage() {
+  const { setPageTitle } = usePageTitle()
+
+  useEffect(() => {
+    setPageTitle('👑 Clientes VIP')
+    return () => setPageTitle('')
+  }, [setPageTitle])
+
   const [clientes, setClientes] = useState<ClienteVIP[]>([])
   const [estatisticas, setEstatisticas] = useState<Estatisticas | null>(null)
   const [loading, setLoading] = useState(true)

@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageShell } from '@/components/layout/PageShell';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
@@ -173,6 +174,8 @@ function AnaliseBlock({ analise, tipo }: { analise: any; tipo: string | null }) 
 export default function DesviosPage() {
   const { selectedBar } = useBar();
   const { soLeitura } = useModuloPermissao('/operacional/desvios');
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('⚖️ Desvios de Consumo'); return () => setPageTitle(''); }, [setPageTitle]);
   const barId = selectedBar?.id;
   const [tipo, setTipo] = useState('diaria');
   const [datas, setDatas] = useState<string[]>([]);

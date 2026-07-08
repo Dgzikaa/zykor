@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { TrendingUp, CreditCard, Banknote, Ticket, Music } from 'lucide-react';
 import { StoneRecebiveisConteudo } from '@/app/financeiro/stone-recebiveis/page';
 import { FluxoContaHub } from '@/app/financeiro/saidas-caixa/page';
@@ -18,6 +19,11 @@ const AUTO: Record<ReceitaAba, { tipo: string; disponivel: boolean }> = {
 
 function ReceitasInner() {
   const [aba, setAba] = useState<ReceitaAba>('stone');
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('📈 Receitas CA');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const tabs = [
     { id: 'stone', label: 'Stone', Icon: CreditCard },
     { id: 'sympla', label: 'Sympla', Icon: Ticket },

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,6 +103,11 @@ function getLastDayOfMonth(): string {
 
 export default function ContaAzulPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('💰 Lançamentos Conta Azul');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const barId = selectedBar?.id;
 
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);

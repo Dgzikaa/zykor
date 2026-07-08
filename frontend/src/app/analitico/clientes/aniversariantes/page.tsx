@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,9 +22,15 @@ const corNivel: Record<string, string> = {
 
 export default function AniversariantesPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [dias, setDias] = useState(30);
+
+  useEffect(() => {
+    setPageTitle('🎂 Aniversariantes');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     if (!selectedBar?.id) return;

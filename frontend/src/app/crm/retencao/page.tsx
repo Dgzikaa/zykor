@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -111,6 +112,13 @@ const ETAPA_TOOLTIPS = {
 const ITEMS_PER_PAGE = 20;
 
 export default function RetencaoPage() {
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('📊 Retenção');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [clientes, setClientes] = useState<JornadaCliente[]>([]);
   const [jornadaStats, setJornadaStats] = useState<JornadaStats | null>(null);

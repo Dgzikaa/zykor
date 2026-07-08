@@ -15,6 +15,7 @@ import {
   CalendarDays, CheckCircle2, Gauge, ListChecks, Users, Pencil, UtensilsCrossed,
 } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 // ISO de "dia + N" sem fuso (date math em UTC, igual ao restante das telas de planejamento)
 const addDiasIso = (iso: string, n: number) => {
@@ -2574,6 +2575,8 @@ export default function ProducoesPage() {
   const podeEditarProducao = can(MOD_CONTROLE_PRODUCAO, 'editar');
   const podeExcluirProducao = can(MOD_CONTROLE_PRODUCAO, 'excluir');
   const barId = selectedBar?.id;
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('⏱️ Controle da Produção'); return () => setPageTitle(''); }, [setPageTitle]);
   const [aba, setAba] = useState<'executar' | 'historico' | 'analise' | 'alimentacao'>('executar');
   const [fichas, setFichas] = useState<any[]>([]);
   const [responsaveis, setResponsaveis] = useState<any[]>([]);

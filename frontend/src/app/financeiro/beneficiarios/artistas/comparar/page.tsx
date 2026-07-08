@@ -6,9 +6,10 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { ArrowLeft, Loader2, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import type { Artista } from '../../_components/AtracoesTab';
 
 const fmtBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v || 0);
@@ -34,6 +35,11 @@ function CompararInner() {
   const router = useRouter();
   const { selectedBar } = useBar();
   const { showToast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('📊 Comparar atrações');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const keys = useMemo(() => (params.get('keys') || '').split(',').map(decodeURIComponent).filter(Boolean), [params]);
 
   const [loading, setLoading] = useState(true);
@@ -68,9 +74,6 @@ function CompararInner() {
       <Button variant="ghost" size="sm" className="mb-2 -ml-2" onClick={() => router.push('/financeiro/beneficiarios')}>
         <ArrowLeft className="w-4 h-4 mr-1.5" />Atrações
       </Button>
-      <div className="flex items-center gap-2 mb-4">
-        <BarChart3 className="w-5 h-5" /><h1 className="text-xl font-bold">Comparar atrações</h1>
-      </div>
 
       {loading ? (
         <div className="py-24 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>

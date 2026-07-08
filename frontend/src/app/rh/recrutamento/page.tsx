@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
@@ -33,6 +34,13 @@ export default function RecrutamentoPage() {
   const { selectedBar } = useBar();
   const { soLeitura } = useModuloPermissao('/rh/recrutamento');
   const { showToast } = useToast();
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('💼 Recrutamento');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [areas, setAreas] = useState<Opcao[]>([]);
   const [sel0, setSel0] = useState<string | null>(null);

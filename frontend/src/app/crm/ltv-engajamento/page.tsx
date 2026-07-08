@@ -29,6 +29,7 @@ import {
   Clock
 } from 'lucide-react';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface ClienteLTV {
   telefone: string;
@@ -68,6 +69,13 @@ interface Stats {
 
 export default function LTVEngajamentoPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('💰 LTV & Engajamento');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const [clientes, setClientes] = useState<ClienteLTV[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);

@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes, Download, RefreshCw, TrendingUp, TrendingDown, Link2, Eye, Layers } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
 import { usePermissions } from '@/hooks/usePermissions';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { getModuleIdForPath } from '@/lib/permissions/modules';
 
 const MOD_FICHAS = getModuleIdForPath('/operacional/fichas-tecnicas') || '';
@@ -1149,6 +1150,8 @@ function FichasInner() {
 
 export default function FichasTecnicasPage() {
   const { can } = usePermissions();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('📋 Fichas Técnicas'); return () => setPageTitle(''); }, [setPageTitle]);
   const soLeitura = !can(MOD_FICHAS, 'editar') && !can(MOD_FICHAS, 'inserir') && !can(MOD_FICHAS, 'excluir');
   return (
     <PageShell width="wide">

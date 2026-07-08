@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { ClipboardList, Loader2, Check, ChevronRight, ChevronDown } from 'lucide-react';
@@ -23,6 +24,11 @@ type Linha = { nome: string; valor: number; isPct: boolean; filhos?: Linha[] };
 export function BpManual({ barId }: { barId: number }) {
   const { selectedBar } = useBar();
   const { showToast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('📋 Business Plan (BP)');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const [ano, setAno] = useState(new Date().getFullYear());
   const [dados, setDados] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

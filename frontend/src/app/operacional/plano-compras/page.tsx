@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { PageShell } from '@/components/layout/PageShell';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { ShoppingCart, Search, Loader2, CalendarDays, RefreshCw, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
@@ -31,6 +32,8 @@ const r2 = (v: number) => Number(v.toFixed(2));
 
 export default function PlanoComprasPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('🛒 Planejamento de Compras'); return () => setPageTitle(''); }, [setPageTitle]);
   const barId = selectedBar?.id;
   const [res, setRes] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);

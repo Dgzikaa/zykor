@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,6 +19,8 @@ const hoje = () => new Date().toISOString().slice(0, 10);
 
 export default function ResultadoContagemPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('📈 Resultado da Contagem'); return () => setPageTitle(''); }, [setPageTitle]);
   const [data, setData] = useState(hoje());
   const [itens, setItens] = useState<Item[]>([]);
   const [resumo, setResumo] = useState<Resumo | null>(null);

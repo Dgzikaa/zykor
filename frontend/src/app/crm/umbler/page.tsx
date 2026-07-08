@@ -55,6 +55,7 @@ import {
   Star
 } from 'lucide-react';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface Metricas {
   total_conversas: number;
@@ -201,6 +202,12 @@ Bora matar a saudade? 🤗`,
 export default function UmblerPage() {
   const { selectedBar } = useBar();
   const currentBarId = selectedBar?.id;
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('💬 Umbler');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const [metricas, setMetricas] = useState<Metricas | null>(null);
   const [cruzamento, setCruzamento] = useState<CruzamentoDados | null>(null);

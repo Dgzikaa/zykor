@@ -38,6 +38,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface PadraoCliente {
   telefone: string;
@@ -59,6 +60,13 @@ interface PadraoCliente {
 
 export default function PadroesComportamentoPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🎯 Padrões de Comportamento');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const [clientes, setClientes] = useState<PadraoCliente[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);

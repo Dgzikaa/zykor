@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { TrendingDown, Banknote, Boxes, Gift, Receipt, HandCoins, CalendarSync } from 'lucide-react';
 import { FluxoContaHub } from '@/app/financeiro/saidas-caixa/page';
 import { VariacaoEstoqueTab } from './components/VariacaoEstoqueTab';
@@ -34,6 +35,11 @@ const ABAS: { id: AbaId; label: string; Icon: any; disponivel: boolean }[] = [
 
 function DespesasInner() {
   const [aba, setAba] = useState<AbaId>('dinheiro');
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('📉 Despesas CA');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   return (
     <div className="p-4 md:p-6 mx-auto space-y-4">

@@ -13,6 +13,7 @@ import { Calculator, RefreshCw, Search, Loader2, TrendingUp, TrendingDown, Calen
 import { PageShell } from '@/components/layout/PageShell';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtPct = (v: any) => v == null ? '—' : `${Number(v).toFixed(1)}%`;
@@ -40,6 +41,8 @@ export default function CmvTeoricoPage() {
   const { selectedBar } = useBar();
   const { soLeitura } = useModuloPermissao('/operacional/cmv-teorico');
   const { toast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('🧮 CMV Teórico'); return () => setPageTitle(''); }, [setPageTitle]);
   const barId = selectedBar?.id;
   const [modo, setModo] = useState<'cardapio' | 'periodo' | 'comparativo'>('periodo');
 

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Users, Loader2, Search, Layers, Merge, ChevronRight } from 'lucide-react';
@@ -27,6 +28,11 @@ const fmtBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency'
 export default function BeneficiariosPage() {
   const { selectedBar } = useBar();
   const { showToast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('👥 Beneficiários');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const [aba, setAba] = useState<'lista' | 'atracoes' | 'categorias' | 'duplicados'>('lista');
 
   const [linhas, setLinhas] = useState<Benef[]>([]);

@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface ClienteChurn {
   cliente_id: string;
@@ -94,6 +95,13 @@ interface Stats {
 
 export default function ChurnPredictionPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🤖 Churn Prediction');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const [clientes, setClientes] = useState<ClienteChurn[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);

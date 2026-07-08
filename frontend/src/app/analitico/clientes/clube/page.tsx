@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Crown, Users, Star, Filter, Download } from 'lucide-react';
@@ -25,11 +26,17 @@ const segmentoLabel: Record<string, string> = {
 
 export default function ClubePage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [nivel, setNivel] = useState<string>('');
   const [segmento, setSegmento] = useState<string>('');
   const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    setPageTitle('👑 Clube Ordi');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   // Exporta a lista COMPLETA do filtro atual (não só os 200 visíveis) — busca com
   // limit alto e gera CSV pra disparo no Umbler.

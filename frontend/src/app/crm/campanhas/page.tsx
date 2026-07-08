@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface Campanha {
   id: string;
@@ -187,6 +188,12 @@ Bora matar a saudade? 🤗`,
 export default function CampanhasPage() {
   const { selectedBar } = useBar();
   const currentBarId = selectedBar?.id;
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('📣 Campanhas');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const [campanhas, setCampanhas] = useState<Campanha[]>([]);
   const [templates] = useState<{ whatsapp: Template[]; email: Template[] }>({ whatsapp: TEMPLATES_WHATSAPP, email: [] });

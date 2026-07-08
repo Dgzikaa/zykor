@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserX, AlertTriangle, TrendingDown, Download, CheckCircle } from 'lucide-react';
@@ -13,9 +14,15 @@ const fmtMoeda = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currenc
 
 export default function NoShowPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const hoje = new Date();
+
+  useEffect(() => {
+    setPageTitle('🚫 No-Show Reservas');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const [mesAno, setMesAno] = useState(`${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`);
   const [listaMes, setListaMes] = useState<any>(null);
   const [loadingMes, setLoadingMes] = useState(false);

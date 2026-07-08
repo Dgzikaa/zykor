@@ -1,8 +1,10 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  ChefHat, 
+import { usePageTitle } from '@/contexts/PageTitleContext';
+import {
+  ChefHat,
   Package, 
   ClipboardList, 
   Timer,
@@ -24,6 +26,8 @@ interface OperacaoCard {
 
 export default function OperacoesPage() {
   const router = useRouter();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('⚙️ Operações'); return () => setPageTitle(''); }, [setPageTitle]);
 
   const operacoes: OperacaoCard[] = [
     {

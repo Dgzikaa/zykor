@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut, Search, Loader2, Download, ChevronDown, ChevronRight } from 'lucide-react';
@@ -51,6 +52,8 @@ const ABAS: { id: Aba; label: string }[] = [
 export default function SaidasPage() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('📤 Saídas'); return () => setPageTitle(''); }, [setPageTitle]);
   const barId = selectedBar?.id;
 
   const [aba, setAba] = useState<Aba>('insumo');

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent } from '@/components/ui/card';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { ReceiptText, Loader2, FileText, Ban, CalendarDays, BarChart3, ArrowUpRight, ArrowDownRight } from 'lucide-react';
@@ -43,6 +44,11 @@ function YoY({ pct }: { pct: number | null }) {
 function NotasFiscaisInner() {
   const { selectedBar } = useBar();
   const { showToast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('🧾 Notas Fiscais');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const [aba, setAba] = useState<'diario' | 'mensal'>('diario');
   const [meses, setMeses] = useState<string[]>([]);

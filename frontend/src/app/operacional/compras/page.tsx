@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { ShoppingCart, Search, ChevronDown, Loader2, ExternalLink, Tag, BarChart3, TrendingUp, Users, Package, ArrowRightLeft, Pencil, Check, X } from 'lucide-react';
@@ -63,6 +64,8 @@ function EntregaCell({ p, onSave }: { p: any; onSave: (id: number, dt: string | 
 export default function ComprasPage() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('🛒 Compras'); return () => setPageTitle(''); }, [setPageTitle]);
   const barId = selectedBar?.id;
 
   const [de, setDe] = useState(primeiroDiaMes());

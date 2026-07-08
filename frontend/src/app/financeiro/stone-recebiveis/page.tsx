@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api-client';
 import { CreditCard, Loader2, RefreshCw, Send, CheckCircle2, AlertTriangle, X, ChevronDown, ChevronRight, Building2, Landmark } from 'lucide-react';
@@ -18,6 +19,11 @@ const ontemBRT = () => { const d = new Date(Date.now() - 3 * 3600 * 1000); d.set
 const tipoLabel: Record<string, string> = { CREDITO: 'Crédito', DEBITO: 'Débito', PIX: 'PIX' };
 
 export default function StoneRecebiveisPage() {
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('💳 Recebíveis Stone → Conta Azul');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   return <ProtectedRoute><Conteudo /></ProtectedRoute>;
 }
 

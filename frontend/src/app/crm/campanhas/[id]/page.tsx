@@ -41,6 +41,7 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import Link from 'next/link';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface MetricasAnalise {
   total_destinatarios: number;
@@ -150,6 +151,12 @@ export default function CampanhaDetalhesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('todos');
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('📣 Campanha');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const fetchDetalhes = useCallback(async (dataAlvo?: string) => {
     if (!campanhaId) return;

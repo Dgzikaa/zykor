@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChevronDown, ChevronRight, AlertTriangle, CheckCircle2 } from 'lucide-react';
@@ -21,6 +22,11 @@ const fmt = (v: number) => v === 0 ? '–' : `${v < 0 ? '-' : ''}R$ ${Math.abs(v
 
 export default function DfcPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('📊 Demonstrativo de Fluxo de Caixa (DFC)');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const [ano, setAno] = useState(new Date().getFullYear());
   const [soConciliado, setSoConciliado] = useState(true); // padrão: só conciliado (decisão do sócio)
   const [linhas, setLinhas] = useState<Linha[]>([]);

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer } from 'recharts';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +44,12 @@ interface Trajetoria {
 export default function AtracoesPage() {
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🎵 Visão do Artista');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const [aba, setAba] = useState<'artista' | 'ranking'>('artista');
   const [lista, setLista] = useState<ArtistaLista[]>([]);

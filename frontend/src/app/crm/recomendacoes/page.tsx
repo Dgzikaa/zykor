@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +36,13 @@ interface ClienteRecomendacoes {
 }
 
 export default function RecomendacoesPage() {
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('💡 Recomendações');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const [telefone, setTelefone] = useState('');
   const [cliente, setCliente] = useState<ClienteRecomendacoes | null>(null);
   const [loading, setLoading] = useState(false);

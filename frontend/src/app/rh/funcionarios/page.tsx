@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Users, Loader2, Search, Plus, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp, LayoutGrid, List, Download, Network } from 'lucide-react';
@@ -53,6 +54,13 @@ export default function FuncionariosPage() {
   const { selectedBar } = useBar();
   const { soLeitura } = useModuloPermissao('/rh/funcionarios');
   const { showToast } = useToast();
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('👥 Funcionários');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const [lista, setLista] = useState<Funcionario[]>([]);
   const [cargos, setCargos] = useState<Opcao[]>([]);
   const [areas, setAreas] = useState<Opcao[]>([]);

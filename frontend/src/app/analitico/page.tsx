@@ -1,7 +1,9 @@
 'use client'
 
+import { useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import PageHeader from '@/components/layouts/PageHeader'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 import { 
   Users, 
   TrendingUp, 
@@ -25,6 +27,13 @@ interface AnalyticCard {
 }
 
 export default function AnaliticoPage() {
+  const { setPageTitle } = usePageTitle()
+
+  useEffect(() => {
+    setPageTitle('📊 Analítico')
+    return () => setPageTitle('')
+  }, [setPageTitle])
+
   const cards: AnalyticCard[] = [
     {
       title: 'Clientes',

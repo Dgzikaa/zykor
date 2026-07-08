@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -144,6 +145,11 @@ function computeMes(ca: any, man: any, imob: any, estoque: number, realizados: n
 export default function BalancoPage() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('🏛️ Balanço Patrimonial');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const hoje = new Date();
   const [ano, setAno] = useState(hoje.getFullYear());
   const [mes, setMes] = useState(hoje.getMonth() + 1); // mês atual (1-indexed)

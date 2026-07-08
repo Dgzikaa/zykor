@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent } from '@/components/ui/card';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Scale, Loader2, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Banknote, CreditCard, Percent, CalendarClock, PieChart, ShieldAlert, ListChecks, Building2, Undo2 } from 'lucide-react';
@@ -99,6 +100,11 @@ function Barra({ v, max, cor = 'bg-primary' }: { v: number; max: number; cor?: s
 export default function ConciliacaoPage() {
   const { selectedBar } = useBar();
   const { showToast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('⚖️ Conciliação & Análise Stone');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const [aba, setAba] = useState<AbaId>('conciliacao');
   const [analiseSub, setAnaliseSub] = useState<SubAnaliseId>('pendencias');

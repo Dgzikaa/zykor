@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Package, ShoppingCart, TrendingUp, DollarSign, Target, Download, CalendarDays, Calendar, Star, Percent } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useBar } from '@/contexts/BarContext'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 import { AnimatedCounter, AnimatedCurrency } from '@/components/ui/animated-counter'
 import { motion } from 'framer-motion'
 
@@ -60,7 +61,13 @@ export default function ProdutosPage() {
   
   const { selectedBar } = useBar()
   const { toast } = useToast()
+  const { setPageTitle } = usePageTitle()
   const isApiCallingRef = useRef(false)
+
+  useEffect(() => {
+    setPageTitle('📦 Produtos')
+    return () => setPageTitle('')
+  }, [setPageTitle])
 
   const fetchProdutos = useCallback(async () => {
     if (isApiCallingRef.current) return

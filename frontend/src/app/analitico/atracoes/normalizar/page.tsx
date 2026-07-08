@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,6 +19,13 @@ interface Artista { id: number; nome: string; tipo?: string; uso?: number; }
 export default function NormalizarArtistasPage() {
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🔀 Normalizar Artistas');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const [loading, setLoading] = useState(true);
   const [pares, setPares] = useState<Par[]>([]);
   const [artistas, setArtistas] = useState<Artista[]>([]);

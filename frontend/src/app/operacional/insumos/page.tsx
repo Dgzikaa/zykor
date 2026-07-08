@@ -14,6 +14,7 @@ import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, C
 import { PageShell } from '@/components/layout/PageShell';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
@@ -115,6 +116,8 @@ export default function InsumosPage() {
   const { selectedBar } = useBar();
   const { soLeitura, podeInserir, podeEditar, podeExcluir } = useModuloPermissao('/operacional/insumos');
   const { toast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('📦 Insumos'); return () => setPageTitle(''); }, [setPageTitle]);
   const barId = selectedBar?.id;
 
   const [loading, setLoading] = useState(true);

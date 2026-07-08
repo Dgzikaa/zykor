@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
@@ -27,6 +28,11 @@ const fmt = (v: number) => v === 0 ? '–' : `${v < 0 ? '-' : ''}R$ ${Math.abs(v
 
 export default function CategoriasPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('🗂️ Central de Categorias');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const [ano, setAno] = useState(new Date().getFullYear());
   const [cats, setCats] = useState<Cat[]>([]);
   const [macros, setMacros] = useState<string[]>([]);

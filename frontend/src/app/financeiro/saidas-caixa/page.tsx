@@ -6,6 +6,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Banknote, Loader2, ArrowDownCircle, ArrowUpCircle, ListTree, CalendarDays, Wallet, Filter, Check, Search, Clock, Receipt, X, ChevronsUpDown } from 'lucide-react';
@@ -621,6 +622,11 @@ export function FluxoContaHub({ only }: { only?: 'entradas' | 'saidas' | 'turnos
 }
 
 export default function FluxoDinheiroPage() {
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('💵 Fluxo Dinheiro');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   return (
     <ProtectedRoute>
       <FluxoContaHub />

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,8 @@ const isoMenos = (dias: number) => new Date(Date.now() - (3 * 3600 * 1000) - dia
 
 export default function VincularConsumoArtistaPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('🎤 Consumação — Artistas'); return () => setPageTitle(''); }, [setPageTitle]);
   const barId = selectedBar?.id;
   const [di, setDi] = useState(isoMenos(90));
   const [df, setDf] = useState(isoHoje());

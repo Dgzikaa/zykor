@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 import { Boxes, Loader2, Search, CalendarDays, RefreshCw, Plus, Pencil } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -42,6 +43,8 @@ export default function EstoqueHistoricoPage() {
   const { selectedBar } = useBar();
   const { soLeitura, podeInserir, podeEditar } = useModuloPermissao('/operacional/estoque-historico');
   const { toast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('📦 Estoque — Histórico de Contagens'); return () => setPageTitle(''); }, [setPageTitle]);
   const barId = selectedBar?.id;
   const [classe, setClasse] = useState('insumo');
   const [cadOpen, setCadOpen] = useState(false);

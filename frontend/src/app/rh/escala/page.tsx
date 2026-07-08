@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
@@ -41,6 +42,13 @@ export default function EscalaPage() {
   const { selectedBar } = useBar();
   const { soLeitura } = useModuloPermissao('/rh/escala');
   const { showToast } = useToast();
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('📅 Escala');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const [weekStart, setWeekStart] = useState(() => segDaSemana(new Date()));
   const [escalas, setEscalas] = useState<Escala[]>([]);
   const [funcionarios, setFuncionarios] = useState<Func[]>([]);

@@ -1,15 +1,17 @@
 'use client';
 
+import { useEffect } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { SugestaoCompras } from '@/components/estoque/SugestaoCompras';
-import { ShoppingCart } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 // Atalho direto; a versão principal vive nas abas de /operacional/contagem (Estoque).
 export default function SugestaoComprasPage() {
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('🛒 Sugestão de Compras'); return () => setPageTitle(''); }, [setPageTitle]);
   return (
     <ProtectedRoute>
       <div className="p-4 space-y-4">
-        <h1 className="text-lg font-bold flex items-center gap-2"><ShoppingCart className="w-5 h-5" /> Sugestão de Compras</h1>
         <SugestaoCompras />
       </div>
     </ProtectedRoute>

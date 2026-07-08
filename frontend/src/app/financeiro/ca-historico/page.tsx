@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent } from '@/components/ui/card';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { History, Loader2, ArrowUpCircle, ArrowDownCircle, Wallet, ListTree } from 'lucide-react';
@@ -24,6 +25,11 @@ const origemLabel = (o: string) => ORIGEM_LABEL[o] || o;
 function HistoricoInner() {
   const { selectedBar } = useBar();
   const { showToast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('📜 Histórico Conta Azul');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const hoje = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const de30 = useMemo(() => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10), []);
   const [de, setDe] = useState(de30);
