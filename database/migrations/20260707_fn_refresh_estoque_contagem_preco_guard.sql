@@ -1,22 +1,23 @@
 -- 2026-07-07 — Fix da VALORIZAÇÃO do estoque (silver.fn_refresh_estoque_contagem).
 --
--- Sintoma (Deboche): estoque do Zykor ~30% acima da planilha do Alan (contagens idênticas,
--- só o preço unitário divergia). Duas causas, mesma raiz — a função confiava no preço do VMarket
--- mesmo quando ele era ruim:
---   1) VMarket = 0  → item que NÃO passa pelo VMarket (cerveja/bebida direto do distribuidor).
---      O `coalesce(px.preco, o.custo_unitario, 0)` pegava o 0 (não é null!) e valorava em R$0.
---      148 itens zerados no Deboche.
---   2) VMarket = preço da EMBALAGEM/caixa num item contado por UNIDADE (ex.: Pastel cx 32un =
---      R$206,40 num item contado em unidade). A função usava R$206 × qtd → inflava ~32×.
--- Nos dois casos o `operations.contagem_estoque_insumos.custo_unitario` JÁ tinha o preço certo
--- por unidade contada (R$6,45 do pastel, R$7,02 do Spaten) — só não era usado.
+-- Sintoma (Deboche): estoque do Zykor ~30% acima da planilha (contagens idênticas, só o preço
+-- unitário divergia). DUAS causas:
+--   1) PEDIDO RECENTE COM PREÇO 0: o VMarket manda o pedido feito mas ainda não precificado/
+--      entregue com preco=0 (o preço fecha na entrega). A função pegava o pedido MAIS RECENTE
+--      (preco 0) em vez do último PRECIFICADO → zerava o item. Ex.: Spaten I0362 tinha 01/07=0,00
+--      mas 16/06=R$7,02. → 148 itens zerados no Deboche. (VMarket do bar está conectado e recebendo
+--      pedidos; o problema era só a resolução do preço.)
+--   2) PREÇO DE EMBALAGEM/CAIXA num item contado por unidade (Pastel cx 32un = R$206,40 × qtd →
+--      inflava ~32×). O custo_unitario da contagem já tinha o preço certo por unidade.
 --
--- Fix: preço VMarket EFETIVO (`vm`) descarta 0 e descarta preço >5x o custo_unitario conhecido
--- (>5x = quase sempre unidade de embalagem trocada). Quando descarta, cai pro custo_unitario.
--- Validado (Deboche semana 06/07): 65.941 → 49.090 (planilha 50.425 = 97%). Os ~3% que sobram
--- são diferença real entre preço VMarket (compra) e preço manual da planilha, não bug.
--- Aplicada em prod via MCP + re-rodado silver.fn_refresh_estoque_contagem(3,30) e (4,30).
--- OBS: muda valores de estoque/desvios/CMV dos 2 bares (pra melhor).
+-- Fix:
+--   (1) a CTE `precos` só considera item de pedido com preco > 0 → px pega o último preço REAL.
+--   (2) o `resolved` descarta o preço quando é >5x o custo_unitario conhecido (embalagem trocada);
+--       nesse caso, e quando não há VMarket precificado, cai pro custo_unitario (cadastro).
+-- Princípio (validado com o sócio): usar o VMarket (preço realmente pago) nos itens atuais; o
+-- cadastro é só fallback pra item sem compra precificada. Deboche 06/07: 65.941 → 49.090
+-- (162 itens fonte vmarket, 146 cadastro, 5 sem preço). Aplicada em prod + re-rodado bar 3 e 4.
+-- OBS: muda valores de estoque/desvios/CMV dos 2 bares (pra mais correto).
 
 CREATE OR REPLACE FUNCTION silver.fn_refresh_estoque_contagem(p_bar integer, p_dias integer DEFAULT 14)
  RETURNS integer
@@ -37,6 +38,7 @@ begin
     join gold.vmarket_pedido pp on pp.id_pedido = pi.id_pedido and pp.bar_id = pi.bar_id
     join public.bronze_vmarket_produtos bb on bb.id_produto_sisfood_cotacao = pi.id_produto_sisfood_cotacao and bb.bar_id = pi.bar_id
     where pi.bar_id = p_bar and pp.data::date <= current_date
+      and coalesce(pi.preco, 0) > 0            -- ignora pedido ainda não precificado (preco 0)
   ),
   px as (
     select distinct on (o.bar_id, o.data_contagem, o.insumo_codigo)
@@ -47,7 +49,9 @@ begin
   ),
   resolved as (
     select o.*,
-      (case when nullif(px.preco, 0) is not null
+      -- descarta o preço VMarket quando é >5x o custo_unitario conhecido (= quase sempre preço da
+      -- EMBALAGEM/caixa num item contado por unidade). Nesses casos cai pro custo_unitario.
+      (case when px.preco is not null
               and not (coalesce(o.custo_unitario, 0) > 0 and px.preco > o.custo_unitario * 5)
             then px.preco end) as vm
     from relevant o
