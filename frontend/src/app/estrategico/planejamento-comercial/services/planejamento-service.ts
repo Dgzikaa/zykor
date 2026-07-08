@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { getFatorCmv } from '@/lib/config/getFatorCmv';
 
 const DIAS_SEMANA = [
   'DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA',
@@ -181,12 +182,47 @@ export async function getPlanejamentoComercial(
       ? `${ano + 1}-01-01`
       : `${ano}-${(mes + 1).toString().padStart(2, '0')}-01`;
 
+  // Consumação Artistas: CUSTO real por dia (custo de ficha técnica quando o produto tem
+  // ficha, senão desconto × fator de CMV) — mesma fonte/cálculo da tela /operacional/consumacao.
+  // Antes a coluna somava o desconto BRUTO (silver.consumacao_artistas.valor); agora mostra o
+  // custo. Paginado (cap 1000 do PostgREST), categoria fixa 'artistas'.
+  // getFatorCmv lança se o bar não tiver cmv_fator_consumo. Aqui NÃO pode derrubar a
+  // página inteira por causa de uma coluna — cai no padrão 0.35 (mesmo default do RPC).
+  let fatorCmv = 0.35;
+  try {
+    fatorCmv = await getFatorCmv(supabase, barId);
+  } catch (e) {
+    console.warn('[planejamento-service] fator CMV ausente para bar %s, usando 0.35:', barId, (e as Error)?.message);
+  }
+  const dataFimInclusivo = new Date(new Date(dataFinalConsulta).getTime() - 86400000).toISOString().slice(0, 10);
+  const fetchConsumoArtistasCusto = async () => {
+    const PAGE = 1000;
+    const out: Array<{ data: string; custo_real: number | string }> = [];
+    for (let off = 0; ; off += PAGE) {
+      const { data, error: errCons } = await (supabase as any).rpc('get_consumos_9_detalhes_custo_semana', {
+        input_bar_id: barId,
+        input_data_inicio: dataInicio,
+        input_data_fim: dataFimInclusivo,
+        input_categoria: 'artistas',
+        p_fator: fatorCmv,
+        p_limit: PAGE,
+        p_offset: off,
+      });
+      if (errCons) { console.error('[planejamento-service] consumo custo artistas:', errCons.message); break; }
+      const chunk = (data as any[]) || [];
+      out.push(...chunk);
+      if (chunk.length < PAGE) break;
+      if (off >= 50000) break; // trava de segurança
+    }
+    return out;
+  };
+
   // REFACTOR 2026-04-20: Migrado para gold.planejamento
   // Gold ja tem consolidacao de ContaHub + Yuzer + Sympla, eliminando
   // bug de double-counting (L268 subtraia quando real_r ja era consolidado)
   // REFACTOR 2026-04-23 (Etapa 6): lê também operations.config_metas_planejamento
   // para eliminar thresholds hardcoded. Ver docs/planning/06-auditoria-planejamento.md
-  const [{ data: eventosGold, error }, { data: eventosManuais }, { data: configMetas }, { data: consumacaoDias }, { data: mixConsolidado }, { data: cmvDias }] = await Promise.all([
+  const [{ data: eventosGold, error }, { data: eventosManuais }, { data: configMetas }, consumoCustoRows, { data: mixConsolidado }, { data: cmvDias }] = await Promise.all([
     supabase
       .schema('gold' as never)
       .from('planejamento')
@@ -228,14 +264,9 @@ export async function getPlanejamentoComercial(
       .eq('ano', ano)
       .maybeSingle(),
 
-    // Consumação Artistas por dia (silver) — coluna no Artístico
-    supabase
-      .schema('silver' as never)
-      .from('consumacao_artistas')
-      .select('data, valor')
-      .eq('bar_id', barId)
-      .gte('data', dataInicio)
-      .lt('data', dataFinalConsulta),
+    // Consumação Artistas por dia — CUSTO real (ver helper acima). Substitui o antigo
+    // silver.consumacao_artistas.valor (que era o desconto BRUTO).
+    fetchConsumoArtistasCusto(),
 
     // Mix consolidado (ContaHub + Yuzer), mesma logica do /analitico/eventos.
     // Usado p/ overlay nos dias dominados por Yuzer, onde o gold traz mix 0.
@@ -268,8 +299,9 @@ export async function getPlanejamentoComercial(
   });
 
   const consumacaoMap = new Map<string, number>();
-  ((consumacaoDias as Array<{ data: string; valor: number | string }> | null) || []).forEach(c => {
-    if (c.data) consumacaoMap.set(c.data, (consumacaoMap.get(c.data) || 0) + (Number(c.valor) || 0));
+  ((consumoCustoRows as Array<{ data: string; custo_real: number | string }> | null) || []).forEach(c => {
+    const dia = c.data ? String(c.data).slice(0, 10) : '';
+    if (dia) consumacaoMap.set(dia, (consumacaoMap.get(dia) || 0) + (Number(c.custo_real) || 0));
   });
 
   // data -> CMV teórico do dia (custo + %)
@@ -353,7 +385,13 @@ export async function getPlanejamentoComercial(
     const teRealVsPlanGreen = (evento.te_real_calculado || 0) >= (evento.te_plan || 0);
     const tbRealVsPlanGreen = (evento.tb_real_calculado || 0) >= (evento.tb_plan || 0);
     // Etapa 6: thresholds vêm de metas (config_metas_planejamento), não mais hardcoded
-    const tMedioGreen = (evento.t_medio || 0) >= metas.t_medio_meta;
+    // Ticket médio consolidado: faturamento_total (ContaHub+Yuzer+Sympla) / público consolidado.
+    // Em dias dominados por bilheteria externa (Yuzer) o ContaHub vem ~0 e o t_medio do gold
+    // (real_r/cl_real) fica errado — ex.: 05/07 dava R$261,94 (261,94/1) em vez de ~R$122 (134k/1100).
+    const _fatCons = Number(evento.faturamento_total_consolidado) || 0;
+    const _pubCons = Number(evento.publico_real_consolidado) || 0;
+    const tMedioCalc = _pubCons > 0 && _fatCons > 0 ? _fatCons / _pubCons : (Number(evento.t_medio) || 0);
+    const tMedioGreen = tMedioCalc >= metas.t_medio_meta;
     const percentArtFatGreen = (evento.percent_art_fat || 0) <= metas.percent_art_fat_meta;
     const tCozGreen = (evento.t_coz || 0) <= metas.t_coz_meta;
     const tBarGreen = (evento.t_bar || 0) <= metas.t_bar_meta;
@@ -444,7 +482,7 @@ export async function getPlanejamentoComercial(
       te_real: evento.te_real_calculado || 0,
       tb_plan: manual?.tb_plan ?? evento.tb_plan ?? 0,
       tb_real: evento.tb_real_calculado || 0,
-      t_medio: evento.t_medio || 0,
+      t_medio: tMedioCalc,
 
       // Pré-lançado: usa o real do Conta Azul se existir; senão a projeção (amarelo/⚠️).
       // Item 4.2: real do CA > override manual (c_artistico_plan) > projeção auto (média 4 sem).

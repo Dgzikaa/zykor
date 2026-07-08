@@ -12,7 +12,8 @@ export interface ComposicaoAlvo { tipo: 'art' | 'prod' | 'consumacao'; data: str
 const TITULO: Record<string, string> = { art: 'Custo Artístico', prod: 'Custo Produção', consumacao: 'Consumação Artistas' };
 const FONTE_LABEL: Record<string, string> = {
   real_ca: 'Real do Conta Azul', override: 'Previsão manual (override)',
-  projecao: 'Projeção automática (média 4 semanas)', contahub: 'ContaHub (descontos motivo “Artistas”)', vazio: 'Sem lançamento',
+  projecao: 'Projeção automática (média 4 semanas)', contahub: 'ContaHub (descontos motivo “Artistas”)',
+  contahub_custo: 'Custo real (ficha técnica ou desconto × fator)', vazio: 'Sem lançamento',
 };
 
 export default function CustoComposicaoModal({ alvo, barId, onClose }: {
@@ -89,8 +90,11 @@ export default function CustoComposicaoModal({ alvo, barId, onClose }: {
             {/* Cabeçalho: valor + fonte */}
             <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-800 p-3">
               <div>
-                <div className="text-[11px] uppercase tracking-wide text-gray-400">Valor na tela</div>
+                <div className="text-[11px] uppercase tracking-wide text-gray-400">{alvo.tipo === 'consumacao' ? 'Custo (valor na tela)' : 'Valor na tela'}</div>
                 <div className="text-xl font-bold text-gray-900 dark:text-white">{money(d.valor_total)}</div>
+                {alvo.tipo === 'consumacao' && d.total_bruto != null && (
+                  <div className="text-[11px] text-gray-400">Bruto {money(d.total_bruto)}</div>
+                )}
               </div>
               <div className="text-right">
                 <div className="text-[11px] uppercase tracking-wide text-gray-400">Fonte</div>
@@ -156,8 +160,9 @@ export default function CustoComposicaoModal({ alvo, barId, onClose }: {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 text-[11px] uppercase sticky top-0">
                     <tr>
-                      <th className="text-left px-3 py-2">{isCA ? 'Lançamento' : 'Cliente / mesa'}</th>
-                      <th className="text-right px-3 py-2">Valor</th>
+                      <th className="text-left px-3 py-2">{isCA ? 'Lançamento' : 'Item / mesa'}</th>
+                      {!isCA && <th className="text-right px-3 py-2">Bruto</th>}
+                      <th className="text-right px-3 py-2">{isCA ? 'Valor' : 'Custo'}</th>
                       {isCA && <th className="text-center px-3 py-2">Status</th>}
                     </tr>
                   </thead>
@@ -169,9 +174,10 @@ export default function CustoComposicaoModal({ alvo, barId, onClose }: {
                             {it.dia_errado && <AlertTriangle className="h-3.5 w-3.5 text-rose-500 shrink-0" />}
                             {it.descricao || '—'}
                           </div>
-                          <div className="text-[11px] text-gray-400">{isCA ? (it.pessoa || it.categoria) : [it.mesa, it.pessoas ? `${it.pessoas} pes.` : null].filter(Boolean).join(' · ')}</div>
+                          <div className="text-[11px] text-gray-400">{isCA ? (it.pessoa || it.categoria) : [it.mesa, it.tem_ficha ? 'com ficha' : 'sem ficha (× fator)', it.qtd ? `${it.qtd}x` : null].filter(Boolean).join(' · ')}</div>
                           {it.dia_errado && <div className="text-[11px] text-rose-600 dark:text-rose-400">⚠ a descrição cita outro dia da semana — competência pode estar no dia errado</div>}
                         </td>
+                        {!isCA && <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-gray-500">{money(it.valor_bruto)}</td>}
                         <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
                           {money(it.valor_usado)}
                           {isCA && it.valor_pago === 0 && <div className="text-[10px] text-gray-400">a pagar (bruto)</div>}
@@ -187,10 +193,20 @@ export default function CustoComposicaoModal({ alvo, barId, onClose }: {
             )}
 
             {temItens && (
-              <div className="flex justify-between text-sm font-medium px-1">
-                <span className="text-gray-500">Total ({d.count} {isCA ? 'lançamento(s)' : 'linha(s)'})</span>
-                <span className="text-gray-900 dark:text-white">{money(isCA ? d.soma_lancamentos : d.valor_total)}</span>
-              </div>
+              isCA ? (
+                <div className="flex justify-between text-sm font-medium px-1">
+                  <span className="text-gray-500">Total ({d.count} lançamento(s))</span>
+                  <span className="text-gray-900 dark:text-white">{money(d.soma_lancamentos)}</span>
+                </div>
+              ) : (
+                <div className="flex justify-between items-center text-sm font-medium px-1">
+                  <span className="text-gray-500">Total ({d.count} linha(s))</span>
+                  <span className="flex gap-4">
+                    <span className="text-gray-500">Bruto <span className="text-gray-700 dark:text-gray-200">{money(d.total_bruto)}</span></span>
+                    <span className="text-gray-900 dark:text-white">Custo {money(d.total_custo)}</span>
+                  </span>
+                </div>
+              )
             )}
           </div>
         )}

@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import CustoComposicaoModal, { ComposicaoAlvo } from './CustoComposicaoModal';
+import { RecalcularMesButton } from './RecalcularMesButton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import './sticky-columns.css';
 import {
@@ -451,6 +452,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
   }, [router]);
 
   const modalDataCacheRef = useRef<Record<string, any>>({});
+  // Baseline (M1 + custos previsão) capturado ao abrir o modal, para escalar o
+  // Custo Artístico/Produção proporcionalmente quando a Meta M1 é editada à mão
+  // (mantém a % atual de cada custo sobre o M1).
+  const custoBaselineRef = useRef<{ m1: number; art: number; prod: number }>({ m1: 0, art: 0, prod: 0 });
 
   const abrirModal = useCallback(async (evento: PlanejamentoData, editMode: boolean = false) => {
     setEventoSelecionado(evento);
@@ -458,7 +463,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
     
     const cacheKey = `${evento.evento_id}-${evento.data_evento}`;
     if (modalDataCacheRef.current[cacheKey]) {
-      setEventoEdicao(modalDataCacheRef.current[cacheKey]);
+      const c = modalDataCacheRef.current[cacheKey];
+      custoBaselineRef.current = { m1: Number(c.m1_r) || 0, art: Number(c.c_artistico_plan) || 0, prod: Number(c.c_prod_plan) || 0 };
+      setEventoEdicao(c);
       setModalOpen(true);
       return;
     }
@@ -554,6 +561,11 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
     };
 
     modalDataCacheRef.current[cacheKey] = dadosIniciais;
+    custoBaselineRef.current = {
+      m1: Number(dadosIniciais.m1_r) || 0,
+      art: Number(dadosIniciais.c_artistico_plan) || 0,
+      prod: Number(dadosIniciais.c_prod_plan) || 0,
+    };
     setEventoEdicao(dadosIniciais);
     setModalOpen(true);
   }, [user, selectedBar]);
@@ -1135,7 +1147,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                             onClick={() => { setLinhaHighlight(idx); setColunaHighlight(null); }}
                             className={`group cursor-pointer transition-colors ${
                               linhaHighlight === idx
-                                ? 'bg-blue-200 dark:bg-blue-800/60 ring-2 ring-blue-500 ring-inset shadow-sm'
+                                ? 'bg-blue-200 dark:bg-blue-800/60'
                                 : evento.flag_urgente
                                   ? 'bg-red-100 dark:bg-red-950/40 hover:bg-red-200/70 dark:hover:bg-red-900/40'
                                   : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'
@@ -1165,10 +1177,12 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                 >
                                   {evento.evento_nome || '-'}
                                 </Link>
-                                {evento.observacoes && (
-                                  <span title={evento.observacoes} onClick={(e) => e.stopPropagation()} className="shrink-0 text-amber-500 cursor-help text-[10px]">📌</span>
-                                )}
                               </div>
+                              {evento.observacoes && (
+                                <div className="text-[10px] leading-tight text-gray-500 dark:text-gray-400 line-clamp-2 whitespace-normal" title={evento.observacoes}>
+                                  {evento.observacoes}
+                                </div>
+                              )}
                               {/* Bilheteria externa: marcar p/ o calculate_evento_metrics puxar Yuzer/Sympla */}
                               <div className="flex gap-1 mt-0.5">
                                 <button
@@ -1193,7 +1207,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                 setColunaHighlight(prev => prev === 'real_receita' ? null : 'real_receita');
                               }}
                               className="sticky-col-5 px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer"
-                              style={{width: '110px', minWidth: '110px', backgroundColor: colunaHighlight === 'real_receita' ? 'rgb(239, 246, 255)' : (linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white'))}}>
+                              style={{width: '110px', minWidth: '110px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (colunaHighlight === 'real_receita' ? 'rgb(219, 234, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white'))}}>
                               {evento.real_receita > 0 ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -1242,7 +1256,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                 setColunaHighlight(prev => prev === 'm1_receita' ? null : 'm1_receita');
                               }}
                               className="sticky-col-6 px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer"
-                              style={{width: '110px', minWidth: '110px', backgroundColor: colunaHighlight === 'm1_receita' ? 'rgb(239, 246, 255)' : (linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white'))}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}{evento.m1_manual && evento.m1_receita > 0 && <span title="Meta M1 editada manualmente (não veio da calculadora)" className="ml-0.5 text-amber-500 cursor-help text-[9px] align-top">🔔</span>}</td>
+                              style={{width: '110px', minWidth: '110px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (colunaHighlight === 'm1_receita' ? 'rgb(219, 234, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white'))}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}{evento.m1_manual && evento.m1_receita > 0 && <span title="Meta M1 editada manualmente (não veio da calculadora)" className="ml-0.5 text-amber-500 cursor-help text-[9px] align-top">🔔</span>}</td>
                             
                             {/* Grupo CLIENTES */}
                             {gruposAbertos.clientes ? (
@@ -1253,7 +1267,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'clientes_real' ? null : 'clientes_real');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'clientes_real' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'clientes_real' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.ci_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.clientes_real || '-'}</span></td>
                                 <td 
                                   onClick={(e) => { 
@@ -1261,7 +1275,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'res_tot' ? null : 'res_tot');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'res_tot' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'res_tot' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>
                                   {selectedBar?.id === 4 ? (
                                     editandoReservas?.id === evento.evento_id && editandoReservas?.campo === 'res_tot' ? (
@@ -1304,7 +1318,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'res_p' ? null : 'res_p');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'res_p' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'res_p' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>
                                   {selectedBar?.id === 4 ? (
                                     editandoReservas?.id === evento.evento_id && editandoReservas?.campo === 'res_p' ? (
@@ -1355,7 +1369,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'te_real' ? null : 'te_real');
                                   }}
-                                  className={`px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'te_real' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'te_real' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.te_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.te_real > 0 ? formatarMoeda(evento.te_real) : '-'}</span></td>
                                 <td 
                                   onClick={(e) => { 
@@ -1363,7 +1377,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'tb_real' ? null : 'tb_real');
                                   }}
-                                  className={`px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'tb_real' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'tb_real' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.tb_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.tb_real > 0 ? formatarMoeda(evento.tb_real) : '-'}</span></td>
                                 <td 
                                   onClick={(e) => { 
@@ -1371,7 +1385,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 't_medio' ? null : 't_medio');
                                   }}
-                                  className={`px-2 py-1.5 text-right text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 't_medio' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-right text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 't_medio' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.t_medio_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.t_medio > 0 ? formatarMoeda(evento.t_medio) : '-'}</span></td>
                               </>
                             ) : (
@@ -1387,7 +1401,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'c_art' ? null : 'c_art');
                                   }}
-                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_art' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_art' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_art > 0 ? (
                                     <span onClick={(e) => { e.stopPropagation(); abrirComposicao('art', evento); }} className={`cursor-pointer underline decoration-dotted decoration-gray-400 underline-offset-2 hover:decoration-blue-500 ${evento.c_art_is_projecao ? 'text-amber-600 dark:text-amber-400' : ''}`} title="Ver o que compõe este valor">{evento.c_art_is_projecao ? '⚠️ ' : ''}{formatarMoeda(evento.c_art)}</span>
                                   ) : '-'}</td>
@@ -1399,7 +1413,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx);
                                     setColunaHighlight(prev => prev === 'c_prod' ? null : 'c_prod');
                                   }}
-                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_prod' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
+                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'c_prod' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>{evento.c_prod > 0 ? (
                                     <span onClick={(e) => { e.stopPropagation(); abrirComposicao('prod', evento); }} className={`cursor-pointer underline decoration-dotted decoration-gray-400 underline-offset-2 hover:decoration-blue-500 ${evento.c_prod_is_projecao ? 'text-amber-600 dark:text-amber-400' : ''}`} title="Ver o que compõe este valor">{evento.c_prod_is_projecao ? '⚠️ ' : ''}{formatarMoeda(evento.c_prod)}</span>
                                   ) : '-'}</td>
@@ -1411,7 +1425,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx);
                                     setColunaHighlight(prev => prev === 'couvert_vr' ? null : 'couvert_vr');
                                   }}
-                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'couvert_vr' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
+                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'couvert_vr' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>
                                     {evento.couvert_vr_contahub !== null && evento.couvert_vr_contahub !== undefined && evento.couvert_vr_contahub > 0
                                       ? formatarMoeda(evento.couvert_vr_contahub)
@@ -1425,7 +1439,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx);
                                     setColunaHighlight(prev => prev === 'percent_art_fat' ? null : 'percent_art_fat');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_art_fat' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_art_fat' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
                                   style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
                                     <span className={`font-semibold ${evento.percent_art_fat_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                                       {evento.percent_art_fat > 0 ? formatarPercentual(evento.percent_art_fat) : '-'}
@@ -1439,7 +1453,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx);
                                     setColunaHighlight(prev => prev === 'couv_art' ? null : 'couv_art');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'couv_art' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'couv_art' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
                                   style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>
                                     <span className={`font-semibold ${
                                       evento.couvert_c_art_green
@@ -1456,9 +1470,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                 <td
                                   className="px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r-2 border-[hsl(var(--border))]"
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}
-                                  title="Consumação Artistas (ContaHub: descontos com motivo 'Artistas')">
+                                  title="Consumação Artistas — CUSTO real (ficha técnica ou desconto × fator), mesma conta da tela /operacional/consumacao">
                                   {(evento.consumacao || 0) > 0 ? (
-                                    <span onClick={(e) => { e.stopPropagation(); abrirComposicao('consumacao', evento); }} className="cursor-pointer underline decoration-dotted decoration-gray-400 underline-offset-2 hover:decoration-blue-500" title="Ver o que compõe este valor">{formatarMoeda(evento.consumacao || 0)}</span>
+                                    <span onClick={(e) => { e.stopPropagation(); abrirComposicao('consumacao', evento); }} className="cursor-pointer underline decoration-dotted decoration-gray-400 underline-offset-2 hover:decoration-blue-500" title="Ver os lançamentos (bruto e custo)">{formatarMoeda(evento.consumacao || 0)}</span>
                                   ) : '-'}
                                 </td>
                               </>
@@ -1475,7 +1489,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'percent_b' ? null : 'percent_b');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_b' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_b' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_b > 0 ? formatarPercentual(evento.percent_b) : '-'}</td>
                                 <td 
                                   onClick={(e) => { 
@@ -1483,7 +1497,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'percent_d' ? null : 'percent_d');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_d' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_d' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_d > 0 ? formatarPercentual(evento.percent_d) : '-'}</td>
                                 <td 
                                   onClick={(e) => { 
@@ -1491,7 +1505,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'percent_c' ? null : 'percent_c');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_c' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'percent_c' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>{evento.percent_c > 0 ? formatarPercentual(evento.percent_c) : '-'}</td>
                                 <td 
                                   onClick={(e) => { 
@@ -1499,7 +1513,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'atrasao_cozinha' ? null : 'atrasao_cozinha');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'atrasao_cozinha' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'atrasao_cozinha' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_cozinha_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_cozinha > 0 ? formatarContagem(evento.atrasao_cozinha) : '-'}</span></td>
                                 <td 
                                   onClick={(e) => { 
@@ -1507,7 +1521,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'atrasao_bar' ? null : 'atrasao_bar');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'atrasao_bar' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'atrasao_bar' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '105px', minWidth: '105px', maxWidth: '105px'}}><span className={`font-semibold ${evento.atrasao_bar_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.atrasao_bar > 0 ? formatarContagem(evento.atrasao_bar) : '-'}</span></td>
                                 <td 
                                   onClick={(e) => { 
@@ -1515,7 +1529,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'stockout_drinks' ? null : 'stockout_drinks');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'stockout_drinks' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'stockout_drinks' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_drinks_status === 'green' ? 'text-green-600 dark:text-green-400' : evento.stockout_drinks_status === 'yellow' ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_drinks_perc > 0 ? formatarPercentual(evento.stockout_drinks_perc) : '-'}</span></td>
                                 <td 
                                   onClick={(e) => { 
@@ -1523,7 +1537,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     setLinhaHighlight(idx); 
                                     setColunaHighlight(prev => prev === 'stockout_comidas' ? null : 'stockout_comidas');
                                   }}
-                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'stockout_comidas' ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-inset ring-blue-300 dark:ring-blue-700' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
+                                  className={`px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'stockout_comidas' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
                                   style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}><span className={`font-semibold ${evento.stockout_comidas_status === 'green' ? 'text-green-600 dark:text-green-400' : evento.stockout_comidas_status === 'yellow' ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>{evento.stockout_comidas_perc > 0 ? formatarPercentual(evento.stockout_comidas_perc) : '-'}</span></td>
                                 <td className="px-2 py-1.5 text-center text-[11px] border-r-2 border-[hsl(var(--border))]" style={{width: '95px', minWidth: '95px', maxWidth: '95px'}}
                                   title={evento.cmv_teorico_custo ? `Custo teórico do dia: ${formatarMoeda(evento.cmv_teorico_custo)}` : undefined}>
@@ -1656,6 +1670,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                     >
                       Gerenciar dias do mês
                     </Button>
+
+                    {/* Recalcular custos do mês inteiro do Conta Azul (atalho pro cron 11:45) */}
+                    <RecalcularMesButton barId={selectedBar?.id} mes={filtroMes} ano={filtroAno} />
                     
                     <div>
                       <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-3">Período</label>
@@ -1798,7 +1815,19 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                    <div className="space-y-3">
                       <div className="flex items-center gap-3 mb-2 pb-2 border-b"><div className="w-3 h-3 bg-blue-500 rounded-full"></div><h2 className="font-semibold">PLANEJADO</h2></div>
-                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Receita M1</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.m1_r || 0} onChange={e => setEventoEdicao(p => p ? {...p, m1_r: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.m1_r)}</div>}</div>
+                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Receita M1</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.m1_r || 0} onChange={e => {
+                        const novoM1 = parseFloat(e.target.value) || 0;
+                        setEventoEdicao(p => {
+                          if (!p) return null;
+                          const base = custoBaselineRef.current;
+                          // Mantém a % atual: custo escala junto com o M1 (só quando havia M1 base).
+                          if (base.m1 > 0) {
+                            const escala = novoM1 / base.m1;
+                            return { ...p, m1_r: novoM1, c_artistico_plan: Math.round(base.art * escala), c_prod_plan: Math.round(base.prod * escala) };
+                          }
+                          return { ...p, m1_r: novoM1 };
+                        });
+                      }} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.m1_r)}</div>}<p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">Ao mudar o M1, o Custo Artístico/Produção (previsão) reescala mantendo a mesma % do M1.</p></div>
                       <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Clientes</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.cl_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, cl_plan: parseInt(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{(eventoEdicao?.cl_plan || 0).toLocaleString()}</div>}</div>
                       <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Ticket Entrada</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.te_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, te_plan: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.te_plan)}</div>}</div>
                       <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Ticket Bar</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.tb_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, tb_plan: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.tb_plan)}</div>}</div>

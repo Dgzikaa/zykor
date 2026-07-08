@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { authenticateUser } from '@/middleware/auth';
+import { getFatorCmv } from '@/lib/config/getFatorCmv';
 
 export const dynamic = 'force-dynamic';
 const supabase = createServiceRoleClient();
@@ -42,22 +43,46 @@ export async function GET(request: NextRequest) {
 
   try {
     if (tipo === 'consumacao') {
-      const { data: rows, error } = await (supabase as any).schema('bronze')
-        .from('bronze_contahub_avendas_vendasperiodo')
-        .select('vd_vrdescontos, vd_mesadesc, cli_nome, vd_pessoas')
-        .eq('bar_id', barId).eq('vd_motivodesconto', 'Artistas').eq('vd_dtgerencial', data);
+      // Mesma fonte/cálculo da tela /operacional/consumacao (categoria "artistas"):
+      // custo REAL por lançamento = custo da ficha técnica quando o produto tem ficha,
+      // senão desconto × fator de CMV. A coluna da tabela passa a mostrar o CUSTO
+      // (não mais o desconto bruto); o modal exibe bruto e custo lado a lado.
+      const fator = await getFatorCmv(supabase, barId);
+      const { data: rows, error } = await (supabase as any).rpc('get_consumos_9_detalhes_custo_semana', {
+        input_bar_id: barId,
+        input_data_inicio: data,
+        input_data_fim: data,
+        input_categoria: 'artistas',
+        p_fator: fator,
+        p_limit: 1000,
+        p_offset: 0,
+      });
       if (error) throw error;
       const itens = ((rows || []) as any[])
-        .map((r) => ({
-          descricao: r.cli_nome || r.vd_mesadesc || 'Desconto',
-          mesa: r.vd_mesadesc || null,
-          pessoas: Number(r.vd_pessoas) || null,
-          valor_usado: Number(r.vd_vrdescontos) || 0,
-        }))
-        .filter((x) => x.valor_usado > 0)
-        .sort((a, b) => b.valor_usado - a.valor_usado);
-      const total = itens.reduce((s, x) => s + x.valor_usado, 0);
-      return NextResponse.json({ success: true, tipo, data, fonte: 'contahub', valor_total: total, count: itens.length, itens });
+        .map((r) => {
+          const bruto = Number(r.valor_desconto) || 0;
+          const custo = Number(r.custo_real) || 0;
+          return {
+            descricao: r.prd_desc || r.motivo || 'Consumação',
+            mesa: r.mesa || null,
+            motivo: r.motivo || null,
+            qtd: Number(r.qtd) || 0,
+            valor_bruto: bruto,
+            custo,
+            tem_ficha: !!r.tem_ficha,
+            // valor_usado = custo (é o número que a tabela do Planejamento exibe)
+            valor_usado: custo,
+          };
+        })
+        .filter((x) => x.valor_bruto > 0 || x.custo > 0)
+        .sort((a, b) => b.valor_bruto - a.valor_bruto);
+      const total_bruto = Math.round(itens.reduce((s, x) => s + x.valor_bruto, 0) * 100) / 100;
+      const total_custo = Math.round(itens.reduce((s, x) => s + x.custo, 0) * 100) / 100;
+      return NextResponse.json({
+        success: true, tipo, data, fonte: 'contahub_custo', fator,
+        valor_total: total_custo, total_bruto, total_custo,
+        count: itens.length, itens,
+      });
     }
 
     const cats = tipo === 'prod' ? CAT_PROD : CAT_ART;
