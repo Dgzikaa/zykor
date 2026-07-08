@@ -148,11 +148,6 @@ export const MENU_TREE: MenuSection[] = [
     label: 'Gráficos',
     href: '/graficos',
     permission: 'gestao',
-    subItems: [
-      { icon: 'Boxes', label: 'Produção-CMV', href: '/graficos?m=producao', permission: 'gestao' },
-      { icon: 'DollarSign', label: 'Financeiro', href: '/graficos?m=financeiro', permission: 'gestao' },
-      { icon: 'Target', label: 'Estratégico', href: '/graficos?m=estrategico', permission: 'gestao' },
-    ],
   },
   {
     icon: 'Wrench',
