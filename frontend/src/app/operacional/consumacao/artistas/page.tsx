@@ -83,7 +83,7 @@ export default function VincularConsumoArtistaPage() {
             <ArrowLeft className="w-4 h-4" /> Voltar para Consumação
           </Link>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Users className="w-6 h-6" /> Consumação por Artista
+            <Users className="w-6 h-6" />
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Cada consumação de artista vinculada a um artista do cadastro. Resolve sozinho pelo nome ou pelo show da noite;

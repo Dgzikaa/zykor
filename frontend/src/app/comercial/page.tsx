@@ -71,9 +71,6 @@ export default function ComercialPage() {
               <Megaphone className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Central Comercial 2026
-              </h1>
               <p className="text-gray-600 dark:text-gray-400">
                 Planejamento estratégico de datas, eventos e oportunidades
               </p>

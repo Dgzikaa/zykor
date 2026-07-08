@@ -1158,7 +1158,6 @@ export default function FichasTecnicasPage() {
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-xl"><ChefHat className="w-6 h-6 text-purple-600 dark:text-purple-400" /></div>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Fichas Técnicas</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Produção (preparos) e Finalização (cardápio) — insumos, peso, custo e insumo mestre</p>
           </div>
           {soLeitura && (

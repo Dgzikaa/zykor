@@ -197,7 +197,6 @@ export default function PermissoesPage() {
         <div className="card-dark p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="card-title-dark mb-2">Gestão de Permissões</h1>
               <p className="card-description-dark">
                 Configure as permissões para cada função do sistema
               </p>

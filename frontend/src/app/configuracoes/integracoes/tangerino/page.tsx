@@ -51,7 +51,6 @@ export default function TangerinoCadastroPage() {
         <div className="flex items-center gap-3 mb-1">
           <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white" style={{ background: '#F59E0B' }}>TG</div>
           <div>
-            <h1 className="text-xl font-bold">Tangerino (Sólides DP)</h1>
             <p className="text-sm text-muted-foreground">Folha de ponto, jornada e férias — alimenta o ponto da Central do Funcionário.</p>
           </div>
         </div>

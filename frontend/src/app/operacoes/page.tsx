@@ -82,9 +82,6 @@ export default function OperacoesPage() {
               <Zap className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Operações
-              </h1>
               <p className="text-gray-600 dark:text-gray-400">
                 Central de operações e gestão
               </p>

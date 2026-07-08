@@ -171,9 +171,6 @@ export function OrganizadorClient({ initialData, barId, barNome }: OrganizadorCl
             Voltar
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Organizador de Visão
-            </h1>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Planejamento estratégico anual e trimestral • {barNome}
             </p>

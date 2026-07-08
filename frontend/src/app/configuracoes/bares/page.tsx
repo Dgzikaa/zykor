@@ -76,7 +76,7 @@ export default function BaresConfigPage() {
     <div className="container mx-auto px-3 py-5 max-w-5xl">
       <div className="flex items-center justify-between gap-3 mb-5">
         <div>
-          <h1 className="text-xl font-bold flex items-center gap-2"><Store className="w-5 h-5" /> Bares</h1>
+          <h1 className="text-xl font-bold flex items-center gap-2"><Store className="w-5 h-5" /></h1>
           <p className="text-sm text-muted-foreground">Cadastre e configure os bares: perfil, dias de operação, metas e acesso.</p>
         </div>
         <Button onClick={() => { setEditando(novoBar()); setCriando(true); }}>

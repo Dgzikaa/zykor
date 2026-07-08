@@ -160,9 +160,6 @@ export default function QualidadeContaHubPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-6">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Qualidade dos Dados ContaHub
-          </h1>
           <p className="text-gray-600 dark:text-gray-400">
             Monitoramento e validação da integridade dos dados sincronizados
           </p>

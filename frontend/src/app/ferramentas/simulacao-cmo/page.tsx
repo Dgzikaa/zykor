@@ -789,7 +789,6 @@ export default function CMOUnificadoPage() {
               <div>
                 <h1 className="text-2xl font-bold flex items-center gap-2">
                   <Users className="h-6 w-6" />
-                  Gestão de CMO
                 </h1>
                 <p className="text-muted-foreground">Custo de Mão de Obra - {selectedBar.nome}</p>
               </div>

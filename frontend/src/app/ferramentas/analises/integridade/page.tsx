@@ -106,7 +106,7 @@ export default function IntegridadePage() {
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <ShieldAlert className="w-6 h-6 text-red-600" /> Integridade Operacional
+            <ShieldAlert className="w-6 h-6 text-red-600" />
           </h1>
           <p className="text-sm text-gray-500">
             Detector de anomalias em vendas: descontos suspeitos, itens removidos, padrões fora da curva.

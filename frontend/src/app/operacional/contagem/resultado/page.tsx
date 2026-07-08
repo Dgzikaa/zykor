@@ -44,7 +44,7 @@ export default function ResultadoContagemPage() {
       <div className="container mx-auto px-3 py-4 max-w-2xl">
         <div className="flex items-center gap-2 mb-1">
           <Link href="/operacional/contagem"><ChevronLeft className="w-5 h-5" /></Link>
-          <TrendingUp className="w-5 h-5" /><h1 className="text-xl font-bold">Resultado da Contagem</h1>
+          <TrendingUp className="w-5 h-5" />
         </div>
         <p className="text-sm text-muted-foreground mb-3">Consumo do período, esperado (pela média histórica) e itens com consumo fora do padrão.</p>
 

@@ -46,7 +46,6 @@ export default function GraficosPage() {
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl"><BarChart3 className="w-6 h-6 text-indigo-600 dark:text-indigo-400" /></div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Gráficos</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Painel visual de tudo que o Zykor enxerga · {selectedBar?.nome || ''}</p>
           </div>
         </div>

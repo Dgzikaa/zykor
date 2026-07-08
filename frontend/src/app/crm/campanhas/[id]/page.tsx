@@ -327,7 +327,6 @@ export default function CampanhaDetalhesPage() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{campanha.nome}</h1>
               <p className="text-gray-500 text-sm mt-1">
                 Detalhes da campanha de marketing
               </p>

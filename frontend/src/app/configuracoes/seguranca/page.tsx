@@ -216,9 +216,6 @@ export default function SecurityPage() {
                     <Shield className="w-8 h-8" />
                   </div>
                   <div>
-                    <h1 className="text-3xl font-bold">
-                      Dashboard de Segurança
-                    </h1>
                     <p className="text-blue-100 mt-1">
                       Monitore eventos de segurança e auditoria em tempo real
                     </p>

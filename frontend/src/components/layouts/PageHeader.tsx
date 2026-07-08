@@ -47,11 +47,13 @@ export function PageHeader({
         </nav>
       )}
 
+      {/* Título vai no header do topo (setPageTitle) — não repetimos visualmente aqui.
+          Fica só sr-only (acessibilidade). Descrição e ações continuam. */}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-0.5">
-          <h1 className="text-xl font-semibold text-[hsl(var(--foreground))]">{title}</h1>
+          <h1 className="sr-only">{title}</h1>
           {description && (
-            <p className="text-xs text-[hsl(var(--muted-foreground))]">{description}</p>
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">{description}</p>
           )}
           {children}
         </div>

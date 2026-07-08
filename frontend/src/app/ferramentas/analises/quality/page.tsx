@@ -70,7 +70,7 @@ export default function QualidadePage() {
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Award className="w-6 h-6 text-pink-600" /> Quality Scorecard</h1>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><Award className="w-6 h-6 text-pink-600" /></h1>
         <p className="text-sm text-gray-500">Indicador único de qualidade da operação por semana (0-100).</p>
       </div>
 

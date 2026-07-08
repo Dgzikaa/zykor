@@ -29,7 +29,6 @@ export default function FerramentasArtistasPage() {
           <div className="flex items-center gap-2">
             <Award className="h-6 w-6 text-amber-500" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Artistas & Labels — visão da casa</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {aba === 'artistas'
                   ? <>ROI, retorno e <b>lift</b> por artista. Cada noite conta pro <b>principal</b> dela (maior cachê) — apoio não herda o público.</>

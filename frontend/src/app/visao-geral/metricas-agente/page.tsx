@@ -107,7 +107,6 @@ export default function MetricasAgentePage() {
       <div className="container mx-auto px-4 py-6">
         {/* Header */}
         <div className="card-dark p-6 mb-6">
-          <h1 className="card-title-dark mb-2">Métricas do Agente Inteligente</h1>
           <p className="card-description-dark">
             Acompanhe as principais métricas coletadas e analisadas pelo agente
           </p>

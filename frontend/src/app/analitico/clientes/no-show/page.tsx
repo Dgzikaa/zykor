@@ -79,7 +79,7 @@ export default function NoShowPage() {
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><UserX className="w-6 h-6 text-red-600" /> No-Show Reservas</h1>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><UserX className="w-6 h-6 text-red-600" /></h1>
         <p className="text-sm text-gray-500">
           Quem reservou e não apareceu. Últimos 90d resumo, últimos 365d reincidentes.
         </p>

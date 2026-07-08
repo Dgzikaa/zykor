@@ -54,7 +54,6 @@ export default function CustoMoPage() {
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0"><Coins className="w-6 h-6" /></div>
               <div>
-                <h1 className="text-xl font-bold leading-tight">Custo de Mão de Obra</h1>
                 <p className="text-sm text-white/80">Freelas (real) + fixo escalado (estimado) por dia/evento</p>
               </div>
             </div>

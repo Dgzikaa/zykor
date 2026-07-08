@@ -110,7 +110,6 @@ export function AuditoriaV2Client({ historico, produtos, dataSelecionada }: Prop
     <div className="p-4 md:p-6 space-y-6 max-w-[1600px] mx-auto">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Stockout — Auditoria v2</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Histórico completo de execuções + estado de cada produto naquele dia.
           </p>

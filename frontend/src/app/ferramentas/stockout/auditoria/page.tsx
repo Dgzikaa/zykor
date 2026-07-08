@@ -192,7 +192,6 @@ export default function StockoutAuditoriaPage() {
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Auditoria de Stockout v2.0</h1>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
             Sistema de rastreamento RAW → PROCESSADO → AUDIT
           </p>

@@ -169,9 +169,6 @@ export default function GuiaFuncionalidadesPage() {
               <CheckCircle className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
-                📚 Guia de Funcionalidades
-              </h1>
               <p className="text-gray-600 dark:text-gray-400 mt-1">
                 Todas as funcionalidades implementadas e onde acessá-las
               </p>

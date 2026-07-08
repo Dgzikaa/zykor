@@ -113,9 +113,6 @@ export default function AlertasPage() {
               <ShieldAlert className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Central de Alertas
-              </h1>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Situações que precisam de ação
               </p>

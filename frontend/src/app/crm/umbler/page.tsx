@@ -502,9 +502,6 @@ export default function UmblerPage() {
                   <MessageCircle className="w-6 h-6 text-foreground" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    Umbler Talk - Central de Dados
-                  </h1>
                   <p className="text-gray-600 dark:text-gray-400">
                     Histórico completo de conversas e cruzamento com reservas
                   </p>

@@ -110,9 +110,6 @@ export default function Marketing360Page() {
               <TrendingUp className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Marketing 360°
-              </h1>
               <p className="text-gray-600 dark:text-gray-400">
                 {selectedBar?.nome || 'Carregando...'}
               </p>

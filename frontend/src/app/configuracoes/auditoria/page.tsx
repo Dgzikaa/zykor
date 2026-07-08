@@ -886,7 +886,6 @@ export default function AuditoriaPage() {
         <div className="flex items-center gap-2">
           <Shield className="h-6 w-6 text-violet-600" />
           <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Auditoria</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Quem fez o quê no sistema — criação, edição e exclusão de registros.</p>
           </div>
         </div>

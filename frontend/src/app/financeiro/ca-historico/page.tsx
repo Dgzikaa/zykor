@@ -65,7 +65,6 @@ function HistoricoInner() {
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-primary/10 p-2.5"><History className="h-6 w-6 text-primary" /></div>
           <div>
-            <h1 className="text-xl font-semibold">Histórico Conta Azul</h1>
             <p className="text-sm text-muted-foreground">Tudo que o Zykor lançou no Conta Azul — por origem.</p>
           </div>
         </div>

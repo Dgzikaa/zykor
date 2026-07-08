@@ -74,7 +74,6 @@ export default function FeedbacksPage() {
       <div className="container mx-auto px-4 py-6 max-w-3xl">
         <div className="flex items-center gap-2 mb-1">
           <MessageSquare className="w-5 h-5" />
-          <h1 className="text-xl font-bold">Feedbacks da equipe</h1>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
           O que a galera está mandando pelo widget — com a tela e o autor, pra você avaliar e tirar

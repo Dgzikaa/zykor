@@ -63,9 +63,6 @@ export default function ConfiguracaoPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h1 className="text-2xl font-bold text-black mb-2">
-          Configurações do Sistema
-        </h1>
         <p className="text-gray-700 font-medium">
           Gerencie usuários, permissões, metas e importações de dados -{' '}
           {selectedBar.nome}

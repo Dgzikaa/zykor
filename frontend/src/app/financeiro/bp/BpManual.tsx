@@ -116,7 +116,6 @@ export function BpManual({ barId }: { barId: number }) {
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center shrink-0"><ClipboardList className="w-6 h-6" /></div>
             <div>
-              <h1 className="text-xl font-bold leading-tight">Business Plan (BP)</h1>
               <p className="text-sm text-white/70">100% manual — o que você salva aqui vira o planejado da Orçamentação</p>
             </div>
           </div>

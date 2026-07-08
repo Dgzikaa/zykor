@@ -592,7 +592,6 @@ export default function StockoutPage() {
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Controle de Stockout</h1>
           <p className="text-xs text-[hsl(var(--muted-foreground))] mt-0.5">
             Análise de disponibilidade de produtos
           </p>

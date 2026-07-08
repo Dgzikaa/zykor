@@ -217,9 +217,6 @@ export default function ConversasPage() {
       <div className="container mx-auto px-4 py-6">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Conversas do Chatbot
-          </h1>
           <p className="text-gray-600 dark:text-gray-400">
             Histórico de atendimentos via WhatsApp (Umbler Talk)
           </p>

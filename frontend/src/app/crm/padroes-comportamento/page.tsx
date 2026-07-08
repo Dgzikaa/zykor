@@ -147,9 +147,6 @@ export default function PadroesComportamentoPage() {
       <div className="container mx-auto px-2 py-4 max-w-[98vw]">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            🎯 Análise de Padrões de Comportamento
-          </h1>
           <p className="text-gray-600 dark:text-gray-400">
             Entenda os hábitos e preferências dos seus clientes
           </p>

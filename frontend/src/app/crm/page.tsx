@@ -131,9 +131,6 @@ export default function CRMHubPage() {
               <Sparkles className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
-                CRM Inteligente
-              </h1>
               <p className="text-gray-600 dark:text-gray-400 mt-1">
                 Sistema completo de gestão e relacionamento com clientes
               </p>

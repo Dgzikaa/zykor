@@ -123,7 +123,7 @@ export default function BeneficiariosPage() {
     <ProtectedRoute>
       <div className="mx-auto px-3 py-5">
         <div className="flex items-center gap-2 mb-1">
-          <Users className="w-5 h-5" /><h1 className="text-xl font-bold">Beneficiários</h1>
+          <Users className="w-5 h-5" />
         </div>
         <p className="text-sm text-muted-foreground mb-4">Controle por pessoa — cadastros do Conta Azul unificados num só, com histórico de pagamentos.</p>
 

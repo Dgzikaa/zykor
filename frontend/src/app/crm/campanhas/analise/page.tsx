@@ -210,10 +210,9 @@ export default function AnaliseCampanhasPage() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+              <div className="flex items-center gap-3">
                 <BarChart3 className="h-8 w-8 text-purple-400" />
-                Análise de Campanhas
-              </h1>
+              </div>
               <p className="text-gray-400 mt-1">
                 Cruzamento de disparos WhatsApp × Reservas × Comparecimento
               </p>

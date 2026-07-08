@@ -68,7 +68,7 @@ export default function AniversariantesPage() {
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Cake className="w-6 h-6 text-pink-600" /> Aniversariantes</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Cake className="w-6 h-6 text-pink-600" /></h1>
           <p className="text-sm text-gray-500">
             Clientes recorrentes (≥2 visitas) fazendo aniversário. Mande WhatsApp ou voucher.
           </p>

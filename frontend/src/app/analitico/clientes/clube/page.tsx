@@ -85,7 +85,7 @@ export default function ClubePage() {
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Crown className="w-6 h-6 text-pink-600" /> Clube Ordi</h1>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><Crown className="w-6 h-6 text-pink-600" /></h1>
         <p className="text-sm text-gray-500">Programa de fidelidade — níveis dinâmicos com base em visitas + gasto + recência.</p>
       </div>
 

@@ -213,7 +213,7 @@ export default function PlanoProducaoPage() {
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-violet-100 dark:bg-violet-900/30 rounded-xl"><ChefHat className="w-6 h-6 text-violet-600 dark:text-violet-400" /></div>
           <div className="flex-1">
-            <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">Planejamento da Produção{soLeitura && <BadgeSomenteLeitura />}</h1>
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">{soLeitura && <BadgeSomenteLeitura />}</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Ponto de Ressuprimento = média 6 semanas + desvio padrão × fator de serviço · {selectedBar?.nome || ''}</p>
           </div>
           <button onClick={carregar} title="Atualizar estoque e sugestões" className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />Atualizar estoque</button>

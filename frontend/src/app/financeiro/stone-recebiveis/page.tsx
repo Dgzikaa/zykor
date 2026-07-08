@@ -117,7 +117,7 @@ function Conteudo() {
       {/* Cabeçalho */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold flex items-center gap-2"><CreditCard className="w-5 h-5" /> Recebíveis Stone → Conta Azul</h1>
+          <CreditCard className="w-5 h-5" />
           <p className="text-sm text-muted-foreground">Lança o líquido dos recebíveis do dia no CA (crédito, débito, PIX) + o par de taxa. Idempotente — não duplica.</p>
         </div>
       </div>

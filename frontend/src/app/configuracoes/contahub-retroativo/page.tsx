@@ -159,7 +159,6 @@ export default function ContaHubRetroativoPage() {
         <div className="card-dark p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
             <Database className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            <h1 className="card-title-dark">Coleta Retroativa - ContaHub</h1>
           </div>
           <p className="card-description-dark">
             Colete dados históricos do ContaHub para preencher lacunas no período especificado

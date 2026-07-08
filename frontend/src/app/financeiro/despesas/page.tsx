@@ -47,7 +47,6 @@ function DespesasInner() {
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-red-500/10 p-2.5"><TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400" /></div>
           <div>
-            <h1 className="text-xl font-semibold">Despesas CA</h1>
             <p className="text-sm text-muted-foreground">Lançamentos de despesa no Conta Azul feitos pelo Zykor.</p>
           </div>
         </div>

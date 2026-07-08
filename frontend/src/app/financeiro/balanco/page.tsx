@@ -238,7 +238,7 @@ export default function BalancoPage() {
   return (
     <main className="max-w-[1400px] mx-auto px-4 py-8 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Landmark className="w-6 h-6 text-indigo-600" /> Balanço Patrimonial</h1>
+        <Landmark className="w-6 h-6 text-indigo-600" />
         <div className="flex gap-2">
           <select value={qtdMeses} onChange={e => setQtdMeses(Number(e.target.value))} className="h-9 border rounded-md px-2 text-sm bg-white dark:bg-gray-800">
             {[3, 6, 8, 12].map(q => <option key={q} value={q}>{q} meses</option>)}

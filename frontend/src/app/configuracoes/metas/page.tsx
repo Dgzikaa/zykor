@@ -92,7 +92,7 @@ export default function MetasPage() {
       <div className="sticky top-0 z-10 -mx-3 px-3 py-3 mb-4 bg-background/85 backdrop-blur border-b border-[hsl(var(--border))]">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h1 className="text-xl font-bold flex items-center gap-2"><Target className="w-5 h-5" /> Metas</h1>
+            <h1 className="text-xl font-bold flex items-center gap-2"><Target className="w-5 h-5" /></h1>
             <p className="text-sm text-muted-foreground">
               <strong>{barNome || selectedBar?.nome || 'bar selecionado'}</strong>
               {!loading && <> · {totalMetricas} métricas em {grupos.length} categorias</>}

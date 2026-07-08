@@ -32,7 +32,6 @@ export default function NotificationsPage() {
       <div className="container mx-auto px-3 py-6 max-w-4xl">
         <div className="flex items-center gap-2 mb-1">
           <Bell className="w-5 h-5" />
-          <h1 className="text-xl font-bold">Central de Notificações</h1>
         </div>
         <p className="text-sm text-muted-foreground mb-5">
           Sua caixa de entrada em tempo real e, para admins, o controle de quem recebe o quê e por

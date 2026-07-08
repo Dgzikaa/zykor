@@ -222,9 +222,6 @@ export default function AgentePage() {
               <Bot className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Agente Zykor IA
-              </h1>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Inteligência artificial com aprendizado autônomo
               </p>

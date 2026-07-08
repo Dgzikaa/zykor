@@ -113,7 +113,6 @@ export default function VendasCategoriasPage() {
         <div className="card-dark p-6 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <h1 className="card-title-dark mb-2">📊 Vendas por Categoria</h1>
               <p className="card-description-dark">
                 Acompanhe as vendas de Drinks, Cervejas e Comidas
               </p>

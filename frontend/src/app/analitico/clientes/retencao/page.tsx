@@ -68,7 +68,7 @@ export default function RetencaoPage() {
     <div className="container mx-auto p-6 space-y-4">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Users className="w-6 h-6 text-indigo-600" /> Retenção de Clientes (Coorte)
+          <Users className="w-6 h-6 text-indigo-600" />
         </h1>
         <p className="text-sm text-muted-foreground">
           % de clientes que voltaram nos meses seguintes à 1ª visita (identificados por telefone). M+N = N meses depois.

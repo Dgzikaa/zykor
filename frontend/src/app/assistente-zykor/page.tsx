@@ -5,7 +5,7 @@ import { useUser } from '@/contexts/UserContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Bot, User as UserIcon, Send, Sparkles } from 'lucide-react';
+import { Bot, User as UserIcon, Send } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 
 type Msg = {
@@ -73,9 +73,6 @@ export default function AssistenteZykorPage() {
   return (
     <main className="max-w-4xl mx-auto px-6 py-8 space-y-4">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Sparkles className="w-6 h-6 text-pink-600" /> Zykor Assistant
-        </h1>
         <p className="text-sm text-gray-500">
           IA que consulta dados reais dos bares em tempo real. Pergunta em pt-BR natural.
         </p>

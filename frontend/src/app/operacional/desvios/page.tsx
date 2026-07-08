@@ -356,7 +356,7 @@ export default function DesviosPage() {
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-rose-100 dark:bg-rose-900/30 rounded-xl"><Scale className="w-6 h-6 text-rose-600 dark:text-rose-400" /></div>
             <div>
-              <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">Desvios de Consumo{soLeitura && <BadgeSomenteLeitura />}</h1>
+              <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">{soLeitura && <BadgeSomenteLeitura />}</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">Estoque real × teórico (ini + compras + produzido − vendas×ficha − desperdício) · {selectedBar?.nome || ''}</p>
             </div>
           </div>

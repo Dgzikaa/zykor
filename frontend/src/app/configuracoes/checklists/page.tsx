@@ -143,7 +143,6 @@ export default function ConfiguracaoChecklistsPage() {
                   <CheckSquare className="w-8 h-8" />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold">Configuração de Checklists</h1>
                   <p className="text-emerald-100 mt-1">
                     Gerencie templates e configurações de checklists
                   </p>

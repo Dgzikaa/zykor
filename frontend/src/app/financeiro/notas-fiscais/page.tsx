@@ -124,7 +124,6 @@ function NotasFiscaisInner() {
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-primary/10 p-2.5"><ReceiptText className="h-6 w-6 text-primary" /></div>
           <div>
-            <h1 className="text-xl font-semibold">Notas Fiscais</h1>
             <p className="text-sm text-muted-foreground">Total emitido em NF, consolidado por CNPJ (ContaHub).</p>
           </div>
         </div>

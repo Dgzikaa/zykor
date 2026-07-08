@@ -77,7 +77,6 @@ export default function TimezoneDebugPage() {
       <div className="space-y-2">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Globe className="h-6 w-6" />
-          Debug de Timezone - Brasília
         </h1>
         <p className="text-muted-foreground">
           Verificação de timezone em todos os componentes do sistema

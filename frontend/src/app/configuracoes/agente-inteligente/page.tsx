@@ -137,7 +137,6 @@ export default function ConfiguracoesAgentePage() {
             <div className="flex items-center gap-3">
               <Brain className="w-8 h-8 text-blue-600 dark:text-blue-400" />
               <div>
-                <h1 className="card-title-dark mb-1">Configurações do Agente Inteligente</h1>
                 <p className="card-description-dark">
                   Configure como o agente inteligente monitora seu negócio
                 </p>

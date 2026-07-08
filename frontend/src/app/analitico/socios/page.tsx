@@ -101,7 +101,6 @@ export default function SociosPage() {
         <div className="card-dark p-6 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <h1 className="card-title-dark">Gastos dos Sócios</h1>
               <p className="card-description-dark">
                 Acompanhe os gastos de consumo dos sócios por mês
               </p>

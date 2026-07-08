@@ -125,9 +125,6 @@ export default function ClassificacaoGruposPage() {
     <div className="space-y-4 p-1">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            Classificação de Grupos (Mix)
-          </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Define se cada grupo do cardápio é Bebida, Drink, Comida ou Outros. É o que monta a
             cesta/mix de vendas. Grupos novos ou sem classificação aparecem no topo.

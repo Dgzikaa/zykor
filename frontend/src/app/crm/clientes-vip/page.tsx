@@ -199,12 +199,11 @@ export default function ClientesVIPPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="space-y-1">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <div className="flex items-center gap-3">
               <div className="p-2 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg">
                 <Crown className="h-6 w-6 text-white" />
               </div>
-              Clientes VIP
-            </h1>
+            </div>
             <p className="text-gray-600 dark:text-gray-400 text-sm ml-11">
               Perfil de consumo e preferências dos seus melhores clientes
             </p>

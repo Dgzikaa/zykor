@@ -37,7 +37,6 @@ function ReceitasInner() {
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-emerald-500/10 p-2.5"><TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" /></div>
           <div>
-            <h1 className="text-xl font-semibold">Receitas CA</h1>
             <p className="text-sm text-muted-foreground">Receitas lançadas no Conta Azul — por origem.</p>
           </div>
         </div>

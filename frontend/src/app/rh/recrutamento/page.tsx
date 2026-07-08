@@ -109,7 +109,7 @@ export default function RecrutamentoPage() {
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0"><Briefcase className="w-6 h-6" /></div>
               <div>
-                <h1 className="flex items-center gap-2 text-xl font-bold leading-tight">Recrutamento{soLeitura && <BadgeSomenteLeitura />}</h1>
+                <h1 className="flex items-center gap-2 text-xl font-bold leading-tight">{soLeitura && <BadgeSomenteLeitura />}</h1>
                 <p className="text-sm text-white/80">Vagas, candidatos por etapa e admissão</p>
               </div>
             </div>

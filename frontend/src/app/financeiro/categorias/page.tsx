@@ -98,7 +98,6 @@ export default function CategoriasPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FolderTree className="w-5 h-5 text-blue-600" />
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Central de Categorias</h1>
         </div>
         <select value={ano} onChange={e => setAno(Number(e.target.value))} className="text-sm border rounded px-2 py-1 bg-white dark:bg-gray-800 dark:border-gray-700">
           {[0, 1, 2].map(d => { const a = new Date().getFullYear() - d; return <option key={a} value={a}>{a}</option>; })}

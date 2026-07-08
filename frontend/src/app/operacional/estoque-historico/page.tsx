@@ -146,7 +146,7 @@ export default function EstoqueHistoricoPage() {
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl"><Boxes className="w-6 h-6 text-amber-600 dark:text-amber-400" /></div>
           <div className="flex-1">
-            <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">Estoque — Histórico de Contagens {soLeitura && <BadgeSomenteLeitura />}</h1>
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">{soLeitura && <BadgeSomenteLeitura />}</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Valor em estoque por área e por contagem · {selectedBar?.nome || `Bar ${barId ?? ''}`}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">

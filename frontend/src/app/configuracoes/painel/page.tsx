@@ -255,7 +255,6 @@ export default function PainelSupabasePage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Server className="w-6 h-6 text-emerald-600" />
-            Painel Supabase
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Saúde da infraestrutura agora (scrape do Metrics API). Histórico e alertas no Grafana.

@@ -199,7 +199,6 @@ export default function ContaHubRawPage() {
             <div>
               <h1 className="card-title-dark mb-2">
                 <Database className="w-6 h-6 mr-2 inline" />
-                Processamento de Dados Brutos - ContaHub
               </h1>
               <p className="card-description-dark">
                 Gerencie e processe os dados brutos coletados do ContaHub

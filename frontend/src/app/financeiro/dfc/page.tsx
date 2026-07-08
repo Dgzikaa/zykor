@@ -99,7 +99,6 @@ export default function DfcPage() {
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold text-gray-900 dark:text-white">Demonstrativo de Fluxo de Caixa (DFC)</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Por caixa (data de pagamento) · {selectedBar?.nome || 'Bar'} · derivado do Conta Azul (exclui ajustes não-caixa).
             {soConciliado ? ' Mostrando só o que foi conciliado no banco.' : ' "Baixado no CA" (não reflete conciliação bancária).'}

@@ -288,7 +288,7 @@ export default function ConciliacaoPage() {
     <ProtectedRoute>
       <div className="mx-auto px-3 py-5">
         <div className="flex items-center gap-2 mb-1">
-          <Scale className="w-5 h-5" /><h1 className="text-xl font-bold">Conciliação & Análise Stone</h1>
+          <Scale className="w-5 h-5" />
         </div>
         <p className="text-sm text-muted-foreground mb-3">Cartão (ContaHub) × Stone por dia operacional, taxas, recebíveis e mix.</p>
 

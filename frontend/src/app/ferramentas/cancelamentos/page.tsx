@@ -114,7 +114,7 @@ export default function CancelamentosPage() {
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <XCircle className="w-6 h-6 text-red-600" /> Cancelamentos
+            <XCircle className="w-6 h-6 text-red-600" />
           </h1>
           <p className="text-sm text-muted-foreground">
             Perda por itens cancelados (valor cheio), custo e % sobre o faturamento. Clique num dia para ver os itens.

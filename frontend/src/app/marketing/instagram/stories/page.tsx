@@ -38,7 +38,6 @@ export default function StoriesPage() {
     <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Camera className="w-6 h-6 text-pink-600" /> Stories</h1>
           <p className="text-sm text-gray-500">
             Últimos {dias} dias. <span className="text-amber-600">Meta só permite ler stories ativos (24h life), então só temos o que o sync capturou (roda a cada 2h).</span>
           </p>

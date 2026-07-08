@@ -171,7 +171,6 @@ export default function ComprasPage() {
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl"><ShoppingCart className="w-6 h-6 text-indigo-600 dark:text-indigo-400" /></div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Compras</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">Pedidos e cotações (VMarket) · {selectedBar?.nome || `Bar ${barId ?? ''}`}</p>
             </div>
           </div>

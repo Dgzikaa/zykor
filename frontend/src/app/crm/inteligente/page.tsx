@@ -252,12 +252,11 @@ export default function CRMInteligentePage() {
       <div className="container mx-auto px-2 py-4 max-w-[98vw]">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-muted rounded-lg">
               <Sparkles className="h-6 w-6 text-foreground" />
             </div>
-            CRM Inteligente
-          </h1>
+          </div>
           <p className="text-gray-600 dark:text-gray-400 text-sm ml-11">
             Análise RFM, segmentação automática e ações estratégicas
           </p>

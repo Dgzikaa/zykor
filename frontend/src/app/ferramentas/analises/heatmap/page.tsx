@@ -59,7 +59,7 @@ export default function HeatmapVendasPage() {
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Flame className="w-6 h-6 text-pink-600" /> Mapa de calor: DOW × Hora</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Flame className="w-6 h-6 text-pink-600" /></h1>
           <p className="text-sm text-gray-500">
             Faturamento por dia da semana e hora — últimos 90 dias. Onde está o calor da operação? Use pra escala de equipe.
           </p>

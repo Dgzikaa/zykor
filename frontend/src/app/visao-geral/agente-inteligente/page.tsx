@@ -273,7 +273,6 @@ export default function AgenteInteligentePage() {
             <div className="flex items-center gap-3">
               <Brain className="w-8 h-8 text-blue-600 dark:text-blue-400" />
               <div>
-                <h1 className="card-title-dark mb-1">Agente Inteligente</h1>
                 <p className="card-description-dark">
                   Insights automáticos sobre o seu negócio
                 </p>

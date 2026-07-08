@@ -239,7 +239,6 @@ export default function AdministracaoIntegracoesPage() {
             <div>
               <h1 className="text-xl font-bold flex items-center gap-2">
                 <Plug className="w-5 h-5 text-emerald-500" />
-                Integrações {selectedBar ? `· ${selectedBar.nome}` : ''}
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
                 Saúde de todas as conexões externas, credenciais, syncs e volumes.

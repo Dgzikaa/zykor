@@ -140,7 +140,6 @@ export default function FichasTecnicasPage() {
             <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg">
               <FileText className="h-6 w-6 text-white" />
             </div>
-            Gestão de Fichas Técnicas
           </h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm ml-11">
             Atualize automaticamente gramatura e custos das fichas técnicas

@@ -211,7 +211,7 @@ export default function CmvTeoricoPage() {
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl"><Calculator className="w-6 h-6 text-amber-600 dark:text-amber-400" /></div>
             <div>
-              <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">CMV Teórico{soLeitura && <BadgeSomenteLeitura />}</h1>
+              <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">{soLeitura && <BadgeSomenteLeitura />}</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">{modo === 'cardapio' ? 'Custo da ficha (último preço) ÷ preço de venda (ContaHub)' : 'CMV teórico ponderado pelas vendas do período'} · {selectedBar?.nome || `Bar ${barId ?? ''}`}</p>
             </div>
           </div>

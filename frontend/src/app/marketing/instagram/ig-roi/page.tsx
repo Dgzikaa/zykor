@@ -6,7 +6,7 @@ import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { TrendingUp, DollarSign, ExternalLink, Heart, Eye } from 'lucide-react';
+import { DollarSign, ExternalLink, Heart, Eye } from 'lucide-react';
 
 const fmt = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR').format(n));
 const fmtBRL = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n));
@@ -41,7 +41,6 @@ export default function IgRoiPage() {
     <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><TrendingUp className="w-6 h-6 text-pink-600" /> IG ROI por post</h1>
           <p className="text-sm text-gray-500">
             Cada post comparado com a média de faturamento dos 7 dias anteriores. Mostra qual conteúdo realmente moveu o caixa.
           </p>

@@ -138,7 +138,7 @@ export default function FuncionariosPage() {
                 <Users className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="flex items-center gap-2 text-xl font-bold leading-tight">Funcionários{soLeitura && <BadgeSomenteLeitura />}</h1>
+                <h1 className="flex items-center gap-2 text-xl font-bold leading-tight">{soLeitura && <BadgeSomenteLeitura />}</h1>
                 <p className="text-sm text-white/80">Central de RH — equipe, documentos e indicadores</p>
               </div>
             </div>

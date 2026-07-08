@@ -228,9 +228,6 @@ export default function LTVEngajamentoPage() {
       <div className="container mx-auto px-2 py-4 max-w-[98vw]">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              💰 LTV e Score de Engajamento
-            </h1>
             <p className="text-gray-600 dark:text-gray-400">
               Lifetime Value e métricas de engajamento dos clientes (dados reais ContaHub)
             </p>

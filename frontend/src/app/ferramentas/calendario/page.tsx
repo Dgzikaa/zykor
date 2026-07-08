@@ -566,7 +566,6 @@ export default function CalendarioPage() {
             <div>
               <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-3">
                 <Calendar className="h-6 w-6 text-blue-600" />
-                Calendário de Eventos
               </h1>
               <p className="text-gray-600 dark:text-gray-400">
                 Visualize eventos, artistas e reservas em formato de calendário

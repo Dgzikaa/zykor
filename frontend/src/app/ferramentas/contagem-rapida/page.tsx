@@ -252,7 +252,6 @@ export default function ContagemRapidaPage() {
             <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg">
               <Package className="h-6 w-6 text-white" />
             </div>
-            Contagem Rápida de Estoque
           </h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm ml-11">
             Registre contagens de estoque de forma rápida e prática

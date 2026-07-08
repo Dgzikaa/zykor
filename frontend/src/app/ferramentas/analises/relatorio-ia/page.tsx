@@ -109,7 +109,7 @@ export default function RelatorioSemanalPage() {
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <FileText className="w-6 h-6 text-pink-600" /> Relatório Executivo Semanal
+            <FileText className="w-6 h-6 text-pink-600" />
           </h1>
           <p className="text-sm text-gray-500">
             Resumo cross-área gerado por IA: vendas, CMV, IG, NPS, alertas, clube, previsões.

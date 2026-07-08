@@ -58,7 +58,7 @@ export default function PrevisaoPage() {
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Crystal className="w-6 h-6 text-pink-600" /> Previsão de Demanda</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Crystal className="w-6 h-6 text-pink-600" /></h1>
           <p className="text-sm text-gray-500">Próximos 14 dias. Mediana das últimas 8 ocorrências por dia da semana + ajuste por atração.</p>
         </div>
         <Button onClick={recalcular} disabled={recalc} variant="outline">

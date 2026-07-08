@@ -95,7 +95,6 @@ export default function ArtistaPerfilPage() {
           <>
             <div className="flex items-center gap-2 mb-1">
               <Music className="w-5 h-5" />
-              <h1 className="text-xl font-bold">{header.nome}</h1>
               {header.genero && <span className="text-xs rounded bg-muted px-2 py-0.5 text-muted-foreground">{header.genero}</span>}
             </div>
             <p className="text-sm text-muted-foreground mb-4">

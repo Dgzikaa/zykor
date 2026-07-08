@@ -77,7 +77,7 @@ export default function SegmentosRfmPage() {
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Users className="w-6 h-6 text-violet-600" /> Segmentos de Clientes (RFM)
+          <Users className="w-6 h-6 text-violet-600" />
         </h1>
         <p className="text-sm text-gray-500">
           {totalClientes.toLocaleString('pt-BR')} clientes identificados, agrupados por Recência, Frequência e Valor.

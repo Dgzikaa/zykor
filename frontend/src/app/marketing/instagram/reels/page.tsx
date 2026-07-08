@@ -41,7 +41,6 @@ export default function ReelsPage() {
     <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><PlayCircle className="w-6 h-6 text-pink-600" /> Reels Analytics</h1>
           <p className="text-sm text-gray-500">Últimos {dias} dias.</p>
         </div>
         <select

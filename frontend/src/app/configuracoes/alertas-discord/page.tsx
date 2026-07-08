@@ -204,9 +204,6 @@ export default function AlertasDiscordPage() {
               <Bell className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Alertas Discord
-              </h1>
               <p className="text-gray-600 dark:text-gray-400">
                 Configure alertas inteligentes via Discord
               </p>

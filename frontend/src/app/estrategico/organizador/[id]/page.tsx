@@ -298,9 +298,6 @@ export default function OrganizadorEditPage() {
           <div className="flex items-center justify-center gap-4">
             <div className="flex items-center gap-2">
               <Target className="w-5 h-5 text-green-700 dark:text-green-400" />
-              <h1 className="text-xl font-black text-gray-800 dark:text-white tracking-tight">
-                ORGANIZADOR VISÃO
-              </h1>
             </div>
             <div className="flex items-center gap-2 bg-white dark:bg-gray-700 rounded-lg px-2 py-1 border border-[#8fbc8f]">
               <button

@@ -365,7 +365,6 @@ export function FluxoContaHub({ only }: { only?: 'entradas' | 'saidas' | 'turnos
           <div className="flex items-center gap-3">
             <div className="rounded-xl bg-primary/10 p-2.5"><Banknote className="h-6 w-6 text-primary" /></div>
             <div>
-              <h1 className="text-xl font-semibold">Fluxo Dinheiro</h1>
               <p className="text-sm text-muted-foreground">Entradas e saídas de dinheiro do caixa por turno — ContaHub.</p>
             </div>
           </div>

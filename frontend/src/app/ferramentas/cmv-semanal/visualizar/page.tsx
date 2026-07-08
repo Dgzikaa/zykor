@@ -175,9 +175,6 @@ export default function CMVSemanalVisualizarPage() {
         {/* Header */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              📊 Visualização CMV Semanal
-            </h1>
             <p className="text-gray-600 dark:text-gray-400">
               Análise detalhada do CMV por semana
             </p>

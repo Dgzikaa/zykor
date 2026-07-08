@@ -77,7 +77,7 @@ export default function ClientesEmQuedaPage() {
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><AlertTriangle className="w-6 h-6 text-amber-600" /> Clientes em queda</h1>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><AlertTriangle className="w-6 h-6 text-amber-600" /></h1>
         <p className="text-sm text-gray-500">
           VIP cujos sinais indicam churn iminente: ticket caindo &gt;20% OU intervalo entre visitas dobrando.
           Acione ANTES de virar &ldquo;dormindo&rdquo; (60d sem aparecer).
