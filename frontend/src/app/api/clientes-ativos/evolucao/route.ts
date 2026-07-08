@@ -86,13 +86,19 @@ export async function GET(request: NextRequest) {
       const percentualNovos = totalClientes > 0 ? (novosClientes / totalClientes) * 100 : 0;
       const percentualRetornantes = totalClientes > 0 ? (clientesRetornantes / totalClientes) * 100 : 0;
 
-      // Buscar base ativa da Gold #1 (snapshot do último dia do mês)
-      const { data: goldData, error: errorGold } = await supabase
+      // Base ativa = snapshot mais recente até o fim do mês (Gold #1).
+      // Mês corrente/parcial: o "fim do mês" é futuro e não tem snapshot → dava 0.
+      // Corrige buscando o último snapshot <= min(fimMes, hoje).
+      const hojeStr = new Date().toISOString().split('T')[0];
+      const fimBusca = fimMes > hojeStr ? hojeStr : fimMes;
+      const { data: goldData } = await supabase
         .schema('gold' as any)
         .from('clientes_diario')
-        .select('total_ativos')
+        .select('total_ativos, data_referencia')
         .eq('bar_id', barId)
-        .eq('data_referencia', fimMes)
+        .lte('data_referencia', fimBusca)
+        .order('data_referencia', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       const baseAtiva = Number(goldData?.total_ativos) || 0;

@@ -31,7 +31,7 @@ export interface PeriodoValor {
 }
 
 export const GRANULARIDADE_OPCOES: { valor: Granularidade; label: string }[] = [
-  { valor: 'dia', label: 'Diário' },
+  { valor: 'dia', label: 'Dia da semana' },
   { valor: 'semana', label: 'Semanal' },
   { valor: 'mes', label: 'Mensal' },
 ];
@@ -73,6 +73,7 @@ export function calcularRange(preset: PresetFixo, hoje: Date = new Date()): { in
 // ---------------------------------------------------------------------------
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 /** Segunda-feira (ISO) da semana da data. Usa meio-dia UTC pra evitar borda de fuso. */
 export function segundaDa(dataStr: string): string {
@@ -90,14 +91,17 @@ export function segundaDa(dataStr: string): string {
  */
 export function bucketDe(dataStr: string, granularidade: Granularidade | string): { key: string; label: string } {
   const s = dataStr.slice(0, 10);
-  const [y, m, d] = s.split('-');
+  const [y, m] = s.split('-');
   if (granularidade === 'mes') return { key: s.slice(0, 7), label: `${MESES[Number(m) - 1]}/${y.slice(2)}` };
   if (granularidade === 'semana') {
     const seg = segundaDa(s);
     const [, sm, sd] = seg.split('-');
     return { key: seg, label: `${sd}/${sm}` };
   }
-  return { key: s, label: `${d}/${m}` };
+  // 'dia' = análise POR DIA DA SEMANA: agrega todas as segundas, terças, etc. num balde.
+  const dow = new Date(s + 'T12:00:00Z').getUTCDay(); // 0=dom..6=sáb
+  const ordem = dow === 0 ? 7 : dow; // Seg=1 … Dom=7 (semana começa na segunda)
+  return { key: String(ordem), label: DIAS_SEMANA[dow] };
 }
 
 /** Nº de meses (inclusivo) entre duas datas YYYY-MM-DD, com clamp opcional. */

@@ -50,13 +50,16 @@ export async function GET(request: NextRequest) {
     gPromo += p; gDetra += d; gTotal += t;
   }
 
+  // NPS com amostra pequena vira ruído (1 detrator = -100). Só reporta o NPS do
+  // bucket quando há um mínimo de respostas; abaixo disso, nps = null (não plota).
+  const MIN_RESP = 5;
   const pontos = [...acc.entries()]
     .sort((x, y) => (x[0] < y[0] ? -1 : 1))
     .map(([key, a]) => ({
       key,
       label: a.label,
       respostas: a.total,
-      nps: a.total ? Math.round((100 * (a.promo - a.detra)) / a.total) : null,
+      nps: a.total >= MIN_RESP ? Math.round((100 * (a.promo - a.detra)) / a.total) : null,
     }));
 
   const npsPeriodo = gTotal ? Math.round((100 * (gPromo - gDetra)) / gTotal) : null;

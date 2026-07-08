@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
+import { PageShell } from '@/components/layout/PageShell';
 import { PeriodRangePicker } from '@/components/receitas/PeriodRangePicker';
 import { CardCrescimento } from '@/components/receitas/CardCrescimento';
 import { CardRoas } from '@/components/receitas/CardRoas';
@@ -33,12 +34,14 @@ export default function DashboardReceitasPage() {
   const barId = selectedBar?.id;
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <PageShell width="wide">
+      <div className="flex flex-col gap-2">
         <p className="text-sm text-[hsl(var(--muted-foreground))]">
           Visão unificada de receita para {selectedBar?.nome ?? 'o bar selecionado'}.
         </p>
-        <PeriodRangePicker value={periodo} onChange={setPeriodo} />
+        <div className="overflow-x-auto">
+          <PeriodRangePicker value={periodo} onChange={setPeriodo} className="!flex-nowrap w-max" />
+        </div>
       </div>
 
       {!barId ? (
@@ -56,6 +59,6 @@ export default function DashboardReceitasPage() {
           <CardNPS barId={barId} periodo={periodo} />
         </div>
       )}
-    </main>
+    </PageShell>
   );
 }
