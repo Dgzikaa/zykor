@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -44,6 +45,7 @@ interface Scan {
 
 export default function AgenteInteligentePage() {
   const { selectedBar } = useBarContext()
+  const { setPageTitle } = usePageTitle()
   const barId = selectedBar?.id
   const [insights, setInsights] = useState<Insight[]>([])
   const [alertas, setAlertas] = useState<Alerta[]>([])
@@ -52,6 +54,11 @@ export default function AgenteInteligentePage() {
   const [scanning, setScanning] = useState(false)
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todas')
   const [filtroTipo, setFiltroTipo] = useState<string>('todos')
+
+  useEffect(() => {
+    setPageTitle('🤖 Agente Inteligente')
+    return () => setPageTitle('')
+  }, [setPageTitle])
 
   useEffect(() => {
     if (barId) {

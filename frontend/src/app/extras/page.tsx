@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,7 +38,13 @@ interface ExtraItem {
 
 export default function ExtrasPage() {
   const router = useRouter();
+  const { setPageTitle } = usePageTitle();
   const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    setPageTitle('⭐ Extras');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const extras: ExtraItem[] = [
     // Tempo de Estadia

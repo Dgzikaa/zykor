@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Organizador } from '../services/organizador-service';
 import { apiCall } from '@/lib/api-client';
 
@@ -28,9 +29,15 @@ export function OrganizadorClient({ initialData, barId, barNome }: OrganizadorCl
   const router = useRouter();
   const { toast } = useToast();
   const { selectedBar } = useBar();
-  
+  const { setPageTitle } = usePageTitle();
+
   const [organizadores, setOrganizadores] = useState<Organizador[]>(initialData);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setPageTitle('🎯 Organizador');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     setOrganizadores(initialData);

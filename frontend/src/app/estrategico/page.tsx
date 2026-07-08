@@ -1,10 +1,21 @@
+'use client';
+
+import { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { BarChart3, Calendar, DollarSign, LayoutDashboard, Target } from 'lucide-react';
 import { BarSyncCheck } from '@/components/BarSyncCheck';
 import PageHeader from '@/components/layouts/PageHeader';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 export default function EstrategicoPage() {
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🎯 Estratégico');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const estrategicoItems = [
     {
       title: 'Tabela de Desempenho',

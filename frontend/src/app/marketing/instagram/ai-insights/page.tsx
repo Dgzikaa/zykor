@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ const prioridadeCor: Record<string, string> = {
 
 export default function AIInsightsPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const { toast } = useToast();
   const [tab, setTab] = useState<'semanal' | 'insights_periodo'>('insights_periodo');
   const [relatorio, setRelatorio] = useState<any>(null);
@@ -35,6 +37,11 @@ export default function AIInsightsPage() {
   }, [selectedBar?.id, tab]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  useEffect(() => {
+    setPageTitle('✨ Insights de IA');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const gerarNovo = async () => {
     if (!selectedBar?.id) return;

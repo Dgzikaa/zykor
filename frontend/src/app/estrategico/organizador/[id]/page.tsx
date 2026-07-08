@@ -31,6 +31,7 @@ import {
   Music
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { formatCurrency } from '@/lib/utils';
 
 interface OKR {
@@ -123,7 +124,13 @@ export default function OrganizadorEditPage() {
   const searchParams = useSearchParams();
   const { selectedBar } = useBar();
   const { toast } = useToast();
-  
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🎯 Organizador');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const isNovo = params.id === 'novo';
   const [loading, setLoading] = useState(!isNovo);
   const [saving, setSaving] = useState(false);

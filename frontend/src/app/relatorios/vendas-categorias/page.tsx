@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -24,9 +25,15 @@ interface DadosVendas {
 }
 
 export default function VendasCategoriasPage() {
+  const { setPageTitle } = usePageTitle();
   const [dados, setDados] = useState<DadosVendas | null>(null);
   const [loading, setLoading] = useState(true);
   const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear().toString());
+
+  useEffect(() => {
+    setPageTitle('📊 Vendas por Categoria');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const anos = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
 

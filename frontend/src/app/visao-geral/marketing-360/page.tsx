@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { 
-  TrendingUp, 
+import { usePageTitle } from '@/contexts/PageTitleContext';
+import {
+  TrendingUp,
   DollarSign, 
   Users, 
   Target,
@@ -23,7 +24,13 @@ interface MetricCard {
 
 export default function Marketing360Page() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setPageTitle('📊 Marketing 360');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     // Simular carregamento

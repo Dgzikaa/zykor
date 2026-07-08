@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Bot, User as UserIcon, Send, Sparkles } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 type Msg = {
   autor: 'usuario' | 'bot';
@@ -24,6 +25,12 @@ const exemplos = [
 
 export default function AssistenteZykorPage() {
   const { user } = useUser();
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('✨ Assistente Zykor');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const [msgs, setMsgs] = useState<Msg[]>([
     {
       autor: 'bot',

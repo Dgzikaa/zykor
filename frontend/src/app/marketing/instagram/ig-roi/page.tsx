@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,10 +14,16 @@ const fmtData = (s: string | null) => (s ? new Date(s).toLocaleDateString('pt-BR
 
 export default function IgRoiPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [dias, setDias] = useState(180);
   const [order, setOrder] = useState<'variacao' | 'data' | 'reach'>('variacao');
+
+  useEffect(() => {
+    setPageTitle('📈 IG ROI por post');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     if (!selectedBar?.id) return;

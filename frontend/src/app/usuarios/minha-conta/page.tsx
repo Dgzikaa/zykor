@@ -44,6 +44,7 @@ import {
   Edit3,
 } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface PerfilUsuario {
   id: number;
@@ -104,6 +105,7 @@ const estadosBrasil = [
 
 export default function MinhaContaPage() {
   const { user } = usePermissions();
+  const { setPageTitle } = usePageTitle();
 
   const [perfil, setPerfil] = useState<PerfilUsuario | null>(null);
   const [editandoPerfil, setEditandoPerfil] = useState(false);
@@ -122,6 +124,11 @@ export default function MinhaContaPage() {
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [salvandoSenha, setSalvandoSenha] = useState(false);
+
+  useEffect(() => {
+    setPageTitle('👤 Minha Conta');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     carregarPerfil();

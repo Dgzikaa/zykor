@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Activity, DollarSign, Star, Users, TrendingUp, TrendingDown, Minus } from 'lucide-react'
@@ -21,9 +22,15 @@ interface Metrica {
 
 export default function MetricasAgentePage() {
   const { selectedBar } = useBarContext()
+  const { setPageTitle } = usePageTitle()
   const barId = selectedBar?.id
   const [metricas, setMetricas] = useState<{ [categoria: string]: Metrica[] }>({})
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setPageTitle('📊 Métricas do Agente Inteligente')
+    return () => setPageTitle('')
+  }, [setPageTitle])
 
   useEffect(() => {
     if (barId) {

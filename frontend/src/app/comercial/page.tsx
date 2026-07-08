@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   Calendar,
@@ -28,9 +28,16 @@ import {
   PlanoAcaoTab,
   HistoricoInsightsTab,
 } from './components'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 
 export default function ComercialPage() {
+  const { setPageTitle } = usePageTitle()
   const [searchTerm, setSearchTerm] = useState('')
+
+  useEffect(() => {
+    setPageTitle('📢 Comercial')
+    return () => setPageTitle('')
+  }, [setPageTitle])
 
   const stats = useMemo(() => {
     const feriadosOuro = DATAS_2026.filter(f => f.potencial === 'maximo').length

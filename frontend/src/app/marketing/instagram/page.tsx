@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -91,6 +92,7 @@ const mediaIcon = (mediaType: string, productType?: string) => {
 
 export default function InstagramDashboardPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const { toast } = useToast();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,6 +115,11 @@ export default function InstagramDashboardPage() {
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  useEffect(() => {
+    setPageTitle('📸 Instagram');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const sincronizar = async () => {
     if (!selectedBar?.id) return;

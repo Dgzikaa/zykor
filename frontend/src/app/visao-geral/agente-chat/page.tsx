@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 import { useBarContext } from '@/contexts/BarContext'
 import { useUser } from '@/contexts/UserContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -28,6 +29,7 @@ interface Mensagem {
 export default function AgenteChatPage() {
   const { selectedBar } = useBarContext()
   const { user } = useUser()
+  const { setPageTitle } = usePageTitle()
   const [mensagem, setMensagem] = useState('')
   const [conversas, setConversas] = useState<Mensagem[]>([])
   const [loading, setLoading] = useState(false)
@@ -50,6 +52,11 @@ export default function AgenteChatPage() {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
+
+  useEffect(() => {
+    setPageTitle('🤖 Agente — Chat')
+    return () => setPageTitle('')
+  }, [setPageTitle])
 
   useEffect(() => {
     scrollToBottom()

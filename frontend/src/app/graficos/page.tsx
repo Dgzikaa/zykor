@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageShell } from '@/components/layout/PageShell';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { BarChart3, DollarSign, Store, Music, Boxes, Users, HeartHandshake } from 'lucide-react';
 import { SecaoArtistico } from './secoes/Artistico';
@@ -24,10 +25,16 @@ const SECOES = [
 ] as const;
 
 export default function GraficosPage() {
+  const { setPageTitle } = usePageTitle();
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
   const [aba, setAba] = useState<string>('visao');
   const [periodo, setPeriodo] = useState(12);
+
+  useEffect(() => {
+    setPageTitle('📊 Gráficos');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   return (
     <PageShell width="wide">

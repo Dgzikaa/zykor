@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/hooks/use-toast';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 // Singletons no escopo do modulo (Intl.NumberFormat e' caro de instanciar).
 const FMT_CMN_MOEDA = new Intl.NumberFormat('pt-BR', {
@@ -75,7 +76,13 @@ interface ComparativoMensalNovoProps {
 export function ComparativoMensalNovo({ initialData, barId }: ComparativoMensalNovoProps) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
-  
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('📅 Visão Mensal');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const [dados, setDados] = useState<DadosComparativos | null>(initialData || null);
   const [loading, setLoading] = useState(!initialData);
   const [mesReferencia, setMesReferencia] = useState<string>(() => {

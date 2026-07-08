@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 import { useBarContext } from '@/contexts/BarContext'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -50,6 +51,7 @@ interface Metricas {
 
 export default function AgentePage() {
   const { selectedBar } = useBarContext()
+  const { setPageTitle } = usePageTitle()
   const [activeTab, setActiveTab] = useState('insights')
   
   // Chat state
@@ -65,6 +67,11 @@ export default function AgentePage() {
   // Métricas state
   const [metricas, setMetricas] = useState<Metricas | null>(null)
   const [loadingMetricas, setLoadingMetricas] = useState(true)
+
+  useEffect(() => {
+    setPageTitle('🤖 Agente')
+    return () => setPageTitle('')
+  }, [setPageTitle])
 
   useEffect(() => {
     if (selectedBar) {

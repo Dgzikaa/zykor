@@ -10,6 +10,7 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { Clock, Calendar, TrendingUp, Users, BarChart3, Timer } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useBar } from '@/contexts/BarContext'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 import { motion } from 'framer-motion'
 
 interface DadosMes {
@@ -69,8 +70,14 @@ export default function TempoEstadiaPage() {
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
   const { selectedBar } = useBar()
+  const { setPageTitle } = usePageTitle()
   const hasFetchedRef = useRef(false)
   const lastBarIdRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    setPageTitle('⏱️ Tempo de Estadia')
+    return () => setPageTitle('')
+  }, [setPageTitle])
 
   useEffect(() => {
     // Evitar loop: só buscar se bar mudou ou ainda não buscou

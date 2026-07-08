@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -11,9 +12,15 @@ const fmtData = (s: string | null) => (s ? new Date(s).toLocaleString('pt-BR', {
 
 export default function StoriesPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [dias, setDias] = useState<number>(90);
+
+  useEffect(() => {
+    setPageTitle('🎬 Stories');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     if (!selectedBar?.id) return;

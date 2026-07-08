@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -55,8 +56,14 @@ const TIPO_CONTEUDO: Record<string, string> = {
 
 export default function DemografiaPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const [data, setData] = useState<Dash | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setPageTitle('📊 Demografia do Instagram');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     if (!selectedBar?.id) return;
