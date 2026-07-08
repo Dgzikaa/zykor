@@ -96,6 +96,21 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
   const totalSemana = useMemo(() => loteSemana.reduce((s, p) => s + Number(p.valor || 0), 0), [loteSemana]);
   const aAprovar = useMemo(() => loteSemana.filter(p => APROVAVEL.includes(p.status)), [loteSemana]);
 
+  // Condensa por pessoa: 1 linha por freela, com as diárias detalhadas e o total somado.
+  const resumoSemana = useMemo(() => {
+    const grupos = new Map<string, { nome: string; itens: FreelaPedido[]; total: number; statuses: Set<PedidoStatus> }>();
+    for (const p of loteSemana) {
+      const key = p.contaazul_pessoa_id || norm(p.beneficiario_nome) || p.id;
+      const g = grupos.get(key) || { nome: p.beneficiario_nome || '—', itens: [], total: 0, statuses: new Set<PedidoStatus>() };
+      g.itens.push(p); g.total += Number(p.valor || 0); g.statuses.add(p.status);
+      grupos.set(key, g);
+    }
+    for (const g of grupos.values()) {
+      g.itens.sort((a, b) => (a.data_competencia || a.data_vencimento).localeCompare(b.data_competencia || b.data_vencimento));
+    }
+    return Array.from(grupos.entries()).map(([key, g]) => ({ key, ...g }));
+  }, [loteSemana]);
+
   const navSemana = (delta: number) => {
     const d = parseISO(dia); d.setDate(d.getDate() + delta * 7); setDia(toISO(d)); setSel({});
   };
@@ -184,15 +199,23 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
                     </Button>
                   )}
                 </div>
-                <div className="space-y-1">
-                  {loteSemana.map((p) => (
-                    <div key={p.id} className="flex items-center gap-2 text-sm">
-                      <Badge className="bg-emerald-500/15 text-emerald-600 text-[10px] shrink-0">Selecionado p/ pagamento</Badge>
-                      <span className="truncate flex-1">{p.beneficiario_nome || '—'}
-                        {p.data_competencia ? <span className="text-muted-foreground text-xs"> · {ddmm(p.data_competencia)}</span> : ''}
-                      </span>
-                      <Badge className={`${STATUS_COLOR[p.status]} text-[10px] shrink-0`}>{STATUS_LABEL[p.status]}</Badge>
-                      <span className="font-medium shrink-0 w-24 text-right">{fmtBRL(p.valor)}</span>
+                <div className="space-y-1.5">
+                  {resumoSemana.map((g) => (
+                    <div key={g.key} className="flex items-start gap-2 text-sm">
+                      <Badge className="bg-emerald-500/15 text-emerald-600 text-[10px] shrink-0 mt-0.5">Selecionado p/ pagamento</Badge>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-medium truncate">{g.nome}</span>
+                          {g.itens.length > 1 && <span className="text-muted-foreground text-xs">({g.itens.length} diárias)</span>}
+                          {[...g.statuses].map((st) => (
+                            <Badge key={st} className={`${STATUS_COLOR[st]} text-[10px]`}>{STATUS_LABEL[st]}</Badge>
+                          ))}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {g.itens.map(p => `${ddmm(p.data_competencia || p.data_vencimento)} · ${fmtBRL(p.valor)}`).join('   ·   ')}
+                        </div>
+                      </div>
+                      <span className="font-semibold shrink-0 w-24 text-right">{fmtBRL(g.total)}</span>
                     </div>
                   ))}
                 </div>
