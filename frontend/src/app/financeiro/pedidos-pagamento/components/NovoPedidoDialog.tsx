@@ -9,11 +9,33 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { api } from '@/lib/api-client';
-import { Loader2, Paperclip } from 'lucide-react';
-import { TIPO_LABEL, type PedidoTipo } from '../types';
+import { Loader2, Paperclip, HelpCircle } from 'lucide-react';
+import { type PedidoTipo } from '../types';
 
-const TIPOS: PedidoTipo[] = ['reembolso', 'fornecedor', 'avulso', 'adiantamento'];
+// No pedido manual só existem 2 destinos: reembolso a funcionário ou fornecedor externo.
+// (freela/cartão/avulso são lançados por fluxos próprios.)
+const TIPOS: PedidoTipo[] = ['reembolso', 'fornecedor'];
+const TIPO_LABEL_FORM: Record<'reembolso' | 'fornecedor', string> = {
+  reembolso: 'Reembolso Funcionário',
+  fornecedor: 'Fornecedor Externo',
+};
+
+function CampoInfo({ texto }: { texto: string }) {
+  return (
+    <TooltipProvider>
+      <Tooltip delayDuration={150}>
+        <TooltipTrigger asChild>
+          <button type="button" tabIndex={-1} className="text-muted-foreground/70 hover:text-muted-foreground" aria-label={texto}>
+            <HelpCircle className="w-3.5 h-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-[220px] text-xs">{texto}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 const parseValor = (v: string): number => {
   const s = v.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
@@ -39,13 +61,14 @@ export function NovoPedidoDialog({
   const [competencia, setCompetencia] = useState('');
   const [chavePix, setChavePix] = useState('');
   const [beneficiario, setBeneficiario] = useState('');
+  const [cpfCnpj, setCpfCnpj] = useState('');
   const [observacao, setObservacao] = useState('');
 
   const pixObrigatorio = tipo === 'reembolso' || tipo === 'fornecedor';
 
   const reset = () => {
     setTipo('reembolso'); setDescricao(''); setValor(''); setVencimento('');
-    setCompetencia(''); setChavePix(''); setBeneficiario(''); setObservacao('');
+    setCompetencia(''); setChavePix(''); setBeneficiario(''); setCpfCnpj(''); setObservacao('');
     setArquivo(null);
   };
 
@@ -54,6 +77,7 @@ export function NovoPedidoDialog({
     if (!descricao.trim()) return showToast({ type: 'error', title: 'Descrição é obrigatória' });
     if (valorNum <= 0) return showToast({ type: 'error', title: 'Valor inválido' });
     if (!vencimento) return showToast({ type: 'error', title: 'Informe o vencimento' });
+    if (!competencia) return showToast({ type: 'error', title: 'Informe a data de competência' });
     if (pixObrigatorio && !chavePix.trim()) return showToast({ type: 'error', title: 'Chave PIX é obrigatória' });
 
     setSalvando(true);
@@ -63,9 +87,10 @@ export function NovoPedidoDialog({
         descricao: descricao.trim(),
         valor: valorNum,
         data_vencimento: vencimento,
-        data_competencia: competencia || null,
+        data_competencia: competencia,
         chave_pix: chavePix.trim() || null,
         beneficiario_nome: beneficiario.trim() || null,
+        cpf_cnpj: cpfCnpj.replace(/\D/g, '') || null,
         observacao: observacao.trim() || null,
       });
 
@@ -115,7 +140,7 @@ export function NovoPedidoDialog({
                       : 'border-[hsl(var(--border))] text-muted-foreground hover:bg-muted/40'
                   }`}
                 >
-                  {TIPO_LABEL[t]}
+                  {TIPO_LABEL_FORM[t as 'reembolso' | 'fornecedor']}
                 </button>
               ))}
             </div>
@@ -133,7 +158,10 @@ export function NovoPedidoDialog({
               <Input id="valor" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" inputMode="decimal" />
             </div>
             <div>
-              <Label htmlFor="venc" className="mb-1.5 block">Vencimento</Label>
+              <Label htmlFor="venc" className="mb-1.5 flex items-center gap-1">
+                Vencimento <span className="text-red-500">*</span>
+                <CampoInfo texto="Data em que deve ser pago" />
+              </Label>
               <Input id="venc" type="date" value={vencimento} onChange={(e) => setVencimento(e.target.value)} />
             </div>
           </div>
@@ -147,14 +175,23 @@ export function NovoPedidoDialog({
                 placeholder="CPF, CNPJ, e-mail, telefone ou aleatória" />
             </div>
             <div>
-              <Label htmlFor="comp" className="mb-1.5 block">Competência <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+              <Label htmlFor="comp" className="mb-1.5 flex items-center gap-1">
+                Competência <span className="text-red-500">*</span>
+                <CampoInfo texto="Data em que o produto chegou na loja ou em que o serviço foi prestado" />
+              </Label>
               <Input id="comp" type="date" value={competencia} onChange={(e) => setCompetencia(e.target.value)} />
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="benef" className="mb-1.5 block">Beneficiário <span className="text-muted-foreground text-xs">(quem recebe)</span></Label>
-            <Input id="benef" value={beneficiario} onChange={(e) => setBeneficiario(e.target.value)} placeholder="Nome do fornecedor ou funcionário" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="benef" className="mb-1.5 block">Beneficiário <span className="text-muted-foreground text-xs">(quem recebe)</span></Label>
+              <Input id="benef" value={beneficiario} onChange={(e) => setBeneficiario(e.target.value)} placeholder="Nome do fornecedor ou funcionário" />
+            </div>
+            <div>
+              <Label htmlFor="doc" className="mb-1.5 block">CPF/CNPJ <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+              <Input id="doc" value={cpfCnpj} onChange={(e) => setCpfCnpj(e.target.value)} placeholder="só números" inputMode="numeric" />
+            </div>
           </div>
 
           <div>

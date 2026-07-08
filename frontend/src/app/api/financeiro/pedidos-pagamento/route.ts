@@ -53,9 +53,46 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 
+  const pedidos = data || [];
+
+  // Sugestão de categoria (Zykor sugere) — só p/ quem aprova e p/ pendentes sem categoria.
+  // Fonte: categoria do último pedido APROVADO do mesmo fornecedor (por pessoa do CA,
+  // senão por nome do beneficiário). Deixa o "de sempre" (atrações, técnicos, segurança)
+  // pré-preenchido pro financeiro só confirmar sem abrir o pedido.
+  if (podeAprovar(user)) {
+    const pendentes = pedidos.filter(
+      (p: any) => ['aguardando_aprovacao', 'erro_ca', 'erro_inter'].includes(p.status) && !p.categoria_id
+    );
+    if (pendentes.length) {
+      const { data: hist } = await fin(supabase)
+        .from('pedidos_pagamento')
+        .select('beneficiario_nome, contaazul_pessoa_id, categoria_id, categoria_nome, created_at')
+        .eq('bar_id', user.bar_id)
+        .in('status', ['aprovado', 'agendado', 'pago'])
+        .not('categoria_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      const norm = (s?: string | null) => (s || '').trim().toLowerCase();
+      const byPessoa = new Map<string, any>();
+      const byNome = new Map<string, any>();
+      for (const h of hist || []) {
+        if (h.contaazul_pessoa_id && !byPessoa.has(h.contaazul_pessoa_id)) byPessoa.set(h.contaazul_pessoa_id, h);
+        const n = norm(h.beneficiario_nome);
+        if (n && !byNome.has(n)) byNome.set(n, h);
+      }
+      for (const p of pendentes) {
+        const hit = (p.contaazul_pessoa_id && byPessoa.get(p.contaazul_pessoa_id)) || byNome.get(norm(p.beneficiario_nome));
+        if (hit) {
+          p.categoria_sugerida_id = hit.categoria_id;
+          p.categoria_sugerida_nome = hit.categoria_nome;
+        }
+      }
+    }
+  }
+
   return NextResponse.json({
     success: true,
-    pedidos: data || [],
+    pedidos,
     escopo,
     pode_aprovar: podeAprovar(user),
   });
@@ -106,6 +143,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const data_competencia = body.data_competencia;
+  if (!data_competencia || !/^\d{4}-\d{2}-\d{2}$/.test(String(data_competencia))) {
+    return NextResponse.json(
+      { success: false, error: 'data_competencia (AAAA-MM-DD) é obrigatória' },
+      { status: 400 }
+    );
+  }
+
   // Reembolso e adiantamento normalmente caem na chave do próprio funcionário.
   const chave_pix = body.chave_pix ? String(body.chave_pix).trim() : null;
   if ((tipo === 'reembolso' || tipo === 'fornecedor') && !chave_pix) {
@@ -124,7 +169,7 @@ export async function POST(request: NextRequest) {
     solicitante_nome: user.nome,
     descricao,
     valor: Math.round(valor * 100) / 100,
-    data_competencia: body.data_competencia || null,
+    data_competencia,
     data_vencimento,
     beneficiario_nome: body.beneficiario_nome || null,
     chave_pix,

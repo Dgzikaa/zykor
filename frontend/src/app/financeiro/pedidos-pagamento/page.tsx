@@ -11,11 +11,10 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Plus, Loader2, AlertCircle, Receipt } from 'lucide-react';
-import {
-  TIPO_LABEL, STATUS_LABEL, STATUS_COLOR, formatBRL, type Pedido,
-} from './types';
+import { type Pedido } from './types';
 import { NovoPedidoDialog } from './components/NovoPedidoDialog';
 import { PedidoDetailDialog } from './components/PedidoDetailDialog';
+import { PedidoCard, type Opcao } from './components/PedidoCard';
 import { FreelaTab } from './components/FreelaTab';
 import { BoletoTab } from './components/BoletoTab';
 import { CartaoTab } from './components/CartaoTab';
@@ -23,13 +22,15 @@ import TrocasTab from './components/TrocasTab';
 
 type ModoPagamento = 'pagamentos' | 'freela' | 'boleto' | 'cartao' | 'trocas';
 
-type TabKey = 'aguardando' | 'andamento' | 'concluidos' | 'recusados' | 'todos';
+type TabKey = 'solicitado' | 'aprovado' | 'recusado' | 'todos';
 
+// "Aprovado" agrupa aprovado/agendado/pago — o status detalhado (agendado vs pago)
+// fica visível dentro do pedido. "Solicitado" inclui os que falharam na aprovação
+// (erro_ca/erro_inter), pois ainda precisam de ação do financeiro.
 const TAB_STATUS: Record<TabKey, (s: string) => boolean> = {
-  aguardando: (s) => s === 'aguardando_aprovacao' || s === 'erro_ca' || s === 'erro_inter',
-  andamento: (s) => s === 'aprovado' || s === 'agendado',
-  concluidos: (s) => s === 'pago',
-  recusados: (s) => s === 'rejeitado' || s === 'cancelado',
+  solicitado: (s) => s === 'aguardando_aprovacao' || s === 'erro_ca' || s === 'erro_inter',
+  aprovado: (s) => s === 'aprovado' || s === 'agendado' || s === 'pago',
+  recusado: (s) => s === 'rejeitado' || s === 'cancelado',
   todos: () => true,
 };
 
@@ -42,11 +43,16 @@ export default function PedidosPagamentoPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(false);
   const [podeAprovar, setPodeAprovar] = useState(false);
-  const [tab, setTab] = useState<TabKey>('aguardando');
+  const [tab, setTab] = useState<TabKey>('solicitado');
   const [soMeus, setSoMeus] = useState(false);
   const [novoOpen, setNovoOpen] = useState(false);
   const [detalheId, setDetalheId] = useState<string | null>(null);
   const [modo, setModo] = useState<ModoPagamento>('pagamentos');
+
+  // Opções do CA carregadas 1x (só p/ quem aprova) → aprovação inline no card.
+  const [opcoes, setOpcoes] = useState<{ categorias: Opcao[]; contas: Opcao[]; fornecedores: Opcao[] }>({
+    categorias: [], contas: [], fornecedores: [],
+  });
 
   useEffect(() => {
     setPageTitle('💸 Pedidos de Pagamento');
@@ -69,8 +75,32 @@ export default function PedidosPagamentoPage() {
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  const filtrados = useMemo(() => pedidos.filter(p => TAB_STATUS[tab](p.status)), [pedidos, tab]);
-  const countAguardando = useMemo(() => pedidos.filter(p => TAB_STATUS.aguardando(p.status)).length, [pedidos]);
+  // Opções do CA (categorias / contas pagadoras / fornecedores) — só se pode aprovar.
+  useEffect(() => {
+    if (!barId || !podeAprovar) return;
+    let vivo = true;
+    const j = (p: Promise<Response>) => p.then(r => r.json()).catch(() => ({}));
+    Promise.all([
+      j(fetch(`/api/financeiro/contaazul/categorias?bar_id=${barId}`)),
+      j(fetch(`/api/financeiro/contaazul/contas-financeiras?bar_id=${barId}`)),
+      j(fetch(`/api/financeiro/contaazul/stakeholders?bar_id=${barId}&perfil=FORNECEDOR`)),
+    ]).then(([cat, ct, fo]) => {
+      if (!vivo) return;
+      setOpcoes({
+        categorias: (cat.categorias || []).filter((c: any) => c.ativo !== false)
+          .map((c: any) => ({ value: c.contaazul_id, label: c.nome || c.categoria_nome })),
+        contas: (ct.contas_financeiras || []).filter((c: any) => c.ativo !== false)
+          .map((c: any) => ({ value: String(c.contaazul_id), label: c.banco ? `${c.nome} (${c.banco})` : c.nome })),
+        fornecedores: (fo.pessoas || []).map((p: any) => ({ value: p.contaazul_id, label: p.nome, searchHint: p.documento || '' })),
+      });
+    });
+    return () => { vivo = false; };
+  }, [barId, podeAprovar]);
+
+  // Freela é gerido/aprovado na aba própria (semanal) — fora da lista principal.
+  const pedidosLista = useMemo(() => pedidos.filter(p => p.tipo !== 'freela'), [pedidos]);
+  const filtrados = useMemo(() => pedidosLista.filter(p => TAB_STATUS[tab](p.status)), [pedidosLista, tab]);
+  const countSolicitado = useMemo(() => pedidosLista.filter(p => TAB_STATUS.solicitado(p.status)).length, [pedidosLista]);
 
   return (
     <ProtectedRoute>
@@ -110,7 +140,7 @@ export default function PedidosPagamentoPage() {
             </Card>
           )}
 
-          {barId && modo === 'freela' && <FreelaTab barId={barId} onLancado={carregar} />}
+          {barId && modo === 'freela' && <FreelaTab barId={barId} podeAprovar={podeAprovar} onLancado={carregar} />}
 
           {barId && modo === 'boleto' && <BoletoTab onCriado={carregar} />}
 
@@ -123,12 +153,11 @@ export default function PedidosPagamentoPage() {
               <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
                 <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
                   <TabsList>
-                    <TabsTrigger value="aguardando">
-                      Aguardando {countAguardando > 0 && <Badge variant="secondary" className="ml-1.5">{countAguardando}</Badge>}
+                    <TabsTrigger value="solicitado">
+                      Solicitado {countSolicitado > 0 && <Badge variant="secondary" className="ml-1.5">{countSolicitado}</Badge>}
                     </TabsTrigger>
-                    <TabsTrigger value="andamento">Em andamento</TabsTrigger>
-                    <TabsTrigger value="concluidos">Pagos</TabsTrigger>
-                    <TabsTrigger value="recusados">Recusados</TabsTrigger>
+                    <TabsTrigger value="aprovado">Aprovado</TabsTrigger>
+                    <TabsTrigger value="recusado">Recusado</TabsTrigger>
                     <TabsTrigger value="todos">Todos</TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -151,26 +180,16 @@ export default function PedidosPagamentoPage() {
               ) : (
                 <div className="space-y-2">
                   {filtrados.map((p) => (
-                    <button
+                    <PedidoCard
                       key={p.id}
-                      onClick={() => setDetalheId(p.id)}
-                      className="w-full text-left rounded-lg border border-[hsl(var(--border))] bg-card hover:bg-muted/40 transition p-3 flex items-center gap-3"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium truncate">{p.descricao}</span>
-                          <Badge variant="outline" className="text-[10px] shrink-0">{TIPO_LABEL[p.tipo]}</Badge>
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                          {p.solicitante_nome || '—'} · vence {p.data_vencimento}
-                          {p.beneficiario_nome ? ` · ${p.beneficiario_nome}` : ''}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="font-semibold">{formatBRL(p.valor)}</div>
-                        <Badge className={`${STATUS_COLOR[p.status]} text-[10px] mt-0.5`}>{STATUS_LABEL[p.status]}</Badge>
-                      </div>
-                    </button>
+                      pedido={p}
+                      podeAprovar={podeAprovar}
+                      categorias={opcoes.categorias}
+                      contas={opcoes.contas}
+                      fornecedores={opcoes.fornecedores}
+                      onOpen={setDetalheId}
+                      onChange={carregar}
+                    />
                   ))}
                 </div>
               )}

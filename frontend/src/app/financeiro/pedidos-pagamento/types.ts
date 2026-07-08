@@ -1,4 +1,4 @@
-export type PedidoTipo = 'reembolso' | 'fornecedor' | 'avulso' | 'adiantamento';
+export type PedidoTipo = 'reembolso' | 'fornecedor' | 'avulso' | 'adiantamento' | 'freela' | 'cartao';
 
 export type PedidoStatus =
   | 'rascunho'
@@ -30,6 +30,8 @@ export interface Pedido {
   observacao?: string | null;
   categoria_id?: string | null;
   categoria_nome?: string | null;
+  categoria_sugerida_id?: string | null;
+  categoria_sugerida_nome?: string | null;
   centro_custo_id?: string | null;
   centro_custo_nome?: string | null;
   contaazul_pessoa_id?: string | null;
@@ -80,6 +82,8 @@ export const TIPO_LABEL: Record<PedidoTipo, string> = {
   fornecedor: 'Fornecedor',
   avulso: 'Avulso',
   adiantamento: 'Adiantamento/Vale',
+  freela: 'Freela',
+  cartao: 'Cartão',
 };
 
 export const STATUS_LABEL: Record<PedidoStatus, string> = {
