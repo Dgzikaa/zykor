@@ -960,8 +960,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                         {/* Colunas Fixas (5 primeiras: Data, Dia, Artista, Receita Real, Meta M1) */}
                         <th className="sticky-header-1 px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '48px', minWidth: '48px'}}>Data</th>
                         <th className="sticky-header-2 px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px'}}>Dia</th>
-                        <th className="sticky-header-3 px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '140px', minWidth: '140px'}}>Label</th>
-                        <th className="sticky-header-4 px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '160px', minWidth: '160px'}}>Artistas</th>
+                        <th className="sticky-header-3 px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '220px', minWidth: '220px'}}>Título</th>
+                        <th className="sticky-header-4 px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px'}}>Artistas</th>
                         <th className="sticky-header-5 px-2 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px'}}>Receita Real</th>
                         <th className="sticky-header-6 px-2 py-2 text-center text-[11px] font-semibold border-r-2 border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px'}}>Meta M1</th>
                         
@@ -1140,7 +1140,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                               </button>
                             </td>
                             <td className="sticky-col-2 px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
-                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))]" style={{width: '140px', minWidth: '140px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}} title={`Label: ${evento.evento_nome || 'Sem atração'}${evento.observacoes ? `\n📌 ${evento.observacoes}` : ''}`}>
+                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))]" style={{width: '220px', minWidth: '220px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}} title={`Label: ${evento.evento_nome || 'Sem atração'}${evento.observacoes ? `\n📌 ${evento.observacoes}` : ''}`}>
                               <div className="flex items-start gap-1 min-w-0">
                                 {evento.flag_urgente && (
                                   <span title="Urgente (ex.: artista ainda não definido)" className="shrink-0 text-[10px] mt-0.5">🚩</span>
@@ -1173,7 +1173,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                 >SY</button>
                               </div>
                             </td>
-                            <td className="sticky-col-4 px-2 py-1.5 text-left text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))] cursor-pointer" style={{width: '160px', minWidth: '160px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}} title={(evento.artistas || []).join(', ') || 'Sem artista taggeado'} onClick={() => abrirModal(evento, true)}>
+                            <td className="sticky-col-4 px-2 py-1.5 text-left text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))] cursor-pointer" style={{width: '110px', minWidth: '110px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}} title={(evento.artistas || []).join(', ') || 'Sem artista taggeado'} onClick={() => abrirModal(evento, true)}>
                               <div className="truncate">{(evento.artistas || []).length ? (evento.artistas || []).join(', ') : <span className="text-gray-300 dark:text-gray-600">—</span>}</div>
                             </td>
                             <td
@@ -1542,8 +1542,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                       <tr className="font-bold text-[11px] text-gray-800 dark:text-gray-100">
                         {/* Fixos: sempre visíveis (item 1). Colspan=3 cobre Data+Dia+Artista. */}
                         <td colSpan={4} className={`${tfCls} text-left border-r`} style={{ position: 'sticky', left: 0, zIndex: 30 }}>TOTAIS · {totaisAgregados.totalEventos} ev</td>
-                        <td className={`${tfCls} text-center text-green-700 dark:text-green-400 border-r`} style={{ position: 'sticky', left: 386, zIndex: 30 }} title="Soma da receita real">{formatarMoeda(totaisAgregados.realizado)}</td>
-                        <td className={`${tfCls} text-center border-r-2`} style={{ position: 'sticky', left: 496, zIndex: 30 }} title="Soma da meta M1">{formatarMoeda(totaisAgregados.metaM1)}</td>
+                        <td className={`${tfCls} text-center text-green-700 dark:text-green-400 border-r`} style={{ position: 'sticky', left: 416, zIndex: 30 }} title="Soma da receita real">{formatarMoeda(totaisAgregados.realizado)}</td>
+                        <td className={`${tfCls} text-center border-r-2`} style={{ position: 'sticky', left: 526, zIndex: 30 }} title="Soma da meta M1">{formatarMoeda(totaisAgregados.metaM1)}</td>
 
                         {/* CLIENTES (soma) */}
                         {gruposAbertos.clientes ? (
