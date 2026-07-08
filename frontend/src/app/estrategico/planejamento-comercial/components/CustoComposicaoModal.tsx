@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2, RefreshCw, Check } from 'lucide-react';
 
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -14,11 +15,18 @@ const FONTE_LABEL: Record<string, string> = {
   projecao: 'Projeção automática (média 4 semanas)', contahub: 'ContaHub (descontos motivo “Artistas”)', vazio: 'Sem lançamento',
 };
 
-export default function CustoComposicaoModal({ alvo, barId, onClose }: { alvo: ComposicaoAlvo | null; barId?: number; onClose: () => void; }) {
+export default function CustoComposicaoModal({ alvo, barId, onClose }: {
+  alvo: ComposicaoAlvo | null;
+  barId?: number;
+  onClose: () => void;
+}) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [d, setD] = useState<any>(null);
+  const [recalculando, setRecalculando] = useState(false);
+  const [feito, setFeito] = useState<string | null>(null);
 
-  useEffect(() => {
+  const carregar = useCallback(() => {
     if (!alvo || !barId) return;
     setLoading(true); setD(null);
     fetch(`/api/planejamento/custo-composicao?tipo=${alvo.tipo}&data=${alvo.data}`, {
@@ -28,10 +36,41 @@ export default function CustoComposicaoModal({ alvo, barId, onClose }: { alvo: C
       .finally(() => setLoading(false));
   }, [alvo, barId]);
 
+  useEffect(() => { setFeito(null); carregar(); }, [carregar]);
+
+  const recalcular = useCallback(async () => {
+    if (!alvo || !barId) return;
+    setRecalculando(true); setFeito(null);
+    try {
+      const r = await fetch('/api/planejamento/recalcular', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
+        body: JSON.stringify({ data: alvo.data }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.success) throw new Error(j?.error || 'falha ao recalcular');
+      const valorNovo = alvo.tipo === 'prod' ? j.c_prod : j.c_art;
+      setFeito(`Tabela atualizada para ${money(valorNovo)}.`);
+      carregar();          // reflete a nova cascata no próprio modal
+      router.refresh();    // re-executa o server component → tabela pega o novo c_art
+    } catch (e: any) {
+      setFeito(`Erro ao recalcular: ${e?.message || 'tente de novo'}`);
+    } finally {
+      setRecalculando(false);
+    }
+  }, [alvo, barId, carregar, router]);
+
   if (!alvo) return null;
   const dataBR = alvo.data.split('-').reverse().join('/');
   const isCA = alvo.tipo !== 'consumacao';
   const temItens = d?.itens?.length > 0;
+
+  // Divergência: o que está na TABELA (real cacheado no eventos_base) x o CA AO VIVO
+  // (soma dos lançamentos agora). Quando difere, um lançamento foi corrigido no CA e o
+  // cache ainda não foi recomputado → oferece o "Recalcular agora".
+  const realCacheado = Number(d?.candidatos?.real) || 0;
+  const aoVivo = Number(d?.soma_lancamentos) || 0;
+  const diverge = isCA && d?.success && Math.abs(aoVivo - realCacheado) > 0.01;
 
   return (
     <Dialog open={!!alvo} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -58,6 +97,40 @@ export default function CustoComposicaoModal({ alvo, barId, onClose }: { alvo: C
                 <div className="text-sm font-medium text-gray-700 dark:text-gray-200">{FONTE_LABEL[d.fonte] || d.fonte}</div>
               </div>
             </div>
+
+            {/* Divergência tabela x CA ao vivo → botão de recálculo pontual */}
+            {diverge && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-900/20 p-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 text-[13px] text-amber-800 dark:text-amber-200">
+                    A tabela mostra <b>{money(realCacheado)}</b>, mas o Conta Azul já tem <b>{money(aoVivo)}</b> —
+                    um lançamento foi corrigido no CA e o valor da tela ainda não atualizou.
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    onClick={recalcular} disabled={recalculando}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white text-[13px] font-medium px-3 py-1.5"
+                  >
+                    {recalculando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    Recalcular agora
+                  </button>
+                  {feito && !recalculando && (
+                    <span className="inline-flex items-center gap-1 text-[12px] text-emerald-600 dark:text-emerald-400">
+                      <Check className="h-3.5 w-3.5" />{feito}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Confirmação quando reconciliou (não diverge mais após recalcular) */}
+            {!diverge && feito && (
+              <div className="rounded-lg border border-emerald-300 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-900/20 p-2.5 flex items-center gap-1.5 text-[13px] text-emerald-700 dark:text-emerald-300">
+                <Check className="h-4 w-4" />{feito}
+              </div>
+            )}
 
             {/* Cascata (só custos do CA) */}
             {isCA && d.candidatos && (
