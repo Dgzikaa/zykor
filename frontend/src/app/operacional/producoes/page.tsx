@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api-client';
+import { getSupabaseClient } from '@/lib/supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
 import {
   Timer, Play, Pause, RotateCcw, Save, Search, Plus, Trash2, User,
@@ -238,8 +240,9 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     return true;
   }, []);
 
-  // tick de 1s só enquanto há algo rodando → o cronômetro exibido "anda" sem acumular drift
-  const anyRodando = prods.some(p => p.rodando);
+  // tick de 1s enquanto há algo rodando (minha lista OU o monitor do bar) → o cronômetro
+  // "anda" suave, inclusive das produções acompanhadas de outros aparelhos (tempo vem da âncora).
+  const anyRodando = prods.some(p => p.rodando) || (resumivel || []).some((p: any) => p.rodando);
   useEffect(() => {
     if (!anyRodando) return;
     const t = setInterval(() => setNowTick(Date.now()), 1000);
@@ -372,8 +375,36 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     hidratou.current = false;
     let cancel = false;
     void sincronizarBar(true);
-    const t = setInterval(() => { if (!cancel) void sincronizarBar(false); }, 8000);
+    // Poll só de FALLBACK (rede caiu / realtime desconectou). O caminho rápido é o realtime abaixo.
+    const t = setInterval(() => { if (!cancel) void sincronizarBar(false); }, 20000);
     return () => { cancel = true; clearInterval(t); };
+  }, [barId, sincronizarBar]);
+
+  // REAL-TIME: o servidor empurra as mudanças (iniciar/pausar/finalizar/assumir em qualquer
+  // aparelho do bar) via Supabase Realtime → a tela reflete na hora, sem esperar o poll.
+  // Debounce curto pra colapsar rajadas (vários rascunhos mudando juntos) num só sync.
+  useEffect(() => {
+    if (!barId) return;
+    let channel: RealtimeChannel | null = null;
+    let cancelled = false;
+    let deb: ReturnType<typeof setTimeout> | null = null;
+    const agendarSync = () => {
+      if (deb) clearTimeout(deb);
+      deb = setTimeout(() => { if (!cancelled) void sincronizarBar(false); }, 600);
+    };
+    (async () => {
+      const supabase = await getSupabaseClient();
+      if (!supabase || cancelled) return;
+      channel = supabase
+        .channel(`producao_rascunho:${barId}`)
+        .on('postgres_changes', { event: '*', schema: 'operations', table: 'producao_execucao_rascunho', filter: `bar_id=eq.${barId}` }, agendarSync)
+        .subscribe();
+    })();
+    return () => {
+      cancelled = true;
+      if (deb) clearTimeout(deb);
+      if (channel) getSupabaseClient().then((s) => s?.removeChannel(channel!)).catch(() => {});
+    };
   }, [barId, sincronizarBar]);
 
   // Gravação periódica + flush ao sair/backgroundear a tela. localStorage a cada 1s (barato);
@@ -722,7 +753,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
                       </span>
                     </div>
                     <div className="mt-1 flex items-center flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-gray-500">
-                      <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /><span className="tabular-nums">{fmtCrono(elapsedOf(p))}</span></span>
+                      <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /><span className="tabular-nums">{fmtCrono(elapsedOf(p, nowTick))}</span></span>
                       {resp && <span className="inline-flex items-center gap-1"><User className="w-3 h-3" />{resp.nome}</span>}
                       {p.dataProducao && <span>Data {fmtDM(p.dataProducao)}</span>}
                     </div>
