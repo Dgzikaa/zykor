@@ -41,6 +41,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/hooks/use-toast';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { cn } from '@/lib/utils';
 
 // Tipos
@@ -374,7 +375,12 @@ const calcularGiroEstoque = (semana: CMVSemanal): number => {
 export default function CMVSemanalTabelaPage() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
-  
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('📊 Gestão CMV');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
   const [semanas, setSemanas] = useState<CMVSemanal[]>([]);
   const [loading, setLoading] = useState(true);
   const [atualizando, setAtualizando] = useState(false);

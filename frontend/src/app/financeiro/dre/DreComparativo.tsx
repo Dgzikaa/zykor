@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { DreTab } from '../../estrategico/orcamentacao/components/DreTab';
 import { DreLancamentosModal, DreLancamento } from './DreLancamentosModal';
 import { Button } from '@/components/ui/button';
 import { Eye, EyeOff } from 'lucide-react';
 import { api } from '@/lib/api-client';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 /**
  * DRE principal (ano corrente) + comparativo (ano anterior, ocultável).
@@ -13,6 +14,11 @@ import { api } from '@/lib/api-client';
  * sub-linha abre o popup com os lançamentos daquela categoria/mês (drill-down).
  */
 export function DreComparativo({ barId, anoAtual }: { barId: number; anoAtual: number }) {
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('📊 DRE');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const [mostrarComparativo, setMostrarComparativo] = useState(false);
   const [drill, setDrill] = useState<{
     open: boolean; loading: boolean; titulo: string;
