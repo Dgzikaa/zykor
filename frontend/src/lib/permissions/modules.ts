@@ -148,6 +148,9 @@ function buildSectionFallbackModules(categoria: string): string[] {
     estrategico: ['estrategico', 'gestao', 'desempenho', 'dashboard', 'home'],
     analitico: ['analitico', 'relatorios', 'dashboard', 'home'],
     'analítico': ['analitico', 'relatorios', 'dashboard', 'home'],
+    // Receitas absorveu Analítico + Marketing: inclui os generics dos dois (relatorios,
+    // analitico, gestao) pra quem tinha qualquer um deles continuar acessando.
+    receitas: ['receitas', 'relatorios', 'analitico', 'gestao', 'dashboard', 'home'],
     ferramentas: ['ferramentas', 'operacoes', 'dashboard', 'home'],
     marketing: ['gestao', 'home'],
     operacional: ['gestao', 'operacoes', 'home'],
@@ -191,6 +194,7 @@ export function getMenuRoutePermissions(): MenuRoutePermissionEntry[] {
 function gerarPermissoesAutomaticas(categoria: string): string[] {
   const mapa: Record<string, string[]> = {
     'Estratégico': ['gestao', 'home'],
+    'Receitas': ['relatorios', 'analitico', 'gestao', 'home'],
     'Analítico': ['relatorios'],
     'Marketing': ['gestao'],
     'Operacional': ['gestao', 'operacoes'],

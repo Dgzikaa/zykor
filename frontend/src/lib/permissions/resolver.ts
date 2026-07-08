@@ -34,6 +34,8 @@ const TODOS = 'todos';
 const CATEGORY_GENERICS: Record<string, string[]> = {
   'Estratégico': ['estrategico', 'gestao', 'dashboard', 'home'],
   'Analítico': ['analitico', 'relatorios', 'dashboard', 'home'],
+  // Receitas absorveu Analítico + Marketing: herda os generics dos dois (aditivo).
+  'Receitas': ['receitas', 'relatorios', 'analitico', 'gestao', 'dashboard', 'home'],
   'Ferramentas': ['ferramentas', 'operacoes', 'dashboard', 'home'],
   // Financeiro em 2 grupos. 'home'/'financeiro' mantêm quem já tinha acesso (aditivo);
   // o token único do grupo ('financeiro_relatorios'/'financeiro_ferramentas') permite
@@ -92,11 +94,21 @@ const ALIAS_TO_CANONICAL: Record<string, string> = {
   planejamento: 'estrategico_planejamento',
   orcamentacao: 'estrategico_orcamentacao',
   visao_geral: 'estrategico_visao_geral',
-  // Analítico
-  clientes: 'analitico_clientes',
-  relatorios_clientes: 'analitico_clientes',
-  eventos: 'analitico_eventos',
-  relatorios_eventos: 'analitico_eventos',
+  // Receitas — absorveu Analítico + Marketing (08/07/2026). Os itens migraram de seção,
+  // então o id canônico virou `receitas_*`. Estes aliases mantêm os grants antigos
+  // salvos no banco (ids de Analítico/Marketing) funcionando sem migração de dados.
+  analitico_clientes: 'receitas_clientes',
+  analitico_eventos: 'receitas_eventos',
+  analitico_visao_do_artista: 'receitas_visao_do_artista',
+  analitico_taggear_artistas: 'receitas_taggear_artistas',
+  marketing_instagram: 'receitas_instagram',
+  marketing_segmentos_rfm: 'receitas_segmentos_rfm',
+  marketing_retencao: 'receitas_retencao',
+  // Sinônimos curtos legados (já existiam) reapontados pro novo canônico.
+  clientes: 'receitas_clientes',
+  relatorios_clientes: 'receitas_clientes',
+  eventos: 'receitas_eventos',
+  relatorios_eventos: 'receitas_eventos',
 };
 
 /** id canônico do módulo -> categoria do menu (derivado de MODULOS_MENU). */

@@ -44,23 +44,20 @@ export const MENU_TREE: MenuSection[] = [
     ],
   },
   {
-    icon: 'BarChart3',
-    label: 'Analítico',
-    href: '/analitico',
+    // Área unificada: absorve Analítico + Marketing (reunião mkt 08/07/2026).
+    // As URLs físicas (/analitico/*, /marketing/*) são mantidas — só o agrupamento
+    // do menu muda, então não há redirect nem link morto. Os ids de módulo passam a
+    // ser `receitas_*`; a retrocompatibilidade é garantida por aliases no resolver.
+    icon: 'Coins',
+    label: 'Receitas',
+    href: '/receitas',
     permission: 'relatorios',
     subItems: [
+      { icon: 'BarChart3', label: 'Dashboard de Receitas', href: '/receitas', permission: 'relatorios' },
       { icon: 'Users', label: 'Clientes', href: '/analitico/clientes', permission: 'relatorios' },
       { icon: 'BarChart3', label: 'Eventos', href: '/analitico/eventos', permission: 'relatorios' },
       { icon: 'Music', label: 'Visão do Artista', href: '/analitico/atracoes', permission: 'relatorios' },
       { icon: 'Tag', label: 'Taggear Artistas', href: '/analitico/atracoes/tagging', permission: 'analitico_taggear_artistas' },
-    ],
-  },
-  {
-    icon: 'Megaphone',
-    label: 'Marketing',
-    href: '/marketing/instagram',
-    permission: 'gestao',
-    subItems: [
       { icon: 'Instagram', label: 'Instagram', href: '/marketing/instagram', permission: 'gestao' },
       { icon: 'PieChart', label: 'Segmentos (RFM)', href: '/analitico/clientes/segmentos', permission: 'relatorios' },
       { icon: 'TrendingUp', label: 'Retenção', href: '/analitico/clientes/retencao', permission: 'relatorios' },
