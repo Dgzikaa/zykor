@@ -7,7 +7,6 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { BarChart3, DollarSign, Store, Music, Boxes, Users, HeartHandshake } from 'lucide-react';
 import { mesesRecentes } from './_periodo';
-import { SeletorDow } from './_DowFiltro';
 import { SecaoArtistico } from './secoes/Artistico';
 import { SecaoVendas } from './secoes/Vendas';
 import { SecaoFinanceiro } from './secoes/Financeiro';
@@ -34,8 +33,6 @@ export default function GraficosPage() {
   const [periodo, setPeriodo] = useState(12);
   // Visão mensal (zoom no mês): mesRef='YYYY-MM'. null = visão do ano / janela de N meses.
   const [mesRef, setMesRef] = useState<string | null>(null);
-  // Filtro por dia da semana (0=dom..6=sáb; null=todos). Só afeta análises com dado diário.
-  const [dow, setDow] = useState<number | null>(null);
   const MESES = mesesRecentes(18);
 
   useEffect(() => {
@@ -65,8 +62,6 @@ export default function GraficosPage() {
             <option value="">Ano inteiro</option>
             {MESES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
-          <div className="h-5 w-px bg-gray-300 dark:bg-gray-600" />
-          <SeletorDow dow={dow} onChange={setDow} />
         </div>
       </div>
 
@@ -82,13 +77,13 @@ export default function GraficosPage() {
             <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] py-20 text-center text-[hsl(var(--muted-foreground))]">Selecione um bar.</div>
           ) : (
             <>
-              <TabsContent value="visao"><SecaoVisaoGeral barId={barId} periodo={periodo} mesRef={mesRef} dow={dow} /></TabsContent>
-              <TabsContent value="financeiro"><SecaoFinanceiro barId={barId} periodo={periodo} mesRef={mesRef} dow={dow} /></TabsContent>
-              <TabsContent value="vendas"><SecaoVendas barId={barId} periodo={periodo} mesRef={mesRef} dow={dow} /></TabsContent>
-              <TabsContent value="artistico"><SecaoArtistico barId={barId} periodo={periodo} mesRef={mesRef} dow={dow} /></TabsContent>
-              <TabsContent value="cmv"><SecaoCmv barId={barId} periodo={periodo} mesRef={mesRef} dow={dow} /></TabsContent>
-              <TabsContent value="rh"><SecaoRh barId={barId} periodo={periodo} mesRef={mesRef} dow={dow} /></TabsContent>
-              <TabsContent value="crm"><SecaoCrm barId={barId} periodo={periodo} mesRef={mesRef} dow={dow} /></TabsContent>
+              <TabsContent value="visao"><SecaoVisaoGeral barId={barId} periodo={periodo} mesRef={mesRef} /></TabsContent>
+              <TabsContent value="financeiro"><SecaoFinanceiro barId={barId} periodo={periodo} mesRef={mesRef} /></TabsContent>
+              <TabsContent value="vendas"><SecaoVendas barId={barId} periodo={periodo} mesRef={mesRef} /></TabsContent>
+              <TabsContent value="artistico"><SecaoArtistico barId={barId} periodo={periodo} mesRef={mesRef} /></TabsContent>
+              <TabsContent value="cmv"><SecaoCmv barId={barId} periodo={periodo} mesRef={mesRef} /></TabsContent>
+              <TabsContent value="rh"><SecaoRh barId={barId} periodo={periodo} mesRef={mesRef} /></TabsContent>
+              <TabsContent value="crm"><SecaoCrm barId={barId} periodo={periodo} mesRef={mesRef} /></TabsContent>
             </>
           )}
         </div>

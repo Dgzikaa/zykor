@@ -18,9 +18,6 @@ export async function GET(req: NextRequest) {
     const barId = Number(sp.get('bar_id'));
     const dataInicio = sp.get('data_inicio');
     const dataFim = sp.get('data_fim');
-    // Filtro opcional por dia da semana (0=dom..6=sáb) — hub de Gráficos.
-    const dowFiltroRaw = sp.get('dow');
-    const dowFiltro = dowFiltroRaw != null && dowFiltroRaw !== '' ? Number(dowFiltroRaw) : null;
 
     if (!barId || !dataInicio || !dataFim) {
       return NextResponse.json({ error: 'bar_id, data_inicio e data_fim são obrigatórios' }, { status: 400 });
@@ -47,8 +44,6 @@ export async function GET(req: NextRequest) {
     const porDiaSemanaHora = new Map<string, { faturamento: number; dias: Set<string> }>();
 
     for (const r of rows) {
-      const rowDow = new Date(r.data_venda + 'T12:00:00').getDay();
-      if (dowFiltro != null && rowDow !== dowFiltro) continue; // filtro por dia da semana
       const h = r.hora > 23 ? r.hora - 24 : r.hora;
       dias.add(r.data_venda);
 
@@ -57,7 +52,7 @@ export async function GET(req: NextRequest) {
       cur.transacoes += Number(r.quantidade) || 0;
       porHora.set(h, cur);
 
-      const dow = rowDow;
+      const dow = new Date(r.data_venda + 'T12:00:00').getDay();
       const key = `${dow}|${h}`;
       const ds = porDiaSemanaHora.get(key) ?? { faturamento: 0, dias: new Set() };
       ds.faturamento += Number(r.valor) || 0;

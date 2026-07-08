@@ -5,7 +5,6 @@ import { api } from '@/lib/api-client';
 import { GraficoBase } from '@/components/graficos/GraficoBase';
 import { HeroRow, ChartCard, ChartGrid, GraficoBarraH, GraficoDonut, GraficoHeatmap, GraficoScatter, type Kpi } from '@/components/graficos/Charts';
 import { noMes } from '../_periodo';
-import { AvisoDow } from '../_DowFiltro';
 import { Users, UserPlus, Repeat, Crown, AlertTriangle, Gem, Loader2 } from 'lucide-react';
 
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -16,7 +15,7 @@ const mesLabel = (iso: string) => { const d = new Date(String(iso).slice(0, 10) 
 
 const NIVEL_ORDEM = ['bronze', 'prata', 'ouro', 'diamante', 'platina'];
 
-export function SecaoCrm({ barId, periodo, mesRef, dow }: { barId: number; periodo: number; mesRef: string | null; dow: number | null }) {
+export function SecaoCrm({ barId, periodo, mesRef }: { barId: number; periodo: number; mesRef: string | null }) {
   const mensal = !!mesRef;
   const [evo, setEvo] = useState<any[]>([]);
   const [coorte, setCoorte] = useState<any[]>([]);
@@ -146,7 +145,6 @@ export function SecaoCrm({ barId, periodo, mesRef, dow }: { barId: number; perio
 
   return (
     <div className="space-y-4">
-      <AvisoDow dow={dow} />
       <HeroRow kpis={kpis} cols={6} />
 
       <ChartGrid>

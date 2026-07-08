@@ -5,7 +5,6 @@ import { api } from '@/lib/api-client';
 import { GraficoBase } from '@/components/graficos/GraficoBase';
 import { HeroRow, ChartCard, ChartGrid, GraficoWaterfall, GraficoDonut, GraficoBarraH, type Kpi } from '@/components/graficos/Charts';
 import { mesBounds, mesLabelCurto } from '../_periodo';
-import { AvisoDow } from '../_DowFiltro';
 import { DollarSign, TrendingUp, Percent, Boxes, Wallet, Loader2 } from 'lucide-react';
 
 const anoAtual = new Date().getFullYear();
@@ -19,7 +18,7 @@ const mesNum = (v: any) => { const s = String(v ?? ''); return s.includes('-') ?
 // Nome do bloco de custo por ordem_macro (2..8). Espelha gold.mv_dre_ano.
 const CUSTO_NOME: Record<number, string> = { 2: 'Custos Variáveis', 3: 'CMV', 4: 'Mão de Obra', 5: 'Desp. Comerciais', 6: 'Desp. Administrativas', 7: 'Desp. Operacionais', 8: 'Ocupação' };
 
-export function SecaoFinanceiro({ barId, mesRef, dow }: { barId: number; periodo: number; mesRef: string | null; dow: number | null }) {
+export function SecaoFinanceiro({ barId, mesRef }: { barId: number; periodo: number; mesRef: string | null }) {
   const [ano, setAno] = useState(anoAtual);
   const [dre, setDre] = useState<any[]>([]);
   const [dfc, setDfc] = useState<any[]>([]);
@@ -148,7 +147,6 @@ export function SecaoFinanceiro({ barId, mesRef, dow }: { barId: number; periodo
 
   return (
     <div className="space-y-4">
-      <AvisoDow dow={dow} />
       {!mensal && (
         <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Ano</span>
           <select value={ano} onChange={(e) => setAno(Number(e.target.value))} className="h-8 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
