@@ -12,12 +12,13 @@ function getBarId(request: NextRequest): number | null {
 }
 
 /**
- * Recálculo pontual de UM evento (bar + dia) — força calculate_evento_metrics.
- * Usado pelo botão "Recalcular agora" no modal de composição de custo do Planejamento,
- * quando o valor cacheado (eventos_base.c_art/c_prod) diverge do CA ao vivo (correção
- * feita no Conta Azul que ainda não passou pelo cron diário das 11:45).
+ * Recálculo forçado — roda calculate_evento_metrics (recomputa c_art/c_prod do CA ao vivo,
+ * faturamento, público etc.) quando o cache do eventos_base divergiu do Conta Azul e o cron
+ * diário das 11:45 ainda não passou.
  *
- * POST { data: 'YYYY-MM-DD' }  (bar via header x-selected-bar-id)
+ * POST (bar via header x-selected-bar-id):
+ *   - { data: 'YYYY-MM-DD' }  → 1 evento (botão "Recalcular agora" no modal de composição)
+ *   - { ano, mes }            → o MÊS inteiro (botão na lateral "Controles" do Planejamento)
  */
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
@@ -27,13 +28,36 @@ export async function POST(request: NextRequest) {
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id é obrigatório' }, { status: 400 });
 
   let body: any = {};
-  try { body = await request.json(); } catch { /* sem corpo — cai na validação de data abaixo */ }
+  try { body = await request.json(); } catch { /* sem corpo — validado abaixo */ }
+
+  const ano = parseInt(String(body.ano || ''), 10);
+  const mes = parseInt(String(body.mes || ''), 10);
   const data = String(body.data || '');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
-    return NextResponse.json({ success: false, error: 'data inválida (YYYY-MM-DD)' }, { status: 400 });
+
+  // ---- Mês inteiro ----
+  if (Number.isFinite(ano) && Number.isFinite(mes) && mes >= 1 && mes <= 12) {
+    const ini = `${ano}-${String(mes).padStart(2, '0')}-01`;
+    const fim = mes === 12 ? `${ano + 1}-01-01` : `${ano}-${String(mes + 1).padStart(2, '0')}-01`;
+    const { data: evs, error: evsErr } = await (supabase as any).schema('operations')
+      .from('eventos_base')
+      .select('id')
+      .eq('bar_id', barId).eq('ativo', true)
+      .gte('data_evento', ini).lt('data_evento', fim)
+      .order('data_evento', { ascending: true });
+    if (evsErr) return NextResponse.json({ success: false, error: evsErr.message }, { status: 500 });
+
+    let ok = 0; const falhas: number[] = [];
+    for (const e of (evs || [])) {
+      const { error } = await supabase.rpc('calculate_evento_metrics', { evento_id: e.id });
+      if (error) falhas.push(e.id); else ok++;
+    }
+    return NextResponse.json({ success: true, escopo: 'mes', total: (evs || []).length, recalculados: ok, falhas });
   }
 
-  // Evento do bar naquele dia (escopado — nunca recalcula de outro bar).
+  // ---- 1 evento (por data) ----
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+    return NextResponse.json({ success: false, error: 'informe { data } ou { ano, mes }' }, { status: 400 });
+  }
   const { data: ev, error: evErr } = await (supabase as any).schema('operations')
     .from('eventos_base')
     .select('id, c_art, c_prod')
@@ -51,7 +75,7 @@ export async function POST(request: NextRequest) {
     .from('eventos_base').select('c_art, c_prod').eq('id', ev.id).maybeSingle();
 
   return NextResponse.json({
-    success: true,
+    success: true, escopo: 'dia',
     evento_id: ev.id,
     c_art_antes, c_prod_antes,
     c_art: Number(depois?.c_art) || 0,
