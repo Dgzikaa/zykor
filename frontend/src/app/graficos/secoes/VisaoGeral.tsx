@@ -5,6 +5,7 @@ import { api } from '@/lib/api-client';
 import { GraficoBase } from '@/components/graficos/GraficoBase';
 import { HeroRow, ChartCard, ChartGrid, type Kpi } from '@/components/graficos/Charts';
 import { mesBounds, noMes, mesLabelCurto } from '../_periodo';
+import { AvisoDow } from '../_DowFiltro';
 import { DollarSign, TrendingUp, Percent, CalendarDays, Boxes, Wallet, Loader2 } from 'lucide-react';
 
 const anoAtual = new Date().getFullYear();
@@ -17,7 +18,7 @@ const asPct = (v: number) => (Math.abs(v) <= 1.5 ? v * 100 : v);
 const mesCurto = (m: number) => new Date(2000, m - 1, 1).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
 const mesNum = (v: any) => { const s = String(v ?? ''); return s.includes('-') ? Number(s.slice(5, 7)) : Number(s); };
 
-export function SecaoVisaoGeral({ barId, mesRef }: { barId: number; periodo: number; mesRef: string | null }) {
+export function SecaoVisaoGeral({ barId, mesRef, dow }: { barId: number; periodo: number; mesRef: string | null; dow: number | null }) {
   const [ano, setAno] = useState(anoAtual);
   const [painel, setPainel] = useState<any>(null);
   const [dre, setDre] = useState<any[]>([]);
@@ -136,6 +137,7 @@ export function SecaoVisaoGeral({ barId, mesRef }: { barId: number; periodo: num
 
   return (
     <div className="space-y-4">
+      <AvisoDow dow={dow} />
       {!mensal && (
         <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Ano</span>
           <select value={ano} onChange={(e) => setAno(Number(e.target.value))} className="h-8 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">

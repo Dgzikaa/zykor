@@ -11,7 +11,7 @@ const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency
 const moneyK = (v: number) => `${v < 0 ? '-' : ''}R$ ${Math.abs(Math.round((v || 0) / 1000))}k`;
 const num = (v: number) => Math.round(v || 0).toLocaleString('pt-BR');
 
-export function SecaoArtistico({ barId, periodo, mesRef }: { barId: number; periodo: number; mesRef: string | null }) {
+export function SecaoArtistico({ barId, periodo, mesRef, dow }: { barId: number; periodo: number; mesRef: string | null; dow: number | null }) {
   const [rank, setRank] = useState<any | null>(null);
   const [labels, setLabels] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,16 +20,17 @@ export function SecaoArtistico({ barId, periodo, mesRef }: { barId: number; peri
     setLoading(true);
     // No modo mês: recorta por data (de/ate) do mês escolhido; senão janela de `periodo` meses.
     const win = mesRef ? (() => { const b = mesBounds(mesRef); return `de=${b.de}&ate=${b.ate}`; })() : `periodo=${periodo}`;
+    const dowQ = dow != null ? `&dow=${dow}` : ''; // filtro por dia da semana (dado diário: data_evento)
     try {
       const [r, l] = await Promise.all([
-        api.get(`/api/analitico/atracoes?${win}&bar_id=${barId}`),
-        api.get(`/api/analitico/labels?${win}&bar_id=${barId}`),
+        api.get(`/api/analitico/atracoes?${win}&bar_id=${barId}${dowQ}`),
+        api.get(`/api/analitico/labels?${win}&bar_id=${barId}${dowQ}`),
       ]);
       setRank(r?.success ? r : null);
       setLabels(l?.success ? l : null);
     } catch { setRank(null); setLabels(null); }
     finally { setLoading(false); }
-  }, [barId, periodo, mesRef]);
+  }, [barId, periodo, mesRef, dow]);
   useEffect(() => { carregar(); }, [carregar]);
 
   const artistas: any[] = useMemo(() => rank?.data || [], [rank]);

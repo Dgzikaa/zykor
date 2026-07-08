@@ -108,6 +108,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const periodo = parseInt(searchParams.get('periodo') || '12', 10);
     const minShows = parseInt(searchParams.get('min_shows') || '3', 10);
+    // Filtro opcional por dia da semana (0=dom..6=sáb) — hub de Gráficos. Mesma
+    // convenção do /api/analitico/atracoes (getUTCDay sobre a data do evento).
+    const dowRaw = searchParams.get('dow');
+    const dowFiltro = dowRaw != null && dowRaw !== '' ? Number(dowRaw) : null;
 
     // Recorte por data: se `de`/`ate` vierem (visão mensal do hub de Gráficos), usa-os;
     // senão, janela retroativa de `periodo` meses (comportamento padrão).
@@ -152,7 +156,7 @@ export async function GET(request: NextRequest) {
           couvert: parseFloat(e.faturamento_couvert) || 0,
         };
       })
-      .filter((e: Ev) => e.canon.length > 0);
+      .filter((e: Ev) => e.canon.length > 0 && (dowFiltro == null || new Date(e.data + 'T12:00:00Z').getUTCDay() === dowFiltro));
 
     const evById = new Map<number, Ev>(eventos.map((e) => [e.id, e]));
 

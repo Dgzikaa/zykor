@@ -13,6 +13,9 @@ export async function GET(request: NextRequest) {
   const sp = new URL(request.url).searchParams;
   const inicio = sp.get('inicio'); const fim = sp.get('fim');
   if (!inicio || !fim) return NextResponse.json({ success: false, error: 'inicio e fim obrigatórios' }, { status: 400 });
+  // Filtro opcional por dia da semana (0=dom..6=sáb) — hub de Gráficos.
+  const dowRaw = sp.get('dow');
+  const dowFiltro = dowRaw != null && dowRaw !== '' ? Number(dowRaw) : null;
 
   const supabase = await getAdminClient();
   const [{ data: freelas }, { data: escalas }, { data: funcs }, { data: eventos }] = await Promise.all([
@@ -40,6 +43,7 @@ export async function GET(request: NextRequest) {
   }
 
   const linhas = Array.from(dias.values())
+    .filter((r) => dowFiltro == null || new Date(r.data + 'T12:00:00').getDay() === dowFiltro)
     .map((r) => ({ ...r, fixo_estimado: Math.round(r.fixo_estimado * 100) / 100, total: Math.round((r.freelas_custo + r.fixo_estimado) * 100) / 100 }))
     .sort((a, b) => b.data.localeCompare(a.data));
 

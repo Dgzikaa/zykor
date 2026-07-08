@@ -5,6 +5,7 @@ import { api } from '@/lib/api-client';
 import { GraficoBase } from '@/components/graficos/GraficoBase';
 import { HeroRow, ChartCard, ChartGrid, GraficoHeatmap, type Kpi } from '@/components/graficos/Charts';
 import { mesBounds, noMes } from '../_periodo';
+import { AvisoDow } from '../_DowFiltro';
 import { DollarSign, Users, Ticket, Sparkles, CalendarCheck, Percent, Loader2 } from 'lucide-react';
 
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -15,7 +16,7 @@ const delta = (a?: number, b?: number) => (a != null && b != null && b !== 0 ? (
 
 const DIAS_ORD = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
-export function SecaoVendas({ barId, periodo, mesRef }: { barId: number; periodo: number; mesRef: string | null }) {
+export function SecaoVendas({ barId, periodo, mesRef, dow }: { barId: number; periodo: number; mesRef: string | null; dow: number | null }) {
   const [sem, setSem] = useState<any[]>([]);
   const [heat, setHeat] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,13 +37,13 @@ export function SecaoVendas({ barId, periodo, mesRef }: { barId: number; periodo
     try {
       const [d, h] = await Promise.all([
         api.get(`/api/graficos/desempenho?semanas=${semanas}&bar_id=${barId}`),
-        api.get(`/api/ferramentas/insights/curva-horaria?data_inicio=${de}&data_fim=${ate}&bar_id=${barId}`).catch(() => null),
+        api.get(`/api/ferramentas/insights/curva-horaria?data_inicio=${de}&data_fim=${ate}&bar_id=${barId}${dow != null ? `&dow=${dow}` : ''}`).catch(() => null),
       ]);
       setSem(d?.success ? (d.semanas || []) : []);
       setHeat(h?.success ? (h.heatmap || []) : []);
     } catch { setSem([]); setHeat([]); }
     finally { setLoading(false); }
-  }, [barId, periodo, mesRef]);
+  }, [barId, periodo, mesRef, dow]);
   useEffect(() => { carregar(); }, [carregar]);
 
   // descarta a semana corrente (parcial); no modo mês, recorta às semanas que terminam no mês escolhido
@@ -91,6 +92,7 @@ export function SecaoVendas({ barId, periodo, mesRef }: { barId: number; periodo
 
   return (
     <div className="space-y-4">
+      <AvisoDow dow={dow} escopo="só o mapa de calor hora × dia responde ao filtro; faturamento, ticket, mix, reservas e NPS vêm do desempenho semanal e não se recortam por dia da semana." />
       {kpis.length > 0 && <HeroRow kpis={kpis} cols={6} />}
 
       <ChartGrid>

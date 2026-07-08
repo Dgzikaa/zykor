@@ -5,6 +5,7 @@ import { api } from '@/lib/api-client';
 import { GraficoBase } from '@/components/graficos/GraficoBase';
 import { HeroRow, ChartCard, ChartGrid, GraficoBarraH, type Kpi } from '@/components/graficos/Charts';
 import { mesBounds, noMes } from '../_periodo';
+import { AvisoDow } from '../_DowFiltro';
 import { Boxes, Percent, TrendingDown, Package, Truck, Loader2 } from 'lucide-react';
 
 const anoAtual = new Date().getFullYear();
@@ -15,7 +16,7 @@ const isoLocal = (ts: string) => { const d = new Date(ts); return `${d.getFullYe
 const segSemana = (iso: string) => { const d = new Date(iso + 'T12:00:00'); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return d.toISOString().slice(0, 10); };
 const ddmm = (iso: string) => iso.split('-').reverse().slice(0, 2).join('/');
 
-export function SecaoCmv({ barId, periodo, mesRef }: { barId: number; periodo: number; mesRef: string | null }) {
+export function SecaoCmv({ barId, periodo, mesRef, dow }: { barId: number; periodo: number; mesRef: string | null; dow: number | null }) {
   const [ano, setAno] = useState(anoAtual);
   const [cmv, setCmv] = useState<any[]>([]);
   const [forn, setForn] = useState<any[]>([]);
@@ -110,6 +111,7 @@ export function SecaoCmv({ barId, periodo, mesRef }: { barId: number; periodo: n
 
   return (
     <div className="space-y-4">
+      <AvisoDow dow={dow} />
       {!mesRef && (
         <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Ano</span>
           <select value={ano} onChange={(e) => setAno(Number(e.target.value))} className="h-8 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">

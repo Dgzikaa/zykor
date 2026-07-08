@@ -5,6 +5,7 @@ import { api } from '@/lib/api-client';
 import { GraficoBase } from '@/components/graficos/GraficoBase';
 import { HeroRow, ChartCard, ChartGrid, GraficoBarraH, GraficoDonut, GraficoRadar, type Kpi } from '@/components/graficos/Charts';
 import { mesBounds } from '../_periodo';
+import { AvisoDow } from '../_DowFiltro';
 import { Users, UserPlus, UserMinus, Repeat, Smile, HeartPulse, Loader2 } from 'lucide-react';
 
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -14,7 +15,7 @@ const num = (v: number) => Math.round(v || 0).toLocaleString('pt-BR');
 const segSemana = (iso: string) => { const d = new Date(iso + 'T12:00:00'); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return d.toISOString().slice(0, 10); };
 const ddmm = (iso: string) => iso.split('-').reverse().slice(0, 2).join('/');
 
-export function SecaoRh({ barId, periodo, mesRef }: { barId: number; periodo: number; mesRef: string | null }) {
+export function SecaoRh({ barId, periodo, mesRef, dow }: { barId: number; periodo: number; mesRef: string | null; dow: number | null }) {
   const [ind, setInd] = useState<any>(null);
   const [dash, setDash] = useState<any>(null);
   const [enps, setEnps] = useState<any>(null);
@@ -34,7 +35,7 @@ export function SecaoRh({ barId, periodo, mesRef }: { barId: number; periodo: nu
         api.get('/api/rh/indicadores').catch(() => null),
         api.get('/api/rh/funcionarios/dashboard').catch(() => null),
         api.get('/api/rh/enps').catch(() => null),
-        api.get(`/api/rh/custo-mo?inicio=${deStr}&fim=${ateStr}`).catch(() => null),
+        api.get(`/api/rh/custo-mo?inicio=${deStr}&fim=${ateStr}${dow != null ? `&dow=${dow}` : ''}`).catch(() => null),
         api.get(`/api/exploracao/equipe?bar_id=${barId}`).catch(() => null),
       ]);
       setInd(i?.success ? i : null);
@@ -44,7 +45,7 @@ export function SecaoRh({ barId, periodo, mesRef }: { barId: number; periodo: nu
       setEquipe(q?.success ? q.exploracao : null);
     } catch { setInd(null); setDash(null); setEnps(null); setCusto([]); setEquipe(null); }
     finally { setLoading(false); }
-  }, [barId, periodo, mesRef]);
+  }, [barId, periodo, mesRef, dow]);
   useEffect(() => { carregar(); }, [carregar]);
 
   const meses = useMemo(() => (ind?.meses || []).map((m: any) => ({
@@ -122,6 +123,7 @@ export function SecaoRh({ barId, periodo, mesRef }: { barId: number; periodo: nu
 
   return (
     <div className="space-y-4">
+      <AvisoDow dow={dow} escopo="só o Custo de Mão de Obra responde ao filtro; headcount, turnover, felicidade e eNPS são mensais / estado atual." />
       <HeroRow kpis={kpis} cols={6} />
 
       <ChartGrid>
