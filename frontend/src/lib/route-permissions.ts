@@ -48,6 +48,10 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // Zykor Assistant na raiz (menu fica em Configurações, mas acesso é amplo)
   { path: '/assistente-zykor', requiredModules: ['gestao', 'home', 'configuracoes'] },
 
+  // Gráficos — item de menu ÚNICO (sem subItems), então não entra no mapa derivado do menu
+  // (getMenuRoutePermissions só itera subItems). Entrada explícita p/ o guard não negar.
+  { path: '/graficos', requiredModules: ['gestao', 'home'] },
+
   // ========================================
   // COZINHA / KIOSK (override antes do menu p/ ganhar o match exato)
   // ========================================
