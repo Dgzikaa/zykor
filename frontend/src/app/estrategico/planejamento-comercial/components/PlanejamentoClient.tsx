@@ -327,10 +327,14 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
   }, [selectedBar?.id]);
   const [salvando, setSalvando] = useState(false);
 
-  // === Cadastro de eventos (quando o mês está vazio) ===
+  // === Gerenciar dias do mês (cadastrar novos, editar label/M1, excluir dias) ===
   const [cadastroOpen, setCadastroOpen] = useState(false);
   const [salvandoCadastro, setSalvandoCadastro] = useState(false);
   const [linhasCadastro, setLinhasCadastro] = useState<Array<{ data_evento: string; nome: string; m1_r: string }>>([]);
+  // dias que já existiam ao abrir o modal — pra detectar quais foram removidos (excluir de vez)
+  const diasOriginaisRef = useRef<Set<string>>(new Set());
+  // datas a excluir aguardando confirmação (null = sem confirmação pendente)
+  const [confirmExcluir, setConfirmExcluir] = useState<string[] | null>(null);
 
   const DIAS_SEMANA_PT = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
   const diaSemanaDeData = (iso: string): string => {
@@ -338,9 +342,20 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
     const [y, m, d] = iso.split('-').map(Number);
     return DIAS_SEMANA_PT[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] || '';
   };
+  const fmtDataCurta = (iso: string): string => {
+    if (!iso) return '';
+    const [, m, d] = iso.split('-');
+    return `${d}/${m}`;
+  };
 
   const abrirCadastro = () => {
-    setLinhasCadastro([{ data_evento: '', nome: '', m1_r: '' }]);
+    // Semeia com os dias que já existem no mês (edição em massa), ordenados por data.
+    // Mês vazio → começa com uma linha em branco (fluxo antigo de cadastro).
+    const existentes = [...dados]
+      .sort((a, b) => a.data_evento.localeCompare(b.data_evento))
+      .map(e => ({ data_evento: e.data_evento, nome: e.evento_nome || '', m1_r: e.m1_receita ? String(e.m1_receita) : '' }));
+    diasOriginaisRef.current = new Set(dados.map(e => e.data_evento));
+    setLinhasCadastro(existentes.length > 0 ? existentes : [{ data_evento: '', nome: '', m1_r: '' }]);
     setCadastroOpen(true);
   };
   const addLinhaCadastro = () => setLinhasCadastro(p => [...p, { data_evento: '', nome: '', m1_r: '' }]);
@@ -348,40 +363,59 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
   const editarLinhaCadastro = (i: number, campo: 'data_evento' | 'nome' | 'm1_r', val: string) =>
     setLinhasCadastro(p => p.map((l, idx) => idx === i ? { ...l, [campo]: val } : l));
   const gerarDiasDoMes = () => {
+    // Preenche os dias faltantes do mês SEM perder o que já foi digitado/existe.
     const diasNoMes = new Date(filtroAno, filtroMes, 0).getDate(); // dia 0 do mês seguinte = último dia
-    const linhas = Array.from({ length: diasNoMes }, (_, i) => ({
-      data_evento: `${filtroAno}-${String(filtroMes).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`,
-      nome: '',
-      m1_r: ''
-    }));
-    setLinhasCadastro(linhas);
+    setLinhasCadastro(prev => {
+      const porData = new Map(prev.filter(l => l.data_evento).map(l => [l.data_evento, l] as const));
+      return Array.from({ length: diasNoMes }, (_, i) => {
+        const data = `${filtroAno}-${String(filtroMes).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
+        return porData.get(data) || { data_evento: data, nome: '', m1_r: '' };
+      });
+    });
   };
-  const salvarCadastro = async () => {
-    const eventos = linhasCadastro
-      .filter(l => l.data_evento && (l.nome.trim() !== '' || Number(l.m1_r) > 0))
-      .map(l => ({
-        data_evento: l.data_evento,
-        nome: l.nome.trim() || 'A definir',
-        dia_semana: diaSemanaDeData(l.data_evento),
-        m1_r: Number(l.m1_r) || 0
-      }));
-    if (eventos.length === 0) {
-      alert('Preencha pelo menos uma linha com data e (artista ou M1).');
+
+  // Botão Salvar: se algum dia existente foi removido, pede confirmação antes (exclui de vez).
+  const solicitarSalvar = () => {
+    const datasAtuais = new Set(linhasCadastro.map(l => l.data_evento).filter(Boolean));
+    const excluir = [...diasOriginaisRef.current].filter(d => !datasAtuais.has(d));
+    if (excluir.length > 0) {
+      setConfirmExcluir(excluir.sort());
+      return;
+    }
+    void salvarCadastro([]);
+  };
+
+  const salvarCadastro = async (excluir: string[]) => {
+    // Dias a manter/upsertar: linha com data e (label OU M1) — ou dia que já existia
+    // (mantém dias sem atração definida ainda). data_evento duplicada não é permitida.
+    // Toda linha com data válida vira um dia (label vazia → "A definir"), pra permitir
+    // adicionar dias que ainda não têm atração. Ignora duplicatas de data.
+    const vistos = new Set<string>();
+    const dias = linhasCadastro
+      .filter(l => {
+        if (!l.data_evento || vistos.has(l.data_evento)) return false;
+        vistos.add(l.data_evento);
+        return true;
+      })
+      .map(l => ({ data_evento: l.data_evento, nome: l.nome.trim() || 'A definir', m1_r: Number(l.m1_r) || 0 }));
+    if (dias.length === 0 && excluir.length === 0) {
+      alert('Preencha pelo menos uma linha com data e (atração ou M1).');
       return;
     }
     try {
       setSalvandoCadastro(true);
-      const resp = await apiCall('/api/eventos/bulk-insert', {
+      const resp = await apiCall('/api/eventos/bulk-manage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(selectedBar?.id || '') },
-        body: JSON.stringify({ eventos })
+        body: JSON.stringify({ mes: filtroMes, ano: filtroAno, dias, excluir })
       });
-      if (!resp.success) throw new Error(resp.error || 'falha ao cadastrar');
+      if (!resp.success) throw new Error(resp.error || 'falha ao salvar');
+      setConfirmExcluir(null);
       setCadastroOpen(false);
       router.refresh();
     } catch (e) {
-      console.error('Erro ao cadastrar eventos:', e);
-      alert('Erro ao cadastrar eventos. Tente novamente.');
+      console.error('Erro ao salvar dias:', e);
+      alert('Erro ao salvar os dias. Tente novamente.');
     } finally {
       setSalvandoCadastro(false);
     }
@@ -844,6 +878,11 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                       variant="card"
                       onAplicado={() => router.refresh()}
                     />
+                  </div>
+                  <div className="md:hidden px-1 pb-2">
+                    <Button size="sm" onClick={abrirCadastro} className="w-full h-9" leftIcon={<Calendar className="h-4 w-4" />}>
+                      Gerenciar dias do mês
+                    </Button>
                   </div>
                   <div className="md:hidden space-y-2 px-1 pb-4">
                     {dados.map((evento) => (
@@ -1588,25 +1627,35 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                     
                     {/* Botões de Expandir/Recolher */}
                     <div className="flex gap-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        onClick={expandirTodos} 
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={expandirTodos}
                         className="flex-1 h-8"
                         leftIcon={<Maximize2 className="h-3.5 w-3.5" />}
                       >
                         Expandir
                       </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        onClick={recolherTodos} 
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={recolherTodos}
                         className="flex-1 h-8"
                         leftIcon={<Minimize2 className="h-3.5 w-3.5" />}
                       >
                         Recolher
                       </Button>
                     </div>
+
+                    {/* Gerenciar dias do mês: adicionar, editar (label/M1) e excluir dias */}
+                    <Button
+                      size="sm"
+                      onClick={abrirCadastro}
+                      className="w-full h-8"
+                      leftIcon={<Calendar className="h-3.5 w-3.5" />}
+                    >
+                      Gerenciar dias do mês
+                    </Button>
                     
                     <div>
                       <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-3">Período</label>
@@ -1829,20 +1878,20 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
             </DialogContent>
       </Dialog>
 
-      {/* Modal de Cadastro de Eventos (mês vazio) */}
+      {/* Modal de Gerenciar dias do mês (cadastrar novos, editar label/M1, excluir dias) */}
       <Dialog open={cadastroOpen} onOpenChange={setCadastroOpen}>
         <DialogContent className="max-w-[96vw] sm:max-w-[640px] max-h-[92vh] p-0 overflow-hidden rounded-lg bg-[hsl(var(--background))] border border-[hsl(var(--border))]">
           <DialogHeader className="bg-[hsl(var(--muted))] p-4 border-b border-[hsl(var(--border))]">
             <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
-              <Calendar className="h-5 w-5" /> Cadastrar Eventos — {meses.find(m => m.value === filtroMes)?.label} {filtroAno}
+              <Calendar className="h-5 w-5" /> Gerenciar dias — {meses.find(m => m.value === filtroMes)?.label} {filtroAno}
             </DialogTitle>
-            <DialogDescription>Informe a data, o artista/atração e a meta M1 de cada dia. Os custos e demais campos são preenchidos depois (projeção/Conta Azul).</DialogDescription>
+            <DialogDescription>Adicione, edite a atração/Meta M1 ou remova dias. Remover a linha de um dia que já existe <span className="font-medium text-red-600 dark:text-red-400">exclui o dia de vez</span> (com confirmação). Custos, artistas e reais continuam no lápis de cada dia.</DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             <div className="flex flex-wrap gap-2 mb-2">
-              <Button size="sm" variant="outline" onClick={gerarDiasDoMes} leftIcon={<Calendar className="h-3.5 w-3.5" />}>Gerar todos os dias do mês</Button>
-              <Button size="sm" variant="outline" onClick={addLinhaCadastro} leftIcon={<Check className="h-3.5 w-3.5" />}>+ Adicionar linha</Button>
+              <Button size="sm" variant="outline" onClick={gerarDiasDoMes} leftIcon={<Calendar className="h-3.5 w-3.5" />}>Preencher dias faltantes do mês</Button>
+              <Button size="sm" variant="outline" onClick={addLinhaCadastro} leftIcon={<Plus className="h-3.5 w-3.5" />}>Adicionar linha</Button>
             </div>
 
             <div className="grid grid-cols-[120px_1fr_110px_32px] gap-2 px-1 text-[11px] font-medium text-[hsl(var(--muted-foreground))]">
@@ -1853,19 +1902,55 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
               <p className="text-sm text-[hsl(var(--muted-foreground))] py-4 text-center">Nenhuma linha. Use os botões acima para começar.</p>
             )}
 
-            {linhasCadastro.map((linha, i) => (
+            {linhasCadastro.map((linha, i) => {
+              const existente = diasOriginaisRef.current.has(linha.data_evento);
+              return (
               <div key={i} className="grid grid-cols-[120px_1fr_110px_32px] gap-2 items-center">
                 <Input type="date" value={linha.data_evento} onChange={e => editarLinhaCadastro(i, 'data_evento', e.target.value)} className="h-9 text-xs" />
                 <Input value={linha.nome} onChange={e => editarLinhaCadastro(i, 'nome', e.target.value)} placeholder={linha.data_evento ? diaSemanaDeData(linha.data_evento) : 'Ex: Pagode Vira Lata'} className="h-9 text-xs" />
                 <Input type="number" value={linha.m1_r} onChange={e => editarLinhaCadastro(i, 'm1_r', e.target.value)} placeholder="0" className="h-9 text-xs" />
-                <Button size="sm" variant="ghost" className="h-9 w-8 p-0" onClick={() => removerLinhaCadastro(i)}><X className="h-4 w-4" /></Button>
+                <Button size="sm" variant="ghost" className={`h-9 w-8 p-0 ${existente ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40' : ''}`} onClick={() => removerLinhaCadastro(i)} title={existente ? 'Excluir este dia (definitivo)' : 'Remover linha'}><X className="h-4 w-4" /></Button>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <DialogFooter className="bg-[hsl(var(--muted))] p-4 border-t">
             <Button variant="outline" onClick={() => setCadastroOpen(false)}>Cancelar</Button>
-            <Button onClick={salvarCadastro} disabled={salvandoCadastro}>{salvandoCadastro ? 'Salvando...' : 'Salvar Eventos'}</Button>
+            <Button onClick={solicitarSalvar} disabled={salvandoCadastro}>{salvandoCadastro ? 'Salvando...' : 'Salvar'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmação de exclusão de dias (definitiva) */}
+      <Dialog open={confirmExcluir !== null} onOpenChange={(open) => { if (!open) setConfirmExcluir(null); }}>
+        <DialogContent className="max-w-[95vw] sm:max-w-[440px] p-0 overflow-hidden rounded-lg bg-[hsl(var(--background))] border border-[hsl(var(--border))]">
+          <DialogHeader className="bg-red-50 dark:bg-red-950/30 p-4 border-b border-red-200 dark:border-red-900">
+            <DialogTitle className="flex items-center gap-2 text-lg font-semibold text-red-700 dark:text-red-400">
+              <AlertCircle className="h-5 w-5" /> Excluir {confirmExcluir?.length === 1 ? 'este dia' : `${confirmExcluir?.length} dias`}?
+            </DialogTitle>
+            <DialogDescription>
+              Esta ação é <span className="font-semibold text-red-600 dark:text-red-400">definitiva</span>. Os dados do dia (receita real, custos, artistas, reservas e planejamento) serão <span className="font-semibold">perdidos e não têm como voltar</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-4">
+            <div className="flex flex-wrap gap-1.5">
+              {(confirmExcluir || []).map(d => (
+                <Badge key={d} variant="outline" className="border-red-300 dark:border-red-800 text-red-700 dark:text-red-300">
+                  {fmtDataCurta(d)} · {diaSemanaDeData(d).slice(0, 3)}
+                </Badge>
+              ))}
+            </div>
+          </div>
+          <DialogFooter className="bg-[hsl(var(--muted))] p-4 border-t">
+            <Button variant="outline" onClick={() => setConfirmExcluir(null)} disabled={salvandoCadastro}>Cancelar</Button>
+            <Button
+              onClick={() => salvarCadastro(confirmExcluir || [])}
+              disabled={salvandoCadastro}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {salvandoCadastro ? 'Excluindo...' : 'Sim, excluir de vez'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
