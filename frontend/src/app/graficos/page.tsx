@@ -365,6 +365,112 @@ function Desempenho({ barId }: { barId: number }) {
   );
 }
 
+// ===== Estratégico → Orçamentação (fonte: /api/graficos/orcamentacao) =====
+function Orcamentacao({ barId }: { barId: number }) {
+  const [ano, setAno] = useState(anoAtual);
+  const [loading, setLoading] = useState(true);
+  const [meses, setMeses] = useState<any[]>([]);
+  useEffect(() => {
+    if (!barId) return; setLoading(true);
+    api.get(`/api/graficos/orcamentacao?ano=${ano}`).then((r) => setMeses(r?.success ? (r.meses || []) : [])).finally(() => setLoading(false));
+  }, [barId, ano]);
+  const data = useMemo(() => meses.map((m) => ({
+    mes: mesCurto(m.mes),
+    meta_plan: Number(m.totais?.faturamento_meta_plan || 0), meta_proj: Number(m.totais?.faturamento_meta_proj || 0), meta_real: Number(m.totais?.faturamento_meta_real || 0),
+    lucro_plan: Number(m.totais?.ebitda_plan || 0), lucro_proj: Number(m.totais?.ebitda_proj || 0), lucro_real: Number(m.totais?.ebitda_real || 0),
+  })), [meses]);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Ano</span>
+        <select value={ano} onChange={(e) => setAno(Number(e.target.value))} className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
+          {[anoAtual, anoAtual - 1, anoAtual - 2].map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
+      {loading ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div> : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <ChartCard titulo="Faturamento Meta" subtitulo="Planejado × Projetado × Realizado por mês">
+            <GraficoBase tipo="linha" data={data} xKey="mes" formatY={fmtBRL0} series={[{ key: 'meta_plan', label: 'Planejado' }, { key: 'meta_proj', label: 'Projetado' }, { key: 'meta_real', label: 'Realizado' }]} />
+          </ChartCard>
+          <ChartCard titulo="Lucro Líquido" subtitulo="Planejado × Projetado × Realizado por mês">
+            <GraficoBase tipo="linha" data={data} xKey="mes" formatY={fmtBRL0} series={[{ key: 'lucro_plan', label: 'Planejado' }, { key: 'lucro_proj', label: 'Projetado' }, { key: 'lucro_real', label: 'Realizado' }]} />
+          </ChartCard>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===== Estratégico → Planejamento (fonte: /api/estrategico/planejamento-comercial) =====
+function Planejamento({ barId }: { barId: number }) {
+  const hoje = new Date();
+  const [mes, setMes] = useState(hoje.getMonth() + 1);
+  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<any[]>([]);
+  useEffect(() => {
+    if (!barId) return; setLoading(true);
+    api.get(`/api/estrategico/planejamento-comercial?mes=${mes}&ano=${hoje.getFullYear()}`).then((r) => setItems(r?.success ? (r.data || []) : [])).finally(() => setLoading(false));
+  }, [barId, mes]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { evento, acum } = useMemo(() => {
+    const sorted = [...items].filter((e) => e.data_evento).sort((a, b) => a.data_evento < b.data_evento ? -1 : 1);
+    let m1a = 0, ra = 0;
+    const evento = sorted.map((e) => ({ dia: ddmm(e.data_evento), m1: Number(e.m1_receita || 0), real: Number(e.real_receita || 0) }));
+    const acum = sorted.map((e) => { m1a += Number(e.m1_receita || 0); ra += Number(e.real_receita || 0); return { dia: ddmm(e.data_evento), m1: Number(m1a.toFixed(2)), real: Number(ra.toFixed(2)) }; });
+    return { evento, acum };
+  }, [items]);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Mês</span>
+        <select value={mes} onChange={(e) => setMes(Number(e.target.value))} className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm capitalize">
+          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{new Date(2000, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long' })}</option>)}
+        </select>
+      </div>
+      {loading ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div> : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <ChartCard titulo="Meta M1 × Realizado por evento" subtitulo="R$ por dia/evento do mês">
+            <GraficoBase tipo="barra" data={evento} xKey="dia" formatY={fmtBRL0} series={[{ key: 'm1', label: 'Meta M1' }, { key: 'real', label: 'Realizado' }]} />
+          </ChartCard>
+          <ChartCard titulo="Empilhamento acumulado" subtitulo="Meta M1 × Realizado acumulado no mês">
+            <GraficoBase tipo="area" data={acum} xKey="dia" formatY={fmtBRL0} series={[{ key: 'm1', label: 'Meta M1 acum.' }, { key: 'real', label: 'Realizado acum.' }]} />
+          </ChartCard>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===== Financeiro → Conciliação (fonte: /api/financeiro/conciliacao/analise) =====
+function Conciliacao({ barId }: { barId: number }) {
+  const [dias, setDias] = useState(30);
+  const [loading, setLoading] = useState(true);
+  const [analise, setAnalise] = useState<any>(null);
+  useEffect(() => {
+    if (!barId) return; setLoading(true);
+    const de = new Date(); de.setDate(de.getDate() - dias);
+    const qs = new URLSearchParams({ de: de.toISOString().slice(0, 10), ate: new Date().toISOString().slice(0, 10) });
+    api.get(`/api/financeiro/conciliacao/analise?${qs.toString()}`).then((r) => setAnalise(r?.success ? r.analise : null)).finally(() => setLoading(false));
+  }, [barId, dias]);
+  const data = useMemo(() => {
+    const nomeTipo = (t: number) => t === 1 ? 'Crédito' : t === 2 ? 'Débito' : t === 99 ? 'Pix' : 'Outro';
+    const acc = new Map<string, number>();
+    for (const b of (analise?.por_bandeira || [])) { const k = nomeTipo(Number(b.account_type)); acc.set(k, (acc.get(k) || 0) + Number(b.liquido || 0)); }
+    return ['Crédito', 'Débito', 'Pix', 'Outro'].filter((k) => acc.has(k)).map((k) => ({ tipo: k, liquido: Number((acc.get(k) || 0).toFixed(2)) }));
+  }, [analise]);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Período</span>
+        <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-0.5">
+          {[30, 90, 180].map((d) => <button key={d} onClick={() => setDias(d)} className={`text-sm rounded-md px-3 py-1 ${dias === d ? 'bg-indigo-500 text-white' : 'text-gray-600 dark:text-gray-300'}`}>{d}d</button>)}
+        </div>
+      </div>
+      {loading ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div> : (
+        <ChartCard titulo="Recebido líquido por tipo" subtitulo={`Crédito / Débito / Pix — últimos ${dias} dias`}>
+          <GraficoBase tipo="barra" data={data} xKey="tipo" formatY={fmtBRL0} height={340} series={[{ key: 'liquido', label: 'Líquido' }]} />
+        </ChartCard>
+      )}
+    </div>
+  );
+}
+
 const SUBS: Record<string, { key: string; label: string; el?: (barId: number) => React.ReactNode; o?: string }[]> = {
   producao: [
     { key: 'cmv', label: 'Estoque & CMV', el: (b) => <CmvEstoque barId={b} /> },
@@ -375,12 +481,12 @@ const SUBS: Record<string, { key: string; label: string; el?: (barId: number) =>
   financeiro: [
     { key: 'dre', label: 'DRE', el: (b) => <DRE barId={b} /> },
     { key: 'dfc', label: 'DFC', el: (b) => <DFC barId={b} /> },
-    { key: 'stone', label: 'Conciliação', o: 'mix e taxas Stone' },
+    { key: 'stone', label: 'Conciliação', el: (b) => <Conciliacao barId={b} /> },
   ],
   estrategico: [
     { key: 'desempenho', label: 'Desempenho', el: (b) => <Desempenho barId={b} /> },
-    { key: 'orcamentacao', label: 'Orçamentação', o: 'plan × proj × real' },
-    { key: 'planejamento', label: 'Planejamento', o: 'empilhamento M1 × real' },
+    { key: 'orcamentacao', label: 'Orçamentação', el: (b) => <Orcamentacao barId={b} /> },
+    { key: 'planejamento', label: 'Planejamento', el: (b) => <Planejamento barId={b} /> },
   ],
 };
 
