@@ -197,6 +197,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
   const lastLocalRef = useRef<string>('');           // assinatura do último write no localStorage
   const lastServerRef = useRef<string>('');          // assinatura do último autosave no servidor
   const persistLocalErroRef = useRef(false);         // já avisei que o localStorage falhou? (não spamar)
+  const claimKeysRef = useRef<Set<string>>(new Set()); // idempotencyKeys sendo ASSUMIDAS (Retomar) no próximo autosave
 
   // tempo decorrido REAL de uma produção (âncora de relógio): segundos bancados + segmento em curso.
   const elapsedOf = (p: { segundos: number; rodando: boolean; rodandoDesde?: number | null }, now = Date.now()) =>
@@ -286,47 +287,94 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
       duracao_seg: elapsedOf(p, now),
       estado: p,
     }));
+    const claim_keys = [...claimKeysRef.current];
     setSaveInfo({ status: 'salvando', at: Date.now() });
     try {
-      const r = await api.put('/api/operacional/producoes/execucao/rascunho', { bar_id: barId, device_id: deviceId, rascunhos });
+      const r = await api.put('/api/operacional/producoes/execucao/rascunho', { bar_id: barId, device_id: deviceId, rascunhos, claim_keys });
       if (r?.success === false) throw new Error(r?.error || 'falha');
+      claim_keys.forEach(k => claimKeysRef.current.delete(k)); // claim confirmado → limpa pendência
+      // rejeitados = produções que foram ASSUMIDAS em outro aparelho (não sou mais dono).
+      // Tira da minha tela (dono único) e avisa; elas reaparecem no quadro amarelo p/ retomar de volta.
+      const rejeitados: string[] = Array.isArray(r?.rejeitados) ? r.rejeitados : [];
+      if (rejeitados.length) {
+        const set = new Set(rejeitados);
+        const perdidas = prodsRef.current.filter(p => set.has(p.idempotencyKey));
+        if (perdidas.length) {
+          setProds(prev => prev.filter(p => !set.has(p.idempotencyKey)));
+          lastServerRef.current = '';
+          perdidas.forEach(p => toast({ title: 'Produção assumida em outro aparelho', description: `${p.ficha?.nome || 'Produção'} foi retomada em outro dispositivo. Ela segue no quadro "em andamento no bar" caso queira retomar de volta.` }));
+        }
+      }
       setSaveInfo({ status: 'salvo', at: Date.now() });
     } catch {
       lastServerRef.current = '';            // falhou → retenta no próximo ciclo
       setSaveInfo({ status: 'offline', at: Date.now() });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [barId, secaoAtiva, deviceId]);
+  }, [barId, secaoAtiva, deviceId, toast]);
 
-  // HIDRATAÇÃO ao abrir/trocar de bar: (1) servidor deste device (autoritativo) → (2) cache local
-  // offline → (3) "retomar por bar": rascunho de OUTRO device (cache limpo/trocou de tablet), que
-  // NÃO auto-aplica — oferece retomar. Com a âncora de relógio, o tempo é reconstruído exato.
+  // SINCRONIZAÇÃO com o servidor (fonte da verdade, escopo BAR) — modelo de DONO ÚNICO:
+  //  • minhas produções (owner_device == este aparelho) hidratam/permanecem na lista ativa;
+  //  • as de OUTROS aparelhos vão pro quadro amarelo "em andamento no bar" (retomar individual);
+  //  • se ROUBARAM uma que eu tinha (virou de outro dono), ela sai da minha lista aqui (+ toast).
+  // Roda na abertura e a cada 8s (monitor ao vivo, leve). A âncora de relógio reconstrói o tempo.
+  const hidratou = useRef(false);
+  const sincronizarBar = useCallback(async (primeira: boolean) => {
+    if (!barId) return;
+    let rows: any[] = [];
+    try {
+      const r = await api.get(`/api/operacional/producoes/execucao/rascunho?bar_id=${barId}`);
+      if (!r?.success || !Array.isArray(r.rascunhos)) return;
+      rows = r.rascunhos;
+    } catch { return; }
+    const donoDe = (row: any): string | null => (row.owner_device || row.device_id) || null;
+
+    if (primeira && !hidratou.current) {
+      // hidratação inicial: aplica minhas produções; se o servidor não tiver, cai no cache local.
+      const meus = rows.filter(row => donoDe(row) === deviceId).map(row => row.estado).filter((e: any) => e && e.localId && e.ficha);
+      let applied = false;
+      if (meus.length) applied = aplicarEstados(meus, true);
+      if (!applied) {
+        try {
+          const raw = localStorage.getItem(`zykor:producoes:ativas:${barId}`);
+          if (raw) { const saved = JSON.parse(raw); aplicarEstados(Array.isArray(saved?.prods) ? saved.prods : []); }
+        } catch { /* ignore */ }
+      }
+      hidratou.current = true;
+    } else {
+      // já hidratado: solta da minha lista o que virou de OUTRO dono (roubado), exceto o que
+      // estou assumindo agora (claim pendente). O autosave (rejeitados) faz o mesmo — convergem.
+      const donoMap = new Map(rows.map(row => [row.idempotencia_key, donoDe(row)]));
+      const perder = prodsRef.current.filter(p => {
+        if (claimKeysRef.current.has(p.idempotencyKey)) return false;
+        const d = donoMap.get(p.idempotencyKey);
+        return d && d !== deviceId;
+      });
+      if (perder.length) {
+        const set = new Set(perder.map(p => p.idempotencyKey));
+        setProds(prev => prev.filter(p => !set.has(p.idempotencyKey)));
+        lastServerRef.current = '';
+        perder.forEach(p => toast({ title: 'Produção assumida em outro aparelho', description: `${p.ficha?.nome || 'Produção'} foi retomada em outro dispositivo. Segue no quadro "em andamento no bar" p/ retomar de volta.` }));
+      }
+    }
+
+    // Quadro amarelo = produções do bar de OUTROS aparelhos que eu não tenho na lista ativa.
+    const meusKeys = new Set(prodsRef.current.map(p => p.idempotencyKey));
+    const outros = rows
+      .filter(row => donoDe(row) !== deviceId)
+      .map(row => row.estado)
+      .filter((e: any) => e && e.localId && e.ficha && !meusKeys.has(e.idempotencyKey));
+    setResumivel(outros.length ? outros : null);
+  }, [barId, deviceId, aplicarEstados, toast]);
+
   useEffect(() => {
     if (!barId) return;
+    hidratou.current = false;
     let cancel = false;
-    (async () => {
-      let applied = false;
-      try {
-        const r = await api.get(`/api/operacional/producoes/execucao/rascunho?bar_id=${barId}&device_id=${encodeURIComponent(deviceId)}`);
-        if (!cancel && r?.success && Array.isArray(r.rascunhos) && r.rascunhos.length) applied = aplicarEstados(r.rascunhos.map((x: any) => x.estado), true);
-      } catch { /* offline/servidor fora → cai no cache local */ }
-      if (cancel || applied) return;
-      try {
-        const raw = localStorage.getItem(`zykor:producoes:ativas:${barId}`);
-        if (raw) { const saved = JSON.parse(raw); applied = aplicarEstados(Array.isArray(saved?.prods) ? saved.prods : []); }
-      } catch { /* ignore */ }
-      if (cancel || applied) return;
-      try {
-        const r = await api.get(`/api/operacional/producoes/execucao/rascunho?bar_id=${barId}`); // sem device = bar inteiro
-        if (!cancel && r?.success && Array.isArray(r.rascunhos) && r.rascunhos.length) {
-          const estados = r.rascunhos.map((x: any) => x.estado).filter((e: any) => e && e.localId && e.ficha);
-          if (estados.length) setResumivel(estados);
-        }
-      } catch { /* ignore */ }
-    })();
-    return () => { cancel = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [barId, deviceId]);
+    void sincronizarBar(true);
+    const t = setInterval(() => { if (!cancel) void sincronizarBar(false); }, 8000);
+    return () => { cancel = true; clearInterval(t); };
+  }, [barId, sincronizarBar]);
 
   // Gravação periódica + flush ao sair/backgroundear a tela. localStorage a cada 1s (barato);
   // servidor a cada 10s; ambos no pagehide/visibilitychange (tablet indo pra background = o caso
@@ -484,8 +532,43 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     else patch(confirmarAcao.localId, { rodando: false, segundos: 0, rodandoDesde: null });
     setConfirmarAcao(null);
   };
-  // adota as produções em andamento achadas em outro device do bar (o autosave passa a marcá-las neste)
-  const retomarDoBar = () => { if (resumivel) { aplicarEstados(resumivel); setResumivel(null); } };
+  // ASSUME ("rouba") UMA produção do quadro do bar pra este aparelho — dono único. Append (não
+  // replace), localId novo/único. O claim imediato no servidor troca o dono; o aparelho de origem
+  // perde a posse no próximo autosave/sync (sai da tela dele e volta pro quadro amarelo).
+  const retomarUma = (p: any) => {
+    const nova: ActiveProd = {
+      ...(p as ActiveProd),
+      localId: `p${++idRef.current}`,
+      loadingItens: false,
+      segundos: Number(p.segundos) || 0,
+      rodandoDesde: p.rodando ? (Number(p.rodandoDesde) || Date.now()) : null,
+    };
+    setProds(prev => [...prev, nova]);
+    setSelId(nova.localId);
+    lastServerRef.current = '';                 // força o autosave re-sincronizar com a nova produção
+    setResumivel(prev => {
+      const chave = p.idempotencyKey || p.localId;
+      const rest = (prev || []).filter((x: any) => (x.idempotencyKey || x.localId) !== chave);
+      return rest.length ? rest : null;
+    });
+    // claim IMEDIATO no servidor (não espera o autosave de 10s) — assume a posse já.
+    if (nova.idempotencyKey && barId) {
+      claimKeysRef.current.add(nova.idempotencyKey);
+      api.put('/api/operacional/producoes/execucao/rascunho', {
+        bar_id: barId, device_id: deviceId, claim_keys: [nova.idempotencyKey],
+        rascunhos: [{
+          idempotencia_key: nova.idempotencyKey,
+          secao: nova.ficha?.codigo ? secaoDeCodigo(nova.ficha.codigo) : secaoAtiva,
+          producao_id: nova.ficha?.id ?? null,
+          responsavel_id: nova.responsavelId ?? null,
+          rodando: !!nova.rodando,
+          duracao_seg: elapsedOf(nova),
+          estado: nova,
+        }],
+      }).then(() => { claimKeysRef.current.delete(nova.idempotencyKey); })
+        .catch(() => { claimKeysRef.current.delete(nova.idempotencyKey); });
+    }
+  };
 
   // detecta valores prováveis de erro de unidade (ex.: digitou 1,2 como se fosse kg onde a meta é 1.020 g)
   const checarUnidades = (prod: ActiveProd) => {
@@ -606,26 +689,28 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     setSelId(prodsSecao.length ? prodsSecao[prodsSecao.length - 1].localId : null);
   }, [secaoAtiva, prodsSecao, selId]);
 
+  // Resumo "retomar" também filtrado pela aba (Cozinha/Bar) — não mistura mais as seções.
+  const resumivelSecao = useMemo(
+    () => (resumivel || []).filter((p: any) => secaoDeCodigo(p.ficha?.codigo) === secaoAtiva),
+    [resumivel, secaoAtiva]
+  );
+
   return (
     <div className="space-y-4">
-      {/* Retomar produção em andamento achada em outro aparelho do bar (rede de segurança).
-          Mostra o PREVIEW de cada produção (nome/status/tempo/responsável) antes de retomar —
-          assim dá pra ver o que ficou pausado de um dia pro outro sem atrapalhar quem produz. */}
-      {resumivel && prods.length === 0 && (
+      {/* Monitor ao vivo (atualiza a cada 8s): produções EM ANDAMENTO NO BAR que estão sob outro
+          aparelho. Só pra acompanhar — ou "Retomar" pra ASSUMIR a posse (vira dono único aqui, e
+          sai da tela do aparelho de origem). Filtrado pela seção (Cozinha/Bar) da aba. */}
+      {resumivelSecao.length > 0 && (
         <Card className="card-dark border-amber-300 dark:border-amber-800">
           <CardContent className="py-3 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
                 <History className="w-4 h-4 shrink-0" />
-                <span>Há <b>{resumivel.length}</b> produção(ões) em andamento neste bar (iniciada em outro aparelho ou antes de limpar os dados). Confira abaixo antes de retomar.</span>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <Button size="sm" variant="ghost" onClick={() => setResumivel(null)}>Ignorar</Button>
-                <Button size="sm" onClick={retomarDoBar} className="bg-amber-600 hover:bg-amber-700"><RotateCcw className="w-4 h-4 mr-1" />Retomar{resumivel.length > 1 ? ' todas' : ''}</Button>
+                <span><b>{resumivelSecao.length}</b> produção(ões) de <b>{secaoAtiva}</b> em andamento em outro aparelho do bar. Acompanhe aqui, ou <b>Retomar</b> pra assumir a posse neste aparelho.</span>
               </div>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {resumivel.map((p: any, i: number) => {
+              {resumivelSecao.map((p: any, i: number) => {
                 const resp = responsaveis.find((r: any) => r.id === p.responsavelId);
                 const nItens = Array.isArray(p.itens) ? p.itens.length : 0;
                 return (
@@ -642,6 +727,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
                       {p.dataProducao && <span>Data {fmtDM(p.dataProducao)}</span>}
                     </div>
                     {(p.ficha?.codigo || nItens > 0) && <div className="text-[10px] text-gray-400 mt-0.5">{p.ficha?.codigo || ''}{p.ficha?.codigo && nItens ? ' · ' : ''}{nItens ? `${nItens} itens` : ''}</div>}
+                    <Button size="sm" onClick={() => retomarUma(p)} className="mt-2 w-full h-7 bg-amber-600 hover:bg-amber-700"><RotateCcw className="w-3.5 h-3.5 mr-1" />Retomar esta</Button>
                   </div>
                 );
               })}

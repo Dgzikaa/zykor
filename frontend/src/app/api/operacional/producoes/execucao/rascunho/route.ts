@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = await getAdminClient();
   let q = (supabase as any).schema(SCHEMA).from(TABLE)
-    .select('idempotencia_key, secao, producao_id, rodando, duracao_seg, estado, atualizado_em, device_id')
+    .select('idempotencia_key, secao, producao_id, rodando, duracao_seg, estado, atualizado_em, device_id, owner_device')
     .eq('bar_id', barId)
     .eq('kind', kind)
     .gte('atualizado_em', recenteIso)
@@ -69,6 +69,11 @@ export async function PUT(request: NextRequest) {
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
 
   const kindBody = typeof body.kind === 'string' && body.kind.trim() ? body.kind.trim() : 'producao';
+  // claim_keys = produções que este aparelho está ASSUMINDO agora (botão "Retomar").
+  // Só o claim troca o dono (owner_device); o autosave normal nunca muda dono.
+  const claimKeys = new Set(
+    (Array.isArray(body.claim_keys) ? body.claim_keys : []).map((k: any) => String(k).trim().slice(0, 80))
+  );
   const rows = rascunhos
     .filter(r => typeof r?.idempotencia_key === 'string' && r.idempotencia_key.trim() && r?.estado != null)
     .map(r => ({
@@ -86,12 +91,39 @@ export async function PUT(request: NextRequest) {
       criado_por: user.email ?? user.nome ?? null,
     }));
 
-  if (!rows.length) return NextResponse.json({ success: true, upserted: 0 });
+  if (!rows.length) return NextResponse.json({ success: true, upserted: 0, rejeitados: [] });
 
   const supabase = await getAdminClient();
-  const { error } = await (supabase as any).schema(SCHEMA).from(TABLE)
-    .upsert(rows, { onConflict: 'bar_id,idempotencia_key' });
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+
+  // Dono atual de cada chave (owner_device, com fallback pro device_id legado).
+  const keys = rows.map(r => r.idempotencia_key);
+  const { data: existentes } = await (supabase as any).schema(SCHEMA).from(TABLE)
+    .select('idempotencia_key, owner_device, device_id').eq('bar_id', barId).in('idempotencia_key', keys);
+  const donoAtual = new Map<string, string | null>(
+    ((existentes as any[]) || []).map(e => [e.idempotencia_key, (e.owner_device ?? e.device_id) as string | null])
+  );
+
+  const rejeitados: string[] = [];
+  const aceitos = rows.flatMap(row => {
+    const dono = donoAtual.get(row.idempotencia_key) ?? null;
+    if (claimKeys.has(row.idempotencia_key)) {
+      // assumindo agora → vira dono
+      return [{ ...row, owner_device: deviceId }];
+    }
+    if (dono && dono !== deviceId) {
+      // outro aparelho é o dono → não deixa este sobrescrever (foi "roubada")
+      rejeitados.push(row.idempotencia_key);
+      return [];
+    }
+    // dono sou eu (ou registro novo) → mantém/define dono
+    return [{ ...row, owner_device: dono ?? deviceId }];
+  });
+
+  if (aceitos.length) {
+    const { error } = await (supabase as any).schema(SCHEMA).from(TABLE)
+      .upsert(aceitos, { onConflict: 'bar_id,idempotencia_key' });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
 
   // faxina best-effort: purga rascunhos abandonados (>7 dias) deste bar pra não crescer sem limite.
   try {
@@ -100,7 +132,9 @@ export async function PUT(request: NextRequest) {
       .delete().eq('bar_id', barId).lt('atualizado_em', purgaIso);
   } catch { /* faxina não é crítica */ }
 
-  return NextResponse.json({ success: true, upserted: rows.length });
+  // rejeitados = chaves que o cliente tentou salvar mas NÃO é mais dono (foram assumidas em
+  // outro aparelho). O cliente usa isso pra tirar a produção da tela dele (dono único).
+  return NextResponse.json({ success: true, upserted: aceitos.length, rejeitados });
 }
 
 // DELETE ?bar_id=&key=  — remove um rascunho (ao finalizar ou descartar a produção).
