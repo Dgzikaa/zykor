@@ -283,9 +283,15 @@ export default function DesviosPage() {
 
   // edita em qualquer granularidade (lápis); salva no dia de início do período
   const editavel = !!ini; // edita em qualquer granularidade; salva no dia de início do período
-  // Desperdício: input manual SÓ na Diária (Gonza). Semanal/Mensal apenas consolidam (somam) o que
-  // foi lançado no diário — o fn_desvios já soma desvio_desperdicio_manual no período [ini, fim).
-  const desperdEditavel = tipo === 'diaria' && editavel;
+  // Desperdício (Gonza): quebra por curva.
+  //  - Diária: só Curva A (é o que tem contagem diária) — lança o dia.
+  //  - Semanal: Curva A é READ-ONLY = soma dos diários; NÃO-Curva-A vira input MANUAL da semana
+  //    (não tem diário pra somar). Salva no início da semana; o fn_desvios soma em [ini, fim).
+  //  - Mensal: read-only (consolida as semanas).
+  const podeEditarDesperd = useCallback(
+    (it: any) => editavel && (tipo === 'diaria' || (tipo === 'semanal' && it?.curva_a !== true)),
+    [editavel, tipo]
+  );
   const salvar = useCallback(async (kind: 'produzido' | 'desperdicio' | 'utilizado', codigo: string, payload: { fornadas?: number | null; qtd?: number | null }) => {
     if (!ini || !fim) return;
     try {
@@ -310,17 +316,17 @@ export default function DesviosPage() {
   }, [barId, ini, fim, tipo, andamento, carregar, toast]);
 
   // Insumos = só insumos (exclui produção e proteína, que têm aba própria).
-  // Semanal/mensal: esconde insumo fora de ficha (nunca tem saída teórica). Filtro Só Curva A.
+  // Mostra também item SEM ficha (Gonza): não tem saída teórica, mas serve pra lançar o
+  // desperdício manual da semana (não-curva-A). Filtro "Só Curva A" continua separado.
   const itensView = useMemo(() => {
     const s = busca.trim().toLowerCase();
     return (res?.itens || []).filter((i: any) => !i.is_producao && !i.is_proteina
-      && (tipo === 'diaria' || andamento || i.tem_ficha)
       && (!soCurvaA || i.curva_a === true)
       && (!filtroDado || i.dado_faltando === filtroDado)
       && (!filtroArea || i.area === filtroArea)
       && passNum(i, numF)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
-  }, [res, busca, tipo, soCurvaA, filtroDado, filtroArea, andamento, numF]);
+  }, [res, busca, soCurvaA, filtroDado, filtroArea, numF]);
 
   // contadores dos chips de filtro (igual /operacional/insumos) — base = aba ativa sem o filtro Curva A
   const baseRows = useMemo(() => {
@@ -328,7 +334,7 @@ export default function DesviosPage() {
     const items = (res?.itens || []) as any[];
     const match = (i: any) => !s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s);
     if (aba === 'producoes') return items.filter((i) => i.is_producao && match(i));
-    return items.filter((i) => !i.is_producao && !i.is_proteina && i.tem_ficha && match(i));
+    return items.filter((i) => !i.is_producao && !i.is_proteina && match(i));
   }, [res, busca, aba]);
   const cntTotal = baseRows.length;
   const cntCurvaA = baseRows.filter((i: any) => i.curva_a === true).length;
@@ -455,7 +461,7 @@ export default function DesviosPage() {
               <NumHeader label="Compras" cond={condOf('compra')} onChange={c => setNum('compra', c)} />
               <NumHeader label="Troca" title="Troca entre bares: + recebeu (entrada), − enviou (saída)" cond={condOf('troca')} onChange={c => setNum('troca', c)} />
               <NumHeader label="Saída teórica" title="Vendas × ficha técnica (consumo esperado)" cond={condOf('saida_teorica')} onChange={c => setNum('saida_teorica', c)} />
-              <NumHeader label="Desperdício" title="Saída manual: lata que estourou, item que deu problema. Conta no fim do turno." cond={condOf('desperdicio')} onChange={c => setNum('desperdicio', c)} />
+              <NumHeader label="Desperdício" title="Saída manual: lata que estourou, item que deu problema. Curva A: lança no diário (a semana soma). Não-curva-A: lança direto o desperdício da semana aqui." cond={condOf('desperdicio')} onChange={c => setNum('desperdicio', c)} />
               <NumHeader label="Estoque fim teórico" title="ini + compras + produzido − saída teórica − desperdício" cond={condOf('estoque_fim_teorico')} onChange={c => setNum('estoque_fim_teorico', c)} />
               <NumHeader label="Estoque real" title="Contagem do dia seguinte (estoque que sobrou de fato)" cond={condOf('estoque_fim_real')} onChange={c => setNum('estoque_fim_real', c)} />
               <NumHeader label="Desvio (qtd)" title="Estoque real − estoque fim teórico (negativo = faltou). Filtra pelo módulo." cond={condOf('desvio_qtd')} onChange={c => setNum('desvio_qtd', c)} abs />
@@ -470,13 +476,14 @@ export default function DesviosPage() {
                     {it.pendente && <span title="Produção sem o 'produzido' informado — desvio não confiável neste dia"><AlertTriangle className="w-3.5 h-3.5 inline text-amber-500 mr-1" /></span>}
                     {it.insumo_nome}{it.insumo_nome !== it.insumo_codigo && <span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_codigo}</span>}
                     {it.is_producao && <Badge variant="outline" className="ml-1.5 text-[10px] text-indigo-600 border-indigo-300">produção</Badge>}
+                    {!it.is_producao && !it.tem_ficha && <Badge variant="outline" className="ml-1.5 text-[10px] text-gray-500 border-gray-300" title="Sem ficha técnica — não tem saída teórica; use o Desperdício pra lançar a perda da semana.">s/ ficha</Badge>}
                   </td>
                   <td className="px-3 py-2"><Badge variant="outline">{it.area}</Badge></td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.compra)}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${it.troca ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-300'}`} title={it.troca ? (it.troca > 0 ? 'Recebeu por troca' : 'Enviou por troca') : undefined}>{it.troca ? `${it.troca > 0 ? '+' : ''}${fmtQtd(it.troca)}` : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
-                  <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!desperdEditavel} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
+                  <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!podeEditarDesperd(it)} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${it.pendente ? 'text-gray-300' : it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : `${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
@@ -525,7 +532,7 @@ export default function DesviosPage() {
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
                       <td className="px-3 py-2 text-right"><PencilCell value={it.produzido} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('produzido', it.insumo_codigo, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
-                      <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!desperdEditavel} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
+                      <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!podeEditarDesperd(it)} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
                       <td className={`px-3 py-2 text-right tabular-nums ${it.pendente ? 'text-gray-300' : it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : `${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
@@ -568,7 +575,7 @@ export default function DesviosPage() {
                       <td className={`px-3 py-2 text-right tabular-nums ${it.troca ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-300'}`} title={it.troca ? (it.troca > 0 ? 'Recebeu por troca' : 'Enviou por troca') : undefined}>{it.troca ? `${it.troca > 0 ? '+' : ''}${fmtQtd(it.troca)}` : '—'}</td>
                       <td className="px-3 py-2 text-right"><PencilCell value={it.utilizado_producao} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('utilizado', it.insumo_cod, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.saida_direta)}</td>
-                      <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!desperdEditavel} onSave={(v) => salvar('desperdicio', it.insumo_cod, { qtd: v })} /></td>
+                      <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!podeEditarDesperd(it)} onSave={(v) => salvar('desperdicio', it.insumo_cod, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_real)}</td>
                       <td className={`px-3 py-2 text-right tabular-nums ${it.desvio_qtd < -0.05 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0.05 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.desvio_qtd > 0 ? '+' : ''}{fmtQtd(it.desvio_qtd)}</td>
