@@ -47,12 +47,16 @@ export function SecaoCmv({ barId, periodo }: { barId: number; periodo: number })
   }, [barId, ano, periodo]);
   useEffect(() => { carregar(); }, [carregar]);
 
-  const cmvData = useMemo(() => [...cmv].sort((a, b) => (a.ano - b.ano) || (a.semana - b.semana)).map((d) => ({
-    semana: `S${d.semana}`,
-    cozinha: Number(d.estoque_final_cozinha || 0), bebidas: Number(d.estoque_final_bebidas || 0), drinks: Number(d.estoque_final_drinks || 0),
-    limpo: Number(d.cmv_limpo_percentual || 0), teorico: Number(d.cmv_teorico_percentual || 0),
+  const cmvData = useMemo(() => [...cmv].sort((a, b) => (a.ano - b.ano) || (a.semana - b.semana)).map((d) => {
+    const limpo = Number(d.cmv_limpo_percentual) || 0, teorico = Number(d.cmv_teorico_percentual) || 0;
+    return {
+      semana: `S${d.semana}`,
+      cozinha: Number(d.estoque_final_cozinha || 0), bebidas: Number(d.estoque_final_bebidas || 0), drinks: Number(d.estoque_final_drinks || 0),
+      // null quando 0 → a linha PARA onde o dado acaba (não mergulha a 0; teórico atrasa ~3 semanas)
+      limpo: limpo > 0 ? limpo : null, teorico: teorico > 0 ? teorico : null,
+    };
     // descarta semanas futuras/sem dado (deixavam metade do gráfico vazia + platô fantasma)
-  })).filter((d) => d.limpo > 0 || (d.cozinha + d.bebidas + d.drinks) > 0), [cmv]);
+  }).filter((d) => d.limpo != null || (d.cozinha + d.bebidas + d.drinks) > 0), [cmv]);
 
   const desviosArea = useMemo(() => {
     const by = new Map<string, { perda: number; sobra: number }>();
@@ -81,13 +85,17 @@ export function SecaoCmv({ barId, periodo }: { barId: number; periodo: number })
   }, [execs]);
 
   const kpis: Kpi[] = useMemo(() => {
-    const u = cmvData[cmvData.length - 1];
-    const estoque = u ? u.cozinha + u.bebidas + u.drinks : 0;
+    const rev = [...cmvData].reverse();
+    const ultLimpo = rev.find((d) => d.limpo != null);
+    const ultTeorico = rev.find((d) => d.teorico != null);
+    const ultBoth = rev.find((d) => d.limpo != null && d.teorico != null);
+    const ultEstoque = rev.find((d) => (d.cozinha + d.bebidas + d.drinks) > 0);
+    const estoque = ultEstoque ? ultEstoque.cozinha + ultEstoque.bebidas + ultEstoque.drinks : 0;
     const perdaTot = desviosArea.reduce((s, a) => s + a.perda, 0);
     return [
-      { label: 'CMV limpo', valor: u ? pct(u.limpo) : '—', icon: Percent },
-      { label: 'CMV teórico', valor: u ? pct(u.teorico) : '—', icon: Percent },
-      { label: 'Gap (limpo−teórico)', valor: u ? pct(u.limpo - u.teorico) : '—', invLower: true, icon: TrendingDown },
+      { label: 'CMV limpo', valor: ultLimpo ? pct(ultLimpo.limpo!) : '—', icon: Percent },
+      { label: 'CMV teórico', valor: ultTeorico ? pct(ultTeorico.teorico!) : '—', icon: Percent },
+      { label: 'Gap (limpo−teórico)', valor: ultBoth ? pct(ultBoth.limpo! - ultBoth.teorico!) : '—', invLower: true, icon: TrendingDown },
       { label: 'Valor em estoque', valor: money(estoque), icon: Package },
       { label: 'Perda (últ. contagem)', valor: money(perdaTot), cor: '#e34948', icon: TrendingDown },
       { label: 'Compras no período', valor: money(fornData.reduce((s, f) => s + f.valor, 0)), icon: Truck },
