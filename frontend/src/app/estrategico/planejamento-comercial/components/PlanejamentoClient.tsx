@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import CustoComposicaoModal, { ComposicaoAlvo } from './CustoComposicaoModal';
+import { RecalcularMesButton } from './RecalcularMesButton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import './sticky-columns.css';
 import {
@@ -1669,6 +1670,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                     >
                       Gerenciar dias do mês
                     </Button>
+
+                    {/* Recalcular custos do mês inteiro do Conta Azul (atalho pro cron 11:45) */}
+                    <RecalcularMesButton barId={selectedBar?.id} mes={filtroMes} ano={filtroAno} />
 
                     <div>
                       <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-3">Período</label>
