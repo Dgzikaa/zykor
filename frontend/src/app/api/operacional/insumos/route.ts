@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // As 5 fontes são independentes (só dependem do bar) → rodam EM PARALELO (antes, em fila).
-    const [insumosRaw, semCadastro, fichaRes, secoesRes, freshRes] = await Promise.all([
+    const [insumosRaw, semCadastro, fichaRes, secoesRes, freshRes, contRaw] = await Promise.all([
       // catálogo = cadastro Zykor 1:1 (já com última compra VMarket por código)
       selectAll((from, to) => (supabase as any).schema('silver').from('insumo_catalogo')
         .select('*').eq('bar_id', barId).order('nome', { ascending: true }).range(from, to)),
@@ -31,7 +31,14 @@ export async function GET(request: NextRequest) {
       (supabase as any).schema('operations').rpc('fn_insumos_em_ficha', { p_bar_id: barId }),
       supabase.from('bronze_vmarket_secoes').select('id_secao_cotacao,nome,fl_calc_cmv_faturamento').eq('bar_id', barId).order('nome', { ascending: true }),
       supabase.from('bronze_vmarket_produtos').select('synced_em').eq('bar_id', barId).order('synced_em', { ascending: false }).limit(1),
+      // unidade/fator de CONTAGEM (operations.insumos) — a view silver.insumo_catalogo não expõe.
+      // Permite contar o insumo numa unidade prática (ex.: garrafa) com a receita em ml.
+      selectAll((from, to) => (supabase as any).schema('operations').from('insumos')
+        .select('id, unidade_contagem, fator_contagem').eq('bar_id', barId).range(from, to)).catch(() => []),
     ]);
+    const contMap = new Map<number, { unidade_contagem: string | null; fator_contagem: number | null }>(
+      ((contRaw as any[]) || []).map((c) => [c.id, { unidade_contagem: c.unidade_contagem ?? null, fator_contagem: c.fator_contagem != null ? Number(c.fator_contagem) : null }])
+    );
     const fichaCods = new Set<string>();
     (fichaRes?.data || []).forEach((r: any) => { if (r.insumo_codigo) fichaCods.add(r.insumo_codigo); });
     const secoes = secoesRes?.data;
@@ -52,6 +59,8 @@ export async function GET(request: NextRequest) {
         tem_compra: !!i.tem_compra,
         tem_ficha: fichaCods.has(i.codigo),
         base: u.base, embalagem: u.embalagem,
+        unidade_contagem: contMap.get(i.id)?.unidade_contagem ?? null,
+        fator_contagem: contMap.get(i.id)?.fator_contagem ?? null,
       };
     });
 
@@ -106,6 +115,13 @@ export async function POST(request: NextRequest) {
     if ('fator_correcao' in body) patch.fator_correcao = !!body.fator_correcao;
     if ('curva_a' in body) { patch.curva_a = !!body.curva_a; patch.frequencia = body.curva_a ? 'diaria' : 'semanal'; }
     if ('curva_a_proteina' in body) patch.curva_a_proteina = !!body.curva_a_proteina;
+    // Unidade/fator de CONTAGEM: vazio = conta na própria unidade da ficha (null). O Desvios usa
+    // fator_contagem pra converter a contagem (ex.: garrafa) → unidade da ficha (ml).
+    if ('unidade_contagem' in body) patch.unidade_contagem = String(body.unidade_contagem || '').trim() || null;
+    if ('fator_contagem' in body) {
+      const f = Number(String(body.fator_contagem ?? '').replace(',', '.'));
+      patch.fator_contagem = (body.fator_contagem === '' || body.fator_contagem == null || !isFinite(f) || f <= 0) ? null : f;
+    }
     if (Object.keys(patch).length) {
       const { error } = await ops.from('insumos').update(patch).eq('bar_id', barId).eq('id', id);
       if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
