@@ -104,11 +104,12 @@ export async function GET(request: NextRequest) {
       estoque_ideal,
       // Limpeza: Sug. Pedido = repor até o ideal (nunca negativo).
       sug_pedido: isLimpeza && estoque_ideal != null ? Math.max(0, estoque_ideal - estoque_final) : null,
-      // Insumo/limpeza: preço VMarket na data. Produção não tem VMarket — o custo é da ficha,
-      // que já está embutido no `valor`; expõe o custo por unidade contada (valor/qtd).
-      custo_unitario: isProducao
+      // Custo/un: VMarket quando confiável; senão o EFETIVO (valor ÷ qtd) — reflete o custo do
+      // cadastro/contagem quando o VMarket foi descartado (0 ou preço de embalagem trocada).
+      // Produção idem (não tem VMarket; custo da ficha já está no `valor`).
+      custo_unitario: (isProducao || !(Number(r.preco_vmarket) > 0))
         ? (estoque_final !== 0 ? valor / estoque_final : null)
-        : Number(r.preco_vmarket ?? 0),
+        : Number(r.preco_vmarket),
       valor,
       // Insumo agrupa por área derivada; limpeza pela própria categoria;
       // produção (pc/pd) por seção da ficha (Cozinha × Drinks) pelo prefixo do código.
