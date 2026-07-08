@@ -94,7 +94,7 @@ export function getModuleIdForPath(path: string): string | null {
   for (const section of MENU_LATERAL_STRUCTURE) {
     const grupo = GRUPO_MODULO_UNICO[section.label];
     for (const item of section.subItems) {
-      if (item.href === path) return grupo ?? gerarIdModulo(section.label, item.label);
+      if (item.href.split('?')[0].split('#')[0] === path) return grupo ?? gerarIdModulo(section.label, item.label);
     }
   }
   return null;
@@ -159,7 +159,8 @@ export function getMenuRoutePermissions(): MenuRoutePermissionEntry[] {
       const moduleId = GRUPO_MODULO_UNICO[section.label] ?? gerarIdModulo(section.label, item.label);
       const fallback = buildSectionFallbackModules(section.label);
       return {
-        path: item.href,
+        // tira query/hash: o guard casa pelo pathname (ex.: /graficos?m=x → /graficos)
+        path: item.href.split('?')[0].split('#')[0],
         requiredModules: Array.from(new Set([moduleId, ...fallback])),
       };
     })
