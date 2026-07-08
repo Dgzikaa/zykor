@@ -19,7 +19,7 @@
  * O botão "Aplicar" grava o M1 de cada dia da semana na Meta M1 do mês (eventos_base).
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { apiCall } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -87,20 +87,32 @@ const fmtData = (iso: string) => {
   catch { return ''; }
 };
 
+// tem algum valor > 0 em algum dia do mapa? (usado pra merge banco↔cache local)
+const mapTemValor = (m?: Record<number, string>) => DIAS.some((d) => parseNum(m?.[d.dow] || '') > 0);
+
 // linha do banco (números) → config da UI (strings mascaradas)
 function cfgFromDb(row: any): CalcCfg {
   const pesos: Record<number, string> = { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' };
+  const artPct: Record<number, string> = { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' };
+  const artFixo: Record<number, string> = { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' };
+  const prodPct: Record<number, string> = { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' };
   for (const d of DIAS) {
     const v = row?.pesos?.[d.dow];
     pesos[d.dow] = v ? fmt(Number(v), 2) : '';
+    const ap = Number(row?.art_pct?.[d.dow]);
+    artPct[d.dow] = ap > 0 ? String(ap) : '';
+    const af = Number(row?.art_fixo?.[d.dow]);
+    artFixo[d.dow] = af > 0 ? fmt(af, 2) : ''; // cachê fixo → máscara de moeda
+    const pp = Number(row?.prod_pct?.[d.dow]);
+    prodPct[d.dow] = pp > 0 ? String(pp) : '';
   }
   return {
-    ...cfgDefault(), // garante artPct/prodPct default (não persistidos no banco de config)
+    ...cfgDefault(),
     targetM1: row?.target_m1 ? fmt(Number(row.target_m1), 2) : '',
     m2: row?.m2_pct != null ? String(row.m2_pct) : '120',
     m3: row?.m3_pct != null ? String(row.m3_pct) : '140',
     diasVenda: row?.dias_venda != null ? String(row.dias_venda) : '31',
-    pesos,
+    pesos, artPct, artFixo, prodPct,
   };
 }
 
@@ -124,6 +136,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
   // com o bar/mês corrente — senão, ao trocar de bar, o cfg antigo era gravado na chave
   // do bar novo (bar 3 "puxava" o que foi feito no bar 4).
   const [hydratedKey, setHydratedKey] = useState<string | null>(null);
+  const lastSavedRef = useRef<string>(''); // último cfg persistido (evita re-salvar o que acabou de carregar)
   const [aba, setAba] = useState<'calc' | 'custos' | 'hist'>('calc');
   const [cenario, setCenario] = useState<'m1' | 'm2' | 'm3'>('m1');
   const [preservarManuais, setPreservarManuais] = useState(true);
@@ -144,31 +157,76 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
       .finally(() => setHistLoading(false));
   }, [open, aba, barId, ano, mes]);
 
-  // carrega config por bar+mês: rascunho local (instantâneo) OU, se não houver,
-  // a config salva no banco (durável, gravada ao clicar Aplicar).
+  // carrega config por bar+mês do BANCO (fonte da verdade, compartilhada entre sócios).
+  // O localStorage é só cache de paint instantâneo — o banco sempre manda. Também traz
+  // os dias de operação (`opera`) na mesma chamada.
   useEffect(() => {
     const key = storeKey(barId, ano, mes);
     setHydratedKey(null); // invalida o cfg antigo até carregar o do bar/mês atual
-    let cancel = false;
-    let draft: CalcCfg | null = null;
+    // paint instantâneo do cache local (evita flicker enquanto o banco responde)
+    let local: CalcCfg | null = null;
     try {
       const raw = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
-      if (raw) draft = { ...cfgDefault(), ...JSON.parse(raw) };
-    } catch { draft = null; }
-    if (draft) { setCfg(draft); setHydratedKey(key); return; }
-    if (!barId) { setCfg(cfgDefault()); setHydratedKey(key); return; }
+      if (raw) { const parsed: CalcCfg = { ...cfgDefault(), ...JSON.parse(raw) }; local = parsed; setCfg(parsed); }
+    } catch { local = null; }
+    if (!barId) {
+      if (!local) setCfg(cfgDefault());
+      setOperaDias({});
+      lastSavedRef.current = ''; setHydratedKey(key); return;
+    }
+    let cancel = false;
     apiCall(`/api/eventos/distribuicao-config?ano=${ano}&mes=${mes}`, { headers: { 'x-selected-bar-id': String(barId) } })
-      .then((r: any) => { if (!cancel) { setCfg(r?.config ? cfgFromDb(r.config) : cfgDefault()); setHydratedKey(key); } })
-      .catch(() => { if (!cancel) { setCfg(cfgDefault()); setHydratedKey(key); } });
+      .then((r: any) => {
+        if (cancel) return;
+        setOperaDias(r?.opera || {});
+        let next: CalcCfg;
+        if (r?.config) {
+          next = cfgFromDb(r.config);
+          // custos ainda não gravados no banco (rows antigas) → preserva o do cache local
+          if (local) {
+            if (!mapTemValor(next.artPct) && mapTemValor(local.artPct)) next.artPct = local.artPct;
+            if (!mapTemValor(next.artFixo) && mapTemValor(local.artFixo)) next.artFixo = local.artFixo;
+            if (!mapTemValor(next.prodPct) && mapTemValor(local.prodPct)) next.prodPct = local.prodPct;
+          }
+        } else {
+          next = local || cfgDefault();
+        }
+        setCfg(next);
+        lastSavedRef.current = JSON.stringify(next); // não re-salva o que acabou de carregar
+        setHydratedKey(key);
+      })
+      .catch(() => { if (!cancel) { lastSavedRef.current = local ? JSON.stringify(local) : ''; setHydratedKey(key); } });
     return () => { cancel = true; };
   }, [barId, ano, mes]);
 
-  // persiste rascunho local — SÓ na chave pra qual o cfg foi carregado (evita gravar o
-  // cfg do bar anterior na chave do bar novo durante a troca de bar/mês).
+  // persiste o cfg: cache local imediato + autosave no banco (debounce 1s). Só roda quando
+  // hydratedKey === chave atual (evita gravar o cfg do bar anterior na chave do bar novo).
   useEffect(() => {
     const key = storeKey(barId, ano, mes);
     if (hydratedKey !== key) return;
     try { if (typeof window !== 'undefined') window.localStorage.setItem(key, JSON.stringify(cfg)); } catch { /* ignore */ }
+    if (!barId) return;
+    const snapshot = JSON.stringify(cfg);
+    if (snapshot === lastSavedRef.current) return; // nada mudou desde o load/último save
+    const t = setTimeout(() => {
+      lastSavedRef.current = snapshot;
+      const pesos: Record<number, number> = {};
+      const art_pct: Record<number, number> = {};
+      const art_fixo: Record<number, number> = {};
+      const prod_pct: Record<number, number> = {};
+      DIAS.forEach((d) => {
+        pesos[d.dow] = parseNum(cfg.pesos[d.dow] || '');
+        const a = parseNum(cfg.artPct?.[d.dow] || ''); if (a > 0) art_pct[d.dow] = a;
+        const af = parseNum(cfg.artFixo?.[d.dow] || ''); if (af > 0) art_fixo[d.dow] = af;
+        const pp = parseNum(cfg.prodPct?.[d.dow] || ''); if (pp > 0) prod_pct[d.dow] = pp;
+      });
+      apiCall('/api/eventos/distribuicao-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
+        body: JSON.stringify({ ano, mes, target_m1: parseNum(cfg.targetM1), m2_pct: parseNum(cfg.m2), m3_pct: parseNum(cfg.m3), dias_venda: parseNum(cfg.diasVenda), pesos, art_pct, art_fixo, prod_pct }),
+      }).catch(() => {});
+    }, 1000);
+    return () => clearTimeout(t);
   }, [cfg, barId, ano, mes, hydratedKey]);
 
   // histórico 8 semanas
@@ -178,16 +236,6 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
       .then((r: any) => { if (r?.success) setHist(r.porDia || []); })
       .catch(() => {});
   }, [barId]);
-
-  // dias de operação do bar (bar fechado num dia não entra na distribuição — ex.: Deboche às segundas)
-  useEffect(() => {
-    if (!barId) { setOperaDias({}); return; }
-    let cancel = false;
-    apiCall(`/api/eventos/distribuicao-config?ano=${ano}&mes=${mes}`, { headers: { 'x-selected-bar-id': String(barId) } })
-      .then((r: any) => { if (!cancel) setOperaDias(r?.opera || {}); })
-      .catch(() => { if (!cancel) setOperaDias({}); });
-    return () => { cancel = true; };
-  }, [barId, ano, mes]);
 
   const diaAtivo = useCallback((dow: number) => operaDias[dow] !== false, [operaDias]);
   const diasAtivos = useMemo(() => DIAS.filter((d) => operaDias[d.dow] !== false), [operaDias]);

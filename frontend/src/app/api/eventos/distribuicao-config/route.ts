@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await (supabase as any)
     .schema('operations')
     .from('planejamento_distribuicao_config')
-    .select('bar_id, ano, mes, target_m1, m2_pct, m3_pct, dias_venda, pesos, atualizado_em')
+    .select('bar_id, ano, mes, target_m1, m2_pct, m3_pct, dias_venda, pesos, art_pct, art_fixo, prod_pct, atualizado_em')
     .eq('bar_id', barId).eq('ano', ano).eq('mes', mes)
     .maybeSingle();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -64,18 +64,24 @@ export async function POST(request: NextRequest) {
   const mes = parseInt(String(body.mes), 10);
   if (!ano || !mes || mes < 1 || mes > 12) return NextResponse.json({ success: false, error: 'ano/mes inválidos' }, { status: 400 });
 
-  const row = {
+  // upsert PARCIAL: só inclui no payload as colunas realmente enviadas. Assim o autosave
+  // (manda tudo) grava tudo, e o "Aplicar" (manda só target/pesos) não zera os custos —
+  // colunas fora do payload não são tocadas no UPDATE do ON CONFLICT.
+  const row: Record<string, any> = {
     bar_id: barId,
     ano,
     mes,
-    target_m1: body.target_m1 != null ? Number(body.target_m1) : null,
-    m2_pct: body.m2_pct != null ? Number(body.m2_pct) : null,
-    m3_pct: body.m3_pct != null ? Number(body.m3_pct) : null,
-    dias_venda: body.dias_venda != null ? Math.round(Number(body.dias_venda)) : null,
-    pesos: body.pesos && typeof body.pesos === 'object' ? body.pesos : {},
     atualizado_em: new Date().toISOString(),
     atualizado_por: request.headers.get('x-user-email') || null,
   };
+  if (body.target_m1 != null) row.target_m1 = Number(body.target_m1);
+  if (body.m2_pct != null) row.m2_pct = Number(body.m2_pct);
+  if (body.m3_pct != null) row.m3_pct = Number(body.m3_pct);
+  if (body.dias_venda != null) row.dias_venda = Math.round(Number(body.dias_venda));
+  if (body.pesos && typeof body.pesos === 'object') row.pesos = body.pesos;
+  if (body.art_pct && typeof body.art_pct === 'object') row.art_pct = body.art_pct;
+  if (body.art_fixo && typeof body.art_fixo === 'object') row.art_fixo = body.art_fixo;
+  if (body.prod_pct && typeof body.prod_pct === 'object') row.prod_pct = body.prod_pct;
 
   const { error } = await (supabase as any)
     .schema('operations')
