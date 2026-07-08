@@ -27,7 +27,28 @@ export async function GET(request: NextRequest) {
     .eq('bar_id', barId).eq('ano', ano).eq('mes', mes)
     .maybeSingle();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, config: data || null });
+
+  // dias de operação do bar (fonte da verdade: operations.bares_config) → dow: 0=dom..6=sáb.
+  // Bar fechado num dia (ex.: Deboche/bar 4 às segundas) não deve entrar na distribuição.
+  const { data: op } = await (supabase as any)
+    .schema('operations')
+    .from('bares_config')
+    .select('opera_domingo, opera_segunda, opera_terca, opera_quarta, opera_quinta, opera_sexta, opera_sabado')
+    .eq('bar_id', barId)
+    .maybeSingle();
+  const opera = op
+    ? {
+        0: op.opera_domingo !== false,
+        1: op.opera_segunda !== false,
+        2: op.opera_terca !== false,
+        3: op.opera_quarta !== false,
+        4: op.opera_quinta !== false,
+        5: op.opera_sexta !== false,
+        6: op.opera_sabado !== false,
+      }
+    : null;
+
+  return NextResponse.json({ success: true, config: data || null, opera });
 }
 
 // POST — salva (upsert) a config da calculadora para (bar, ano, mes).

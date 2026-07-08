@@ -44,6 +44,7 @@ interface CalcCfg {
   diasVenda: string;
   pesos: Record<number, string>; // dow -> R$ (texto mascarado)
   artPct: Record<number, string>; // dow -> % custo artístico projetado
+  artFixo: Record<number, string>; // dow -> R$ cachê fixo artístico (ex.: DJ) — soma ao %
   prodPct: Record<number, string>; // dow -> % custo produção projetado
 }
 
@@ -56,6 +57,7 @@ const cfgDefault = (): CalcCfg => ({
   diasVenda: '31',
   pesos: { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
   artPct: { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
+  artFixo: { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
   prodPct: { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
 });
 
@@ -112,6 +114,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
   onAplicado?: () => void;
 }) {
   const [cfg, setCfg] = useState<CalcCfg>(cfgDefault);
+  const [operaDias, setOperaDias] = useState<Record<number, boolean>>({}); // dow -> opera? (vazio = todos abertos)
   const [hist, setHist] = useState<HistDia[]>([]);
   const [open, setOpen] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
@@ -170,6 +173,19 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
       .catch(() => {});
   }, [barId]);
 
+  // dias de operação do bar (bar fechado num dia não entra na distribuição — ex.: Deboche às segundas)
+  useEffect(() => {
+    if (!barId) { setOperaDias({}); return; }
+    let cancel = false;
+    apiCall(`/api/eventos/distribuicao-config?ano=${ano}&mes=${mes}`, { headers: { 'x-selected-bar-id': String(barId) } })
+      .then((r: any) => { if (!cancel) setOperaDias(r?.opera || {}); })
+      .catch(() => { if (!cancel) setOperaDias({}); });
+    return () => { cancel = true; };
+  }, [barId, ano, mes]);
+
+  const diaAtivo = useCallback((dow: number) => operaDias[dow] !== false, [operaDias]);
+  const diasAtivos = useMemo(() => DIAS.filter((d) => operaDias[d.dow] !== false), [operaDias]);
+
   const setPeso = (dow: number, v: string) => setCfg((p) => ({ ...p, pesos: { ...p.pesos, [dow]: v } }));
   const histDe = useCallback((dow: number) => hist.find((h) => h.dow === dow), [hist]);
 
@@ -177,9 +193,12 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
   const limpaPct = (v: string) => v.replace(/[^\d.,]/g, '');
   const setArtPct = (dow: number, v: string) => setCfg((p) => ({ ...p, artPct: { ...p.artPct, [dow]: limpaPct(v) } }));
   const setProdPct = (dow: number, v: string) => setCfg((p) => ({ ...p, prodPct: { ...p.prodPct, [dow]: limpaPct(v) } }));
+  const setArtFixo = (dow: number, v: string) => setCfg((p) => ({ ...p, artFixo: { ...p.artFixo, [dow]: maskMoeda(v) } }));
   const preencherPct = (campo: 'artPct' | 'prodPct', v: string) =>
-    setCfg((p) => ({ ...p, [campo]: DIAS.reduce((a, d) => { a[d.dow] = limpaPct(v); return a; }, {} as Record<number, string>) }));
-  const temCustos = DIAS.some((d) => parseNum(cfg.artPct?.[d.dow] || '') > 0 || parseNum(cfg.prodPct?.[d.dow] || '') > 0);
+    setCfg((p) => ({ ...p, [campo]: DIAS.reduce((a, d) => { a[d.dow] = diaAtivo(d.dow) ? limpaPct(v) : ''; return a; }, {} as Record<number, string>) }));
+  const preencherArtFixo = (v: string) =>
+    setCfg((p) => ({ ...p, artFixo: DIAS.reduce((a, d) => { a[d.dow] = diaAtivo(d.dow) ? maskMoeda(v) : ''; return a; }, {} as Record<number, string>) }));
+  const temCustos = DIAS.some((d) => parseNum(cfg.artPct?.[d.dow] || '') > 0 || parseNum(cfg.prodPct?.[d.dow] || '') > 0 || parseNum(cfg.artFixo?.[d.dow] || '') > 0);
 
   const aplicarCustos = async () => {
     if (!barId || !temCustos) return;
@@ -188,14 +207,16 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
     try {
       const artPorDow: Record<number, number> = {};
       const prodPorDow: Record<number, number> = {};
-      DIAS.forEach((d) => {
+      const artFixoPorDow: Record<number, number> = {};
+      diasAtivos.forEach((d) => {
         const a = parseNum(cfg.artPct?.[d.dow] || ''); if (a > 0) artPorDow[d.dow] = a;
         const pr = parseNum(cfg.prodPct?.[d.dow] || ''); if (pr > 0) prodPorDow[d.dow] = pr;
+        const af = parseNum(cfg.artFixo?.[d.dow] || ''); if (af > 0) artFixoPorDow[d.dow] = af;
       });
       const r: any = await apiCall('/api/eventos/aplicar-custos-projetados', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barId) },
-        body: JSON.stringify({ ano, mes, artPorDow, prodPorDow }),
+        body: JSON.stringify({ ano, mes, artPorDow, prodPorDow, artFixoPorDow }),
       });
       if (r?.success) {
         setResultadoCustos(`✅ Projeção aplicada em ${mesLabel}: custo artístico em ${r.updated_art} dia(s), produção em ${r.updated_prod} dia(s).`);
@@ -214,7 +235,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
   const preencherComHistorico = () => {
     setCfg((p) => ({
       ...p,
-      pesos: DIAS.reduce((acc, d) => { acc[d.dow] = histDe(d.dow)?.media_real ? fmt(histDe(d.dow)!.media_real, 2) : ''; return acc; }, {} as Record<number, string>),
+      pesos: DIAS.reduce((acc, d) => { acc[d.dow] = diaAtivo(d.dow) && histDe(d.dow)?.media_real ? fmt(histDe(d.dow)!.media_real, 2) : ''; return acc; }, {} as Record<number, string>),
     }));
   };
 
@@ -257,6 +278,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
       // 2) aplica o cenário escolhido (M1/M2/M3) de cada dia da semana na Meta M1 do mês
       const m1PorDow: Record<number, number> = {};
       calc.linhas.forEach((l) => {
+        if (!diaAtivo(l.dow)) return; // dia fechado não recebe meta
         const v = cenario === 'm2' ? l.m2 : cenario === 'm3' ? l.m3 : l.m1;
         m1PorDow[l.dow] = Math.round(v * 100) / 100;
       });
@@ -296,7 +318,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
       {/* M1 por dia — uma linha por dia */}
       {calc.temDados && (
         <div className="mt-2 space-y-0.5">
-          {calc.linhas.map((l) => (
+          {calc.linhas.filter((l) => diaAtivo(l.dow)).map((l) => (
             <div key={l.dow} className="flex justify-between items-center text-xs rounded bg-[hsl(var(--muted))] px-2 py-1">
               <span className="text-[hsl(var(--muted-foreground))] uppercase">{l.label}</span>
               <span className="font-semibold text-[hsl(var(--foreground))]">{l.m1 > 0 ? fmt(l.m1) : '—'}</span>
@@ -348,7 +370,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
               </Button>
             </div>
             <div className="space-y-1.5">
-              {DIAS.map((d) => {
+              {diasAtivos.map((d) => {
                 const h = histDe(d.dow);
                 return (
                   <div key={d.dow} className="flex items-center gap-3">
@@ -381,7 +403,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
                 </tr>
               </thead>
               <tbody>
-                {calc.linhas.map((l) => (
+                {calc.linhas.filter((l) => diaAtivo(l.dow)).map((l) => (
                   <tr key={l.dow} className="border-b border-[hsl(var(--border))]/50">
                     <td className="py-1 px-2 font-medium">{l.label}</td>
                     <td className="py-1 px-2 text-right text-[hsl(var(--muted-foreground))]">{l.peso > 0 ? fmt(l.peso) : '—'}</td>
@@ -414,7 +436,7 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
           <div className="mt-4 rounded-lg border border-[hsl(var(--border))] p-3">
             <div className="text-xs font-semibold text-[hsl(var(--foreground))] mb-2">Referência — últimas 8 semanas (faturamento real por dia da semana)</div>
             <div className="space-y-1">
-              {DIAS.map((d) => {
+              {diasAtivos.map((d) => {
                 const h = histDe(d.dow);
                 return (
                   <div key={d.dow} className="flex justify-between items-center text-[11px]">
@@ -432,31 +454,36 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
           {aba === 'custos' && (
           <div className="px-6 pb-2">
             <div className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
-              Projeta o custo <b>artístico</b> e de <b>produção</b> de cada dia como <b>% do faturamento</b>, pro mês todo de {mesLabel}.
-              Base do dia: <b>realizado</b>; se ainda não houver, a <b>Meta M1</b>. Grava na <b>previsão</b> (c_artistico_plan / c_prod_plan) —
+              Projeta o custo <b>artístico</b> e de <b>produção</b> de cada dia, pro mês todo de {mesLabel}.
+              O custo artístico é <b>% do faturamento</b> + um <b>cachê fixo</b> (R$) — some os dois quando há negociação por % <i>e</i> um DJ de valor fechado.
+              Base do %: <b>realizado</b>; se ainda não houver, a <b>Meta M1</b> (o cachê fixo entra sempre). Grava na <b>previsão</b> (c_artistico_plan / c_prod_plan) —
               não sobrescreve lançamento real do Conta Azul (o real sempre ganha) e sobrevive à projeção automática.
             </div>
 
             {/* preencher todos os dias de uma vez */}
             <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
-              <span className="text-[hsl(var(--muted-foreground))]">Aplicar % em todos os dias:</span>
+              <span className="text-[hsl(var(--muted-foreground))]">Aplicar em todos os dias:</span>
               <span className="text-[hsl(var(--muted-foreground))]">Artístico</span>
-              <div className="relative"><Input inputMode="decimal" className="h-8 w-20 pr-5 text-right" placeholder="0" onChange={(e) => preencherPct('artPct', e.target.value)} /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))]">%</span></div>
+              <div className="relative"><Input inputMode="decimal" className="h-8 w-16 pr-5 text-right" placeholder="0" onChange={(e) => preencherPct('artPct', e.target.value)} /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))]">%</span></div>
+              <span className="text-[hsl(var(--muted-foreground))]">Cachê fixo</span>
+              <Input inputMode="decimal" className="h-8 w-28 text-right" placeholder="R$ 0,00" onChange={(e) => preencherArtFixo(e.target.value)} />
               <span className="text-[hsl(var(--muted-foreground))]">Produção</span>
-              <div className="relative"><Input inputMode="decimal" className="h-8 w-20 pr-5 text-right" placeholder="0" onChange={(e) => preencherPct('prodPct', e.target.value)} /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))]">%</span></div>
+              <div className="relative"><Input inputMode="decimal" className="h-8 w-16 pr-5 text-right" placeholder="0" onChange={(e) => preencherPct('prodPct', e.target.value)} /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))]">%</span></div>
             </div>
 
-            {/* % por dia da semana */}
+            {/* colunas por dia da semana */}
             <div className="flex items-center gap-3 text-[11px] uppercase text-[hsl(var(--muted-foreground))] mb-1">
               <span className="w-10 shrink-0" />
               <span className="flex-1 text-center">% Custo Artístico</span>
+              <span className="flex-1 text-center">Cachê Fixo (R$)</span>
               <span className="flex-1 text-center">% Custo Produção</span>
             </div>
             <div className="space-y-1.5">
-              {DIAS.map((d) => (
+              {diasAtivos.map((d) => (
                 <div key={d.dow} className="flex items-center gap-3">
                   <span className="w-10 text-xs font-medium text-[hsl(var(--muted-foreground))] uppercase shrink-0">{d.label}</span>
                   <div className="relative flex-1"><Input inputMode="decimal" className="h-9 pr-6 text-right" placeholder="0" value={cfg.artPct?.[d.dow] || ''} onChange={(e) => setArtPct(d.dow, e.target.value)} /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))]">%</span></div>
+                  <div className="flex-1"><Input inputMode="decimal" className="h-9 text-right" placeholder="R$ 0,00" value={cfg.artFixo?.[d.dow] || ''} onChange={(e) => setArtFixo(d.dow, e.target.value)} /></div>
                   <div className="relative flex-1"><Input inputMode="decimal" className="h-9 pr-6 text-right" placeholder="0" value={cfg.prodPct?.[d.dow] || ''} onChange={(e) => setProdPct(d.dow, e.target.value)} /><span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[hsl(var(--muted-foreground))]">%</span></div>
                 </div>
               ))}
