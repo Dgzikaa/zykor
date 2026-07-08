@@ -1,7 +1,8 @@
 'use client';
 
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -84,6 +85,12 @@ export function BpClient({
   const router = useRouter();
   const [tab, setTab] = useState<'dre' | 'analise' | 'historico'>('dre');
   const [novoBpOpen, setNovoBpOpen] = useState(false);
+
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('📊 Business Plan (BP)');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const indMap = useMemo(() => {
     const m = new Map<string, BpIndicador>();
