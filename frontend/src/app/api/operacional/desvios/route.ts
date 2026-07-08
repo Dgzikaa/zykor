@@ -245,6 +245,7 @@ export async function GET(request: NextRequest) {
       area: areaDe(r.categoria, r.insumo_codigo),
       estoque_ini,
       compra,
+      troca: Number(r.troca || 0),
       produzido,
       saida_teorica: teorica,
       desperdicio,

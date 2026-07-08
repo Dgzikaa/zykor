@@ -450,6 +450,7 @@ export default function DesviosPage() {
               <th className="text-left font-medium px-3 py-2">Área</th>
               <NumHeader label="Estoque ini" title="Contagem no início do período" cond={condOf('estoque_ini')} onChange={c => setNum('estoque_ini', c)} />
               <NumHeader label="Compras" cond={condOf('compra')} onChange={c => setNum('compra', c)} />
+              <NumHeader label="Troca" title="Troca entre bares: + recebeu (entrada), − enviou (saída)" cond={condOf('troca')} onChange={c => setNum('troca', c)} />
               <NumHeader label="Saída teórica" title="Vendas × ficha técnica (consumo esperado)" cond={condOf('saida_teorica')} onChange={c => setNum('saida_teorica', c)} />
               <NumHeader label="Desperdício" title="Saída manual: lata que estourou, item que deu problema. Conta no fim do turno." cond={condOf('desperdicio')} onChange={c => setNum('desperdicio', c)} />
               <NumHeader label="Estoque fim teórico" title="ini + compras + produzido − saída teórica − desperdício" cond={condOf('estoque_fim_teorico')} onChange={c => setNum('estoque_fim_teorico', c)} />
@@ -458,8 +459,8 @@ export default function DesviosPage() {
               <NumHeader label="Desvio (R$)" title="Filtra pelo módulo (perda ou sobra)." cond={condOf('desvio_rs')} onChange={c => setNum('desvio_rs', c)} abs />
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {loading ? <tr><td colSpan={10} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-              : itensView.length === 0 ? <tr><td colSpan={10} className="px-3 py-10 text-center text-gray-400">Sem dados nesse período.</td></tr>
+              {loading ? <tr><td colSpan={11} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              : itensView.length === 0 ? <tr><td colSpan={11} className="px-3 py-10 text-center text-gray-400">Sem dados nesse período.</td></tr>
               : itensView.map((it: any, i: number) => (
                 <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${it.pendente ? 'bg-amber-50/60 dark:bg-amber-900/15' : it.suspeita ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}`}>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
@@ -470,6 +471,7 @@ export default function DesviosPage() {
                   <td className="px-3 py-2"><Badge variant="outline">{it.area}</Badge></td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.compra)}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${it.troca ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-300'}`} title={it.troca ? (it.troca > 0 ? 'Recebeu por troca' : 'Enviou por troca') : undefined}>{it.troca ? `${it.troca > 0 ? '+' : ''}${fmtQtd(it.troca)}` : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
                   <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!desperdEditavel} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
@@ -543,6 +545,7 @@ export default function DesviosPage() {
                   <th className="text-left font-medium px-3 py-2">Proteína</th>
                   <NumHeader label="Estoque ini" cond={condOf('estoque_ini')} onChange={c => setNum('estoque_ini', c)} />
                   <NumHeader label="Compras" title="Compras VMarket no período" cond={condOf('comprou')} onChange={c => setNum('comprou', c)} />
+                  <NumHeader label="Troca" title="Troca entre bares: + recebeu, − enviou" cond={condOf('troca')} onChange={c => setNum('troca', c)} />
                   <NumHeader label="Utilizado Produção" title="Proteína processada em preparos (Controle de Produção / fornadas × ficha)" cond={condOf('utilizado_producao')} onChange={c => setNum('utilizado_producao', c)} />
                   <NumHeader label="Saída Direta" title="Proteína vendida direto no produto (vendas × ficha)" cond={condOf('saida_direta')} onChange={c => setNum('saida_direta', c)} />
                   <NumHeader label="Desperdício" cond={condOf('desperdicio')} onChange={c => setNum('desperdicio', c)} />
@@ -552,13 +555,14 @@ export default function DesviosPage() {
                   <NumHeader label="Desvio (R$)" title="Filtra pelo módulo (perda ou sobra)." cond={condOf('desvio_rs')} onChange={c => setNum('desvio_rs', c)} abs />
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {loadingAba ? <tr><td colSpan={10} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-                  : protView.length === 0 ? <tr><td colSpan={10} className="px-3 py-10 text-center text-gray-400">Sem proteína (marque com o badge P em Insumos) comprada/contada nesse período.</td></tr>
+                  {loadingAba ? <tr><td colSpan={11} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+                  : protView.length === 0 ? <tr><td colSpan={11} className="px-3 py-10 text-center text-gray-400">Sem proteína (marque com o badge P em Insumos) comprada/contada nesse período.</td></tr>
                   : protView.map((it: any, i: number) => (
                     <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                       <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}<span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_cod}</span></td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.comprou)}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums ${it.troca ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-300'}`} title={it.troca ? (it.troca > 0 ? 'Recebeu por troca' : 'Enviou por troca') : undefined}>{it.troca ? `${it.troca > 0 ? '+' : ''}${fmtQtd(it.troca)}` : '—'}</td>
                       <td className="px-3 py-2 text-right"><PencilCell value={it.utilizado_producao} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('utilizado', it.insumo_cod, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.saida_direta)}</td>
                       <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!desperdEditavel} onSave={(v) => salvar('desperdicio', it.insumo_cod, { qtd: v })} /></td>

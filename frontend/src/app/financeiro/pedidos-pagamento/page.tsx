@@ -19,8 +19,9 @@ import { PedidoDetailDialog } from './components/PedidoDetailDialog';
 import { FreelaTab } from './components/FreelaTab';
 import { BoletoTab } from './components/BoletoTab';
 import { CartaoTab } from './components/CartaoTab';
+import TrocasTab from './components/TrocasTab';
 
-type ModoPagamento = 'pagamentos' | 'freela' | 'boleto' | 'cartao';
+type ModoPagamento = 'pagamentos' | 'freela' | 'boleto' | 'cartao' | 'trocas';
 
 type TabKey = 'aguardando' | 'andamento' | 'concluidos' | 'recusados' | 'todos';
 
@@ -95,6 +96,7 @@ export default function PedidosPagamentoPage() {
               <TabsTrigger value="freela">Freela</TabsTrigger>
               <TabsTrigger value="boleto">Boleto</TabsTrigger>
               <TabsTrigger value="cartao">Cartão</TabsTrigger>
+              <TabsTrigger value="trocas">Trocas</TabsTrigger>
             </TabsList>
           </Tabs>
 
@@ -113,6 +115,8 @@ export default function PedidosPagamentoPage() {
           {barId && modo === 'boleto' && <BoletoTab onCriado={carregar} />}
 
           {barId && modo === 'cartao' && <CartaoTab />}
+
+          {barId && modo === 'trocas' && <TrocasTab barId={barId} onLancado={carregar} />}
 
           {barId && modo === 'pagamentos' && (
             <>
