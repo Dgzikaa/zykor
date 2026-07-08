@@ -210,18 +210,29 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
   // Se veio do localStorage (ou de outro device no retomar), NÃO suprime → o writeServer empurra
   // pro servidor (senão o rascunho ficava só no aparelho). O localStorage sempre re-sincroniza.
   const aplicarEstados = useCallback((estados: any[], fromServer = false): boolean => {
-    const restored: ActiveProd[] = (Array.isArray(estados) ? estados : [])
-      .filter((p: any) => p && p.localId && p.ficha)
-      .map((p: any) => ({
-        ...p,
-        loadingItens: false,
-        segundos: Number(p.segundos) || 0,
-        rodandoDesde: p.rodando ? (Number(p.rodandoDesde) || Date.now()) : null,
-      }));
+    const validos = (Array.isArray(estados) ? estados : []).filter((p: any) => p && p.localId && p.ficha);
+    // Colapsa duplicatas EXATAS (mesma produção salva 2x em devices/ciclos diferentes),
+    // identidade estável = idempotencyKey. Sem chave (rascunho antigo) → nunca dedupa.
+    // Fica com a de maior tempo cronometrado pra não perder progresso.
+    const porChave = new Map<string, any>();
+    validos.forEach((p: any, i: number) => {
+      const chave = p.idempotencyKey ? `k:${p.idempotencyKey}` : `i:${i}`;
+      const ant = porChave.get(chave);
+      if (!ant || (Number(p.segundos) || 0) >= (Number(ant.segundos) || 0)) porChave.set(chave, p);
+    });
+    // localId SEMPRE reatribuído único nesta sessão: o "retomar por bar" mescla rascunhos de
+    // vários aparelhos que começam em p1 → localId colidia e clicar num chip selecionava
+    // todos os que dividiam o id ("seleciona 3"). idempotencyKey preserva a identidade real.
+    const restored: ActiveProd[] = [...porChave.values()].map((p: any) => ({
+      ...p,
+      localId: `p${++idRef.current}`,
+      loadingItens: false,
+      segundos: Number(p.segundos) || 0,
+      rodandoDesde: p.rodando ? (Number(p.rodandoDesde) || Date.now()) : null,
+    }));
     if (!restored.length) return false;
     setProds(restored);
     setSelId(restored[restored.length - 1].localId);
-    idRef.current = Math.max(idRef.current, ...restored.map(p => parseInt(String(p.localId).replace(/\D/g, ''), 10) || 0));
     if (fromServer) lastServerRef.current = JSON.stringify(restored.map(p => ({ ...p, loadingItens: false })));
     return true;
   }, []);
@@ -580,7 +591,20 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     finally { setSalvandoId(null); }
   };
 
-  const sel = prods.find(p => p.localId === selId) || null;
+  // A aba atual (Cozinha/Bar) só mostra as produções ativas DAQUELA seção. O "retomar por
+  // bar" recupera TODOS os rascunhos (as duas seções) — sem este filtro a lista vinha tudo
+  // junto e confusa (Bar + Cozinha misturados, ver docs/retomarProducao.jpeg). Os timers e o
+  // autosave continuam operando sobre `prods` inteiro (as duas seções seguem rodando/salvando).
+  const prodsSecao = useMemo(
+    () => prods.filter(p => secaoDeCodigo(p.ficha?.codigo) === secaoAtiva),
+    [prods, secaoAtiva]
+  );
+  const sel = prodsSecao.find(p => p.localId === selId) || null;
+  // ao trocar de seção (ou remover o selecionado), mantém uma seleção válida dentro da aba
+  useEffect(() => {
+    if (selId && prodsSecao.some(p => p.localId === selId)) return;
+    setSelId(prodsSecao.length ? prodsSecao[prodsSecao.length - 1].localId : null);
+  }, [secaoAtiva, prodsSecao, selId]);
 
   return (
     <div className="space-y-4">
@@ -705,11 +729,11 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
             </div>
           </div>
 
-          {/* Tabs das produções ativas (timers simultâneos) */}
-          {prods.length > 0 && (
+          {/* Tabs das produções ativas (timers simultâneos) — só as da seção da aba atual */}
+          {prodsSecao.length > 0 && (
             <div className="pt-1 space-y-1">
               <div className="flex flex-wrap gap-1.5">
-                {prods.map(p => (
+                {prodsSecao.map(p => (
                   <button key={p.localId} onClick={() => setSelId(p.localId)}
                     className={`group flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm transition ${selId === p.localId ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
                     <span className={`w-2 h-2 rounded-full ${p.rodando ? 'bg-green-500 animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
