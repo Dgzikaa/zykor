@@ -13,7 +13,6 @@ import { useBar } from '@/contexts/BarContext';
 import { PageShell } from '@/components/layout/PageShell';
 import { PeriodRangePicker } from '@/components/receitas/PeriodRangePicker';
 import { CardCrescimento } from '@/components/receitas/CardCrescimento';
-import { CardRoas } from '@/components/receitas/CardRoas';
 import { CardInputs } from '@/components/receitas/CardInputs';
 import { CardLotacao } from '@/components/receitas/CardLotacao';
 import { CardsClientes } from '@/components/receitas/CardsClientes';
@@ -51,7 +50,6 @@ export default function DashboardReceitasPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <CardCrescimento barId={barId} periodo={periodo} />
-          <CardRoas barId={barId} periodo={periodo} />
           <CardInputs barId={barId} periodo={periodo} />
           <CardLotacao barId={barId} periodo={periodo} />
           <CardsClientes barId={barId} periodo={periodo} />
