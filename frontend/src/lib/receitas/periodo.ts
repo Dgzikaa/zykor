@@ -100,6 +100,14 @@ export function bucketDe(dataStr: string, granularidade: Granularidade | string)
   return { key: s, label: `${d}/${m}` };
 }
 
+/** Nº de meses (inclusivo) entre duas datas YYYY-MM-DD, com clamp opcional. */
+export function mesesEntre(inicio: string, fim: string, min = 6, max = 18): number {
+  const [ai, mi] = inicio.slice(0, 7).split('-').map(Number);
+  const [af, mf] = fim.slice(0, 7).split('-').map(Number);
+  const n = (af - ai) * 12 + (mf - mi) + 1;
+  return Math.max(min, Math.min(max, Number.isFinite(n) ? n : 12));
+}
+
 /** Valor inicial padrão do picker. */
 export function periodoPadrao(
   granularidade: Granularidade = 'mes',

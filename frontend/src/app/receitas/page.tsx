@@ -15,6 +15,8 @@ import { Card } from '@/components/ui/card';
 import { PeriodRangePicker } from '@/components/receitas/PeriodRangePicker';
 import { CardCrescimento } from '@/components/receitas/CardCrescimento';
 import { CardInputs } from '@/components/receitas/CardInputs';
+import { CardLotacao } from '@/components/receitas/CardLotacao';
+import { CardsClientes } from '@/components/receitas/CardsClientes';
 import { periodoPadrao, type PeriodoValor } from '@/lib/receitas/periodo';
 
 interface CardGrafico {
@@ -57,7 +59,9 @@ export default function DashboardReceitasPage() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {selectedBar?.id && <CardCrescimento barId={selectedBar.id} periodo={periodo} />}
         {selectedBar?.id && <CardInputs barId={selectedBar.id} periodo={periodo} />}
-        {GRAFICOS.filter((g) => g.chave !== 'crescimento' && g.chave !== 'inputs').map((g) => (
+        {selectedBar?.id && <CardLotacao barId={selectedBar.id} periodo={periodo} />}
+        {selectedBar?.id && <CardsClientes barId={selectedBar.id} periodo={periodo} />}
+        {GRAFICOS.filter((g) => !['crescimento', 'inputs', 'lotacao', 'clientes-ativos', 'novos-retornantes'].includes(g.chave)).map((g) => (
           <Card key={g.chave} className="flex min-h-[180px] flex-col justify-between p-5">
             <div>
               <h2 className="text-base font-semibold text-[hsl(var(--foreground))]">{g.titulo}</h2>
