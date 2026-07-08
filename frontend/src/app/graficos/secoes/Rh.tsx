@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api-client';
 import { GraficoBase } from '@/components/graficos/GraficoBase';
 import { HeroRow, ChartCard, ChartGrid, GraficoBarraH, GraficoDonut, GraficoRadar, type Kpi } from '@/components/graficos/Charts';
+import { mesBounds } from '../_periodo';
 import { Users, UserPlus, UserMinus, Repeat, Smile, HeartPulse, Loader2 } from 'lucide-react';
 
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -13,7 +14,7 @@ const num = (v: number) => Math.round(v || 0).toLocaleString('pt-BR');
 const segSemana = (iso: string) => { const d = new Date(iso + 'T12:00:00'); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return d.toISOString().slice(0, 10); };
 const ddmm = (iso: string) => iso.split('-').reverse().slice(0, 2).join('/');
 
-export function SecaoRh({ barId, periodo }: { barId: number; periodo: number }) {
+export function SecaoRh({ barId, periodo, mesRef }: { barId: number; periodo: number; mesRef: string | null }) {
   const [ind, setInd] = useState<any>(null);
   const [dash, setDash] = useState<any>(null);
   const [enps, setEnps] = useState<any>(null);
@@ -21,10 +22,13 @@ export function SecaoRh({ barId, periodo }: { barId: number; periodo: number }) 
   const [equipe, setEquipe] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  const mensal = !!mesRef;
+
   const carregar = useCallback(async () => {
     setLoading(true);
-    const de = new Date(); de.setDate(de.getDate() - periodo * 30);
-    const deStr = de.toISOString().slice(0, 10); const ateStr = new Date().toISOString().slice(0, 10);
+    let deStr: string, ateStr: string;
+    if (mesRef) { const b = mesBounds(mesRef); deStr = b.de; ateStr = b.ate; }
+    else { const de = new Date(); de.setDate(de.getDate() - periodo * 30); deStr = de.toISOString().slice(0, 10); ateStr = new Date().toISOString().slice(0, 10); }
     try {
       const [i, d, e, c, q] = await Promise.all([
         api.get('/api/rh/indicadores').catch(() => null),
@@ -40,7 +44,7 @@ export function SecaoRh({ barId, periodo }: { barId: number; periodo: number }) 
       setEquipe(q?.success ? q.exploracao : null);
     } catch { setInd(null); setDash(null); setEnps(null); setCusto([]); setEquipe(null); }
     finally { setLoading(false); }
-  }, [barId, periodo]);
+  }, [barId, periodo, mesRef]);
   useEffect(() => { carregar(); }, [carregar]);
 
   const meses = useMemo(() => (ind?.meses || []).map((m: any) => ({
@@ -48,6 +52,16 @@ export function SecaoRh({ barId, periodo }: { barId: number; periodo: number }) 
     headcount: Number(m.headcount) || 0, turnover: Number(m.turnover) || 0,
     faltas: Number(m.faltas) || 0, atestados: Number(m.atestados) || 0,
   })), [ind]);
+
+  // No modo mês: recorta a série de 12m ao mês escolhido (indicadores vêm do +recente ao -recente,
+  // último = mês atual). mDiff = quantos meses atrás; índice = últ − mDiff.
+  const mesesView = useMemo(() => {
+    if (!mensal || !meses.length) return meses;
+    const b = mesBounds(mesRef!);
+    const mDiff = (new Date().getFullYear() - b.ano) * 12 + (new Date().getMonth() + 1 - b.mes);
+    const idx = meses.length - 1 - mDiff;
+    return idx >= 0 && idx < meses.length ? [meses[idx]] : [];
+  }, [mensal, meses, mesRef]);
 
   const porArea = useMemo(() => (dash?.headcount?.por_area || []).map((a: any) => ({ area: a.area || '—', n: Number(a.n) || 0 })), [dash]);
   const porTipo = useMemo(() => {
@@ -82,8 +96,8 @@ export function SecaoRh({ barId, periodo }: { barId: number; periodo: number }) 
     return [...by.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1).map(([k, o]) => ({ periodo: ddmm(k), freelas: Math.round(o.freelas), fixo: Math.round(o.fixo) }));
   }, [custo]);
 
-  const temTurnover = useMemo(() => meses.some((m: any) => m.turnover > 0), [meses]);
-  const temAbsenteismo = useMemo(() => meses.some((m: any) => m.faltas > 0 || m.atestados > 0), [meses]);
+  const temTurnover = useMemo(() => mesesView.some((m: any) => m.turnover > 0), [mesesView]);
+  const temAbsenteismo = useMemo(() => mesesView.some((m: any) => m.faltas > 0 || m.atestados > 0), [mesesView]);
   const temCusto = useMemo(() => custoSemana.some((c) => c.freelas > 0 || c.fixo > 0), [custoSemana]);
 
   const produtividade = useMemo(() => (equipe?.ranking_funcionarios || [])
@@ -111,23 +125,25 @@ export function SecaoRh({ barId, periodo }: { barId: number; periodo: number }) 
       <HeroRow kpis={kpis} cols={6} />
 
       <ChartGrid>
-        <ChartCard titulo="Admissões × Demissões" subtitulo="movimentação de pessoas por mês (12 meses)" span={2}>
-          <GraficoBase tipo="barra" data={meses} xKey="label" formatY={num} height={320} cores={['#1baf7a', '#e34948']}
+        {mesesView.length > 0 && (
+        <ChartCard titulo="Admissões × Demissões" subtitulo={mensal ? 'movimentação de pessoas no mês' : 'movimentação de pessoas por mês (12 meses)'} span={2}>
+          <GraficoBase tipo="barra" data={mesesView} xKey="label" formatY={num} height={320} cores={['#1baf7a', '#e34948']}
             series={[{ key: 'admissoes', label: 'Admissões' }, { key: 'demissoes', label: 'Demissões' }]} />
-        </ChartCard>
+        </ChartCard>)}
 
         {porTipo.length >= 2 && (
         <ChartCard titulo="Headcount por tipo de contrato" subtitulo="CLT · PJ · Freela (ativos hoje)">
           <GraficoDonut data={porTipo} nameKey="tipo" valueKey="n" formatV={num} height={320} centro={num((porTipo).reduce((s: number, t: any) => s + t.n, 0))} />
         </ChartCard>)}
 
-        <ChartCard titulo="Evolução do headcount" subtitulo="nº de pessoas ativas ao fim de cada mês">
-          <GraficoBase tipo="area" data={meses} xKey="label" formatY={num} height={320} series={[{ key: 'headcount', label: 'Headcount' }]} />
-        </ChartCard>
+        {mesesView.length > 0 && (
+        <ChartCard titulo="Evolução do headcount" subtitulo={mensal ? 'pessoas ativas ao fim do mês' : 'nº de pessoas ativas ao fim de cada mês'}>
+          <GraficoBase tipo="area" data={mesesView} xKey="label" formatY={num} height={320} series={[{ key: 'headcount', label: 'Headcount' }]} />
+        </ChartCard>)}
 
         {temTurnover && (
         <ChartCard titulo="Turnover mensal" subtitulo="% de rotatividade da equipe por mês">
-          <GraficoBase tipo="linha" data={meses} xKey="label" formatY={pct} height={320} series={[{ key: 'turnover', label: 'Turnover' }]} />
+          <GraficoBase tipo="linha" data={mesesView} xKey="label" formatY={pct} height={320} series={[{ key: 'turnover', label: 'Turnover' }]} />
         </ChartCard>)}
 
         <ChartCard titulo="Headcount por área" subtitulo="quantas pessoas em cada setor">
@@ -135,8 +151,8 @@ export function SecaoRh({ barId, periodo }: { barId: number; periodo: number }) 
         </ChartCard>
 
         {temAbsenteismo && (
-        <ChartCard titulo="Absenteísmo" subtitulo="faltas e atestados por mês">
-          <GraficoBase tipo="barra" stacked data={meses} xKey="label" formatY={num} height={320}
+        <ChartCard titulo="Absenteísmo" subtitulo={mensal ? 'faltas e atestados no mês' : 'faltas e atestados por mês'}>
+          <GraficoBase tipo="barra" stacked data={mesesView} xKey="label" formatY={num} height={320}
             series={[{ key: 'faltas', label: 'Faltas' }, { key: 'atestados', label: 'Atestados' }]} />
         </ChartCard>)}
 

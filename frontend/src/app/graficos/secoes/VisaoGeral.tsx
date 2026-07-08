@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api-client';
 import { GraficoBase } from '@/components/graficos/GraficoBase';
 import { HeroRow, ChartCard, ChartGrid, type Kpi } from '@/components/graficos/Charts';
+import { mesBounds, noMes, mesLabelCurto } from '../_periodo';
 import { DollarSign, TrendingUp, Percent, CalendarDays, Boxes, Wallet, Loader2 } from 'lucide-react';
 
 const anoAtual = new Date().getFullYear();
@@ -16,32 +17,39 @@ const asPct = (v: number) => (Math.abs(v) <= 1.5 ? v * 100 : v);
 const mesCurto = (m: number) => new Date(2000, m - 1, 1).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
 const mesNum = (v: any) => { const s = String(v ?? ''); return s.includes('-') ? Number(s.slice(5, 7)) : Number(s); };
 
-export function SecaoVisaoGeral({ barId }: { barId: number; periodo: number }) {
+export function SecaoVisaoGeral({ barId, mesRef }: { barId: number; periodo: number; mesRef: string | null }) {
   const [ano, setAno] = useState(anoAtual);
   const [painel, setPainel] = useState<any>(null);
   const [dre, setDre] = useState<any[]>([]);
   const [sem, setSem] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const anoEff = mesRef ? Number(mesRef.slice(0, 4)) : ano;
+  const mesSel = mesRef ? Number(mesRef.slice(5, 7)) : null;
+  const mensal = mesSel != null;
+
   const carregar = useCallback(async () => {
     setLoading(true);
+    let semanas = 62;
+    if (mesRef) { const b = mesBounds(mesRef); const mDiff = Math.max(0, (new Date().getFullYear() - b.ano) * 12 + (new Date().getMonth() + 1 - b.mes)); semanas = Math.min(160, (mDiff + 2) * 5); }
     try {
       const [p, d, s] = await Promise.all([
         api.get(`/api/estrategico/painel-executivo?bar_id=${barId}`).catch(() => null),
-        api.get(`/api/estrategico/orcamentacao/dre-excel?bar_id=${barId}&ano=${ano}`).catch(() => null),
-        api.get(`/api/graficos/desempenho?semanas=62&bar_id=${barId}`).catch(() => null),
+        api.get(`/api/estrategico/orcamentacao/dre-excel?bar_id=${barId}&ano=${anoEff}`).catch(() => null),
+        api.get(`/api/graficos/desempenho?semanas=${semanas}&bar_id=${barId}`).catch(() => null),
       ]);
       setPainel(p && (p.dre || p.cmv || p.rfm) ? p : null);
       setDre(d?.linhas || []);
       setSem(s?.success ? (s.semanas || []) : []);
     } catch { setPainel(null); setDre([]); setSem([]); }
     finally { setLoading(false); }
-  }, [barId, ano]);
+  }, [barId, anoEff, mesRef]);
   useEffect(() => { carregar(); }, [carregar]);
 
-  const fechado = useCallback((m: number) => (ano < anoAtual) || (ano === anoAtual && m < mesAtual), [ano]);
+  // recorte: no modo mês só o mês escolhido; senão meses fechados do ano
+  const manter = useCallback((m: number) => mensal ? m === mesSel : ((anoEff < anoAtual) || (anoEff === anoAtual && m < mesAtual)), [mensal, mesSel, anoEff]);
 
-  // Receita × Resultado por mês (ordem_macro<=9 = resultado operacional; meses fechados)
+  // Receita × Resultado por mês (ordem_macro<=9 = resultado operacional)
   const dreMes = useMemo(() => {
     const porMes = new Map<number, { receita: number; resultado: number }>();
     for (const l of dre) {
@@ -49,9 +57,20 @@ export function SecaoVisaoGeral({ barId }: { barId: number; periodo: number }) {
       if (!porMes.has(m)) porMes.set(m, { receita: 0, resultado: 0 });
       const v = Number(l.valor_com_sinal || 0); const o = porMes.get(m)!; o.resultado += v; if (om === 1) o.receita += v;
     }
-    return Array.from(porMes.entries()).filter(([m]) => fechado(m)).sort((a, b) => a[0] - b[0])
+    return Array.from(porMes.entries()).filter(([m]) => manter(m)).sort((a, b) => a[0] - b[0])
       .map(([m, o]) => ({ mes: mesCurto(m), receita: Math.round(o.receita), resultado: Math.round(o.resultado) }));
-  }, [dre, fechado]);
+  }, [dre, manter]);
+
+  // No modo mês: buckets SEMANAIS dentro do mês (detalhe interno) — público + composição por semana
+  const semMes = useMemo(() => {
+    if (!mensal) return [];
+    const hojeISO = new Date().toISOString().slice(0, 10);
+    return sem.filter((s) => noMes(s.data_fim, mesRef!) && (!s.data_fim || s.data_fim < hojeISO)).map((s) => ({
+      mes: s.periodo || `S${s.numero_semana}`,
+      couvert: Number(s.faturamento_entrada) || 0, bar: Number(s.faturamento_bar) || 0, comivel: Number(s.faturamento_cmvivel) || 0,
+      publico: Number(s.clientes_atendidos) || 0,
+    }));
+  }, [sem, mensal, mesRef]);
 
   // agregação do desempenho semanal → mensal (público + composição). Descarta mês corrente parcial.
   const mesOperacional = useMemo(() => {
@@ -73,16 +92,32 @@ export function SecaoVisaoGeral({ barId }: { barId: number; periodo: number }) {
 
   const semData = useMemo(() => {
     const hojeISO = new Date().toISOString().slice(0, 10);
-    return sem.filter((s) => !s.data_fim || s.data_fim < hojeISO).slice(-16).map((s) => ({
+    return sem.filter((s) => (!s.data_fim || s.data_fim < hojeISO) && (!mensal || noMes(s.data_fim, mesRef!))).slice(-16).map((s) => ({
       periodo: s.periodo || `S${s.numero_semana}`, fat: Number(s.faturamento_total) || 0, meta: 263000,
     }));
-  }, [sem]);
+  }, [sem, mensal, mesRef]);
 
   const kpis: Kpi[] = useMemo(() => {
-    const dreP = painel?.dre; const fluxo = painel?.fluxo; const cmv = painel?.cmv;
-    const margem = dreP?.margem_ytd != null ? asPct(Number(dreP.margem_ytd)) : null;
+    const cmv = painel?.cmv;
     const cmvPct = cmv?.pct != null ? asPct(Number(cmv.pct)) : null;
     const cmvMeta = cmv?.meta != null ? asPct(Number(cmv.meta)) : null;
+    // Modo mês: KPIs do mês escolhido (DRE do mês + operacional semanal do mês)
+    if (mensal) {
+      const receitaMes = dreMes.reduce((s, x) => s + x.receita, 0);
+      const resultadoMes = dreMes.reduce((s, x) => s + x.resultado, 0);
+      const publicoMes = semMes.reduce((s, x) => s + x.publico, 0);
+      const fatMes = semMes.reduce((s, x) => s + x.couvert + x.bar + x.comivel, 0);
+      return [
+        { label: `Receita (${mesLabelCurto(mesRef!)})`, valor: money(receitaMes), icon: DollarSign },
+        { label: 'Resultado', valor: money(resultadoMes), cor: resultadoMes < 0 ? '#e34948' : undefined, icon: TrendingUp },
+        { label: 'Margem', valor: pct(receitaMes > 0 ? (resultadoMes / receitaMes * 100) : 0), icon: Percent },
+        { label: 'Público', valor: num(publicoMes), icon: CalendarDays },
+        { label: 'Fat. operacional', valor: money(fatMes), icon: DollarSign },
+        { label: 'CMV', valor: cmvPct != null ? pct(cmvPct) : '—', sub: cmvMeta != null ? `meta ${pct(cmvMeta)}` : undefined, invLower: true, icon: Boxes },
+      ];
+    }
+    const dreP = painel?.dre; const fluxo = painel?.fluxo;
+    const margem = dreP?.margem_ytd != null ? asPct(Number(dreP.margem_ytd)) : null;
     return [
       { label: 'Receita YTD', valor: dreP ? money(dreP.receita_ytd) : '—', icon: DollarSign },
       { label: 'Resultado YTD', valor: dreP ? money(dreP.lucro_ytd) : '—', cor: dreP && dreP.lucro_ytd < 0 ? '#e34948' : undefined, icon: TrendingUp },
@@ -91,36 +126,42 @@ export function SecaoVisaoGeral({ barId }: { barId: number; periodo: number }) {
       { label: 'CMV', valor: cmvPct != null ? pct(cmvPct) : '—', sub: cmvMeta != null ? `meta ${pct(cmvMeta)}` : undefined, invLower: true, icon: Boxes },
       { label: 'Caixa projetado 90d', valor: fluxo?.saldo90_base != null ? money(fluxo.saldo90_base) : '—', cor: fluxo?.aperta ? '#f0a020' : undefined, icon: Wallet },
     ];
-  }, [painel]);
+  }, [painel, mensal, dreMes, semMes, mesRef]);
 
   if (loading) return <div className="py-20 text-center text-gray-400"><Loader2 className="w-7 h-7 animate-spin mx-auto" /></div>;
-  if (!painel && !dreMes.length && !mesOperacional.length) return <div className="py-20 text-center text-gray-400">Sem dados executivos para este bar.</div>;
+  if (!painel && !dreMes.length && !mesOperacional.length && !semMes.length) return <div className="py-20 text-center text-gray-400">Sem dados executivos para este bar.</div>;
+
+  const opData = mensal ? semMes : mesOperacional;
+  const opX = mensal ? 'semana' : 'mês';
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Ano</span>
-        <select value={ano} onChange={(e) => setAno(Number(e.target.value))} className="h-8 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
-          {[anoAtual, anoAtual - 1, anoAtual - 2].map((a) => <option key={a} value={a}>{a}</option>)}
-        </select>
-      </div>
+      {!mensal && (
+        <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Ano</span>
+          <select value={ano} onChange={(e) => setAno(Number(e.target.value))} className="h-8 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
+            {[anoAtual, anoAtual - 1, anoAtual - 2].map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+      )}
       <HeroRow kpis={kpis} cols={6} />
 
       <ChartGrid>
+        {!mensal && (
         <ChartCard titulo="Receita × Resultado por mês" subtitulo="R$ por mês — resultado operacional (meses fechados)" span={2}>
           <GraficoBase tipo="linha" data={dreMes} xKey="mes" formatY={moneyK} height={330}
             series={[{ key: 'receita', label: 'Receita' }, { key: 'resultado', label: 'Resultado' }]} />
+        </ChartCard>)}
+
+        <ChartCard titulo={`Público por ${opX}`} subtitulo="clientes atendidos (ContaHub)">
+          <GraficoBase tipo="barra" data={opData} xKey="mes" formatY={num} height={330} series={[{ key: 'publico', label: 'Público' }]} />
         </ChartCard>
 
-        <ChartCard titulo="Público por mês" subtitulo="clientes atendidos (ContaHub)">
-          <GraficoBase tipo="barra" data={mesOperacional} xKey="mes" formatY={num} height={330} series={[{ key: 'publico', label: 'Público' }]} />
-        </ChartCard>
-
-        <ChartCard titulo="Composição do faturamento por mês" subtitulo="Couvert · Bar · Comível" span={2}>
-          <GraficoBase tipo="area" stacked data={mesOperacional} xKey="mes" formatY={moneyK} height={320}
+        <ChartCard titulo={`Composição do faturamento por ${opX}`} subtitulo="Couvert · Bar · Comível" span={2}>
+          <GraficoBase tipo="area" stacked data={opData} xKey="mes" formatY={moneyK} height={320}
             series={[{ key: 'couvert', label: 'Couvert' }, { key: 'bar', label: 'Bar' }, { key: 'comivel', label: 'Comível' }]} />
         </ChartCard>
 
-        <ChartCard titulo="Faturamento semanal recente" subtitulo="pulso operacional — últimas 16 semanas × meta">
+        <ChartCard titulo="Faturamento semanal" subtitulo={mensal ? `pulso semanal — ${mesLabelCurto(mesRef!)} × meta` : 'pulso operacional — últimas 16 semanas × meta'}>
           <GraficoBase tipo="linha" data={semData} xKey="periodo" formatY={moneyK} height={320}
             series={[{ key: 'fat', label: 'Faturamento' }, { key: 'meta', label: 'Meta' }]} />
         </ChartCard>

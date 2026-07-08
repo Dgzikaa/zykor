@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api-client';
 import { GraficoBase } from '@/components/graficos/GraficoBase';
 import { HeroRow, ChartCard, ChartGrid, GraficoBarraH, GraficoDonut, GraficoHeatmap, GraficoScatter, type Kpi } from '@/components/graficos/Charts';
+import { noMes } from '../_periodo';
 import { Users, UserPlus, Repeat, Crown, AlertTriangle, Gem, Loader2 } from 'lucide-react';
 
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -14,7 +15,8 @@ const mesLabel = (iso: string) => { const d = new Date(String(iso).slice(0, 10) 
 
 const NIVEL_ORDEM = ['bronze', 'prata', 'ouro', 'diamante', 'platina'];
 
-export function SecaoCrm({ barId, periodo }: { barId: number; periodo: number }) {
+export function SecaoCrm({ barId, periodo, mesRef }: { barId: number; periodo: number; mesRef: string | null }) {
+  const mensal = !!mesRef;
   const [evo, setEvo] = useState<any[]>([]);
   const [coorte, setCoorte] = useState<any[]>([]);
   const [rfm, setRfm] = useState<any[]>([]);
@@ -26,7 +28,10 @@ export function SecaoCrm({ barId, periodo }: { barId: number; periodo: number })
   // core enxuto (RPC rápidos) — renderiza sem esperar os pesados
   const carregar = useCallback(async () => {
     setLoading(true);
-    const mesesN = Math.max(6, Math.min(24, periodo));
+    // No modo mês: garante que a janela de evolução ALCANCE o mês escolhido (pode ser antigo).
+    let base = periodo;
+    if (mesRef) { const [a, m] = mesRef.split('-').map(Number); base = (new Date().getFullYear() - a) * 12 + (new Date().getMonth() + 1 - m) + 2; }
+    const mesesN = Math.max(6, Math.min(24, base));
     try {
       const [e, c, r, cl] = await Promise.all([
         api.get(`/api/clientes-ativos/evolucao?bar_id=${barId}&meses=${mesesN}`).catch(() => null),
@@ -40,7 +45,7 @@ export function SecaoCrm({ barId, periodo }: { barId: number; periodo: number })
       setClube(cl?.success ? cl : null);
     } catch { setEvo([]); setCoorte([]); setRfm([]); setClube(null); }
     finally { setLoading(false); }
-  }, [barId, periodo]);
+  }, [barId, periodo, mesRef]);
   useEffect(() => { carregar(); }, [carregar]);
 
   // pesados (varrem `visitas`) — carregam depois, sem bloquear a seção
@@ -61,11 +66,12 @@ export function SecaoCrm({ barId, periodo }: { barId: number; periodo: number })
 
   const evoData = useMemo(() => {
     const hojeMes = new Date().toISOString().slice(0, 7); // descarta mês corrente parcial (zera base ativa)
-    return evo.filter((m) => String(m.mes || '').slice(0, 7) < hojeMes).map((m) => ({
+    // No modo mês: só o mês escolhido (mesmo que corrente/parcial — foi pedido explicitamente).
+    return evo.filter((m) => mensal ? noMes(m.mes, mesRef!) : String(m.mes || '').slice(0, 7) < hojeMes).map((m) => ({
       mes: m.mesLabel || m.mes, novos: Number(m.novosClientes) || 0, retornantes: Number(m.clientesRetornantes) || 0,
       base: Number(m.baseAtiva) || 0, total: Number(m.totalClientes) || 0, pctNovos: Number(m.percentualNovos) || 0,
     }));
-  }, [evo]);
+  }, [evo, mensal, mesRef]);
 
   // heatmap de retenção: linhas = coorte (mês entrada), colunas = mes_offset, valor = % retenção
   const heat = useMemo(() => {

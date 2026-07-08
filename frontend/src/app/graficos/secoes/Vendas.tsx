@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api-client';
 import { GraficoBase } from '@/components/graficos/GraficoBase';
 import { HeroRow, ChartCard, ChartGrid, GraficoHeatmap, type Kpi } from '@/components/graficos/Charts';
+import { mesBounds, noMes } from '../_periodo';
 import { DollarSign, Users, Ticket, Sparkles, CalendarCheck, Percent, Loader2 } from 'lucide-react';
 
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -14,16 +15,24 @@ const delta = (a?: number, b?: number) => (a != null && b != null && b !== 0 ? (
 
 const DIAS_ORD = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
-export function SecaoVendas({ barId, periodo }: { barId: number; periodo: number }) {
+export function SecaoVendas({ barId, periodo, mesRef }: { barId: number; periodo: number; mesRef: string | null }) {
   const [sem, setSem] = useState<any[]>([]);
   const [heat, setHeat] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    const semanas = Math.round(periodo * 4.35);
-    const ate = new Date().toISOString().slice(0, 10);
-    const de = (() => { const d = new Date(); d.setDate(d.getDate() - periodo * 30); return d.toISOString().slice(0, 10); })();
+    let semanas: number, de: string, ate: string;
+    if (mesRef) {
+      const b = mesBounds(mesRef); de = b.de; ate = b.ate;
+      // janela de semanas suficiente pra CONTER o mês escolhido (pode ser antigo) — filtra client-side depois
+      const mDiff = Math.max(0, (new Date().getFullYear() - b.ano) * 12 + (new Date().getMonth() + 1 - b.mes));
+      semanas = Math.min(160, (mDiff + 2) * 5);
+    } else {
+      semanas = Math.round(periodo * 4.35);
+      ate = new Date().toISOString().slice(0, 10);
+      const d = new Date(); d.setDate(d.getDate() - periodo * 30); de = d.toISOString().slice(0, 10);
+    }
     try {
       const [d, h] = await Promise.all([
         api.get(`/api/graficos/desempenho?semanas=${semanas}&bar_id=${barId}`),
@@ -33,11 +42,11 @@ export function SecaoVendas({ barId, periodo }: { barId: number; periodo: number
       setHeat(h?.success ? (h.heatmap || []) : []);
     } catch { setSem([]); setHeat([]); }
     finally { setLoading(false); }
-  }, [barId, periodo]);
+  }, [barId, periodo, mesRef]);
   useEffect(() => { carregar(); }, [carregar]);
 
-  // descarta a semana corrente (parcial): data_fim ainda no futuro/hoje distorce KPIs e derruba o fim das linhas
-  const data = useMemo(() => { const hojeISO = new Date().toISOString().slice(0, 10); return sem.filter((s) => !s.data_fim || s.data_fim < hojeISO).map((s) => ({
+  // descarta a semana corrente (parcial); no modo mês, recorta às semanas que terminam no mês escolhido
+  const data = useMemo(() => { const hojeISO = new Date().toISOString().slice(0, 10); return sem.filter((s) => (!s.data_fim || s.data_fim < hojeISO) && (!mesRef || noMes(s.data_fim, mesRef))).map((s) => ({
     periodo: s.periodo || `S${s.numero_semana}`,
     fat: Number(s.faturamento_total) || 0, meta: 263000,
     couvert: Number(s.faturamento_entrada) || 0, bar: Number(s.faturamento_bar) || 0, cmvivel: Number(s.faturamento_cmvivel) || 0,
@@ -48,7 +57,7 @@ export function SecaoVendas({ barId, periodo }: { barId: number; periodo: number
     hh: Number(s.perc_happy_hour) || 0, ate19: Number(s.perc_faturamento_ate_19h) || 0,
     so_bar: Number(s.stockout_bar_perc) || 0, so_com: Number(s.stockout_comidas_perc) || 0, so_drk: Number(s.stockout_drinks_perc) || 0,
     nps: s.nps_geral == null ? null : Number(s.nps_geral),
-  })); }, [sem]);
+  })); }, [sem, mesRef]);
 
   const temNps = useMemo(() => data.some((d) => d.nps != null && d.nps !== 0), [data]);
   const temStockout = useMemo(() => data.some((d) => d.so_bar || d.so_com || d.so_drk), [data]);

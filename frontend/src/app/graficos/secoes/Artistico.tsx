@@ -4,29 +4,32 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api-client';
 import { GraficoBase } from '@/components/graficos/GraficoBase';
 import { HeroRow, ChartCard, ChartGrid, GraficoBarraH, GraficoScatter, type Kpi } from '@/components/graficos/Charts';
+import { mesBounds } from '../_periodo';
 import { Music, Users, DollarSign, Gauge, Sparkles, Flame, Loader2 } from 'lucide-react';
 
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const moneyK = (v: number) => `${v < 0 ? '-' : ''}R$ ${Math.abs(Math.round((v || 0) / 1000))}k`;
 const num = (v: number) => Math.round(v || 0).toLocaleString('pt-BR');
 
-export function SecaoArtistico({ barId, periodo }: { barId: number; periodo: number }) {
+export function SecaoArtistico({ barId, periodo, mesRef }: { barId: number; periodo: number; mesRef: string | null }) {
   const [rank, setRank] = useState<any | null>(null);
   const [labels, setLabels] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   const carregar = useCallback(async () => {
     setLoading(true);
+    // No modo mês: recorta por data (de/ate) do mês escolhido; senão janela de `periodo` meses.
+    const win = mesRef ? (() => { const b = mesBounds(mesRef); return `de=${b.de}&ate=${b.ate}`; })() : `periodo=${periodo}`;
     try {
       const [r, l] = await Promise.all([
-        api.get(`/api/analitico/atracoes?periodo=${periodo}&bar_id=${barId}`),
-        api.get(`/api/analitico/labels?periodo=${periodo}&bar_id=${barId}`),
+        api.get(`/api/analitico/atracoes?${win}&bar_id=${barId}`),
+        api.get(`/api/analitico/labels?${win}&bar_id=${barId}`),
       ]);
       setRank(r?.success ? r : null);
       setLabels(l?.success ? l : null);
     } catch { setRank(null); setLabels(null); }
     finally { setLoading(false); }
-  }, [barId, periodo]);
+  }, [barId, periodo, mesRef]);
   useEffect(() => { carregar(); }, [carregar]);
 
   const artistas: any[] = useMemo(() => rank?.data || [], [rank]);

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api-client';
 import { GraficoBase } from '@/components/graficos/GraficoBase';
 import { HeroRow, ChartCard, ChartGrid, GraficoBarraH, type Kpi } from '@/components/graficos/Charts';
+import { mesBounds, noMes } from '../_periodo';
 import { Boxes, Percent, TrendingDown, Package, Truck, Loader2 } from 'lucide-react';
 
 const anoAtual = new Date().getFullYear();
@@ -14,7 +15,7 @@ const isoLocal = (ts: string) => { const d = new Date(ts); return `${d.getFullYe
 const segSemana = (iso: string) => { const d = new Date(iso + 'T12:00:00'); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return d.toISOString().slice(0, 10); };
 const ddmm = (iso: string) => iso.split('-').reverse().slice(0, 2).join('/');
 
-export function SecaoCmv({ barId, periodo }: { barId: number; periodo: number }) {
+export function SecaoCmv({ barId, periodo, mesRef }: { barId: number; periodo: number; mesRef: string | null }) {
   const [ano, setAno] = useState(anoAtual);
   const [cmv, setCmv] = useState<any[]>([]);
   const [forn, setForn] = useState<any[]>([]);
@@ -24,11 +25,14 @@ export function SecaoCmv({ barId, periodo }: { barId: number; periodo: number })
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    const de = new Date(); de.setDate(de.getDate() - periodo * 30);
-    const deStr = de.toISOString().slice(0, 10); const ateStr = new Date().toISOString().slice(0, 10);
+    // No modo mês: ano/janela recortados ao mês escolhido. Senão: ano do seletor + janela de periodo*30d.
+    const anoEff = mesRef ? Number(mesRef.slice(0, 4)) : ano;
+    let deStr: string, ateStr: string;
+    if (mesRef) { const b = mesBounds(mesRef); deStr = b.de; ateStr = b.ate; }
+    else { const de = new Date(); de.setDate(de.getDate() - periodo * 30); deStr = de.toISOString().slice(0, 10); ateStr = new Date().toISOString().slice(0, 10); }
     try {
       const [c, f, dd, e] = await Promise.all([
-        api.get(`/api/cmv-semanal?ano=${ano}&bar_id=${barId}`),
+        api.get(`/api/cmv-semanal?ano=${anoEff}&bar_id=${barId}`),
         api.get(`/api/operacional/compras?de=${deStr}&ate=${ateStr}&bar_id=${barId}`).catch(() => null),
         api.get('/api/operacional/desvios?tipo=semanal').catch(() => null),
         api.get(`/api/operacional/producoes/execucao?bar_id=${barId}&de=${deStr}&ate=${ateStr}T23:59:59.999`).catch(() => null),
@@ -36,18 +40,18 @@ export function SecaoCmv({ barId, periodo }: { barId: number; periodo: number })
       setCmv(c?.success ? (c.data || []) : []);
       setForn(f?.success ? (f.topFornecedores || []) : []);
       setExecs(e?.success ? (e.execucoes || []) : []);
-      // desvios: pega a última contagem semanal e busca itens
-      const datas: string[] = dd?.datas || [];
+      // desvios: última contagem semanal (no modo mês, a última DENTRO do mês)
+      const datas: string[] = (dd?.datas || []).filter((x: string) => !mesRef || noMes(x, mesRef));
       if (datas.length >= 2) {
         const rr = await api.get(`/api/operacional/desvios?tipo=semanal&ini=${datas[1]}&fim=${datas[0]}`).catch(() => null);
         setDesv(rr?.itens || []);
       } else setDesv([]);
     } catch { setCmv([]); setForn([]); setDesv([]); setExecs([]); }
     finally { setLoading(false); }
-  }, [barId, ano, periodo]);
+  }, [barId, ano, periodo, mesRef]);
   useEffect(() => { carregar(); }, [carregar]);
 
-  const cmvData = useMemo(() => [...cmv].sort((a, b) => (a.ano - b.ano) || (a.semana - b.semana)).map((d) => {
+  const cmvData = useMemo(() => [...cmv].filter((d) => !mesRef || noMes(d.data_fim, mesRef)).sort((a, b) => (a.ano - b.ano) || (a.semana - b.semana)).map((d) => {
     const limpo = Number(d.cmv_limpo_percentual) || 0, teorico = Number(d.cmv_teorico_percentual) || 0;
     return {
       semana: `S${d.semana}`,
@@ -56,7 +60,7 @@ export function SecaoCmv({ barId, periodo }: { barId: number; periodo: number })
       limpo: limpo > 0 ? limpo : null, teorico: teorico > 0 ? teorico : null,
     };
     // descarta semanas futuras/sem dado (deixavam metade do gráfico vazia + platô fantasma)
-  }).filter((d) => d.limpo != null || (d.cozinha + d.bebidas + d.drinks) > 0), [cmv]);
+  }).filter((d) => d.limpo != null || (d.cozinha + d.bebidas + d.drinks) > 0), [cmv, mesRef]);
 
   const desviosArea = useMemo(() => {
     const by = new Map<string, { perda: number; sobra: number }>();
@@ -106,11 +110,13 @@ export function SecaoCmv({ barId, periodo }: { barId: number; periodo: number })
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Ano</span>
-        <select value={ano} onChange={(e) => setAno(Number(e.target.value))} className="h-8 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
-          {[anoAtual, anoAtual - 1, anoAtual - 2].map((a) => <option key={a} value={a}>{a}</option>)}
-        </select>
-      </div>
+      {!mesRef && (
+        <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Ano</span>
+          <select value={ano} onChange={(e) => setAno(Number(e.target.value))} className="h-8 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
+            {[anoAtual, anoAtual - 1, anoAtual - 2].map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+      )}
       <HeroRow kpis={kpis} cols={6} />
 
       <ChartGrid>

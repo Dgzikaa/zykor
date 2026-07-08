@@ -109,10 +109,14 @@ export async function GET(request: NextRequest) {
     const periodo = parseInt(searchParams.get('periodo') || '12', 10);
     const minShows = parseInt(searchParams.get('min_shows') || '3', 10);
 
+    // Recorte por data: se `de`/`ate` vierem (visão mensal do hub de Gráficos), usa-os;
+    // senão, janela retroativa de `periodo` meses (comportamento padrão).
+    const deParam = searchParams.get('de');
+    const ateParam = searchParams.get('ate');
     const dataInicial = new Date();
     dataInicial.setMonth(dataInicial.getMonth() - periodo);
-    const iniStr = dataInicial.toISOString().split('T')[0];
-    const hojeStr = new Date().toISOString().split('T')[0];
+    const iniStr = deParam || dataInicial.toISOString().split('T')[0];
+    const hojeStr = ateParam || new Date().toISOString().split('T')[0];
 
     const ops = (supabase as any).schema('operations');
 
