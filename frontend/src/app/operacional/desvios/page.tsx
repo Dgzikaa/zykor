@@ -316,17 +316,18 @@ export default function DesviosPage() {
   }, [barId, ini, fim, tipo, andamento, carregar, toast]);
 
   // Insumos = só insumos (exclui produção e proteína, que têm aba própria).
-  // Mostra também item SEM ficha (Gonza): não tem saída teórica, mas serve pra lançar o
-  // desperdício manual da semana (não-curva-A). Filtro "Só Curva A" continua separado.
+  // Semanal/mensal: esconde item fora de ficha (Gonza: sem ficha não entra no desvio nem tem
+  // desperdício — nunca tem saída teórica). Filtro "Só Curva A" separado.
   const itensView = useMemo(() => {
     const s = busca.trim().toLowerCase();
     return (res?.itens || []).filter((i: any) => !i.is_producao && !i.is_proteina
+      && (tipo === 'diaria' || andamento || i.tem_ficha)
       && (!soCurvaA || i.curva_a === true)
       && (!filtroDado || i.dado_faltando === filtroDado)
       && (!filtroArea || i.area === filtroArea)
       && passNum(i, numF)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
-  }, [res, busca, soCurvaA, filtroDado, filtroArea, numF]);
+  }, [res, busca, tipo, andamento, soCurvaA, filtroDado, filtroArea, numF]);
 
   // contadores dos chips de filtro (igual /operacional/insumos) — base = aba ativa sem o filtro Curva A
   const baseRows = useMemo(() => {
@@ -334,7 +335,7 @@ export default function DesviosPage() {
     const items = (res?.itens || []) as any[];
     const match = (i: any) => !s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s);
     if (aba === 'producoes') return items.filter((i) => i.is_producao && match(i));
-    return items.filter((i) => !i.is_producao && !i.is_proteina && match(i));
+    return items.filter((i) => !i.is_producao && !i.is_proteina && i.tem_ficha && match(i));
   }, [res, busca, aba]);
   const cntTotal = baseRows.length;
   const cntCurvaA = baseRows.filter((i: any) => i.curva_a === true).length;
@@ -476,7 +477,6 @@ export default function DesviosPage() {
                     {it.pendente && <span title="Produção sem o 'produzido' informado — desvio não confiável neste dia"><AlertTriangle className="w-3.5 h-3.5 inline text-amber-500 mr-1" /></span>}
                     {it.insumo_nome}{it.insumo_nome !== it.insumo_codigo && <span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_codigo}</span>}
                     {it.is_producao && <Badge variant="outline" className="ml-1.5 text-[10px] text-indigo-600 border-indigo-300">produção</Badge>}
-                    {!it.is_producao && !it.tem_ficha && <Badge variant="outline" className="ml-1.5 text-[10px] text-gray-500 border-gray-300" title="Sem ficha técnica — não tem saída teórica; use o Desperdício pra lançar a perda da semana.">s/ ficha</Badge>}
                   </td>
                   <td className="px-3 py-2"><Badge variant="outline">{it.area}</Badge></td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.estoque_ini)}</td>
