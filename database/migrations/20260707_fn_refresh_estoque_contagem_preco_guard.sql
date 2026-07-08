@@ -1,23 +1,20 @@
--- 2026-07-07 — Fix da VALORIZAÇÃO do estoque (silver.fn_refresh_estoque_contagem).
+-- 2026-07-07 — VALORIZAÇÃO do estoque (silver.fn_refresh_estoque_contagem): cascata de preço
+-- correta = VMarket (preço REALMENTE PAGO no pedido) → PLANILHA (preço manual, p/ item sem compra
+-- precificada) → cadastro → 0.
 --
--- Sintoma (Deboche): estoque do Zykor ~30% acima da planilha (contagens idênticas, só o preço
--- unitário divergia). DUAS causas:
---   1) PEDIDO RECENTE COM PREÇO 0: o VMarket manda o pedido feito mas ainda não precificado/
---      entregue com preco=0 (o preço fecha na entrega). A função pegava o pedido MAIS RECENTE
---      (preco 0) em vez do último PRECIFICADO → zerava o item. Ex.: Spaten I0362 tinha 01/07=0,00
---      mas 16/06=R$7,02. → 148 itens zerados no Deboche. (VMarket do bar está conectado e recebendo
---      pedidos; o problema era só a resolução do preço.)
---   2) PREÇO DE EMBALAGEM/CAIXA num item contado por unidade (Pastel cx 32un = R$206,40 × qtd →
---      inflava ~32×). O custo_unitario da contagem já tinha o preço certo por unidade.
+-- Bugs corrigidos (Deboche estava ~30% acima da planilha; contagens sempre idênticas, só o preço):
+--   1) PEDIDO RECENTE COM PREÇO 0: o VMarket manda o pedido feito mas ainda não precificado/entregue
+--      com preco=0. A função pegava o pedido MAIS RECENTE (0) em vez do último PRECIFICADO → zerava
+--      148 itens. Fix: CTE `precos` só considera pedido com preco>0 → pega o último preço REAL pago.
+--   2) EMBALAGEM/CAIXA: preço da caixa num item contado por unidade (Pastel cx 32un = R$206 × qtd
+--      → inflava 32×). Fix: `resolved` descarta o VMarket quando é >5x o preço unitário conhecido.
+--   3) FALLBACK errado: caía no custo_unitario do cadastro (diverge da planilha, ex.: Pimenta 40,91
+--      vs 82,83). Fix: fallback passa a ser o PREÇO DA PLANILHA (bronze_contagem_sheet.preco_planilha
+--      via CTE `planp`), que é a referência do time p/ item sem compra no VMarket.
 --
--- Fix:
---   (1) a CTE `precos` só considera item de pedido com preco > 0 → px pega o último preço REAL.
---   (2) o `resolved` descarta o preço quando é >5x o custo_unitario conhecido (embalagem trocada);
---       nesse caso, e quando não há VMarket precificado, cai pro custo_unitario (cadastro).
--- Princípio (validado com o sócio): usar o VMarket (preço realmente pago) nos itens atuais; o
--- cadastro é só fallback pra item sem compra precificada. Deboche 06/07: 65.941 → 49.090
--- (162 itens fonte vmarket, 146 cadastro, 5 sem preço). Aplicada em prod + re-rodado bar 3 e 4.
--- OBS: muda valores de estoque/desvios/CMV dos 2 bares (pra mais correto).
+-- Resultado (Deboche 06/07): 65.941 → 50.215 (planilha 50.425 = 99,6%). Os itens sem VMarket batem
+-- EXATO com a planilha; sobra só ~R$210 nos itens VMarket = preço PAGO ≠ preço manual da planilha
+-- (Zykor mais correto). Aplicada em prod + re-rodado bar 3 e 4. Muda estoque/desvios/CMV (pra melhor).
 
 CREATE OR REPLACE FUNCTION silver.fn_refresh_estoque_contagem(p_bar integer, p_dias integer DEFAULT 14)
  RETURNS integer
@@ -47,15 +44,23 @@ begin
     join precos p on p.cod = upper(o.insumo_codigo) and p.ddata <= o.data_contagem
     order by o.bar_id, o.data_contagem, o.insumo_codigo, p.ddata desc, p.preco desc
   ),
+  planp as (
+    select distinct on (bar_id, data_contagem, insumo_codigo)
+      bar_id, data_contagem, insumo_codigo, preco_planilha
+    from public.bronze_contagem_sheet
+    where bar_id = p_bar and data_contagem >= current_date - p_dias
+    order by bar_id, data_contagem, insumo_codigo, preco_planilha desc nulls last
+  ),
   resolved as (
     select o.*,
-      -- descarta o preço VMarket quando é >5x o custo_unitario conhecido (= quase sempre preço da
-      -- EMBALAGEM/caixa num item contado por unidade). Nesses casos cai pro custo_unitario.
+      pl.preco_planilha as plan_price,
       (case when px.preco is not null
-              and not (coalesce(o.custo_unitario, 0) > 0 and px.preco > o.custo_unitario * 5)
+              and not (coalesce(nullif(o.custo_unitario,0), pl.preco_planilha, 0) > 0
+                       and px.preco > coalesce(nullif(o.custo_unitario,0), pl.preco_planilha) * 5)
             then px.preco end) as vm
     from relevant o
     left join px on px.bar_id = o.bar_id and px.data_contagem = o.data_contagem and px.insumo_codigo = o.insumo_codigo
+    left join planp pl on pl.bar_id = o.bar_id and pl.data_contagem = o.data_contagem and pl.insumo_codigo = o.insumo_codigo
   )
   insert into silver.estoque_contagem
     (bar_id, data_contagem, insumo_codigo, insumo_id, insumo_nome, tipo_contagem,
@@ -65,9 +70,10 @@ begin
          r.categoria, r.tipo_local, r.unidade_medida, r.estoque_fechado, r.estoque_flutuante, r.estoque_final,
          r.vm,
          case when r.vm is not null then 'vmarket'
+              when coalesce(r.plan_price,0) > 0 then 'planilha'
               when coalesce(r.custo_unitario,0) > 0 then 'cadastro'
               else 'sem_preco' end,
-         coalesce(r.estoque_final,0) * coalesce(r.vm, r.custo_unitario, 0),
+         coalesce(r.estoque_final,0) * coalesce(r.vm, r.plan_price, r.custo_unitario, 0),
          coalesce(r.curva_a, false),
          now()
   from resolved r
