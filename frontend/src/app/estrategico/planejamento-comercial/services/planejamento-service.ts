@@ -381,18 +381,27 @@ export async function getPlanejamentoComercial(
   const dadosProcessados = eventosFiltrados.map((evento: any) => {
     const manual = manuaisMap.get(evento.data_evento);
     
+    // Tickets consolidados (ContaHub+Yuzer+Sympla) / público consolidado. Em dias dominados por
+    // bilheteria externa (Yuzer) o ContaHub vem ~0 e os tickets do gold (real_r/cl_real) ficam
+    // errados — ex.: 05/07 dava t_medio R$261,94 (261,94/1) em vez de ~R$122 (134k/1100).
+    // Split: entrada = couvert ContaHub + entrada Yuzer + Sympla; bar = (real_r − couvert) + bar Yuzer.
+    // te+tb = t_medio por construção; em dia sem Yuzer/Sympla é idêntico ao valor do gold.
+    const _fatCons = Number(evento.faturamento_total_consolidado) || 0;
+    const _pubCons = Number(evento.publico_real_consolidado) || 0;
+    const _couvertCH = Number(evento.couvert_vr_contahub) || 0;
+    const _entradaCons = _couvertCH + (Number(evento.faturamento_entrada_yuzer) || 0) + (Number(evento.sympla_liquido) || 0);
+    const _barCons = (Number(evento.real_r) || 0) - _couvertCH + (Number(evento.faturamento_bar_yuzer) || 0);
+    const _usaCons = _pubCons > 0 && _fatCons > 0;
+    const tMedioCalc = _usaCons ? _fatCons / _pubCons : (Number(evento.t_medio) || 0);
+    const teRealCalc = _usaCons ? _entradaCons / _pubCons : (Number(evento.te_real_calculado) || 0);
+    const tbRealCalc = _usaCons ? _barCons / _pubCons : (Number(evento.tb_real_calculado) || 0);
+
     // Flags de performance (mantidas no service, sao apresentacao)
     const realVsM1Green = (evento.faturamento_total_consolidado || 0) >= (evento.m1_r || 0);
     const ciRealVsPlanGreen = (evento.publico_real_consolidado || 0) >= (evento.cl_plan || 0);
-    const teRealVsPlanGreen = (evento.te_real_calculado || 0) >= (evento.te_plan || 0);
-    const tbRealVsPlanGreen = (evento.tb_real_calculado || 0) >= (evento.tb_plan || 0);
+    const teRealVsPlanGreen = teRealCalc >= (evento.te_plan || 0);
+    const tbRealVsPlanGreen = tbRealCalc >= (evento.tb_plan || 0);
     // Etapa 6: thresholds vêm de metas (config_metas_planejamento), não mais hardcoded
-    // Ticket médio consolidado: faturamento_total (ContaHub+Yuzer+Sympla) / público consolidado.
-    // Em dias dominados por bilheteria externa (Yuzer) o ContaHub vem ~0 e o t_medio do gold
-    // (real_r/cl_real) fica errado — ex.: 05/07 dava R$261,94 (261,94/1) em vez de ~R$122 (134k/1100).
-    const _fatCons = Number(evento.faturamento_total_consolidado) || 0;
-    const _pubCons = Number(evento.publico_real_consolidado) || 0;
-    const tMedioCalc = _pubCons > 0 && _fatCons > 0 ? _fatCons / _pubCons : (Number(evento.t_medio) || 0);
     const tMedioGreen = tMedioCalc >= metas.t_medio_meta;
     const percentArtFatGreen = (evento.percent_art_fat || 0) <= metas.percent_art_fat_meta;
     const tCozGreen = (evento.t_coz || 0) <= metas.t_coz_meta;
@@ -483,9 +492,9 @@ export async function getPlanejamentoComercial(
       lot_max: evento.lot_max || 0,
 
       te_plan: manual?.te_plan ?? evento.te_plan ?? 0,
-      te_real: evento.te_real_calculado || 0,
+      te_real: teRealCalc,
       tb_plan: manual?.tb_plan ?? evento.tb_plan ?? 0,
-      tb_real: evento.tb_real_calculado || 0,
+      tb_real: tbRealCalc,
       t_medio: tMedioCalc,
 
       // Pré-lançado: usa o real do Conta Azul se existir; senão a projeção (amarelo/⚠️).
