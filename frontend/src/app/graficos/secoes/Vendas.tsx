@@ -36,7 +36,8 @@ export function SecaoVendas({ barId, periodo }: { barId: number; periodo: number
   }, [barId, periodo]);
   useEffect(() => { carregar(); }, [carregar]);
 
-  const data = useMemo(() => sem.map((s) => ({
+  // descarta a semana corrente (parcial): data_fim ainda no futuro/hoje distorce KPIs e derruba o fim das linhas
+  const data = useMemo(() => { const hojeISO = new Date().toISOString().slice(0, 10); return sem.filter((s) => !s.data_fim || s.data_fim < hojeISO).map((s) => ({
     periodo: s.periodo || `S${s.numero_semana}`,
     fat: Number(s.faturamento_total) || 0, meta: 263000,
     couvert: Number(s.faturamento_entrada) || 0, bar: Number(s.faturamento_bar) || 0, cmvivel: Number(s.faturamento_cmvivel) || 0,
@@ -46,8 +47,11 @@ export function SecaoVendas({ barId, periodo }: { barId: number; periodo: number
     beb: Number(s.perc_bebidas) || 0, drk: Number(s.perc_drinks) || 0, com: Number(s.perc_comida) || 0,
     hh: Number(s.perc_happy_hour) || 0, ate19: Number(s.perc_faturamento_ate_19h) || 0,
     so_bar: Number(s.stockout_bar_perc) || 0, so_com: Number(s.stockout_comidas_perc) || 0, so_drk: Number(s.stockout_drinks_perc) || 0,
-    nps: Number(s.nps_geral) || 0,
-  })), [sem]);
+    nps: s.nps_geral == null ? null : Number(s.nps_geral),
+  })); }, [sem]);
+
+  const temNps = useMemo(() => data.some((d) => d.nps != null && d.nps !== 0), [data]);
+  const temStockout = useMemo(() => data.some((d) => d.so_bar || d.so_com || d.so_drk), [data]);
 
   const kpis: Kpi[] = useMemo(() => {
     if (!data.length) return [];
@@ -105,10 +109,11 @@ export function SecaoVendas({ barId, periodo }: { barId: number; periodo: number
           <GraficoHeatmap data={heatmap.cells} xs={heatmap.xs} ys={heatmap.ys} formatV={moneyK} height={320} />
         </ChartCard>
 
+        {temStockout && (
         <ChartCard titulo="Stockout por área" subtitulo="% de ruptura de estoque (Bar · Comidas · Drinks)">
           <GraficoBase tipo="linha" data={data} xKey="periodo" formatY={pct} height={320}
             series={[{ key: 'so_bar', label: 'Bar' }, { key: 'so_com', label: 'Comidas' }, { key: 'so_drk', label: 'Drinks' }]} />
-        </ChartCard>
+        </ChartCard>)}
 
         <ChartCard titulo="Reservas — reservadas × presentes" subtitulo="pessoas por semana (gap = quebra/no-show)">
           <GraficoBase tipo="barra" data={data} xKey="periodo" formatY={num} height={320}
@@ -125,10 +130,11 @@ export function SecaoVendas({ barId, periodo }: { barId: number; periodo: number
             series={[{ key: 'hh', label: 'Happy Hour' }, { key: 'ate19', label: 'Até 19h' }]} />
         </ChartCard>
 
+        {temNps && (
         <ChartCard titulo="NPS geral por semana" subtitulo="satisfação do público ao longo do tempo">
-          <GraficoBase tipo="linha" data={data.filter((d) => d.nps !== 0)} xKey="periodo" formatY={(v) => `${Math.round(v)}`} height={320}
+          <GraficoBase tipo="linha" data={data.filter((d) => d.nps != null && d.nps !== 0)} xKey="periodo" formatY={(v) => `${Math.round(v)}`} height={320}
             series={[{ key: 'nps', label: 'NPS' }]} />
-        </ChartCard>
+        </ChartCard>)}
       </ChartGrid>
     </div>
   );

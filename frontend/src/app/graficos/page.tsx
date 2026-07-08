@@ -4,11 +4,14 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageShell } from '@/components/layout/PageShell';
 import { useBar } from '@/contexts/BarContext';
-import { BarChart3, DollarSign, Store, Music, Boxes, Users, HeartHandshake, Loader2 } from 'lucide-react';
+import { BarChart3, DollarSign, Store, Music, Boxes, Users, HeartHandshake } from 'lucide-react';
 import { SecaoArtistico } from './secoes/Artistico';
 import { SecaoVendas } from './secoes/Vendas';
 import { SecaoFinanceiro } from './secoes/Financeiro';
 import { SecaoCmv } from './secoes/Cmv';
+import { SecaoRh } from './secoes/Rh';
+import { SecaoCrm } from './secoes/Crm';
+import { SecaoVisaoGeral } from './secoes/VisaoGeral';
 
 const SECOES = [
   { key: 'visao', label: 'Visão Geral', icon: BarChart3 },
@@ -20,19 +23,10 @@ const SECOES = [
   { key: 'crm', label: 'Clientes', icon: HeartHandshake },
 ] as const;
 
-function EmConstrucao({ nome }: { nome: string }) {
-  return (
-    <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] py-20 text-center text-[hsl(var(--muted-foreground))]">
-      <Loader2 className="w-7 h-7 mx-auto mb-2 opacity-40 animate-spin" />
-      <p className="text-sm">Seção <b>{nome}</b> — chegando na próxima leva.</p>
-    </div>
-  );
-}
-
 export default function GraficosPage() {
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
-  const [aba, setAba] = useState<string>('artistico');
+  const [aba, setAba] = useState<string>('visao');
   const [periodo, setPeriodo] = useState(12);
 
   return (
@@ -64,13 +58,13 @@ export default function GraficosPage() {
             <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] py-20 text-center text-[hsl(var(--muted-foreground))]">Selecione um bar.</div>
           ) : (
             <>
-              <TabsContent value="visao"><EmConstrucao nome="Visão Geral" /></TabsContent>
+              <TabsContent value="visao"><SecaoVisaoGeral barId={barId} periodo={periodo} /></TabsContent>
               <TabsContent value="financeiro"><SecaoFinanceiro barId={barId} periodo={periodo} /></TabsContent>
               <TabsContent value="vendas"><SecaoVendas barId={barId} periodo={periodo} /></TabsContent>
               <TabsContent value="artistico"><SecaoArtistico barId={barId} periodo={periodo} /></TabsContent>
               <TabsContent value="cmv"><SecaoCmv barId={barId} periodo={periodo} /></TabsContent>
-              <TabsContent value="rh"><EmConstrucao nome="Equipe (RH)" /></TabsContent>
-              <TabsContent value="crm"><EmConstrucao nome="Clientes (CRM)" /></TabsContent>
+              <TabsContent value="rh"><SecaoRh barId={barId} periodo={periodo} /></TabsContent>
+              <TabsContent value="crm"><SecaoCrm barId={barId} periodo={periodo} /></TabsContent>
             </>
           )}
         </div>
