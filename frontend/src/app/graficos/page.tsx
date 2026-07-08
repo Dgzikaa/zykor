@@ -327,6 +327,44 @@ function Desvios({ barId }: { barId: number }) {
   );
 }
 
+// ===== Estratégico → Desempenho (fonte: /api/estrategico/desempenho-v2) =====
+function Desempenho({ barId }: { barId: number }) {
+  const [ano, setAno] = useState(anoAtual);
+  const [loading, setLoading] = useState(true);
+  const [semanas, setSemanas] = useState<any[]>([]);
+  useEffect(() => {
+    if (!barId) return; setLoading(true);
+    api.get(`/api/estrategico/desempenho-v2?ano=${ano}`).then((r) => setSemanas(r?.success ? (r.semanas || []) : [])).finally(() => setLoading(false));
+  }, [barId, ano]);
+
+  const data = useMemo(() => [...semanas].sort((a, b) => a.semana - b.semana).map((s) => ({
+    periodo: s.periodo || `S${s.semana}`,
+    faturamento: Number(s.faturamento_total || 0),
+    cmv: Number(s.cmv_limpo_percentual || 0),
+    cmo: Number(s.cmo_percentual || 0),
+  })), [semanas]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Ano</span>
+        <select value={ano} onChange={(e) => setAno(Number(e.target.value))} className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
+          {[anoAtual, anoAtual - 1, anoAtual - 2].map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
+      {loading ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div> : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <ChartCard titulo="Faturamento por semana" subtitulo="R$ por semana operacional">
+            <GraficoBase tipo="area" data={data} xKey="periodo" formatY={fmtBRL0} series={[{ key: 'faturamento', label: 'Faturamento' }]} />
+          </ChartCard>
+          <ChartCard titulo="CMV % × CMO %" subtitulo="% da receita por semana">
+            <GraficoBase tipo="linha" data={data} xKey="periodo" formatY={fmtPct} series={[{ key: 'cmv', label: 'CMV Limpo' }, { key: 'cmo', label: 'CMO' }]} />
+          </ChartCard>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const SUBS: Record<string, { key: string; label: string; el?: (barId: number) => React.ReactNode; o?: string }[]> = {
   producao: [
     { key: 'cmv', label: 'Estoque & CMV', el: (b) => <CmvEstoque barId={b} /> },
@@ -340,8 +378,8 @@ const SUBS: Record<string, { key: string; label: string; el?: (barId: number) =>
     { key: 'stone', label: 'Conciliação', o: 'mix e taxas Stone' },
   ],
   estrategico: [
+    { key: 'desempenho', label: 'Desempenho', el: (b) => <Desempenho barId={b} /> },
     { key: 'orcamentacao', label: 'Orçamentação', o: 'plan × proj × real' },
-    { key: 'desempenho', label: 'Desempenho', o: 'faturamento × meta semanal' },
     { key: 'planejamento', label: 'Planejamento', o: 'empilhamento M1 × real' },
   ],
 };
@@ -350,7 +388,7 @@ export default function GraficosPage() {
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
   const [modulo, setModulo] = useState('producao');
-  const [sub, setSub] = useState<Record<string, string>>({ producao: 'cmv', financeiro: 'dre', estrategico: 'orcamentacao' });
+  const [sub, setSub] = useState<Record<string, string>>({ producao: 'cmv', financeiro: 'dre', estrategico: 'desempenho' });
 
   // abre na aba vinda do menu lateral (/graficos?m=financeiro etc.)
   useEffect(() => {
