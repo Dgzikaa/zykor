@@ -288,12 +288,51 @@ function DFC({ barId }: { barId: number }) {
   );
 }
 
+// ===== Produção-CMV → Desvios (fonte: /api/operacional/desvios) =====
+function Desvios({ barId }: { barId: number }) {
+  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState<any[]>([]);
+  const [win, setWin] = useState<{ ini: string; fim: string } | null>(null);
+  useEffect(() => {
+    if (!barId) return; setLoading(true); setRows([]);
+    api.get('/api/operacional/desvios?tipo=semanal').then(async (r) => {
+      const datas: string[] = r?.datas || [];
+      if (datas.length < 2) { setLoading(false); return; }
+      const ini = datas[1], fim = datas[0]; setWin({ ini, fim });
+      const rr = await api.get(`/api/operacional/desvios?tipo=semanal&ini=${ini}&fim=${fim}`);
+      setRows(rr?.itens || []);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [barId]);
+  const data = useMemo(() => {
+    const byArea = new Map<string, { perda: number; sobra: number }>();
+    for (const it of rows) {
+      if (it.is_producao) continue;
+      const a = it.area || '—'; if (!byArea.has(a)) byArea.set(a, { perda: 0, sobra: 0 });
+      const v = Number(it.desvio_rs || 0); const o = byArea.get(a)!;
+      if (v < 0) o.perda += Math.abs(v); else o.sobra += v;
+    }
+    return Array.from(byArea.entries()).sort((a, b) => (b[1].perda + b[1].sobra) - (a[1].perda + a[1].sobra))
+      .map(([a, o]) => ({ area: a, perda: Number(o.perda.toFixed(2)), sobra: Number(o.sobra.toFixed(2)) }));
+  }, [rows]);
+
+  return (
+    <div className="space-y-3">
+      {loading ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div> : (
+        <ChartCard titulo="Perdas × Sobras por área" subtitulo={win ? `Última contagem semanal: ${ddmm(win.ini)} → ${ddmm(win.fim)}` : 'Sem contagens suficientes'}>
+          <GraficoBase tipo="barra" data={data} xKey="area" formatY={fmtBRL0} cores={['#e34948', '#1baf7a']} height={360}
+            series={[{ key: 'perda', label: 'Perda' }, { key: 'sobra', label: 'Sobra' }]} />
+        </ChartCard>
+      )}
+    </div>
+  );
+}
+
 const SUBS: Record<string, { key: string; label: string; el?: (barId: number) => React.ReactNode; o?: string }[]> = {
   producao: [
     { key: 'cmv', label: 'Estoque & CMV', el: (b) => <CmvEstoque barId={b} /> },
     { key: 'producoes', label: 'Produções', el: (b) => <Producoes barId={b} /> },
     { key: 'compras', label: 'Compras', el: (b) => <Compras barId={b} /> },
-    { key: 'desvios', label: 'Desvios', o: 'perdas e sobras' },
+    { key: 'desvios', label: 'Desvios', el: (b) => <Desvios barId={b} /> },
   ],
   financeiro: [
     { key: 'dre', label: 'DRE', el: (b) => <DRE barId={b} /> },

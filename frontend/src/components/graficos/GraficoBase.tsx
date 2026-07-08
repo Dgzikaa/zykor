@@ -42,7 +42,7 @@ const hexA = (hex: string, a: number) => {
 };
 
 export function GraficoBase({
-  tipo, data, xKey, series, stacked = false, height = 320, formatY, area = false,
+  tipo, data, xKey, series, stacked = false, height = 320, formatY, area = false, cores,
 }: {
   tipo: 'linha' | 'area' | 'barra';
   data: any[];
@@ -53,16 +53,18 @@ export function GraficoBase({
   formatY?: Fmt;
   formatX?: (v: any) => string;
   area?: boolean;
+  cores?: string[]; // override das cores por série (ex.: vermelho=perda / verde=sobra)
 }) {
   const th = useGraficoTheme();
-  const cor = (i: number) => th.cores[i % th.cores.length];
+  const paleta = cores && cores.length ? cores : th.cores;
+  const cor = (i: number) => paleta[i % paleta.length];
   const ehArea = tipo === 'area' || area;
   const ehBarra = tipo === 'barra';
   const xs = useMemo(() => data.map((d) => d[xKey]), [data, xKey]);
   const zoom = data.length > 14; // série longa → habilita scrub/zoom
 
   const option = useMemo(() => ({
-    color: th.cores,
+    color: paleta,
     animationDuration: 700,
     animationEasing: 'cubicOut',
     textStyle: { fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif' },
