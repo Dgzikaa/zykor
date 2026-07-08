@@ -249,7 +249,7 @@ export async function GET(request: NextRequest) {
     const extras = searchParams.get('extras') === '1';
 
     // cache morno (instância do Fluid Compute): re-navegação no mesmo período volta instantânea
-    const cacheKey = `rank:${barId}:${periodo}:${minShows}:${extras ? 1 : 0}:${iniStr}:${fimStr}`;
+    const cacheKey = `rank:${barId}:${periodo}:${minShows}:${extras ? 1 : 0}:${iniStr}:${fimStr}:dow${dow ?? 'all'}`;
     const hit = rankingCache.get(cacheKey);
     if (hit && Date.now() - hit.at < RANKING_TTL_MS) return NextResponse.json(hit.payload);
 
@@ -283,7 +283,10 @@ export async function GET(request: NextRequest) {
     if (evRes.error) throw evRes.error;
     const eventosRaw = evRes.data;
 
-    const eventos: EventoRow[] = (eventosRaw || []).map((e: any) => ({
+    const eventos: EventoRow[] = (eventosRaw || [])
+      // filtro por dia da semana (hub de Gráficos): recorta o ranking ao DOW escolhido.
+      .filter((e: any) => dow == null || new Date(String(e.data_evento).slice(0, 10) + 'T12:00:00Z').getUTCDay() === dow)
+      .map((e: any) => ({
       id: e.id,
       data_evento: e.data_evento,
       dia_semana: e.dia_semana || '',
