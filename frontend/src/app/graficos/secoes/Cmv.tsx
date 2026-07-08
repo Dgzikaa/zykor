@@ -51,7 +51,8 @@ export function SecaoCmv({ barId, periodo }: { barId: number; periodo: number })
     semana: `S${d.semana}`,
     cozinha: Number(d.estoque_final_cozinha || 0), bebidas: Number(d.estoque_final_bebidas || 0), drinks: Number(d.estoque_final_drinks || 0),
     limpo: Number(d.cmv_limpo_percentual || 0), teorico: Number(d.cmv_teorico_percentual || 0),
-  })), [cmv]);
+    // descarta semanas futuras/sem dado (deixavam metade do gráfico vazia + platô fantasma)
+  })).filter((d) => d.limpo > 0 || (d.cozinha + d.bebidas + d.drinks) > 0), [cmv]);
 
   const desviosArea = useMemo(() => {
     const by = new Map<string, { perda: number; sobra: number }>();

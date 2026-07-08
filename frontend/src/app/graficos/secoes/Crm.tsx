@@ -23,33 +23,49 @@ export function SecaoCrm({ barId, periodo }: { barId: number; periodo: number })
   const [clube, setClube] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // core enxuto (RPC rápidos) — renderiza sem esperar os pesados
   const carregar = useCallback(async () => {
     setLoading(true);
     const mesesN = Math.max(6, Math.min(24, periodo));
     try {
-      const [e, c, r, l, ch, cl] = await Promise.all([
+      const [e, c, r, cl] = await Promise.all([
         api.get(`/api/clientes-ativos/evolucao?bar_id=${barId}&meses=${mesesN}`).catch(() => null),
         api.get(`/api/analitico/clientes/retencao?meses=${Math.min(12, mesesN)}`).catch(() => null),
         api.get(`/api/analitico/clientes/rfm?bar_id=${barId}`).catch(() => null),
-        api.get(`/api/crm/ltv-engajamento?bar_id=${barId}`).catch(() => null),
-        api.get(`/api/crm/churn-prediction?bar_id=${barId}&limit=1`).catch(() => null),
         api.get(`/api/crm/clube?bar_id=${barId}&limit=1`).catch(() => null),
       ]);
       setEvo(e?.success ? (e.data || []) : []);
       setCoorte(c?.success ? (c.data || []) : []);
       setRfm(r?.success ? (r.resumo || []) : []);
-      setLtv(l?.success ? l.stats : null);
-      setChurn(ch?.success ? ch.stats : null);
       setClube(cl?.success ? cl : null);
-    } catch { setEvo([]); setCoorte([]); setRfm([]); setLtv(null); setChurn(null); setClube(null); }
+    } catch { setEvo([]); setCoorte([]); setRfm([]); setClube(null); }
     finally { setLoading(false); }
   }, [barId, periodo]);
   useEffect(() => { carregar(); }, [carregar]);
 
-  const evoData = useMemo(() => evo.map((m) => ({
-    mes: m.mesLabel || m.mes, novos: Number(m.novosClientes) || 0, retornantes: Number(m.clientesRetornantes) || 0,
-    base: Number(m.baseAtiva) || 0, total: Number(m.totalClientes) || 0, pctNovos: Number(m.percentualNovos) || 0,
-  })), [evo]);
+  // pesados (varrem `visitas`) — carregam depois, sem bloquear a seção
+  useEffect(() => {
+    let vivo = true;
+    setLtv(null); setChurn(null);
+    (async () => {
+      const [l, ch] = await Promise.all([
+        api.get(`/api/crm/ltv-engajamento?bar_id=${barId}`).catch(() => null),
+        api.get(`/api/crm/churn-prediction?bar_id=${barId}&limit=1`).catch(() => null),
+      ]);
+      if (!vivo) return;
+      setLtv(l?.success ? l.stats : null);
+      setChurn(ch?.success ? ch.stats : null);
+    })();
+    return () => { vivo = false; };
+  }, [barId]);
+
+  const evoData = useMemo(() => {
+    const hojeMes = new Date().toISOString().slice(0, 7); // descarta mês corrente parcial (zera base ativa)
+    return evo.filter((m) => String(m.mes || '').slice(0, 7) < hojeMes).map((m) => ({
+      mes: m.mesLabel || m.mes, novos: Number(m.novosClientes) || 0, retornantes: Number(m.clientesRetornantes) || 0,
+      base: Number(m.baseAtiva) || 0, total: Number(m.totalClientes) || 0, pctNovos: Number(m.percentualNovos) || 0,
+    }));
+  }, [evo]);
 
   // heatmap de retenção: linhas = coorte (mês entrada), colunas = mes_offset, valor = % retenção
   const heat = useMemo(() => {

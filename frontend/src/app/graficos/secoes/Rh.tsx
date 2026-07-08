@@ -82,6 +82,10 @@ export function SecaoRh({ barId, periodo }: { barId: number; periodo: number }) 
     return [...by.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1).map(([k, o]) => ({ periodo: ddmm(k), freelas: Math.round(o.freelas), fixo: Math.round(o.fixo) }));
   }, [custo]);
 
+  const temTurnover = useMemo(() => meses.some((m: any) => m.turnover > 0), [meses]);
+  const temAbsenteismo = useMemo(() => meses.some((m: any) => m.faltas > 0 || m.atestados > 0), [meses]);
+  const temCusto = useMemo(() => custoSemana.some((c) => c.freelas > 0 || c.fixo > 0), [custoSemana]);
+
   const produtividade = useMemo(() => (equipe?.ranking_funcionarios || [])
     .filter((r: any) => Number(r.total_checklists) > 0)
     .map((r: any) => ({ nome: String(r.nome || '—').split(' ').slice(0, 2).join(' '), taxa: +(Number(r.taxa_conclusao) || 0).toFixed(0) }))
@@ -112,28 +116,31 @@ export function SecaoRh({ barId, periodo }: { barId: number; periodo: number }) 
             series={[{ key: 'admissoes', label: 'Admissões' }, { key: 'demissoes', label: 'Demissões' }]} />
         </ChartCard>
 
+        {porTipo.length >= 2 && (
         <ChartCard titulo="Headcount por tipo de contrato" subtitulo="CLT · PJ · Freela (ativos hoje)">
           <GraficoDonut data={porTipo} nameKey="tipo" valueKey="n" formatV={num} height={320} centro={num((porTipo).reduce((s: number, t: any) => s + t.n, 0))} />
-        </ChartCard>
+        </ChartCard>)}
 
         <ChartCard titulo="Evolução do headcount" subtitulo="nº de pessoas ativas ao fim de cada mês">
           <GraficoBase tipo="area" data={meses} xKey="label" formatY={num} height={320} series={[{ key: 'headcount', label: 'Headcount' }]} />
         </ChartCard>
 
+        {temTurnover && (
         <ChartCard titulo="Turnover mensal" subtitulo="% de rotatividade da equipe por mês">
           <GraficoBase tipo="linha" data={meses} xKey="label" formatY={pct} height={320} series={[{ key: 'turnover', label: 'Turnover' }]} />
-        </ChartCard>
+        </ChartCard>)}
 
         <ChartCard titulo="Headcount por área" subtitulo="quantas pessoas em cada setor">
           <GraficoBarraH data={porArea} xKey="area" valueKey="n" formatV={num} height={320} />
         </ChartCard>
 
+        {temAbsenteismo && (
         <ChartCard titulo="Absenteísmo" subtitulo="faltas e atestados por mês">
           <GraficoBase tipo="barra" stacked data={meses} xKey="label" formatY={num} height={320}
             series={[{ key: 'faltas', label: 'Faltas' }, { key: 'atestados', label: 'Atestados' }]} />
-        </ChartCard>
+        </ChartCard>)}
 
-        {custoSemana.length > 0 && (
+        {temCusto && (
         <ChartCard titulo="Custo de mão de obra" subtitulo="freelas × fixo estimado por semana" span={2}>
           <GraficoBase tipo="barra" stacked data={custoSemana} xKey="periodo" formatY={moneyK} height={320}
             series={[{ key: 'freelas', label: 'Freelas' }, { key: 'fixo', label: 'Fixo estimado' }]} />
