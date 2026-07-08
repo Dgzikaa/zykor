@@ -6,6 +6,9 @@ import { PageShell } from '@/components/layout/PageShell';
 import { useBar } from '@/contexts/BarContext';
 import { BarChart3, DollarSign, Store, Music, Boxes, Users, HeartHandshake, Loader2 } from 'lucide-react';
 import { SecaoArtistico } from './secoes/Artistico';
+import { SecaoVendas } from './secoes/Vendas';
+import { SecaoFinanceiro } from './secoes/Financeiro';
+import { SecaoCmv } from './secoes/Cmv';
 
 const SECOES = [
   { key: 'visao', label: 'Visão Geral', icon: BarChart3 },
@@ -62,10 +65,10 @@ export default function GraficosPage() {
           ) : (
             <>
               <TabsContent value="visao"><EmConstrucao nome="Visão Geral" /></TabsContent>
-              <TabsContent value="financeiro"><EmConstrucao nome="Financeiro" /></TabsContent>
-              <TabsContent value="vendas"><EmConstrucao nome="Vendas & Salão" /></TabsContent>
+              <TabsContent value="financeiro"><SecaoFinanceiro barId={barId} periodo={periodo} /></TabsContent>
+              <TabsContent value="vendas"><SecaoVendas barId={barId} periodo={periodo} /></TabsContent>
               <TabsContent value="artistico"><SecaoArtistico barId={barId} periodo={periodo} /></TabsContent>
-              <TabsContent value="cmv"><EmConstrucao nome="CMV & Produção" /></TabsContent>
+              <TabsContent value="cmv"><SecaoCmv barId={barId} periodo={periodo} /></TabsContent>
               <TabsContent value="rh"><EmConstrucao nome="Equipe (RH)" /></TabsContent>
               <TabsContent value="crm"><EmConstrucao nome="Clientes (CRM)" /></TabsContent>
             </>
