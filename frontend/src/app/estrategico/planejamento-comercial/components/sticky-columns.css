@@ -1,6 +1,6 @@
 /* Colunas congeladas via position: sticky (sem JS).
    Offsets = soma acumulada das larguras das 6 colunas fixas:
-   Data 48 · Dia 38 · Título 220 · Artistas 110 · Receita Real 110 · Meta M1 110  (total 636px) */
+   Data 48 · Dia 38 · Título 280 · Artistas 90 · Receita Real 110 · Meta M1 110  (total 676px) */
 .sticky-col-1,
 .sticky-col-2,
 .sticky-col-3,
@@ -15,9 +15,9 @@
 .sticky-col-1 { left: 0; }
 .sticky-col-2 { left: 48px; }
 .sticky-col-3 { left: 86px; }
-.sticky-col-4 { left: 306px; }  /* Artistas */
-.sticky-col-5 { left: 416px; }  /* Receita Real */
-.sticky-col-6 { left: 526px; }  /* Meta M1 */
+.sticky-col-4 { left: 366px; }  /* Artistas */
+.sticky-col-5 { left: 456px; }  /* Receita Real */
+.sticky-col-6 { left: 566px; }  /* Meta M1 */
 
 /* Cabeçalhos das colunas fixas: congelam nos DOIS eixos —
    vertical (top: 32px, logo abaixo da linha de grupos) e horizontal (left). */
@@ -36,9 +36,9 @@
 .sticky-header-1 { left: 0; }
 .sticky-header-2 { left: 48px; }
 .sticky-header-3 { left: 86px; }
-.sticky-header-4 { left: 306px; }
-.sticky-header-5 { left: 416px; }
-.sticky-header-6 { left: 526px; }
+.sticky-header-4 { left: 366px; }
+.sticky-header-5 { left: 456px; }
+.sticky-header-6 { left: 566px; }
 
 /* Canto superior-esquerdo (célula vazia da linha de grupos) fica pinado */
 .sticky-corner {
