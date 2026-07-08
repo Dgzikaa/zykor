@@ -5,10 +5,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageShell } from '@/components/layout/PageShell';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
-import { BarChart3, DollarSign, Store, Music, Boxes, Users, HeartHandshake } from 'lucide-react';
+import { BarChart3, DollarSign, Store, Music, Boxes, Users, HeartHandshake, CalendarDays } from 'lucide-react';
 import { mesesRecentes } from './_periodo';
 import { SecaoArtistico } from './secoes/Artistico';
 import { SecaoVendas } from './secoes/Vendas';
+import { SecaoPorDiaSemana } from './secoes/PorDiaSemana';
 import { SecaoFinanceiro } from './secoes/Financeiro';
 import { SecaoCmv } from './secoes/Cmv';
 import { SecaoRh } from './secoes/Rh';
@@ -19,6 +20,7 @@ const SECOES = [
   { key: 'visao', label: 'Visão Geral', icon: BarChart3 },
   { key: 'financeiro', label: 'Financeiro', icon: DollarSign },
   { key: 'vendas', label: 'Vendas & Salão', icon: Store },
+  { key: 'diasemana', label: 'Por dia da semana', icon: CalendarDays },
   { key: 'artistico', label: 'Artístico', icon: Music },
   { key: 'cmv', label: 'CMV & Produção', icon: Boxes },
   { key: 'rh', label: 'Equipe', icon: Users },
@@ -80,6 +82,7 @@ export default function GraficosPage() {
               <TabsContent value="visao"><SecaoVisaoGeral barId={barId} periodo={periodo} mesRef={mesRef} /></TabsContent>
               <TabsContent value="financeiro"><SecaoFinanceiro barId={barId} periodo={periodo} mesRef={mesRef} /></TabsContent>
               <TabsContent value="vendas"><SecaoVendas barId={barId} periodo={periodo} mesRef={mesRef} /></TabsContent>
+              <TabsContent value="diasemana"><SecaoPorDiaSemana barId={barId} periodo={periodo} mesRef={mesRef} /></TabsContent>
               <TabsContent value="artistico"><SecaoArtistico barId={barId} periodo={periodo} mesRef={mesRef} /></TabsContent>
               <TabsContent value="cmv"><SecaoCmv barId={barId} periodo={periodo} mesRef={mesRef} /></TabsContent>
               <TabsContent value="rh"><SecaoRh barId={barId} periodo={periodo} mesRef={mesRef} /></TabsContent>
