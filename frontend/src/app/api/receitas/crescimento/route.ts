@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { bucketDe } from '@/lib/receitas/periodo';
 
 /**
  * Taxa de Crescimento (Dashboard de Receitas) — FATURAMENTO POR DIA ABERTO.
@@ -17,32 +18,10 @@ import { createServiceRoleClient } from '@/lib/supabase-admin';
 export const dynamic = 'force-dynamic';
 const supabase = createServiceRoleClient();
 
-const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
 function getBarId(request: NextRequest): number | null {
   const h = request.headers.get('x-selected-bar-id');
   const q = new URL(request.url).searchParams.get('bar_id');
   return parseInt(String(h || q || ''), 10) || null;
-}
-
-/** Segunda-feira (ISO) da semana da data. Usa meio-dia UTC pra evitar borda de fuso. */
-function segundaDa(dataStr: string): string {
-  const d = new Date(dataStr + 'T12:00:00Z');
-  const dow = d.getUTCDay(); // 0=dom..6=sáb
-  d.setUTCDate(d.getUTCDate() + (dow === 0 ? -6 : 1 - dow));
-  return d.toISOString().slice(0, 10);
-}
-
-function bucketDe(dataStr: string, gran: string): { key: string; label: string } {
-  const s = dataStr.slice(0, 10);
-  const [y, m, d] = s.split('-');
-  if (gran === 'mes') return { key: s.slice(0, 7), label: `${MESES[Number(m) - 1]}/${y.slice(2)}` };
-  if (gran === 'semana') {
-    const seg = segundaDa(s);
-    const [, sm, sd] = seg.split('-');
-    return { key: seg, label: `${sd}/${sm}` };
-  }
-  return { key: s, label: `${d}/${m}` };
 }
 
 export async function GET(request: NextRequest) {

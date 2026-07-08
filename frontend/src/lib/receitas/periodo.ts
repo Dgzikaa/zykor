@@ -68,6 +68,38 @@ export function calcularRange(preset: PresetFixo, hoje: Date = new Date()): { in
   return { inicio: toISODate(inicio), fim: toISODate(fim) };
 }
 
+// ---------------------------------------------------------------------------
+// Bucketização por granularidade (usada pelas rotas de API do Dashboard)
+// ---------------------------------------------------------------------------
+
+const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+/** Segunda-feira (ISO) da semana da data. Usa meio-dia UTC pra evitar borda de fuso. */
+export function segundaDa(dataStr: string): string {
+  const d = new Date(dataStr.slice(0, 10) + 'T12:00:00Z');
+  const dow = d.getUTCDay(); // 0=dom..6=sáb
+  d.setUTCDate(d.getUTCDate() + (dow === 0 ? -6 : 1 - dow));
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Chave + rótulo do bucket de uma data conforme a granularidade.
+ *   'mes'    → key 'YYYY-MM', label 'Jul/25'
+ *   'semana' → key = segunda ISO, label 'dd/mm'
+ *   'dia'    → key = data, label 'dd/mm'
+ */
+export function bucketDe(dataStr: string, granularidade: Granularidade | string): { key: string; label: string } {
+  const s = dataStr.slice(0, 10);
+  const [y, m, d] = s.split('-');
+  if (granularidade === 'mes') return { key: s.slice(0, 7), label: `${MESES[Number(m) - 1]}/${y.slice(2)}` };
+  if (granularidade === 'semana') {
+    const seg = segundaDa(s);
+    const [, sm, sd] = seg.split('-');
+    return { key: seg, label: `${sd}/${sm}` };
+  }
+  return { key: s, label: `${d}/${m}` };
+}
+
 /** Valor inicial padrão do picker. */
 export function periodoPadrao(
   granularidade: Granularidade = 'mes',
