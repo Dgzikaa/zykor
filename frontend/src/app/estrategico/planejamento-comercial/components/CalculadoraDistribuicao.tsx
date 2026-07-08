@@ -120,7 +120,10 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
   const [confirmando, setConfirmando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
   const [resultado, setResultado] = useState<string | null>(null);
-  const [hydrated, setHydrated] = useState(false);
+  // chave (bar+ano+mês) do cfg atualmente carregado. Persistimos SÓ quando ela bate
+  // com o bar/mês corrente — senão, ao trocar de bar, o cfg antigo era gravado na chave
+  // do bar novo (bar 3 "puxava" o que foi feito no bar 4).
+  const [hydratedKey, setHydratedKey] = useState<string | null>(null);
   const [aba, setAba] = useState<'calc' | 'custos' | 'hist'>('calc');
   const [cenario, setCenario] = useState<'m1' | 'm2' | 'm3'>('m1');
   const [preservarManuais, setPreservarManuais] = useState(true);
@@ -144,26 +147,29 @@ export function CalculadoraDistribuicao({ barId, ano, mes, mesLabel, diasManuais
   // carrega config por bar+mês: rascunho local (instantâneo) OU, se não houver,
   // a config salva no banco (durável, gravada ao clicar Aplicar).
   useEffect(() => {
-    setHydrated(false);
+    const key = storeKey(barId, ano, mes);
+    setHydratedKey(null); // invalida o cfg antigo até carregar o do bar/mês atual
     let cancel = false;
     let draft: CalcCfg | null = null;
     try {
-      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(storeKey(barId, ano, mes)) : null;
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
       if (raw) draft = { ...cfgDefault(), ...JSON.parse(raw) };
     } catch { draft = null; }
-    if (draft) { setCfg(draft); setHydrated(true); return; }
-    if (!barId) { setCfg(cfgDefault()); setHydrated(true); return; }
+    if (draft) { setCfg(draft); setHydratedKey(key); return; }
+    if (!barId) { setCfg(cfgDefault()); setHydratedKey(key); return; }
     apiCall(`/api/eventos/distribuicao-config?ano=${ano}&mes=${mes}`, { headers: { 'x-selected-bar-id': String(barId) } })
-      .then((r: any) => { if (!cancel) { setCfg(r?.config ? cfgFromDb(r.config) : cfgDefault()); setHydrated(true); } })
-      .catch(() => { if (!cancel) { setCfg(cfgDefault()); setHydrated(true); } });
+      .then((r: any) => { if (!cancel) { setCfg(r?.config ? cfgFromDb(r.config) : cfgDefault()); setHydratedKey(key); } })
+      .catch(() => { if (!cancel) { setCfg(cfgDefault()); setHydratedKey(key); } });
     return () => { cancel = true; };
   }, [barId, ano, mes]);
 
-  // persiste rascunho local (só depois de hidratar, pra não gravar default por cima)
+  // persiste rascunho local — SÓ na chave pra qual o cfg foi carregado (evita gravar o
+  // cfg do bar anterior na chave do bar novo durante a troca de bar/mês).
   useEffect(() => {
-    if (!hydrated) return;
-    try { if (typeof window !== 'undefined') window.localStorage.setItem(storeKey(barId, ano, mes), JSON.stringify(cfg)); } catch { /* ignore */ }
-  }, [cfg, barId, ano, mes, hydrated]);
+    const key = storeKey(barId, ano, mes);
+    if (hydratedKey !== key) return;
+    try { if (typeof window !== 'undefined') window.localStorage.setItem(key, JSON.stringify(cfg)); } catch { /* ignore */ }
+  }, [cfg, barId, ano, mes, hydratedKey]);
 
   // histórico 8 semanas
   useEffect(() => {
