@@ -239,15 +239,17 @@ export async function GET(request: NextRequest) {
 
     const dataInicial = new Date();
     dataInicial.setMonth(dataInicial.getMonth() - periodo);
-    const dataInicialStr = dataInicial.toISOString().split('T')[0];
-    const hojeStr = new Date().toISOString().split('T')[0];
+    // Janela do ranking: se `de`/`ate` vierem (visão mensal do hub de Gráficos), recorta por elas;
+    // senão, janela retroativa de `periodo` meses até hoje. (Antes o ranking ignorava de/ate.)
+    const iniStr = de || dataInicial.toISOString().split('T')[0];
+    const fimStr = ate || new Date().toISOString().split('T')[0];
 
     // mix + consumação são pesados (fn_consumo_por_artista ~12s) e nenhuma tela do ranking
     // exibe esses campos → só computa com ?extras=1. Off por padrão.
     const extras = searchParams.get('extras') === '1';
 
     // cache morno (instância do Fluid Compute): re-navegação no mesmo período volta instantânea
-    const cacheKey = `rank:${barId}:${periodo}:${minShows}:${extras ? 1 : 0}`;
+    const cacheKey = `rank:${barId}:${periodo}:${minShows}:${extras ? 1 : 0}:${iniStr}:${fimStr}`;
     const hit = rankingCache.get(cacheKey);
     if (hit && Date.now() - hit.at < RANKING_TTL_MS) return NextResponse.json(hit.payload);
 
@@ -260,22 +262,22 @@ export async function GET(request: NextRequest) {
       supabase.from('eventos_base')
         .select('id, data_evento, dia_semana, real_r, cl_real, publico_real, c_art, t_medio, faturamento_bar')
         .eq('bar_id', barId).gt('real_r', 1000)
-        .gte('data_evento', dataInicialStr).lte('data_evento', hojeStr)
+        .gte('data_evento', iniStr).lte('data_evento', fimStr)
         .order('data_evento', { ascending: true }),
       ops.from('evento_artistas')
         .select('evento_id, artista_id, artista_nome, c_art, horario_inicio, horario_fim')
         .eq('bar_id', barId),
-      ops.rpc('fn_ca_cache_artista', { p_bar: barId, p_ini: dataInicialStr, p_fim: hojeStr }),
+      ops.rpc('fn_ca_cache_artista', { p_bar: barId, p_ini: iniStr, p_fim: fimStr }),
       ops.from('bar_artistas').select('id, nome, tipo').eq('bar_id', barId),
       silver.from('nps_artista_respostas')
         .select('artista_id, nps, categoria')
-        .eq('bar_id', barId).gte('data_visita', dataInicialStr).lte('data_visita', hojeStr),
+        .eq('bar_id', barId).gte('data_visita', iniStr).lte('data_visita', fimStr),
       extras
         ? gold.from('mix_produtos_diario').select('dt_gerencial, categoria_mix, faturamento')
-            .eq('bar_id', barId).gte('dt_gerencial', dataInicialStr).lte('dt_gerencial', hojeStr)
+            .eq('bar_id', barId).gte('dt_gerencial', iniStr).lte('dt_gerencial', fimStr)
         : Promise.resolve({ data: [] as any[] }),
       extras
-        ? fin.rpc('fn_consumo_por_artista', { p_bar: barId, p_ini: dataInicialStr, p_fim: hojeStr })
+        ? fin.rpc('fn_consumo_por_artista', { p_bar: barId, p_ini: iniStr, p_fim: fimStr })
         : Promise.resolve({ data: [] as any[] }),
     ]);
     if (evRes.error) throw evRes.error;
@@ -421,7 +423,7 @@ export async function GET(request: NextRequest) {
     }
 
     // #5 aquisição/fidelização por evento (cliente cuja 1ª visita foi naquela noite → virou recorrente)
-    const { data: aqRaw } = await ops.rpc('fn_aquisicao_por_evento', { p_bar: barId, p_ini: dataInicialStr, p_fim: hojeStr });
+    const { data: aqRaw } = await ops.rpc('fn_aquisicao_por_evento', { p_bar: barId, p_ini: iniStr, p_fim: fimStr });
     const aqPorEvento = new Map<number, { novos: number; fidelizados: number }>();
     for (const r of aqRaw || []) aqPorEvento.set(Number(r.evento_id), { novos: Number(r.novos) || 0, fidelizados: Number(r.fidelizados) || 0 });
 
@@ -558,7 +560,7 @@ export async function GET(request: NextRequest) {
       sem_dados: links.length === 0,
       data: atracoes,
       stats,
-      periodo: { inicio: dataInicialStr, fim: hojeStr, meses: periodo },
+      periodo: { inicio: iniStr, fim: fimStr, meses: periodo },
     };
     rankingCache.set(cacheKey, { at: Date.now(), payload });
     return NextResponse.json(payload);
