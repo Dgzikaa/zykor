@@ -93,12 +93,6 @@ const CHECKLIST: Area[] = [
         link: '/marketing/instagram/reels',
       },
       {
-        id: 'ig2', titulo: 'IG ROI por post — algum post movimentou caixa?',
-        o_que_fazer: 'Abre IG ROI. Ordena por maior impacto.',
-        o_que_esperar: 'Top 3 posts mexeram +100% vs baseline. Você confirma que aquele evento bombou mesmo?',
-        link: '/marketing/instagram/ig-roi',
-      },
-      {
         id: 'ig3', titulo: 'Demografia bate com o público real?',
         o_que_fazer: 'Abre Demografia. Vê pie de gênero e top cidades.',
         o_que_esperar: 'Ord 60%+ feminino, Brasília no topo. Bate com sua percepção?',

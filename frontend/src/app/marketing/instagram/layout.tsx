@@ -8,12 +8,10 @@ import {
   PlayCircle,
   Camera,
   Users,
-  DollarSign,
 } from 'lucide-react';
 
 const TABS = [
   { href: '/marketing/instagram', label: 'Dashboard', icone: LayoutDashboard },
-  { href: '/marketing/instagram/ig-roi', label: 'ROI por post', icone: DollarSign },
   { href: '/marketing/instagram/ai-insights', label: 'IA Insights', icone: Sparkles },
   { href: '/marketing/instagram/reels', label: 'Reels', icone: PlayCircle },
   { href: '/marketing/instagram/stories', label: 'Stories', icone: Camera },
