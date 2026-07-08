@@ -4,7 +4,6 @@ import {
   createContext,
   useContext,
   useState,
-  useEffect,
   useCallback,
   ReactNode,
 } from 'react';
@@ -35,63 +34,9 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
     setIsOpen(prev => !prev);
   }, []);
 
-  // Global keyboard shortcut listener
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // Cmd+K ou Ctrl+K
-      if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
-        event.preventDefault();
-        toggleCommandPalette();
-        return;
-      }
-
-      // Cmd+Shift+P ou Ctrl+Shift+P (alternativo)
-      if (
-        (event.metaKey || event.ctrlKey) &&
-        event.shiftKey &&
-        event.key === 'P'
-      ) {
-        event.preventDefault();
-        toggleCommandPalette();
-        return;
-      }
-
-      // / para busca rápida (quando não estiver em input)
-      if (
-        event.key === '/' &&
-        !isOpen &&
-        document.activeElement?.tagName !== 'INPUT' &&
-        document.activeElement?.tagName !== 'TEXTAREA'
-      ) {
-        event.preventDefault();
-        openPalette();
-        return;
-      }
-
-      // Escape para fechar
-      if (event.key === 'Escape' && isOpen) {
-        event.preventDefault();
-        closePalette();
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, openPalette, closePalette, toggleCommandPalette]);
-
-  // Prevent body scroll when palette is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
+  // Command Palette (busca / Cmd+K) DESATIVADO — decisão do produto: não usamos mais.
+  // Provider mantido inerte só p/ não quebrar consumidores antigos; sem atalho de teclado,
+  // sem modal montado (removido do ClientOnlyLayoutParts) e sem scroll-lock.
 
   return (
     <CommandPaletteContext.Provider

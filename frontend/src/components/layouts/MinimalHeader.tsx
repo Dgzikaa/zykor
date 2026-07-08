@@ -14,14 +14,10 @@ import {
   Home,
   Check,
   Menu,
-  Search,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from '@/contexts/ThemeContext';
-import {
-  CommandPaletteSearchPlaceholder,
-} from '@/components/ui/command-palette-trigger';
 import { NotificationCenter } from '@/components/NotificationCenter';
 import { ContaAzulSyncButton } from '@/components/ContaAzulSyncButton';
 import { BarLogo } from '@/components/BarLogo';
@@ -130,7 +126,7 @@ export function MinimalHeader() {
 
   return (
     <header className="h-16 bg-[hsl(var(--background))] flex items-center justify-between px-3 sm:px-6 gap-2 sm:gap-4 border-b border-[hsl(var(--border))]">
-      {/* Left: Menu Toggle + Search + Page Title */}
+      {/* Left: Menu Toggle + Page Title */}
       <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
         {/* Menu Toggle Button — abre o mesmo drawer da BottomNavigation (só no mobile) */}
         <button
@@ -140,11 +136,6 @@ export function MinimalHeader() {
         >
           <Menu className="w-5 h-5" />
         </button>
-
-        {/* Search: só no desktop. No celular sai de cena (estourava o header e há a busca do Menu). */}
-        <div className="hidden md:flex items-center min-w-0">
-          <CommandPaletteSearchPlaceholder />
-        </div>
 
         {/* Page Title */}
         {pageTitle && <h1 className="hidden sm:block text-lg font-semibold truncate">{pageTitle}</h1>}
