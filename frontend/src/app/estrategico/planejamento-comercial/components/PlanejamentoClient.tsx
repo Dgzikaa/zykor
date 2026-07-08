@@ -173,6 +173,7 @@ function LabelField({
 interface EventoEdicaoCompleta {
   id: number;
   nome: string;
+  titulo: string;
   data_evento: string;
   dia_semana: string;
   m1_r: number;
@@ -515,6 +516,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
     const dadosIniciais: EventoEdicaoCompleta = {
       id: evento.evento_id,
       nome: evento.evento_nome,
+      titulo: evento.titulo ?? raw.titulo ?? '',
       data_evento: evento.data_evento,
       dia_semana: evento.dia_semana,
       m1_r: evento.m1_receita || 0,
@@ -600,6 +602,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
           // projeção do gold (sem linha no eventos_base) — senão o M1 não salvava.
           data_evento: eventoEdicao.data_evento,
           nome: eventoEdicao.nome,
+          titulo: eventoEdicao.titulo,
           m1_r: eventoEdicao.m1_r,
           cl_plan: eventoEdicao.cl_plan,
           te_plan: eventoEdicao.te_plan,
@@ -872,8 +875,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                         <div className="flex items-center justify-between gap-2">
                           <div role="button" tabIndex={0} onClick={() => abrirModal(evento, true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirModal(evento, true); } }} className="min-w-0 text-left cursor-pointer" title="Editar evento">
                             <div className="text-[11px] text-[hsl(var(--muted-foreground))]">{evento.data_curta} · {evento.dia_semana?.substring(0, 3).toUpperCase()}</div>
-                            <div className="text-sm font-semibold text-blue-700 dark:text-blue-300 truncate">{evento.flag_urgente && '🚩 '}{evento.evento_nome || 'Sem atração'}</div>
-                            {(evento.artistas || []).length > 0 && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">🎤 {(evento.artistas || []).join(', ')}</div>}
+                            <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">{evento.flag_urgente && '🚩 '}{evento.titulo || '—'}</div>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             <Button size="sm" variant="outline" onClick={() => abrirModal(evento, true)}>Editar</Button>
@@ -1138,18 +1140,18 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                               </button>
                             </td>
                             <td className="sticky-col-2 px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
-                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))]" style={{width: '140px', minWidth: '140px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}} title={evento.observacoes ? `${evento.evento_nome || 'Sem atração'}\n📌 ${evento.observacoes}` : (evento.evento_nome || 'Sem atração')}>
-                              <div className="flex items-center gap-1 min-w-0">
+                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))]" style={{width: '140px', minWidth: '140px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}} title={`Label: ${evento.evento_nome || 'Sem atração'}${evento.observacoes ? `\n📌 ${evento.observacoes}` : ''}`}>
+                              <div className="flex items-start gap-1 min-w-0">
                                 {evento.flag_urgente && (
-                                  <span title="Urgente (ex.: artista ainda não definido)" className="shrink-0 text-[10px]">🚩</span>
+                                  <span title="Urgente (ex.: artista ainda não definido)" className="shrink-0 text-[10px] mt-0.5">🚩</span>
                                 )}
                                 <button
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); abrirModal(evento, true); }}
-                                  className="block truncate text-left text-blue-700 dark:text-blue-300 hover:underline"
+                                  className="block text-left whitespace-normal break-words leading-tight text-blue-700 dark:text-blue-300 hover:underline"
                                   title="Editar evento"
                                 >
-                                  {evento.evento_nome || '-'}
+                                  {evento.titulo || '—'}
                                 </button>
                               </div>
                               {evento.observacoes && (
@@ -1767,8 +1769,22 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
             <DialogContent onOpenAutoFocus={(e) => e.preventDefault()} className="max-w-[96vw] max-h-[92vh] sm:max-w-[88vw] lg:max-w-[70vw] p-0 overflow-hidden rounded-lg shadow-lg bg-[hsl(var(--background))] border border-[hsl(var(--border))]">
               <DialogHeader className="bg-[hsl(var(--muted))] p-4 border-b border-[hsl(var(--border))]"><DialogTitle className="flex items-center gap-3 text-xl font-semibold text-[hsl(var(--foreground))]"><BarChart3 className="h-6 w-6 text-[hsl(var(--muted-foreground))]" />{modoEdicao ? 'Editar Evento' : 'Visualizar Evento'} - {eventoEdicao?.nome}</DialogTitle><DialogDescription>{modoEdicao ? 'Edite o planejamento: Meta M1, custo artístico e produção (previsão), label, artistas e observação.' : 'Planejamento do evento (Meta M1 e custos previstos).'}</DialogDescription></DialogHeader>
               <div className="flex-1 overflow-y-auto p-3">
+                {/* Título de exibição: texto livre (label + artistas). É o que aparece na
+                    coluna do Planejamento. Label e artistas ficam nos campos abaixo. */}
                 <div className="mb-3 p-3 bg-[hsl(var(--muted))] rounded border">
-                  <Label>Nome / Label do Evento</Label>
+                  <Label>Título do Evento <span className="text-xs text-muted-foreground font-normal">(o que aparece na tabela — ex.: &ldquo;Feijuca do Ordi - Hoje eu Vou (16h), STZ (20h), Dj Afrika&rdquo;)</span></Label>
+                  {modoEdicao
+                    ? <textarea
+                        value={eventoEdicao?.titulo || ''}
+                        onChange={e => setEventoEdicao(p => p ? {...p, titulo: e.target.value} : null)}
+                        placeholder="Título completo do dia (label + artistas)"
+                        rows={2}
+                        className="flex w-full rounded-xl border px-4 py-2.5 text-sm border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 resize-y"
+                      />
+                    : <div className="p-2 bg-[hsl(var(--background))] rounded border whitespace-pre-wrap">{eventoEdicao?.titulo || '—'}</div>}
+                </div>
+                <div className="mb-3 p-3 bg-[hsl(var(--muted))] rounded border">
+                  <Label>Label do Evento <span className="text-xs text-muted-foreground font-normal">(marca do dia, p/ agrupar/analisar — ex.: &ldquo;Feijuca do Ordi&rdquo;)</span></Label>
                   {modoEdicao
                     ? <LabelField value={eventoEdicao?.nome || ''} options={labelsCadastro} onChange={(nome) => setEventoEdicao(p => p ? {...p, nome} : null)} />
                     : <div className="p-2 bg-[hsl(var(--background))] rounded border">{eventoEdicao?.nome || '-'}</div>}

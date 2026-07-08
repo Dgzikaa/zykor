@@ -48,6 +48,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     
     // Acessar valores diretamente
     const nome = body.nome;
+    const titulo = body.titulo;
     const m1_r = body.m1_r;
     const cl_plan = body.cl_plan;
     const te_plan = body.te_plan;
@@ -91,6 +92,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     };
     // flag urgente só é tocado quando o payload envia (evita zerar em saves que não sabem do campo)
     if (flag_urgente !== undefined) updateData.flag_urgente = flag_urgente === true;
+    // título de exibição (texto livre) — só toca quando enviado; string vazia → null
+    if (titulo !== undefined) updateData.titulo = (titulo && String(titulo).trim()) ? String(titulo) : null;
     // marca origem MANUAL da Meta M1 (mostra 🔔 no Planejamento) só quando o valor muda de fato
     // pelo modal — assim o Aplicar da calculadora (que zera m1_manual) não é confundido.
     const m1Num = (m1_r !== undefined && m1_r !== null && !isNaN(m1_r)) ? Number(m1_r) : null;

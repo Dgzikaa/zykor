@@ -55,6 +55,8 @@ export interface PlanejamentoData {
   data_evento: string;
   dia_semana: string;
   evento_nome: string;
+  /** título de exibição (texto livre: label + artistas). É o que a coluna do grid mostra. */
+  titulo?: string | null;
   /** nomes dos artistas taggeados no evento (coluna Artistas do grid) */
   artistas?: string[];
   /** observação/contexto do evento (Copa, telão, co-evento…) — hover no Label + modal */
@@ -250,7 +252,7 @@ export async function getPlanejamentoComercial(
     supabase
       .schema('operations' as never)
       .from('eventos_base')
-      .select('id, nome, data_evento, observacoes, flag_urgente, m1_manual, m1_r, cl_plan, te_plan, tb_plan, c_art, c_prod, c_art_projecao, c_prod_projecao, c_artistico_plan, c_prod_plan, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo, usa_yuzer, usa_sympla')
+      .select('id, nome, titulo, data_evento, observacoes, flag_urgente, m1_manual, m1_r, cl_plan, te_plan, tb_plan, c_art, c_prod, c_art_projecao, c_prod_projecao, c_artistico_plan, c_prod_plan, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo, usa_yuzer, usa_sympla')
       .eq('bar_id', barId)
       .gte('data_evento', dataInicio)
       .lt('data_evento', dataFinalConsulta),
@@ -440,6 +442,8 @@ export async function getPlanejamentoComercial(
         : String(evento.dia_semana || ''),
       // nome vem do eventos_base (onde o edit grava) — gold.planejamento.nome só atualiza no ETL
       evento_nome: manual?.nome ?? evento.nome ?? '',
+      // título de exibição (texto livre) — a tabela mostra ele; label/artistas ficam na edição
+      titulo: manual?.titulo ?? null,
       // artistas taggeados (evento_artistas), pela chave eventos_base.id
       artistas: manual?.id ? (artistasPorEvento.get(manual.id) || []) : [],
       // observação/contexto (do eventos_base, campo manual)
