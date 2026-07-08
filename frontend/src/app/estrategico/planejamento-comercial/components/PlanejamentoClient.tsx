@@ -588,12 +588,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
     if (!eventoEdicao) return;
     try {
       setSalvando(true);
-      // Custo é previsão enquanto o Conta Azul não lança (c_art/c_prod real = 0).
-      // Nesse caso o edit grava nas colunas de previsão (c_artistico_plan/c_prod_plan):
-      // fica amarelo/⚠️ e o real do CA substitui automaticamente quando chega.
-      // Depois de lançado (já tem real), o edit é correção do realizado (c_art/c_prod).
-      const artEhPrevisao = !!eventoEdicao.c_art_is_projecao;
-      const prodEhPrevisao = !!eventoEdicao.c_prod_is_projecao;
+      // Custo é previsão enquanto o Conta Azul não lança (c_art/c_prod real = 0): o edit
+      // grava nas colunas de previsão (c_artistico_plan/c_prod_plan), fica amarelo/⚠️ e o
+      // real do CA substitui automaticamente quando chega.
 
       await apiCall(`/api/eventos/${eventoEdicao.id}`, {
         method: 'PUT',
@@ -614,38 +611,11 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
         })
       });
 
-      // Reais só existem pra evento que já aconteceu. Pra evento futuro/projeção, pular
-      // o PUT de valores-reais: evita 404 (sem linha no eventos_base) e impede marcar
-      // versao_calculo=999 (manual) com zeros, o que travaria o recálculo quando o real
-      // do dia chegar. (O M1/planejado já foi salvo no PUT anterior.)
-      const hojeStr = new Date().toISOString().slice(0, 10);
-      const jaAconteceu = (eventoEdicao.data_evento || '') < hojeStr;
-      if (jaAconteceu) await apiCall(`/api/eventos/${eventoEdicao.id}/valores-reais`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(selectedBar?.id || '') },
-        body: JSON.stringify({
-          real_r: eventoEdicao.real_r || 0,
-          cl_real: eventoEdicao.cl_real || 0,
-          te_real: eventoEdicao.te_real || 0,
-          tb_real: eventoEdicao.tb_real || 0,
-          t_medio: eventoEdicao.t_medio || 0,
-          res_tot: eventoEdicao.res_tot || 0,
-          res_p: eventoEdicao.res_p || 0,
-          // Em previsão NÃO grava no real (mandaria 0, que é no-op e mantém amarelo).
-          // Já lançado, grava a correção do realizado por cima do CA.
-          c_art: artEhPrevisao ? 0 : (eventoEdicao.c_art || 0),
-          c_prod: prodEhPrevisao ? 0 : (eventoEdicao.c_prod || 0),
-          t_coz: eventoEdicao.t_coz || 0,
-          t_bar: eventoEdicao.t_bar || 0,
-          atrasinho_cozinha: eventoEdicao.atrasinho_cozinha || 0,
-          atrasinho_bar: eventoEdicao.atrasinho_bar || 0,
-          atrasao_cozinha: eventoEdicao.atrasao_cozinha || 0,
-          atrasao_bar: eventoEdicao.atrasao_bar || 0,
-          faturamento_couvert_manual: eventoEdicao.faturamento_couvert_manual || null,
-          faturamento_bar_manual: eventoEdicao.faturamento_bar_manual || null,
-          observacoes: eventoEdicao.observacoes || ''
-        })
-      });
+      // Realizado (receita/clientes/custos reais/atrasos) NÃO é mais editado neste modal —
+      // vem automático do Conta Azul/ContaHub. O PUT de valores-reais foi removido: ele
+      // resolvia por (user.bar_id + id do gold) e dava 404 em evento cujo id do eventos_base
+      // difere do id do gold (ou bar diferente do selecionado), quebrando o salvar com a
+      // flag urgente já gravada mas sem refletir. Aqui salvamos só planejamento + artistas.
 
       // Artistas do evento (replace-all) — o backend resolve o evento por (bar, data),
       // que o PUT de planejamento acima já materializou no eventos_base.
@@ -900,12 +870,15 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                     {dados.map((evento) => (
                       <div key={evento.evento_id} className={`rounded-lg border p-3 ${evento.flag_urgente ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30' : 'border-[hsl(var(--border))] bg-white dark:bg-gray-800'}`}>
                         <div className="flex items-center justify-between gap-2">
-                          <Link href={`/analitico/eventos?data=${evento.data_evento}`} className="min-w-0">
+                          <div role="button" tabIndex={0} onClick={() => abrirModal(evento, true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirModal(evento, true); } }} className="min-w-0 text-left cursor-pointer" title="Editar evento">
                             <div className="text-[11px] text-[hsl(var(--muted-foreground))]">{evento.data_curta} · {evento.dia_semana?.substring(0, 3).toUpperCase()}</div>
                             <div className="text-sm font-semibold text-blue-700 dark:text-blue-300 truncate">{evento.flag_urgente && '🚩 '}{evento.evento_nome || 'Sem atração'}</div>
                             {(evento.artistas || []).length > 0 && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">🎤 {(evento.artistas || []).join(', ')}</div>}
-                          </Link>
-                          <Button size="sm" variant="outline" className="shrink-0" onClick={() => abrirModal(evento, true)}>Editar</Button>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Button size="sm" variant="outline" onClick={() => abrirModal(evento, true)}>Editar</Button>
+                            <Link href={`/analitico/eventos?data=${evento.data_evento}`} title="Abrir análise completa do evento" className="inline-flex items-center justify-center h-8 w-9 rounded-lg border border-[hsl(var(--border))] bg-transparent text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))] transition-colors"><BarChart3 className="h-4 w-4" /></Link>
+                          </div>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 mt-2 text-xs">
                           <div className="flex justify-between"><span className="text-gray-500">Receita</span><span className={`font-medium ${evento.real_vs_m1_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.real_receita > 0 ? formatarMoeda(evento.real_receita) : '-'}</span></div>
@@ -1155,14 +1128,14 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                           >
                             {/* Colunas Fixas (Data, Dia, Artista, Receita Real, Meta M1) */}
                             <td className="sticky-col-1 px-0.5 py-1.5 text-center text-[11px] font-medium border-r border-[hsl(var(--border))]" style={{width: '48px', minWidth: '48px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}}>
-                              <Link
-                                href={`/analitico/eventos?data=${evento.data_evento}`}
-                                onClick={(e) => e.stopPropagation()}
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); abrirModal(evento, true); }}
                                 className="text-blue-600 dark:text-blue-400 hover:underline"
-                                title="Ver análise completa deste evento"
+                                title="Editar evento"
                               >
                                 {evento.data_curta}
-                              </Link>
+                              </button>
                             </td>
                             <td className="sticky-col-2 px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
                             <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))]" style={{width: '140px', minWidth: '140px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}} title={evento.observacoes ? `${evento.evento_nome || 'Sem atração'}\n📌 ${evento.observacoes}` : (evento.evento_nome || 'Sem atração')}>
@@ -1170,13 +1143,14 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                 {evento.flag_urgente && (
                                   <span title="Urgente (ex.: artista ainda não definido)" className="shrink-0 text-[10px]">🚩</span>
                                 )}
-                                <Link
-                                  href={`/analitico/eventos?data=${evento.data_evento}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="block truncate text-blue-700 dark:text-blue-300 hover:underline"
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); abrirModal(evento, true); }}
+                                  className="block truncate text-left text-blue-700 dark:text-blue-300 hover:underline"
+                                  title="Editar evento"
                                 >
                                   {evento.evento_nome || '-'}
-                                </Link>
+                                </button>
                               </div>
                               {evento.observacoes && (
                                 <div className="text-[10px] leading-tight text-gray-500 dark:text-gray-400 line-clamp-2 whitespace-normal" title={evento.observacoes}>
@@ -1552,8 +1526,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                             
                             <td className="px-2 py-2 text-center" style={{width: '120px', minWidth: '120px', maxWidth: '120px'}}>
                               <div className="flex gap-1.5 justify-center">
-                                <Button onClick={(e) => { e.stopPropagation(); abrirModal(evento, false); }} size="sm" variant="outline" className="h-7 w-7 p-0"><Eye className="h-3.5 w-3.5" /></Button>
-                                <Button onClick={(e) => { e.stopPropagation(); abrirModal(evento, true); }} size="sm" variant="outline" className="h-7 w-7 p-0"><Edit className="h-3.5 w-3.5" /></Button>
+                                <Button onClick={(e) => { e.stopPropagation(); abrirModal(evento, false); }} size="sm" variant="outline" className="h-7 w-7 p-0" title="Visualizar"><Eye className="h-3.5 w-3.5" /></Button>
+                                <Button onClick={(e) => { e.stopPropagation(); abrirModal(evento, true); }} size="sm" variant="outline" className="h-7 w-7 p-0" title="Editar"><Edit className="h-3.5 w-3.5" /></Button>
+                                <Link href={`/analitico/eventos?data=${evento.data_evento}`} onClick={(e) => e.stopPropagation()} title="Abrir análise completa do evento" className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-[hsl(var(--border))] bg-transparent text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))] transition-colors"><BarChart3 className="h-3.5 w-3.5" /></Link>
                               </div>
                             </td>
                           </tr>
@@ -1787,8 +1762,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
 
       {/* Modal de Edição/Visualização */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-            <DialogContent className="max-w-[96vw] max-h-[92vh] sm:max-w-[88vw] lg:max-w-[70vw] p-0 overflow-hidden rounded-lg shadow-lg bg-[hsl(var(--background))] border border-[hsl(var(--border))]">
-              <DialogHeader className="bg-[hsl(var(--muted))] p-4 border-b border-[hsl(var(--border))]"><DialogTitle className="flex items-center gap-3 text-xl font-semibold text-[hsl(var(--foreground))]"><BarChart3 className="h-6 w-6 text-[hsl(var(--muted-foreground))]" />{modoEdicao ? 'Editar Evento' : 'Visualizar Evento'} - {eventoEdicao?.nome}</DialogTitle><DialogDescription>{modoEdicao ? 'Edite os dados planejados e reais' : 'Comparativo Planejado vs Realizado'}</DialogDescription></DialogHeader>
+            {/* onOpenAutoFocus preventDefault: sem foco automático no 1º input (LabelField),
+                que senão abria o dropdown de nome sozinho ao abrir o modal. */}
+            <DialogContent onOpenAutoFocus={(e) => e.preventDefault()} className="max-w-[96vw] max-h-[92vh] sm:max-w-[88vw] lg:max-w-[70vw] p-0 overflow-hidden rounded-lg shadow-lg bg-[hsl(var(--background))] border border-[hsl(var(--border))]">
+              <DialogHeader className="bg-[hsl(var(--muted))] p-4 border-b border-[hsl(var(--border))]"><DialogTitle className="flex items-center gap-3 text-xl font-semibold text-[hsl(var(--foreground))]"><BarChart3 className="h-6 w-6 text-[hsl(var(--muted-foreground))]" />{modoEdicao ? 'Editar Evento' : 'Visualizar Evento'} - {eventoEdicao?.nome}</DialogTitle><DialogDescription>{modoEdicao ? 'Edite o planejamento: Meta M1, custo artístico e produção (previsão), label, artistas e observação.' : 'Planejamento do evento (Meta M1 e custos previstos).'}</DialogDescription></DialogHeader>
               <div className="flex-1 overflow-y-auto p-3">
                 <div className="mb-3 p-3 bg-[hsl(var(--muted))] rounded border">
                   <Label>Nome / Label do Evento</Label>
@@ -1812,52 +1789,38 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                     ? <Input value={eventoEdicao?.observacoes || ''} onChange={e => setEventoEdicao(p => p ? {...p, observacoes: e.target.value} : null)} placeholder="Contexto extra do dia (aparece no 📌 da tabela)" />
                     : <div className="p-2 bg-[hsl(var(--background))] rounded border">{eventoEdicao?.observacoes || '—'}</div>}
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                   <div className="space-y-3">
-                      <div className="flex items-center gap-3 mb-2 pb-2 border-b"><div className="w-3 h-3 bg-blue-500 rounded-full"></div><h2 className="font-semibold">PLANEJADO</h2></div>
-                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Receita M1</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.m1_r || 0} onChange={e => {
-                        const novoM1 = parseFloat(e.target.value) || 0;
-                        setEventoEdicao(p => {
-                          if (!p) return null;
-                          const base = custoBaselineRef.current;
-                          // Mantém a % atual: custo escala junto com o M1 (só quando havia M1 base).
-                          if (base.m1 > 0) {
-                            const escala = novoM1 / base.m1;
-                            return { ...p, m1_r: novoM1, c_artistico_plan: Math.round(base.art * escala), c_prod_plan: Math.round(base.prod * escala) };
-                          }
-                          return { ...p, m1_r: novoM1 };
-                        });
-                      }} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.m1_r)}</div>}<p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">Ao mudar o M1, o Custo Artístico/Produção (previsão) reescala mantendo a mesma % do M1.</p></div>
-                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Clientes</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.cl_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, cl_plan: parseInt(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{(eventoEdicao?.cl_plan || 0).toLocaleString()}</div>}</div>
-                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Ticket Entrada</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.te_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, te_plan: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.te_plan)}</div>}</div>
-                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Ticket Bar</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.tb_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, tb_plan: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.tb_plan)}</div>}</div>
+                {/* Planejamento enxuto: só Receita M1 + Custo Artístico e Produção (previsão).
+                    Realizado/clientes/tickets/atrasos vêm automáticos do Conta Azul/ContaHub. */}
+                <div className="space-y-3">
+                   <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Receita M1</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.m1_r || 0} onChange={e => {
+                     const novoM1 = parseFloat(e.target.value) || 0;
+                     setEventoEdicao(p => {
+                       if (!p) return null;
+                       const base = custoBaselineRef.current;
+                       // Mantém a % atual: custo escala junto com o M1 (só quando havia M1 base).
+                       if (base.m1 > 0) {
+                         const escala = novoM1 / base.m1;
+                         return { ...p, m1_r: novoM1, c_artistico_plan: Math.round(base.art * escala), c_prod_plan: Math.round(base.prod * escala) };
+                       }
+                       return { ...p, m1_r: novoM1 };
+                     });
+                   }} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.m1_r)}</div>}<p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">Ao mudar o M1, o Custo Artístico/Produção (previsão) reescala mantendo a mesma % do M1.</p></div>
+
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="p-3 bg-[hsl(var(--muted))] rounded border">
-                        <Label className="flex items-center gap-1.5">Custo Artístico / Prod (Previsão){(eventoEdicao?.c_art_is_projecao || eventoEdicao?.c_prod_is_projecao) && <span className="text-amber-600 dark:text-amber-400">⚠️</span>}</Label>
+                        <Label className="flex items-center gap-1.5">Custo Artístico (Previsão){eventoEdicao?.c_art_is_projecao && <span className="text-amber-600 dark:text-amber-400">⚠️</span>}</Label>
                         {modoEdicao
-                          ? <div className="flex gap-2">
-                              <Input type="number" value={eventoEdicao?.c_artistico_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_artistico_plan: parseFloat(e.target.value) || 0} : null)} />
-                              <Input type="number" value={eventoEdicao?.c_prod_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_prod_plan: parseFloat(e.target.value) || 0} : null)} />
-                            </div>
-                          : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.c_artistico_plan)} / {formatarMoeda(eventoEdicao?.c_prod_plan)}</div>}
-                        <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">Previsão (artístico / produção). Fica em amarelo até o Conta Azul lançar o valor real, que substitui automaticamente.</p>
+                          ? <Input type="number" value={eventoEdicao?.c_artistico_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_artistico_plan: parseFloat(e.target.value) || 0} : null)} />
+                          : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.c_artistico_plan)}</div>}
                       </div>
-                   </div>
-                   <div className="space-y-3">
-                      <div className="flex items-center gap-3 mb-2 pb-2 border-b"><div className="w-3 h-3 bg-green-500 rounded-full"></div><h2 className="font-semibold">REALIZADO</h2></div>
-                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Receita Real</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.real_r || 0} onChange={e => setEventoEdicao(p => p ? {...p, real_r: parseFloat(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.real_r)}</div>}</div>
-                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Clientes Real</Label>{modoEdicao ? <Input type="number" value={eventoEdicao?.cl_real || 0} onChange={e => setEventoEdicao(p => p ? {...p, cl_real: parseInt(e.target.value)} : null)} /> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{(eventoEdicao?.cl_real || 0).toLocaleString()}</div>}</div>
-                      <div className="p-3 bg-[hsl(var(--muted))] rounded border"><Label>Reservas (Total / Pagas)</Label>{modoEdicao ? <div className="flex gap-2"><Input type="number" value={eventoEdicao?.res_tot || 0} onChange={e => setEventoEdicao(p => p ? {...p, res_tot: parseInt(e.target.value)} : null)} /><Input type="number" value={eventoEdicao?.res_p || 0} onChange={e => setEventoEdicao(p => p ? {...p, res_p: parseInt(e.target.value)} : null)} /></div> : <div className="p-2 bg-[hsl(var(--background))] rounded border">{eventoEdicao?.res_tot} / {eventoEdicao?.res_p}</div>}</div>
                       <div className="p-3 bg-[hsl(var(--muted))] rounded border">
-                        <Label>Custo Artístico / Prod (Conta Azul)</Label>
-                        {modoEdicao && !eventoEdicao?.c_art_is_projecao && !eventoEdicao?.c_prod_is_projecao
-                          ? <div className="flex gap-2"><Input type="number" value={eventoEdicao?.c_art || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_art: parseFloat(e.target.value) || 0} : null)} /><Input type="number" value={eventoEdicao?.c_prod || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_prod: parseFloat(e.target.value) || 0} : null)} /></div>
-                          : <>
-                              <div className="p-2 bg-[hsl(var(--background))] rounded border">{(eventoEdicao?.c_art || 0) > 0 ? formatarMoeda(eventoEdicao?.c_art) : '—'} / {(eventoEdicao?.c_prod || 0) > 0 ? formatarMoeda(eventoEdicao?.c_prod) : '—'}</div>
-                              {modoEdicao && <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">Preenchido automaticamente pelo Conta Azul quando o evento for lançado. Até lá, edite a previsão ao lado.</p>}
-                            </>}
+                        <Label className="flex items-center gap-1.5">Custo Produção (Previsão){eventoEdicao?.c_prod_is_projecao && <span className="text-amber-600 dark:text-amber-400">⚠️</span>}</Label>
+                        {modoEdicao
+                          ? <Input type="number" value={eventoEdicao?.c_prod_plan || 0} onChange={e => setEventoEdicao(p => p ? {...p, c_prod_plan: parseFloat(e.target.value) || 0} : null)} />
+                          : <div className="p-2 bg-[hsl(var(--background))] rounded border">{formatarMoeda(eventoEdicao?.c_prod_plan)}</div>}
                       </div>
-                      <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800"><h3 className="text-base font-medium mb-2 text-[hsl(var(--foreground))] flex items-center gap-2"><AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" /> Atrasos de Entrega</h3><div className="grid grid-cols-2 gap-4"><div><Label>Cozinha</Label><div className="mt-1 font-medium">{eventoEdicao?.atrasos_cozinha ?? 0}</div></div><div><Label>Bar</Label><div className="mt-1 font-medium">{eventoEdicao?.atrasos_bar ?? 0}</div></div></div></div>
                    </div>
+                   <p className="text-[11px] text-amber-600 dark:text-amber-400">Previsão. Fica em amarelo (⚠️) até o Conta Azul lançar o valor real, que substitui automaticamente.</p>
                 </div>
 
                 {/* Artistas do evento (nome + janela de horário) — base das análises por artista */}
