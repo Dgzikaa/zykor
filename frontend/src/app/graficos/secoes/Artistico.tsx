@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api-client';
 import { GraficoBase } from '@/components/graficos/GraficoBase';
-import { HeroRow, ChartCard, ChartGrid, GraficoBarraH, GraficoScatter, GraficoHeatmap, type Kpi } from '@/components/graficos/Charts';
+import { HeroRow, ChartCard, ChartGrid, GraficoBarraH, GraficoScatter, type Kpi } from '@/components/graficos/Charts';
 import { Music, Users, DollarSign, Gauge, Sparkles, Flame, Loader2 } from 'lucide-react';
 
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
@@ -58,20 +58,9 @@ export function SecaoArtistico({ barId, periodo }: { barId: number; periodo: num
     label: l.nome, bar: l.composicao?.bar || 0, couvert: l.composicao?.couvert || 0, bilheteria: l.composicao?.bilheteria || 0,
   })), [labs]);
 
-  // matriz artista × label
-  const matriz = useMemo(() => {
-    const topLabels = [...labs].sort((a, b) => b.shows - a.shows).slice(0, 8);
-    const artTot = new Map<string, { nome: string; shows: number }>();
-    for (const l of topLabels) for (const a of l.artistas || []) {
-      const k = a.artista_id ? `id:${a.artista_id}` : `n:${String(a.nome).toLowerCase()}`;
-      const c = artTot.get(k) || { nome: a.nome, shows: 0 }; c.shows += a.shows; artTot.set(k, c);
-    }
-    const topArt = [...artTot.entries()].sort((a, b) => b[1].shows - a[1].shows).slice(0, 8);
-    const artIdx = new Map(topArt.map(([k], i) => [k, i]));
-    const cells: [number, number, number][] = [];
-    topLabels.forEach((l, li) => { for (const a of l.artistas || []) { const k = a.artista_id ? `id:${a.artista_id}` : `n:${String(a.nome).toLowerCase()}`; const ai = artIdx.get(k); if (ai != null) cells.push([ai, li, Math.round(a.fat_medio)]); } });
-    return { xs: topArt.map(([, a]) => a.nome), ys: topLabels.map((l) => l.nome), cells };
-  }, [labs]);
+  // público médio por artista (poder de público — distinto de lift/saldo/retorno)
+  const porPublico = useMemo(() => [...artistas].filter((a) => (a.publico_medio || 0) > 0)
+    .sort((a, b) => (b.publico_medio || 0) - (a.publico_medio || 0)), [artistas]);
 
   if (loading) return <div className="py-20 text-center text-gray-400"><Loader2 className="w-7 h-7 animate-spin mx-auto" /></div>;
   if (!artistas.length && !labs.length) return <div className="py-20 text-center text-gray-400">Sem dados artísticos no período.</div>;
@@ -108,8 +97,8 @@ export function SecaoArtistico({ barId, periodo }: { barId: number; periodo: num
             series={[{ key: 'bar', label: 'Bar' }, { key: 'couvert', label: 'Couvert' }, { key: 'bilheteria', label: 'Bilheteria' }]} />
         </ChartCard>
 
-        <ChartCard titulo="Matriz artista × label" subtitulo="faturamento médio/noite quando o artista foi o principal — mais escuro = fatura mais" span={2}>
-          <GraficoHeatmap data={matriz.cells} xs={matriz.xs} ys={matriz.ys} formatV={moneyK} height={360} />
+        <ChartCard titulo="Público médio por artista" subtitulo="poder de público — média de pessoas por noite quando o artista foi o principal" span={2}>
+          <GraficoBarraH data={porPublico} xKey="nome" valueKey="publico_medio" formatV={num} height={360} maxItens={16} />
         </ChartCard>
 
         <ChartCard titulo="NPS por label" subtitulo="satisfação (promotores − detratores) por noite recorrente">
