@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useBar } from '@/contexts/BarContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Award } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import ArtistasTab from './ArtistasTab';
 import LabelsTab from './LabelsTab';
 import InsightsTab from './InsightsTab';
@@ -14,6 +15,12 @@ export default function FerramentasArtistasPage() {
   const barId = selectedBar?.id;
   const [periodo, setPeriodo] = useState(12);
   const [aba, setAba] = useState('artistas');
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🎤 Artistas & Labels');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

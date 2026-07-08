@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Save, RefreshCw, Calculator, ChefHat } from 'lucide-react';
 import { LoadingState } from '@/components/ui/loading-state';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface CMASemanal {
   id?: string;
@@ -50,6 +51,12 @@ function getMondayOfWeek(year: number, week: number): Date {
 export default function CMASemanalPage() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🍽️ CMA Semanal');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const [loading, setLoading] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -269,19 +276,6 @@ export default function CMASemanalPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-2 py-4 max-w-[98vw] space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <ChefHat className="w-8 h-8 text-muted-foreground" />
-            CMA - Custo de Alimentação de Funcionários
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Controle semanal do custo de alimentação dos funcionários
-          </p>
-        </div>
-      </div>
-
       {/* Seletor de Semana */}
       <Card>
         <CardHeader>

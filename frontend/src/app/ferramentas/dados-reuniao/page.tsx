@@ -13,6 +13,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface DadosSemana {
   semana: number;
@@ -37,6 +38,12 @@ export default function DadosReuniaoPage() {
   const [loading, setLoading] = useState(true);
   const [copiado, setCopiado] = useState(false);
   const [numSemanas, setNumSemanas] = useState(12);
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('📋 Dados da Reunião');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const fetchDados = async () => {
     if (!bar?.id) return;

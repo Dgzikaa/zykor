@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PieChart } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface MixCat {
   categoria: string;
@@ -45,6 +45,12 @@ export default function MixCategoriaPage() {
   const [loading, setLoading] = useState(true);
   const [mix, setMix] = useState<MixCat[]>([]);
   const [cmv, setCmv] = useState<CmvMes[]>([]);
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🥧 Mix por Categoria');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     if (!selectedBar?.id) return;
@@ -68,15 +74,6 @@ export default function MixCategoriaPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <PieChart className="w-6 h-6 text-indigo-600" /> Mix &amp; Margem por Categoria
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Composição das vendas por categoria (últimos 30 dias) e custo de mercadoria (CMV) mensal.
-        </p>
-      </div>
-
       {loading ? (
         <Skeleton className="h-64 w-full" />
       ) : (

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 import {
   Target, Save, Loader2, AlertCircle, DollarSign, Coffee, Wallet,
@@ -30,6 +31,7 @@ const ESTILO: Record<string, { icon: any; cor: string }> = {
 export default function MetasPage() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
+  const { setPageTitle } = usePageTitle();
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [barNome, setBarNome] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,6 +53,11 @@ export default function MetasPage() {
   }, [toast]);
 
   useEffect(() => { carregar(); }, [carregar, selectedBar?.id]);
+
+  useEffect(() => {
+    setPageTitle('🎯 Metas');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const tipoPorId = useMemo(() => {
     const m: Record<string, 'number' | 'text'> = {};

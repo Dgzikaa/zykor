@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileText, RefreshCw, Calendar, Sparkles, ChevronDown } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 type Relatorio = {
   id: number;
@@ -62,6 +63,9 @@ export default function RelatorioSemanalPage() {
   const [gerando, setGerando] = useState(false);
   const [barFilter, setBarFilter] = useState<number | 'todos'>('todos');
   const [expandido, setExpandido] = useState<Set<number>>(new Set());
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => { setPageTitle('📄 Relatório IA'); return () => setPageTitle(''); }, [setPageTitle]);
 
   const carregar = async () => {
     setCarregando(true);

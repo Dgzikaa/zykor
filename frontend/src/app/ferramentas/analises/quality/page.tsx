@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Award, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 const fmt = (n: number | null | undefined) =>
   n == null ? '—' : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(n);
@@ -35,6 +36,9 @@ export default function QualidadePage() {
   const { selectedBar } = useBar();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => { setPageTitle('🏆 Quality Scorecard'); return () => setPageTitle(''); }, [setPageTitle]);
 
   useEffect(() => {
     if (!selectedBar?.id) return;

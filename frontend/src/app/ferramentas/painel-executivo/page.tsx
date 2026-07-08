@@ -6,6 +6,7 @@ import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TrendingUp, DollarSign, Wallet, Users, AlertTriangle, Percent, ArrowRight } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 const fmtBRL = (n: number | null | undefined) =>
   n == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n);
@@ -32,6 +33,12 @@ export default function PainelExecutivoPage() {
   const { selectedBar } = useBar();
   const [d, setD] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('📈 Painel Executivo');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     if (!selectedBar?.id) return;
@@ -51,11 +58,6 @@ export default function PainelExecutivoPage() {
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><TrendingUp className="w-6 h-6 text-blue-600" /> Painel Executivo</h1>
-        <p className="text-sm text-gray-500">O pulso do {selectedBar?.nome || 'bar'} numa tela — atualizado dos dados ao vivo.</p>
-      </div>
-
       {atencoes.length > 0 && (
         <Card className="p-4 border-l-4 border-l-amber-500 bg-amber-50/40 dark:bg-amber-900/10">
           <p className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400 flex items-center gap-1 mb-1"><AlertTriangle className="w-3.5 h-3.5" /> Pontos de atenção</p>

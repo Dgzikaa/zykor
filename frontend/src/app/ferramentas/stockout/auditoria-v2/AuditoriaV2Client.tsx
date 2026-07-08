@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { CheckCircle2, XCircle, AlertTriangle, Clock } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface ExecLog {
   id: number;
@@ -59,10 +60,16 @@ interface Props {
 
 export function AuditoriaV2Client({ historico, produtos, dataSelecionada }: Props) {
   const router = useRouter();
+  const { setPageTitle } = usePageTitle();
   const [busca, setBusca] = useState('');
   const [filtroLocal, setFiltroLocal] = useState<string>('todos');
   const [filtroIncluido, setFiltroIncluido] = useState<string>('todos');
   const [filtroAtivo, setFiltroAtivo] = useState<string>('todos');
+
+  useEffect(() => {
+    setPageTitle('🔍 Stockout — Auditoria v2');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const ultimaExec = historico.find(h => h.data_consulta === dataSelecionada);
 

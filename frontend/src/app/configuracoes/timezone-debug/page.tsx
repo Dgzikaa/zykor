@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import {
   agora,
   formatarData,
@@ -35,6 +36,12 @@ export default function TimezoneDebugPage() {
   const [timezoneInfo, setTimezoneInfo] = useState<TimezoneInfo | null>(null);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [supabaseTime, setSupabaseTime] = useState<string>('');
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🌐 Timezone Debug');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   // Atualizar tempo a cada segundo
   useEffect(() => {

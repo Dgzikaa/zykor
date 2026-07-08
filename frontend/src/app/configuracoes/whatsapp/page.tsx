@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -73,6 +74,12 @@ export default function WhatsAppConfigPage() {
   const [testeResult, setTesteResult] = useState<TesteResult | null>(null);
   const [showToken, setShowToken] = useState(false);
   const [configurado, setConfigurado] = useState(false);
+
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('💬 WhatsApp');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     fetchConfig();

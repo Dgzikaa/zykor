@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,12 @@ export default function FeedbacksPage() {
   const [items, setItems] = useState<Feedback[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState('');
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('💬 Feedbacks da equipe');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const carregar = useCallback(async (status: string) => {
     setLoading(true);

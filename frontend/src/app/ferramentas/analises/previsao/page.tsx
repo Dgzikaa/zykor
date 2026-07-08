@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Sparkles as Crystal, Users, DollarSign, RefreshCw, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ErrorBar } from 'recharts';
 import { useToast } from '@/hooks/use-toast';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 const fmtMoeda = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n));
 const fmt = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR').format(n));
@@ -19,6 +20,9 @@ export default function PrevisaoPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [recalc, setRecalc] = useState(false);
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => { setPageTitle('🔮 Previsão de Demanda'); return () => setPageTitle(''); }, [setPageTitle]);
 
   const carregar = async () => {
     if (!selectedBar?.id) return;

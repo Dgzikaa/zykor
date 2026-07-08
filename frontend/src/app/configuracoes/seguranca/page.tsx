@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -84,6 +85,11 @@ interface SecurityDetails {
 export default function SecurityPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('🔒 Segurança');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const [loading, setLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(false); // Novo estado para controlar requisições
   const [metrics, setMetrics] = useState<SecurityMetrics | null>(null);

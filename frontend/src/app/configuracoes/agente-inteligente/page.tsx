@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -21,6 +22,12 @@ export default function ConfiguracoesAgentePage() {
   const [configuracoes, setConfiguracoes] = useState<Configuracao[]>([])
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
+
+  const { setPageTitle } = usePageTitle()
+  useEffect(() => {
+    setPageTitle('🧠 Agente Inteligente')
+    return () => setPageTitle('')
+  }, [setPageTitle])
 
   const tiposAgente = [
     { id: 'operacional', nome: 'Operacional', icon: Activity, descricao: 'Monitora checklists, tarefas e processos' },

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 import { Loader2, KeyRound, CheckCircle2, XCircle, Save, Plug } from 'lucide-react';
 
@@ -14,6 +15,12 @@ export default function TangerinoCadastroPage() {
   const [salvando, setSalvando] = useState(false);
   const [testando, setTestando] = useState(false);
   const [teste, setTeste] = useState<{ ok: boolean; msg: string } | null>(null);
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🕐 Tangerino (Sólides DP)');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const carregar = async () => {
     setCarregando(true);

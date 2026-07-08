@@ -20,6 +20,7 @@ import {
   ArrowRight,
   BarChart3
 } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface Previsao {
   data: string;
@@ -61,6 +62,12 @@ export default function PrevisaoDemandaPage() {
   const [dataCustom, setDataCustom] = useState('');
   const [previsaoCustom, setPrevisaoCustom] = useState<Previsao | null>(null);
   const [loadingCustom, setLoadingCustom] = useState(false);
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🔮 Previsão');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     fetchPrevisoesSemana();

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -218,6 +219,11 @@ function CronStatus() {
 }
 
 export default function PainelSupabasePage() {
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('🖥️ Painel');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const [data, setData] = useState<MetricsResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [erroFetch, setErroFetch] = useState<string | null>(null);

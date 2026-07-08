@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -81,6 +82,11 @@ export default function PermissoesPage() {
   const [activeRole, setActiveRole] = useState('admin');
 
   const { toast } = useToast();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('🔐 Gestão de Permissões');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const fetchPermissoes = useCallback(async () => {
     try {

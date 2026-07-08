@@ -5,6 +5,7 @@ import { useBar } from '@/contexts/BarContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { XCircle, X } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface Dia {
   dt_gerencial: string;
@@ -62,6 +63,12 @@ export default function CancelamentosPage() {
   const [diaModal, setDiaModal] = useState<string | null>(null);
   const [detalhe, setDetalhe] = useState<ItemDetalhe[]>([]);
   const [loadingDet, setLoadingDet] = useState(false);
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('❌ Cancelamentos');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     if (!selectedBar?.id) return;

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -61,6 +62,12 @@ export default function QualidadeContaHubPage() {
   const [validating, setValidating] = useState(false)
   const [dataEvento, setDataEvento] = useState('')
   const [valorEsperado, setValorEsperado] = useState('')
+
+  const { setPageTitle } = usePageTitle()
+  useEffect(() => {
+    setPageTitle('📊 Qualidade ContaHub')
+    return () => setPageTitle('')
+  }, [setPageTitle])
 
   const fetchData = async () => {
     try {

@@ -10,10 +10,17 @@ import CMOProdutividade from '@/components/ferramentas/cmo/CMOProdutividade';
 import CMOComparar from '@/components/ferramentas/cmo/CMOComparar';
 import CMOAlertas from '@/components/ferramentas/cmo/CMOAlertas';
 import CMOHistorico from '@/components/ferramentas/cmo/CMOHistorico';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 export default function CMOPage() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('simulador');
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('👥 CMO');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -24,17 +31,6 @@ export default function CMOPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <Users className="w-8 h-8 text-blue-600" />
-          CMO - Custo de Mão de Obra
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Gestão completa de custos com pessoal: Simulador, Dashboard, Comparações e Alertas
-        </p>
-      </div>
-
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-5">

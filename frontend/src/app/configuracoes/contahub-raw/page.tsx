@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -57,6 +58,7 @@ interface ProcessingResponse {
 
 export default function ContaHubRawPage() {
   const { selectedBar } = useBar()
+  const { setPageTitle } = usePageTitle()
   const [stats, setStats] = useState<RawDataStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
@@ -150,6 +152,11 @@ export default function ContaHubRawPage() {
       setProcessing(false)
     }
   }
+
+  useEffect(() => {
+    setPageTitle('🗄️ ContaHub Raw')
+    return () => setPageTitle('')
+  }, [setPageTitle])
 
   useEffect(() => {
     loadStats()

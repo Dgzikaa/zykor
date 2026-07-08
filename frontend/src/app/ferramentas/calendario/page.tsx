@@ -32,6 +32,7 @@ import {
   User,
   Plus
 } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface EventoInfo {
   id?: number;
@@ -129,6 +130,9 @@ export default function CalendarioPage() {
   // Estado para sincronização Getin
   const [sincronizandoGetin, setSincronizandoGetin] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
+
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => { setPageTitle('📅 Calendário'); return () => setPageTitle(''); }, [setPageTitle]);
 
   // Auto refresh a cada 30 segundos se habilitado
   useEffect(() => {

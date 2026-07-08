@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 import { Store, Plus, Loader2, Save, Trash2, Target, ExternalLink, CheckCircle2, Clock, Instagram, Plug, Upload } from 'lucide-react';
 
@@ -42,10 +43,16 @@ const operacaoVazia = (): Operacao => ({
 
 export default function BaresConfigPage() {
   const { toast } = useToast();
+  const { setPageTitle } = usePageTitle();
   const [bars, setBars] = useState<Bar[]>([]);
   const [loading, setLoading] = useState(true);
   const [editando, setEditando] = useState<Bar | null>(null);
   const [criando, setCriando] = useState(false);
+
+  useEffect(() => {
+    setPageTitle('🏪 Bares');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const carregar = useCallback(async () => {
     setLoading(true);

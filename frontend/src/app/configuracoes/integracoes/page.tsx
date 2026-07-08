@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import ContaAzulIntegrationCard from '@/components/configuracoes/ContaAzulIntegrationCard';
 import ContaHubResyncSemanalCard from '@/components/configuracoes/ContaHubResyncSemanalCard';
 import VMarketIntegrationCard from '@/components/configuracoes/VMarketIntegrationCard';
@@ -40,6 +41,7 @@ export default function IntegracoesPage() {
   const router = useRouter();
   const { selectedBar } = useBar();
   const { toast } = useToast();
+  const { setPageTitle } = usePageTitle();
   const [loading, setLoading] = useState(true);
   const [integrations, setIntegrations] = useState<Integration[]>([
     {
@@ -87,6 +89,11 @@ export default function IntegracoesPage() {
       enabled: true,
     },
   ]);
+
+  useEffect(() => {
+    setPageTitle('🔌 Integrações');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     // Simular carregamento

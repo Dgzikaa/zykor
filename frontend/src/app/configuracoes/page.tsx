@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import {
   Card,
@@ -66,6 +67,11 @@ interface ConfigItem {
 
 export default function ConfiguracoesPage() {
   const router = useRouter();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('⚙️ Configurações');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   const [stats, setStats] = useState<ConfigStats>({
     usuarios: 0,
     integracoes: 5,

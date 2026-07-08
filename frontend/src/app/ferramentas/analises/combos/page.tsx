@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Layers, ArrowRight, Search } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 const fmt = (n: number) => new Intl.NumberFormat('pt-BR').format(n);
 
@@ -18,6 +19,9 @@ export default function CombosPage() {
   const [incluirBanda, setIncluirBanda] = useState(false);
   const [filtro, setFiltro] = useState('');
   const [produtoSelecionado, setProdutoSelecionado] = useState<string | null>(null);
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => { setPageTitle('🔗 Combos que convertem'); return () => setPageTitle(''); }, [setPageTitle]);
 
   useEffect(() => {
     if (!selectedBar?.id) return;

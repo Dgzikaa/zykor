@@ -33,6 +33,7 @@ import {
   Legend,
   Cell
 } from 'recharts'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 
 interface TicketData {
   periodo: 'antes' | 'depois'
@@ -100,6 +101,12 @@ export default function AnaliseCouvertPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [diaSelecionado, setDiaSelecionado] = useState<'quarta' | 'sexta'>('quarta')
+  const { setPageTitle } = usePageTitle()
+
+  useEffect(() => {
+    setPageTitle('🎟️ Análise de Couvert')
+    return () => setPageTitle('')
+  }, [setPageTitle])
 
   const fetchData = async () => {
     setLoading(true)

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -107,6 +108,7 @@ function formatarRelativo(iso: string | null): string {
 
 export default function AdministracaoIntegracoesPage() {
   const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [integracoes, setIntegracoes] = useState<IntegracaoApi[]>([]);
@@ -131,6 +133,11 @@ export default function AdministracaoIntegracoesPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    setPageTitle('🔌 Integrações');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     carregar();

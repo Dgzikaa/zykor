@@ -5,6 +5,7 @@ import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Flame, TrendingUp } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 const fmtBRL = (n: number) => 'R$ ' + Math.round(n).toLocaleString('pt-BR');
 const DOW_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -14,6 +15,9 @@ export default function HeatmapVendasPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [metrica, setMetrica] = useState<'fat_medio' | 'fat_total'>('fat_medio');
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => { setPageTitle('🔥 Mapa de calor: DOW × Hora'); return () => setPageTitle(''); }, [setPageTitle]);
 
   useEffect(() => {
     if (!selectedBar?.id) return;

@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ShieldAlert, RefreshCw, Check, X, AlertTriangle, Eye } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 type Alerta = {
   id: number; bar_id: number; data_referencia: string;
@@ -36,6 +37,9 @@ export default function IntegridadePage() {
   const [statusFilter, setStatusFilter] = useState('aberto');
   const [diasFilter, setDiasFilter] = useState(30);
   const [expandido, setExpandido] = useState<Set<number>>(new Set());
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => { setPageTitle('🛡️ Integridade'); return () => setPageTitle(''); }, [setPageTitle]);
 
   const carregar = async () => {
     setCarregando(true);

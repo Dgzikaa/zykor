@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Users, Shield, Target, Database } from 'lucide-react';
 
 interface Usuario {
@@ -39,6 +40,12 @@ interface Modulo {
 export default function ConfiguracaoPage() {
   const { selectedBar } = useBar();
   const [activeTab, setActiveTab] = useState('usuarios');
+
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('⚙️ Configuração');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   if (!selectedBar?.id) {
     return (

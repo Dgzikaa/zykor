@@ -33,6 +33,7 @@ import {
   Tag
 } from 'lucide-react';
 import Link from 'next/link';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface FerramentaItem {
   title: string;
@@ -53,6 +54,12 @@ interface FerramentaItem {
 export default function FerramentasPage() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => {
+    setPageTitle('🧰 Ferramentas');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const ferramentas: FerramentaItem[] = [
     // Insights Estratégicos — análises de comportamento operacional

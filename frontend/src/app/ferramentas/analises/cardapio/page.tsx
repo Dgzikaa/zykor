@@ -9,6 +9,7 @@ import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, Tooltip, CartesianGrid, Res
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import CustoManualEditor from './CustoManualEditor';
 import HistoricoPrecos from './HistoricoPrecos';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 const fmt = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(n));
 const fmtMoeda = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n));
@@ -30,6 +31,9 @@ export default function CardapioPage() {
   const [loading, setLoading] = useState(true);
   const [dias, setDias] = useState(30);
   const [classeAtiva, setClasseAtiva] = useState<keyof typeof classes>('star');
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => { setPageTitle('🍽️ Engenharia de Cardápio'); return () => setPageTitle(''); }, [setPageTitle]);
 
   useEffect(() => {
     if (!selectedBar?.id) return;

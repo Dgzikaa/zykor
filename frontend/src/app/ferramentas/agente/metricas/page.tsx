@@ -29,6 +29,7 @@ import {
   Pie,
   Cell
 } from 'recharts';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface MetricasResumo {
   totalQueries: number;
@@ -67,6 +68,9 @@ export default function MetricasAgentePage() {
   const [porDia, setPorDia] = useState<DiaData[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState('7');
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => { setPageTitle('📊 Métricas do Agente'); return () => setPageTitle(''); }, [setPageTitle]);
 
   const carregarMetricas = useCallback(async () => {
     setLoading(true);

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { usePageTitle } from '@/contexts/PageTitleContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,6 +43,7 @@ interface RetroactiveResult {
 
 export default function ContaHubRetroativoPage() {
   const { selectedBar } = useBar()
+  const { setPageTitle } = usePageTitle()
   const [startDate, setStartDate] = useState('2024-10-03')
   const [endDate, setEndDate] = useState('2025-12-08')
   const [selectedTypes, setSelectedTypes] = useState<string[]>(['analitico', 'pagamentos', 'tempo', 'periodo', 'fatporhora'])
@@ -49,6 +51,11 @@ export default function ContaHubRetroativoPage() {
   const [isCollecting, setIsCollecting] = useState(false)
   const [result, setResult] = useState<RetroactiveResult | null>(null)
   const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
+    setPageTitle('📥 Coleta Retroativa — ContaHub')
+    return () => setPageTitle('')
+  }, [setPageTitle])
 
   const dataTypes = [
     { id: 'analitico', label: 'Analítico', description: 'Dados de vendas detalhados' },

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +46,12 @@ export default function ConfiguracaoChecklistsPage() {
   const [checklists, setChecklists] = useState<Checklist[]>([]);
   const [filtro, setFiltro] = useState('');
   const [tipoFiltro, setTipoFiltro] = useState('todos');
+
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('✅ Configuração de Checklists');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   const carregarChecklists = useCallback(async () => {
     try {

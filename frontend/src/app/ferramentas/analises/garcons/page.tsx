@@ -5,6 +5,7 @@ import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Trophy, TrendingUp, Beer, ChefHat, Tag, Users } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 
 const fmt = (n: number) => new Intl.NumberFormat('pt-BR').format(n);
 const fmtBRL = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n);
@@ -22,6 +23,9 @@ export default function GarconsPage() {
   const [loading, setLoading] = useState(true);
   const [dias, setDias] = useState(30);
   const [ord, setOrd] = useState('faturamento');
+  const { setPageTitle } = usePageTitle();
+
+  useEffect(() => { setPageTitle('🏆 Performance Garçom 360'); return () => setPageTitle(''); }, [setPageTitle]);
 
   useEffect(() => {
     if (!selectedBar?.id) return;

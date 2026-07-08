@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useUser } from '@/contexts/UserContext';
 import { userHasModule } from '@/lib/permissions/resolver';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -15,6 +16,11 @@ import CondicoesTab from './_components/CondicoesTab';
 
 export default function NotificationsPage() {
   const { user } = useUser();
+  const { setPageTitle } = usePageTitle();
+  useEffect(() => {
+    setPageTitle('🔔 Central de Notificações');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
   // Gestão das notificações (Alertas/Enviar/Histórico) segue o MÓDULO Configurações, não o role.
   // Admin sempre passa. Quem não tem o módulo vê só a Caixa de entrada + Dispositivos.
   const podeGerir =
