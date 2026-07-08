@@ -148,6 +148,7 @@ export const MENU_TREE: MenuSection[] = [
     label: 'Gráficos',
     href: '/graficos',
     permission: 'gestao',
+    subItems: [],
   },
   {
     icon: 'Wrench',
