@@ -101,6 +101,41 @@ export function GraficoBarraH({
 }
 
 // ---------------------------------------------------------------------------
+// GraficoBarra — barra vertical (série temporal) com linha opcional (eixo 2º)
+// ---------------------------------------------------------------------------
+export function GraficoBarra({
+  data, xKey, valueKey, lineKey, height = 320, formatV, formatLine,
+  cor, corLinha, nomeBarra = 'Valor', nomeLinha = '%', mostrarRotulo = true, rotacaoX = 0,
+}: {
+  data: any[]; xKey: string; valueKey: string; lineKey?: string; height?: number;
+  formatV?: Fmt; formatLine?: Fmt; cor?: string; corLinha?: string;
+  nomeBarra?: string; nomeLinha?: string; mostrarRotulo?: boolean; rotacaoX?: number;
+}) {
+  const th = useGraficoTheme();
+  const rows = useMemo(() => data || [], [data]);
+  const corBar = cor || th.cores[0];
+  const corLin = corLinha || th.cores[3];
+  const temLinha = !!lineKey;
+  const option = useMemo(() => ({
+    textStyle: baseTextStyle,
+    grid: { top: 26, right: temLinha ? 52 : 14, bottom: 24, left: 6, containLabel: true },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: hexA(th.muted, 0.08) } }, backgroundColor: th.surface, borderColor: th.eixo, borderWidth: 1, textStyle: { color: th.texto, fontSize: 12 } },
+    legend: temLinha ? { top: 0, right: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } } : undefined,
+    xAxis: { type: 'category', data: rows.map((d) => d[xKey]), axisLine: { lineStyle: { color: th.eixo } }, axisTick: { show: false }, axisLabel: { color: th.texto2, fontSize: 11, rotate: rotacaoX, hideOverlap: true } },
+    yAxis: temLinha ? [
+      { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: th.grid } }, axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => (formatV ? formatV(v) : fmtNum(v)) } },
+      { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { show: false }, axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => (formatLine ? formatLine(v) : fmtNum(v)) } },
+    ] : { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: th.grid } }, axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => (formatV ? formatV(v) : fmtNum(v)) } },
+    series: [
+      { name: nomeBarra, type: 'bar', data: rows.map((d) => Number(d[valueKey]) || 0), barMaxWidth: 30, itemStyle: { borderRadius: [4, 4, 0, 0], color: corBar }, label: mostrarRotulo ? { show: true, position: 'top', color: th.texto2, fontSize: 10, formatter: (p: any) => (formatV ? formatV(p.value) : fmtNum(p.value)) } : undefined },
+      ...(temLinha ? [{ name: nomeLinha, type: 'line', yAxisIndex: 1, data: rows.map((d) => Number(d[lineKey]) || 0), smooth: true, symbol: 'circle', symbolSize: 6, lineStyle: { width: 2, color: corLin }, itemStyle: { color: corLin }, label: { show: true, position: 'top', color: corLin, fontSize: 10, formatter: (p: any) => (formatLine ? formatLine(p.value) : fmtNum(p.value)) } }] : []),
+    ],
+  }), [th, rows, xKey, valueKey, lineKey, formatV, formatLine, corBar, corLin, temLinha, nomeBarra, nomeLinha, mostrarRotulo, rotacaoX]);
+  if (!rows.length) return <Vazio height={height} />;
+  return <ReactECharts option={option} style={{ height, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />;
+}
+
+// ---------------------------------------------------------------------------
 // GraficoDonut — composição (rosca) com total no centro
 // ---------------------------------------------------------------------------
 export function GraficoDonut({

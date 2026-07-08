@@ -13,6 +13,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { PeriodRangePicker } from '@/components/receitas/PeriodRangePicker';
+import { CardCrescimento } from '@/components/receitas/CardCrescimento';
 import { periodoPadrao, type PeriodoValor } from '@/lib/receitas/periodo';
 
 interface CardGrafico {
@@ -53,7 +54,8 @@ export default function DashboardReceitasPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {GRAFICOS.map((g) => (
+        {selectedBar?.id && <CardCrescimento barId={selectedBar.id} periodo={periodo} />}
+        {GRAFICOS.filter((g) => g.chave !== 'crescimento').map((g) => (
           <Card key={g.chave} className="flex min-h-[180px] flex-col justify-between p-5">
             <div>
               <h2 className="text-base font-semibold text-[hsl(var(--foreground))]">{g.titulo}</h2>
