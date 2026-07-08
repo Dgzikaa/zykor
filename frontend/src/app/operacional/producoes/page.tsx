@@ -117,6 +117,9 @@ const secaoDeCodigo = (codigo?: string | null): Secao =>
 // do histórico respeitam a AÇÃO deste módulo (não mais role admin): quem tem o módulo com
 // permissão de editar/excluir consegue; admin sempre passa. Bate 1:1 com o guard da API.
 const MOD_CONTROLE_PRODUCAO = 'producao - cmv_controle_de_producao';
+// Permissão granular (fora do menu) que libera "Gerir equipe" — cadastrar/editar/remover
+// responsáveis. Aparece na matriz "Acesso por módulo" da tela de Usuários (V/I/E/X).
+const MOD_GERIR_EQUIPE = 'producao - cmv_gerir_equipe';
 
 // Parse decimal tolerante a locale: aceita vírgula OU ponto como separador. Os inputs de peso/
 // rendimento/qtd são type="text" (não "number") justamente porque input number rejeita a vírgula
@@ -2457,8 +2460,9 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
 // =====================================================================================
 // MODAL — GERIR EQUIPE (responsáveis de produção). Só admin chega aqui (botão + server gate).
 // =====================================================================================
-function GerirEquipeModal({ barId, responsaveis, onClose, onChanged }: {
-  barId: number; responsaveis: any[]; onClose: () => void; onChanged: () => void;
+function GerirEquipeModal({ barId, responsaveis, podeInserir, podeEditar, podeExcluir, onClose, onChanged }: {
+  barId: number; responsaveis: any[]; podeInserir: boolean; podeEditar: boolean; podeExcluir: boolean;
+  onClose: () => void; onChanged: () => void;
 }) {
   const { toast } = useToast();
   const [novoNome, setNovoNome] = useState('');
@@ -2508,25 +2512,27 @@ function GerirEquipeModal({ barId, responsaveis, onClose, onChanged }: {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><X className="w-5 h-5" /></button>
         </div>
 
-        {/* Adicionar */}
-        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800">
-          <p className="text-xs font-medium text-gray-500 mb-2">Adicionar pessoa</p>
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <label className="text-[11px] text-gray-400">Nome *</label>
-              <Input value={novoNome} onChange={e => setNovoNome(e.target.value)} placeholder="Nome completo"
-                onKeyDown={e => { if (e.key === 'Enter') adicionar(); }} />
+        {/* Adicionar — só quem tem Inserir */}
+        {podeInserir && (
+          <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800">
+            <p className="text-xs font-medium text-gray-500 mb-2">Adicionar pessoa</p>
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <label className="text-[11px] text-gray-400">Nome *</label>
+                <Input value={novoNome} onChange={e => setNovoNome(e.target.value)} placeholder="Nome completo"
+                  onKeyDown={e => { if (e.key === 'Enter') adicionar(); }} />
+              </div>
+              <div className="w-36">
+                <label className="text-[11px] text-gray-400">Cargo</label>
+                <Input value={novoCargo} onChange={e => setNovoCargo(e.target.value)} placeholder="Ex.: Cozinha"
+                  onKeyDown={e => { if (e.key === 'Enter') adicionar(); }} />
+              </div>
+              <Button onClick={adicionar} disabled={salvando} className="gap-1.5">
+                {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}Adicionar
+              </Button>
             </div>
-            <div className="w-36">
-              <label className="text-[11px] text-gray-400">Cargo</label>
-              <Input value={novoCargo} onChange={e => setNovoCargo(e.target.value)} placeholder="Ex.: Cozinha"
-                onKeyDown={e => { if (e.key === 'Enter') adicionar(); }} />
-            </div>
-            <Button onClick={adicionar} disabled={salvando} className="gap-1.5">
-              {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}Adicionar
-            </Button>
           </div>
-        </div>
+        )}
 
         {/* Lista */}
         <div className="max-h-80 overflow-y-auto px-5 py-3">
@@ -2547,10 +2553,14 @@ function GerirEquipeModal({ barId, responsaveis, onClose, onChanged }: {
                       <span className="text-sm text-gray-900 dark:text-white">{p.nome}</span>
                       {p.cargo && <span className="text-xs text-gray-400 ml-2">{p.cargo}</span>}
                     </div>
-                    <button onClick={() => iniciarEdicao(p)} title="Editar"
-                      className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"><Pencil className="w-4 h-4" /></button>
-                    <button onClick={() => desativar(p)} disabled={salvando} title="Remover"
-                      className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                    {podeEditar && (
+                      <button onClick={() => iniciarEdicao(p)} title="Editar"
+                        className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"><Pencil className="w-4 h-4" /></button>
+                    )}
+                    {podeExcluir && (
+                      <button onClick={() => desativar(p)} disabled={salvando} title="Remover"
+                        className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                    )}
                   </>
                 )}
               </li>
@@ -2567,13 +2577,17 @@ function GerirEquipeModal({ barId, responsaveis, onClose, onChanged }: {
 // =====================================================================================
 export default function ProducoesPage() {
   const { selectedBar } = useBar();
-  const { isRole, hasPermission, can } = useAuth();
-  const isAdmin = isRole('admin');
+  const { hasPermission, can } = useAuth();
   // Editar/excluir execução seguem o MÓDULO (config do usuário), não o role. Admin sempre pode.
-  // "Gerir equipe" continua isAdmin de propósito: escreve em /pessoas-responsaveis, que é
-  // admin-only por design no backend (liberar o botão sem liberar a API daria "abre mas 403").
   const podeEditarProducao = can(MOD_CONTROLE_PRODUCAO, 'editar');
   const podeExcluirProducao = can(MOD_CONTROLE_PRODUCAO, 'excluir');
+  // "Gerir equipe" agora é permissão granular por módulo (não mais admin-only): quem tiver
+  // Inserir e/ou Editar no módulo "Gerir Equipe (Responsáveis)" abre o modal. As ações dentro
+  // dele (add/editar/remover) são gateadas 1 a 1 — espelhando o guard do backend. Admin sempre pode.
+  const podeGerirInserir = can(MOD_GERIR_EQUIPE, 'inserir');
+  const podeGerirEditar = can(MOD_GERIR_EQUIPE, 'editar');
+  const podeGerirExcluir = can(MOD_GERIR_EQUIPE, 'excluir');
+  const podeGerirEquipe = podeGerirInserir || podeGerirEditar || podeGerirExcluir;
   const barId = selectedBar?.id;
   const { setPageTitle } = usePageTitle();
   useEffect(() => { setPageTitle('⏱️ Controle da Produção'); return () => setPageTitle(''); }, [setPageTitle]);
@@ -2615,7 +2629,7 @@ export default function ProducoesPage() {
               <p className="text-sm text-gray-500 dark:text-gray-400">Execução com cronômetro (várias em paralelo), aderência à ficha e controle de tempo, custo e insumos</p>
             </div>
           </div>
-          {isAdmin && (
+          {podeGerirEquipe && (
             <Button variant="outline" onClick={() => setGerirEquipe(true)} className="gap-1.5 shrink-0">
               <Users className="w-4 h-4" />Gerir equipe
             </Button>
@@ -2648,10 +2662,13 @@ export default function ProducoesPage() {
           ? <AbaAnalise secaoAtiva={secaoAtiva} />
           : <AbaAlimentacao responsaveis={responsaveis} podeExcluir={podeExcluirProducao} />}
 
-        {gerirEquipe && isAdmin && barId && (
+        {gerirEquipe && podeGerirEquipe && barId && (
           <GerirEquipeModal
             barId={barId}
             responsaveis={responsaveis}
+            podeInserir={podeGerirInserir}
+            podeEditar={podeGerirEditar}
+            podeExcluir={podeGerirExcluir}
             onClose={() => setGerirEquipe(false)}
             onChanged={loadResponsaveis}
           />

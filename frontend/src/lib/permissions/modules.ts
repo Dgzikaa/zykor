@@ -67,20 +67,36 @@ const GRUPO_MODULO_UNICO: Record<string, string> = {
 };
 
 /**
- * MÓDULOS GERADOS AUTOMATICAMENTE DO MENU LATERAL.
+ * MÓDULOS EXTRAS (NÃO derivados do menu): permissões granulares que não correspondem
+ * a uma página, mas precisam aparecer na matriz "Acesso por módulo" (V/I/E/X) e ser
+ * checadas pelo resolver. Não têm generic de categoria — só são concedidas por grant
+ * EXPLÍCITO (token liso ou `<id>:<ação>`), nunca "vazam" por permissão genérica.
+ */
+export const MODULOS_EXTRAS: ModuloPermissao[] = [
+  // Gerir a equipe de responsáveis do Controle de Produção (adicionar/editar/remover
+  // pessoas do dropdown de "responsável"). Quem tiver Inserir e/ou Editar aqui pode abrir
+  // "Gerir equipe" na tela de Produções — sem precisar ser admin.
+  { id: 'producao - cmv_gerir_equipe', nome: 'Gerir Equipe (Responsáveis)', categoria: 'Produção - CMV' },
+];
+
+/**
+ * MÓDULOS GERADOS AUTOMATICAMENTE DO MENU LATERAL (+ extras curados).
  * Seções em GRUPO_MODULO_UNICO viram UM módulo (o grupo); as demais, um por item.
  */
-export const MODULOS_MENU: ModuloPermissao[] = MENU_LATERAL_STRUCTURE.flatMap(secao => {
-  const grupo = GRUPO_MODULO_UNICO[secao.label];
-  if (grupo) {
-    return [{ id: grupo, nome: secao.label, categoria: secao.label }];
-  }
-  return secao.subItems.map(item => ({
-    id: gerarIdModulo(secao.label, item.label),
-    nome: item.label,
-    categoria: secao.label,
-  }));
-});
+export const MODULOS_MENU: ModuloPermissao[] = [
+  ...MENU_LATERAL_STRUCTURE.flatMap(secao => {
+    const grupo = GRUPO_MODULO_UNICO[secao.label];
+    if (grupo) {
+      return [{ id: grupo, nome: secao.label, categoria: secao.label }];
+    }
+    return secao.subItems.map(item => ({
+      id: gerarIdModulo(secao.label, item.label),
+      nome: item.label,
+      categoria: secao.label,
+    }));
+  }),
+  ...MODULOS_EXTRAS,
+];
 
 /**
  * Retorna todos os módulos disponíveis para configuração de permissões

@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
+import { userCan, type PermAction } from '@/lib/permissions/resolver';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Responsáveis de produção. Vivem em auth_custom.pessoas_responsaveis (curada por bar).
  * Usado pela tela de Produções (execução/cronômetro) para registrar quem produziu.
+ *
+ * ESCRITA gateada pela permissão granular do módulo "Gerir Equipe (Responsáveis)":
+ * POST→inserir, PUT→editar, DELETE→excluir. Admin sempre pode. (Antes era admin-only;
+ * agora dá pra delegar via matriz "Acesso por módulo" da tela de Usuários.)
  */
+const MOD_GERIR_EQUIPE = 'producao - cmv_gerir_equipe';
+
+/** Admin passa direto; senão precisa da AÇÃO específica no módulo de gerir equipe. */
+function podeGerir(user: { role?: string; modulos_permitidos: unknown }, action: PermAction): boolean {
+  if (user.role === 'admin') return true;
+  return userCan(user.modulos_permitidos as any, MOD_GERIR_EQUIPE, action);
+}
+
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
@@ -29,8 +42,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  // Gestão da equipe é restrita a admin — quem executa produção só lê/seleciona (GET).
-  if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores podem gerir responsáveis');
+  // Cadastrar responsável exige a ação 'inserir' no módulo de gerir equipe (ou admin).
+  if (!podeGerir(user, 'inserir')) return permissionErrorResponse('Sem permissão para adicionar responsáveis');
   const body = await request.json().catch(() => ({}));
   const barId = Number(body.bar_id) || user.bar_id;
   const nome = String(body.nome || '').trim();
@@ -50,7 +63,8 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores podem gerir responsáveis');
+  // Editar responsável exige a ação 'editar' (ou admin).
+  if (!podeGerir(user, 'editar')) return permissionErrorResponse('Sem permissão para editar responsáveis');
   const body = await request.json().catch(() => ({}));
   const id = Number(body.id);
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
@@ -74,7 +88,8 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores podem gerir responsáveis');
+  // Remover (soft-delete) responsável exige a ação 'excluir' (ou admin).
+  if (!podeGerir(user, 'excluir')) return permissionErrorResponse('Sem permissão para remover responsáveis');
   const id = Number(new URL(request.url).searchParams.get('id'));
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
   const supabase = await getAdminClient();
