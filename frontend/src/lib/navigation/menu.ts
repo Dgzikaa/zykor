@@ -32,17 +32,6 @@ export interface MenuSection {
 
 export const MENU_TREE: MenuSection[] = [
   {
-    icon: 'LineChart',
-    label: 'Gráficos',
-    href: '/graficos',
-    permission: 'gestao',
-    subItems: [
-      { icon: 'Boxes', label: 'Produção-CMV', href: '/graficos?m=producao', permission: 'gestao' },
-      { icon: 'DollarSign', label: 'Financeiro', href: '/graficos?m=financeiro', permission: 'gestao' },
-      { icon: 'Target', label: 'Estratégico', href: '/graficos?m=estrategico', permission: 'gestao' },
-    ],
-  },
-  {
     icon: 'Target',
     label: 'Estratégico',
     href: '/estrategico',
@@ -152,6 +141,17 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'ShoppingCart', label: 'Planejamento de Compras', href: '/operacional/plano-compras', permission: 'gestao' },
       { icon: 'Boxes', label: 'Estoque', href: '/operacional/estoque-historico', permission: 'gestao' },
       { icon: 'AlertTriangle', label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
+    ],
+  },
+  {
+    icon: 'LineChart',
+    label: 'Gráficos',
+    href: '/graficos',
+    permission: 'gestao',
+    subItems: [
+      { icon: 'Boxes', label: 'Produção-CMV', href: '/graficos?m=producao', permission: 'gestao' },
+      { icon: 'DollarSign', label: 'Financeiro', href: '/graficos?m=financeiro', permission: 'gestao' },
+      { icon: 'Target', label: 'Estratégico', href: '/graficos?m=estrategico', permission: 'gestao' },
     ],
   },
   {

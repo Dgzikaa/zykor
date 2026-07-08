@@ -188,6 +188,106 @@ function Compras({ barId }: { barId: number }) {
   );
 }
 
+const mesCurto = (m: number) => new Date(2000, m - 1, 1).toLocaleDateString('pt-BR', { month: 'short' });
+
+// ===== Financeiro → DRE (fonte: /api/estrategico/orcamentacao/dre-excel) =====
+function DRE({ barId }: { barId: number }) {
+  const [ano, setAno] = useState(anoAtual);
+  const [loading, setLoading] = useState(true);
+  const [linhas, setLinhas] = useState<any[]>([]);
+  useEffect(() => {
+    if (!barId) return; setLoading(true);
+    api.get(`/api/estrategico/orcamentacao/dre-excel?bar_id=${barId}&ano=${ano}`).then((r) => setLinhas(r?.linhas || [])).finally(() => setLoading(false));
+  }, [barId, ano]);
+
+  const data = useMemo(() => {
+    const norm = (s: string) => String(s || '').toLowerCase();
+    const porMes = new Map<number, any>();
+    for (const l of linhas) {
+      const m = Number(l.mes); if (!m) continue;
+      if (!porMes.has(m)) porMes.set(m, { receita: 0, resto: 0, cmv: 0, variaveis: 0 });
+      const v = Number(l.valor_com_sinal || 0); const mac = norm(l.categoria_macro); const o = porMes.get(m);
+      if (mac.includes('receita')) o.receita += v; else o.resto += v; // resto = despesas (valor já negativo)
+      if (mac.includes('cmv') || mac.includes('insumos')) o.cmv += Math.abs(v);
+      if (mac.includes('variáveis') || mac.includes('variaveis')) o.variaveis += Math.abs(v);
+    }
+    return Array.from(porMes.entries()).sort((a, b) => a[0] - b[0]).map(([m, o]) => ({
+      mes: mesCurto(m),
+      receita: Number(o.receita.toFixed(2)),
+      resultado: Number((o.receita + o.resto).toFixed(2)),
+      cmv_pct: o.receita > 0 ? Number((o.cmv / o.receita * 100).toFixed(1)) : 0,
+      var_pct: o.receita > 0 ? Number((o.variaveis / o.receita * 100).toFixed(1)) : 0,
+    }));
+  }, [linhas]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Ano</span>
+        <select value={ano} onChange={(e) => setAno(Number(e.target.value))} className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
+          {[anoAtual, anoAtual - 1, anoAtual - 2].map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
+      {loading ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div> : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <ChartCard titulo="Receita × Resultado" subtitulo="R$ por mês — receita e resultado (receita − custos)">
+            <GraficoBase tipo="linha" data={data} xKey="mes" formatY={fmtBRL0} series={[{ key: 'receita', label: 'Receita' }, { key: 'resultado', label: 'Resultado' }]} />
+          </ChartCard>
+          <ChartCard titulo="CMV % × Custos Variáveis %" subtitulo="% da receita por mês">
+            <GraficoBase tipo="linha" data={data} xKey="mes" formatY={fmtPct} series={[{ key: 'cmv_pct', label: 'CMV' }, { key: 'var_pct', label: 'Variáveis' }]} />
+          </ChartCard>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===== Financeiro → DFC (fonte: /api/financeiro/dfc) =====
+function DFC({ barId }: { barId: number }) {
+  const [ano, setAno] = useState(anoAtual);
+  const [loading, setLoading] = useState(true);
+  const [linhas, setLinhas] = useState<any[]>([]);
+  useEffect(() => {
+    if (!barId) return; setLoading(true);
+    api.get(`/api/financeiro/dfc?bar_id=${barId}&ano=${ano}`).then((r) => setLinhas(r?.linhas || [])).finally(() => setLoading(false));
+  }, [barId, ano]);
+
+  const { fluxo, caixa } = useMemo(() => {
+    const norm = (s: string) => String(s || '').toLowerCase();
+    const porMes = new Map<number, any>();
+    for (const l of linhas) {
+      const m = Number(l.mes); if (!m) continue;
+      if (!porMes.has(m)) porMes.set(m, { operacional: 0, investimento: 0, financiamento: 0 });
+      const g = norm(l.grupo_dfc); const net = Number(l.net || 0); const o = porMes.get(m);
+      if (g.includes('operac')) o.operacional += net; else if (g.includes('invest')) o.investimento += net; else if (g.includes('financ')) o.financiamento += net;
+    }
+    const ord = Array.from(porMes.entries()).sort((a, b) => a[0] - b[0]);
+    let acc = 0;
+    const fluxo = ord.map(([m, o]) => ({ mes: mesCurto(m), operacional: Number(o.operacional.toFixed(2)), investimento: Number(o.investimento.toFixed(2)), financiamento: Number(o.financiamento.toFixed(2)) }));
+    const caixa = ord.map(([m, o]) => { acc += o.operacional + o.investimento + o.financiamento; return { mes: mesCurto(m), saldo: Number(acc.toFixed(2)) }; });
+    return { fluxo, caixa };
+  }, [linhas]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2"><span className="text-xs text-gray-500">Ano</span>
+        <select value={ano} onChange={(e) => setAno(Number(e.target.value))} className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
+          {[anoAtual, anoAtual - 1, anoAtual - 2].map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
+      {loading ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div> : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <ChartCard titulo="Fluxo por grupo" subtitulo="Net por mês — Operacional / Investimento / Financiamento">
+            <GraficoBase tipo="barra" data={fluxo} xKey="mes" formatY={fmtBRL0} series={[{ key: 'operacional', label: 'Operacional' }, { key: 'investimento', label: 'Investimento' }, { key: 'financiamento', label: 'Financiamento' }]} />
+          </ChartCard>
+          <ChartCard titulo="Caixa acumulado" subtitulo="Variação de caixa acumulada no ano">
+            <GraficoBase tipo="area" data={caixa} xKey="mes" formatY={fmtBRL0} series={[{ key: 'saldo', label: 'Caixa acumulado' }]} />
+          </ChartCard>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const SUBS: Record<string, { key: string; label: string; el?: (barId: number) => React.ReactNode; o?: string }[]> = {
   producao: [
     { key: 'cmv', label: 'Estoque & CMV', el: (b) => <CmvEstoque barId={b} /> },
@@ -196,8 +296,8 @@ const SUBS: Record<string, { key: string; label: string; el?: (barId: number) =>
     { key: 'desvios', label: 'Desvios', o: 'perdas e sobras' },
   ],
   financeiro: [
-    { key: 'dre', label: 'DRE', o: 'receita × lucro por mês' },
-    { key: 'dfc', label: 'DFC', o: 'fluxo de caixa' },
+    { key: 'dre', label: 'DRE', el: (b) => <DRE barId={b} /> },
+    { key: 'dfc', label: 'DFC', el: (b) => <DFC barId={b} /> },
     { key: 'stone', label: 'Conciliação', o: 'mix e taxas Stone' },
   ],
   estrategico: [
