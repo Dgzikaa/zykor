@@ -47,7 +47,7 @@ function CmvEstoque({ barId }: { barId: number }) {
     if (!barId) return;
     setLoading(true);
     try {
-      const r = await api.get(`/api/cmv-semanal?ano=${ano}`);
+      const r = await api.get(`/api/cmv-semanal?ano=${ano}&bar_id=${barId}`);
       setRows(r.success ? (r.data || []) : []);
     } finally { setLoading(false); }
   }, [barId, ano]);
