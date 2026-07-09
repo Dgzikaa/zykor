@@ -4,7 +4,7 @@ import https from 'https';
 import { getInterAccessToken } from '@/lib/inter/getAccessToken';
 import { resolveInterCredential } from '@/lib/inter/resolveCredential';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
-import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     // Registra webhook no banco (config de integração) — exige financeiro/admin.
     const user = await authenticateUser(request);
     if (!user) return authErrorResponse('Usuário não autenticado');
-    if (!podeFinanceiro(user)) {
+    if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.agendamentos, 'inserir')) {
       return permissionErrorResponse('Sem permissão para registrar webhook');
     }
     const body = await request.json();
@@ -198,7 +198,7 @@ export async function GET(request: NextRequest) {
     // Consulta webhook no Inter (hit no banco) — exige financeiro/admin.
     const user = await authenticateUser(request);
     if (!user) return authErrorResponse('Usuário não autenticado');
-    if (!podeFinanceiro(user)) {
+    if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.agendamentos, 'ver')) {
       return permissionErrorResponse('Sem permissão para consultar webhook');
     }
     const { searchParams } = new URL(request.url);

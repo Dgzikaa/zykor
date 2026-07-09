@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
-import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
   const nega = negarPorRota(user, request); if (nega) return nega;
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão para criar lançamentos');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.despesas, 'inserir')) return permissionErrorResponse('Sem permissão para criar lançamentos');
 
   const b = await request.json().catch(() => ({} as any));
   const barId = Number(b?.bar_id) || Number(user.bar_id);

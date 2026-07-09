@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
-import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 import {
   getLancadorAdmin, getCAToken, resolveCategoriaId, resolveContaPadrao, criarLancamentoCA,
   round2, ultimoDiaMes, mesAnteriorBRT, mesSeguinte, vencimentoTrimestral, parseChaves,
@@ -127,7 +127,7 @@ export async function executarImpostos(barId: number, ano: number, mes: number, 
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.despesas, 'ver')) return permissionErrorResponse('Sem permissão');
   const url = new URL(request.url);
   const barId = Number(url.searchParams.get('bar_id')) || Number(user.bar_id);
   const ano = Number(url.searchParams.get('ano'));
@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão para criar lançamentos');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.despesas, 'inserir')) return permissionErrorResponse('Sem permissão para criar lançamentos');
   const body = await request.json().catch(() => ({} as any));
   const barId = Number(body?.bar_id) || Number(user.bar_id);
   const { ano, mes } = (Number.isFinite(Number(body?.ano)) && Number.isFinite(Number(body?.mes)))

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
-import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 import { fin } from '@/lib/financeiro/pedidos-pagamento';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +15,7 @@ const CAMPOS = ['bar_id', 'categoria_id', 'categoria_nome', 'status'];
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.pedidos, 'editar')) return permissionErrorResponse('Sem permissão');
   const { id } = await params;
 
   let body: any;

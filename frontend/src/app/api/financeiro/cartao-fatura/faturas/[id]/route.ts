@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
-import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 import { fin } from '@/lib/financeiro/pedidos-pagamento';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.pedidos, 'ver')) return permissionErrorResponse('Sem permissão');
   const { id } = await params;
 
   const supabase = await getAdminClient();
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.pedidos, 'editar')) return permissionErrorResponse('Sem permissão');
   const { id } = await params;
 
   const body = await request.json().catch(() => ({}));

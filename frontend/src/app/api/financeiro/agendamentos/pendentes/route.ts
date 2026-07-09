@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
-import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,10 +13,6 @@ const TABELA = 'pagamentos_pendentes';
 // quem sobe a folha grava aqui e qualquer admin/financeiro do mesmo bar enxerga.
 // O bar vem SEMPRE do usuário autenticado (com override seguro via
 // x-selected-bar-id), nunca de um bar_id solto no body — evita escrita cross-bar.
-
-function podeAcessar(user: { role?: string }): boolean {
-  return podeFinanceiro(user);
-}
 
 /** Valor -> número p/ a coluna de relatório. Trata pt-BR ("R$ 1.089,10") e
  *  ponto-decimal ("1089.10"); só é coluna de apoio, o pagamento usa o raw em dados. */
@@ -40,7 +36,7 @@ function dataOuNull(valor: unknown): string | null {
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeAcessar(user)) return permissionErrorResponse('Sem permissão');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.agendamentos, 'ver')) return permissionErrorResponse('Sem permissão');
 
   const barId = Number(user.bar_id);
   if (!Number.isFinite(barId)) {
@@ -68,7 +64,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeAcessar(user)) return permissionErrorResponse('Sem permissão');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.agendamentos, 'inserir')) return permissionErrorResponse('Sem permissão');
 
   const barId = Number(user.bar_id);
   if (!Number.isFinite(barId)) {
@@ -125,7 +121,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeAcessar(user)) return permissionErrorResponse('Sem permissão');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.agendamentos, 'excluir')) return permissionErrorResponse('Sem permissão');
 
   const barId = Number(user.bar_id);
   if (!Number.isFinite(barId)) {

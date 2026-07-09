@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
-import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   try {
     const user = await authenticateUser(request);
     if (!user) return authErrorResponse('Usuário não autenticado');
-    if (!podeFinanceiro(user)) {
+    if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.agendamentos, 'ver')) {
       return permissionErrorResponse('Sem permissão para ver credenciais bancárias');
     }
     const barId = Number(user.bar_id);

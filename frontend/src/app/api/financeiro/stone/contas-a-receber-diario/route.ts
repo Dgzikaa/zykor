@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
-import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
@@ -356,7 +356,7 @@ async function baixarTaxa(
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.conciliacao, 'ver')) return permissionErrorResponse('Sem permissão');
   const barId = Number(new URL(request.url).searchParams.get('bar_id')) || Number(user.bar_id);
   const cfg = CONFIG[barId];
   if (!cfg) return NextResponse.json({ error: `Bar ${barId} ainda não configurado para Stone->CA` }, { status: 400 });
@@ -555,7 +555,7 @@ export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
   const nega = negarPorRota(user, request); if (nega) return nega;
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão para criar lançamentos');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.conciliacao, 'inserir')) return permissionErrorResponse('Sem permissão para criar lançamentos');
   const body = await request.json().catch(() => ({} as any));
   const barId = Number(body?.bar_id) || Number(user.bar_id);
   const data: string = body?.data || ontemBRT();

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
-import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 import {
   getLancadorAdmin, getCAToken, resolveCategoriaId, resolveContaPadrao, criarLancamentoCA, round2,
 } from '@/lib/financeiro/contaazul-lancador';
@@ -19,7 +19,7 @@ const rotulo = (comp: string) => `${MES[Number(comp.slice(5, 7))]}/${comp.slice(
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão para lançar');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.despesas, 'inserir')) return permissionErrorResponse('Sem permissão para lançar');
   const body = await request.json().catch(() => ({} as any));
   const id = Number(body?.id);
   const barId = Number(body?.bar_id) || Number(user.bar_id);

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
-import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +20,7 @@ function admin() {
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.conciliacao, 'ver')) return permissionErrorResponse('Sem permissão');
   const barId = Number(new URL(request.url).searchParams.get('bar_id')) || Number(user.bar_id);
   if (!barId) return NextResponse.json({ error: 'bar_id obrigatório' }, { status: 400 });
 
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão para alterar a antecipação');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.conciliacao, 'editar')) return permissionErrorResponse('Sem permissão para alterar a antecipação');
   const body = await request.json().catch(() => ({} as any));
   const barId = Number(body.bar_id);
   if (!barId) return NextResponse.json({ error: 'bar_id obrigatório' }, { status: 400 });

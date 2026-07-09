@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
-import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 import { getLancadorAdmin, round2, primeiroDiaMes, ultimoDiaMes, mesAnteriorBRT } from '@/lib/financeiro/contaazul-lancador';
 
 export const dynamic = 'force-dynamic';
@@ -38,7 +38,7 @@ async function categoriasCA(barId: number): Promise<{ receita: string[]; despesa
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.despesas, 'ver')) return permissionErrorResponse('Sem permissão');
   const url = new URL(request.url);
   const barId = Number(url.searchParams.get('bar_id')) || Number(user.bar_id);
   const { ano, mes } = anoMesAlvo(url);
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão para cadastrar');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.despesas, 'inserir')) return permissionErrorResponse('Sem permissão para cadastrar');
   const body = await request.json().catch(() => ({} as any));
   const barId = Number(body?.bar_id) || Number(user.bar_id);
   const fornecedor = String(body?.fornecedor || '').trim();
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão para excluir');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.despesas, 'excluir')) return permissionErrorResponse('Sem permissão para excluir');
   const url = new URL(request.url);
   const id = Number(url.searchParams.get('id'));
   const barId = Number(url.searchParams.get('bar_id')) || Number(user.bar_id);

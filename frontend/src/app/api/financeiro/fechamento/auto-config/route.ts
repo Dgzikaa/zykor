@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
-import { podeFinanceiro } from '@/lib/auth/financeiro-guard';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 import { getLancadorAdmin } from '@/lib/financeiro/contaazul-lancador';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +18,7 @@ const TIPOS = ['stone', 'sympla', 'entrada_dinheiro', 'variacao_estoque', 'consu
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.despesas, 'ver')) return permissionErrorResponse('Sem permissão');
   const barId = Number(new URL(request.url).searchParams.get('bar_id')) || Number(user.bar_id);
 
   const supabase = getLancadorAdmin();
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão para alterar automação');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.despesas, 'editar')) return permissionErrorResponse('Sem permissão para alterar automação');
   const body = await request.json().catch(() => ({} as any));
   const barId = Number(body?.bar_id) || Number(user.bar_id);
   const tipo = String(body?.tipo || '');
