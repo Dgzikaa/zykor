@@ -33,6 +33,7 @@ interface Opcao { value: string; label: string }
 interface OpcoesBar { categorias: Opcao[]; fornecedores: Opcao[]; contas: Opcao[] }
 
 const fmtBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+const fmtDataBR = (iso: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || '—'); };
 const BANCO_LABEL: Record<string, string> = { itau: 'Itaú', nubank: 'Nubank' };
 
 export function FaturaCartaoTab() {
@@ -281,6 +282,7 @@ export function FaturaCartaoTab() {
               <tr>
                 <th className="text-left py-2 px-2">Data</th>
                 <th className="text-left px-2">Estabelecimento</th>
+                <th className="text-left px-2">Titular</th>
                 <th className="text-left px-2">Cartão</th>
                 <th className="text-right px-2">Valor</th>
                 <th className="text-left px-2 w-32">Bar</th>
@@ -297,11 +299,11 @@ export function FaturaCartaoTab() {
                 const ignorado = l.status === 'ignorado';
                 return (
                   <tr key={l.id} className={`border-b last:border-0 ${ignorado ? 'opacity-40' : ''} ${lancado ? 'bg-green-500/5' : ''}`}>
-                    <td className="py-1.5 px-2 whitespace-nowrap text-muted-foreground text-xs">{l.data_transacao}</td>
+                    <td className="py-1.5 px-2 whitespace-nowrap text-muted-foreground text-xs">{fmtDataBR(l.data_transacao)}</td>
                     <td className="px-2">
                       <div className="truncate max-w-[220px]">{l.descricao}{l.parcela ? <span className="text-muted-foreground text-xs"> · {l.parcela}</span> : ''}</div>
-                      {l.titular_nome && <div className="text-[10px] text-muted-foreground truncate">{l.titular_nome}</div>}
                     </td>
+                    <td className="px-2 text-xs whitespace-nowrap">{l.titular_nome || '—'}</td>
                     <td className="px-2 text-xs text-muted-foreground whitespace-nowrap">{l.cartao_final ? `••${l.cartao_final}` : '—'}</td>
                     <td className="px-2 text-right whitespace-nowrap font-medium">{fmtBRL(l.valor)}</td>
                     <td className="px-2">
