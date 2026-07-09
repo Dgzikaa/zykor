@@ -263,6 +263,19 @@ function BarEditor({ bar, criando, bars, onClose, onSaved }: {
               <div><Label className="text-xs">Fechamento</Label>
                 <Input type="time" value={(form.operacao?.horario_fechamento || '').slice(0,5)} onChange={e => setOp('horario_fechamento', e.target.value)} /></div>
             </div>
+            <div>
+              <Label className="text-xs">Capacidade de atendimento por dia</Label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="ex.: 650"
+                value={form.config.capacidade_dia ?? ''}
+                onChange={e => setCfg('capacidade_dia', e.target.value === '' ? null : Number(e.target.value))}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Usada na Taxa de Lotação (Dashboard de Receitas): capacidade do mês = dias abertos × este número.
+              </p>
+            </div>
             <div className="space-y-1.5">
               <Label className="text-xs block">Integrações ativas</Label>
               {([['tem_api_contahub','ContaHub'],['tem_api_yuzer','Yuzer'],['tem_api_sympla','Sympla']] as const).map(([k,lbl]) => (

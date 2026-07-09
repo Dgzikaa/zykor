@@ -35,10 +35,11 @@ export async function GET(request: NextRequest) {
   const barRes = await (supabase as any)
     .schema('operations')
     .from('bares')
-    .select('capacidade_dia')
+    .select('config')
     .eq('id', barId)
     .maybeSingle();
-  const capacidadeDia = barRes.data?.capacidade_dia != null ? Number(barRes.data.capacidade_dia) : null;
+  const capRaw = barRes.data?.config?.capacidade_dia;
+  const capacidadeDia = capRaw != null && capRaw !== '' ? Number(capRaw) : null;
 
   let q = supabase
     .from('eventos_base')
