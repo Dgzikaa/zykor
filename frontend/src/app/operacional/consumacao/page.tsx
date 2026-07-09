@@ -616,13 +616,22 @@ export default function ControleConsumacaoPage() {
     setPresetAtivo(tipo);
   };
 
-  const toggleCat = (key: string) =>
+  const toggleCat = (key: string) => {
+    const marcando = !catFiltro.has(key);
     setCatFiltro((prev) => {
       const n = new Set(prev);
       if (n.has(key)) n.delete(key);
       else n.add(key);
       return n;
     });
+    // clicou no card -> já expande (ou colapsa ao desmarcar) essa categoria nas 2 camadas
+    setCatExpandidos((prev) => {
+      const n = new Set(prev);
+      if (marcando) n.add(key);
+      else n.delete(key);
+      return n;
+    });
+  };
   const toggleDow = (i: number) =>
     setDiaSemana((prev) => {
       const n = new Set(prev);
