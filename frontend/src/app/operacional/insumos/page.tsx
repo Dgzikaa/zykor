@@ -19,6 +19,10 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
 
+// "Conta em" = embalagem prática em que a equipe conta o estoque. Vocabulário FECHADO (singular,
+// minúsculo) pra não virar garrafa/Garrafa/GARRAFA. Vazio = conta na própria unidade da ficha (g/ml/un).
+const UNIDADES_CONTAGEM = ['garrafa', 'lata', 'caixa', 'fardo', 'engradado', 'pacote', 'saco', 'pote', 'balde', 'bandeja', 'galão', 'bombona', 'dúzia'];
+
 // 1 insumo = 1 linha (cadastro Zykor). VMarket (compras) só alimenta o preço via silver.
 interface Insumo {
   id: number; codigo: string; nome: string; categoria: string | null; secao_vmarket?: string | null; secao_vmarket_manual?: string | null; secao_vmarket_auto?: string | null; unidade_medida: string | null;
@@ -274,8 +278,8 @@ export default function InsumosPage() {
   const [fCurvaA, setFCurvaA] = useState(false);
   const [fProt, setFProt] = useState(false);
   const [fBase, setFBase] = useState('g'); const [fEmb, setFEmb] = useState('1');
-  const [fUnidCont, setFUnidCont] = useState(''); const [fFatorCont, setFFatorCont] = useState('');
-  const abrirEditIns = (i: Insumo) => { setEditIns(i); setFCod(i.codigo || ''); setFNome(i.nome || ''); setFCat(i.categoria || ''); setFSecaoVm(i.secao_vmarket_manual || ''); setFFc(!!i.fator_correcao); setFCurvaA(!!i.curva_a); setFProt(!!i.curva_a_proteina); setFBase(i.base || 'g'); setFEmb(String(i.embalagem ?? 1)); setFUnidCont(i.unidade_contagem || ''); setFFatorCont(i.fator_contagem == null ? '' : String(i.fator_contagem)); };
+  const [fUnidCont, setFUnidCont] = useState('');
+  const abrirEditIns = (i: Insumo) => { setEditIns(i); setFCod(i.codigo || ''); setFNome(i.nome || ''); setFCat(i.categoria || ''); setFSecaoVm(i.secao_vmarket_manual || ''); setFFc(!!i.fator_correcao); setFCurvaA(!!i.curva_a); setFProt(!!i.curva_a_proteina); setFBase(i.base || 'g'); setFEmb(String(i.embalagem ?? 1)); setFUnidCont(i.unidade_contagem || ''); };
   const salvarEditIns = async () => {
     if (!editIns) return;
     try {
@@ -283,7 +287,7 @@ export default function InsumosPage() {
         bar_id: barId, action: 'editar', id: editIns.id, codigo: fCod.trim().toLowerCase(), nome: fNome.trim(), categoria: fCat.trim(),
         secao_vmarket: fSecaoVm.trim(),
         fator_correcao: fFc, curva_a: fCurvaA, curva_a_proteina: fProt, unidade_medida: fBase, base: fBase, embalagem: Number(String(fEmb).replace(',', '.')) || 1,
-        unidade_contagem: fUnidCont.trim(), fator_contagem: fFatorCont.trim(),
+        unidade_contagem: fUnidCont.trim(),
       });
       if (!r.success) throw new Error(r.error);
       setEditIns(null); await carregar();
@@ -808,13 +812,16 @@ export default function InsumosPage() {
                 </div>
                 <div className="flex-1"><label className="text-xs text-gray-500" title="conversão da unidade de compra para unidade de ficha técnica">Embalagem</label><Input type="text" inputMode="decimal" value={fEmb} onChange={e => setFEmb(e.target.value)} /></div>
               </div>
-              {/* Contagem numa unidade prática (ex.: garrafa) com a receita em ml. Em branco = conta na unidade da ficha. */}
-              <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 space-y-1.5">
-                <div className="flex gap-2">
-                  <div className="w-28"><label className="text-xs text-gray-500" title="Unidade em que a equipe CONTA no estoque (ex.: garrafa, caixa, pct). Vazio = conta na unidade da ficha.">Conta em</label><Input value={fUnidCont} onChange={e => setFUnidCont(e.target.value)} placeholder={`ml/g (padrão)`} className="h-9" /></div>
-                  <div className="flex-1"><label className="text-xs text-gray-500" title="Quanto da unidade da ficha tem em 1 unidade de contagem (ex.: 1 garrafa = 600 ml → 600).">Contém (em {fBase})</label><Input type="text" inputMode="decimal" value={fFatorCont} onChange={e => setFFatorCont(e.target.value)} placeholder="—" className="h-9" /></div>
-                </div>
-                <p className="text-[11px] text-gray-400">Ex.: cerveja — conta em <b>garrafa</b>, contém <b>600</b>. A receita continua em {fBase}; o Desvios converte. Em branco = conta na unidade da ficha.</p>
+              {/* "Conta em" = só o RÓTULO que aparece na contagem/desvios (ex.: garrafa). A conversão de unidade
+                  quem faz é a Embalagem acima — não há segundo fator aqui pra não divergir. */}
+              <div>
+                <label className="text-xs text-gray-500" title="Texto que aparece na contagem e no Desvios (ex.: garrafa). Só rótulo — a conversão pro cálculo é a Embalagem acima.">Conta em (rótulo da contagem)</label>
+                <select value={fUnidCont} onChange={e => setFUnidCont(e.target.value)} className="w-full h-9 rounded-md border border-gray-200 dark:border-gray-700 bg-transparent px-2 text-sm">
+                  <option value="">Unidade da ficha ({fBase})</option>
+                  {fUnidCont && !UNIDADES_CONTAGEM.includes(fUnidCont) && <option value={fUnidCont}>{fUnidCont} (legado)</option>}
+                  {UNIDADES_CONTAGEM.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">Só o texto exibido na hora de contar e no Desvios. A conversão de unidade (ex.: 1 garrafa = 600 ml) quem faz é a <b>Embalagem</b> acima.</p>
               </div>
               <div className="flex justify-end gap-2 pt-1">
                 <Button variant="outline" onClick={() => setEditIns(null)}>Cancelar</Button>
