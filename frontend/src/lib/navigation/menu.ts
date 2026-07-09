@@ -54,6 +54,7 @@ export const MENU_TREE: MenuSection[] = [
     permission: 'relatorios',
     subItems: [
       { icon: 'BarChart3', label: 'Dashboard de Receitas', href: '/receitas', permission: 'relatorios' },
+      { icon: 'Sparkles', label: 'Análise (IA)', href: '/receitas/analise', permission: 'relatorios' },
       { icon: 'Megaphone', label: 'Comunicação', href: '/receitas/comunicacao', permission: 'relatorios' },
       { icon: 'Users', label: 'Clientes', href: '/analitico/clientes', permission: 'relatorios' },
       { icon: 'BarChart3', label: 'Eventos', href: '/analitico/eventos', permission: 'relatorios' },
