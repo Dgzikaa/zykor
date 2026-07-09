@@ -10,6 +10,7 @@ import {
   TIPOS_VALIDOS,
   type PedidoTipo,
 } from '@/lib/financeiro/pedidos-pagamento';
+import { broadcastPedidoChange } from '@/lib/realtime/broadcastPedidos';
 
 export const dynamic = 'force-dynamic';
 
@@ -135,6 +136,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'descrição é obrigatória' }, { status: 400 });
   }
 
+  // Competências múltiplas (opcional): 1 PIX cheio → N lançamentos no CA, um por
+  // competência/valor. O valor total do pedido passa a ser a SOMA das competências.
+  const competencias: Array<{ data_competencia: string; valor: number; descricao: string | null }> = [];
+  if (Array.isArray(body.competencias)) {
+    for (let i = 0; i < body.competencias.length; i++) {
+      const c = body.competencias[i];
+      const d = String(c?.data_competencia || '');
+      const v = Number(c?.valor);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        return NextResponse.json({ success: false, error: `competência ${i + 1}: data inválida (AAAA-MM-DD)` }, { status: 400 });
+      }
+      if (!Number.isFinite(v) || v <= 0) {
+        return NextResponse.json({ success: false, error: `competência ${i + 1}: valor inválido` }, { status: 400 });
+      }
+      competencias.push({
+        data_competencia: d,
+        valor: Math.round(v * 100) / 100,
+        descricao: c?.descricao ? String(c.descricao).trim() : null,
+      });
+    }
+  }
+  // Com competências, o valor total é a soma (fonte da verdade); senão é o valor enviado.
+  const valorEfetivo = competencias.length
+    ? Math.round(competencias.reduce((s, c) => s + c.valor, 0) * 100) / 100
+    : valor;
+
   const data_vencimento = body.data_vencimento;
   if (!data_vencimento || !/^\d{4}-\d{2}-\d{2}$/.test(String(data_vencimento))) {
     return NextResponse.json(
@@ -143,19 +170,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const data_competencia = body.data_competencia;
-  if (!data_competencia || !/^\d{4}-\d{2}-\d{2}$/.test(String(data_competencia))) {
+  // Com competências, a competência "principal" do pedido é a menor data (só p/ exibição);
+  // senão exige a data_competencia única.
+  const data_competencia = competencias.length
+    ? competencias.map(c => c.data_competencia).sort()[0]
+    : body.data_competencia;
+  if (!competencias.length && (!data_competencia || !/^\d{4}-\d{2}-\d{2}$/.test(String(data_competencia)))) {
     return NextResponse.json(
       { success: false, error: 'data_competencia (AAAA-MM-DD) é obrigatória' },
       { status: 400 }
     );
   }
 
+  // PIX copia e cola / QR (ex.: Meta Ads via Adyen) — pagamento manual no Inter.
+  const pix_copia_cola = body.pix_copia_cola ? String(body.pix_copia_cola).trim() : null;
   // Reembolso e adiantamento normalmente caem na chave do próprio funcionário.
   const chave_pix = body.chave_pix ? String(body.chave_pix).trim() : null;
-  if ((tipo === 'reembolso' || tipo === 'fornecedor') && !chave_pix) {
+  if ((tipo === 'reembolso' || tipo === 'fornecedor') && !chave_pix && !pix_copia_cola) {
     return NextResponse.json(
-      { success: false, error: 'chave PIX é obrigatória para este tipo' },
+      { success: false, error: 'informe a chave PIX ou o código copia e cola' },
       { status: 400 }
     );
   }
@@ -168,14 +201,16 @@ export async function POST(request: NextRequest) {
     solicitante_id: user.auth_id,
     solicitante_nome: user.nome,
     descricao,
-    valor: Math.round(valor * 100) / 100,
+    valor: valorEfetivo,
     data_competencia,
     data_vencimento,
     beneficiario_nome: body.beneficiario_nome || null,
     chave_pix,
     cpf_cnpj: body.cpf_cnpj || null,
     linha_digitavel: body.linha_digitavel || null,
+    pix_copia_cola,
     observacao: body.observacao || null,
+    precisa_comprovante: body.precisa_comprovante === true,
     // Pré-sugestões opcionais (financeiro confirma na aprovação)
     contaazul_pessoa_id: body.contaazul_pessoa_id || null,
     categoria_id: body.categoria_id || null,
@@ -221,11 +256,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 
+  // Grava as competências (se houver) — cada uma vira um lançamento no CA na aprovação.
+  if (competencias.length) {
+    const linhas = competencias.map((c, i) => ({
+      pedido_id: data.id,
+      bar_id: user.bar_id,
+      data_competencia: c.data_competencia,
+      valor: c.valor,
+      descricao: c.descricao,
+      ordem: i,
+    }));
+    const { error: errComp } = await fin(supabase)
+      .from('pedidos_pagamento_competencias')
+      .insert(linhas);
+    if (errComp) console.error('[PEDIDOS-PAG][POST][competencias]', errComp);
+  }
+
   await comentarioSistema(supabase, {
     pedido_id: data.id,
     bar_id: user.bar_id,
-    mensagem: `Pedido criado por ${user.nome} — ${formatBRL(valor)} (${tipo}).`,
+    mensagem: `Pedido criado por ${user.nome} — ${formatBRL(valorEfetivo)} (${tipo})${
+      competencias.length ? ` · ${competencias.length} competências` : ''
+    }${pix_copia_cola ? ' · PIX copia e cola' : ''}.`,
   });
 
+  await broadcastPedidoChange(user.bar_id);
   return NextResponse.json({ success: true, pedido: data });
 }

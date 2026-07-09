@@ -1,19 +1,21 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Check, X, Loader2, Sparkles } from 'lucide-react';
+import { Check, X, Loader2, Sparkles, Paperclip, CalendarClock } from 'lucide-react';
 import {
   TIPO_LABEL, STATUS_LABEL, STATUS_COLOR, formatBRL, type Pedido,
 } from '../types';
 
 export interface Opcao { value: string; label: string; searchHint?: string }
 
-const APROVAVEL = ['aguardando_aprovacao', 'erro_ca', 'erro_inter'];
+// Fluxo em 2 etapas: APROVAR (decisão) → AGENDAR (dispara CA + Inter).
+const APROVAVEL = ['aguardando_aprovacao'];
+const AGENDAVEL = ['aprovado', 'erro_ca', 'erro_inter'];
 
 /**
  * Card da lista de pedidos. Para quem aprova (financeiro), traz os controles inline
@@ -21,7 +23,7 @@ const APROVAVEL = ['aguardando_aprovacao', 'erro_ca', 'erro_inter'];
  * pra despachar o "de sempre" sem abrir o pedido. Clicar no corpo abre o detalhe.
  */
 export function PedidoCard({
-  pedido, podeAprovar, categorias, contas, fornecedores, onOpen, onChange,
+  pedido, podeAprovar, categorias, contas, fornecedores, onOpen, onChange, onSelecao,
 }: {
   pedido: Pedido;
   podeAprovar: boolean;
@@ -30,22 +32,31 @@ export function PedidoCard({
   fornecedores: Opcao[];
   onOpen: (id: string) => void;
   onChange: () => void;
+  // Reporta as seleções pro pai (usado pelo "Aprovar todos" em lote).
+  onSelecao?: (id: string, sel: { catId: string; contaId: string; fornId: string }) => void;
 }) {
   const { showToast } = useToast();
-  const aprovavel = APROVAVEL.includes(pedido.status);
-  const mostrarInline = podeAprovar && aprovavel;
+  const mostrarInline = podeAprovar && APROVAVEL.includes(pedido.status);
+  // Esconde "Agendar" de copia-e-cola já lançado no CA (status fica 'aprovado' pós-lançamento).
+  const podeAgendar = podeAprovar && AGENDAVEL.includes(pedido.status)
+    && !(pedido.status === 'aprovado' && !!pedido.contaazul_lancamento_id);
 
   // Sugestão do Zykor entra como default quando o pedido ainda não tem categoria.
   const catSugerida = !pedido.categoria_id && pedido.categoria_sugerida_id;
   const [catId, setCatId] = useState(pedido.categoria_id || pedido.categoria_sugerida_id || '');
   const [contaId, setContaId] = useState(pedido.conta_financeira_id || '');
   const [fornId, setFornId] = useState(pedido.contaazul_pessoa_id || '');
-  const [acao, setAcao] = useState<null | 'aprovar' | 'rejeitar'>(null);
+  const [acao, setAcao] = useState<null | 'aprovar' | 'rejeitar' | 'agendar'>(null);
 
   const usouSugestao = useMemo(
     () => !!catSugerida && catId === pedido.categoria_sugerida_id,
     [catSugerida, catId, pedido.categoria_sugerida_id]
   );
+
+  // Reporta as seleções atuais pro pai (o "Aprovar todos" precisa saber o que já está pronto).
+  useEffect(() => {
+    onSelecao?.(pedido.id, { catId, contaId, fornId });
+  }, [catId, contaId, fornId, pedido.id, onSelecao]);
 
   const aprovar = async () => {
     if (!catId) return showToast({ type: 'error', title: 'Escolha a categoria' });
@@ -58,7 +69,7 @@ export function PedidoCard({
         conta_financeira_id: contaId || undefined,
         contaazul_pessoa_id: fornId,
       });
-      showToast({ type: 'success', title: 'Aprovado!', message: 'Conta criada no CA e PIX agendado no Inter.' });
+      showToast({ type: 'success', title: 'Aprovado!', message: 'Foi pra aba Aprovado. Clique em "Agendar" pra disparar CA + Inter.' });
       onChange();
     } catch (e: any) {
       const msg = e?.message || '';
@@ -67,6 +78,21 @@ export function PedidoCard({
         type: 'error', title: 'Não deu pra aprovar por aqui',
         message: /credencial Inter|conta financeira/.test(msg) ? `${msg} Abra o pedido pra completar.` : msg,
       });
+      onChange();
+    } finally {
+      setAcao(null);
+    }
+  };
+
+  // AGENDAR (etapa 2): dispara a criação no CA + PIX no Inter de um pedido já aprovado.
+  const agendar = async () => {
+    setAcao('agendar');
+    try {
+      await api.post(`/api/financeiro/pedidos-pagamento/${pedido.id}/agendar`, {});
+      showToast({ type: 'success', title: 'Agendado!', message: 'Conta criada no CA e PIX agendado no Inter.' });
+      onChange();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Falha ao agendar', message: e?.message });
       onChange();
     } finally {
       setAcao(null);
@@ -95,11 +121,24 @@ export function PedidoCard({
           <div className="flex items-center gap-2">
             <span className="font-medium truncate">{pedido.descricao}</span>
             <Badge variant="outline" className="text-[10px] shrink-0">{TIPO_LABEL[pedido.tipo]}</Badge>
+            {pedido.precisa_comprovante && (
+              <Badge className="bg-amber-500/15 text-amber-600 text-[10px] shrink-0 gap-0.5">
+                <Paperclip className="w-2.5 h-2.5" />Comprovante
+              </Badge>
+            )}
+            {pedido.pix_copia_cola && (
+              <Badge className="bg-purple-500/15 text-purple-600 text-[10px] shrink-0">Copia e cola</Badge>
+            )}
           </div>
-          <div className="text-xs text-muted-foreground mt-0.5 truncate">
-            {pedido.solicitante_nome || '—'} · vence {pedido.data_vencimento}
-            {pedido.data_competencia ? ` · comp. ${pedido.data_competencia}` : ''}
-            {pedido.beneficiario_nome ? ` · ${pedido.beneficiario_nome}` : ''}
+          <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
+            <div className="truncate">
+              Solicitante: <span className="text-foreground/80">{pedido.solicitante_nome || '—'}</span>
+              {pedido.beneficiario_nome ? ` · recebe: ${pedido.beneficiario_nome}` : ''}
+            </div>
+            <div className="truncate">
+              Criado por: <span className="text-foreground/80">{pedido.solicitante_nome || '—'}</span> · vence {pedido.data_vencimento}
+              {pedido.data_competencia ? ` · comp. ${pedido.data_competencia}` : ''}
+            </div>
           </div>
         </button>
         <div className="text-right shrink-0">
@@ -115,6 +154,12 @@ export function PedidoCard({
               {acao === 'rejeitar' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><X className="w-3.5 h-3.5 mr-1" />Recusar</>}
             </Button>
           </div>
+        )}
+        {podeAgendar && (
+          <Button size="sm" className="h-7 px-2 shrink-0" onClick={agendar} disabled={!!acao}
+            title={pedido.status === 'erro_ca' || pedido.status === 'erro_inter' ? 'Tentar agendar de novo' : 'Criar no CA e agendar o PIX no Inter'}>
+            {acao === 'agendar' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><CalendarClock className="w-3.5 h-3.5 mr-1" />{pedido.status === 'aprovado' ? 'Agendar' : 'Reagendar'}</>}
+          </Button>
         )}
       </div>
 

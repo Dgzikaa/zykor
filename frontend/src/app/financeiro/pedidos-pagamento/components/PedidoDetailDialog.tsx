@@ -8,16 +8,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { DateInputBR } from '@/components/ui/date-input-br';
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import {
-  Loader2, Send, Check, X, Paperclip, Trash2, FileText, History, Save,
+  Loader2, Send, Check, X, Paperclip, Trash2, FileText, History, Save, Copy, CheckCircle2, CalendarClock,
 } from 'lucide-react';
 import {
   TIPO_LABEL, STATUS_LABEL, STATUS_COLOR, formatBRL,
-  type Pedido, type Comentario, type Anexo, type HistoricoItem,
+  type Pedido, type Comentario, type Anexo, type HistoricoItem, type Competencia,
 } from '../types';
 
 interface Opcao { value: string; label: string; searchHint?: string }
@@ -36,9 +37,12 @@ export function PedidoDetailDialog({
   const [comentarios, setComentarios] = useState<Comentario[]>([]);
   const [anexos, setAnexos] = useState<Anexo[]>([]);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
+  const [competencias, setCompetencias] = useState<Competencia[]>([]);
   const [podeAprovar, setPodeAprovar] = useState(false);
   const [podeExcluir, setPodeExcluir] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
+  const [marcandoPago, setMarcandoPago] = useState(false);
+  const [copiado, setCopiado] = useState(false);
 
   // Edição inline dos campos do pedido
   const [edit, setEdit] = useState<Partial<Pedido>>({});
@@ -67,7 +71,9 @@ export function PedidoDetailDialog({
   const [cadastrando, setCadastrando] = useState(false);
 
   const editavel = pedido && (podeAprovar || ['rascunho', 'aguardando_aprovacao'].includes(pedido.status));
-  const aprovavel = pedido && ['aguardando_aprovacao', 'erro_ca', 'erro_inter'].includes(pedido.status);
+  // Fluxo 2 etapas: aprovar (decisão) só p/ pendente; agendar (dispara CA+Inter) p/ aprovado/erro.
+  const aprovavel = pedido && pedido.status === 'aguardando_aprovacao';
+  const agendavel = pedido && ['aprovado', 'erro_ca', 'erro_inter'].includes(pedido.status);
 
   const carregar = useCallback(async () => {
     if (!pedidoId) return;
@@ -78,6 +84,7 @@ export function PedidoDetailDialog({
       setComentarios(res.comentarios || []);
       setAnexos(res.anexos || []);
       setHistorico(res.historico || []);
+      setCompetencias(res.competencias || []);
       setPodeAprovar(!!res.pode_aprovar);
       setPodeExcluir(!!res.pode_excluir);
       setEdit({});
@@ -112,7 +119,7 @@ export function PedidoDetailDialog({
       const [cat, cc, ct, fo, it] = await Promise.all([
         j(fetch(`/api/financeiro/contaazul/categorias?bar_id=${opBar}`)),
         j(fetch(`/api/financeiro/contaazul/centros-custo?bar_id=${opBar}`)),
-        j(fetch(`/api/financeiro/contaazul/contas-financeiras?bar_id=${opBar}`)),
+        j(fetch(`/api/financeiro/contaazul/contas-financeiras?bar_id=${opBar}&somente_pagadoras=true`)),
         j(fetch(`/api/financeiro/contaazul/stakeholders?bar_id=${opBar}&perfil=FORNECEDOR`)),
         j(fetch(`/api/financeiro/inter/credenciais?bar_id=${opBar}`)),
       ]);
@@ -120,9 +127,11 @@ export function PedidoDetailDialog({
         .filter((c: any) => c.ativo !== false)
         .map((c: any) => ({ value: c.contaazul_id, label: c.nome || c.categoria_nome })));
       setCentros(((cc.centros_custo || cc.centrosCusto) || []).map((c: any) => ({ value: c.contaazul_id, label: c.nome })));
-      setContas((ct.contas_financeiras || [])
-        .filter((c: any) => c.ativo !== false)
-        .map((c: any) => ({ value: String(c.contaazul_id), label: c.banco ? `${c.nome} (${c.banco})` : c.nome })));
+      const contasRaw = (ct.contas_financeiras || []).filter((c: any) => c.ativo !== false);
+      setContas(contasRaw.map((c: any) => ({ value: String(c.contaazul_id), label: c.banco ? `${c.nome} (${c.banco})` : c.nome })));
+      // Pré-seleciona a conta pagadora PADRÃO do bar quando ainda não há conta escolhida (trocável).
+      const padraoConta = contasRaw.find((c: any) => c.pagadora_padrao);
+      if (padraoConta) setAprov(a => (a.conta_financeira_id ? a : { ...a, conta_financeira_id: String(padraoConta.contaazul_id) }));
       setFornecedores((fo.pessoas || []).map((p: any) => ({
         value: p.contaazul_id, label: p.nome, searchHint: p.documento || '',
       })));
@@ -184,7 +193,7 @@ export function PedidoDetailDialog({
         conta_financeira_id: aprov.conta_financeira_id || undefined,
         inter_credencial_id: aprov.inter_credencial_id ? Number(aprov.inter_credencial_id) : undefined,
       });
-      showToast({ type: 'success', title: 'Aprovado!', message: 'Conta a pagar criada e PIX agendado no Inter.' });
+      showToast({ type: 'success', title: 'Aprovado!', message: 'Pronto pra agendar — clique em "Agendar" pra criar no CA e disparar o PIX.' });
       await carregar();
       onChange();
     } catch (e: any) {
@@ -225,6 +234,49 @@ export function PedidoDetailDialog({
       showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message });
     } finally {
       setExcluindo(false);
+    }
+  };
+
+  const [agendando, setAgendando] = useState(false);
+  const agendar = async () => {
+    if (!pedido) return;
+    setAgendando(true);
+    try {
+      await api.post(`/api/financeiro/pedidos-pagamento/${pedido.id}/agendar`, {});
+      showToast({ type: 'success', title: 'Agendado!', message: 'Conta criada no Conta Azul e PIX agendado no Inter.' });
+      await carregar();
+      onChange();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Falha ao agendar', message: e?.message });
+      await carregar();
+    } finally {
+      setAgendando(false);
+    }
+  };
+
+  const marcarPago = async () => {
+    if (!pedido) return;
+    setMarcandoPago(true);
+    try {
+      await api.post(`/api/financeiro/pedidos-pagamento/${pedido.id}/marcar-pago`, {});
+      showToast({ type: 'success', title: 'Pedido marcado como pago' });
+      await carregar();
+      onChange();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Erro ao marcar como pago', message: e?.message });
+    } finally {
+      setMarcandoPago(false);
+    }
+  };
+
+  const copiarCodigo = async () => {
+    if (!pedido?.pix_copia_cola) return;
+    try {
+      await navigator.clipboard.writeText(pedido.pix_copia_cola);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      showToast({ type: 'error', title: 'Não deu pra copiar', message: 'Copie manualmente do campo.' });
     }
   };
 
@@ -303,6 +355,41 @@ export function PedidoDetailDialog({
               </div>
             )}
 
+            {/* PIX copia e cola / QR — pagamento manual no app do Inter */}
+            {pedido.pix_copia_cola && (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-amber-700 dark:text-amber-500">
+                    PIX copia e cola — pague colando no app do Inter
+                  </span>
+                  <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={copiarCodigo}>
+                    {copiado ? <><CheckCircle2 className="w-3.5 h-3.5 mr-1" />Copiado</> : <><Copy className="w-3.5 h-3.5 mr-1" />Copiar</>}
+                  </Button>
+                </div>
+                <p className="font-mono text-[11px] break-all bg-muted/50 rounded p-2">{pedido.pix_copia_cola}</p>
+              </div>
+            )}
+
+            {/* Competências — 1 PIX, N lançamentos no Conta Azul */}
+            {competencias.length > 0 && (
+              <div className="rounded-md border border-[hsl(var(--border))] p-3">
+                <p className="text-xs font-medium mb-2">
+                  {competencias.length} competências → {competencias.length} lançamentos no Conta Azul
+                </p>
+                <div className="space-y-1">
+                  {competencias.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between text-xs gap-2">
+                      <span className="text-muted-foreground truncate">
+                        {c.data_competencia}{c.descricao ? ` · ${c.descricao}` : ''}
+                        {c.contaazul_lancamento_id && <span className="text-green-600"> · ✓ no CA</span>}
+                      </span>
+                      <span className="font-medium shrink-0">{formatBRL(c.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Campos do pedido (editáveis) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="col-span-2">
@@ -315,11 +402,11 @@ export function PedidoDetailDialog({
               </div>
               <div>
                 <Label className="mb-1 block text-xs">Vencimento</Label>
-                <Input type="date" value={fld('data_vencimento')} disabled={!editavel} onChange={(e) => setFld('data_vencimento', e.target.value)} />
+                <DateInputBR value={String(fld('data_vencimento') || '')} disabled={!editavel} onChange={(iso) => setFld('data_vencimento', iso)} />
               </div>
               <div>
                 <Label className="mb-1 block text-xs">Competência</Label>
-                <Input type="date" value={fld('data_competencia')} disabled={!editavel} onChange={(e) => setFld('data_competencia', e.target.value)} />
+                <DateInputBR value={String(fld('data_competencia') || '')} disabled={!editavel} onChange={(iso) => setFld('data_competencia', iso)} />
               </div>
               <div>
                 <Label className="mb-1 block text-xs">Chave PIX</Label>
@@ -410,10 +497,10 @@ export function PedidoDetailDialog({
 
                 <div className="flex gap-2 pt-1">
                   <Button onClick={aprovar} disabled={aprovando} className="flex-1">
-                    {aprovando ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processando...</> : <><Check className="w-4 h-4 mr-2" />Aprovar e pagar</>}
+                    {aprovando ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Aprovando...</> : <><Check className="w-4 h-4 mr-2" />Aprovar</>}
                   </Button>
                 </div>
-                <p className="text-[11px] text-muted-foreground">Cria a conta a pagar no Conta Azul e agenda o PIX no Inter. O sócio dá o OK final no app do Inter.</p>
+                <p className="text-[11px] text-muted-foreground">Aprovar só confirma os dados e manda pra aba Aprovado. O disparo pro Conta Azul e Inter é no botão <b>Agendar</b>, na etapa seguinte.</p>
 
                 {/* Rejeição */}
                 <div className="pt-2 border-t border-[hsl(var(--border))]">
@@ -425,6 +512,36 @@ export function PedidoDetailDialog({
                     </Button>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Agendar (etapa 2) — dispara CA + Inter de um pedido aprovado, ou retry após erro */}
+            {podeAprovar && agendavel && !(pedido.status === 'aprovado' && pedido.contaazul_lancamento_id) && (
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 flex items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">
+                  {pedido.status === 'aprovado'
+                    ? 'Aprovado. Agende pra criar a conta no Conta Azul e disparar o PIX no Inter.'
+                    : `Falhou no ${pedido.status === 'erro_ca' ? 'Conta Azul' : 'Inter'}. Corrija e tente de novo (reusa o que já deu certo).`}
+                </p>
+                <Button size="sm" onClick={agendar} disabled={agendando} className="shrink-0">
+                  {agendando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CalendarClock className="w-4 h-4 mr-2" />}
+                  {pedido.status === 'aprovado' ? 'Agendar' : 'Tentar de novo'}
+                </Button>
+              </div>
+            )}
+
+            {/* Marcar como pago — copia e cola (manual) ou pagamento fora do fluxo */}
+            {podeAprovar && (pedido.status === 'aprovado' || pedido.status === 'agendado') && (
+              <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 flex items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">
+                  {pedido.pix_copia_cola
+                    ? 'Depois de pagar colando o código no app do Inter, confirme aqui.'
+                    : 'Pago fora do fluxo automático? Confirme o pagamento aqui.'}
+                </p>
+                <Button size="sm" onClick={marcarPago} disabled={marcandoPago} className="shrink-0">
+                  {marcandoPago ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                  Marcar como pago
+                </Button>
               </div>
             )}
 

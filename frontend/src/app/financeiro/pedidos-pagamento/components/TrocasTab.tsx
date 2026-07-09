@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
+import { DateInputBR } from '@/components/ui/date-input-br';
 import { ArrowRightLeft, Search, Trash2, Loader2, Plus } from 'lucide-react';
 
 type Insumo = { id: number; codigo: string; nome: string; categoria?: string | null; preco_atual: number | null };
@@ -35,7 +36,7 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
   const [descricao, setDescricao] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [trocas, setTrocas] = useState<any[]>([]);
-  const [caPreview, setCaPreview] = useState<{ id: string; competencia: string; plano: any[] } | null>(null);
+  const [caPreview, setCaPreview] = useState<{ id: string; competencia: string; plano: any[]; pix?: any } | null>(null);
   const [caLoading, setCaLoading] = useState<string | null>(null);
   const [caLancando, setCaLancando] = useState(false);
 
@@ -45,7 +46,7 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
     try {
       const r = await api.post(`/api/financeiro/trocas/${trocaId}/lancar-ca`, { dryRun: true });
       if (!r.success) throw new Error(r.error);
-      setCaPreview({ id: trocaId, competencia: r.competencia, plano: r.plano || [] });
+      setCaPreview({ id: trocaId, competencia: r.competencia, plano: r.plano || [], pix: r.pix });
     } catch (e: any) {
       toast({ title: 'Erro no preview', description: e?.message || 'Falha', variant: 'destructive' });
     } finally { setCaLoading(null); }
@@ -57,7 +58,13 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
     try {
       const r = await api.post(`/api/financeiro/trocas/${caPreview.id}/lancar-ca`, { dryRun: false });
       if (!r.success) throw new Error(r.error || 'Falha ao lançar');
-      toast({ title: 'Lançado no Conta Azul', description: 'Receita a receber no emissor + despesa a pagar no recebedor' });
+      if (r.pix?.erro) {
+        toast({ title: 'Lançado no CA — mas o PIX falhou', description: `${r.pix.erro}. Faça o PIX manualmente.`, variant: 'destructive' });
+      } else if (r.pix?.codigo) {
+        toast({ title: 'Lançado + PIX agendado', description: 'CA (2 pernas) + PIX no Inter da contraparte pro bar recebedor' });
+      } else {
+        toast({ title: 'Lançado no Conta Azul', description: 'Receita a receber no emissor + despesa a pagar no recebedor' });
+      }
       setCaPreview(null); carregarTrocas();
     } catch (e: any) {
       toast({ title: 'Erro ao lançar no CA', description: e?.message || 'Falha', variant: 'destructive' });
@@ -134,7 +141,7 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                 </div>
                 <div>
                   <label className="text-xs text-gray-500">Data (competência)</label>
-                  <Input type="date" value={dataComp} onChange={(e) => setDataComp(e.target.value)} className="mt-1" />
+                  <div className="mt-1"><DateInputBR value={dataComp} onChange={setDataComp} /></div>
                 </div>
                 <div>
                   <label className="text-xs text-gray-500">Descrição (opcional)</label>
@@ -235,7 +242,7 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                             ? <Badge variant="outline" className="text-emerald-700 border-emerald-300">✓ no CA</Badge>
                             : <button onClick={() => abrirPreviewCA(t.id)} disabled={caLoading === t.id}
                                 className="text-xs px-2 py-1 rounded border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-50">
-                                {caLoading === t.id ? '…' : 'Lançar no CA'}
+                                {caLoading === t.id ? '…' : 'Lançar'}
                               </button>}
                         </td>
                       </tr>
@@ -252,20 +259,37 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
       {caPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !caLancando && setCaPreview(null)}>
           <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-lg w-full p-5" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-1 font-semibold text-gray-900 dark:text-white"><ArrowRightLeft className="w-4 h-4 text-indigo-500" />Lançar troca no Conta Azul</div>
-            <p className="text-xs text-gray-500 mb-3">Competência {fmtData(caPreview.competencia)}. ⚠️ O Conta Azul não permite excluir lançamento — confira antes de confirmar.</p>
+            <div className="flex items-center gap-2 mb-1 font-semibold text-gray-900 dark:text-white"><ArrowRightLeft className="w-4 h-4 text-indigo-500" />Lançar troca (Conta Azul + PIX)</div>
+            <p className="text-xs text-gray-500 mb-3">Competência {fmtData(caPreview.competencia)}. ⚠️ O Conta Azul não permite excluir lançamento e o <b>PIX é dinheiro de verdade</b> — confira antes de confirmar.</p>
             <div className="space-y-2">
               {caPreview.plano.length === 0 && <div className="text-sm text-gray-400 text-center py-3">Nada a lançar.</div>}
               {caPreview.plano.map((l, i) => (
                 <div key={i} className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${l.ok ? 'border-gray-200 dark:border-gray-700' : 'border-red-300 bg-red-50 dark:bg-red-900/20'}`}>
                   <div>
-                    <div className="font-medium text-gray-800 dark:text-gray-100">{l.sinal === 'RECEITA' ? 'Receita a receber' : 'Despesa a pagar'} · Bar {l.bar}</div>
+                    <div className="font-medium text-gray-800 dark:text-gray-100">{l.sinal === 'RECEITA' ? 'Receita a receber' : 'Despesa a pagar'} · {nomeBar(l.bar)}</div>
                     <div className="text-xs text-gray-500">{l.ok ? l.categoria_nome : (l.erro || 'não resolvido')}</div>
                   </div>
                   <div className="tabular-nums font-semibold">{fmtBRL(l.valor)}</div>
                 </div>
               ))}
             </div>
+
+            {/* PIX no Inter (dinheiro de verdade) */}
+            {caPreview.pix && (
+              <div className={`mt-2 rounded-lg border px-3 py-2 text-sm ${caPreview.pix.ja_enviado ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20' : caPreview.pix.ok ? 'border-indigo-200 dark:border-indigo-700' : 'border-amber-300 bg-amber-50 dark:bg-amber-900/20'}`}>
+                <div className="font-medium text-gray-800 dark:text-gray-100 flex items-center gap-1.5"><ArrowRightLeft className="w-3.5 h-3.5 text-indigo-500" />PIX no Inter</div>
+                {caPreview.pix.ja_enviado ? (
+                  <div className="text-xs text-emerald-600 mt-0.5">✓ PIX já enviado nesta troca — não envia de novo.</div>
+                ) : caPreview.pix.ok ? (
+                  <div className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
+                    <b>{nomeBar(caPreview.pix.pagador_bar)}</b> paga <b className="tabular-nums">{fmtBRL(caPreview.pix.valor)}</b> → <b>{nomeBar(caPreview.pix.recebedor_bar)}</b>
+                    <span className="text-gray-400"> · chave …{String(caPreview.pix.chave || '').slice(-6)}</span>
+                  </div>
+                ) : (
+                  <div className="text-xs text-amber-700 dark:text-amber-500 mt-0.5">Sem PIX: {caPreview.pix.erro}. Só as pernas do Conta Azul serão lançadas.</div>
+                )}
+              </div>
+            )}
             <div className="flex justify-end gap-2 mt-4">
               <Button variant="outline" onClick={() => setCaPreview(null)} disabled={caLancando}>Cancelar</Button>
               <Button onClick={confirmarCA} disabled={caLancando || caPreview.plano.length === 0 || caPreview.plano.some((l) => !l.ok)}>

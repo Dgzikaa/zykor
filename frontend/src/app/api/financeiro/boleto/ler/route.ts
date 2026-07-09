@@ -48,6 +48,19 @@ export async function POST(request: NextRequest) {
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
     : { type: 'image', source: { type: 'base64', media_type: mime, data: base64 } };
 
+  // Estrutura sempre presente — a IA preenche o que conseguir ler; o resto fica null
+  // e a pessoa completa manualmente. NUNCA falha dura: leitura parcial é o caso comum.
+  const vazio = { valor: null, vencimento: null, beneficiario: null, cpf_cnpj: null, linha_digitavel: null, banco: null };
+
+  const avisosDe = (d: any): string[] => {
+    const faltando: string[] = [];
+    if (d.valor == null) faltando.push('valor');
+    if (!d.vencimento) faltando.push('vencimento');
+    if (!d.linha_digitavel) faltando.push('linha digitável');
+    if (!d.beneficiario) faltando.push('beneficiário');
+    return faltando;
+  };
+
   try {
     const anthropic = new Anthropic({ apiKey });
     const msg = await anthropic.messages.create({
@@ -55,15 +68,26 @@ export async function POST(request: NextRequest) {
       max_tokens: 1024,
       messages: [{ role: 'user', content: [block, { type: 'text', text: PROMPT }] }],
     });
-    const texto = msg.content[0]?.type === 'text' ? msg.content[0].text : '';
+    // Concatena TODOS os blocos de texto (mais robusto que content[0]).
+    const texto = msg.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join('\n');
     const jsonMatch = texto.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return NextResponse.json({ success: false, error: 'não consegui ler o boleto', bruto: texto }, { status: 422 });
-    const dados = JSON.parse(jsonMatch[0]);
+
+    let dados: any = { ...vazio };
+    let leu = false;
+    if (jsonMatch) {
+      try { dados = { ...vazio, ...JSON.parse(jsonMatch[0]) }; leu = true; } catch { /* parse falhou → segue vazio */ }
+    }
     if (dados.cpf_cnpj) dados.cpf_cnpj = String(dados.cpf_cnpj).replace(/\D/g, '');
     if (dados.linha_digitavel) dados.linha_digitavel = String(dados.linha_digitavel).replace(/\D/g, '');
-    return NextResponse.json({ success: true, dados });
+
+    // Sempre 200: mesmo sem ler nada, a pessoa preenche manualmente. `leu`+`avisos` guiam a UI.
+    return NextResponse.json({ success: true, leu, dados, avisos: avisosDe(dados) });
   } catch (e: any) {
     console.error('[boleto/ler]', e);
-    return NextResponse.json({ success: false, error: e?.message || 'erro na leitura por IA' }, { status: 500 });
+    // IA indisponível/erro: devolve estrutura vazia p/ preenchimento manual (não trava o fluxo).
+    return NextResponse.json({
+      success: true, leu: false, dados: { ...vazio }, avisos: avisosDe(vazio),
+      erro_ia: e?.message || 'erro na leitura por IA',
+    });
   }
 }

@@ -28,6 +28,8 @@ export interface Pedido {
   tipo_chave?: string | null;
   cpf_cnpj?: string | null;
   observacao?: string | null;
+  precisa_comprovante?: boolean | null;
+  pix_copia_cola?: string | null;
   categoria_id?: string | null;
   categoria_nome?: string | null;
   categoria_sugerida_id?: string | null;
@@ -46,6 +48,16 @@ export interface Pedido {
   motivo_rejeicao?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface Competencia {
+  id: string;
+  pedido_id: string;
+  data_competencia: string;
+  valor: number;
+  descricao?: string | null;
+  contaazul_lancamento_id?: string | null;
+  ordem: number;
 }
 
 export interface Comentario {

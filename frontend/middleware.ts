@@ -226,7 +226,12 @@ export async function middleware(request: NextRequest) {
 
   if (!user) {
     console.log(`🚫 MIDDLEWARE: Usuário não autenticado tentando acessar ${pathname}`);
-    return NextResponse.redirect(new URL('/login', request.url));
+    // Preserva o destino (path + query) no returnUrl → após o login o usuário cai
+    // exatamente na URL que tentou abrir. Habilita atalhos deep-link (ex.: link
+    // "Novo pedido de pagamento" fixado no grupo → /financeiro/pedidos-pagamento?novo=1).
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('returnUrl', pathname + request.nextUrl.search);
+    return NextResponse.redirect(loginUrl);
   }
 
   // Verificar se usuário está ativo

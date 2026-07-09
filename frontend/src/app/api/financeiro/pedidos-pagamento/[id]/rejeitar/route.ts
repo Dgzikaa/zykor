@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { fin, podeAprovar, registrarHistorico, comentarioSistema } from '@/lib/financeiro/pedidos-pagamento';
+import { broadcastPedidoChange } from '@/lib/realtime/broadcastPedidos';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,5 +69,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     mensagem: `Rejeitado por ${user.nome}. Motivo: ${motivo}`,
   });
 
+  await broadcastPedidoChange(pedido.bar_id);
   return NextResponse.json({ success: true, pedido: data });
 }

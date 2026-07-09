@@ -4,6 +4,7 @@ import { negarPorRota } from '@/lib/permissions/guard';
 import {
   getLancadorAdmin, getCAToken, resolveCategoriaId, resolveContaPadrao, criarLancamentoCA, type SinalLanc,
 } from '@/lib/financeiro/contaazul-lancador';
+import { enviarPixDireto } from '@/lib/inter/enviarPixDireto';
 
 export const dynamic = 'force-dynamic';
 
@@ -112,8 +113,29 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     leg.ok = true;
   }
 
+  // PIX da troca: quem PAGA é o RECEBEDOR dos insumos (bar_destino); quem RECEBE é o
+  // EMISSOR (bar_origem). Sai da credencial Inter padrão do bar_destino, cai na chave
+  // PIX de recebimento do bar_origem. (Config em pagamento_config_bar / pagadora_padrao.)
+  const { data: contaPadPagador } = await (sb.schema('bronze' as any) as any)
+    .from('bronze_contaazul_contas_financeiras')
+    .select('inter_credencial_id').eq('bar_id', troca.bar_destino).eq('pagadora_padrao', true).maybeSingle();
+  const { data: cfgRecebedor } = await fin.from('pagamento_config_bar')
+    .select('chave_pix_recebimento').eq('bar_id', troca.bar_origem).maybeSingle();
+  const pixCredId = Number(contaPadPagador?.inter_credencial_id) || null;
+  const pixChave = cfgRecebedor?.chave_pix_recebimento || null;
+  const pixValor = Math.round(Number(troca.valor) * 100) / 100;
+  const pixErroPlano = !(pixValor > 0) ? 'Valor da troca é zero'
+    : !pixCredId ? `Sem credencial Inter padrão no bar pagador (${troca.bar_destino})`
+    : !pixChave ? `Sem chave PIX de recebimento cadastrada no bar ${troca.bar_origem}`
+    : null;
+  const pixPlano = {
+    pagador_bar: troca.bar_destino, recebedor_bar: troca.bar_origem,
+    valor: pixValor, chave: pixChave, ok: !pixErroPlano, erro: pixErroPlano,
+    ja_enviado: !!troca.inter_codigo_solicitacao,
+  };
+
   if (dryRun) {
-    return NextResponse.json({ success: true, dryRun: true, competencia: comp, plano });
+    return NextResponse.json({ success: true, dryRun: true, competencia: comp, plano, pix: pixPlano });
   }
 
   // execução real — aborta se qualquer perna não resolveu (CA não tem DELETE: tudo-ou-nada por segurança)
@@ -148,5 +170,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const desId = resultados.find((r) => r.sinal === 'DESPESA')?.protocolId || null;
     await fin.from('trocas').update({ status: 'ca_lancado', ca_lancamento_receita_id: recId, ca_lancamento_despesa_id: desId, atualizado_em: new Date().toISOString() }).eq('id', trocaId);
   }
-  return NextResponse.json({ success: todasOk, competencia: comp, resultados });
+
+  // Só dispara o PIX se o CA fechou e ainda não foi enviado (idempotente por troca).
+  let pixCodigo = troca.inter_codigo_solicitacao || null;
+  let pixErro: string | null = null;
+  if (todasOk && !pixCodigo) {
+    if (pixErroPlano) {
+      pixErro = pixErroPlano;
+    } else {
+      try {
+        const hojeStr = new Date().toISOString().slice(0, 10);
+        const rp = await enviarPixDireto({
+          barId: troca.bar_destino, credencialId: pixCredId!, chave: pixChave!,
+          valor: pixValor, descricao: `Troca de insumo — pagamento ao bar ${troca.bar_origem}`,
+          destinatario: `Bar ${troca.bar_origem}`, dataPagamento: hojeStr, seedIdempotencia: `troca:${trocaId}`,
+        });
+        pixCodigo = rp.codigoSolicitacao;
+      } catch (e: any) {
+        pixErro = e?.message || 'Falha no PIX';
+      }
+    }
+    await fin.from('trocas').update({ inter_codigo_solicitacao: pixCodigo, inter_pix_erro: pixErro }).eq('id', trocaId);
+  }
+
+  return NextResponse.json({ success: todasOk, competencia: comp, resultados, pix: { codigo: pixCodigo, erro: pixErro } });
 }

@@ -8,11 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { DateInputBR } from '@/components/ui/date-input-br';
 import { useToast } from '@/components/ui/toast';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { api } from '@/lib/api-client';
-import { Loader2, Paperclip, HelpCircle } from 'lucide-react';
-import { type PedidoTipo } from '../types';
+import { Loader2, Paperclip, HelpCircle, Plus, Trash2 } from 'lucide-react';
+import { type PedidoTipo, formatBRL } from '../types';
+import { parsePixCopiaCola } from '../pixEmv';
 
 // No pedido manual só existem 2 destinos: reembolso a funcionário ou fornecedor externo.
 // (freela/cartão/avulso são lançados por fluxos próprios.)
@@ -43,6 +45,14 @@ const parseValor = (v: string): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// Máscara de moeda: formata enquanto digita (últimos dígitos = centavos) → "1.234,56".
+const formatValorInput = (raw: string): string => {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  const n = parseInt(digits, 10) / 100;
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 export function NovoPedidoDialog({
   open, onOpenChange, onCriado,
 }: {
@@ -54,7 +64,7 @@ export function NovoPedidoDialog({
   const [salvando, setSalvando] = useState(false);
   const [arquivo, setArquivo] = useState<File | null>(null);
 
-  const [tipo, setTipo] = useState<PedidoTipo>('reembolso');
+  const [tipo, setTipo] = useState<PedidoTipo>('fornecedor');
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState('');
   const [vencimento, setVencimento] = useState('');
@@ -63,22 +73,76 @@ export function NovoPedidoDialog({
   const [beneficiario, setBeneficiario] = useState('');
   const [cpfCnpj, setCpfCnpj] = useState('');
   const [observacao, setObservacao] = useState('');
+  const [precisaComprovante, setPrecisaComprovante] = useState(false);
+
+  // Forma de pagamento: chave PIX (automático no Inter) ou copia e cola / QR (manual).
+  const [formaPagamento, setFormaPagamento] = useState<'chave' | 'copia_cola'>('chave');
+  const [copiaCola, setCopiaCola] = useState('');
+
+  // Competências múltiplas: 1 PIX cheio → N lançamentos no CA (um por competência/valor).
+  const [multiComp, setMultiComp] = useState(false);
+  const [competencias, setCompetencias] = useState<Array<{ data: string; valor: string; descricao: string }>>([
+    { data: '', valor: '', descricao: '' },
+  ]);
 
   const pixObrigatorio = tipo === 'reembolso' || tipo === 'fornecedor';
+  // Hoje no fuso local (YYYY-MM-DD) — trava o calendário do vencimento (não paga pra trás).
+  const hoje = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const totalComp = competencias.reduce((s, c) => s + parseValor(c.valor), 0);
+  const copiaInfo = formaPagamento === 'copia_cola' && copiaCola.trim() ? parsePixCopiaCola(copiaCola) : null;
+
+  const setComp = (i: number, patch: Partial<{ data: string; valor: string; descricao: string }>) =>
+    setCompetencias(prev => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+  const addComp = () => setCompetencias(prev => [...prev, { data: '', valor: '', descricao: '' }]);
+  const removeComp = (i: number) => setCompetencias(prev => (prev.length > 1 ? prev.filter((_, idx) => idx !== i) : prev));
+
+  // Ao colar o código, pré-preenche beneficiário (e valor, se o QR for estático).
+  const onCopiaColaChange = (v: string) => {
+    setCopiaCola(v);
+    const info = parsePixCopiaCola(v);
+    if (info.valido) {
+      if (info.nomeRecebedor && !beneficiario.trim()) setBeneficiario(info.nomeRecebedor);
+      if (info.valor && !multiComp && !parseValor(valor)) setValor(String(info.valor).replace('.', ','));
+    }
+  };
 
   const reset = () => {
-    setTipo('reembolso'); setDescricao(''); setValor(''); setVencimento('');
+    setTipo('fornecedor'); setDescricao(''); setValor(''); setVencimento('');
     setCompetencia(''); setChavePix(''); setBeneficiario(''); setCpfCnpj(''); setObservacao('');
-    setArquivo(null);
+    setPrecisaComprovante(false); setArquivo(null);
+    setFormaPagamento('chave'); setCopiaCola('');
+    setMultiComp(false); setCompetencias([{ data: '', valor: '', descricao: '' }]);
   };
 
   const submit = async () => {
-    const valorNum = parseValor(valor);
+    const valorNum = multiComp ? Math.round(totalComp * 100) / 100 : parseValor(valor);
     if (!descricao.trim()) return showToast({ type: 'error', title: 'Descrição é obrigatória' });
     if (valorNum <= 0) return showToast({ type: 'error', title: 'Valor inválido' });
     if (!vencimento) return showToast({ type: 'error', title: 'Informe o vencimento' });
-    if (!competencia) return showToast({ type: 'error', title: 'Informe a data de competência' });
-    if (pixObrigatorio && !chavePix.trim()) return showToast({ type: 'error', title: 'Chave PIX é obrigatória' });
+    if (vencimento < hoje) return showToast({ type: 'error', title: 'Vencimento no passado', message: 'A data de vencimento não pode ser anterior a hoje.' });
+
+    // Competência(s)
+    let competenciasPayload: Array<{ data_competencia: string; valor: number; descricao: string | null }> | undefined;
+    if (multiComp) {
+      const linhas = competencias.map(c => ({
+        data_competencia: c.data,
+        valor: parseValor(c.valor),
+        descricao: c.descricao.trim() || null,
+      }));
+      if (linhas.some(l => !l.data_competencia)) return showToast({ type: 'error', title: 'Informe a data de todas as competências' });
+      if (linhas.some(l => l.valor <= 0)) return showToast({ type: 'error', title: 'Informe o valor de todas as competências' });
+      competenciasPayload = linhas;
+    } else if (!competencia) {
+      return showToast({ type: 'error', title: 'Informe a data de competência' });
+    }
+
+    // Destino do pagamento
+    const usaCopiaCola = formaPagamento === 'copia_cola';
+    if (usaCopiaCola) {
+      if (!copiaCola.trim()) return showToast({ type: 'error', title: 'Cole o código PIX copia e cola' });
+    } else if (pixObrigatorio && !chavePix.trim()) {
+      return showToast({ type: 'error', title: 'Chave PIX é obrigatória' });
+    }
 
     setSalvando(true);
     try {
@@ -87,11 +151,14 @@ export function NovoPedidoDialog({
         descricao: descricao.trim(),
         valor: valorNum,
         data_vencimento: vencimento,
-        data_competencia: competencia,
-        chave_pix: chavePix.trim() || null,
+        data_competencia: multiComp ? undefined : competencia,
+        competencias: competenciasPayload,
+        chave_pix: usaCopiaCola ? null : (chavePix.trim() || null),
+        pix_copia_cola: usaCopiaCola ? copiaCola.trim() : null,
         beneficiario_nome: beneficiario.trim() || null,
         cpf_cnpj: cpfCnpj.replace(/\D/g, '') || null,
         observacao: observacao.trim() || null,
+        precisa_comprovante: precisaComprovante,
       });
 
       // Anexo (opcional) — sobe depois que o pedido existe
@@ -152,36 +219,118 @@ export function NovoPedidoDialog({
               placeholder="Ex: Reembolso compra de insumos / Pagamento fornecedor X" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="valor" className="mb-1.5 block">Valor (R$)</Label>
-              <Input id="valor" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" inputMode="decimal" />
+          {/* Destaque financeiro: Valor, Vencimento e Competência — o que mais importa pro financeiro */}
+          <div className="rounded-lg border-2 border-blue-500/25 bg-blue-500/[0.04] p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide">Dados financeiros</span>
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs text-muted-foreground">
+                <input type="checkbox" checked={multiComp} onChange={(e) => setMultiComp(e.target.checked)} className="h-3.5 w-3.5 accent-blue-600 cursor-pointer" />
+                Várias competências?
+              </label>
             </div>
-            <div>
-              <Label htmlFor="venc" className="mb-1.5 flex items-center gap-1">
-                Vencimento <span className="text-red-500">*</span>
-                <CampoInfo texto="Data em que deve ser pago" />
-              </Label>
-              <Input id="venc" type="date" value={vencimento} onChange={(e) => setVencimento(e.target.value)} />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <Label className="mb-1 block text-xs font-medium">Valor {multiComp ? 'total' : ''} <span className="text-red-500">*</span></Label>
+                {multiComp ? (
+                  <div className="h-12 flex items-center rounded-md border border-[hsl(var(--border))] bg-muted/40 px-3 text-lg font-bold">
+                    {formatBRL(totalComp)}
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold pointer-events-none">R$</span>
+                    <Input id="valor" value={valor} onChange={(e) => setValor(formatValorInput(e.target.value))}
+                      placeholder="0,00" inputMode="decimal" className="h-12 pl-9 text-lg font-bold" />
+                  </div>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="venc" className="mb-1 flex items-center gap-1 text-xs font-medium">
+                  Vencimento <span className="text-red-500">*</span>
+                  <CampoInfo texto="Data em que deve ser pago" />
+                </Label>
+                <DateInputBR id="venc" value={vencimento} onChange={setVencimento} min={hoje} className="h-12 text-base font-semibold" />
+              </div>
+              <div>
+                <Label htmlFor="comp" className="mb-1 flex items-center gap-1 text-xs font-medium">
+                  Competência {!multiComp && <span className="text-red-500">*</span>}
+                  <CampoInfo texto="Data em que o produto chegou na loja ou em que o serviço foi prestado" />
+                </Label>
+                {multiComp ? (
+                  <div className="h-12 flex items-center rounded-md border border-dashed border-[hsl(var(--border))] px-3 text-xs text-muted-foreground">definida por linha ↓</div>
+                ) : (
+                  <DateInputBR id="comp" value={competencia} onChange={setCompetencia} className="h-12 text-base font-semibold" />
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="pix" className="mb-1.5 block">
-                Chave PIX {pixObrigatorio && <span className="text-red-500">*</span>}
-              </Label>
+          {/* Forma de pagamento: chave PIX (Inter automático) ou copia e cola / QR (manual) */}
+          <div>
+            <Label className="mb-1.5 block">Forma de pagamento</Label>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              {(['chave', 'copia_cola'] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFormaPagamento(f)}
+                  className={`rounded-md border px-3 py-2 text-sm transition ${
+                    formaPagamento === f
+                      ? 'border-blue-500 bg-blue-500/10 text-blue-600 font-medium'
+                      : 'border-[hsl(var(--border))] text-muted-foreground hover:bg-muted/40'
+                  }`}
+                >
+                  {f === 'chave' ? 'Chave PIX' : 'Copia e cola / QR'}
+                </button>
+              ))}
+            </div>
+            {formaPagamento === 'chave' ? (
               <Input id="pix" value={chavePix} onChange={(e) => setChavePix(e.target.value)}
                 placeholder="CPF, CNPJ, e-mail, telefone ou aleatória" />
-            </div>
-            <div>
-              <Label htmlFor="comp" className="mb-1.5 flex items-center gap-1">
-                Competência <span className="text-red-500">*</span>
-                <CampoInfo texto="Data em que o produto chegou na loja ou em que o serviço foi prestado" />
-              </Label>
-              <Input id="comp" type="date" value={competencia} onChange={(e) => setCompetencia(e.target.value)} />
-            </div>
+            ) : (
+              <>
+                <Textarea value={copiaCola} onChange={(e) => onCopiaColaChange(e.target.value)} rows={3}
+                  className="font-mono text-xs" placeholder="Cole o código PIX copia e cola (começa com 00020101...)" />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {copiaInfo?.nomeRecebedor ? `Recebedor: ${copiaInfo.nomeRecebedor}. ` : ''}
+                  {copiaInfo?.dinamico ? 'QR dinâmico — informe o valor manualmente. ' : ''}
+                  Pagamento é manual: o sócio cola o código no app do Inter e marca como pago.
+                </p>
+              </>
+            )}
           </div>
+
+          {/* Linhas de competência (só no modo "várias competências") — 1 PIX, N lançamentos no CA */}
+          {multiComp && (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">Cada competência vira um lançamento no Conta Azul; o PIX sai 1x pelo total.</p>
+                {competencias.map((c, i) => (
+                  <div key={i} className="flex items-end gap-2">
+                    <div className="w-36 shrink-0">
+                      {i === 0 && <Label className="mb-1 block text-[11px]">Competência</Label>}
+                      <DateInputBR value={c.data} onChange={(iso) => setComp(i, { data: iso })} />
+                    </div>
+                    <div className="w-24 shrink-0">
+                      {i === 0 && <Label className="mb-1 block text-[11px]">Valor</Label>}
+                      <Input value={c.valor} onChange={(e) => setComp(i, { valor: e.target.value })} placeholder="0,00" inputMode="decimal" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {i === 0 && <Label className="mb-1 block text-[11px]">Descrição (opcional)</Label>}
+                      <Input value={c.descricao} onChange={(e) => setComp(i, { descricao: e.target.value })} placeholder="ex: 130 gelo 29/06" />
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" className="h-10 w-9 shrink-0 text-muted-foreground hover:text-red-600"
+                      onClick={() => removeComp(i)} disabled={competencias.length <= 1}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between pt-1">
+                  <Button type="button" variant="outline" size="sm" onClick={addComp}>
+                    <Plus className="w-3.5 h-3.5 mr-1" />Adicionar competência
+                  </Button>
+                  <span className="text-sm font-medium">Total: {formatBRL(totalComp)}</span>
+                </div>
+              </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -198,6 +347,22 @@ export function NovoPedidoDialog({
             <Label htmlFor="obs" className="mb-1.5 block">Observação <span className="text-muted-foreground text-xs">(opcional)</span></Label>
             <Textarea id="obs" value={observacao} onChange={(e) => setObservacao(e.target.value)} rows={2} />
           </div>
+
+          <label htmlFor="precisa-comprovante" className="flex items-start gap-2.5 cursor-pointer rounded-md border border-[hsl(var(--border))] px-3 py-2.5 hover:bg-muted/40">
+            <input
+              id="precisa-comprovante"
+              type="checkbox"
+              checked={precisaComprovante}
+              onChange={(e) => setPrecisaComprovante(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600 cursor-pointer"
+            />
+            <span className="text-sm">
+              Precisa de comprovante?
+              <span className="block text-xs text-muted-foreground">
+                Marque quando este pagamento vai exigir comprovante anexado depois. O banco não devolve o comprovante automaticamente.
+              </span>
+            </span>
+          </label>
 
           <div>
             <Label className="mb-1.5 block">

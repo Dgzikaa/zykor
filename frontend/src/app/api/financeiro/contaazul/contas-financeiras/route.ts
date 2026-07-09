@@ -18,6 +18,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const barId = searchParams.get('bar_id');
     const sync = searchParams.get('sync') === 'true';
+    // Só as contas marcadas como PAGADORAS do bar (fora investimento/aplicação/outro CNPJ).
+    // Usado nos fluxos de pagamento (pedidos, fatura de cartão) pra não pagar da conta errada.
+    const somentePagadoras = searchParams.get('somente_pagadoras') === 'true';
 
     if (!barId) {
       return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
@@ -26,13 +29,14 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin();
 
     if (!sync) {
-      const { data, error } = await (supabase
+      let q = (supabase
         .schema('bronze' as any) as any)
         .from('bronze_contaazul_contas_financeiras')
         .select('*')
         .eq('bar_id', parseInt(barId))
-        .eq('ativo', true)
-        .order('nome');
+        .eq('ativo', true);
+      if (somentePagadoras) q = q.eq('pagadora', true);
+      const { data, error } = await q.order('nome');
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }

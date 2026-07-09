@@ -14,7 +14,8 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      'inline-flex h-10 max-w-full items-center justify-center overflow-x-auto rounded-md bg-gray-100 p-1 text-gray-600',
+      // Barra de rolagem escondida (mantém o scroll p/ listas que estouram), sem o track feio.
+      'inline-flex h-10 max-w-full items-center justify-center overflow-x-auto rounded-md bg-gray-100 p-1 text-gray-600 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
       className
     )}
     {...props}

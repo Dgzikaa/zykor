@@ -26,8 +26,14 @@ export const TIPOS_VALIDOS: PedidoTipo[] = ['reembolso', 'fornecedor', 'avulso',
 /** Status em que o solicitante ainda pode editar/cancelar o próprio pedido. */
 export const STATUS_EDITAVEL_SOLICITANTE: PedidoStatus[] = ['rascunho', 'aguardando_aprovacao'];
 
-/** Status que permitem (re)processar a aprovação (novo ou retry após falha parcial). */
-export const STATUS_APROVAVEL: PedidoStatus[] = ['aguardando_aprovacao', 'erro_ca', 'erro_inter'];
+/**
+ * Fluxo em 2 etapas:
+ *  - APROVAR (decisão): aguardando_aprovacao → aprovado. Só valida + grava o vínculo CA.
+ *    NÃO dispara nada no Conta Azul/Inter.
+ *  - AGENDAR (execução): aprovado (ou retry de erro) → cria conta(s) no CA + PIX no Inter.
+ */
+export const STATUS_APROVAVEL: PedidoStatus[] = ['aguardando_aprovacao'];
+export const STATUS_AGENDAVEL: PedidoStatus[] = ['aprovado', 'erro_ca', 'erro_inter'];
 
 export interface PedidoPagamento {
   id: string;
@@ -46,6 +52,8 @@ export interface PedidoPagamento {
   tipo_chave?: string | null;
   cpf_cnpj?: string | null;
   linha_digitavel?: string | null;
+  pix_copia_cola?: string | null;
+  precisa_comprovante?: boolean | null;
   rateio?: Array<{ id_categoria: string; categoria_nome?: string; valor: number }> | null;
   observacao?: string | null;
   categoria_id?: string | null;
@@ -70,6 +78,19 @@ export interface PedidoPagamento {
   atualizado_por?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Uma competência de um pedido com valor rateado (caso "1 PIX, N competências"). */
+export interface PedidoCompetencia {
+  id: string;
+  pedido_id: string;
+  bar_id: number;
+  data_competencia: string;
+  valor: number;
+  descricao?: string | null;
+  contaazul_lancamento_id?: string | null;
+  ordem: number;
+  created_at: string;
 }
 
 /** Cliente apontado pro schema financial. */

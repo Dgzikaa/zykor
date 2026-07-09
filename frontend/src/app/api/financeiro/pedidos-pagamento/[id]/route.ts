@@ -9,6 +9,7 @@ import {
   type PedidoPagamento,
   type PedidoStatus,
 } from '@/lib/financeiro/pedidos-pagamento';
+import { broadcastPedidoChange } from '@/lib/realtime/broadcastPedidos';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,7 @@ async function carregarPedido(supabase: any, id: string): Promise<PedidoPagament
 const CAMPOS_SOLICITANTE = [
   'descricao', 'valor', 'data_competencia', 'data_vencimento',
   'beneficiario_nome', 'chave_pix', 'cpf_cnpj', 'observacao', 'tipo',
+  'precisa_comprovante', 'pix_copia_cola',
 ];
 const CAMPOS_FINANCEIRO = [
   ...CAMPOS_SOLICITANTE,
@@ -51,10 +53,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return permissionErrorResponse('Sem acesso a este pedido');
   }
 
-  const [comentarios, anexos, historico] = await Promise.all([
+  const [comentarios, anexos, historico, competencias] = await Promise.all([
     fin(supabase).from('pedidos_pagamento_comentarios').select('*').eq('pedido_id', id).order('created_at', { ascending: true }),
     fin(supabase).from('pedidos_pagamento_anexos').select('*').eq('pedido_id', id).order('created_at', { ascending: true }),
     fin(supabase).from('pedidos_pagamento_historico').select('*').eq('pedido_id', id).order('created_at', { ascending: false }),
+    fin(supabase).from('pedidos_pagamento_competencias').select('*').eq('pedido_id', id).order('ordem', { ascending: true }),
   ]);
 
   return NextResponse.json({
@@ -63,6 +66,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     comentarios: comentarios.data || [],
     anexos: anexos.data || [],
     historico: historico.data || [],
+    competencias: competencias.data || [],
     pode_aprovar: podeAprovar(user),
     pode_excluir: user.role === 'admin',
   });
@@ -148,6 +152,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     });
   }
 
+  await broadcastPedidoChange(pedido.bar_id);
   return NextResponse.json({ success: true, pedido: data, alterado: true });
 }
 
