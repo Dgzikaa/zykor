@@ -37,14 +37,31 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const barId = Number(body.bar_id ?? linha.bar_id);
   const categoria_id = body.categoria_id ?? linha.categoria_id;
   const categoria_nome = body.categoria_nome ?? linha.categoria_nome;
-  const pessoa_id = body.pessoa_id;
-  const conta_financeira_id = body.conta_financeira_id;
+  let pessoa_id = body.pessoa_id;
+  let conta_financeira_id = body.conta_financeira_id;
   const data_vencimento = body.data_vencimento;
+
+  // Conta pagadora: se não veio, usa a pagadora_padrao do bar (Ordinário Inter / Descubra Inter).
+  if (!conta_financeira_id && Number.isFinite(barId)) {
+    const { data: cp } = await (supabase.schema('bronze' as any) as any)
+      .from('bronze_contaazul_contas_financeiras')
+      .select('contaazul_id').eq('bar_id', barId).eq('pagadora_padrao', true).maybeSingle();
+    if (cp?.contaazul_id) conta_financeira_id = cp.contaazul_id;
+  }
+  // Fornecedor "cartão": se não veio, tenta casar por nome (cartão/crédito) no bar.
+  if (!pessoa_id && Number.isFinite(barId)) {
+    const { data: forn } = await (supabase.schema('bronze' as any) as any)
+      .from('bronze_contaazul_pessoas')
+      .select('contaazul_id, nome').eq('bar_id', barId).eq('perfil', 'FORNECEDOR').neq('ativo', false)
+      .or('nome.ilike.%cartao%,nome.ilike.%cartão%,nome.ilike.%credito%,nome.ilike.%crédito%')
+      .limit(1).maybeSingle();
+    if (forn?.contaazul_id) pessoa_id = forn.contaazul_id;
+  }
 
   const faltando: string[] = [];
   if (!Number.isFinite(barId)) faltando.push('bar');
   if (!categoria_id) faltando.push('categoria');
-  if (!pessoa_id) faltando.push('fornecedor (contato CA)');
+  if (!pessoa_id) faltando.push('fornecedor cartão (cadastre um contato "Cartão" no CA ou selecione no topo)');
   if (!conta_financeira_id) faltando.push('conta pagadora');
   if (!data_vencimento || !/^\d{4}-\d{2}-\d{2}$/.test(String(data_vencimento))) faltando.push('vencimento da fatura');
   if (faltando.length) {

@@ -37,7 +37,7 @@ const BANCO_LABEL: Record<string, string> = { itau: 'Itaú', nubank: 'Nubank' };
 
 export function FaturaCartaoTab() {
   const { showToast } = useToast();
-  const { availableBars } = useBar();
+  const { availableBars, selectedBar } = useBar();
 
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [lendo, setLendo] = useState(false);
@@ -149,22 +149,21 @@ export function FaturaCartaoTab() {
   };
 
   const lancar = async (l: Linha) => {
-    const bar = l.bar_id;
+    const bar = l.bar_id || selectedBar?.id || null;
     if (!bar) return showToast({ type: 'error', title: 'Escolha o bar da linha' });
-    const cfg = config[bar];
-    if (!cfg?.fornecedorId || !cfg?.contaId) {
-      return showToast({ type: 'error', title: `Configure fornecedor e conta do ${barNome(bar)} no topo` });
-    }
     if (!l.categoria_id) return showToast({ type: 'error', title: 'Escolha a categoria' });
     if (!vencimento) return showToast({ type: 'error', title: 'Informe o vencimento da fatura no topo' });
+    // fornecedor/conta: usa o config do bar se tiver; senão o back resolve (fornecedor cartão
+    // por nome + conta pagadora padrão do bar).
+    const cfg = config[bar];
     setLancandoId(l.id);
     try {
       const res = await api.post(`/api/financeiro/cartao-fatura/${l.id}/lancar`, {
         bar_id: bar,
         categoria_id: l.categoria_id,
         categoria_nome: l.categoria_nome,
-        pessoa_id: cfg.fornecedorId,
-        conta_financeira_id: cfg.contaId,
+        pessoa_id: cfg?.fornecedorId || undefined,
+        conta_financeira_id: cfg?.contaId || undefined,
         data_vencimento: vencimento,
       });
       setLinhas(prev => prev.map(x => (x.id === l.id ? res.linha : x)));
@@ -215,35 +214,37 @@ export function FaturaCartaoTab() {
       <Card>
         <CardContent className="py-3 space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span className="text-xs font-medium flex items-center gap-1.5"><CreditCard className="w-4 h-4" /> Config de lançamento</span>
+            <span className="text-xs font-medium flex items-center gap-1.5"><CreditCard className="w-4 h-4" /> Lançamento — {selectedBar?.nome || 'bar atual'}</span>
             <div className="flex items-center gap-2">
               <Label className="text-xs text-muted-foreground">Vencimento da fatura</Label>
               <DateInputBR value={vencimento} onChange={setVencimento} className="h-8 w-40" />
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {availableBars.map(b => (
-              <div key={b.id} className="rounded-md border border-[hsl(var(--border))] p-2.5">
-                <p className="text-xs font-medium mb-1.5">{b.nome}</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <SearchableSelect
-                    value={config[b.id]?.fornecedorId || ''}
-                    onValueChange={(v) => {
-                      setConfig(c => ({ ...c, [b.id]: { ...c[b.id], fornecedorId: v || '', contaId: c[b.id]?.contaId || '' } }));
-                      if (typeof window !== 'undefined') {
-                        if (v) localStorage.setItem(`fatura_forn_bar_${b.id}`, v);
-                        else localStorage.removeItem(`fatura_forn_bar_${b.id}`);
-                      }
-                    }}
-                    placeholder="Fornecedor cartão" searchPlaceholder="Buscar contato..." emptyMessage="Nenhum" options={opcoesBar[b.id]?.fornecedores || []} />
-                  <SearchableSelect
-                    value={config[b.id]?.contaId || ''}
-                    onValueChange={(v) => setConfig(c => ({ ...c, [b.id]: { ...c[b.id], contaId: v || '', fornecedorId: c[b.id]?.fornecedorId || '' } }))}
-                    placeholder="Conta pagadora" searchPlaceholder="Filtrar..." emptyMessage="Nenhuma" options={opcoesBar[b.id]?.contas || []} />
-                </div>
+          {selectedBar && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[11px] text-muted-foreground mb-1 block">Fornecedor cartão (contato CA)</Label>
+                <SearchableSelect
+                  value={config[selectedBar.id]?.fornecedorId || ''}
+                  onValueChange={(v) => {
+                    const bid = selectedBar.id;
+                    setConfig(c => ({ ...c, [bid]: { ...c[bid], fornecedorId: v || '', contaId: c[bid]?.contaId || '' } }));
+                    if (typeof window !== 'undefined') {
+                      if (v) localStorage.setItem(`fatura_forn_bar_${bid}`, v);
+                      else localStorage.removeItem(`fatura_forn_bar_${bid}`);
+                    }
+                  }}
+                  placeholder="Fornecedor cartão" searchPlaceholder="Buscar contato..." emptyMessage="Nenhum" options={opcoesBar[selectedBar.id]?.fornecedores || []} />
               </div>
-            ))}
-          </div>
+              <div>
+                <Label className="text-[11px] text-muted-foreground mb-1 block">Conta pagadora</Label>
+                <SearchableSelect
+                  value={config[selectedBar.id]?.contaId || ''}
+                  onValueChange={(v) => { const bid = selectedBar.id; setConfig(c => ({ ...c, [bid]: { ...c[bid], contaId: v || '', fornecedorId: c[bid]?.fornecedorId || '' } })); }}
+                  placeholder="Conta pagadora" searchPlaceholder="Filtrar..." emptyMessage="Nenhuma" options={opcoesBar[selectedBar.id]?.contas || []} />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -289,7 +290,9 @@ export function FaturaCartaoTab() {
             </thead>
             <tbody>
               {filtradas.map(l => {
-                const ops = l.bar_id ? opcoesBar[l.bar_id] : undefined;
+                // Linha sem bar assume o bar ATUAL (a fatura em geral é do bar selecionado).
+                const barEfetivo = l.bar_id ?? selectedBar?.id ?? null;
+                const ops = barEfetivo ? opcoesBar[barEfetivo] : undefined;
                 const lancado = l.status === 'lancado';
                 const ignorado = l.status === 'ignorado';
                 return (
@@ -302,7 +305,7 @@ export function FaturaCartaoTab() {
                     <td className="px-2 text-xs text-muted-foreground whitespace-nowrap">{l.cartao_final ? `••${l.cartao_final}` : '—'}</td>
                     <td className="px-2 text-right whitespace-nowrap font-medium">{fmtBRL(l.valor)}</td>
                     <td className="px-2">
-                      <select value={l.bar_id ?? ''} disabled={lancado}
+                      <select value={barEfetivo ?? ''} disabled={lancado}
                         onChange={(e) => patchLinha(l, { bar_id: e.target.value ? Number(e.target.value) : null, categoria_id: null, categoria_nome: null })}
                         className="h-8 w-full text-xs border rounded px-1 bg-background disabled:opacity-60">
                         <option value="">—</option>
@@ -310,13 +313,13 @@ export function FaturaCartaoTab() {
                       </select>
                     </td>
                     <td className="px-2">
-                      <select value={l.categoria_id ?? ''} disabled={lancado || !l.bar_id}
+                      <select value={l.categoria_id ?? ''} disabled={lancado || !barEfetivo}
                         onChange={(e) => {
                           const id = e.target.value;
                           patchLinha(l, { categoria_id: id || null, categoria_nome: ops?.categorias.find(c => c.value === id)?.label || null });
                         }}
                         className={`h-8 w-full max-w-[200px] text-xs border rounded px-1 bg-background disabled:opacity-60 ${!l.categoria_id && !lancado ? 'border-amber-400' : ''}`}>
-                        <option value="">{l.bar_id ? '— categoria —' : 'escolha o bar'}</option>
+                        <option value="">{barEfetivo ? '— categoria —' : 'escolha o bar'}</option>
                         {(ops?.categorias || []).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                       </select>
                     </td>
