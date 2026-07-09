@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
-import { RefreshCw, Download, Search, X, SlidersHorizontal, Users, ChevronRight, ChevronDown, Layers, Filter, Check } from 'lucide-react';
+import { RefreshCw, Download, Search, X, SlidersHorizontal, Users, ChevronRight, ChevronDown, Layers, Filter, Check, Tag } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { toast } from 'sonner';
@@ -45,6 +45,28 @@ interface Grupo {
 }
 // normaliza a mesa pra agrupar "X Fidelidade" / "X-Fidelidade" / "XFidelidade" juntos
 const normMesa = (m: string | null) => (m || '').toUpperCase().replace(/[^A-Z0-9]/g, '') || '—';
+
+interface Cadastro {
+  id: number;
+  nome: string;
+}
+interface Vinculo {
+  mesa_norm: string;
+  mesa_label: string | null;
+  tipo: string | null;
+  artista_id: number | null;
+  socio_id: number | null;
+  entidade_nome: string | null;
+  categoria_override: string | null;
+}
+// tipos de vínculo (define a categoria implícita, salvo override explícito)
+const TIPOS: { key: string; label: string }[] = [
+  { key: 'artista', label: 'Artista' },
+  { key: 'socio', label: 'Sócio' },
+  { key: 'funcionario', label: 'Funcionário' },
+  { key: 'cliente', label: 'Cliente' },
+  { key: 'outro', label: 'Outro' },
+];
 
 // 9 categorias padronizadas + Outros (mesma classificação da Gestão CMV)
 const CATS: { key: string; label: string; cor: string }[] = [
@@ -280,6 +302,173 @@ function ColHeader({
   );
 }
 
+// Modal pra vincular uma mesa a artista/sócio cadastrado e/ou forçar a categoria.
+function VinculoEditor({
+  mesaLabel,
+  atual,
+  artistas,
+  socios,
+  onClose,
+  onSalvar,
+  onRemover,
+  onCriarSocio,
+}: {
+  mesaLabel: string;
+  atual: Vinculo | undefined;
+  artistas: Cadastro[];
+  socios: Cadastro[];
+  onClose: () => void;
+  onSalvar: (payload: Record<string, unknown>) => Promise<any>;
+  onRemover: () => Promise<void>;
+  onCriarSocio: (nome: string) => Promise<Cadastro | undefined>;
+}) {
+  const [tipo, setTipo] = useState(atual?.tipo || '');
+  const [artistaId, setArtistaId] = useState<string>(atual?.artista_id ? String(atual.artista_id) : '');
+  const [socioId, setSocioId] = useState<string>(atual?.socio_id ? String(atual.socio_id) : '');
+  const [entidadeNome, setEntidadeNome] = useState(atual?.entidade_nome || '');
+  const [catOverride, setCatOverride] = useState(atual?.categoria_override || '');
+  const [novoSocio, setNovoSocio] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [sociosLocal, setSociosLocal] = useState(socios);
+
+  const salvar = async () => {
+    setSalvando(true);
+    let nome = entidadeNome;
+    if (tipo === 'artista') nome = artistas.find((a) => String(a.id) === artistaId)?.nome || nome;
+    if (tipo === 'socio') nome = sociosLocal.find((s) => String(s.id) === socioId)?.nome || nome;
+    await onSalvar({
+      mesa: mesaLabel,
+      tipo: tipo || null,
+      artista_id: tipo === 'artista' ? artistaId || null : null,
+      socio_id: tipo === 'socio' ? socioId || null : null,
+      entidade_nome: nome || null,
+      categoria_override: catOverride || null,
+    });
+    setSalvando(false);
+    onClose();
+  };
+
+  const criarSocio = async () => {
+    const n = novoSocio.trim();
+    if (!n) return;
+    const s = await onCriarSocio(n);
+    if (s) {
+      setSociosLocal((prev) => (prev.some((x) => x.id === s.id) ? prev : [...prev, s].sort((a, b) => a.nome.localeCompare(b.nome))));
+      setSocioId(String(s.id));
+      setNovoSocio('');
+    }
+  };
+
+  const selCls = 'w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm';
+
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900 dark:text-white">Vincular mesa</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <p className="text-xs text-gray-500">
+          Mesa: <span className="font-medium text-gray-700 dark:text-gray-200">{mesaLabel}</span>
+        </p>
+
+        <div>
+          <span className="block text-[11px] font-medium text-gray-500 mb-1">Tipo</span>
+          <div className="flex flex-wrap gap-1.5">
+            {TIPOS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTipo(t.key)}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${tipo === t.key ? 'bg-[hsl(var(--primary))] text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {tipo === 'artista' && (
+          <div>
+            <span className="block text-[11px] font-medium text-gray-500 mb-1">Artista cadastrado</span>
+            <select value={artistaId} onChange={(e) => setArtistaId(e.target.value)} className={selCls}>
+              <option value="">— selecione —</option>
+              {artistas.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {tipo === 'socio' && (
+          <div className="space-y-2">
+            <div>
+              <span className="block text-[11px] font-medium text-gray-500 mb-1">Sócio cadastrado</span>
+              <select value={socioId} onChange={(e) => setSocioId(e.target.value)} className={selCls}>
+                <option value="">— selecione —</option>
+                {sociosLocal.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-1.5">
+              <Input value={novoSocio} onChange={(e) => setNovoSocio(e.target.value)} placeholder="Novo sócio…" className="h-8 text-xs" />
+              <Button size="sm" variant="outline" onClick={criarSocio} disabled={!novoSocio.trim()}>
+                Criar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {(tipo === 'funcionario' || tipo === 'cliente' || tipo === 'outro') && (
+          <div>
+            <span className="block text-[11px] font-medium text-gray-500 mb-1">Nome</span>
+            <Input value={entidadeNome} onChange={(e) => setEntidadeNome(e.target.value)} placeholder="Nome da pessoa…" className="h-8 text-sm" />
+          </div>
+        )}
+
+        <div>
+          <span className="block text-[11px] font-medium text-gray-500 mb-1">
+            Categoria {tipo && tipo !== 'cliente' && tipo !== 'outro' ? '(deixe automática pelo tipo)' : ''}
+          </span>
+          <select value={catOverride} onChange={(e) => setCatOverride(e.target.value)} className={selCls}>
+            <option value="">Automática (pelo tipo / motivo)</option>
+            {CATS.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between pt-1">
+          {atual ? (
+            <Button size="sm" variant="outline" onClick={async () => { await onRemover(); onClose(); }} className="text-red-600">
+              Remover vínculo
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={salvar} disabled={salvando}>
+              Salvar
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export default function ControleConsumacaoPage() {
   const { setPageTitle } = usePageTitle();
   const { selectedBar } = useBar();
@@ -296,6 +485,10 @@ export default function ControleConsumacaoPage() {
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [totalBruto, setTotalBruto] = useState(0);
   const [totalCusto, setTotalCusto] = useState(0);
+  const [vinculos, setVinculos] = useState<Vinculo[]>([]);
+  const [cadArtistas, setCadArtistas] = useState<Cadastro[]>([]);
+  const [cadSocios, setCadSocios] = useState<Cadastro[]>([]);
+  const [editandoMesa, setEditandoMesa] = useState<{ mesaLabel: string; mesaNorm: string } | null>(null);
 
   // filtros client-side
   const [catFiltro, setCatFiltro] = useState<Set<string>>(new Set());
@@ -341,6 +534,9 @@ export default function ControleConsumacaoPage() {
       setLinhas(j.linhas || []);
       setTotalBruto(j.total_bruto || 0);
       setTotalCusto(j.total_custo || 0);
+      setVinculos(j.vinculos || []);
+      setCadArtistas(j.artistas || []);
+      setCadSocios(j.socios || []);
     } catch {
       toast.error('Erro ao carregar');
     } finally {
@@ -550,6 +746,61 @@ export default function ControleConsumacaoPage() {
       else n.add(key);
       return n;
     });
+
+  const vincByNorm = useMemo(() => new Map(vinculos.map((v) => [v.mesa_norm, v])), [vinculos]);
+
+  const salvarVinculo = async (payload: Record<string, unknown>) => {
+    if (!selectedBar) return;
+    try {
+      const r = await fetch('/api/operacional/consumacao/vinculo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(selectedBar.id) },
+        body: JSON.stringify(payload),
+      });
+      const j = await r.json();
+      if (!j.success) {
+        toast.error(j.error || 'Erro ao salvar vínculo');
+        return j;
+      }
+      await carregar();
+      return j;
+    } catch {
+      toast.error('Erro ao salvar vínculo');
+    }
+  };
+
+  const removerVinculo = async (mesaLabel: string) => {
+    if (!selectedBar) return;
+    try {
+      await fetch('/api/operacional/consumacao/vinculo', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(selectedBar.id) },
+        body: JSON.stringify({ mesa: mesaLabel }),
+      });
+      await carregar();
+    } catch {
+      toast.error('Erro ao remover vínculo');
+    }
+  };
+
+  const criarSocio = async (nome: string): Promise<Cadastro | undefined> => {
+    if (!selectedBar) return;
+    try {
+      const r = await fetch('/api/operacional/consumacao/vinculo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(selectedBar.id) },
+        body: JSON.stringify({ acao: 'criar_socio', nome }),
+      });
+      const j = await r.json();
+      if (j.success && j.socio) {
+        setCadSocios((prev) => (prev.some((x) => x.id === j.socio.id) ? prev : [...prev, j.socio].sort((a, b) => a.nome.localeCompare(b.nome))));
+        return j.socio;
+      }
+      toast.error(j.error || 'Erro ao criar sócio');
+    } catch {
+      toast.error('Erro ao criar sócio');
+    }
+  };
 
   const limparTudo = () => {
     setCatFiltro(new Set());
@@ -849,6 +1100,7 @@ export default function ControleConsumacaoPage() {
                 pageGrupos.map((g) => {
                   const aberto = expandidos.has(g.key);
                   const catMix = g.categoria === '__varios';
+                  const v = vincByNorm.get(g.key);
                   return (
                     <Fragment key={g.key}>
                       <tr
@@ -868,6 +1120,22 @@ export default function ControleConsumacaoPage() {
                             {aberto ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
                             {g.mesaLabel}
                             {g.dias > 1 && <span className="ml-1 rounded bg-gray-100 dark:bg-gray-700 px-1 text-[10px] text-gray-500">{g.dias} dias</span>}
+                            {v?.entidade_nome && (
+                              <span className="ml-1 inline-flex items-center gap-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 text-[10px]">
+                                <Tag className="w-2.5 h-2.5" />
+                                {v.entidade_nome}
+                              </span>
+                            )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditandoMesa({ mesaLabel: g.mesaLabel, mesaNorm: g.key });
+                              }}
+                              title={v ? 'Editar vínculo' : 'Vincular a artista/sócio'}
+                              className={`ml-1 rounded p-0.5 ${v ? 'text-indigo-500 hover:text-indigo-700' : 'text-gray-300 hover:text-indigo-500'}`}
+                            >
+                              <Tag className="w-3.5 h-3.5" />
+                            </button>
                           </span>
                         </td>
                         <td className="px-3 py-1.5 text-gray-500 max-w-[240px] truncate" title={g.motivo === '__varios' ? 'Vários' : g.motivo}>
@@ -965,6 +1233,19 @@ export default function ControleConsumacaoPage() {
             Próxima
           </Button>
         </div>
+      )}
+
+      {editandoMesa && (
+        <VinculoEditor
+          mesaLabel={editandoMesa.mesaLabel}
+          atual={vincByNorm.get(editandoMesa.mesaNorm)}
+          artistas={cadArtistas}
+          socios={cadSocios}
+          onClose={() => setEditandoMesa(null)}
+          onSalvar={salvarVinculo}
+          onRemover={() => removerVinculo(editandoMesa.mesaLabel)}
+          onCriarSocio={criarSocio}
+        />
       )}
     </div>
   );

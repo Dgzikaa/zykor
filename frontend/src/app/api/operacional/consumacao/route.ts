@@ -31,6 +31,15 @@ export async function GET(request: NextRequest) {
 
   const barId = Number(user.bar_id);
 
+  // normalização da mesa — DEVE bater com a do frontend (page.tsx normMesa)
+  const normMesa = (m: string | null) => (m || '').toUpperCase().replace(/[^A-Z0-9]/g, '') || '—';
+  // tipo do vínculo → categoria implícita (quando não há override explícito)
+  const TIPO_CAT: Record<string, string> = {
+    artista: 'artistas',
+    socio: 'socios',
+    funcionario: 'funcionarios_operacao',
+  };
+
   try {
     const fator = await getFatorCmv(supabase, barId);
 
@@ -57,17 +66,33 @@ export async function GET(request: NextRequest) {
       if (off >= 200000) break; // trava de segurança
     }
 
-    const linhas = rows.map((r) => ({
-      categoria: String(r.categoria),
-      data: r.data,
-      mesa: r.mesa || null,
-      motivo: r.motivo || null,
-      produto: r.prd_desc || null,
-      qtd: Number(r.qtd) || 0,
-      valor_bruto: Number(r.valor_desconto) || 0,
-      custo: Number(r.custo_real) || 0, // custo real (ficha) ou desconto×fator quando sem ficha
-      tem_ficha: !!r.tem_ficha,
-    }));
+    // vínculos por mesa (override de categoria + entidade) e cadastros p/ os dropdowns
+    const fin = (supabase as any).schema('financial');
+    const ops = (supabase as any).schema('operations');
+    const [{ data: vincRows }, { data: socios }, { data: artistas }] = await Promise.all([
+      fin.from('consumo_mesa_vinculo').select('mesa_norm, mesa_label, tipo, artista_id, socio_id, entidade_nome, categoria_override').eq('bar_id', barId),
+      fin.from('consumo_socio').select('id, nome').eq('bar_id', barId).eq('ativo', true).order('nome'),
+      ops.from('bar_artistas').select('id, nome').eq('bar_id', barId).eq('ativo', true).order('nome'),
+    ]);
+    const vincMap = new Map<string, any>((vincRows || []).map((v: any) => [v.mesa_norm, v]));
+
+    const linhas = rows.map((r) => {
+      const mesa = r.mesa || null;
+      const v = vincMap.get(normMesa(mesa));
+      // categoria efetiva: override explícito > categoria implícita do tipo > motivo original
+      const categoria = v ? v.categoria_override || TIPO_CAT[v.tipo] || String(r.categoria) : String(r.categoria);
+      return {
+        categoria,
+        data: r.data,
+        mesa,
+        motivo: r.motivo || null,
+        produto: r.prd_desc || null,
+        qtd: Number(r.qtd) || 0,
+        valor_bruto: Number(r.valor_desconto) || 0,
+        custo: Number(r.custo_real) || 0, // custo real (ficha) ou desconto×fator quando sem ficha
+        tem_ficha: !!r.tem_ficha,
+      };
+    });
 
     // resumo por categoria (bruto, custo, linhas, com_ficha)
     const map = new Map<string, { categoria: string; linhas: number; com_ficha: number; bruto: number; custo: number }>();
@@ -93,6 +118,9 @@ export async function GET(request: NextRequest) {
       com_ficha: linhas.filter((l) => l.tem_ficha).length,
       resumo,
       linhas,
+      vinculos: vincRows || [],
+      socios: socios || [],
+      artistas: artistas || [],
     });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'Erro interno' }, { status: 500 });
