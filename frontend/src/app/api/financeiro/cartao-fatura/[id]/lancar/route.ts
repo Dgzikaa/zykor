@@ -39,7 +39,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const categoria_nome = body.categoria_nome ?? linha.categoria_nome;
   let pessoa_id = body.pessoa_id;
   let conta_financeira_id = body.conta_financeira_id;
-  const data_vencimento = body.data_vencimento;
+  let data_vencimento = body.data_vencimento;
+
+  // Vencimento vem da FATURA quando não veio no body.
+  if (!data_vencimento && linha.fatura_id) {
+    const { data: fat } = await fin(supabase).from('cartao_faturas').select('vencimento').eq('id', linha.fatura_id).maybeSingle();
+    if (fat?.vencimento) data_vencimento = fat.vencimento;
+  }
 
   // Conta pagadora: se não veio, usa a pagadora_padrao do bar (Ordinário Inter / Descubra Inter).
   if (!conta_financeira_id && Number.isFinite(barId)) {

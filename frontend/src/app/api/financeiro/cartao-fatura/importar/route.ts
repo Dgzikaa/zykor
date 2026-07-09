@@ -19,13 +19,26 @@ export async function POST(request: NextRequest) {
   if (!podeFinanceiro(user)) return permissionErrorResponse('Sem permissão para importar faturas');
 
   let file: File | null = null;
+  let faturaId = '';
   try {
     const form = await request.formData();
     file = form.get('file') as File | null;
+    faturaId = String(form.get('fatura_id') || '');
   } catch {
     return NextResponse.json({ success: false, error: 'Envie o arquivo em multipart/form-data' }, { status: 400 });
   }
   if (!file) return NextResponse.json({ success: false, error: 'Arquivo não enviado' }, { status: 400 });
+  if (!faturaId) return NextResponse.json({ success: false, error: 'Selecione a fatura antes de importar' }, { status: 400 });
+
+  // Fatura precisa existir, ser do bar do usuário e estar ABERTA.
+  const supabaseFat = await getAdminClient();
+  const { data: fatura } = await fin(supabaseFat).from('cartao_faturas').select('id, bar_id, status').eq('id', faturaId).maybeSingle();
+  if (!fatura || fatura.bar_id !== user.bar_id) {
+    return NextResponse.json({ success: false, error: 'Fatura não encontrada' }, { status: 404 });
+  }
+  if (fatura.status !== 'aberta') {
+    return NextResponse.json({ success: false, error: 'Fatura encerrada — reabra pra importar de novo' }, { status: 409 });
+  }
 
   const buffer = Buffer.from(await file.arrayBuffer());
   let parsed;
@@ -53,11 +66,11 @@ export async function POST(request: NextRequest) {
   };
 
   try {
-    // Quais já existem? (dedupe) — em lotes p/ não estourar a URL do .in() em faturas grandes.
+    // Dedupe DENTRO DA FATURA (reimportar a mesma fatura atualiza; faturas são independentes).
     const existentesSet = new Set<string>();
     for (const lote of chunk(hashes, 50)) {
       const { data, error } = await fin(supabase)
-        .from('cartao_fatura_linhas').select('dedupe_hash').in('dedupe_hash', lote);
+        .from('cartao_fatura_linhas').select('dedupe_hash').eq('fatura_id', faturaId).in('dedupe_hash', lote);
       if (error) throw new Error(error.message);
       (data || []).forEach((r: any) => existentesSet.add(r.dedupe_hash));
     }
@@ -65,6 +78,8 @@ export async function POST(request: NextRequest) {
     const novos = linhas.filter(l => !existentesSet.has(l.dedupe_hash));
     if (novos.length) {
       const rows = novos.map(l => ({
+        fatura_id: faturaId,
+        bar_id: fatura.bar_id,
         dedupe_hash: l.dedupe_hash,
         banco: l.banco,
         origem_formato: l.origem_formato,
@@ -85,15 +100,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Devolve o conjunto completo da fatura (novas + já vistas, com seu status atual).
-    const todas: any[] = [];
-    for (const lote of chunk(hashes, 50)) {
-      const { data, error } = await fin(supabase)
-        .from('cartao_fatura_linhas').select('*').in('dedupe_hash', lote);
-      if (error) throw new Error(error.message);
-      todas.push(...(data || []));
-    }
-    todas.sort((a, b) => (String(b.data_transacao) > String(a.data_transacao) ? 1 : -1));
+    // Devolve TODAS as linhas da fatura (novas + já vistas, com o status atual).
+    const { data: todasData, error: errTodas } = await fin(supabase)
+      .from('cartao_fatura_linhas').select('*').eq('fatura_id', faturaId).order('data_transacao', { ascending: false });
+    if (errTodas) throw new Error(errTodas.message);
+    const todas = todasData || [];
 
     return NextResponse.json({
       success: true,
