@@ -453,9 +453,12 @@ async function syncCategorias(
   
   console.log('[contaazul-sync] Buscando categorias...')
 
+  // NÃO usar permite_apenas_filhos=true: essa flag faz o CA devolver só ~5 nós-pai e derruba
+  // TODAS as folhas (as categorias que recebem lançamento) — por isso categoria nova nunca
+  // sincronizava pelo cron. Sem a flag o CA devolve as 90+ categorias reais. (09/07/26)
   const result = await fetchCA(
     '/v1/categorias',
-    { pagina: '1', tamanho_pagina: '1000', permite_apenas_filhos: 'true' },
+    { pagina: '1', tamanho_pagina: '1000' },
     accessToken,
     supabase,
     credentials
