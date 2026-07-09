@@ -70,6 +70,49 @@ const TIPOS: { key: string; label: string }[] = [
   { key: 'outro', label: 'Outro' },
 ];
 
+// agrupa linhas por mesa/pessoa (normalizada) — reutilizado no agrupamento simples e no 2 camadas
+function agruparMesas(linhas: Linha[]): Grupo[] {
+  const m = new Map<string, Grupo & { _datas: Set<string> }>();
+  for (const l of linhas) {
+    const key = normMesa(l.mesa);
+    let g = m.get(key);
+    if (!g) {
+      g = {
+        key,
+        mesaLabel: l.mesa || '(sem mesa)',
+        categoria: l.categoria,
+        motivo: l.motivo || '',
+        dias: 0,
+        ultimaData: l.data,
+        itens: 0,
+        bruto: 0,
+        custo: 0,
+        todasComFicha: true,
+        linhas: [],
+        _datas: new Set<string>(),
+      };
+      m.set(key, g);
+    }
+    g.itens += 1;
+    g.bruto += l.valor_bruto;
+    g.custo += l.custo;
+    g._datas.add(l.data);
+    if (l.data > g.ultimaData) {
+      g.ultimaData = l.data;
+      g.mesaLabel = l.mesa || '(sem mesa)';
+    }
+    if (!l.tem_ficha) g.todasComFicha = false;
+    if (g.categoria !== l.categoria) g.categoria = '__varios';
+    if (g.motivo !== (l.motivo || '')) g.motivo = '__varios';
+    g.linhas.push(l);
+  }
+  return Array.from(m.values()).map((g) => {
+    g.dias = g._datas.size;
+    g.linhas.sort((a, b) => (a.data !== b.data ? (a.data < b.data ? 1 : -1) : b.valor_bruto - a.valor_bruto));
+    return g;
+  });
+}
+
 // 9 categorias padronizadas + Outros (mesma classificação da Gestão CMV)
 const CATS: { key: string; label: string; cor: string }[] = [
   { key: 'funcionarios_operacao', label: 'Funcionário Operação', cor: 'bg-blue-500' },
@@ -325,8 +368,8 @@ function VinculoEditor({
   onCriarSocio: (nome: string) => Promise<Cadastro | undefined>;
 }) {
   const [tipo, setTipo] = useState(atual?.tipo || '');
-  const [artistaId, setArtistaId] = useState<string>(atual?.artista_id ? String(atual.artista_id) : '');
-  const [socioId, setSocioId] = useState<string>(atual?.socio_id ? String(atual.socio_id) : '');
+  const [artistaNome, setArtistaNome] = useState(artistas.find((a) => a.id === atual?.artista_id)?.nome || '');
+  const [socioNome, setSocioNome] = useState(socios.find((s) => s.id === atual?.socio_id)?.nome || '');
   const [entidadeNome, setEntidadeNome] = useState(atual?.entidade_nome || '');
   const [catOverride, setCatOverride] = useState(atual?.categoria_override || '');
   const [novoSocio, setNovoSocio] = useState('');
@@ -335,14 +378,16 @@ function VinculoEditor({
 
   const salvar = async () => {
     setSalvando(true);
+    const artistaSel = artistas.find((a) => a.nome === artistaNome);
+    const socioSel = sociosLocal.find((s) => s.nome === socioNome);
     let nome = entidadeNome;
-    if (tipo === 'artista') nome = artistas.find((a) => String(a.id) === artistaId)?.nome || nome;
-    if (tipo === 'socio') nome = sociosLocal.find((s) => String(s.id) === socioId)?.nome || nome;
+    if (tipo === 'artista') nome = artistaSel?.nome || artistaNome || nome;
+    if (tipo === 'socio') nome = socioSel?.nome || socioNome || nome;
     await onSalvar({
       mesa: mesaLabel,
       tipo: tipo || null,
-      artista_id: tipo === 'artista' ? artistaId || null : null,
-      socio_id: tipo === 'socio' ? socioId || null : null,
+      artista_id: tipo === 'artista' ? artistaSel?.id ?? null : null,
+      socio_id: tipo === 'socio' ? socioSel?.id ?? null : null,
       entidade_nome: nome || null,
       categoria_override: catOverride || null,
     });
@@ -356,7 +401,7 @@ function VinculoEditor({
     const s = await onCriarSocio(n);
     if (s) {
       setSociosLocal((prev) => (prev.some((x) => x.id === s.id) ? prev : [...prev, s].sort((a, b) => a.nome.localeCompare(b.nome))));
-      setSocioId(String(s.id));
+      setSocioNome(s.nome);
       setNovoSocio('');
     }
   };
@@ -394,14 +439,7 @@ function VinculoEditor({
         {tipo === 'artista' && (
           <div>
             <span className="block text-[11px] font-medium text-gray-500 mb-1">Artista cadastrado</span>
-            <select value={artistaId} onChange={(e) => setArtistaId(e.target.value)} className={selCls}>
-              <option value="">— selecione —</option>
-              {artistas.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.nome}
-                </option>
-              ))}
-            </select>
+            <Combobox value={artistaNome} onChange={setArtistaNome} options={artistas.map((a) => a.nome)} placeholder="Digite pra buscar…" />
           </div>
         )}
 
@@ -409,14 +447,7 @@ function VinculoEditor({
           <div className="space-y-2">
             <div>
               <span className="block text-[11px] font-medium text-gray-500 mb-1">Sócio cadastrado</span>
-              <select value={socioId} onChange={(e) => setSocioId(e.target.value)} className={selCls}>
-                <option value="">— selecione —</option>
-                {sociosLocal.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nome}
-                  </option>
-                ))}
-              </select>
+              <Combobox value={socioNome} onChange={setSocioNome} options={sociosLocal.map((s) => s.nome)} placeholder="Digite pra buscar…" />
             </div>
             <div className="flex gap-1.5">
               <Input value={novoSocio} onChange={(e) => setNovoSocio(e.target.value)} placeholder="Novo sócio…" className="h-8 text-xs" />
@@ -508,6 +539,9 @@ export default function ControleConsumacaoPage() {
   // agrupar consumações da mesma mesa (data+mesa); default ligado
   const [agrupar, setAgrupar] = useState(true);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  // 2 camadas: Categoria › Mesa. catExpandidos guarda categorias COLAPSADAS (default: todas abertas)
+  const [porCat, setPorCat] = useState(false);
+  const [catExpandidos, setCatExpandidos] = useState<Set<string>>(new Set());
   // filtros por coluna (estilo DataTable, igual à tela de insumos)
   const [colFiltros, setColFiltros] = useState<{ categoria: Set<string>; mesa: Set<string>; motivo: Set<string>; produto: Set<string> }>({
     categoria: new Set(),
@@ -554,7 +588,7 @@ export default function ControleConsumacaoPage() {
   // qualquer mudança de filtro volta pra página 1
   useEffect(() => {
     setPagina(1);
-  }, [catFiltro, diaSemana, motivoSel, produtoSel, busca, di, df, agrupar, colFiltros]);
+  }, [catFiltro, diaSemana, motivoSel, produtoSel, busca, di, df, agrupar, colFiltros, porCat]);
 
   const preset = (tipo: string) => {
     const h = new Date();
@@ -674,47 +708,25 @@ export default function ControleConsumacaoPage() {
   }, [linhasFiltradas, ordem]);
 
   // agrupa as linhas filtradas por mesa/pessoa (normalizada) no período
-  const grupos = useMemo<Grupo[]>(() => {
-    const m = new Map<string, Grupo & { _datas: Set<string> }>();
+  const grupos = useMemo<Grupo[]>(() => agruparMesas(linhasFiltradas), [linhasFiltradas]);
+
+  // 2 camadas: categoria -> mesas
+  const gruposPorCategoria = useMemo(() => {
+    const catMap = new Map<string, Linha[]>();
     for (const l of linhasFiltradas) {
-      const key = normMesa(l.mesa);
-      let g = m.get(key);
-      if (!g) {
-        g = {
-          key,
-          mesaLabel: l.mesa || '(sem mesa)',
-          categoria: l.categoria,
-          motivo: l.motivo || '',
-          dias: 0,
-          ultimaData: l.data,
-          itens: 0,
-          bruto: 0,
-          custo: 0,
-          todasComFicha: true,
-          linhas: [],
-          _datas: new Set<string>(),
-        };
-        m.set(key, g);
-      }
-      g.itens += 1;
-      g.bruto += l.valor_bruto;
-      g.custo += l.custo;
-      g._datas.add(l.data);
-      if (l.data > g.ultimaData) {
-        g.ultimaData = l.data;
-        g.mesaLabel = l.mesa || '(sem mesa)'; // usa a grafia mais recente
-      }
-      if (!l.tem_ficha) g.todasComFicha = false;
-      if (g.categoria !== l.categoria) g.categoria = '__varios';
-      if (g.motivo !== (l.motivo || '')) g.motivo = '__varios';
-      g.linhas.push(l);
+      const arr = catMap.get(l.categoria) || [];
+      arr.push(l);
+      catMap.set(l.categoria, arr);
     }
-    return Array.from(m.values()).map((g) => {
-      g.dias = g._datas.size;
-      // dentro do grupo, produtos mais recentes/caros primeiro
-      g.linhas.sort((a, b) => (a.data !== b.data ? (a.data < b.data ? 1 : -1) : b.valor_bruto - a.valor_bruto));
-      return g;
-    });
+    return Array.from(catMap.entries())
+      .map(([cat, ls]) => ({
+        cat,
+        mesas: agruparMesas(ls).sort((a, b) => b.custo - a.custo),
+        custo: ls.reduce((s, l) => s + l.custo, 0),
+        bruto: ls.reduce((s, l) => s + l.valor_bruto, 0),
+        itens: ls.length,
+      }))
+      .sort((a, b) => b.custo - a.custo);
   }, [linhasFiltradas]);
 
   const gruposOrdenados = useMemo(() => {
@@ -750,7 +762,99 @@ export default function ControleConsumacaoPage() {
       return n;
     });
 
+  const toggleCatExp = (cat: string) =>
+    setCatExpandidos((prev) => {
+      const n = new Set(prev);
+      if (n.has(cat)) n.delete(cat);
+      else n.add(cat);
+      return n;
+    });
+
   const vincByNorm = useMemo(() => new Map(vinculos.map((v) => [v.mesa_norm, v])), [vinculos]);
+
+  // render de um grupo de mesa (linha do grupo + produtos ao expandir) — usado no modo simples e no 2 camadas
+  const renderGrupoMesa = (g: Grupo) => {
+    const aberto = expandidos.has(g.key);
+    const catMix = g.categoria === '__varios';
+    const v = vincByNorm.get(g.key);
+    return (
+      <Fragment key={g.key}>
+        <tr
+          onClick={() => toggleExpandido(g.key)}
+          className="border-t border-gray-100 dark:border-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40"
+        >
+          <td className="px-3 py-1.5 whitespace-nowrap text-gray-700 dark:text-gray-300">{brData(g.ultimaData)}</td>
+          <td className="px-3 py-1.5 whitespace-nowrap text-gray-500">{DOW[dowDe(g.ultimaData)].l}</td>
+          <td className="px-3 py-1.5 whitespace-nowrap">
+            <span className="inline-flex items-center gap-1.5">
+              <span className={`inline-block w-2 h-2 rounded-full ${catMix ? 'bg-gray-400' : COR[g.categoria] || 'bg-gray-400'}`} />
+              <span className="text-gray-700 dark:text-gray-200">{catMix ? 'Vários' : LABEL[g.categoria] || g.categoria}</span>
+            </span>
+          </td>
+          <td className="px-3 py-1.5 whitespace-nowrap font-medium text-gray-800 dark:text-gray-100">
+            <span className="inline-flex items-center gap-1">
+              {aberto ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
+              {g.mesaLabel}
+              {g.dias > 1 && <span className="ml-1 rounded bg-gray-100 dark:bg-gray-700 px-1 text-[10px] text-gray-500">{g.dias} dias</span>}
+              {v?.entidade_nome && (
+                <span className="ml-1 inline-flex items-center gap-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 text-[10px]">
+                  <Tag className="w-2.5 h-2.5" />
+                  {v.entidade_nome}
+                </span>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditandoMesa({ mesaLabel: g.mesaLabel, mesaNorm: g.key });
+                }}
+                title={v ? 'Editar vínculo' : 'Vincular a artista/sócio'}
+                className={`ml-1 rounded p-0.5 ${v ? 'text-indigo-500 hover:text-indigo-700' : 'text-gray-300 hover:text-indigo-500'}`}
+              >
+                <Tag className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          </td>
+          <td className="px-3 py-1.5 text-gray-500 max-w-[240px] truncate" title={g.motivo === '__varios' ? 'Vários' : g.motivo}>
+            {g.motivo === '__varios' ? 'Vários' : g.motivo || '-'}
+          </td>
+          <td className="px-3 py-1.5 text-gray-400">{g.itens} produto(s)</td>
+          <td className="px-3 py-1.5 text-right text-gray-500">{g.itens.toLocaleString('pt-BR')}</td>
+          <td className="px-3 py-1.5 text-right font-medium text-gray-900 dark:text-white whitespace-nowrap">{moeda(g.bruto)}</td>
+          <td className="px-3 py-1.5 text-right whitespace-nowrap font-semibold text-gray-800 dark:text-gray-100">{moeda(g.custo)}</td>
+        </tr>
+        {aberto &&
+          g.linhas.map((l, i) => (
+            <tr key={`${g.key}-${i}`} className="bg-gray-50/60 dark:bg-gray-800/30 text-[13px]">
+              <td className="px-3 py-1 whitespace-nowrap text-gray-400">{brData(l.data)}</td>
+              <td className="px-3 py-1 whitespace-nowrap text-gray-400">{DOW[dowDe(l.data)].l}</td>
+              <td className="px-3 py-1"></td>
+              <td className="px-3 py-1"></td>
+              <td className="px-3 py-1 text-gray-400 max-w-[240px] truncate" title={l.motivo || ''}>
+                {l.motivo || ''}
+              </td>
+              <td className="px-3 py-1 pl-6 text-gray-600 dark:text-gray-300 max-w-[240px] truncate" title={l.produto || ''}>
+                {l.produto || '-'}
+              </td>
+              <td className="px-3 py-1 text-right text-gray-500">{l.qtd.toLocaleString('pt-BR')}</td>
+              <td className="px-3 py-1 text-right text-gray-600 dark:text-gray-300 whitespace-nowrap">{moeda(l.valor_bruto)}</td>
+              <td className="px-3 py-1 text-right whitespace-nowrap">
+                <span
+                  className={`mr-1 inline-block rounded px-1 text-[9px] font-bold align-middle ${
+                    l.tem_ficha
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                      : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                  }`}
+                  title={l.tem_ficha ? 'Custo da ficha técnica' : `Sem ficha — estimado (×${fator})`}
+                >
+                  {l.tem_ficha ? 'FT' : `×${fator}`}
+                </span>
+                <span className="text-gray-600 dark:text-gray-300">{moeda(l.custo)}</span>
+              </td>
+            </tr>
+          ))}
+      </Fragment>
+    );
+  };
 
   const salvarVinculo = async (payload: Record<string, unknown>) => {
     if (!selectedBar) return;
@@ -1048,7 +1152,7 @@ export default function ControleConsumacaoPage() {
           {agrupar
             ? `${grupos.length.toLocaleString('pt-BR')} mesa(s) · ${linhasFiltradas.length.toLocaleString('pt-BR')} lançamento(s)`
             : `${linhasFiltradas.length.toLocaleString('pt-BR')} lançamento(s)`}
-          {totalPaginas > 1 && <span className="text-gray-400"> · página {pagina1} de {totalPaginas}</span>}
+          {!porCat && totalPaginas > 1 && <span className="text-gray-400"> · página {pagina1} de {totalPaginas}</span>}
         </p>
         <div className="flex items-center gap-2">
           <Button
@@ -1061,6 +1165,18 @@ export default function ControleConsumacaoPage() {
             <Layers className="w-4 h-4" />
             {agrupar ? 'Agrupado por mesa' : 'Agrupar por mesa'}
           </Button>
+          {agrupar && (
+            <Button
+              variant={porCat ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setPorCat((v) => !v)}
+              className="gap-1.5"
+              title="Agrupar em 2 camadas: Categoria › Mesa"
+            >
+              <Layers className="w-4 h-4" />
+              Categoria › Mesa
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={exportarCsv} disabled={linhasFiltradas.length === 0}>
             <Download className="w-4 h-4 mr-1" />
             CSV
@@ -1100,95 +1216,44 @@ export default function ControleConsumacaoPage() {
                     Carregando...
                   </td>
                 </tr>
-              ) : (agrupar ? pageGrupos.length : pageLinhas.length) === 0 ? (
+              ) : (agrupar ? (porCat ? gruposPorCategoria.length : pageGrupos.length) : pageLinhas.length) === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-3 py-8 text-center text-gray-400">
                     Nenhum lançamento no período/filtro.
                   </td>
                 </tr>
               ) : agrupar ? (
-                pageGrupos.map((g) => {
-                  const aberto = expandidos.has(g.key);
-                  const catMix = g.categoria === '__varios';
-                  const v = vincByNorm.get(g.key);
-                  return (
-                    <Fragment key={g.key}>
-                      <tr
-                        onClick={() => toggleExpandido(g.key)}
-                        className="border-t border-gray-100 dark:border-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40"
-                      >
-                        <td className="px-3 py-1.5 whitespace-nowrap text-gray-700 dark:text-gray-300">{brData(g.ultimaData)}</td>
-                        <td className="px-3 py-1.5 whitespace-nowrap text-gray-500">{DOW[dowDe(g.ultimaData)].l}</td>
-                        <td className="px-3 py-1.5 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className={`inline-block w-2 h-2 rounded-full ${catMix ? 'bg-gray-400' : COR[g.categoria] || 'bg-gray-400'}`} />
-                            <span className="text-gray-700 dark:text-gray-200">{catMix ? 'Vários' : LABEL[g.categoria] || g.categoria}</span>
-                          </span>
-                        </td>
-                        <td className="px-3 py-1.5 whitespace-nowrap font-medium text-gray-800 dark:text-gray-100">
-                          <span className="inline-flex items-center gap-1">
-                            {aberto ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
-                            {g.mesaLabel}
-                            {g.dias > 1 && <span className="ml-1 rounded bg-gray-100 dark:bg-gray-700 px-1 text-[10px] text-gray-500">{g.dias} dias</span>}
-                            {v?.entidade_nome && (
-                              <span className="ml-1 inline-flex items-center gap-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 text-[10px]">
-                                <Tag className="w-2.5 h-2.5" />
-                                {v.entidade_nome}
+                porCat ? (
+                  gruposPorCategoria.map((cg) => {
+                    const catAberto = !catExpandidos.has(cg.cat);
+                    const catMix = cg.cat === '__varios';
+                    return (
+                      <Fragment key={`cat-${cg.cat}`}>
+                        <tr
+                          onClick={() => toggleCatExp(cg.cat)}
+                          className="cursor-pointer border-t-2 border-indigo-200/60 dark:border-indigo-800/40 bg-indigo-50/70 dark:bg-indigo-900/20 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
+                        >
+                          <td colSpan={6} className="px-3 py-2 font-semibold text-gray-800 dark:text-gray-100">
+                            <span className="inline-flex items-center gap-1.5">
+                              {catAberto ? <ChevronDown className="w-4 h-4 text-indigo-400" /> : <ChevronRight className="w-4 h-4 text-indigo-400" />}
+                              <span className={`inline-block w-2.5 h-2.5 rounded-full ${catMix ? 'bg-gray-400' : COR[cg.cat] || 'bg-gray-400'}`} />
+                              {catMix ? 'Vários' : LABEL[cg.cat] || cg.cat}
+                              <span className="text-xs font-normal text-gray-400">
+                                ({cg.mesas.length} mesas · {cg.itens} itens)
                               </span>
-                            )}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditandoMesa({ mesaLabel: g.mesaLabel, mesaNorm: g.key });
-                              }}
-                              title={v ? 'Editar vínculo' : 'Vincular a artista/sócio'}
-                              className={`ml-1 rounded p-0.5 ${v ? 'text-indigo-500 hover:text-indigo-700' : 'text-gray-300 hover:text-indigo-500'}`}
-                            >
-                              <Tag className="w-3.5 h-3.5" />
-                            </button>
-                          </span>
-                        </td>
-                        <td className="px-3 py-1.5 text-gray-500 max-w-[240px] truncate" title={g.motivo === '__varios' ? 'Vários' : g.motivo}>
-                          {g.motivo === '__varios' ? 'Vários' : g.motivo || '-'}
-                        </td>
-                        <td className="px-3 py-1.5 text-gray-400">{g.itens} produto(s)</td>
-                        <td className="px-3 py-1.5 text-right text-gray-500">{g.itens.toLocaleString('pt-BR')}</td>
-                        <td className="px-3 py-1.5 text-right font-medium text-gray-900 dark:text-white whitespace-nowrap">{moeda(g.bruto)}</td>
-                        <td className="px-3 py-1.5 text-right whitespace-nowrap font-semibold text-gray-800 dark:text-gray-100">{moeda(g.custo)}</td>
-                      </tr>
-                      {aberto &&
-                        g.linhas.map((l, i) => (
-                          <tr key={`${g.key}-${i}`} className="bg-gray-50/60 dark:bg-gray-800/30 text-[13px]">
-                            <td className="px-3 py-1 whitespace-nowrap text-gray-400">{brData(l.data)}</td>
-                            <td className="px-3 py-1 whitespace-nowrap text-gray-400">{DOW[dowDe(l.data)].l}</td>
-                            <td className="px-3 py-1"></td>
-                            <td className="px-3 py-1"></td>
-                            <td className="px-3 py-1 text-gray-400 max-w-[240px] truncate" title={l.motivo || ''}>
-                              {l.motivo || ''}
-                            </td>
-                            <td className="px-3 py-1 pl-6 text-gray-600 dark:text-gray-300 max-w-[240px] truncate" title={l.produto || ''}>
-                              {l.produto || '-'}
-                            </td>
-                            <td className="px-3 py-1 text-right text-gray-500">{l.qtd.toLocaleString('pt-BR')}</td>
-                            <td className="px-3 py-1 text-right text-gray-600 dark:text-gray-300 whitespace-nowrap">{moeda(l.valor_bruto)}</td>
-                            <td className="px-3 py-1 text-right whitespace-nowrap">
-                              <span
-                                className={`mr-1 inline-block rounded px-1 text-[9px] font-bold align-middle ${
-                                  l.tem_ficha
-                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                                    : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-                                }`}
-                                title={l.tem_ficha ? 'Custo da ficha técnica' : `Sem ficha — estimado (×${fator})`}
-                              >
-                                {l.tem_ficha ? 'FT' : `×${fator}`}
-                              </span>
-                              <span className="text-gray-600 dark:text-gray-300">{moeda(l.custo)}</span>
-                            </td>
-                          </tr>
-                        ))}
-                    </Fragment>
-                  );
-                })
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-right text-xs text-gray-400">{cg.mesas.length}</td>
+                          <td className="px-3 py-2 text-right font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">{moeda(cg.bruto)}</td>
+                          <td className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-white whitespace-nowrap">{moeda(cg.custo)}</td>
+                        </tr>
+                        {catAberto && cg.mesas.map(renderGrupoMesa)}
+                      </Fragment>
+                    );
+                  })
+                ) : (
+                  pageGrupos.map(renderGrupoMesa)
+                )
               ) : (
                 pageLinhas.map((l, i) => (
                   <tr key={i} className="border-t border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/40">
@@ -1231,7 +1296,7 @@ export default function ControleConsumacaoPage() {
       </Card>
 
       {/* ===== Paginação ===== */}
-      {totalPaginas > 1 && (
+      {!porCat && totalPaginas > 1 && (
         <div className="flex items-center justify-center gap-3 text-sm">
           <Button variant="outline" size="sm" onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={pagina1 <= 1}>
             Anterior
