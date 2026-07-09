@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   const fin = (sb() as any).schema('financial');
 
   let q = fin.from('trocas')
-    .select('id,bar_origem,bar_destino,data_competencia,descricao,valor,status,criado_por,created_at,troca_itens(insumo_codigo,quantidade,custo_unitario,subtotal)')
+    .select('id,bar_origem,bar_destino,data_competencia,descricao,valor,status,inter_codigo_solicitacao,inter_pix_erro,criado_por,created_at,troca_itens(insumo_codigo,quantidade,custo_unitario,subtotal)')
     .or(`bar_origem.eq.${user.bar_id},bar_destino.eq.${user.bar_id}`)
     .order('data_competencia', { ascending: false }).order('created_at', { ascending: false }).limit(200);
   if (de) q = q.gte('data_competencia', de);

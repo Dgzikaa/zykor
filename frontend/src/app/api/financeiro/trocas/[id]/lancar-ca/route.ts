@@ -56,15 +56,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const fin = (sb.schema('financial' as any) as any);
 
   const { data: troca, error: eT } = await fin.from('trocas')
-    .select('id,bar_origem,bar_destino,data_competencia,status,descricao,troca_itens(insumo_codigo,quantidade,custo_unitario,subtotal)')
+    .select('id,bar_origem,bar_destino,valor,data_competencia,status,descricao,inter_codigo_solicitacao,troca_itens(insumo_codigo,quantidade,custo_unitario,subtotal)')
     .eq('id', trocaId).single();
   if (eT || !troca) return NextResponse.json({ success: false, error: 'Troca não encontrada' }, { status: 404 });
   // só o emissor ou o recebedor podem lançar
   if (![troca.bar_origem, troca.bar_destino].includes(user.bar_id)) {
     return NextResponse.json({ success: false, error: 'Sem acesso a esta troca' }, { status: 403 });
   }
-  if (troca.status === 'ca_lancado' && !dryRun) {
-    return NextResponse.json({ success: false, error: 'Esta troca já foi lançada no Conta Azul' }, { status: 409 });
+  // Já lançado no CA E já pago no Inter → nada a fazer. Se o CA foi mas o PIX FALHOU
+  // (sem inter_codigo_solicitacao), deixa re-rodar: as pernas do CA são idempotentes
+  // (lancamento_manual_ca_log pula as já criadas) e só o PIX é re-tentado.
+  if (troca.status === 'ca_lancado' && !dryRun && troca.inter_codigo_solicitacao) {
+    return NextResponse.json({ success: false, error: 'Esta troca já foi lançada no Conta Azul e paga no Inter' }, { status: 409 });
   }
 
   const itens = (troca.troca_itens || []) as any[];
