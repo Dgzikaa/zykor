@@ -257,6 +257,7 @@ function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolCh
     { icon: Calendar, cor: 'text-sky-500', label: '1º show', valor: fmtData(traj.primeiro?.data), sub: haQuanto(traj.primeiro?.data) },
     { icon: DollarSign, cor: 'text-emerald-500', label: '1º cachê', valor: traj.primeiro?.cache ? money(traj.primeiro.cache) : '—', sub: 'na estreia' },
     { icon: Music, cor: 'text-violet-500', label: 'Total de shows', valor: num(traj.total_shows), sub: `favorito: ${traj.dia_favorito || '—'}` },
+    { icon: DollarSign, cor: 'text-emerald-500', label: 'Faturamento médio', valor: money(traj.fat_medio), sub: 'por noite do artista' },
     { icon: Users, cor: 'text-blue-500', label: 'Público', valor: `${num(traj.primeiro?.publico || 0)} → ${num(traj.atual?.publico || 0)}`, sub: crescPublico != null ? `${crescPublico >= 0 ? '+' : ''}${crescPublico}% do 1º ao último` : 'estreia → atual', up: crescPublico },
     { icon: DollarSign, cor: 'text-emerald-600', label: 'Cachê médio', valor: money(traj.cache_medio), sub: `cobertura ${traj.cobertura_cache || 0}% dos shows` },
     { icon: DollarSign, cor: 'text-emerald-700', label: 'Total de cachê pago', valor: money(traj.cache_total), sub: `em ${num(traj.total_shows)} shows` },
