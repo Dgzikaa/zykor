@@ -60,6 +60,7 @@ export function CardInputs({ barId, periodo }: { barId?: number; periodo: Period
           formatV={num}
           formatLine={money2}
           corLinha="#22c55e"
+          mostrarRotulo
           height={320}
           rotacaoX={pontos.length > 8 ? 30 : 0}
         />

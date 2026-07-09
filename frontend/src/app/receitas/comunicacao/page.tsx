@@ -58,7 +58,7 @@ export default function ComunicacaoPage() {
   const kpisOrg: Kpi[] = org?.conectado
     ? [
         { label: 'Alcance (orgânico)', valor: num(org.alcance), icon: Eye },
-        { label: 'Engajamento', valor: num(org.engajamento), icon: Heart },
+        { label: 'Taxa de engajamento', valor: pct(org.alcance > 0 ? (org.engajamento / org.alcance) * 100 : null), icon: Heart },
         { label: 'Contas engajadas', valor: num(org.contas_engajadas), icon: UserCheck },
         { label: 'Visitas de perfil', valor: num(org.visitas_perfil), icon: Users },
         { label: 'Seguidores', valor: num(org.seguidores), icon: UserPlus },

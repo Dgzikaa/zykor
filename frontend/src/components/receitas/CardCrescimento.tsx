@@ -12,6 +12,7 @@ import { ChartCard, GraficoBarra } from '@/components/graficos/Charts';
 import type { PeriodoValor } from '@/lib/receitas/periodo';
 
 const money0 = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+const pctSig = (v: number) => `${v >= 0 ? '+' : ''}${(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
 
 interface Ponto {
   key: string;
@@ -61,8 +62,14 @@ export function CardCrescimento({ barId, periodo }: { barId?: number; periodo: P
           data={pontos}
           xKey="label"
           valueKey="fat_por_dia"
+          lineKey="variacao_pct"
+          nomeBarra="Fat/dia aberto"
+          nomeLinha="Variação"
           formatV={money0}
-          height={300}
+          formatLine={pctSig}
+          mostrarRotulo
+          mediaLinha
+          height={320}
           rotacaoX={pontos.length > 8 ? 30 : 0}
         />
       )}

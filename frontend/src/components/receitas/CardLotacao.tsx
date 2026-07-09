@@ -85,6 +85,7 @@ export function CardLotacao({ barId, periodo }: { barId?: number; periodo: Perio
             nomeLinha="Ocupação %"
             formatV={num}
             formatLine={pct}
+            mostrarRotulo
             height={300}
             rotacaoX={pontos.length > 8 ? 30 : 0}
           />
