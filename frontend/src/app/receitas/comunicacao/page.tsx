@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Eye, Heart, UserCheck, Users, UserPlus, DollarSign, MousePointerClick, Target, Percent, MessageCircle } from 'lucide-react';
+import { Eye, Heart, Camera, Users, UserPlus, DollarSign, MousePointerClick, Target, Percent, MessageCircle } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
@@ -59,7 +59,8 @@ export default function ComunicacaoPage() {
     ? [
         { label: 'Alcance (orgânico)', valor: num(org.alcance), icon: Eye },
         { label: 'Taxa de engajamento', valor: pct(org.alcance > 0 ? (org.engajamento / org.alcance) * 100 : null), icon: Heart },
-        { label: 'Contas engajadas', valor: num(org.contas_engajadas), icon: UserCheck },
+        { label: 'Stories', valor: num(org.qtd_stories), icon: Camera },
+        { label: 'Alcance dos stories', valor: num(org.alcance_stories), icon: Eye },
         { label: 'Visitas de perfil', valor: num(org.visitas_perfil), icon: Users },
         { label: 'Seguidores', valor: num(org.seguidores), icon: UserPlus },
       ]
@@ -98,7 +99,7 @@ export default function ComunicacaoPage() {
             {loading ? (
               <div className="flex h-24 items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">Carregando…</div>
             ) : org?.conectado ? (
-              <HeroRow kpis={kpisOrg} cols={5} />
+              <HeroRow kpis={kpisOrg} cols={6} />
             ) : (
               <div className="rounded-xl border border-dashed border-[hsl(var(--border))] p-5 text-sm text-[hsl(var(--muted-foreground))]">
                 Sem dados de Instagram no período (conta não conectada ou sync ainda sem cobertura).

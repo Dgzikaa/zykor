@@ -36,15 +36,27 @@ export async function GET(request: NextRequest) {
   if (de) q = q.gte('data_snapshot', de);
   if (ate) q = q.lte('data_snapshot', ate);
 
-  const { data, error } = await q;
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  // Stories (integrations.instagram_stories) — timestamp_post é timestamp; usa o dia inteiro do fim.
+  let sq = (supabase as any)
+    .schema('integrations')
+    .from('instagram_stories')
+    .select('timestamp_post, reach')
+    .eq('bar_id', barId);
+  if (de) sq = sq.gte('timestamp_post', de);
+  if (ate) sq = sq.lte('timestamp_post', `${ate}T23:59:59`);
 
-  if (!data || !data.length) {
+  const [metr, sto] = await Promise.all([q, sq]);
+  if (metr.error) return NextResponse.json({ success: false, error: metr.error.message }, { status: 500 });
+
+  const data = metr.data || [];
+  if (!data.length) {
     return NextResponse.json({ success: true, conectado: false });
   }
 
   const soma = (k: string) => (data as any[]).reduce((s, r) => s + (Number(r[k]) || 0), 0);
   const ultimo = (data as any[])[data.length - 1];
+  const stories = sto.error ? [] : sto.data || [];
+  const alcanceStories = (stories as any[]).reduce((s, r) => s + (Number(r.reach) || 0), 0);
 
   return NextResponse.json({
     success: true,
@@ -54,6 +66,8 @@ export async function GET(request: NextRequest) {
     contas_engajadas: soma('accounts_engaged'),
     visitas_perfil: soma('profile_views'),
     seguidores: ultimo?.followers_count ?? null,
+    qtd_stories: (stories as any[]).length,
+    alcance_stories: alcanceStories,
     dias: data.length,
   });
 }
