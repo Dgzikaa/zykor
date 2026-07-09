@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Sparkles, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Loader2, Sparkles, Save, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
@@ -56,6 +56,8 @@ export default function AnaliseReceitasPage() {
   const [narrativa, setNarrativa] = useState<Narrativa | null>(null);
   const [gerando, setGerando] = useState(false);
   const [erroIA, setErroIA] = useState<string | null>(null);
+  const [salvandoAnalise, setSalvandoAnalise] = useState(false);
+  const [salvoEm, setSalvoEm] = useState<string | null>(null);
 
   useEffect(() => {
     setPageTitle('🔎 Análise de Receita');
@@ -67,11 +69,21 @@ export default function AnaliseReceitasPage() {
   useEffect(() => {
     if (!barId) return;
     setLoadingComp(true);
-    setNarrativa(null);
-    api
-      .get(`/api/receitas/analise-dia-semana?bar_id=${barId}&mes=${mes}`)
-      .then((r: any) => setComp(r?.success ? { dias: r.dias ?? [], labels: r.labels ?? {} } : null))
-      .catch(() => setComp(null))
+    setSalvoEm(null);
+    Promise.all([
+      api.get(`/api/receitas/analise-dia-semana?bar_id=${barId}&mes=${mes}`).catch(() => null),
+      api.get(`/api/receitas/analise-salvar?bar_id=${barId}&mes=${mes}`).catch(() => null),
+    ])
+      .then(([cmp, sav]: any[]) => {
+        setComp(cmp?.success ? { dias: cmp.dias ?? [], labels: cmp.labels ?? {} } : null);
+        if (sav?.success && sav.analise) {
+          setContexto(sav.analise.contexto ?? '');
+          setNarrativa({ problemas: sav.analise.problemas ?? [], oportunidades: sav.analise.oportunidades ?? [], reflexoes: sav.analise.reflexoes ?? [] });
+        } else {
+          setContexto('');
+          setNarrativa(null);
+        }
+      })
       .finally(() => setLoadingComp(false));
   }, [barId, mes]);
 
@@ -97,6 +109,26 @@ export default function AnaliseReceitasPage() {
       setGerando(false);
     }
   }, [comp, mes, contexto]);
+
+  const salvarAnalise = useCallback(async () => {
+    if (!barId) return;
+    setSalvandoAnalise(true);
+    try {
+      await api.put('/api/receitas/analise-salvar', {
+        bar_id: barId,
+        mes,
+        contexto,
+        problemas: narrativa?.problemas ?? [],
+        oportunidades: narrativa?.oportunidades ?? [],
+        reflexoes: narrativa?.reflexoes ?? [],
+      });
+      setSalvoEm(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+    } catch {
+      /* silencioso — mantém em tela */
+    } finally {
+      setSalvandoAnalise(false);
+    }
+  }, [barId, mes, contexto, narrativa]);
 
   const editar = (grupo: keyof Narrativa, i: number, campo: keyof CardIA, valor: string) => {
     setNarrativa((n) => {
@@ -193,7 +225,21 @@ export default function AnaliseReceitasPage() {
 
           {narrativa && (
             <div className="space-y-4">
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Rascunho gerado por IA — revise e edite antes de usar na apresentação.</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">Rascunho — revise e edite antes de usar. Salve para manter (por bar e mês).</p>
+                <div className="flex items-center gap-2">
+                  {salvoEm && <span className="text-xs text-emerald-600 dark:text-emerald-400">Salvo às {salvoEm}</span>}
+                  <button
+                    type="button"
+                    onClick={salvarAnalise}
+                    disabled={salvandoAnalise}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[hsl(var(--border))] px-3 text-xs font-medium text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--muted))] disabled:opacity-50"
+                  >
+                    {salvandoAnalise ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    Salvar análise
+                  </button>
+                </div>
+              </div>
               {(['problemas', 'oportunidades', 'reflexoes'] as const).map((grupo) => (
                 <div key={grupo}>
                   <h3 className="mb-2 text-sm font-semibold capitalize text-[hsl(var(--foreground))]">
