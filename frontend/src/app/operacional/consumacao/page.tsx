@@ -5,7 +5,9 @@ import { createPortal } from 'react-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
+import Analises from './Analises';
 import { RefreshCw, Download, Search, X, SlidersHorizontal, Users, ChevronRight, ChevronDown, Layers, Filter, Check, Tag } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
@@ -489,6 +491,7 @@ export default function ControleConsumacaoPage() {
   const [cadArtistas, setCadArtistas] = useState<Cadastro[]>([]);
   const [cadSocios, setCadSocios] = useState<Cadastro[]>([]);
   const [editandoMesa, setEditandoMesa] = useState<{ mesaLabel: string; mesaNorm: string } | null>(null);
+  const [tab, setTab] = useState('lancamentos');
 
   // filtros client-side
   const [catFiltro, setCatFiltro] = useState<Set<string>>(new Set());
@@ -983,6 +986,13 @@ export default function ControleConsumacaoPage() {
         </CardContent>
       </Card>
 
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="lancamentos">Lançamentos</TabsTrigger>
+          <TabsTrigger value="analises">Análises</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="lancamentos" className="space-y-4 mt-4">
       {/* ===== Resumo por categoria (clicável) ===== */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         {CATS.map((c) => {
@@ -1234,6 +1244,12 @@ export default function ControleConsumacaoPage() {
           </Button>
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="analises" className="mt-4">
+          <Analises linhas={linhasFiltradas} fator={fator} />
+        </TabsContent>
+      </Tabs>
 
       {editandoMesa && (
         <VinculoEditor
