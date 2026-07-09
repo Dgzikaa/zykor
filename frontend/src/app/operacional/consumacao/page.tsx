@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
-import { RefreshCw, Download, Search, X, SlidersHorizontal, Users, ChevronRight, ChevronDown, Layers } from 'lucide-react';
+import { RefreshCw, Download, Search, X, SlidersHorizontal, Users, ChevronRight, ChevronDown, Layers, Filter, Check } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { toast } from 'sonner';
@@ -158,6 +159,127 @@ function Combobox({
   );
 }
 
+// Cabeçalho de coluna com popover de checkboxes (valores distintos + contagem), estilo DataTable
+// (mesmo padrão da tela de Insumos). Renderizado em portal pra não ser cortado pelo overflow.
+type ColAlign = 'left' | 'center' | 'right';
+function ColHeader({
+  label,
+  align = 'left',
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  align?: ColAlign;
+  options: { value: string; count: number }[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const active = selected.size > 0;
+
+  const openMenu = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - 268)), top: r.bottom + 4 });
+    setQ('');
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    inputRef.current?.focus();
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current?.contains(e.target as Node) || btnRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onAway = () => setOpen(false);
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('resize', onAway);
+    return () => {
+      window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('resize', onAway);
+    };
+  }, [open]);
+
+  const shown = q ? options.filter((o) => o.value.toLowerCase().includes(q.toLowerCase())) : options;
+  const toggle = (v: string) => {
+    const n = new Set(selected);
+    if (n.has(v)) n.delete(v);
+    else n.add(v);
+    onChange(n);
+  };
+  const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
+
+  return (
+    <th className={`${alignCls} font-medium px-3 py-2`}>
+      <button
+        ref={btnRef}
+        onClick={() => (open ? setOpen(false) : openMenu())}
+        className={`inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200 ${active ? 'text-emerald-600 dark:text-emerald-400' : ''}`}
+      >
+        <span>{label}</span>
+        <Filter className={`w-3 h-3 ${active ? 'fill-emerald-500 text-emerald-500' : 'text-gray-300 dark:text-gray-600'}`} />
+        {active && (
+          <span className="text-[10px] rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-1 leading-4">
+            {selected.size}
+          </span>
+        )}
+      </button>
+      {open &&
+        pos &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{ position: 'fixed', left: pos.left, top: pos.top, width: 256 }}
+            className="z-[60] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-2 normal-case"
+          >
+            <Input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filtrar valores…" className="h-8 text-xs" />
+            <div className="flex items-center justify-between px-1 py-1.5 text-[11px] text-gray-500">
+              <button className="hover:text-emerald-600" onClick={() => onChange(new Set(options.map((o) => o.value)))}>
+                Todos
+              </button>
+              <span>{selected.size ? `${selected.size} sel.` : `${options.length} valores`}</span>
+              <button className="hover:text-red-600" onClick={() => onChange(new Set())}>
+                Limpar
+              </button>
+            </div>
+            <div className="max-h-64 overflow-y-auto">
+              {shown.length === 0 ? (
+                <div className="px-2 py-3 text-center text-xs text-gray-400">Nada</div>
+              ) : (
+                shown.map((o) => {
+                  const on = selected.has(o.value);
+                  return (
+                    <button
+                      key={o.value}
+                      onClick={() => toggle(o.value)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-800/60 rounded"
+                    >
+                      <span
+                        className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center ${on ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600'}`}
+                      >
+                        {on && <Check className="w-3 h-3" />}
+                      </span>
+                      <span className="flex-1 truncate text-gray-700 dark:text-gray-200">{o.value}</span>
+                      <span className="text-gray-400 tabular-nums">{o.count}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </th>
+  );
+}
+
 export default function ControleConsumacaoPage() {
   const { setPageTitle } = usePageTitle();
   const { selectedBar } = useBar();
@@ -190,6 +312,15 @@ export default function ControleConsumacaoPage() {
   // agrupar consumações da mesma mesa (data+mesa); default ligado
   const [agrupar, setAgrupar] = useState(true);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  // filtros por coluna (estilo DataTable, igual à tela de insumos)
+  const [colFiltros, setColFiltros] = useState<{ categoria: Set<string>; mesa: Set<string>; motivo: Set<string>; produto: Set<string> }>({
+    categoria: new Set(),
+    mesa: new Set(),
+    motivo: new Set(),
+    produto: new Set(),
+  });
+  const setCol = (id: 'categoria' | 'mesa' | 'motivo' | 'produto', next: Set<string>) =>
+    setColFiltros((prev) => ({ ...prev, [id]: next }));
 
   useEffect(() => setPageTitle('Controle de Consumação'), [setPageTitle]);
 
@@ -224,7 +355,7 @@ export default function ControleConsumacaoPage() {
   // qualquer mudança de filtro volta pra página 1
   useEffect(() => {
     setPagina(1);
-  }, [catFiltro, diaSemana, motivoSel, produtoSel, busca, di, df, agrupar]);
+  }, [catFiltro, diaSemana, motivoSel, produtoSel, busca, di, df, agrupar, colFiltros]);
 
   const preset = (tipo: string) => {
     const h = new Date();
@@ -276,7 +407,8 @@ export default function ControleConsumacaoPage() {
     [linhas],
   );
 
-  const temFiltro = catFiltro.size > 0 || diaSemana.size > 0 || !!motivoSel || !!produtoSel || !!busca;
+  const colAtivo = colFiltros.categoria.size + colFiltros.mesa.size + colFiltros.motivo.size + colFiltros.produto.size;
+  const temFiltro = catFiltro.size > 0 || diaSemana.size > 0 || !!motivoSel || !!produtoSel || !!busca || colAtivo > 0;
 
   const linhasFiltradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -287,13 +419,38 @@ export default function ControleConsumacaoPage() {
       if (diaSemana.size > 0 && !diaSemana.has(dowDe(l.data))) return false;
       if (mv && !(l.motivo || '').toLowerCase().includes(mv)) return false;
       if (pr && !(l.produto || '').toLowerCase().includes(pr)) return false;
+      // filtros por coluna (checkbox)
+      if (colFiltros.categoria.size > 0 && !colFiltros.categoria.has(LABEL[l.categoria] || l.categoria)) return false;
+      if (colFiltros.mesa.size > 0 && !colFiltros.mesa.has(l.mesa || '(sem mesa)')) return false;
+      if (colFiltros.motivo.size > 0 && !colFiltros.motivo.has(l.motivo || '(sem motivo)')) return false;
+      if (colFiltros.produto.size > 0 && !colFiltros.produto.has(l.produto || '(sem produto)')) return false;
       if (q) {
         const alvo = `${l.motivo || ''} ${l.produto || ''} ${l.mesa || ''}`.toLowerCase();
         if (!alvo.includes(q)) return false;
       }
       return true;
     });
-  }, [linhas, catFiltro, diaSemana, motivoSel, produtoSel, busca]);
+  }, [linhas, catFiltro, diaSemana, motivoSel, produtoSel, busca, colFiltros]);
+
+  // opções (valor distinto + contagem) por coluna, para os popovers de filtro
+  const opcoesCol = useMemo(() => {
+    const mk = (getter: (l: Linha) => string) => {
+      const m = new Map<string, number>();
+      for (const l of linhas) {
+        const v = getter(l);
+        m.set(v, (m.get(v) || 0) + 1);
+      }
+      return Array.from(m.entries())
+        .map(([value, count]) => ({ value, count }))
+        .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+    };
+    return {
+      categoria: mk((l) => LABEL[l.categoria] || l.categoria),
+      mesa: mk((l) => l.mesa || '(sem mesa)'),
+      motivo: mk((l) => l.motivo || '(sem motivo)'),
+      produto: mk((l) => l.produto || '(sem produto)'),
+    };
+  }, [linhas]);
 
   const totFiltrado = useMemo(
     () => ({
@@ -400,6 +557,7 @@ export default function ControleConsumacaoPage() {
     setMotivoSel('');
     setProdutoSel('');
     setBusca('');
+    setColFiltros({ categoria: new Set(), mesa: new Set(), motivo: new Set(), produto: new Set() });
   };
 
   const exportarCsv = () => {
@@ -437,6 +595,10 @@ export default function ControleConsumacaoPage() {
     ...(motivoSel ? [{ label: `Motivo: ${motivoSel}`, onClear: () => setMotivoSel('') }] : []),
     ...(produtoSel ? [{ label: `Produto: ${produtoSel}`, onClear: () => setProdutoSel('') }] : []),
     ...(busca ? [{ label: `Busca: ${busca}`, onClear: () => setBusca('') }] : []),
+    ...(colFiltros.categoria.size ? [{ label: `Col. Categoria (${colFiltros.categoria.size})`, onClear: () => setCol('categoria', new Set()) }] : []),
+    ...(colFiltros.mesa.size ? [{ label: `Col. Mesa (${colFiltros.mesa.size})`, onClear: () => setCol('mesa', new Set()) }] : []),
+    ...(colFiltros.motivo.size ? [{ label: `Col. Motivo (${colFiltros.motivo.size})`, onClear: () => setCol('motivo', new Set()) }] : []),
+    ...(colFiltros.produto.size ? [{ label: `Col. Produto (${colFiltros.produto.size})`, onClear: () => setCol('produto', new Set()) }] : []),
   ];
 
   const campoLabel = 'block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1';
@@ -655,10 +817,10 @@ export default function ControleConsumacaoPage() {
                   Data{seta('data')}
                 </th>
                 <th className="text-left font-medium px-3 py-2">Dia</th>
-                <th className="text-left font-medium px-3 py-2">Categoria</th>
-                <th className="text-left font-medium px-3 py-2">Mesa</th>
-                <th className="text-left font-medium px-3 py-2">Motivo</th>
-                <th className="text-left font-medium px-3 py-2">Produto</th>
+                <ColHeader label="Categoria" options={opcoesCol.categoria} selected={colFiltros.categoria} onChange={(n) => setCol('categoria', n)} />
+                <ColHeader label="Mesa" options={opcoesCol.mesa} selected={colFiltros.mesa} onChange={(n) => setCol('mesa', n)} />
+                <ColHeader label="Motivo" options={opcoesCol.motivo} selected={colFiltros.motivo} onChange={(n) => setCol('motivo', n)} />
+                <ColHeader label="Produto" options={opcoesCol.produto} selected={colFiltros.produto} onChange={(n) => setCol('produto', n)} />
                 <th className="text-right font-medium px-3 py-2 cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200" onClick={() => sortBy('qtd')}>
                   Qtd{seta('qtd')}
                 </th>
