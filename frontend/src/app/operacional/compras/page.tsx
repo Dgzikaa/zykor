@@ -193,9 +193,9 @@ export default function ComprasPage() {
           <div className="flex items-center gap-2">
             <button onClick={sincronizar} disabled={sincronizando}
               title="Puxa os pedidos mais recentes do VMarket agora, sem esperar a atualização automática"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-gray-800 px-3 h-9 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-60 disabled:cursor-not-allowed">
+              className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-gray-800 px-3 h-9 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-60 disabled:cursor-not-allowed">
               <RefreshCw className={`w-4 h-4 ${sincronizando ? 'animate-spin' : ''}`} />
-              {sincronizando ? 'Atualizando…' : 'Atualizar agora'}
+              {sincronizando ? 'Atualizando…' : 'Atualizar'}
             </button>
             <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} className="w-auto" />
             <span className="text-gray-400">→</span>
