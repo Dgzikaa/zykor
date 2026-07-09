@@ -258,8 +258,8 @@ export default function PedidosPagamentoPage() {
               <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
               <TabsTrigger value="freela">Freela</TabsTrigger>
               <TabsTrigger value="boleto">Boleto</TabsTrigger>
-              <TabsTrigger value="cartao">Cartão</TabsTrigger>
-              {podeAprovar && <TabsTrigger value="fatura">Fatura Cartão</TabsTrigger>}
+              <TabsTrigger value="cartao">Fatura Cartão Fechado</TabsTrigger>
+              {podeAprovar && <TabsTrigger value="fatura">Fatura Cartão Aberto</TabsTrigger>}
               <TabsTrigger value="trocas">Trocas</TabsTrigger>
             </TabsList>
           </Tabs>

@@ -46,52 +46,66 @@ export async function POST(request: NextRequest) {
 
   const supabase = await getAdminClient();
   const hashes = linhas.map(l => l.dedupe_hash);
+  const chunk = <T,>(arr: T[], n: number): T[][] => {
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+    return out;
+  };
 
-  // Quais já existem? (dedupe)
-  const { data: existentes } = await fin(supabase)
-    .from('cartao_fatura_linhas')
-    .select('dedupe_hash')
-    .in('dedupe_hash', hashes);
-  const setEx = new Set((existentes || []).map((r: any) => r.dedupe_hash));
-
-  const novos = linhas.filter(l => !setEx.has(l.dedupe_hash));
-  if (novos.length) {
-    const rows = novos.map(l => ({
-      dedupe_hash: l.dedupe_hash,
-      banco: l.banco,
-      origem_formato: l.origem_formato,
-      fitid: l.fitid,
-      data_transacao: l.data_transacao,
-      descricao: l.descricao,
-      valor: l.valor,
-      tipo: l.tipo,
-      parcela: l.parcela,
-      cartao_final: l.cartao_final,
-      titular_nome: l.titular_nome,
-      status: 'novo',
-      importado_por: user.auth_id,
-    }));
-    const { error: errIns } = await fin(supabase).from('cartao_fatura_linhas').insert(rows);
-    if (errIns) {
-      console.error('[CARTAO-FATURA][IMPORT]', errIns);
-      return NextResponse.json({ success: false, error: errIns.message }, { status: 500 });
+  try {
+    // Quais já existem? (dedupe) — em lotes p/ não estourar a URL do .in() em faturas grandes.
+    const existentesSet = new Set<string>();
+    for (const lote of chunk(hashes, 50)) {
+      const { data, error } = await fin(supabase)
+        .from('cartao_fatura_linhas').select('dedupe_hash').in('dedupe_hash', lote);
+      if (error) throw new Error(error.message);
+      (data || []).forEach((r: any) => existentesSet.add(r.dedupe_hash));
     }
+
+    const novos = linhas.filter(l => !existentesSet.has(l.dedupe_hash));
+    if (novos.length) {
+      const rows = novos.map(l => ({
+        dedupe_hash: l.dedupe_hash,
+        banco: l.banco,
+        origem_formato: l.origem_formato,
+        fitid: l.fitid,
+        data_transacao: l.data_transacao,
+        descricao: l.descricao,
+        valor: l.valor,
+        tipo: l.tipo,
+        parcela: l.parcela,
+        cartao_final: l.cartao_final,
+        titular_nome: l.titular_nome,
+        status: 'novo',
+        importado_por: user.auth_id,
+      }));
+      for (const lote of chunk(rows, 200)) {
+        const { error } = await fin(supabase).from('cartao_fatura_linhas').insert(lote);
+        if (error) throw new Error(error.message);
+      }
+    }
+
+    // Devolve o conjunto completo da fatura (novas + já vistas, com seu status atual).
+    const todas: any[] = [];
+    for (const lote of chunk(hashes, 50)) {
+      const { data, error } = await fin(supabase)
+        .from('cartao_fatura_linhas').select('*').in('dedupe_hash', lote);
+      if (error) throw new Error(error.message);
+      todas.push(...(data || []));
+    }
+    todas.sort((a, b) => (String(b.data_transacao) > String(a.data_transacao) ? 1 : -1));
+
+    return NextResponse.json({
+      success: true,
+      banco: parsed.banco,
+      formato: parsed.formato,
+      importadas: linhas.length,
+      novos: novos.length,
+      ja_vistos: linhas.length - novos.length,
+      linhas: todas,
+    });
+  } catch (e: any) {
+    console.error('[CARTAO-FATURA][IMPORT]', e);
+    return NextResponse.json({ success: false, error: e?.message || 'Erro ao importar a fatura' }, { status: 500 });
   }
-
-  // Devolve o conjunto completo da fatura (novas + já vistas, com seu status atual).
-  const { data: todas } = await fin(supabase)
-    .from('cartao_fatura_linhas')
-    .select('*')
-    .in('dedupe_hash', hashes)
-    .order('data_transacao', { ascending: false });
-
-  return NextResponse.json({
-    success: true,
-    banco: parsed.banco,
-    formato: parsed.formato,
-    importadas: linhas.length,
-    novos: novos.length,
-    ja_vistos: linhas.length - novos.length,
-    linhas: todas || [],
-  });
 }

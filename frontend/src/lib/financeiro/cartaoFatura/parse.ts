@@ -250,22 +250,33 @@ export function parseFaturaCartao(buffer: Buffer, filename: string): CartaoParse
   const nome = (filename || '').toLowerCase();
   const head = buffer.slice(0, 512).toString('latin1');
 
+  let res: CartaoParseResult;
   // OFX: extensão .ofx OU cabeçalho OFX no conteúdo.
   if (nome.endsWith('.ofx') || /OFXHEADER|<OFX>/i.test(head)) {
-    const text = buffer.toString('latin1'); // OFX Nubank vem em CP1252/USASCII
-    return { banco: 'nubank', formato: 'ofx', linhas: parseNubankOfx(text) };
+    res = { banco: 'nubank', formato: 'ofx', linhas: parseNubankOfx(buffer.toString('latin1')) };
   }
-
   // CSV: extensão .csv OU primeira linha "date,title,amount".
-  if (nome.endsWith('.csv') || /^\s*date\s*,\s*title\s*,\s*amount/i.test(head)) {
-    const text = buffer.toString('utf8');
-    return { banco: 'nubank', formato: 'csv', linhas: parseNubankCsv(text) };
+  else if (nome.endsWith('.csv') || /^\s*date\s*,\s*title\s*,\s*amount/i.test(head)) {
+    res = { banco: 'nubank', formato: 'csv', linhas: parseNubankCsv(buffer.toString('utf8')) };
   }
-
   // Excel (Itaú): .xls (BIFF antigo) ou .xlsx — SheetJS lê os dois.
-  if (nome.endsWith('.xls') || nome.endsWith('.xlsx') || head.startsWith('PK') || head.charCodeAt(0) === 0xd0) {
-    return { banco: 'itau', formato: 'xls', linhas: parseItauXls(buffer) };
+  else if (nome.endsWith('.xls') || nome.endsWith('.xlsx') || head.startsWith('PK') || head.charCodeAt(0) === 0xd0) {
+    res = { banco: 'itau', formato: 'xls', linhas: parseItauXls(buffer) };
+  } else {
+    throw new Error('Formato não reconhecido. Envie .xls/.xlsx (Itaú) ou .csv/.ofx (Nubank).');
   }
 
-  throw new Error('Formato não reconhecido. Envie .xls/.xlsx (Itaú) ou .csv/.ofx (Nubank).');
+  // Desambigua duplicatas EXATAS sem FITID (ex.: Itaú com 2 compras idênticas no mesmo
+  // dia → mesmo hash). Adiciona um sufixo por ocorrência p/ não colidir na chave única.
+  // Estável no reimport se a ordem das linhas se mantém (o extrato costuma manter).
+  const cont = new Map<string, number>();
+  for (const l of res.linhas) {
+    if (l.fitid) continue; // FITID já é único
+    const base = l.dedupe_hash;
+    const n = cont.get(base) || 0;
+    cont.set(base, n + 1);
+    if (n > 0) l.dedupe_hash = `${base}#${n}`;
+  }
+
+  return res;
 }
