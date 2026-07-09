@@ -207,7 +207,7 @@ const ESTRUTURA: BlocoDef[] = [
   {
     nome: 'Despesas Administrativas', tipo: 'despesa', cor: COR.adm, modo: 'fixo', subs: [
       { nome: 'Escritório Central', gold: ['Escritório Central'] },
-      { nome: 'Administrativo Ordinário', gold: ['Administrativo Ordinário', 'Administrativo Local'], nomePorBar: { 4: 'Administrativo Deboche' } },
+      { nome: 'Administrativo Local', gold: ['Administrativo Ordinário', 'Administrativo Local'], nomePorBar: { 4: 'Administrativo Deboche' } },
       { nome: 'RECURSOS HUMANOS', gold: ['RECURSOS HUMANOS'] },
       // Consumações de funcionários (realizado vem do Conta Azul; gold usa nome abreviado).
       { nome: '[Consumação] Funcionários Escritório', gold: ['Consumação Func Escritorio'] },
