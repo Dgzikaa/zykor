@@ -94,9 +94,11 @@ const nextConfig = {
             value: 'max-age=63072000; includeSubDomains; preload',
           },
           {
-            // Bloqueia APIs sensíveis do browser que o app não usa.
+            // Bloqueia APIs sensíveis do browser. `camera=(self)` libera a câmera SÓ pro
+            // próprio site (scanner de boleto) — sem isso o getUserMedia é bloqueado sem
+            // nem pedir permissão. Microfone/geolocalização seguem bloqueados (não usados).
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+            value: 'camera=(self), microphone=(), geolocation=(), interest-cohort=()',
           },
           {
             key: 'Content-Security-Policy',

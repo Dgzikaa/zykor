@@ -19,6 +19,7 @@ export function BoletoScanner({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [erro, setErro] = useState('');
   const [status, setStatus] = useState('Abrindo câmera…');
 
@@ -26,6 +27,34 @@ export function BoletoScanner({
     let cancelado = false;
 
     (async () => {
+      // Contexto seguro é obrigatório pra câmera (HTTPS ou localhost).
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        setErro(!window.isSecureContext
+          ? 'A câmera só funciona em HTTPS (ou localhost). Abra o site por https://.'
+          : 'Este navegador não suporta acesso à câmera.');
+        return;
+      }
+
+      // Pede a câmera direto — prompt limpo + erro específico por tipo.
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+      } catch (e: any) {
+        const nome = String(e?.name || '');
+        setErro(
+          /NotAllowed|Security/i.test(nome)
+            ? 'Acesso à câmera bloqueado. Clique no ícone de câmera na barra de endereço do navegador, escolha "Permitir", e tente de novo.'
+            : /NotFound|DevicesNotFound|OverconstrainedError/i.test(nome)
+              ? 'Nenhuma câmera encontrada neste dispositivo.'
+              : /NotReadable|TrackStart/i.test(nome)
+                ? 'A câmera está em uso por outro app. Feche o outro programa e tente de novo.'
+                : `Não consegui abrir a câmera: ${e?.message || nome || 'erro'}`,
+        );
+        return;
+      }
+      if (cancelado) { stream.getTracks().forEach(t => t.stop()); return; }
+      streamRef.current = stream;
+
       try {
         const [{ BrowserMultiFormatReader }, { DecodeHintType, BarcodeFormat }] = await Promise.all([
           import('@zxing/browser'),
@@ -38,8 +67,8 @@ export function BoletoScanner({
         const reader = new BrowserMultiFormatReader(hints as any);
 
         setStatus('Aponte a câmera pro código de barras do boleto');
-        const controls = await reader.decodeFromConstraints(
-          { video: { facingMode: { ideal: 'environment' } } },
+        const controls = await reader.decodeFromStream(
+          stream,
           videoRef.current!,
           (result: any) => {
             if (!result || cancelado) return;
@@ -54,20 +83,14 @@ export function BoletoScanner({
         );
         controlsRef.current = controls;
       } catch (e: any) {
-        const msg = String(e?.message || e || '');
-        setErro(
-          /permission|denied|notallowed/i.test(msg)
-            ? 'Permissão da câmera negada. Libere o acesso à câmera no navegador e tente de novo.'
-            : /notfound|no camera|requested device/i.test(msg)
-              ? 'Nenhuma câmera encontrada neste dispositivo.'
-              : `Não consegui abrir a câmera: ${msg}`,
-        );
+        setErro(`Falha ao iniciar a leitura: ${e?.message || e || 'erro'}`);
       }
     })();
 
     return () => {
       cancelado = true;
       try { controlsRef.current?.stop(); } catch { /* ok */ }
+      try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch { /* ok */ }
     };
   }, [onDetect]);
 

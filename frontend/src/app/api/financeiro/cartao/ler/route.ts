@@ -30,6 +30,19 @@ export async function POST(request: NextRequest) {
   if (!file) return NextResponse.json({ success: false, error: 'fatura é obrigatória' }, { status: 400 });
   if (file.size > 15 * 1024 * 1024) return NextResponse.json({ success: false, error: 'arquivo acima de 15MB' }, { status: 400 });
 
+  // Tipo de arquivo: aqui é só foto/PDF (IA lê a imagem). Planilha/OFX/CSV vão na aba "Fatura Cartão".
+  const nomeArq = (file.name || '').toLowerCase();
+  if (/\.(xls|xlsx|ofx|csv)$/.test(nomeArq)) {
+    return NextResponse.json({
+      success: false,
+      error: 'Arquivo de extrato (.xls/.xlsx/.ofx/.csv) deve ser importado na aba "Fatura Cartão". Esta aba lê só foto ou PDF da fatura.',
+    }, { status: 400 });
+  }
+  const mimeArq = file.type || '';
+  if (!(mimeArq === 'application/pdf' || /\.pdf$/.test(nomeArq) || mimeArq.startsWith('image/'))) {
+    return NextResponse.json({ success: false, error: 'Envie uma foto (imagem) ou PDF da fatura.' }, { status: 400 });
+  }
+
   const supabase = await getAdminClient();
   // Categorias reais do bar + de-para aprendido
   const [{ data: cats }, { data: mapRows }] = await Promise.all([
