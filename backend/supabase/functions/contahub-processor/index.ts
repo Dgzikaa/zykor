@@ -47,6 +47,25 @@ async function deletarDadosExistentes(
 }
 
 // ============================================
+// NORMALIZA o telefone do modelo CARTÃO (cht_fonea) pro padrão cli_fone.
+// ContaHub manda cht_fonea sem formato e com o país: "556191815680" (55 + DDD 61 + 91815680,
+// SEM o 9º dígito do celular). O padrão antigo (cli_fone) é "61-991815680". Regra: tira o 55,
+// separa DDD(2)+número, e prepend "9" quando o número tem 8 dígitos (celular). Devolve '' se
+// não bater no padrão (não polui o cli_fone com lixo).
+// ============================================
+function normalizarFoneCartao(raw: string | null | undefined): string {
+  let d = String(raw ?? '').replace(/\D/g, '');
+  if (!d) return '';
+  if (d.length >= 12 && d.startsWith('55')) d = d.slice(2); // remove código do país
+  if (d.length < 10 || d.length > 11) return '';            // fora de DDD(2)+8/9 dígitos
+  const ddd = d.slice(0, 2);
+  let num = d.slice(2);
+  if (num.length === 8) num = '9' + num;                    // 9º dígito do celular
+  if (num.length !== 9) return '';
+  return `${ddd}-${num}`;
+}
+
+// ============================================
 // FUNÇÃO PARA CALCULAR DATA REAL
 // Regra: Para PAGAMENTOS, sempre usar a data real do hr_lancamento
 // Para outros tipos (período, analítico), manter dt_gerencial
@@ -391,6 +410,13 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           // NÃO corrigir baseado em hr_lancamento (ContaHub já define a data correta)
           const dtGerencialOriginal = item.dt_gerencial || dataDate;
 
+          // Modelo cartão: telefone/nome vêm em cht_fonea/cht_nome. Preenche cli_fone/cliente
+          // quando vazios (o cli_fone normalizado do cartão), pra tudo que já usa cli_fone
+          // (clientes ativos, match) contabilizar certinho — sem mudar mais nada no pipeline.
+          const foneCartao = normalizarFoneCartao(item.cht_fonea);
+          const cliFoneFinal = (item.cli_fone && String(item.cli_fone).trim()) || foneCartao || '';
+          const clienteFinal = item.cliente || item.cli_nome || item.cht_nome || '';
+
           return {
           dt_gerencial: dtGerencialOriginal,
           vd: String(item.vd || ''),
@@ -400,8 +426,10 @@ async function processRawData(supabase: any, dataType: string, rawData: any, dat
           dt_transacao: item.dt_transacao || null,
           mesa: item.mesa || '',
           cli: item.cli ? parseInt(item.cli) : null,
-          cliente: item.cliente || item.cli_nome || '',
-          cli_fone: item.cli_fone || '',
+          cliente: clienteFinal,
+          cli_fone: cliFoneFinal,
+          cht_fonea: item.cht_fonea || '',
+          cht_nome: item.cht_nome || '',
           cli_cpf: item.cli_cpf || '',
           vr_pagamentos: parseFloat(item['$vr_pagamentos'] || item.vr_pagamentos) || 0,
           pag: String(item.pag || ''),
