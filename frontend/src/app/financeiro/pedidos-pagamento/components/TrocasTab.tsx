@@ -238,23 +238,37 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                         <td className="px-3 py-2 text-gray-500 text-xs">{(t.troca_itens || []).map((i: any) => `${i.insumo_codigo}×${fmtQtd(i.quantidade)}`).join(', ')}</td>
                         <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtBRL(t.valor)}</td>
                         <td className="px-3 py-2 text-right">
-                          {t.status !== 'ca_lancado' ? (
-                            <button onClick={() => abrirPreviewCA(t.id)} disabled={caLoading === t.id}
-                              className="text-xs px-2 py-1 rounded border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-50">
-                              {caLoading === t.id ? '…' : 'Lançar'}
-                            </button>
-                          ) : t.inter_codigo_solicitacao ? (
-                            <Badge variant="outline" className="text-emerald-700 border-emerald-300">✓ CA + PIX</Badge>
-                          ) : (
-                            <div className="flex flex-col items-end gap-1">
-                              <Badge variant="outline" className="text-amber-700 border-amber-300" title={t.inter_pix_erro || ''}>CA ok · PIX falhou</Badge>
-                              {t.inter_pix_erro && <span className="text-[10px] text-amber-600 max-w-[180px] truncate" title={t.inter_pix_erro}>{t.inter_pix_erro}</span>}
+                          {(() => {
+                            const btn = (txt: string) => (
                               <button onClick={() => abrirPreviewCA(t.id)} disabled={caLoading === t.id}
                                 className="text-xs px-2 py-1 rounded border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-50">
-                                {caLoading === t.id ? '…' : 'Tentar PIX de novo'}
+                                {caLoading === t.id ? '…' : txt}
                               </button>
-                            </div>
-                          )}
+                            );
+                            if (t.status !== 'ca_lancado') return btn('Lançar');
+                            const st = String(t.pix_status || '').toUpperCase();
+                            if (/EFETUAD|REALIZAD|PAGO|CONCLU/.test(st)) return <Badge variant="outline" className="text-emerald-700 border-emerald-300">✓ CA + PIX pago</Badge>;
+                            if (/REPROVAD|CANCELAD|ERRO|FALH/.test(st)) return (
+                              <div className="flex flex-col items-end gap-1">
+                                <Badge variant="outline" className="text-red-700 border-red-300">PIX reprovado no Inter</Badge>
+                                {btn('Tentar de novo')}
+                              </div>
+                            );
+                            if (st) return (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <Badge variant="outline" className="text-indigo-700 border-indigo-300">CA ok · PIX enviado</Badge>
+                                <span className="text-[10px] text-muted-foreground">aguardando aprovação no app do Inter</span>
+                              </div>
+                            );
+                            // CA feito, PIX ainda não enviado (erro de plano, ex.: sem chave/credencial)
+                            return (
+                              <div className="flex flex-col items-end gap-1">
+                                <Badge variant="outline" className="text-amber-700 border-amber-300" title={t.inter_pix_erro || ''}>CA ok · PIX pendente</Badge>
+                                {t.inter_pix_erro && <span className="text-[10px] text-amber-600 max-w-[180px] truncate" title={t.inter_pix_erro}>{t.inter_pix_erro}</span>}
+                                {btn('Enviar PIX')}
+                              </div>
+                            );
+                          })()}
                         </td>
                       </tr>
                     );

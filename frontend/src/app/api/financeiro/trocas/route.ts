@@ -39,6 +39,22 @@ export async function GET(request: NextRequest) {
     ...t,
     sentido: t.bar_origem === user.bar_id ? 'enviou' : 'recebeu',
   }));
+
+  // Status REAL do PIX (fonte: financial.pix_enviados, mantido pelo webhook do Inter).
+  const refs = trocas.map((t: any) => `troca:${t.id}`);
+  if (refs.length) {
+    const { data: pixs } = await fin.from('pix_enviados')
+      .select('pagamento_zykor_id, inter_status, inter_codigo_solicitacao, data_envio')
+      .in('pagamento_zykor_id', refs)
+      .order('data_envio', { ascending: false });
+    const byRef = new Map<string, any>();
+    for (const p of (pixs || [])) if (!byRef.has(p.pagamento_zykor_id)) byRef.set(p.pagamento_zykor_id, p);
+    for (const t of trocas) {
+      const p = byRef.get(`troca:${t.id}`);
+      t.pix_status = p?.inter_status || null;   // ENVIADO/AGENDADO/REPROVADO/EFETUADO...
+      t.pix_codigo = p?.inter_codigo_solicitacao || null;
+    }
+  }
   return NextResponse.json({ success: true, trocas });
 }
 

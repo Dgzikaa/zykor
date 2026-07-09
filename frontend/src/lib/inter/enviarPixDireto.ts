@@ -29,9 +29,11 @@ export async function enviarPixDireto(params: {
   descricao: string;
   destinatario?: string;
   dataPagamento?: string;     // YYYY-MM-DD (futuro = agenda; hoje/passado = imediato)
-  seedIdempotencia: string;   // ex.: `troca:<id>`
+  seedIdempotencia: string;   // chave de idempotência do banco (muda por tentativa p/ re-enviar)
+  refPagamento?: string;      // id estável do pagamento p/ rastreio (ex.: `troca:<id>`)
 }): Promise<{ codigoSolicitacao: string }> {
   const { barId, credencialId, chave, valor, descricao, destinatario, dataPagamento, seedIdempotencia } = params;
+  const refPagamento = params.refPagamento || seedIdempotencia;
   const supabase = createServiceRoleClient();
 
   // Credencial DEVE pertencer ao bar pagador (nunca usa credencial de outro bar).
@@ -72,7 +74,7 @@ export async function enviarPixDireto(params: {
     inter_codigo_solicitacao: codigoSolicitacao,
     inter_status: isAgendado ? 'AGENDADO' : 'ENVIADO',
     data_pagamento: dpIso,
-    pagamento_zykor_id: seedIdempotencia,
+    pagamento_zykor_id: refPagamento,
     beneficiario: { nome: destinatario || 'Troca entre bares', chave, descricao },
     data_envio: new Date().toISOString(),
     status: isAgendado ? 'agendado' : 'enviado',

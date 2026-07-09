@@ -63,12 +63,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (![troca.bar_origem, troca.bar_destino].includes(user.bar_id)) {
     return NextResponse.json({ success: false, error: 'Sem acesso a esta troca' }, { status: 403 });
   }
-  // Já lançado no CA E já pago no Inter → nada a fazer. Se o CA foi mas o PIX FALHOU
-  // (sem inter_codigo_solicitacao), deixa re-rodar: as pernas do CA são idempotentes
-  // (lancamento_manual_ca_log pula as já criadas) e só o PIX é re-tentado.
-  if (troca.status === 'ca_lancado' && !dryRun && troca.inter_codigo_solicitacao) {
-    return NextResponse.json({ success: false, error: 'Esta troca já foi lançada no Conta Azul e paga no Inter' }, { status: 409 });
-  }
+  // Não bloqueia re-execução: o CA é idempotente (lancamento_manual_ca_log pula o que já
+  // criou) e o PIX só reenvia se NÃO houver um pagamento ATIVO (não-reprovado) — ver abaixo.
+  // Assim dá pra re-tentar o PIX depois de um REPROVADO sem duplicar nada no Conta Azul.
 
   const itens = (troca.troca_itens || []) as any[];
   if (itens.length === 0) return NextResponse.json({ success: false, error: 'Troca sem itens' }, { status: 400 });
@@ -174,11 +171,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await fin.from('trocas').update({ status: 'ca_lancado', ca_lancamento_receita_id: recId, ca_lancamento_despesa_id: desId, atualizado_em: new Date().toISOString() }).eq('id', trocaId);
   }
 
-  // Só dispara o PIX se o CA fechou e ainda não foi enviado (idempotente por troca).
-  let pixCodigo = troca.inter_codigo_solicitacao || null;
+  // PIX: fonte da verdade = financial.pix_enviados (o webhook mantém o status). Só envia se
+  // o CA fechou e NÃO houver um PIX ativo (não-reprovado). Após um REPROVADO, re-envia com
+  // chave de idempotência NOVA (por nº de tentativas) — senão o banco devolveria o reprovado.
+  let pixCodigo: string | null = null;
   let pixErro: string | null = null;
-  if (todasOk && !pixCodigo) {
-    if (pixErroPlano) {
+  let pixStatus: string | null = null;
+  if (todasOk) {
+    const { data: pixHist } = await fin.from('pix_enviados')
+      .select('inter_codigo_solicitacao, inter_status, status, data_envio')
+      .eq('pagamento_zykor_id', `troca:${trocaId}`)
+      .order('data_envio', { ascending: false });
+    const historico = (pixHist || []) as any[];
+    const ativo = historico.find((p) => p.inter_status !== 'REPROVADO' && p.status !== 'erro');
+
+    if (ativo) {
+      // Já existe PIX vivo (enviado/agendado/pago) — não reenvia.
+      pixCodigo = ativo.inter_codigo_solicitacao;
+      pixStatus = ativo.inter_status;
+    } else if (pixErroPlano) {
       pixErro = pixErroPlano;
     } else {
       try {
@@ -186,9 +197,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const rp = await enviarPixDireto({
           barId: troca.bar_destino, credencialId: pixCredId!, chave: pixChave!,
           valor: pixValor, descricao: `Troca de insumo — pagamento ao bar ${troca.bar_origem}`,
-          destinatario: `Bar ${troca.bar_origem}`, dataPagamento: hojeStr, seedIdempotencia: `troca:${trocaId}`,
+          destinatario: `Bar ${troca.bar_origem}`, dataPagamento: hojeStr,
+          seedIdempotencia: `troca:${trocaId}:${historico.length}`, // key nova por tentativa
+          refPagamento: `troca:${trocaId}`,
         });
         pixCodigo = rp.codigoSolicitacao;
+        pixStatus = 'ENVIADO';
       } catch (e: any) {
         pixErro = e?.message || 'Falha no PIX';
       }
@@ -196,5 +210,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await fin.from('trocas').update({ inter_codigo_solicitacao: pixCodigo, inter_pix_erro: pixErro }).eq('id', trocaId);
   }
 
-  return NextResponse.json({ success: todasOk, competencia: comp, resultados, pix: { codigo: pixCodigo, erro: pixErro } });
+  return NextResponse.json({ success: todasOk, competencia: comp, resultados, pix: { codigo: pixCodigo, status: pixStatus, erro: pixErro } });
 }
