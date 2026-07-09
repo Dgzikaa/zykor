@@ -9,7 +9,7 @@ import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { ShoppingCart, Search, ChevronDown, Loader2, ExternalLink, Tag, BarChart3, TrendingUp, Users, Package, ArrowRightLeft, Pencil, Check, X } from 'lucide-react';
+import { ShoppingCart, Search, ChevronDown, Loader2, ExternalLink, Tag, BarChart3, TrendingUp, Users, Package, ArrowRightLeft, Pencil, Check, X, RefreshCw } from 'lucide-react';
 
 const fmtBRL = (v: any) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
@@ -86,6 +86,7 @@ export default function ComprasPage() {
   const [tab, setTab] = useState('pedidos');
   const [analises, setAnalises] = useState<any>(null);
   const [loadingAn, setLoadingAn] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -133,6 +134,21 @@ export default function ComprasPage() {
     }
   }, [toast]);
 
+  // "Atualizar agora": puxa os pedidos novos do VMarket na hora (sem esperar o cron 5x/dia) e recarrega.
+  const sincronizar = useCallback(async () => {
+    if (!barId || sincronizando) return;
+    setSincronizando(true);
+    toast({ title: 'Atualizando compras…', description: 'Puxando pedidos novos do VMarket. Pode levar até ~2 min.' });
+    try {
+      const r = await api.post('/api/operacional/compras', { acao: 'sync' });
+      if (!r.success) throw new Error(r.error);
+      await carregar();
+      toast({ title: 'Compras atualizadas', description: 'Os pedidos mais recentes do VMarket já estão na tela.' });
+    } catch (e: any) {
+      toast({ title: 'Erro ao atualizar', description: e?.message || 'Falha ao sincronizar com o VMarket', variant: 'destructive' });
+    } finally { setSincronizando(false); }
+  }, [barId, sincronizando, carregar, toast]);
+
   const abrir = async (id: number) => {
     if (aberto === id) { setAberto(null); return; }
     setAberto(id);
@@ -165,7 +181,7 @@ export default function ComprasPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-4">
+      <div className="w-full space-y-4">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -175,6 +191,12 @@ export default function ComprasPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={sincronizar} disabled={sincronizando}
+              title="Puxa os pedidos mais recentes do VMarket agora, sem esperar a atualização automática"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-gray-800 px-3 h-9 text-sm font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-60 disabled:cursor-not-allowed">
+              <RefreshCw className={`w-4 h-4 ${sincronizando ? 'animate-spin' : ''}`} />
+              {sincronizando ? 'Atualizando…' : 'Atualizar agora'}
+            </button>
             <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} className="w-auto" />
             <span className="text-gray-400">→</span>
             <Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className="w-auto" />

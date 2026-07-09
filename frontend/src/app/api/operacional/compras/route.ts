@@ -4,6 +4,7 @@ import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 180; // o POST { acao:'sync' } puxa pedidos do VMarket na hora (pode levar ~2min)
 
 /**
  * GET /api/operacional/compras
@@ -134,6 +135,16 @@ export async function POST(request: NextRequest) {
   if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
 
   const body = await request.json().catch(() => ({}));
+
+  // Atualização sob demanda das compras (botão "Atualizar agora"): puxa pedidos novos do VMarket
+  // na hora, sem esperar o cron. Roda cab (últimos 10 dias) + itens + reconciliação de códigos.
+  if (body.acao === 'sync') {
+    const supabase = await getAdminClient();
+    const { data, error } = await (supabase as any).rpc('fn_vmarket_sync_pedidos_now', { p_bar_id: user.bar_id });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, sync: data });
+  }
+
   const idPedido = Number(body.id_pedido);
   if (!Number.isFinite(idPedido) || idPedido <= 0) return NextResponse.json({ success: false, error: 'id_pedido obrigatório' }, { status: 400 });
 
