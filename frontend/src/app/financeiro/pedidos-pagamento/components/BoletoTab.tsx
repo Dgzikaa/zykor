@@ -9,7 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { DateInputBR } from '@/components/ui/date-input-br';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Loader2, FileScan, Sparkles, Send, AlertTriangle, PencilLine } from 'lucide-react';
+import { Loader2, FileScan, Sparkles, Send, AlertTriangle, PencilLine, ScanLine } from 'lucide-react';
+import { BoletoScanner } from './BoletoScanner';
+import { type BoletoDecodificado } from '../boletoBarcode';
 
 type DadosBoleto = {
   valor: number | null;
@@ -30,6 +32,7 @@ export function BoletoTab({ onCriado }: { onCriado: () => void }) {
   const [arquivoNome, setArquivoNome] = useState('');
   const [d, setD] = useState<DadosBoleto | null>(null);
   const [avisos, setAvisos] = useState<string[]>([]);
+  const [scannerOpen, setScannerOpen] = useState(false);
   // Competência e observação NÃO vêm do boleto — quem sobe preenche.
   const [competencia, setCompetencia] = useState('');
   const [observacao, setObservacao] = useState('');
@@ -74,6 +77,21 @@ export function BoletoTab({ onCriado }: { onCriado: () => void }) {
     setArquivoNome('');
     setAvisos([]);
     setD({ ...VAZIO });
+  };
+
+  // Câmera: leu o código de barras → preenche valor/vencimento/linha digitável (determinístico).
+  const onScan = (dados: BoletoDecodificado) => {
+    setScannerOpen(false);
+    setArquivoNome('');
+    if (dados.concessionaria) {
+      setD({ ...VAZIO, linha_digitavel: dados.linha_digitavel });
+      setAvisos(['valor', 'vencimento', 'beneficiário']);
+      showToast({ type: 'warning', title: 'Boleto de concessionária', message: 'Li o código; valor e vencimento você confere/preenche.' });
+      return;
+    }
+    setD({ ...VAZIO, valor: dados.valor, vencimento: dados.vencimento, linha_digitavel: dados.linha_digitavel });
+    setAvisos([!dados.valor && 'valor', !dados.vencimento && 'vencimento'].filter(Boolean) as string[]);
+    showToast({ type: 'success', title: 'Boleto lido pela câmera', message: 'Confira e informe a competência.' });
   };
 
   const upd = (campo: keyof DadosBoleto, valor: string) =>
@@ -133,10 +151,17 @@ export function BoletoTab({ onCriado }: { onCriado: () => void }) {
           <input type="file" accept="image/*,application/pdf" className="hidden" disabled={lendo}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) ler(f); e.currentTarget.value = ''; }} />
         </label>
-        <Button variant="outline" className="sm:h-auto" onClick={preencherManual} disabled={lendo}>
-          <PencilLine className="w-4 h-4 mr-2" /> Preencher manual
-        </Button>
+        <div className="flex sm:flex-col gap-2">
+          <Button className="flex-1 sm:h-auto" onClick={() => setScannerOpen(true)} disabled={lendo}>
+            <ScanLine className="w-4 h-4 mr-2" /> Escanear c/ câmera
+          </Button>
+          <Button variant="outline" className="flex-1 sm:h-auto" onClick={preencherManual} disabled={lendo}>
+            <PencilLine className="w-4 h-4 mr-2" /> Preencher manual
+          </Button>
+        </div>
       </div>
+
+      {scannerOpen && <BoletoScanner onDetect={onScan} onClose={() => setScannerOpen(false)} />}
 
       {/* Revisão dos dados */}
       {d && (
