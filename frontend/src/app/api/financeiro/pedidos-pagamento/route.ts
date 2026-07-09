@@ -184,11 +184,14 @@ export async function POST(request: NextRequest) {
 
   // PIX copia e cola / QR (ex.: Meta Ads via Adyen) — pagamento manual no Inter.
   const pix_copia_cola = body.pix_copia_cola ? String(body.pix_copia_cola).trim() : null;
+  // Boleto: pago pela LINHA DIGITÁVEL (o Inter paga boleto por ela; não tem chave PIX).
+  const linha_digitavel = body.linha_digitavel ? String(body.linha_digitavel).replace(/\D/g, '') : null;
   // Reembolso e adiantamento normalmente caem na chave do próprio funcionário.
   const chave_pix = body.chave_pix ? String(body.chave_pix).trim() : null;
-  if ((tipo === 'reembolso' || tipo === 'fornecedor') && !chave_pix && !pix_copia_cola) {
+  // Destino do pagamento: chave PIX, copia e cola OU linha digitável (boleto). Um dos três.
+  if ((tipo === 'reembolso' || tipo === 'fornecedor') && !chave_pix && !pix_copia_cola && !linha_digitavel) {
     return NextResponse.json(
-      { success: false, error: 'informe a chave PIX ou o código copia e cola' },
+      { success: false, error: 'informe a chave PIX, o código copia e cola ou a linha digitável do boleto' },
       { status: 400 }
     );
   }
@@ -207,7 +210,7 @@ export async function POST(request: NextRequest) {
     beneficiario_nome: body.beneficiario_nome || null,
     chave_pix,
     cpf_cnpj: body.cpf_cnpj || null,
-    linha_digitavel: body.linha_digitavel || null,
+    linha_digitavel,
     pix_copia_cola,
     observacao: body.observacao || null,
     precisa_comprovante: body.precisa_comprovante === true,

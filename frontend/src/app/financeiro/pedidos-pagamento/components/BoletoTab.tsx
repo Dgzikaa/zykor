@@ -176,8 +176,13 @@ export function BoletoTab({ onCriado }: { onCriado: () => void }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="mb-1.5 block">Valor <span className="text-red-500">*</span></Label>
-                <Input value={d.valor != null ? String(d.valor).replace('.', ',') : ''} onChange={(e) => upd('valor', e.target.value)} placeholder="0,00" inputMode="decimal"
-                  className={d.valor == null ? 'border-amber-400' : ''} />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">R$</span>
+                  <Input
+                    value={d.valor != null ? d.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}
+                    onChange={(e) => { const dig = e.target.value.replace(/\D/g, ''); setD(p => p ? { ...p, valor: dig ? parseInt(dig, 10) / 100 : null } : p); }}
+                    placeholder="0,00" inputMode="decimal" className={`pl-9 ${d.valor == null ? 'border-amber-400' : ''}`} />
+                </div>
               </div>
               <div>
                 <Label className="mb-1.5 block">Vencimento <span className="text-red-500">*</span></Label>
