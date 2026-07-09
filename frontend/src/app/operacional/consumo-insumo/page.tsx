@@ -157,18 +157,22 @@ export default function SaidasPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {btnGran('dia', 'Dia')}{btnGran('semana', 'Semana')}{btnGran('mes', 'Mês')}
-          {gran === 'dia' && <Input type="date" value={dataRef} onChange={e => setDataRef(e.target.value)} className="w-auto h-8" />}
-          {gran === 'mes' && (
-            <select value={`${dataRef.slice(0, 7)}-01`} onChange={e => setDataRef(e.target.value)} className="h-8 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm px-2 capitalize">
-              {mesOptions.map(o => <option key={o.val} value={o.val} className="capitalize">{o.label}</option>)}
-            </select>
-          )}
-          {gran === 'semana' && (
-            <select value={mondayOfISO(dataRef)} onChange={e => setDataRef(e.target.value)} className="h-8 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm px-2">
-              {semanaOptions.map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
-            </select>
-          )}
+          {/* botões de granularidade + campo do período ficam juntos e NÃO quebram: o campo (input
+              de dia / select de semana/mês) sempre fica lateral aos botões, nunca vai pra linha de baixo. */}
+          <div className="flex items-center gap-2 shrink-0">
+            {btnGran('dia', 'Dia')}{btnGran('semana', 'Semana')}{btnGran('mes', 'Mês')}
+            {gran === 'dia' && <Input type="date" value={dataRef} onChange={e => setDataRef(e.target.value)} className="w-auto h-8" />}
+            {gran === 'mes' && (
+              <select value={`${dataRef.slice(0, 7)}-01`} onChange={e => setDataRef(e.target.value)} className="h-8 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm px-2 capitalize">
+                {mesOptions.map(o => <option key={o.val} value={o.val} className="capitalize">{o.label}</option>)}
+              </select>
+            )}
+            {gran === 'semana' && (
+              <select value={mondayOfISO(dataRef)} onChange={e => setDataRef(e.target.value)} className="h-8 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm px-2">
+                {semanaOptions.map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
+              </select>
+            )}
+          </div>
           <span className="text-sm text-gray-500 dark:text-gray-400">{range.ini === range.fim ? fmtDataBR(range.ini) : `${fmtDataBR(range.ini)} → ${fmtDataBR(range.fim)}`}</span>
           <div className="relative ml-auto"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9 h-8 w-56" /></div>
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={!view.length}><Download className="w-4 h-4 mr-1.5" />CSV</Button>
