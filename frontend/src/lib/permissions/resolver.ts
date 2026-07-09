@@ -41,7 +41,12 @@ const CATEGORY_GENERICS: Record<string, string[]> = {
   // o token único do grupo ('financeiro_relatorios'/'financeiro_ferramentas') permite
   // segmentar (ex: investidor recebe só 'financeiro_relatorios' e NÃO vê as ferramentas).
   'Relatórios Financeiros': ['financeiro_relatorios', 'financeiro', 'home'],
-  'Ferramentas Financeiro': ['financeiro_ferramentas', 'financeiro', 'ferramentas', 'ferramentas_agendamento', 'home'],
+  // Ferramentas Financeiro agora é GRANULAR (1 módulo por ferramenta). Só o token do grupo
+  // ('financeiro_ferramentas') e 'financeiro' concedem TODAS as ferramentas (retrocompat p/
+  // quem já tinha). 'ferramentas'/'home' foram REMOVIDOS de propósito: com eles, qualquer
+  // funcionário operacional veria as ferramentas financeiras — o que quebrava a segmentação
+  // (0 usuários dependiam só disso, verificado). Quem recebe só 'Despesas CA' não vê as demais.
+  'Ferramentas Financeiro': ['financeiro_ferramentas', 'financeiro'],
   'Configurações': ['configuracoes'],
   'Extras': ['home', 'relatorios'],
 };
@@ -53,6 +58,9 @@ const CATEGORY_GENERICS: Record<string, string[]> = {
 const MODULE_EXTRA_GENERICS: Record<string, string[]> = {
   ferramentas_agendamento: ['financeiro'],
   ferramentas_stockout: ['gestao'],
+  // Após a quebra de "Ferramentas Financeiro" em módulos por ferramenta, os tokens legados de
+  // agendamento (usados por perfis antigos/tablets) continuam concedendo só a aba Agendamentos.
+  'ferramentas financeiro_agendamentos': ['ferramentas_agendamento', 'financeiro_agendamento'],
 };
 
 /**

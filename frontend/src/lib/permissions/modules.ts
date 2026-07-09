@@ -63,7 +63,9 @@ function gerarIdModulo(categoria: string, nome: string): string {
  */
 const GRUPO_MODULO_UNICO: Record<string, string> = {
   'Relatórios Financeiros': 'financeiro_relatorios',
-  'Ferramentas Financeiro': 'financeiro_ferramentas',
+  // 'Ferramentas Financeiro' NÃO é mais grupo único: cada ferramenta (Despesas CA, Receitas
+  // CA, Conciliação…) vira um módulo próprio p/ permissão granular. `financeiro_ferramentas`
+  // segue como GENERIC (concede todas — retrocompat) no resolver, mas não é mais 1 toggle só.
 };
 
 /**

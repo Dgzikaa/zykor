@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   userHasModule,
   userHasAnyModule,
+  userCan,
   canonicalize,
   getCanonicalModuleIds,
   expandUserPermissions,
@@ -46,7 +47,7 @@ describe('Resolver de permissões', () => {
   describe('generics por categoria', () => {
     it('"ferramentas" concede módulos da categoria Ferramentas', () => {
       expect(userHasModule(['ferramentas'], 'ferramentas_cmv_semanal')).toBe(true);
-      expect(userHasModule(['ferramentas'], 'ferramentas_agendamento')).toBe(true);
+      expect(userHasModule(['ferramentas'], 'ferramentas_stockout')).toBe(true);
     });
 
     it('"estrategico" concede módulos estratégicos', () => {
@@ -98,6 +99,39 @@ describe('Resolver de permissões', () => {
       for (const alias of aliasesParaModulos) {
         expect(canonical.has(canonicalize(alias))).toBe(true);
       }
+    });
+  });
+
+  describe('quebra granular de "Ferramentas Financeiro"', () => {
+    const DESPESAS = 'ferramentas financeiro_despesas_ca';
+    const RECEITAS = 'ferramentas financeiro_receitas_ca';
+    const AGEND = 'ferramentas financeiro_agendamentos';
+
+    it('retrocompat: o token do grupo concede TODAS as ferramentas', () => {
+      expect(userHasModule(['financeiro_ferramentas'], DESPESAS)).toBe(true);
+      expect(userHasModule(['financeiro_ferramentas'], RECEITAS)).toBe(true);
+      expect(userHasModule(['financeiro'], DESPESAS)).toBe(true);
+    });
+
+    it('granular: uma ferramenta NÃO concede outra', () => {
+      expect(userHasModule([DESPESAS], DESPESAS)).toBe(true);
+      expect(userHasModule([DESPESAS], RECEITAS)).toBe(false);
+    });
+
+    it('segmentação: generics amplos NÃO vazam as ferramentas financeiras', () => {
+      expect(userHasModule(['ferramentas'], DESPESAS)).toBe(false);
+      expect(userHasModule(['home'], DESPESAS)).toBe(false);
+    });
+
+    it('ações granulares: <ferramenta>:inserir dá inserir mas não excluir', () => {
+      expect(userCan([`${DESPESAS}:inserir`], DESPESAS, 'inserir')).toBe(true);
+      expect(userCan([`${DESPESAS}:inserir`], DESPESAS, 'ver')).toBe(true);
+      expect(userCan([`${DESPESAS}:inserir`], DESPESAS, 'excluir')).toBe(false);
+    });
+
+    it('tokens legados de agendamento alcançam o módulo novo (aditivo)', () => {
+      expect(userHasModule(['financeiro_agendamento'], AGEND)).toBe(true);
+      expect(userHasModule(['ferramentas_agendamento'], AGEND)).toBe(true);
     });
   });
 
