@@ -309,9 +309,9 @@ export function NovoPedidoDialog({
                       {i === 0 && <Label className="mb-1 block text-[11px]">Competência</Label>}
                       <DateInputBR value={c.data} onChange={(iso) => setComp(i, { data: iso })} />
                     </div>
-                    <div className="w-24 shrink-0">
+                    <div className="w-28 shrink-0">
                       {i === 0 && <Label className="mb-1 block text-[11px]">Valor</Label>}
-                      <Input value={c.valor} onChange={(e) => setComp(i, { valor: e.target.value })} placeholder="0,00" inputMode="decimal" />
+                      <Input value={c.valor} onChange={(e) => setComp(i, { valor: formatValorInput(e.target.value) })} placeholder="0,00" inputMode="decimal" />
                     </div>
                     <div className="flex-1 min-w-0">
                       {i === 0 && <Label className="mb-1 block text-[11px]">Descrição (opcional)</Label>}
