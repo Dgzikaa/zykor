@@ -172,7 +172,11 @@ interface ActiveProd {
 function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; responsaveis: any[]; secaoAtiva: Secao }) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
+  const { can } = useAuth();
   const barId = selectedBar?.id;
+  // Quem pode "Gerir equipe > excluir" também pode DESCARTAR um rascunho de outro aparelho
+  // (limpar produção abandonada na hora, sem esperar o cron).
+  const podeExcluirRascunho = can(MOD_GERIR_EQUIPE, 'excluir');
 
   // seleção de ficha para adicionar
   const [busca, setBusca] = useState('');
@@ -601,6 +605,20 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     }
   };
 
+  // DESCARTA um rascunho de outro aparelho (produção abandonada) — só quem pode gerir equipe.
+  // Tira da lista e apaga no servidor. Não mexe em produção finalizada (histórico intacto).
+  const descartarRascunho = (p: any) => {
+    if (!p.idempotencyKey || !barId) return;
+    if (!window.confirm(`Descartar o rascunho de "${p.ficha?.nome || 'produção'}"? Isso remove essa produção em andamento (não afeta o que já foi finalizado).`)) return;
+    setResumivel(prev => {
+      const rest = (prev || []).filter((x: any) => (x.idempotencyKey || x.localId) !== (p.idempotencyKey || p.localId));
+      return rest.length ? rest : null;
+    });
+    api.delete(`/api/operacional/producoes/execucao/rascunho?bar_id=${barId}&key=${encodeURIComponent(p.idempotencyKey)}`)
+      .then(() => toast({ title: 'Rascunho descartado' }))
+      .catch((e: any) => toast({ title: 'Erro ao descartar', description: e?.message, variant: 'destructive' }));
+  };
+
   // detecta valores prováveis de erro de unidade (ex.: digitou 1,2 como se fosse kg onde a meta é 1.020 g)
   const checarUnidades = (prod: ActiveProd) => {
     const { mestre, mestreQtd, baseMestre, entrada, linhas, rendEsperado } = calc(prod);
@@ -758,7 +776,13 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
                       {p.dataProducao && <span>Data {fmtDM(p.dataProducao)}</span>}
                     </div>
                     {(p.ficha?.codigo || nItens > 0) && <div className="text-[10px] text-gray-400 mt-0.5">{p.ficha?.codigo || ''}{p.ficha?.codigo && nItens ? ' · ' : ''}{nItens ? `${nItens} itens` : ''}</div>}
-                    <Button size="sm" onClick={() => retomarUma(p)} className="mt-2 w-full h-7 bg-amber-600 hover:bg-amber-700"><RotateCcw className="w-3.5 h-3.5 mr-1" />Retomar esta</Button>
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <Button size="sm" onClick={() => retomarUma(p)} className="flex-1 h-7 bg-amber-600 hover:bg-amber-700"><RotateCcw className="w-3.5 h-3.5 mr-1" />Retomar esta</Button>
+                      {podeExcluirRascunho && (
+                        <Button size="sm" variant="ghost" onClick={() => descartarRascunho(p)} title="Descartar este rascunho"
+                          className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-500/10 shrink-0"><Trash2 className="w-3.5 h-3.5" /></Button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
