@@ -1,52 +1,57 @@
 'use client';
 
 /**
- * Card "Faturamento por Dia da Semana" do Dashboard de Receitas.
- * Reaproveita /api/graficos/por-dia-semana (média de faturamento por dia da semana).
- * É a base do Bloco 3 (detratores/promotores) — aqui na versão simples do período.
+ * Card "Faturamento por Dia da Semana" — cada dia da semana × cada mês do período.
+ * Mostra como cada dia (Seg..Dom) performou mês a mês (detrator/promotor de receita).
+ * Base do Bloco 3. Ignora a granularidade (é sempre dia-da-semana × mês); usa o range.
  */
 
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api-client';
-import { ChartCard, GraficoBarraH } from '@/components/graficos/Charts';
+import { ChartCard, GraficoBarrasAgrupadas } from '@/components/graficos/Charts';
 import type { PeriodoValor } from '@/lib/receitas/periodo';
 
 const money0 = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
-interface Dia {
-  dow: number;
-  dia: string;
-  eventos: number;
-  fat_medio: number;
-  publico_medio: number;
-  ticket_medio: number;
-}
-
 export function CardDiaSemana({ barId, periodo }: { barId?: number; periodo: PeriodoValor }) {
-  const [dias, setDias] = useState<Dia[]>([]);
+  const [dias, setDias] = useState<Record<string, any>[]>([]);
+  const [meses, setMeses] = useState<{ key: string; label: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!barId) return;
     setLoading(true);
     api
-      .get(`/api/graficos/por-dia-semana?bar_id=${barId}&de=${periodo.inicio}&ate=${periodo.fim}`)
-      .then((r: any) => setDias(r?.success ? (r.dias || []).filter((d: Dia) => d.eventos > 0) : []))
-      .catch(() => setDias([]))
+      .get(`/api/receitas/dia-semana-mensal?bar_id=${barId}&inicio=${periodo.inicio}&fim=${periodo.fim}`)
+      .then((r: any) => {
+        if (r?.success) {
+          setDias(r.dias ?? []);
+          setMeses(r.meses ?? []);
+        } else {
+          setDias([]);
+          setMeses([]);
+        }
+      })
+      .catch(() => {
+        setDias([]);
+        setMeses([]);
+      })
       .finally(() => setLoading(false));
   }, [barId, periodo.inicio, periodo.fim]);
 
+  const series = meses.map((m) => ({ key: m.label, nome: m.label }));
+
   return (
-    <ChartCard titulo="Faturamento por Dia da Semana" subtitulo="média de faturamento por dia no período" className="md:col-span-2">
+    <ChartCard titulo="Faturamento por Dia da Semana" subtitulo="média por dia da semana, mês a mês no período" className="md:col-span-2">
       {loading ? (
-        <div className="flex h-[300px] items-center justify-center text-[hsl(var(--muted-foreground))]">
+        <div className="flex h-[340px] items-center justify-center text-[hsl(var(--muted-foreground))]">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
-      ) : dias.length === 0 ? (
-        <div className="flex h-[300px] items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">Sem eventos no período selecionado.</div>
+      ) : !dias.length || !meses.length ? (
+        <div className="flex h-[340px] items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">Sem eventos no período selecionado.</div>
       ) : (
-        <GraficoBarraH data={dias} xKey="dia" valueKey="fat_medio" formatV={money0} height={300} maxItens={7} />
+        <GraficoBarrasAgrupadas data={dias} xKey="dia" series={series} formatV={money0} height={340} />
       )}
     </ChartCard>
   );
