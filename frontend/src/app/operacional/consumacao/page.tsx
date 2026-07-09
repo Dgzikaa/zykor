@@ -539,8 +539,9 @@ export default function ControleConsumacaoPage() {
   // agrupar consumações da mesma mesa (data+mesa); default ligado
   const [agrupar, setAgrupar] = useState(true);
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
-  // 2 camadas: Categoria › Mesa. catExpandidos guarda categorias COLAPSADAS (default: todas abertas)
-  const [porCat, setPorCat] = useState(false);
+  // 2 camadas: Categoria › Mesa (default ligado). catExpandidos guarda categorias ABERTAS
+  // (default: vazio = tudo colapsado; expande clicando)
+  const [porCat, setPorCat] = useState(true);
   const [catExpandidos, setCatExpandidos] = useState<Set<string>>(new Set());
   // filtros por coluna (estilo DataTable, igual à tela de insumos)
   const [colFiltros, setColFiltros] = useState<{ categoria: Set<string>; mesa: Set<string>; motivo: Set<string>; produto: Set<string> }>({
@@ -1225,7 +1226,7 @@ export default function ControleConsumacaoPage() {
               ) : agrupar ? (
                 porCat ? (
                   gruposPorCategoria.map((cg) => {
-                    const catAberto = !catExpandidos.has(cg.cat);
+                    const catAberto = catExpandidos.has(cg.cat);
                     const catMix = cg.cat === '__varios';
                     return (
                       <Fragment key={`cat-${cg.cat}`}>
