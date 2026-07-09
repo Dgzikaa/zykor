@@ -373,9 +373,13 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     }
 
     // Quadro amarelo = produções do bar de OUTROS aparelhos que eu não tenho na lista ativa.
+    // NÃO mostra produção só ABERTA (timer nunca iniciado): 0s parada não é "em andamento" — é fila
+    // pré-play. Ninguém inicia+pausa em <0,1s, então 0s+parada = rascunho de autosave antes do play.
+    const iniciada = (row: any) =>
+      !!row.rodando || (Number(row.duracao_seg) || 0) > 0 || (Number(row?.estado?.segundos) || 0) > 0;
     const meusKeys = new Set(prodsRef.current.map(p => p.idempotencyKey));
     const outros = rows
-      .filter(row => donoDe(row) !== deviceId)
+      .filter(row => donoDe(row) !== deviceId && iniciada(row))
       .map(row => row.estado)
       .filter((e: any) => e && e.localId && e.ficha && !meusKeys.has(e.idempotencyKey));
     setResumivel(outros.length ? outros : null);
