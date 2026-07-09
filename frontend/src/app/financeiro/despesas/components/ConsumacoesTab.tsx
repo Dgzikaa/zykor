@@ -128,7 +128,7 @@ export function ConsumacoesTab() {
         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
         <span>
           {gran === 'dia'
-            ? <>Cada categoria entra como <b>despesa</b>; o total entra como <b>receita</b> em <b>&quot;[Consumação] Ajuste CMV&quot;</b> — soma do dia = <b>zero</b>. Competência = o dia, sem baixa.</>
+            ? <>Cada categoria entra como <b>despesa</b> (categoria mista); o total entra como <b>receita</b> em <b>&quot;[CONSUMAÇÃO] AJUSTE CMV&quot;</b> (maiúscula) — soma do dia = <b>zero</b>. Competência = o dia, sem baixa.</>
             : <>Visão de <b>{gran === 'semana' ? 'semana' : 'mês'}</b> ({brDate(range.de)} a {brDate(range.ate)}) — cada dia é lançado com a sua própria competência. Clique num dia pra ver as categorias.</>}
         </span>
       </div>

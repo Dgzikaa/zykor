@@ -22,9 +22,11 @@ export const maxDuration = 120;
  */
 
 const TIPO = 'consumacao';
-const CAT_AJUSTE = '[Consumação] Ajuste CMV';
+// A CAIXA é o SINAL: DESPESA vai na categoria MISTA/minúscula; RECEITA na MAIÚSCULA.
+// Par intencional [[feedback_consumacao_ajuste_cmv_caixa_sinal]] — nunca fundir/lower().
+const CAT_AJUSTE_RECEITA = '[CONSUMAÇÃO] AJUSTE CMV'; // MAIÚSCULA = contrapartida (RECEITA)
 
-// key (retorno da função) -> categoria DESPESA no Conta Azul.
+// key (retorno da função) -> categoria DESPESA no Conta Azul (todas mistas/minúsculas).
 const KEY_CAT: Record<string, string> = {
   socios: '[Consumação] Sócios',
   relacionamento: '[Consumação] Relacionamento',
@@ -35,11 +37,13 @@ const KEY_CAT: Record<string, string> = {
   beneficio_cliente: '[Consumação] Benefício Clientes',
   aniversario: '[Consumação] Aniversários',
   programa_pontos: '[Consumação] Programa de Pontos',
+  ajuste_cmv: '[Consumação] Ajuste CMV', // motivo "Ajuste CMV" real → DESPESA na categoria MISTA
 };
 const KEY_LABEL: Record<string, string> = {
   socios: 'Sócios', relacionamento: 'Relacionamento', funcionarios_escritorio: 'Funcionários Escritório',
   funcionarios_operacao: 'Funcionários Operação', artistas: 'Artistas', influencer: 'Influencers',
   beneficio_cliente: 'Benefício Clientes', aniversario: 'Aniversários', programa_pontos: 'Programa de Pontos',
+  ajuste_cmv: 'Ajuste CMV',
 };
 
 interface ItemConsumacao { chave: string; label: string; categoria: string; sinal: SinalLanc; valor: number; }
@@ -65,10 +69,11 @@ export async function montarConsumacaoDia(barId: number, dia: string, fatorPre?:
     }
   }
   if (totalDespesas >= 0.01) {
-    itens.push({ chave: 'ajuste_cmv', label: 'Ajuste CMV (contrapartida)', categoria: CAT_AJUSTE, sinal: 'RECEITA', valor: totalDespesas });
+    // contrapartida RECEITA na categoria MAIÚSCULA (chave própria p/ não colidir com a despesa ajuste_cmv)
+    itens.push({ chave: 'ajuste_cmv_receita', label: 'Ajuste CMV (contrapartida)', categoria: CAT_AJUSTE_RECEITA, sinal: 'RECEITA', valor: totalDespesas });
   }
-  // Valor que NÃO entra (motivo 'Ajuste CMV' real e 'outros' não têm categoria de despesa própria).
-  const ignorado = round2((custoPorKey['ajuste_cmv'] || 0) + (custoPorKey['outros'] || 0));
+  // Só 'outros' fica de fora (sem categoria própria). 'Ajuste CMV' real agora entra como despesa.
+  const ignorado = round2(custoPorKey['outros'] || 0);
   return { itens, ignorado, totalDespesas };
 }
 
@@ -92,6 +97,20 @@ export async function executarConsumacaoDia(barId: number, dia: string, criadoPo
   const token = tokenResult.token;
   const conta = await resolveContaPadrao(barId);
   if (!conta) return { status: 400, body: { error: 'Nenhuma conta financeira ativa no Conta Azul' } };
+
+  // Garante a contrapartida RECEITA ANTES de postar qualquer despesa — senão as despesas entram
+  // sem a receita e quebram a soma-zero. A RECEITA precisa da categoria "[CONSUMAÇÃO] AJUSTE CMV"
+  // (MAIÚSCULA) existir no CA como RECEITA. [[feedback_consumacao_ajuste_cmv_caixa_sinal]]
+  const receitaPend = pendentes.find((i) => i.sinal === 'RECEITA');
+  if (receitaPend && !(await resolveCategoriaId(barId, receitaPend.categoria, 'RECEITA'))) {
+    return {
+      status: 400,
+      body: {
+        error: `Categoria RECEITA "${receitaPend.categoria}" não existe no Conta Azul deste bar. Crie-a como RECEITA e re-sincronize as categorias ANTES de lançar (senão as despesas entrariam sem a contrapartida e quebrariam a soma-zero).`,
+        itens, ignorado, totalDespesas,
+      },
+    };
+  }
 
   const resultados: any[] = [];
   for (const i of pendentes) {
@@ -172,7 +191,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     modo: 'dia', bar_id: barId, dia, totalDespesas, ignorado,
-    soma_zero: round2(totalDespesas - (itens.find((i) => i.chave === 'ajuste_cmv')?.valor || 0)),
+    soma_zero: round2(totalDespesas - (itens.find((i) => i.chave === 'ajuste_cmv_receita')?.valor || 0)),
     itens: itens.map((i) => ({ ...i, ja_lancado: feitos.has(i.chave) })),
   });
 }
