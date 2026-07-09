@@ -198,6 +198,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
   const [saveInfo, setSaveInfo] = useState<{ status: 'salvando' | 'salvo' | 'offline'; at: number } | null>(null);
   // confirmação de ação destrutiva (descartar/zerar) — evita perda por toque acidental no tablet
   const [confirmarAcao, setConfirmarAcao] = useState<{ tipo: 'descartar' | 'zerar'; localId: string; nome: string } | null>(null);
+  const [confirmarDup, setConfirmarDup] = useState<any | null>(null); // produção já em andamento → confirmar 2ª fornada
   // produção em andamento achada em OUTRO device do bar (cache do tablet limpo / trocou de aparelho)
   const [resumivel, setResumivel] = useState<any[] | null>(null);
   const idRef = useRef(0);
@@ -495,7 +496,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
   const patch = useCallback((id: string, p: Partial<ActiveProd>) =>
     setProds(prev => prev.map(x => x.localId === id ? { ...x, ...p } : x)), []);
 
-  const adicionar = async (f: any) => {
+  const _adicionar = async (f: any) => {
     const localId = `p${++idRef.current}`;
     const nova: ActiveProd = {
       localId, ficha: f, itens: [], loadingItens: true, responsavelId: null,
@@ -509,6 +510,17 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
       const r = await api.get(`/api/operacional/producoes/ficha?producao_id=${f.id}&bar_id=${barId}`);
       patch(localId, { itens: r.success ? (r.itens || []) : [], loadingItens: false });
     } catch { patch(localId, { loadingItens: false }); }
+  };
+  // Trava anti-duplicata: adicionar a MESMA produção que já está em andamento NESTE aparelho
+  // exige confirmação. Evita 2 rascunhos da mesma coisa (ex.: re-adicionar após reload, sem
+  // notar que ela já foi restaurada) — o que gerava cards duplicados e risco de finalizar 2×.
+  const adicionar = async (f: any) => {
+    if (prodsRef.current.some(p => p.ficha?.id === f.id)) {
+      setBusca(''); setPicker(false);
+      setConfirmarDup(f);
+      return;
+    }
+    await _adicionar(f);
   };
 
   const remover = (id: string) => {
@@ -1125,6 +1137,27 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
               <Button variant="outline" onClick={() => setConfirmarAcao(null)}>Voltar</Button>
               <Button onClick={confirmarAcaoExec} className="bg-red-600 hover:bg-red-700">
                 {confirmarAcao.tipo === 'descartar' ? 'Sim, descartar' : 'Sim, zerar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmação anti-duplicata: já existe essa produção em andamento neste aparelho */}
+      {confirmarDup && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setConfirmarDup(null); }}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="w-5 h-5" />
+              <h4 className="font-semibold">Já está em andamento</h4>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              <b>{confirmarDup.nome}</b> já está aberta neste aparelho. Se quer só continuar a que já começou, toque em <b>Voltar</b> e use o card existente. Só adicione outra se for mesmo uma <b>segunda fornada</b>.
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setConfirmarDup(null)}>Voltar</Button>
+              <Button onClick={() => { const f = confirmarDup; setConfirmarDup(null); void _adicionar(f); }} className="bg-amber-600 hover:bg-amber-700">
+                Adicionar 2ª fornada
               </Button>
             </div>
           </div>
