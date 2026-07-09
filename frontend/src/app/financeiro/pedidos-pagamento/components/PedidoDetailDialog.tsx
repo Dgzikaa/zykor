@@ -52,8 +52,8 @@ export function PedidoDetailDialog({
   const [categorias, setCategorias] = useState<Opcao[]>([]);
   const [centros, setCentros] = useState<Opcao[]>([]);
   const [contas, setContas] = useState<Opcao[]>([]);
+  const [contaPadrao, setContaPadrao] = useState(''); // conta pagadora padrão do bar (pré-seleção)
   const [fornecedores, setFornecedores] = useState<Opcao[]>([]);
-  const [interCreds, setInterCreds] = useState<Opcao[]>([]);
   const [aprov, setAprov] = useState({
     categoria_id: '', centro_custo_id: '', contaazul_pessoa_id: '',
     conta_financeira_id: '', inter_credencial_id: '',
@@ -116,12 +116,11 @@ export function PedidoDetailDialog({
     try {
       // Cada fetch isolado: 1 falha (ex.: token CA expirado) NAO pode zerar as outras opcoes.
       const j = (p: Promise<Response>) => p.then(r => r.json()).catch(() => ({}));
-      const [cat, cc, ct, fo, it] = await Promise.all([
+      const [cat, cc, ct, fo] = await Promise.all([
         j(fetch(`/api/financeiro/contaazul/categorias?bar_id=${opBar}`)),
         j(fetch(`/api/financeiro/contaazul/centros-custo?bar_id=${opBar}`)),
         j(fetch(`/api/financeiro/contaazul/contas-financeiras?bar_id=${opBar}&somente_pagadoras=true`)),
         j(fetch(`/api/financeiro/contaazul/stakeholders?bar_id=${opBar}&perfil=FORNECEDOR`)),
-        j(fetch(`/api/financeiro/inter/credenciais?bar_id=${opBar}`)),
       ]);
       setCategorias((cat.categorias || [])
         .filter((c: any) => c.ativo !== false)
@@ -129,14 +128,12 @@ export function PedidoDetailDialog({
       setCentros(((cc.centros_custo || cc.centrosCusto) || []).map((c: any) => ({ value: c.contaazul_id, label: c.nome })));
       const contasRaw = (ct.contas_financeiras || []).filter((c: any) => c.ativo !== false);
       setContas(contasRaw.map((c: any) => ({ value: String(c.contaazul_id), label: c.banco ? `${c.nome} (${c.banco})` : c.nome })));
-      // Pré-seleciona a conta pagadora PADRÃO do bar quando ainda não há conta escolhida (trocável).
+      // Guarda a conta pagadora PADRÃO do bar (usada como pré-seleção — a credencial Inter
+      // é derivada dela no back, então não tem mais select de credencial aqui).
       const padraoConta = contasRaw.find((c: any) => c.pagadora_padrao);
-      if (padraoConta) setAprov(a => (a.conta_financeira_id ? a : { ...a, conta_financeira_id: String(padraoConta.contaazul_id) }));
+      setContaPadrao(padraoConta ? String(padraoConta.contaazul_id) : '');
       setFornecedores((fo.pessoas || []).map((p: any) => ({
         value: p.contaazul_id, label: p.nome, searchHint: p.documento || '',
-      })));
-      setInterCreds((it.credenciais || []).map((c: any) => ({
-        value: String(c.id), label: c.cnpj ? `${c.nome} (${c.cnpj})` : c.nome,
       })));
     } catch {
       showToast({ type: 'error', title: 'Erro ao carregar opções do Conta Azul/Inter' });
@@ -182,6 +179,9 @@ export function PedidoDetailDialog({
 
   const aprovar = async () => {
     if (!pedido) return;
+    // Conta pagadora = a escolhida OU a padrão do bar. Obrigatória (define de onde sai o PIX).
+    const contaFinal = aprov.conta_financeira_id || contaPadrao;
+    if (!contaFinal) return showToast({ type: 'error', title: 'Escolha a conta pagadora' });
     setAprovando(true);
     try {
       await api.post(`/api/financeiro/pedidos-pagamento/${pedido.id}/aprovar`, {
@@ -190,8 +190,8 @@ export function PedidoDetailDialog({
         centro_custo_id: aprov.centro_custo_id || undefined,
         centro_custo_nome: centros.find(c => c.value === aprov.centro_custo_id)?.label,
         contaazul_pessoa_id: aprov.contaazul_pessoa_id || undefined,
-        conta_financeira_id: aprov.conta_financeira_id || undefined,
-        inter_credencial_id: aprov.inter_credencial_id ? Number(aprov.inter_credencial_id) : undefined,
+        conta_financeira_id: contaFinal,
+        // Credencial Inter NÃO vai daqui — o back deriva da conta pagadora escolhida.
       });
       showToast({ type: 'success', title: 'Aprovado!', message: 'Pronto pra agendar — clique em "Agendar" pra criar no CA e disparar o PIX.' });
       await carregar();
@@ -464,15 +464,10 @@ export function PedidoDetailDialog({
                     <SearchableSelect value={aprov.centro_custo_id} onValueChange={(v) => setAprov(a => ({ ...a, centro_custo_id: v || '' }))}
                       placeholder="Opcional" searchPlaceholder="Filtrar..." emptyMessage="Nenhum" options={centros} />
                   </div>
-                  <div>
-                    <Label className="mb-1 block text-xs">Conta pagadora *</Label>
-                    <SearchableSelect value={aprov.conta_financeira_id} onValueChange={(v) => setAprov(a => ({ ...a, conta_financeira_id: v || '' }))}
+                  <div className="col-span-2">
+                    <Label className="mb-1 block text-xs">Conta pagadora <span className="text-red-500">*</span> <span className="text-muted-foreground">— de onde sai o PIX</span></Label>
+                    <SearchableSelect value={aprov.conta_financeira_id || contaPadrao} onValueChange={(v) => setAprov(a => ({ ...a, conta_financeira_id: v || '' }))}
                       placeholder="Conta no CA" searchPlaceholder="Filtrar..." emptyMessage="Nenhuma" options={contas} />
-                  </div>
-                  <div>
-                    <Label className="mb-1 block text-xs">Credencial Inter *</Label>
-                    <SearchableSelect value={aprov.inter_credencial_id} onValueChange={(v) => setAprov(a => ({ ...a, inter_credencial_id: v || '' }))}
-                      placeholder="De onde sai o PIX" searchPlaceholder="Filtrar..." emptyMessage="Nenhuma" options={interCreds} />
                   </div>
                   <div className="col-span-2">
                     <Label className="mb-1 block text-xs">Contato / Fornecedor no CA *</Label>

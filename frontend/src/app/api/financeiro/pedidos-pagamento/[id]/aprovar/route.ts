@@ -64,15 +64,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const ehBoleto = !!p.linha_digitavel;
   const ehCopiaCola = !ehBoleto && !!p.pix_copia_cola;
 
-  // Padrão do bar preenche conta pagadora / credencial Inter que faltam (memorizados no
-  // 1º agendamento) → deixa o pedido pronto pra agendar em 1 clique.
-  if (!p.conta_financeira_id || !p.inter_credencial_id) {
-    const { data: cfg } = await fin(supabase).from('pagamento_config_bar')
-      .select('conta_financeira_id, inter_credencial_id').eq('bar_id', pedido.bar_id).maybeSingle();
-    if (cfg) {
-      if (!p.conta_financeira_id && cfg.conta_financeira_id) { p.conta_financeira_id = cfg.conta_financeira_id; vinculo.conta_financeira_id = cfg.conta_financeira_id; }
-      if (!p.inter_credencial_id && cfg.inter_credencial_id) { p.inter_credencial_id = cfg.inter_credencial_id; vinculo.inter_credencial_id = cfg.inter_credencial_id; }
-    }
+  // Conta pagadora PADRÃO do bar quando não veio nenhuma (a credencial Inter é derivada
+  // dela logo abaixo). Ordinário → Ordinário Inter; Descubra → Descubra Inter.
+  if (!p.conta_financeira_id) {
+    const { data: cp } = await (supabase.schema('bronze' as any) as any)
+      .from('bronze_contaazul_contas_financeiras')
+      .select('contaazul_id').eq('bar_id', pedido.bar_id).eq('pagadora_padrao', true).maybeSingle();
+    if (cp?.contaazul_id) { p.conta_financeira_id = cp.contaazul_id; vinculo.conta_financeira_id = cp.contaazul_id; }
   }
 
   // A CONTA PAGADORA manda na credencial Inter (Ordinário Inter → cred Ordinário; OrdiBar → OrdiBar;
