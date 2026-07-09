@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { TrendingDown, Banknote, Boxes, Gift, Receipt, HandCoins, CalendarSync } from 'lucide-react';
@@ -36,10 +37,23 @@ const ABAS: { id: AbaId; label: string; Icon: any; disponivel: boolean }[] = [
 function DespesasInner() {
   const [aba, setAba] = useState<AbaId>('dinheiro');
   const { setPageTitle } = usePageTitle();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   useEffect(() => {
     setPageTitle('📉 Despesas CA');
     return () => setPageTitle('');
   }, [setPageTitle]);
+
+  // Deep-link `?aba=bonificacoes` (atalho fixado no grupo) → abre direto na aba.
+  // Limpa o param depois p/ não prender a navegação naquela aba.
+  useEffect(() => {
+    const q = searchParams.get('aba');
+    const validas: AbaId[] = ['dinheiro', 'variacao', 'bonificacoes', 'impostos', 'consumacoes', 'virada'];
+    if (q && validas.includes(q as AbaId)) {
+      setAba(q as AbaId);
+      router.replace('/financeiro/despesas');
+    }
+  }, [searchParams, router]);
 
   return (
     <div className="p-4 md:p-6 mx-auto space-y-4">
@@ -83,5 +97,11 @@ function DespesasInner() {
 }
 
 export default function DespesasPage() {
-  return <ProtectedRoute><DespesasInner /></ProtectedRoute>;
+  return (
+    <ProtectedRoute>
+      <Suspense fallback={null}>
+        <DespesasInner />
+      </Suspense>
+    </ProtectedRoute>
+  );
 }
