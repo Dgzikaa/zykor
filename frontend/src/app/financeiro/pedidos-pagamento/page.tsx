@@ -70,14 +70,17 @@ export default function PedidosPagamentoPage() {
     return () => setPageTitle('');
   }, [setPageTitle]);
 
-  // Deep-link "Novo pedido": `?novo=1` (ex.: atalho fixado no grupo de pagamentos) já
-  // abre o popup. Limpa o param da URL depois p/ não reabrir ao recarregar/voltar.
+  // Deep-links (atalhos fixados nos grupos):
+  //  ?aba=trocas|boleto|freela|cartao|fatura|pagamentos → já abre naquela aba.
+  //  ?novo=1 → abre a aba Pagamentos com o popup "Novo pedido".
+  // Limpa os params depois p/ não repetir ao recarregar/voltar.
   useEffect(() => {
-    if (searchParams.get('novo') === '1') {
-      setModo('pagamentos');
-      setNovoOpen(true);
-      router.replace('/financeiro/pedidos-pagamento');
-    }
+    const aba = searchParams.get('aba');
+    const novo = searchParams.get('novo') === '1';
+    const abasValidas: ModoPagamento[] = ['pagamentos', 'freela', 'boleto', 'cartao', 'fatura', 'trocas'];
+    if (aba && abasValidas.includes(aba as ModoPagamento)) setModo(aba as ModoPagamento);
+    if (novo) { setModo('pagamentos'); setNovoOpen(true); }
+    if (aba || novo) router.replace('/financeiro/pedidos-pagamento');
   }, [searchParams, router]);
 
   const carregar = useCallback(async (silent = false) => {
