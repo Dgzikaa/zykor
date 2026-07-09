@@ -105,7 +105,7 @@ export function GraficoBarraH({
 // ---------------------------------------------------------------------------
 export function GraficoBarra({
   data, xKey, valueKey, lineKey, height = 320, formatV, formatLine,
-  cor, corLinha, nomeBarra = 'Valor', nomeLinha = '%', mostrarRotulo = true, rotacaoX = 0,
+  cor, corLinha, nomeBarra = 'Valor', nomeLinha = '%', mostrarRotulo = false, rotacaoX = 0,
 }: {
   data: any[]; xKey: string; valueKey: string; lineKey?: string; height?: number;
   formatV?: Fmt; formatLine?: Fmt; cor?: string; corLinha?: string;
@@ -118,9 +118,9 @@ export function GraficoBarra({
   const temLinha = !!lineKey;
   const option = useMemo(() => ({
     textStyle: baseTextStyle,
-    grid: { top: 26, right: temLinha ? 52 : 14, bottom: 24, left: 6, containLabel: true },
+    grid: { top: 12, right: temLinha ? 52 : 14, bottom: temLinha ? 44 : 24, left: 6, containLabel: true },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: hexA(th.muted, 0.08) } }, backgroundColor: th.surface, borderColor: th.eixo, borderWidth: 1, textStyle: { color: th.texto, fontSize: 12 } },
-    legend: temLinha ? { top: 0, right: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } } : undefined,
+    legend: temLinha ? { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } } : undefined,
     xAxis: { type: 'category', data: rows.map((d) => d[xKey]), axisLine: { lineStyle: { color: th.eixo } }, axisTick: { show: false }, axisLabel: { color: th.texto2, fontSize: 11, rotate: rotacaoX, hideOverlap: true } },
     yAxis: temLinha ? [
       { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: th.grid } }, axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => (formatV ? formatV(v) : fmtNum(v)) } },
@@ -149,9 +149,9 @@ export function GraficoLinha({
   const paleta = cores && cores.length ? cores : th.cores;
   const option = useMemo(() => ({
     textStyle: baseTextStyle,
-    grid: { top: 22, right: 14, bottom: 24, left: 6, containLabel: true },
+    grid: { top: 12, right: 14, bottom: series.length > 1 ? 44 : 24, left: 6, containLabel: true },
     tooltip: { trigger: 'axis', backgroundColor: th.surface, borderColor: th.eixo, borderWidth: 1, textStyle: { color: th.texto, fontSize: 12 }, valueFormatter: (v: any) => (formatV ? formatV(Number(v)) : fmtNum(v)) },
-    legend: series.length > 1 ? { top: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } } : undefined,
+    legend: series.length > 1 ? { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } } : undefined,
     xAxis: { type: 'category', data: rows.map((d) => d[xKey]), boundaryGap: false, axisLine: { lineStyle: { color: th.eixo } }, axisTick: { show: false }, axisLabel: { color: th.texto2, fontSize: 11, rotate: rotacaoX, hideOverlap: true } },
     yAxis: { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: th.grid } }, axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => (formatV ? formatV(v) : fmtNum(v)) } },
     series: series.map((s, i) => ({
@@ -181,9 +181,9 @@ export function GraficoBarrasAgrupadas({
   const corLin = corLinha || th.cores[3];
   const option = useMemo(() => ({
     textStyle: baseTextStyle,
-    grid: { top: 24, right: temLinha ? 52 : 14, bottom: 24, left: 6, containLabel: true },
+    grid: { top: 12, right: temLinha ? 52 : 14, bottom: 44, left: 6, containLabel: true },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: hexA(th.muted, 0.08) } }, backgroundColor: th.surface, borderColor: th.eixo, borderWidth: 1, textStyle: { color: th.texto, fontSize: 12 } },
-    legend: { top: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } },
+    legend: { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } },
     xAxis: { type: 'category', data: rows.map((d) => d[xKey]), axisLine: { lineStyle: { color: th.eixo } }, axisTick: { show: false }, axisLabel: { color: th.texto2, fontSize: 11, rotate: rotacaoX, hideOverlap: true } },
     yAxis: temLinha ? [
       { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: th.grid } }, axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => (formatV ? formatV(v) : fmtNum(v)) } },
@@ -194,6 +194,37 @@ export function GraficoBarrasAgrupadas({
       ...(temLinha ? [{ name: nomeLinha, type: 'line', yAxisIndex: 1, data: rows.map((d) => Number(d[lineKey]) || 0), smooth: true, symbol: 'circle', symbolSize: 5, lineStyle: { width: 2, color: corLin }, itemStyle: { color: corLin } }] : []),
     ],
   }), [th, rows, xKey, series, lineKey, formatV, formatLine, paleta, temLinha, nomeLinha, corLin, rotacaoX]);
+  if (!rows.length) return <Vazio height={height} />;
+  return <ReactECharts option={option} style={{ height, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />;
+}
+
+// ---------------------------------------------------------------------------
+// GraficoBarrasAgrupadasH — N séries de barra HORIZONTAL por categoria, com rótulo
+// no fim de cada barra (bom p/ dia-da-semana × mês: números não se sobrepõem)
+// ---------------------------------------------------------------------------
+export function GraficoBarrasAgrupadasH({
+  data, yKey, series, height = 340, formatV, cores, mostrarRotulo = true,
+}: {
+  data: any[]; yKey: string; series: { key: string; nome: string; cor?: string }[];
+  height?: number; formatV?: Fmt; cores?: string[]; mostrarRotulo?: boolean;
+}) {
+  const th = useGraficoTheme();
+  const rows = useMemo(() => data || [], [data]);
+  const paleta = cores && cores.length ? cores : th.cores;
+  const option = useMemo(() => ({
+    textStyle: baseTextStyle,
+    grid: { top: 8, right: 66, bottom: 40, left: 6, containLabel: true },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: hexA(th.muted, 0.08) } }, backgroundColor: th.surface, borderColor: th.eixo, borderWidth: 1, textStyle: { color: th.texto, fontSize: 12 }, valueFormatter: (v: any) => (formatV ? formatV(Number(v)) : fmtNum(v)) },
+    legend: { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } },
+    xAxis: { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: th.grid } }, axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => (formatV ? formatV(v) : fmtNum(v)) } },
+    yAxis: { type: 'category', data: rows.map((d) => d[yKey]), axisLine: { lineStyle: { color: th.eixo } }, axisTick: { show: false }, axisLabel: { color: th.texto2, fontSize: 11 } },
+    series: series.map((s, i) => ({
+      name: s.nome, type: 'bar', data: rows.map((d) => Number(d[s.key]) || 0),
+      barMaxWidth: 11,
+      itemStyle: { borderRadius: [0, 3, 3, 0], color: s.cor || paleta[i % paleta.length] },
+      label: mostrarRotulo ? { show: true, position: 'right', color: th.texto2, fontSize: 9, formatter: (p: any) => (formatV ? formatV(p.value) : fmtNum(p.value)) } : undefined,
+    })),
+  }), [th, rows, yKey, series, formatV, paleta, mostrarRotulo]);
   if (!rows.length) return <Vazio height={height} />;
   return <ReactECharts option={option} style={{ height, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />;
 }

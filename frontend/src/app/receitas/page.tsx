@@ -50,11 +50,11 @@ export default function DashboardReceitasPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <CardCrescimento barId={barId} periodo={periodo} />
+          <CardNPS barId={barId} periodo={periodo} />
           <CardInputs barId={barId} periodo={periodo} />
           <CardLotacao barId={barId} periodo={periodo} />
           <CardsClientes barId={barId} periodo={periodo} />
           <CardDiaSemana barId={barId} periodo={periodo} />
-          <CardNPS barId={barId} periodo={periodo} />
         </div>
       )}
     </PageShell>
