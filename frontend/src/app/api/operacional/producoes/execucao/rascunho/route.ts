@@ -52,7 +52,24 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await q;
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, rascunhos: data || [] });
+
+  // Não mostra (nem ressuscita) rascunhos de produções JÁ FINALIZADAS — mesma idempotencia_key
+  // com execução gravada. Cobre a corrida em que o autosave re-cria o rascunho DEPOIS do delete
+  // da finalização, que enchia a lista "em outro aparelho" de produções concluídas. Self-heal:
+  // apaga esses rascunhos de uma vez (best-effort).
+  let rascunhos = (data || []) as any[];
+  const keys = rascunhos.map(r => r.idempotencia_key).filter(Boolean);
+  if (keys.length) {
+    const { data: fin } = await (supabase as any).schema(SCHEMA).from('producao_execucao')
+      .select('idempotencia_key').eq('bar_id', barId).in('idempotencia_key', keys);
+    const finalizadas = new Set(((fin as any[]) || []).map(e => e.idempotencia_key));
+    if (finalizadas.size) {
+      rascunhos = rascunhos.filter(r => !finalizadas.has(r.idempotencia_key));
+      (supabase as any).schema(SCHEMA).from(TABLE).delete()
+        .eq('bar_id', barId).in('idempotencia_key', [...finalizadas]).then(() => {}, () => {});
+    }
+  }
+  return NextResponse.json({ success: true, rascunhos });
 }
 
 // PUT { bar_id, device_id, rascunhos: [{ idempotencia_key, secao, producao_id, responsavel_id,
