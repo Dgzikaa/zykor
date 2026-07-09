@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { bucketDe } from '@/lib/receitas/periodo';
 
 /**
  * KPIs orgânicos de Comunicação — Instagram (Graph API, já integrado).
@@ -58,6 +59,17 @@ export async function GET(request: NextRequest) {
   const stories = sto.error ? [] : sto.data || [];
   const alcanceStories = (stories as any[]).reduce((s, r) => s + (Number(r.reach) || 0), 0);
 
+  // Série mensal (alcance + engajamento) pra o gráfico de tendência.
+  const mensalMap = new Map<string, { label: string; alcance: number; engajamento: number }>();
+  for (const r of data as any[]) {
+    const { key, label } = bucketDe(String(r.data_snapshot), 'mes');
+    let m = mensalMap.get(key);
+    if (!m) { m = { label, alcance: 0, engajamento: 0 }; mensalMap.set(key, m); }
+    m.alcance += Number(r.reach) || 0;
+    m.engajamento += Number(r.total_interactions) || 0;
+  }
+  const serie_mensal = [...mensalMap.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([, m]) => m);
+
   return NextResponse.json({
     success: true,
     conectado: true,
@@ -68,6 +80,7 @@ export async function GET(request: NextRequest) {
     seguidores: ultimo?.followers_count ?? null,
     qtd_stories: (stories as any[]).length,
     alcance_stories: alcanceStories,
+    serie_mensal,
     dias: data.length,
   });
 }

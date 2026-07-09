@@ -60,7 +60,6 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'BarChart3', label: 'Eventos', href: '/analitico/eventos', permission: 'relatorios' },
       { icon: 'Music', label: 'Visão do Artista', href: '/analitico/atracoes', permission: 'relatorios' },
       { icon: 'Tag', label: 'Taggear Artistas', href: '/analitico/atracoes/tagging', permission: 'analitico_taggear_artistas' },
-      { icon: 'Instagram', label: 'Instagram', href: '/marketing/instagram', permission: 'gestao' },
       { icon: 'PieChart', label: 'Segmentos (RFM)', href: '/analitico/clientes/segmentos', permission: 'relatorios' },
       { icon: 'TrendingUp', label: 'Retenção', href: '/analitico/clientes/retencao', permission: 'relatorios' },
     ],

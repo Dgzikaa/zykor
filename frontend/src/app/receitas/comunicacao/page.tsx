@@ -17,7 +17,7 @@ import { api } from '@/lib/api-client';
 import { PageShell } from '@/components/layout/PageShell';
 import { PeriodRangePicker } from '@/components/receitas/PeriodRangePicker';
 import { CardRoas } from '@/components/receitas/CardRoas';
-import { HeroRow, type Kpi } from '@/components/graficos/Charts';
+import { HeroRow, ChartCard, GraficoBarrasAgrupadas, type Kpi } from '@/components/graficos/Charts';
 import { periodoPadrao, type PeriodoValor } from '@/lib/receitas/periodo';
 
 const num = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR').format(n));
@@ -58,7 +58,8 @@ export default function ComunicacaoPage() {
   const kpisOrg: Kpi[] = org?.conectado
     ? [
         { label: 'Alcance (orgânico)', valor: num(org.alcance), icon: Eye },
-        { label: 'Taxa de engajamento', valor: pct(org.alcance > 0 ? (org.engajamento / org.alcance) * 100 : null), icon: Heart },
+        { label: 'Engajamento', valor: num(org.engajamento), icon: Heart },
+        { label: 'Taxa de engajamento', valor: pct(org.alcance > 0 ? (org.engajamento / org.alcance) * 100 : null), icon: Percent },
         { label: 'Stories', valor: num(org.qtd_stories), icon: Camera },
         { label: 'Alcance dos stories', valor: num(org.alcance_stories), icon: Eye },
         { label: 'Visitas de perfil', valor: num(org.visitas_perfil), icon: Users },
@@ -106,6 +107,21 @@ export default function ComunicacaoPage() {
               </div>
             )}
           </div>
+
+          {org?.conectado && Array.isArray(org.serie_mensal) && org.serie_mensal.length > 0 && (
+            <ChartCard titulo="Alcance & Engajamento" subtitulo="orgânico do Instagram, mês a mês (alcance em barra, engajamento em linha)">
+              <GraficoBarrasAgrupadas
+                data={org.serie_mensal}
+                xKey="label"
+                series={[{ key: 'alcance', nome: 'Alcance', cor: '#8b5cf6' }]}
+                lineKey="engajamento"
+                nomeLinha="Engajamento"
+                formatV={num}
+                formatLine={num}
+                height={280}
+              />
+            </ChartCard>
+          )}
 
           <div>
             <div className="mb-2 flex flex-wrap items-center gap-2">
