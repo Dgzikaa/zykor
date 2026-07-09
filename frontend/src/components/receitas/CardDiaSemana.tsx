@@ -44,7 +44,7 @@ export function CardDiaSemana({ barId, periodo }: { barId?: number; periodo: Per
   const altura = Math.max(340, meses.length * 78);
 
   return (
-    <ChartCard titulo="Faturamento por Dia da Semana" subtitulo="média por dia da semana, mês a mês no período" className="md:col-span-2">
+    <ChartCard titulo="Faturamento por Dia da Semana" subtitulo="média por dia da semana, mês a mês (com variação vs mês anterior)" className="md:col-span-2">
       {loading ? (
         <div className="flex h-[340px] items-center justify-center text-[hsl(var(--muted-foreground))]">
           <Loader2 className="h-6 w-6 animate-spin" />
@@ -52,7 +52,7 @@ export function CardDiaSemana({ barId, periodo }: { barId?: number; periodo: Per
       ) : !dias.length || !meses.length ? (
         <div className="flex h-[340px] items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">Sem eventos no período selecionado.</div>
       ) : (
-        <GraficoBarrasAgrupadasH data={dias} yKey="dia" series={series} formatV={money0} height={altura} />
+        <GraficoBarrasAgrupadasH data={dias} yKey="dia" series={series} formatV={money0} height={altura} mostrarVariacao />
       )}
     </ChartCard>
   );

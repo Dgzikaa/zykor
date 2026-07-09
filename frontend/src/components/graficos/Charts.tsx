@@ -223,17 +223,17 @@ export function GraficoBarrasAgrupadas({
 // no fim de cada barra (bom p/ dia-da-semana × mês: números não se sobrepõem)
 // ---------------------------------------------------------------------------
 export function GraficoBarrasAgrupadasH({
-  data, yKey, series, height = 340, formatV, cores, mostrarRotulo = true,
+  data, yKey, series, height = 340, formatV, cores, mostrarRotulo = true, mostrarVariacao = false,
 }: {
   data: any[]; yKey: string; series: { key: string; nome: string; cor?: string }[];
-  height?: number; formatV?: Fmt; cores?: string[]; mostrarRotulo?: boolean;
+  height?: number; formatV?: Fmt; cores?: string[]; mostrarRotulo?: boolean; mostrarVariacao?: boolean;
 }) {
   const th = useGraficoTheme();
   const rows = useMemo(() => data || [], [data]);
   const paleta = cores && cores.length ? cores : th.cores;
   const option = useMemo(() => ({
     textStyle: baseTextStyle,
-    grid: { top: 8, right: 66, bottom: 40, left: 6, containLabel: true },
+    grid: { top: 8, right: mostrarVariacao ? 104 : 66, bottom: 40, left: 6, containLabel: true },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: hexA(th.muted, 0.08) } }, backgroundColor: th.surface, borderColor: th.eixo, borderWidth: 1, textStyle: { color: th.texto, fontSize: 12 }, valueFormatter: (v: any) => (formatV ? formatV(Number(v)) : fmtNum(v)) },
     legend: { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } },
     xAxis: { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: th.grid } }, axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => (formatV ? formatV(v) : fmtNum(v)) } },
@@ -242,9 +242,17 @@ export function GraficoBarrasAgrupadasH({
       name: s.nome, type: 'bar', data: rows.map((d) => Number(d[s.key]) || 0),
       barMaxWidth: 11,
       itemStyle: { borderRadius: [0, 3, 3, 0], color: s.cor || paleta[i % paleta.length] },
-      label: mostrarRotulo ? { show: true, position: 'right', color: th.texto2, fontSize: 9, formatter: (p: any) => (formatV ? formatV(p.value) : fmtNum(p.value)) } : undefined,
+      label: mostrarRotulo ? {
+        show: true, position: 'right', color: th.texto2, fontSize: 9,
+        formatter: (p: any) => {
+          const base = formatV ? formatV(p.value) : fmtNum(p.value);
+          if (!mostrarVariacao) return base;
+          const v = rows[p.dataIndex]?.[`${s.key}__var`];
+          return v == null ? base : `${base}  ${v >= 0 ? '+' : ''}${fmtNum(v)}%`;
+        },
+      } : undefined,
     })),
-  }), [th, rows, yKey, series, formatV, paleta, mostrarRotulo]);
+  }), [th, rows, yKey, series, formatV, paleta, mostrarRotulo, mostrarVariacao]);
   if (!rows.length) return <Vazio height={height} />;
   return <ReactECharts option={option} style={{ height, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />;
 }

@@ -65,9 +65,14 @@ export async function GET(request: NextRequest) {
   const ordem = [1, 2, 3, 4, 5, 6, 0]; // Seg..Dom
   const dias = ordem.map((dow) => {
     const row: Record<string, any> = { dia: DIAS[dow] };
+    let prev: number | null = null;
     for (const mes of meses) {
       const a = acc[dow]?.[mes.key];
-      row[mes.label] = a && a.n ? Math.round(a.soma / a.n) : 0;
+      const val = a && a.n ? Math.round(a.soma / a.n) : 0;
+      row[mes.label] = val;
+      // variação vs mês anterior (mesmo dia da semana), pra ver o dia crescendo/caindo
+      row[`${mes.label}__var`] = prev != null && prev > 0 && val > 0 ? Math.round(((val - prev) / prev) * 1000) / 10 : null;
+      prev = val > 0 ? val : prev;
     }
     return row;
   });
