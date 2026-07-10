@@ -10,7 +10,7 @@ export function isSuporte(email?: string | null): boolean {
   return !!email && email.trim().toLowerCase() === SUPPORT_EMAIL;
 }
 
-export type ChamadoStatus = 'aberto' | 'em_andamento' | 'aguardando' | 'resolvido' | 'fechado';
+export type ChamadoStatus = 'aberto' | 'em_andamento' | 'aguardando' | 'resolvido';
 export type ChamadoCategoria = 'acesso' | 'conta_dado' | 'dado_faltando' | 'layout' | 'bug' | 'outro';
 export type ChamadoPrioridade = 'baixa' | 'normal' | 'alta' | 'urgente';
 export type AutorTipo = 'solicitante' | 'suporte';
@@ -24,13 +24,12 @@ export const CATEGORIAS: Record<ChamadoCategoria, { label: string; emoji: string
   outro: { label: 'Outro', emoji: '💬' },
 };
 
-// status "abertos" = ainda na fila (contam como pendentes); resolvido/fechado saem da fila
+// status "pendentes" = ainda na fila (aberto/em_andamento/aguardando); resolvido sai da fila
 export const STATUS: Record<ChamadoStatus, { label: string; cor: string; aberto: boolean }> = {
   aberto:       { label: 'Aberto',        cor: 'blue',   aberto: true },
   em_andamento: { label: 'Em andamento',  cor: 'amber',  aberto: true },
   aguardando:   { label: 'Aguardando você', cor: 'purple', aberto: true },
   resolvido:    { label: 'Resolvido',     cor: 'emerald', aberto: false },
-  fechado:      { label: 'Fechado',       cor: 'gray',   aberto: false },
 };
 
 export const PRIORIDADES: Record<ChamadoPrioridade, { label: string; cor: string; peso: number }> = {

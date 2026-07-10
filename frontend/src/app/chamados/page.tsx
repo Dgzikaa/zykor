@@ -178,11 +178,11 @@ function ChamadosInner() {
 
         {/* pills de status */}
         <div className="flex flex-wrap gap-1.5 mb-3">
-          {(['abertos', 'todos', ...STATUS_KEYS] as const).map((k) => {
+          {(['abertos', ...STATUS_KEYS, 'todos'] as const).map((k) => {
             const n = k === 'todos' ? chamados.length
               : k === 'abertos' ? chamados.filter((c) => STATUS[c.status as ChamadoStatus]?.aberto).length
               : chamados.filter((c) => c.status === k).length;
-            const label = k === 'abertos' ? 'Em aberto' : k === 'todos' ? 'Todos' : statusLabel(k);
+            const label = k === 'abertos' ? 'Pendentes' : k === 'todos' ? 'Todos' : statusLabel(k);
             const active = fStatus === k;
             return (
               <button key={k} onClick={() => setFStatus(k)}
@@ -270,7 +270,7 @@ function ChamadosInner() {
                   {suporte && (
                     <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                       <span className="text-[11px] text-gray-400">Status:</span>
-                      {(['em_andamento', 'aguardando', 'resolvido', 'fechado'] as ChamadoStatus[]).map((s) => (
+                      {(['em_andamento', 'aguardando', 'resolvido'] as ChamadoStatus[]).map((s) => (
                         <button key={s} onClick={() => mudarStatus(s)}
                           className={`px-2 py-0.5 rounded-full border text-[11px] ${detalhe.chamado.status === s ? COR[STATUS[s].cor] : 'border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
                           {statusLabel(s)}
