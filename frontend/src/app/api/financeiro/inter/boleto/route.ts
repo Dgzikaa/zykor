@@ -33,11 +33,18 @@ export async function POST(request: NextRequest) {
     if (!bar_id) return NextResponse.json({ success: false, error: 'Usuário sem bar associado' }, { status: 400 });
 
     const body = await request.json();
-    const { valor, linha_digitavel, descricao, destinatario, data_pagamento, inter_credencial_id } = body;
+    const { valor, linha_digitavel, descricao, destinatario, data_pagamento, data_vencimento, inter_credencial_id } = body;
 
     const codBarra = String(linha_digitavel || '').replace(/\D/g, '');
     if (!codBarra || codBarra.length < 44) {
       return NextResponse.json({ success: false, error: 'Linha digitável inválida' }, { status: 400 });
+    }
+    // dataVencimento é obrigatória no Inter; se não vier, usa a data de pagamento (vencimento do pedido)
+    const dataVencimento = (typeof data_vencimento === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data_vencimento))
+      ? data_vencimento
+      : (typeof data_pagamento === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data_pagamento) ? data_pagamento : '');
+    if (!dataVencimento) {
+      return NextResponse.json({ success: false, error: 'Data de vencimento do boleto é obrigatória' }, { status: 400 });
     }
     const valorNumerico = typeof valor === 'number' ? valor : parseFloat(String(valor).replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.'));
     if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) {
@@ -58,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     let accessToken = await getInterAccessToken(clientId, clientSecret, 'pagamento-boleto.write', mtls || undefined);
     let resultado = await realizarPagamentoBoletoInter({
-      token: accessToken, contaCorrente, valor: valorNumerico, linhaDigitavel: codBarra,
+      token: accessToken, contaCorrente, valor: valorNumerico, linhaDigitavel: codBarra, dataVencimento,
       dataPagamento: typeof data_pagamento === 'string' ? data_pagamento : undefined, mtlsCredentials: mtls || undefined,
     });
 
@@ -67,7 +74,7 @@ export async function POST(request: NextRequest) {
       clearInterTokenCache();
       accessToken = await getInterAccessToken(clientId, clientSecret, 'pagamento-boleto.write', mtls || undefined);
       resultado = await realizarPagamentoBoletoInter({
-        token: accessToken, contaCorrente, valor: valorNumerico, linhaDigitavel: codBarra,
+        token: accessToken, contaCorrente, valor: valorNumerico, linhaDigitavel: codBarra, dataVencimento,
         dataPagamento: typeof data_pagamento === 'string' ? data_pagamento : undefined, mtlsCredentials: mtls || undefined,
       });
     }

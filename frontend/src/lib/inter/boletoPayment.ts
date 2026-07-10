@@ -8,6 +8,8 @@ interface BoletoPaymentParams {
   valor: number;
   /** Linha digitável (47) ou código de barras (44/48), só dígitos. */
   linhaDigitavel: string;
+  /** Vencimento do título (YYYY-MM-DD). OBRIGATÓRIO na API do Inter — sem ele = "Dados inválidos". */
+  dataVencimento: string;
   /** YYYY-MM-DD. Se >= hoje (fuso SP), Inter agenda; senão paga no próximo dia útil. */
   dataPagamento?: string;
   mtlsCredentials?: { cert: Buffer; key: Buffer };
@@ -30,18 +32,23 @@ export async function realizarPagamentoBoletoInter(
   params: BoletoPaymentParams
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    const { token, contaCorrente, valor, linhaDigitavel, dataPagamento, mtlsCredentials } = params;
+    const { token, contaCorrente, valor, linhaDigitavel, dataVencimento, dataPagamento, mtlsCredentials } = params;
     const { cert, key } = mtlsCredentials || getInterCertificates();
 
     const codBarra = String(linhaDigitavel || '').replace(/\D/g, '');
     if (codBarra.length < 44) {
       return { success: false, error: 'Linha digitável/código de barras inválido' };
     }
+    if (!dataVencimento || !/^\d{4}-\d{2}-\d{2}$/.test(dataVencimento)) {
+      return { success: false, error: 'Data de vencimento do boleto é obrigatória (YYYY-MM-DD)' };
+    }
 
     const agendar = isFutureScheduleDate(dataPagamento);
     const payload: Record<string, unknown> = {
-      valorPagar: Math.round(valor * 100) / 100,
+      // doc do Inter: valorPagar é STRING com 2 casas; dataVencimento é obrigatório
+      valorPagar: (Math.round(valor * 100) / 100).toFixed(2),
       codBarraLinhaDigitavel: codBarra,
+      dataVencimento,
     };
     if (agendar && dataPagamento) payload.dataPagamento = dataPagamento;
 

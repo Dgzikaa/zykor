@@ -192,7 +192,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           valor: p.valor,
           descricao: p.descricao,
           destinatario: p.beneficiario_nome || p.solicitante_nome || 'Beneficiário',
-          ...(ehBoleto ? { linha_digitavel: p.linha_digitavel } : { chave: p.chave_pix }),
+          ...(ehBoleto ? { linha_digitavel: p.linha_digitavel, data_vencimento: p.data_vencimento } : { chave: p.chave_pix }),
           data_pagamento: p.data_vencimento,
           bar_id: pedido.bar_id,
           inter_credencial_id: Number(p.inter_credencial_id),
@@ -273,6 +273,6 @@ async function marcarErro(
     .eq('id', id);
   await comentarioSistema(supabase, {
     pedido_id: id, bar_id,
-    mensagem: `Falha na ${status === 'erro_ca' ? 'criação no Conta Azul' : 'emissão do PIX no Inter'}: ${mensagem}`,
+    mensagem: `Falha na ${status === 'erro_ca' ? 'criação no Conta Azul' : 'emissão do pagamento no Inter'}: ${mensagem}`,
   });
 }
