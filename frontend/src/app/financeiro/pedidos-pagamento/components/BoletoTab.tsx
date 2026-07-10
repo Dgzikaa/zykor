@@ -186,12 +186,12 @@ export function BoletoTab({ onCriado }: { onCriado: () => void }) {
               </div>
               <div>
                 <Label className="mb-1.5 block">Vencimento <span className="text-red-500">*</span></Label>
-                <DateInputBR value={d.vencimento || ''} onChange={(iso) => upd('vencimento', iso)}
+                <DateInputBR value={d.vencimento || ''} onChange={(iso) => upd('vencimento', iso)} calendar
                   className={!d.vencimento ? 'border-amber-400' : ''} />
               </div>
               <div>
                 <Label className="mb-1.5 block">Competência <span className="text-red-500">*</span> <span className="text-muted-foreground text-xs">(você preenche)</span></Label>
-                <DateInputBR value={competencia} onChange={setCompetencia}
+                <DateInputBR value={competencia} onChange={setCompetencia} calendar
                   className={!competencia ? 'border-amber-400' : ''} />
               </div>
               <div>

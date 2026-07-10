@@ -20,11 +20,10 @@ import { PedidoDetailDialog } from './components/PedidoDetailDialog';
 import { PedidoCard, type Opcao } from './components/PedidoCard';
 import { FreelaTab } from './components/FreelaTab';
 import { BoletoTab } from './components/BoletoTab';
-import { CartaoTab } from './components/CartaoTab';
 import TrocasTab from './components/TrocasTab';
 import { FaturaCartaoTab } from './components/FaturaCartaoTab';
 
-type ModoPagamento = 'pagamentos' | 'freela' | 'boleto' | 'cartao' | 'fatura' | 'trocas';
+type ModoPagamento = 'pagamentos' | 'freela' | 'boleto' | 'fatura' | 'trocas';
 
 type TabKey = 'solicitado' | 'aprovado' | 'recusado' | 'todos';
 
@@ -77,7 +76,7 @@ export default function PedidosPagamentoPage() {
   useEffect(() => {
     const aba = searchParams.get('aba');
     const novo = searchParams.get('novo') === '1';
-    const abasValidas: ModoPagamento[] = ['pagamentos', 'freela', 'boleto', 'cartao', 'fatura', 'trocas'];
+    const abasValidas: ModoPagamento[] = ['pagamentos', 'freela', 'boleto', 'fatura', 'trocas'];
     if (aba && abasValidas.includes(aba as ModoPagamento)) setModo(aba as ModoPagamento);
     if (novo) { setModo('pagamentos'); setNovoOpen(true); }
     if (aba || novo) router.replace('/financeiro/pedidos-pagamento');
@@ -262,11 +261,10 @@ export default function PedidosPagamentoPage() {
           {/* Abas por tipo de pagamento */}
           <Tabs value={modo} onValueChange={(v) => setModo(v as ModoPagamento)} className="mb-4">
             <TabsList>
-              <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
+              <TabsTrigger value="pagamentos">PIX</TabsTrigger>
               <TabsTrigger value="freela">Freela</TabsTrigger>
               <TabsTrigger value="boleto">Boleto</TabsTrigger>
-              <TabsTrigger value="cartao">Fatura Cartão Fechado</TabsTrigger>
-              {podeAprovar && <TabsTrigger value="fatura">Fatura Cartão Aberto</TabsTrigger>}
+              {podeAprovar && <TabsTrigger value="fatura">Cartão de Crédito</TabsTrigger>}
               <TabsTrigger value="trocas">Trocas</TabsTrigger>
             </TabsList>
           </Tabs>
@@ -284,8 +282,6 @@ export default function PedidosPagamentoPage() {
           {barId && modo === 'freela' && <FreelaTab barId={barId} podeAprovar={podeAprovar} onLancado={carregar} />}
 
           {barId && modo === 'boleto' && <BoletoTab onCriado={carregar} />}
-
-          {barId && modo === 'cartao' && <CartaoTab />}
 
           {barId && podeAprovar && modo === 'fatura' && <FaturaCartaoTab />}
 
