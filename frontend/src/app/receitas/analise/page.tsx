@@ -7,12 +7,13 @@
  * (Problemas / Oportunidades / Reflexões) que o sócio edita antes de usar.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Sparkles, Save, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { PageShell } from '@/components/layout/PageShell';
+import { MatrizFaturamentoDiaSemana } from '@/components/receitas/MatrizFaturamentoDiaSemana';
 
 const money0 = (v: number | null) => (v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }));
 
@@ -50,6 +51,7 @@ export default function AnaliseReceitasPage() {
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
   const [mes, setMes] = useState<string>(mesAtual());
+  const [janela, setJanela] = useState<number>(6); // quantos meses a matriz mostra (termina no mês de referência)
   const [comp, setComp] = useState<{ dias: DiaCmp[]; labels: any } | null>(null);
   const [loadingComp, setLoadingComp] = useState(true);
   const [contexto, setContexto] = useState('');
@@ -65,6 +67,14 @@ export default function AnaliseReceitasPage() {
   }, [setPageTitle]);
 
   const barId = selectedBar?.id;
+
+  // janela da matriz: `janela` meses terminando no mês de referência
+  const { inicio, fim } = useMemo(() => {
+    const [ano, m] = mes.split('-').map(Number);
+    const ini = new Date(Date.UTC(ano, (m - 1) - (janela - 1), 1));
+    const fimD = new Date(Date.UTC(ano, m, 0)); // último dia do mês de referência
+    return { inicio: ini.toISOString().slice(0, 10), fim: fimD.toISOString().slice(0, 10) };
+  }, [mes, janela]);
 
   useEffect(() => {
     if (!barId) return;
@@ -161,9 +171,29 @@ export default function AnaliseReceitasPage() {
         <div className="flex h-64 items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">Selecione um bar.</div>
       ) : (
         <>
+          {/* MATRIZ mês a mês — médias lado a lado + variação (tela cheia, legível) */}
+          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">Faturamento médio por dia da semana — mês a mês</h2>
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">Média por ocorrência de cada dia, com a variação vs o mês anterior. Verde mais forte = dia/mês melhor.</p>
+              </div>
+              <label className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+                Janela
+                <select value={janela} onChange={(e) => setJanela(Number(e.target.value))}
+                  className="h-8 rounded-md border border-[hsl(var(--border))] bg-transparent px-2 text-sm text-[hsl(var(--foreground))]">
+                  <option value={3}>3 meses</option>
+                  <option value={6}>6 meses</option>
+                  <option value={12}>12 meses</option>
+                </select>
+              </label>
+            </div>
+            <MatrizFaturamentoDiaSemana barId={barId} inicio={inicio} fim={fim} />
+          </div>
+
           <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
             <h2 className="mb-3 text-sm font-semibold text-[hsl(var(--foreground))]">
-              Faturamento médio por dia da semana — {comp?.labels?.atual ?? mes}
+              Faturamento médio por dia da semana — {comp?.labels?.atual ?? mes} (vs janelas)
             </h2>
             {loadingComp ? (
               <div className="flex h-40 items-center justify-center text-[hsl(var(--muted-foreground))]"><Loader2 className="h-6 w-6 animate-spin" /></div>

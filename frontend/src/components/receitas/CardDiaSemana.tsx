@@ -7,7 +7,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { Loader2, ArrowUpRight } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { ChartCard, GraficoBarrasAgrupadasH } from '@/components/graficos/Charts';
 import type { PeriodoValor } from '@/lib/receitas/periodo';
@@ -52,7 +53,14 @@ export function CardDiaSemana({ barId, periodo }: { barId?: number; periodo: Per
       ) : !dias.length || !meses.length ? (
         <div className="flex h-[340px] items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">Sem eventos no período selecionado.</div>
       ) : (
-        <GraficoBarrasAgrupadasH data={dias} yKey="dia" series={series} formatV={money0} height={altura} mostrarVariacao />
+        <>
+          <GraficoBarrasAgrupadasH data={dias} yKey="dia" series={series} formatV={money0} height={altura} mostrarVariacao />
+          <div className="mt-2 flex justify-end">
+            <Link href="/receitas/analise" className="inline-flex items-center gap-1 text-xs font-medium text-[hsl(var(--primary))] hover:underline">
+              Ver mês a mês em tela cheia (médias + %) <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </>
       )}
     </ChartCard>
   );
