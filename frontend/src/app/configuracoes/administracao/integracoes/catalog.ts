@@ -258,7 +258,7 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     acento: 'green-600',
     fontesAuth: [{ tipo: 'tabela', schema: 'integrations', tabela: 'umbler_config' }],
     volumeTabela: { schema: 'integrations', tabela: 'umbler_mensagens', colunaTempo: 'created_at' },
-    acoes: [{ id: 'config_umbler', label: 'Configurar', tipo: 'externa', url: '/configuracoes/integracoes/umbler' }],
+    acoes: [{ id: 'config_umbler', label: 'Configurar', tipo: 'externa', url: '/configuracoes/administracao/integracoes/umbler' }],
   },
   {
     id: 'falae',
