@@ -126,9 +126,15 @@ export default function ComunicacaoPage() {
           <div>
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">Mídia paga (Meta Ads)</h2>
-              <span className="rounded-full bg-[hsl(var(--muted)/0.6)] px-2 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
-                fonte manual (Reportei) · automação via API Meta pendente
-              </span>
+              {pago?.fonte === 'api' ? (
+                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                  dados reais via API Meta
+                </span>
+              ) : (
+                <span className="rounded-full bg-[hsl(var(--muted)/0.6)] px-2 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
+                  fonte manual (Reportei) · automação via API Meta pendente
+                </span>
+              )}
             </div>
             {loading ? (
               <div className="flex h-24 items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">Carregando…</div>
