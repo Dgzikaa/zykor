@@ -153,7 +153,7 @@ function ChamadosInner() {
   const naoLidosCount = chamados.filter((c) => c.nao_lido).length;
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gray-50 dark:bg-gray-900">
+    <div className="bg-gray-50 dark:bg-gray-900">
       <div className="mx-auto max-w-[1600px] px-2 sm:px-4 py-3">
         {/* barra de ações / filtros */}
         <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -203,7 +203,7 @@ function ChamadosInner() {
               ) : filtrados.length === 0 ? (
                 <div className="py-16 text-center text-gray-400 text-sm"><Inbox className="w-8 h-8 mx-auto mb-2 opacity-40" />Nenhum chamado por aqui.</div>
               ) : (
-                <div className="divide-y divide-gray-100 dark:divide-gray-800 max-h-[calc(100vh-13rem)] overflow-y-auto">
+                <div className="divide-y divide-gray-100 dark:divide-gray-800 max-h-[calc(100vh-12rem)] overflow-y-auto">
                   {filtrados.map((c) => {
                     const cat = CATEGORIAS[c.categoria as ChamadoCategoria];
                     const st = STATUS[c.status as ChamadoStatus];
@@ -246,7 +246,7 @@ function ChamadosInner() {
             ) : loadingDet && !detalhe ? (
               <div className="rounded-xl border border-gray-200 dark:border-gray-800 py-24 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
             ) : detalhe && (
-              <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col h-[calc(100vh-11rem)]">
+              <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col h-[calc(100vh-12rem)]">
                 {/* header do chamado */}
                 <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
                   <div className="flex items-start gap-2">
