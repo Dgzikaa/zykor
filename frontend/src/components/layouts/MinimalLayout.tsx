@@ -8,7 +8,6 @@ import AuthGuard from '@/components/auth/AuthGuard';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MobileMenuProvider } from '@/contexts/MobileMenuContext';
 import { WhatsAppPrompt } from '@/components/WhatsAppPrompt';
-import { FeedbackWidget } from '@/components/FeedbackWidget';
 
 interface MinimalLayoutProps {
   children: ReactNode;
@@ -70,7 +69,6 @@ export function MinimalLayout({ children }: MinimalLayoutProps) {
             <BottomNavigation />
           </div>
           <WhatsAppPrompt />
-          <FeedbackWidget />
         </MobileMenuProvider>
       </ErrorBoundary>
     </AuthGuard>

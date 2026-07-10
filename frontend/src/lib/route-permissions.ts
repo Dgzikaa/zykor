@@ -42,6 +42,10 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // próprias notificações (RLS em system.notificacoes). Mesmo padrão do /home.
   { path: '/alertas', requiredModules: [] },
 
+  // Central de Chamados — livre pra QUALQUER usuário autenticado (todos podem abrir chamado).
+  // NÃO entra no menu lateral: acesso só pelo ícone (?) no header. Mesmo padrão do /home.
+  { path: '/chamados', requiredModules: [] },
+
   // Revisão de feedbacks (só admin). O widget de envio é global; a REVISÃO é restrita.
   { path: '/configuracoes/feedbacks', adminOnly: true },
 
