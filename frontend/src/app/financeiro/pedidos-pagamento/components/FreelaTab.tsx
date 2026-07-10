@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Loader2, Plus, Users, Send, ChevronLeft, ChevronRight, CheckCircle2, Check, Search } from 'lucide-react';
+import { Loader2, Plus, Users, Send, ChevronLeft, ChevronRight, CheckCircle2, Check, Search, Upload } from 'lucide-react';
 import { NovoFreelaDialog } from './NovoFreelaDialog';
+import { ImportarFreelasDialog } from './ImportarFreelasDialog';
 import { STATUS_LABEL, STATUS_COLOR, type PedidoStatus } from '../types';
 
 type Freela = { id: string; nome: string; funcao: string | null; valor_padrao: number | null; chave_pix: string | null; contaazul_pessoa_id: string | null };
@@ -47,6 +48,7 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
   const [pedidos, setPedidos] = useState<FreelaPedido[]>([]);
   const [loading, setLoading] = useState(false);
   const [novoOpen, setNovoOpen] = useState(false);
+  const [importarOpen, setImportarOpen] = useState(false);
 
   // `dia` = dia trabalhado (competência). Navega a semana em passos de 7 dias.
   const [dia, setDia] = useState(hojeISO());
@@ -193,7 +195,10 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
           </div>
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navSemana(1)}><ChevronRight className="w-4 h-4" /></Button>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setNovoOpen(true)}><Plus className="w-4 h-4 mr-1.5" />Novo freela</Button>
+        <div className="flex items-center gap-1.5">
+          <Button variant="outline" size="sm" onClick={() => setImportarOpen(true)}><Upload className="w-4 h-4 mr-1.5" />Importar planilha</Button>
+          <Button variant="outline" size="sm" onClick={() => setNovoOpen(true)}><Plus className="w-4 h-4 mr-1.5" />Novo freela</Button>
+        </div>
       </div>
 
       {loading ? (
@@ -300,6 +305,7 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
       )}
 
       <NovoFreelaDialog open={novoOpen} onOpenChange={setNovoOpen} onCriado={carregar} />
+      <ImportarFreelasDialog open={importarOpen} onOpenChange={setImportarOpen} onImportado={carregar} existentes={freelas} />
     </div>
   );
 }
