@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Loader2, Plus, Users, Send, ChevronLeft, ChevronRight, CheckCircle2, Check } from 'lucide-react';
+import { Loader2, Plus, Users, Send, ChevronLeft, ChevronRight, CheckCircle2, Check, Search } from 'lucide-react';
 import { NovoFreelaDialog } from './NovoFreelaDialog';
 import { STATUS_LABEL, STATUS_COLOR, type PedidoStatus } from '../types';
 
@@ -51,6 +51,7 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
   // `dia` = dia trabalhado (competência). Navega a semana em passos de 7 dias.
   const [dia, setDia] = useState(hojeISO());
   const [sel, setSel] = useState<Record<string, { on: boolean; valor: string }>>({});
+  const [busca, setBusca] = useState('');
   const [lancando, setLancando] = useState(false);
   const [aprovandoSemana, setAprovandoSemana] = useState(false);
 
@@ -124,6 +125,21 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
 
   const selecionados = useMemo(() => Object.entries(sel).filter(([, v]) => v.on), [sel]);
   const totalNovo = useMemo(() => selecionados.reduce((s, [, v]) => s + parseValor(v.valor), 0), [selecionados]);
+
+  // Roster visível: filtra pela busca (nome/função) e joga os marcados (checkbox) pro topo,
+  // cada grupo em ordem alfabética — facilita navegar enquanto seleciona vários.
+  const freelasVisiveis = useMemo(() => {
+    const q = norm(busca);
+    const filtrados = q
+      ? freelas.filter(f => norm(f.nome).includes(q) || norm(f.funcao).includes(q))
+      : freelas;
+    return [...filtrados].sort((a, b) => {
+      const aOn = sel[a.id]?.on ? 1 : 0;
+      const bOn = sel[b.id]?.on ? 1 : 0;
+      if (aOn !== bOn) return bOn - aOn;                 // selecionados no topo
+      return a.nome.localeCompare(b.nome, 'pt-BR');       // depois, alfabético
+    });
+  }, [freelas, busca, sel]);
 
   const lancar = async () => {
     const itens = selecionados.map(([freela_id, v]) => ({ freela_id, valor: parseValor(v.valor) })).filter(i => i.valor > 0);
@@ -236,7 +252,17 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
             </CardContent></Card>
           ) : (
             <div className="space-y-1.5">
-              {freelas.map((f) => {
+              {/* Busca por nome/função */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <Input value={busca} onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar freela por nome ou função..." className="h-9 pl-8" />
+              </div>
+              {freelasVisiveis.length === 0 ? (
+                <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">
+                  Nenhum freela encontrado para “{busca}”.
+                </CardContent></Card>
+              ) : freelasVisiveis.map((f) => {
                 const s = sel[f.id];
                 const semCA = !f.contaazul_pessoa_id;
                 const jaSelecionado = (f.contaazul_pessoa_id && selPessoaIds.has(f.contaazul_pessoa_id)) || selNomes.has(norm(f.nome));
