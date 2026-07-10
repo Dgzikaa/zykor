@@ -40,6 +40,7 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
   const [caLoading, setCaLoading] = useState<string | null>(null);
   const [caLancando, setCaLancando] = useState(false);
   const [excluindo, setExcluindo] = useState<string | null>(null);
+  const [confirmExcluir, setConfirmExcluir] = useState<any | null>(null);
 
   // preview (dry-run) dos lançamentos no CA — mostra as pernas SEM postar nada
   const abrirPreviewCA = async (trocaId: string) => {
@@ -116,13 +117,14 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
   };
 
   // excluir/reprovar troca (ex.: registro de teste). Reverte o desvio dos dois bares na hora.
+  // Confirmação vem do modal (setConfirmExcluir); aqui só executa.
   const excluirTroca = async (t: any) => {
-    if (!window.confirm(`Excluir esta troca de ${fmtBRL(t.valor)}? O desvio dos dois bares volta ao normal. Não dá pra desfazer.`)) return;
     setExcluindo(t.id);
     try {
       const r = await api.delete(`/api/financeiro/trocas/${t.id}`);
       if (!r.success) throw new Error(r.error);
       toast({ title: 'Troca excluída', description: 'O desvio dos dois bares foi revertido.' });
+      setConfirmExcluir(null);
       carregarTrocas(); onLancado?.();
     } catch (e: any) {
       toast({ title: 'Erro ao excluir', description: e?.message || 'Falha', variant: 'destructive' });
@@ -291,7 +293,7 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                         </td>
                         <td className="px-2 py-2 text-center">
                           {t.status !== 'ca_lancado' && (
-                            <button onClick={() => excluirTroca(t)} disabled={excluindo === t.id}
+                            <button onClick={() => setConfirmExcluir(t)} disabled={excluindo === t.id}
                               title="Excluir troca (reverte o desvio dos dois bares)"
                               className="text-gray-400 hover:text-red-600 disabled:opacity-50">
                               {excluindo === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -307,6 +309,36 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
           )}
         </CardContent>
       </Card>
+
+      {/* Confirmação de exclusão (mesmo padrão de modal do preview CA) */}
+      {confirmExcluir && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !excluindo && setConfirmExcluir(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2.5 font-semibold text-gray-900 dark:text-white">
+              <div className="w-9 h-9 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
+                <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+              </div>
+              Excluir troca
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mt-3">
+              Excluir a troca de{' '}
+              <b className="text-red-600 dark:text-red-400">{nomeBar(confirmExcluir.bar_origem)}</b>
+              {' → '}
+              <b className="text-emerald-600 dark:text-emerald-400">{nomeBar(confirmExcluir.bar_destino)}</b>
+              {' '}no valor de <b className="tabular-nums">{fmtBRL(confirmExcluir.valor)}</b>?
+            </p>
+            <div className="mt-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+              O desvio de estoque dos dois bares volta ao normal. Não dá pra desfazer.
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setConfirmExcluir(null)} disabled={!!excluindo}>Cancelar</Button>
+              <Button variant="destructive" onClick={() => excluirTroca(confirmExcluir)} disabled={!!excluindo}>
+                {excluindo ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1.5" />}Excluir troca
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Preview (dry-run) dos lançamentos no CA antes de confirmar */}
       {caPreview && (
