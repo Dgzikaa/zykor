@@ -139,16 +139,21 @@ function ChamadosInner() {
     } catch { toast.error('Erro ao alterar'); }
   };
 
+  const passaStatus = useCallback((c: Chamado) => {
+    if (fStatus === 'todos') return true;
+    if (fStatus === 'abertos') return !!STATUS[c.status as ChamadoStatus]?.aberto;
+    return c.status === fStatus;
+  }, [fStatus]);
+
   const filtrados = useMemo(() => {
     const s = busca.trim().toLowerCase();
     return chamados.filter((c) => {
-      if (fStatus === 'abertos' && !STATUS[c.status as ChamadoStatus]?.aberto) return false;
-      if (fStatus !== 'abertos' && fStatus !== 'todos' && c.status !== fStatus) return false;
+      if (!passaStatus(c)) return false;
       if (fBar !== 'todos' && c.bar_id !== fBar) return false;
       if (s && !(`${c.assunto} ${c.aberto_por_nome ?? ''} ${c.ultima_msg_previa ?? ''}`.toLowerCase().includes(s))) return false;
       return true;
     });
-  }, [chamados, fStatus, fBar, busca]);
+  }, [chamados, passaStatus, fBar, busca]);
 
   const naoLidosCount = chamados.filter((c) => c.nao_lido).length;
 
@@ -166,13 +171,6 @@ function ChamadosInner() {
             <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar…" className="pl-8 h-9 w-40 sm:w-56" />
           </div>
-          {suporte && availableBars.length > 1 && (
-            <select value={String(fBar)} onChange={(e) => setFBar(e.target.value === 'todos' ? 'todos' : Number(e.target.value))}
-              className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
-              <option value="todos">Todos os bares</option>
-              {availableBars.map((b) => <option key={b.id} value={b.id}>{b.nome}</option>)}
-            </select>
-          )}
           <Button onClick={() => setNovoOpen(true)} className="h-9 bg-indigo-600 hover:bg-indigo-700"><Plus className="w-4 h-4 mr-1" />Abrir chamado</Button>
         </div>
 
@@ -192,6 +190,24 @@ function ChamadosInner() {
             );
           })}
         </div>
+
+        {/* pills de bar (suporte) — ver fácil Ordinário × Deboche */}
+        {suporte && availableBars.length > 1 && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-3">
+            <span className="text-[11px] text-gray-400 flex items-center gap-1 mr-0.5"><Building2 className="w-3.5 h-3.5" />Bar</span>
+            {(['todos', ...availableBars.map((b) => b.id)] as const).map((k) => {
+              const n = k === 'todos' ? chamados.filter(passaStatus).length : chamados.filter((c) => passaStatus(c) && c.bar_id === k).length;
+              const label = k === 'todos' ? 'Todos' : nomeBar(k as number);
+              const active = fBar === k;
+              return (
+                <button key={String(k)} onClick={() => setFBar(k as number | 'todos')}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${active ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                  {label} <span className={active ? 'opacity-70' : 'text-gray-400'}>{n}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* grid: lista + detalhe */}
         <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-3">

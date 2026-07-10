@@ -120,7 +120,9 @@ const PopoverContent: React.FC<PopoverContentProps> = ({
     <div
       ref={contentRef}
       className={cn(
-        'absolute z-50 card-dark rounded-md shadow-lg',
+        // fundo OPACO por padrão (antes usava a classe morta `card-dark` → popover transparente,
+        // deixando a página vazar por baixo). Consumidor pode sobrescrever via className.
+        'absolute z-50 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900',
         alignmentClasses[align],
         sideClasses[side],
         className
