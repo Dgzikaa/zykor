@@ -5,12 +5,12 @@
 // por rota, dentro do shell da área Receitas.
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, PlayCircle, Camera, Users, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, Images, Camera, Users, CalendarDays } from 'lucide-react';
 
 const TABS = [
   { href: '/receitas/comunicacao', label: 'Visão geral', icone: LayoutDashboard },
   { href: '/receitas/comunicacao/calendario', label: 'Calendário', icone: CalendarDays },
-  { href: '/receitas/comunicacao/reels', label: 'Reels', icone: PlayCircle },
+  { href: '/receitas/comunicacao/feed', label: 'Feed', icone: Images },
   { href: '/receitas/comunicacao/stories', label: 'Stories', icone: Camera },
   { href: '/receitas/comunicacao/demografia', label: 'Demografia', icone: Users },
 ];
