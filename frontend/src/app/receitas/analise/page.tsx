@@ -8,7 +8,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Sparkles, Save, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import Link from 'next/link';
+import { Loader2, Sparkles, Save, TrendingUp, TrendingDown, Minus, ArrowLeft } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
@@ -152,6 +153,10 @@ export default function AnaliseReceitasPage() {
     <PageShell width="wide">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
+          <Link href="/receitas"
+            className="inline-flex items-center gap-1.5 mb-2 text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors">
+            <ArrowLeft className="h-4 w-4" /> Voltar para Receitas
+          </Link>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
             Detratores e promotores de receita por dia da semana — {selectedBar?.nome ?? 'bar'}.
           </p>
