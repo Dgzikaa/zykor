@@ -148,40 +148,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return d.contaazul_id;
   };
 
-  // ---------- Etapa 1: Conta(s) a pagar no Conta Azul ----------
-  let contaazulLancamentoId = p.contaazul_lancamento_id || null;
-  if (competencias.length > 0) {
-    for (const comp of competencias) {
-      if (comp.contaazul_lancamento_id) continue;
-      const desc = comp.descricao
-        ? `${p.descricao} — ${comp.descricao}`
-        : `${p.descricao} (comp. ${comp.data_competencia})`;
-      try {
-        const caId = await criarLancamentoCA({ data_competencia: comp.data_competencia, valor: comp.valor, descricao: desc });
-        await fin(supabase).from('pedidos_pagamento_competencias').update({ contaazul_lancamento_id: caId }).eq('id', comp.id);
-        comp.contaazul_lancamento_id = caId;
-      } catch (e: any) {
-        const msg = `competência ${comp.data_competencia}: ${e?.message || 'falha no Conta Azul'}`;
-        await marcarErro(supabase, id, pedido.bar_id, 'erro_ca', msg, user);
-        return NextResponse.json({ success: false, etapa: 'ca', error: msg }, { status: 400 });
-      }
-    }
-    if (!contaazulLancamentoId && competencias[0]?.contaazul_lancamento_id) {
-      contaazulLancamentoId = competencias[0].contaazul_lancamento_id;
-      await fin(supabase).from('pedidos_pagamento').update({ contaazul_lancamento_id: contaazulLancamentoId }).eq('id', id);
-    }
-  } else if (!contaazulLancamentoId) {
-    try {
-      contaazulLancamentoId = await criarLancamentoCA({ data_competencia: competencia, valor: p.valor, descricao: p.descricao });
-      await fin(supabase).from('pedidos_pagamento').update({ contaazul_lancamento_id: contaazulLancamentoId }).eq('id', id);
-    } catch (e: any) {
-      const msg = e?.message || 'Falha de rede ao criar no Conta Azul';
-      await marcarErro(supabase, id, pedido.bar_id, 'erro_ca', msg, user);
-      return NextResponse.json({ success: false, etapa: 'ca', error: msg }, { status: 500 });
-    }
-  }
-
-  // ---------- Etapa 2: Agendar PIX no Inter (pula se já disparado OU copia e cola) ----------
+  // ---------- Etapa 1: BANCO (Inter) primeiro — boleto/PIX ----------
+  // REGRA (pedido do Gonza, 10/07): o Conta Azul só é criado DEPOIS que o banco aceitar.
+  // Antes a ordem era CA→Inter: quando o boleto falhava no Inter, o lançamento no CA já
+  // tinha sido criado; a cada retentativa empilhava outro no CA (o protocolId 202 às vezes
+  // vinha nulo, furando a idempotência, e o anti-dup do CA só pega após o sync). Invertendo,
+  // se o banco falha nada é tocado no CA. Idempotente via inter_codigo_solicitacao.
+  // (pula p/ copia e cola = pagamento manual, que não passa pelo banco).
   let interCodigo = p.inter_codigo_solicitacao || null;
   if (!ehCopiaCola && !interCodigo) {
     try {
@@ -216,6 +189,39 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const msg = e?.message || 'Falha de rede ao enviar PIX';
       await marcarErro(supabase, id, pedido.bar_id, 'erro_inter', msg, user);
       return NextResponse.json({ success: false, etapa: 'inter', error: msg }, { status: 500 });
+    }
+  }
+
+  // ---------- Etapa 2: Conta(s) a pagar no Conta Azul (só chega aqui com o banco OK) ----------
+  let contaazulLancamentoId = p.contaazul_lancamento_id || null;
+  if (competencias.length > 0) {
+    for (const comp of competencias) {
+      if (comp.contaazul_lancamento_id) continue;
+      const desc = comp.descricao
+        ? `${p.descricao} — ${comp.descricao}`
+        : `${p.descricao} (comp. ${comp.data_competencia})`;
+      try {
+        const caId = await criarLancamentoCA({ data_competencia: comp.data_competencia, valor: comp.valor, descricao: desc });
+        await fin(supabase).from('pedidos_pagamento_competencias').update({ contaazul_lancamento_id: caId }).eq('id', comp.id);
+        comp.contaazul_lancamento_id = caId;
+      } catch (e: any) {
+        const msg = `competência ${comp.data_competencia}: ${e?.message || 'falha no Conta Azul'}`;
+        await marcarErro(supabase, id, pedido.bar_id, 'erro_ca', msg, user);
+        return NextResponse.json({ success: false, etapa: 'ca', error: msg }, { status: 400 });
+      }
+    }
+    if (!contaazulLancamentoId && competencias[0]?.contaazul_lancamento_id) {
+      contaazulLancamentoId = competencias[0].contaazul_lancamento_id;
+      await fin(supabase).from('pedidos_pagamento').update({ contaazul_lancamento_id: contaazulLancamentoId }).eq('id', id);
+    }
+  } else if (!contaazulLancamentoId) {
+    try {
+      contaazulLancamentoId = await criarLancamentoCA({ data_competencia: competencia, valor: p.valor, descricao: p.descricao });
+      await fin(supabase).from('pedidos_pagamento').update({ contaazul_lancamento_id: contaazulLancamentoId }).eq('id', id);
+    } catch (e: any) {
+      const msg = e?.message || 'Falha de rede ao criar no Conta Azul';
+      await marcarErro(supabase, id, pedido.bar_id, 'erro_ca', msg, user);
+      return NextResponse.json({ success: false, etapa: 'ca', error: msg }, { status: 500 });
     }
   }
 
