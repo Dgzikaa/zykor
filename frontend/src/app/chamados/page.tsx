@@ -14,7 +14,10 @@ import {
 } from '@/lib/chamados';
 import {
   Plus, Search, Send, Loader2, X, ArrowLeft, MessageSquare, Inbox, LifeBuoy, Building2,
+  Mic, Square, Paperclip,
 } from 'lucide-react';
+
+type Anexo = { url: string; nome?: string; tipo?: string };
 
 // classes estáticas por cor (Tailwind não monta classe por interpolação)
 const COR: Record<string, string> = {
@@ -32,7 +35,7 @@ type Chamado = {
   status: string; prioridade: string; ultima_msg_previa: string | null; ultima_msg_em: string;
   criado_em: string; nao_lido: boolean;
 };
-type Mensagem = { id: number; autor_id: string; autor_nome: string | null; autor_tipo: string; mensagem: string; criado_em: string };
+type Mensagem = { id: number; autor_id: string; autor_nome: string | null; autor_tipo: string; mensagem: string; anexos?: Anexo[]; criado_em: string };
 
 const fmtTempo = (iso: string) => {
   if (!iso) return '';
@@ -76,7 +79,14 @@ function ChamadosInner() {
   const [novoOpen, setNovoOpen] = useState(false);
   const [resposta, setResposta] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [anexos, setAnexos] = useState<Anexo[]>([]);
+  const [subindo, setSubindo] = useState(false);
+  const [gravando, setGravando] = useState(false);
+  const [transcrevendo, setTranscrevendo] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
+  const mediaRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setPageTitle('🎫 Central de Chamados'); return () => setPageTitle(''); }, [setPageTitle]);
 
@@ -92,7 +102,8 @@ function ChamadosInner() {
 
   const abrirDetalhe = useCallback(async (id: number) => {
     if (!Number.isFinite(id)) return;
-    setSelId(id); setLoadingDet(true);
+    setSelId((prev) => { if (prev !== id) { setResposta(''); setAnexos([]); } return id; });
+    setLoadingDet(true);
     try {
       const r = await api.get(`/api/chamados/${id}`);
       if (r?.success) {
@@ -113,15 +124,64 @@ function ChamadosInner() {
   useEffect(() => { threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight }); }, [detalhe?.mensagens.length, loadingDet]);
 
   const enviar = async () => {
-    if (!detalhe || resposta.trim().length < 1) return;
+    if (!detalhe || (resposta.trim().length < 1 && anexos.length === 0)) return;
     setEnviando(true);
     try {
-      const r = await api.post(`/api/chamados/${detalhe.chamado.id}/mensagens`, { mensagem: resposta.trim() });
-      if (r?.success) { setResposta(''); await abrirDetalhe(detalhe.chamado.id); carregar(); }
+      const r = await api.post(`/api/chamados/${detalhe.chamado.id}/mensagens`, { mensagem: resposta.trim(), anexos });
+      if (r?.success) { setResposta(''); setAnexos([]); await abrirDetalhe(detalhe.chamado.id); carregar(); }
       else toast.error(r?.error || 'Erro ao enviar');
     } catch { toast.error('Erro ao enviar'); }
     finally { setEnviando(false); }
   };
+
+  // anexar imagem (colar print ou escolher arquivo) → sobe pro storage e vira chip no composer
+  const subirImagem = async (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    if (anexos.length >= 10) { toast.error('Máximo de 10 imagens'); return; }
+    setSubindo(true);
+    try {
+      const fd = new FormData(); fd.append('file', file);
+      const res = await fetch('/api/chamados/upload', { method: 'POST', body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (j?.success && j.data?.url) setAnexos((a) => [...a, { url: j.data.url, nome: j.data.nome, tipo: j.data.tipo }]);
+      else toast.error(j?.error || 'Falha ao anexar imagem');
+    } catch { toast.error('Erro ao anexar imagem'); }
+    finally { setSubindo(false); }
+  };
+  const onPaste = (e: React.ClipboardEvent) => {
+    const imgs = Array.from(e.clipboardData?.items || []).filter((i) => i.type.startsWith('image/'));
+    if (!imgs.length) return;
+    e.preventDefault();
+    imgs.forEach((i) => { const f = i.getAsFile(); if (f) subirImagem(f); });
+  };
+
+  // gravar áudio → transcreve (Whisper) → joga o texto no campo pra revisar antes de enviar
+  const iniciarGravacao = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' });
+        if (!blob.size) return;
+        setTranscrevendo(true);
+        try {
+          const fd = new FormData(); fd.append('audio', blob, 'audio.webm');
+          const res = await fetch('/api/chamados/transcrever', { method: 'POST', body: fd });
+          const j = await res.json().catch(() => ({}));
+          if (j?.success && j.data?.texto) setResposta((r) => (r.trim() ? r.trim() + ' ' : '') + j.data.texto);
+          else toast.error(j?.error || 'Não consegui transcrever o áudio');
+        } catch { toast.error('Erro ao transcrever'); }
+        finally { setTranscrevendo(false); }
+      };
+      mr.start();
+      mediaRef.current = mr;
+      setGravando(true);
+    } catch { toast.error('Não consegui acessar o microfone'); }
+  };
+  const pararGravacao = () => { mediaRef.current?.stop(); setGravando(false); };
 
   const mudarStatus = async (status: ChamadoStatus) => {
     if (!detalhe) return;
@@ -311,7 +371,17 @@ function ChamadosInner() {
                           <div className={`text-[10px] mb-0.5 ${meu ? 'text-indigo-100' : 'text-gray-400'}`}>
                             {m.autor_tipo === 'suporte' ? '🛟 Suporte' : (m.autor_nome || 'Solicitante')} · {fmtHora(m.criado_em)}
                           </div>
-                          <div className="whitespace-pre-wrap break-words">{m.mensagem}</div>
+                          {m.mensagem && <div className="whitespace-pre-wrap break-words">{m.mensagem}</div>}
+                          {!!m.anexos?.length && (
+                            <div className="grid grid-cols-2 gap-1.5 mt-1">
+                              {m.anexos.map((a, i) => (
+                                <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="block">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={a.url} alt={a.nome || 'anexo'} className="rounded-lg max-h-44 w-full object-cover border border-black/10" />
+                                </a>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -319,13 +389,41 @@ function ChamadosInner() {
                 </div>
 
                 {/* composer */}
-                <div className="border-t border-gray-100 dark:border-gray-800 p-2.5">
+                <div className="border-t border-gray-100 dark:border-gray-800 p-2.5 space-y-2">
+                  {/* preview dos anexos */}
+                  {(anexos.length > 0 || subindo) && (
+                    <div className="flex flex-wrap gap-2">
+                      {anexos.map((a, i) => (
+                        <div key={i} className="relative">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={a.url} alt={a.nome || ''} className="h-16 w-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
+                          <button onClick={() => setAnexos((x) => x.filter((_, j) => j !== i))}
+                            className="absolute -top-1.5 -right-1.5 bg-gray-900 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-600" aria-label="Remover">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                      {subindo && <div className="h-16 w-16 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-400"><Loader2 className="w-4 h-4 animate-spin" /></div>}
+                    </div>
+                  )}
                   <div className="flex items-end gap-2">
-                    <textarea value={resposta} onChange={(e) => setResposta(e.target.value)}
+                    <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden"
+                      onChange={(e) => { Array.from(e.target.files || []).forEach(subirImagem); e.currentTarget.value = ''; }} />
+                    <button type="button" onClick={() => fileInputRef.current?.click()} title="Anexar imagem"
+                      className="h-10 w-10 shrink-0 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <Paperclip className="w-4 h-4" />
+                    </button>
+                    <button type="button" onClick={gravando ? pararGravacao : iniciarGravacao} disabled={transcrevendo}
+                      title={gravando ? 'Parar e transcrever' : 'Gravar áudio (vira texto)'}
+                      className={`h-10 w-10 shrink-0 flex items-center justify-center rounded-lg border ${gravando ? 'bg-red-500 text-white border-red-500 animate-pulse' : 'border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                      {transcrevendo ? <Loader2 className="w-4 h-4 animate-spin" /> : gravando ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    </button>
+                    <textarea value={resposta} onChange={(e) => setResposta(e.target.value)} onPaste={onPaste}
                       onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); enviar(); } }}
-                      rows={2} placeholder="Escreva uma mensagem… (Ctrl+Enter envia)"
+                      rows={2}
+                      placeholder={gravando ? 'Gravando… clique no quadrado pra parar' : transcrevendo ? 'Transcrevendo áudio…' : 'Escreva, cole um print (Ctrl+V) ou grave um áudio… (Ctrl+Enter envia)'}
                       className="flex-1 resize-none rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm" />
-                    <Button onClick={enviar} disabled={enviando || resposta.trim().length < 1} className="h-10 bg-indigo-600 hover:bg-indigo-700">
+                    <Button onClick={enviar} disabled={enviando || (resposta.trim().length < 1 && anexos.length === 0)} className="h-10 bg-indigo-600 hover:bg-indigo-700">
                       {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </Button>
                   </div>

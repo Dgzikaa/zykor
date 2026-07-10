@@ -22,7 +22,7 @@ export const GET = withAuth(async ({ user }, ctx) => {
 
   const { data: mensagens, error: eMsg } = await supabase
     .schema('system').from('chamado_mensagens')
-    .select('id, autor_id, autor_nome, autor_tipo, mensagem, criado_em')
+    .select('id, autor_id, autor_nome, autor_tipo, mensagem, anexos, criado_em')
     .eq('chamado_id', id).order('criado_em', { ascending: true });
   if (eMsg) return fail(eMsg.message, 500);
 
