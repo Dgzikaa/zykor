@@ -15,18 +15,24 @@ export async function GET(req: NextRequest) {
     const fim = new Date(Date.now() + dias * 86400000).toISOString().split('T')[0];
 
     const supabase = await getAdminClient();
-    const { data, error } = await (supabase as any).schema('crm').from('aniversariantes')
-      .select('*')
-      .eq('bar_id', barId)
-      .gte('proximo_aniver', hoje)
-      .lte('proximo_aniver', fim)
-      .order('proximo_aniver')
-      .order('valor_total_consumo', { ascending: false, nullsFirst: false })
-      .limit(2000);
 
-    if (error) throw error;
-
-    const lista = data ?? [];
+    // PostgREST corta em 1000 por request (db-max-rows) — paginar com .range() pra trazer TUDO.
+    const PAGE = 1000;
+    const lista: any[] = [];
+    for (let from = 0; from <= 50000; from += PAGE) {
+      const { data, error } = await (supabase as any).schema('crm').from('aniversariantes')
+        .select('*')
+        .eq('bar_id', barId)
+        .gte('proximo_aniver', hoje)
+        .lte('proximo_aniver', fim)
+        .order('proximo_aniver')
+        .order('valor_total_consumo', { ascending: false, nullsFirst: false })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      const batch = data ?? [];
+      lista.push(...batch);
+      if (batch.length < PAGE) break; // última página
+    }
     const hoje7 = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
 
     // Contagem por nível (pros cards clicáveis)
