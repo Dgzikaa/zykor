@@ -83,7 +83,6 @@ function ChamadosInner() {
   const [anexos, setAnexos] = useState<Anexo[]>([]);
   const [subindo, setSubindo] = useState(false);
   const [gravando, setGravando] = useState(false);
-  const [transcrevendo, setTranscrevendo] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -143,28 +142,27 @@ function ChamadosInner() {
     finally { setEnviando(false); }
   };
 
-  // anexar imagem (colar print ou escolher arquivo) → sobe pro storage e vira chip no composer
-  const subirImagem = async (file: File) => {
-    if (!file.type.startsWith('image/')) return;
-    if (anexos.length >= 10) { toast.error('Máximo de 10 imagens'); return; }
+  // anexar arquivo (print colado/escolhido, ou áudio gravado) → sobe pro storage e vira chip no composer
+  const subirAnexo = async (file: File) => {
+    if (anexos.length >= 10) { toast.error('Máximo de 10 anexos'); return; }
     setSubindo(true);
     try {
       const fd = new FormData(); fd.append('file', file);
       const res = await fetch('/api/chamados/upload', { method: 'POST', body: fd });
       const j = await res.json().catch(() => ({}));
       if (j?.success && j.data?.url) setAnexos((a) => [...a, { url: j.data.url, nome: j.data.nome, tipo: j.data.tipo }]);
-      else toast.error(j?.error || 'Falha ao anexar imagem');
-    } catch { toast.error('Erro ao anexar imagem'); }
+      else toast.error(j?.error || 'Falha ao anexar');
+    } catch { toast.error('Erro ao anexar'); }
     finally { setSubindo(false); }
   };
   const onPaste = (e: React.ClipboardEvent) => {
     const imgs = Array.from(e.clipboardData?.items || []).filter((i) => i.type.startsWith('image/'));
     if (!imgs.length) return;
     e.preventDefault();
-    imgs.forEach((i) => { const f = i.getAsFile(); if (f) subirImagem(f); });
+    imgs.forEach((i) => { const f = i.getAsFile(); if (f) subirAnexo(f); });
   };
 
-  // gravar áudio → transcreve (Whisper) → joga o texto no campo pra revisar antes de enviar
+  // gravar mensagem de voz → sobe o áudio e vira anexo (toca na conversa, tipo WhatsApp)
   const iniciarGravacao = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -175,15 +173,8 @@ function ChamadosInner() {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' });
         if (!blob.size) return;
-        setTranscrevendo(true);
-        try {
-          const fd = new FormData(); fd.append('audio', blob, 'audio.webm');
-          const res = await fetch('/api/chamados/transcrever', { method: 'POST', body: fd });
-          const j = await res.json().catch(() => ({}));
-          if (j?.success && j.data?.texto) setResposta((r) => (r.trim() ? r.trim() + ' ' : '') + j.data.texto);
-          else toast.error(j?.error || 'Não consegui transcrever o áudio');
-        } catch { toast.error('Erro ao transcrever'); }
-        finally { setTranscrevendo(false); }
+        const file = new File([blob], `audio-${blob.size}.webm`, { type: 'audio/webm' });
+        await subirAnexo(file);
       };
       mr.start();
       mediaRef.current = mr;
@@ -227,10 +218,10 @@ function ChamadosInner() {
   const naoLidosCount = chamados.filter((c) => c.nao_lido).length;
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-900">
-      <div className="mx-auto max-w-[1600px] px-2 sm:px-4 py-3">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
+      <div className="shrink-0 mx-auto w-full max-w-[1600px] px-2 sm:px-4 pt-2">
         {/* barra de ações / filtros */}
-        <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
           <div className="flex items-center gap-1.5 text-sm text-gray-500">
             <LifeBuoy className="w-4 h-4 text-indigo-500" />
             {suporte ? 'Fila de chamados' : 'Meus chamados'}
@@ -244,7 +235,7 @@ function ChamadosInner() {
         </div>
 
         {/* pills de status */}
-        <div className="flex flex-wrap gap-1.5 mb-3">
+        <div className="flex flex-wrap gap-1.5 mb-2">
           {(['abertos', ...STATUS_KEYS, 'todos'] as const).map((k) => {
             const n = k === 'todos' ? chamados.length
               : k === 'abertos' ? chamados.filter((c) => STATUS[c.status as ChamadoStatus]?.aberto).length
@@ -262,7 +253,7 @@ function ChamadosInner() {
 
         {/* pills de bar (suporte) — ver fácil Ordinário × Deboche */}
         {suporte && availableBars.length > 1 && (
-          <div className="flex flex-wrap items-center gap-1.5 mb-3">
+          <div className="flex flex-wrap items-center gap-1.5 mb-2">
             <span className="text-[11px] text-gray-400 flex items-center gap-1 mr-0.5"><Building2 className="w-3.5 h-3.5" />Bar</span>
             {(['todos', ...availableBars.map((b) => b.id)] as const).map((k) => {
               const n = k === 'todos' ? chamados.filter(passaStatus).length : chamados.filter((c) => passaStatus(c) && c.bar_id === k).length;
@@ -278,17 +269,19 @@ function ChamadosInner() {
           </div>
         )}
 
-        {/* grid: lista + detalhe */}
-        <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-3">
+      </div>
+
+      {/* grid: lista + detalhe (ocupa o resto da altura; só as colunas rolam por dentro) */}
+      <div className="flex-1 min-h-0 mx-auto w-full max-w-[1600px] px-2 sm:px-4 pb-2 grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-3">
           {/* LISTA */}
-          <div className={`${selId ? 'hidden lg:block' : ''}`}>
-            <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
+          <div className={`min-h-0 ${selId ? 'hidden lg:flex' : 'flex'} flex-col`}>
+            <div className="flex-1 min-h-0 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden flex flex-col">
               {loading ? (
-                <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+                <div className="flex-1 flex items-center justify-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
               ) : filtrados.length === 0 ? (
-                <div className="py-16 text-center text-gray-400 text-sm"><Inbox className="w-8 h-8 mx-auto mb-2 opacity-40" />Nenhum chamado por aqui.</div>
+                <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-sm p-6"><Inbox className="w-8 h-8 mb-2 opacity-40" />Nenhum chamado por aqui.</div>
               ) : (
-                <div className="divide-y divide-gray-100 dark:divide-gray-800 max-h-[calc(100vh-12rem)] overflow-y-auto">
+                <div className="flex-1 min-h-0 divide-y divide-gray-100 dark:divide-gray-800 overflow-y-auto">
                   {filtrados.map((c) => {
                     const cat = CATEGORIAS[c.categoria as ChamadoCategoria];
                     const st = STATUS[c.status as ChamadoStatus];
@@ -322,18 +315,18 @@ function ChamadosInner() {
           </div>
 
           {/* DETALHE */}
-          <div className={`${selId ? '' : 'hidden lg:block'}`}>
+          <div className={`min-h-0 ${selId ? 'flex' : 'hidden lg:flex'} flex-col`}>
             {!detalhe && !loadingDet ? (
-              <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 py-24 text-center text-gray-400">
-                <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              <div className="flex-1 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 flex flex-col items-center justify-center text-center text-gray-400 p-6">
+                <MessageSquare className="w-10 h-10 mb-2 opacity-30" />
                 Selecione um chamado para ver a conversa.
               </div>
             ) : loadingDet && !detalhe ? (
-              <div className="rounded-xl border border-gray-200 dark:border-gray-800 py-24 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+              <div className="flex-1 rounded-xl border border-gray-200 dark:border-gray-800 flex items-center justify-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
             ) : detalhe && (
-              <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col h-[calc(100vh-12rem)]">
+              <div className="flex-1 min-h-0 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col">
                 {/* header do chamado */}
-                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+                <div className="shrink-0 px-4 py-3 border-b border-gray-100 dark:border-gray-800">
                   <div className="flex items-start gap-2">
                     <button onClick={() => { setSelId(null); setDetalhe(null); }} className="lg:hidden p-1 -ml-1 text-gray-400"><ArrowLeft className="w-5 h-5" /></button>
                     <div className="min-w-0 flex-1">
@@ -371,7 +364,7 @@ function ChamadosInner() {
                 </div>
 
                 {/* thread */}
-                <div ref={threadRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                <div ref={threadRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
                   {detalhe.mensagens.map((m) => {
                     const meu = suporte ? m.autor_tipo === 'suporte' : m.autor_tipo === 'solicitante';
                     return (
@@ -382,11 +375,13 @@ function ChamadosInner() {
                           </div>
                           {m.mensagem && <div className="whitespace-pre-wrap break-words">{m.mensagem}</div>}
                           {!!m.anexos?.length && (
-                            <div className="grid grid-cols-2 gap-1.5 mt-1">
-                              {m.anexos.map((a, i) => (
+                            <div className="mt-1 space-y-1.5">
+                              {m.anexos.map((a, i) => a.tipo?.startsWith('audio/') ? (
+                                <audio key={i} controls src={a.url} className="w-full max-w-[240px] h-9"><track kind="captions" /></audio>
+                              ) : (
                                 <button key={i} type="button" onClick={() => setLightbox(a.url)} className="block cursor-zoom-in">
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={a.url} alt={a.nome || 'anexo'} className="rounded-lg max-h-44 w-full object-cover border border-black/10" />
+                                  <img src={a.url} alt={a.nome || 'anexo'} className="rounded-lg max-h-44 max-w-full object-cover border border-black/10" />
                                 </button>
                               ))}
                             </div>
@@ -398,14 +393,20 @@ function ChamadosInner() {
                 </div>
 
                 {/* composer */}
-                <div className="border-t border-gray-100 dark:border-gray-800 p-2.5 space-y-2">
+                <div className="shrink-0 border-t border-gray-100 dark:border-gray-800 p-2.5 space-y-2">
                   {/* preview dos anexos */}
                   {(anexos.length > 0 || subindo) && (
                     <div className="flex flex-wrap gap-2">
                       {anexos.map((a, i) => (
                         <div key={i} className="relative">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={a.url} alt={a.nome || ''} className="h-16 w-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
+                          {a.tipo?.startsWith('audio/') ? (
+                            <div className="h-16 px-3 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300"><Mic className="w-4 h-4 text-indigo-500" />Áudio</div>
+                          ) : (
+                            <>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={a.url} alt={a.nome || ''} className="h-16 w-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
+                            </>
+                          )}
                           <button onClick={() => setAnexos((x) => x.filter((_, j) => j !== i))}
                             className="absolute -top-1.5 -right-1.5 bg-gray-900 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-600" aria-label="Remover">
                             <X className="w-3 h-3" />
@@ -417,20 +418,20 @@ function ChamadosInner() {
                   )}
                   <div className="flex items-end gap-2">
                     <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden"
-                      onChange={(e) => { Array.from(e.target.files || []).forEach(subirImagem); e.currentTarget.value = ''; }} />
+                      onChange={(e) => { Array.from(e.target.files || []).forEach(subirAnexo); e.currentTarget.value = ''; }} />
                     <button type="button" onClick={() => fileInputRef.current?.click()} title="Anexar imagem"
                       className="h-10 w-10 shrink-0 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800">
                       <Paperclip className="w-4 h-4" />
                     </button>
-                    <button type="button" onClick={gravando ? pararGravacao : iniciarGravacao} disabled={transcrevendo}
-                      title={gravando ? 'Parar e transcrever' : 'Gravar áudio (vira texto)'}
+                    <button type="button" onClick={gravando ? pararGravacao : iniciarGravacao}
+                      title={gravando ? 'Parar e enviar áudio' : 'Gravar mensagem de voz'}
                       className={`h-10 w-10 shrink-0 flex items-center justify-center rounded-lg border ${gravando ? 'bg-red-500 text-white border-red-500 animate-pulse' : 'border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                      {transcrevendo ? <Loader2 className="w-4 h-4 animate-spin" /> : gravando ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                      {gravando ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                     </button>
                     <textarea value={resposta} onChange={(e) => setResposta(e.target.value)} onPaste={onPaste}
                       onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); enviar(); } }}
                       rows={2}
-                      placeholder={gravando ? 'Gravando… clique no quadrado pra parar' : transcrevendo ? 'Transcrevendo áudio…' : 'Escreva, cole um print (Ctrl+V) ou grave um áudio… (Ctrl+Enter envia)'}
+                      placeholder={gravando ? 'Gravando… clique no quadrado pra parar e enviar' : 'Escreva, cole um print (Ctrl+V) ou grave um áudio… (Ctrl+Enter envia)'}
                       className="flex-1 resize-none rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm" />
                     <Button onClick={enviar} disabled={enviando || (resposta.trim().length < 1 && anexos.length === 0)} className="h-10 bg-indigo-600 hover:bg-indigo-700">
                       {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -441,7 +442,6 @@ function ChamadosInner() {
             )}
           </div>
         </div>
-      </div>
 
       {novoOpen && <NovoChamadoModal onClose={() => setNovoOpen(false)} onCriado={(id) => { setNovoOpen(false); carregar(); abrirDetalhe(id); }} />}
 
