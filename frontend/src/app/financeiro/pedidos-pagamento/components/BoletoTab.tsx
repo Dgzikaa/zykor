@@ -1,16 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DateInputBR } from '@/components/ui/date-input-br';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Loader2, FileScan, Sparkles, Send, AlertTriangle, PencilLine, ScanLine } from 'lucide-react';
+import { Loader2, FileScan, Sparkles, Send, AlertTriangle, PencilLine, ScanLine, Receipt } from 'lucide-react';
 import { BoletoScanner } from './BoletoScanner';
+import { PedidoCard, type Opcao } from './PedidoCard';
+import { type Pedido } from '../types';
+import { type TabKey, TAB_STATUS } from '../statusTabs';
 import { type BoletoDecodificado } from '../boletoBarcode';
 
 type DadosBoleto = {
@@ -25,8 +30,21 @@ type DadosBoleto = {
 const VAZIO: DadosBoleto = { valor: null, vencimento: null, beneficiario: null, cpf_cnpj: null, linha_digitavel: null, banco: null };
 const fmtBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
-export function BoletoTab({ onCriado }: { onCriado: () => void }) {
+export function BoletoTab({
+  onCriado, pedidos, podeAprovar, categorias, contas, contaPadrao, fornecedores, onOpenDetalhe, onSelecao,
+}: {
+  onCriado: () => void;
+  pedidos: Pedido[];              // já filtrado p/ boletos (page.tsx)
+  podeAprovar: boolean;
+  categorias: Opcao[];
+  contas: Opcao[];
+  contaPadrao?: string;
+  fornecedores: Opcao[];
+  onOpenDetalhe: (id: string) => void;
+  onSelecao?: (id: string, sel: { catId: string; contaId: string; fornId: string }) => void;
+}) {
   const { showToast } = useToast();
+  const [tab, setTab] = useState<TabKey>('solicitado');
   const [lendo, setLendo] = useState(false);
   const [criando, setCriando] = useState(false);
   const [arquivoNome, setArquivoNome] = useState('');
@@ -134,6 +152,10 @@ export function BoletoTab({ onCriado }: { onCriado: () => void }) {
     }
   };
 
+  // Lista de boletos (mesmo esquema da aba PIX): 4 filtros por status.
+  const boletosFiltrados = useMemo(() => pedidos.filter(p => TAB_STATUS[tab](p.status)), [pedidos, tab]);
+  const countSolicitado = useMemo(() => pedidos.filter(p => TAB_STATUS.solicitado(p.status)).length, [pedidos]);
+
   return (
     <div className="space-y-3">
       {/* Upload + manual */}
@@ -225,6 +247,44 @@ export function BoletoTab({ onCriado }: { onCriado: () => void }) {
           </CardContent>
         </Card>
       )}
+
+      {/* Lista de boletos — mesmo esquema da aba PIX (Solicitado/Aprovado/Recusado/Todos) */}
+      <div className="border-t border-[hsl(var(--border))] pt-3">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="mb-3">
+          <TabsList>
+            <TabsTrigger value="solicitado">
+              Solicitado {countSolicitado > 0 && <Badge variant="secondary" className="ml-1.5">{countSolicitado}</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="aprovado">Aprovado</TabsTrigger>
+            <TabsTrigger value="recusado">Recusado</TabsTrigger>
+            <TabsTrigger value="todos">Todos</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {boletosFiltrados.length === 0 ? (
+          <Card><CardContent className="py-10 text-center text-muted-foreground">
+            <Receipt className="w-9 h-9 mx-auto mb-2 opacity-40" />
+            Nenhum boleto nesta aba.
+          </CardContent></Card>
+        ) : (
+          <div className="space-y-2">
+            {boletosFiltrados.map((p) => (
+              <PedidoCard
+                key={p.id}
+                pedido={p}
+                podeAprovar={podeAprovar}
+                categorias={categorias}
+                contas={contas}
+                contaPadrao={contaPadrao}
+                fornecedores={fornecedores}
+                onOpen={onOpenDetalhe}
+                onChange={onCriado}
+                onSelecao={onSelecao}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

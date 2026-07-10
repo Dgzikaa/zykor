@@ -30,6 +30,7 @@ export interface Pedido {
   observacao?: string | null;
   precisa_comprovante?: boolean | null;
   pix_copia_cola?: string | null;
+  linha_digitavel?: string | null;
   categoria_id?: string | null;
   categoria_nome?: string | null;
   categoria_sugerida_id?: string | null;

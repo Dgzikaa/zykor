@@ -15,6 +15,7 @@ import { getSupabaseClient } from '@/lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { Plus, Loader2, AlertCircle, Receipt, Paperclip, Check, CalendarClock } from 'lucide-react';
 import { type Pedido } from './types';
+import { type TabKey, TAB_STATUS, isBoleto } from './statusTabs';
 import { NovoPedidoDialog } from './components/NovoPedidoDialog';
 import { PedidoDetailDialog } from './components/PedidoDetailDialog';
 import { PedidoCard, type Opcao } from './components/PedidoCard';
@@ -24,18 +25,6 @@ import TrocasTab from './components/TrocasTab';
 import { FaturaCartaoTab } from './components/FaturaCartaoTab';
 
 type ModoPagamento = 'pagamentos' | 'freela' | 'boleto' | 'fatura' | 'trocas';
-
-type TabKey = 'solicitado' | 'aprovado' | 'recusado' | 'todos';
-
-// Fluxo 2 etapas: "Solicitado" = só o que espera APROVAÇÃO. "Aprovado" agrupa
-// aprovado/agendado/pago + os erros de AGENDAMENTO (erro_ca/erro_inter) — que acontecem
-// depois da aprovação e precisam de "Agendar" de novo.
-const TAB_STATUS: Record<TabKey, (s: string) => boolean> = {
-  solicitado: (s) => s === 'aguardando_aprovacao',
-  aprovado: (s) => ['aprovado', 'agendado', 'pago', 'erro_ca', 'erro_inter'].includes(s),
-  recusado: (s) => s === 'rejeitado' || s === 'cancelado',
-  todos: () => true,
-};
 
 export default function PedidosPagamentoPage() {
   const { setPageTitle } = usePageTitle();
@@ -168,7 +157,9 @@ export default function PedidosPagamentoPage() {
   }, [barId, podeAprovar]);
 
   // Freela é gerido/aprovado na aba própria (semanal) — fora da lista principal.
-  const pedidosLista = useMemo(() => pedidos.filter(p => p.tipo !== 'freela'), [pedidos]);
+  // PIX = tudo que NÃO é freela nem boleto (boleto vive na aba própria).
+  const pedidosLista = useMemo(() => pedidos.filter(p => p.tipo !== 'freela' && !isBoleto(p)), [pedidos]);
+  const boletosLista = useMemo(() => pedidos.filter(isBoleto), [pedidos]);
   const filtrados = useMemo(
     () => pedidosLista.filter(p => TAB_STATUS[tab](p.status) && (!soComprovante || p.precisa_comprovante)),
     [pedidosLista, tab, soComprovante]
@@ -281,7 +272,19 @@ export default function PedidosPagamentoPage() {
 
           {barId && modo === 'freela' && <FreelaTab barId={barId} podeAprovar={podeAprovar} onLancado={carregar} />}
 
-          {barId && modo === 'boleto' && <BoletoTab onCriado={carregar} />}
+          {barId && modo === 'boleto' && (
+            <BoletoTab
+              onCriado={carregar}
+              pedidos={boletosLista}
+              podeAprovar={podeAprovar}
+              categorias={opcoes.categorias}
+              contas={opcoes.contas}
+              contaPadrao={opcoes.contaPadrao}
+              fornecedores={opcoes.fornecedores}
+              onOpenDetalhe={setDetalheId}
+              onSelecao={onSelecao}
+            />
+          )}
 
           {barId && podeAprovar && modo === 'fatura' && <FaturaCartaoTab />}
 
