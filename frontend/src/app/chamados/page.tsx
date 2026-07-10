@@ -77,6 +77,7 @@ function ChamadosInner() {
   const [fBar, setFBar] = useState<number | 'todos'>('todos');
   const [busca, setBusca] = useState('');
   const [novoOpen, setNovoOpen] = useState(false);
+  const [lightbox, setLightbox] = useState<string | null>(null);
   const [resposta, setResposta] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [anexos, setAnexos] = useState<Anexo[]>([]);
@@ -122,6 +123,14 @@ function ChamadosInner() {
   }, [searchParams]);
 
   useEffect(() => { threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight }); }, [detalhe?.mensagens.length, loadingDet]);
+
+  // fecha o lightbox com Esc
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightbox(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightbox]);
 
   const enviar = async () => {
     if (!detalhe || (resposta.trim().length < 1 && anexos.length === 0)) return;
@@ -375,10 +384,10 @@ function ChamadosInner() {
                           {!!m.anexos?.length && (
                             <div className="grid grid-cols-2 gap-1.5 mt-1">
                               {m.anexos.map((a, i) => (
-                                <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="block">
+                                <button key={i} type="button" onClick={() => setLightbox(a.url)} className="block cursor-zoom-in">
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img src={a.url} alt={a.nome || 'anexo'} className="rounded-lg max-h-44 w-full object-cover border border-black/10" />
-                                </a>
+                                </button>
                               ))}
                             </div>
                           )}
@@ -435,6 +444,15 @@ function ChamadosInner() {
       </div>
 
       {novoOpen && <NovoChamadoModal onClose={() => setNovoOpen(false)} onCriado={(id) => { setNovoOpen(false); carregar(); abrirDetalhe(id); }} />}
+
+      {/* Lightbox — abre o print sobre a tela (só conferir), sem sair pra outra aba. Esc/clique fecha. */}
+      {lightbox && (
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
+          <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 text-white/70 hover:text-white" aria-label="Fechar"><X className="w-7 h-7" /></button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={lightbox} alt="anexo" onClick={(e) => e.stopPropagation()} className="max-h-[90vh] max-w-[92vw] object-contain rounded-lg shadow-2xl" />
+        </div>
+      )}
     </div>
   );
 }
