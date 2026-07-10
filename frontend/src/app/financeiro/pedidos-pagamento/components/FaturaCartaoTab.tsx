@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { DateInputBR } from '@/components/ui/date-input-br';
+import { ColumnFilterHeader, useColumnFilters, type FilterCol } from '@/components/ui/column-filter-header';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Loader2, Upload, Send, EyeOff, RotateCcw, CheckCircle2, Plus, CreditCard, Lock, Archive } from 'lucide-react';
@@ -29,6 +30,14 @@ interface Linha {
 }
 interface Opcao { value: string; label: string }
 interface OpcoesBar { categorias: Opcao[]; fornecedores: Opcao[]; contas: Opcao[] }
+
+// Colunas com filtro tipo Excel no cabeçalho (substitui o antigo dropdown "Todos os cartões").
+const CARTAO_SEM = '— sem —';
+const FILTER_COLS: FilterCol<Linha>[] = [
+  { id: 'cartao_final', get: (l) => (l.cartao_final ? `••${l.cartao_final}` : CARTAO_SEM) },
+  { id: 'titular_nome', get: (l) => l.titular_nome || CARTAO_SEM },
+  { id: 'categoria_nome', get: (l) => l.categoria_nome || '— sem categoria —' },
+];
 
 const fmtBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 const fmtDataBR = (iso: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || '—'); };
@@ -55,7 +64,6 @@ export function FaturaCartaoTab() {
   const [config, setConfig] = useState<Record<number, { fornecedorId: string; contaId: string }>>({});
 
   // Filtros dentro da fatura
-  const [fCartaoNum, setFCartaoNum] = useState('');
   const [fBusca, setFBusca] = useState('');
   const [soCompras, setSoCompras] = useState(true);
   const [esconderLancados, setEsconderLancados] = useState(false);
@@ -208,14 +216,14 @@ export function FaturaCartaoTab() {
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao reabrir', message: e?.message }); }
   };
 
-  const cartoesNoFiltro = useMemo(() => Array.from(new Set(linhas.map(l => l.cartao_final).filter(Boolean))) as string[], [linhas]);
-  const filtradas = useMemo(() => linhas.filter(l => {
+  // Base = filtros livres (só compras / esconder lançados / busca); os filtros de coluna operam sobre ela.
+  const base = useMemo(() => linhas.filter(l => {
     if (soCompras && l.tipo !== 'compra') return false;
     if (esconderLancados && l.status === 'lancado') return false;
-    if (fCartaoNum && l.cartao_final !== fCartaoNum) return false;
     if (fBusca && !l.descricao.toLowerCase().includes(fBusca.toLowerCase())) return false;
     return true;
-  }), [linhas, soCompras, esconderLancados, fCartaoNum, fBusca]);
+  }), [linhas, soCompras, esconderLancados, fBusca]);
+  const { setCol, colFilter, optionsByCol, view: filtradas, anyCol, clearAll } = useColumnFilters(base, FILTER_COLS);
   const totalCompras = useMemo(() => linhas.filter(l => l.tipo === 'compra').reduce((s, l) => s + l.valor, 0), [linhas]);
   const totalLancado = useMemo(() => linhas.filter(l => l.tipo === 'compra' && l.status === 'lancado').reduce((s, l) => s + l.valor, 0), [linhas]);
   const pendentes = useMemo(() => linhas.filter(l => l.tipo === 'compra' && l.status === 'novo').length, [linhas]);
@@ -299,17 +307,12 @@ export function FaturaCartaoTab() {
             )}
           </CardContent></Card>
 
-          {/* Filtros dentro da fatura */}
+          {/* Filtros dentro da fatura (cartão/titular/categoria agora filtram no cabeçalho da tabela) */}
           <div className="flex items-center gap-2 flex-wrap text-sm">
-            {cartoesNoFiltro.length > 1 && (
-              <select value={fCartaoNum} onChange={(e) => setFCartaoNum(e.target.value)} className="h-8 text-xs border rounded px-1.5 bg-background">
-                <option value="">Todos os cartões</option>
-                {cartoesNoFiltro.map(c => <option key={c} value={c}>final {c}</option>)}
-              </select>
-            )}
             <Input value={fBusca} onChange={(e) => setFBusca(e.target.value)} placeholder="Buscar estabelecimento…" className="h-8 w-48 text-xs" />
             <Button size="sm" variant={soCompras ? 'default' : 'ghost'} onClick={() => setSoCompras(s => !s)}>Só compras</Button>
             <Button size="sm" variant={esconderLancados ? 'default' : 'ghost'} onClick={() => setEsconderLancados(s => !s)}>Esconder lançados</Button>
+            {anyCol && <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={clearAll}>✕ limpar filtros de coluna</Button>}
             <span className="ml-auto text-xs text-muted-foreground">{filtradas.length} linhas · {pendentes} a lançar</span>
           </div>
 
@@ -325,11 +328,14 @@ export function FaturaCartaoTab() {
                   <tr>
                     <th className="text-left py-2 px-2">Data</th>
                     <th className="text-left px-2">Estabelecimento</th>
-                    <th className="text-left px-2">Titular</th>
-                    <th className="text-left px-2">Cartão</th>
+                    <ColumnFilterHeader label="Titular" options={optionsByCol.titular_nome || []}
+                      selected={colFilter.titular_nome || new Set()} onChange={(n) => setCol('titular_nome', n)} />
+                    <ColumnFilterHeader label="Cartão" options={optionsByCol.cartao_final || []}
+                      selected={colFilter.cartao_final || new Set()} onChange={(n) => setCol('cartao_final', n)} />
                     <th className="text-right px-2">Valor</th>
                     <th className="text-left px-2 w-32">Bar</th>
-                    <th className="text-left px-2 w-48">Categoria</th>
+                    <ColumnFilterHeader label="Categoria" className="w-48" options={optionsByCol.categoria_nome || []}
+                      selected={colFilter.categoria_nome || new Set()} onChange={(n) => setCol('categoria_nome', n)} />
                     <th className="text-right px-2">Ação</th>
                   </tr>
                 </thead>
