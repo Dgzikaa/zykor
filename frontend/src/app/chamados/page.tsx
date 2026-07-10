@@ -445,12 +445,14 @@ function ChamadosInner() {
 
       {novoOpen && <NovoChamadoModal onClose={() => setNovoOpen(false)} onCriado={(id) => { setNovoOpen(false); carregar(); abrirDetalhe(id); }} />}
 
-      {/* Lightbox — abre o print sobre a tela (só conferir), sem sair pra outra aba. Esc/clique fecha. */}
+      {/* Lightbox — abre o print sobre a tela (só conferir), sem sair pra outra aba. Esc/clique-fora fecha. */}
       {lightbox && (
-        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
-          <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 text-white/70 hover:text-white" aria-label="Fechar"><X className="w-7 h-7" /></button>
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4">
+          {/* fundo clicável = fecha (botão pra a11y); a imagem fica por cima, sem handler */}
+          <button type="button" aria-label="Fechar" onClick={() => setLightbox(null)} className="absolute inset-0 cursor-zoom-out" />
+          <button type="button" aria-label="Fechar" onClick={() => setLightbox(null)} className="absolute top-4 right-4 z-10 text-white/70 hover:text-white"><X className="w-7 h-7" /></button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lightbox} alt="anexo" onClick={(e) => e.stopPropagation()} className="max-h-[90vh] max-w-[92vw] object-contain rounded-lg shadow-2xl" />
+          <img src={lightbox} alt="anexo" className="relative z-10 max-h-[90vh] max-w-[92vw] object-contain rounded-lg shadow-2xl" />
         </div>
       )}
     </div>
