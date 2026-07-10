@@ -18,7 +18,7 @@ export function ChamadosButton() {
   const carregar = useCallback(async () => {
     try {
       const r = await api.get('/api/chamados?resumo=1');
-      if (r?.success) setNaoLidos(Number(r.nao_lidos) || 0);
+      if (r?.success) setNaoLidos(Number(r.data?.nao_lidos) || 0);
     } catch { /* silencioso */ }
   }, []);
 

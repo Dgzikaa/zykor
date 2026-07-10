@@ -84,18 +84,19 @@ function ChamadosInner() {
     setLoading(true);
     try {
       const r = await api.get('/api/chamados');
-      if (r?.success) { setChamados(r.chamados || []); setSuporte(!!r.suporte); }
+      if (r?.success) { setChamados(r.data?.chamados || []); setSuporte(!!r.data?.suporte); }
     } catch { toast.error('Erro ao carregar chamados'); }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { carregar(); }, [carregar]);
 
   const abrirDetalhe = useCallback(async (id: number) => {
+    if (!Number.isFinite(id)) return;
     setSelId(id); setLoadingDet(true);
     try {
       const r = await api.get(`/api/chamados/${id}`);
       if (r?.success) {
-        setDetalhe({ chamado: { ...r.chamado }, mensagens: r.mensagens || [] });
+        setDetalhe({ chamado: { ...r.data.chamado }, mensagens: r.data.mensagens || [] });
         setChamados((prev) => prev.map((c) => (c.id === id ? { ...c, nao_lido: false } : c)));
       } else toast.error(r?.error || 'Erro ao abrir chamado');
     } catch { toast.error('Erro ao abrir chamado'); }
@@ -337,7 +338,7 @@ function NovoChamadoModal({ onClose, onCriado }: { onClose: () => void; onCriado
     setSalvando(true);
     try {
       const r = await api.post('/api/chamados', { categoria, assunto: assunto.trim(), descricao: descricao.trim(), prioridade, rota: rota.trim() || undefined });
-      if (r?.success) { toast.success('Chamado aberto! 🎫'); onCriado(Number(r.id)); }
+      if (r?.success) { toast.success('Chamado aberto! 🎫'); onCriado(Number(r.data?.id)); }
       else toast.error(r?.error || 'Erro ao abrir chamado');
     } catch { toast.error('Erro ao abrir chamado'); }
     finally { setSalvando(false); }
