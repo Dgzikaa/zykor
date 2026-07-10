@@ -9,20 +9,22 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { DollarSign, Eye, MousePointerClick, Target, Percent, MessageCircle, ArrowUpDown } from 'lucide-react';
+import { DollarSign, Eye, MousePointerClick, Target, Percent, MessageCircle, ArrowUpDown, Repeat, TrendingUp, ShoppingCart, PlayCircle, UserPlus } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { PageShell } from '@/components/layout/PageShell';
 import { PeriodRangePicker } from '@/components/receitas/PeriodRangePicker';
 import { CardRoas } from '@/components/receitas/CardRoas';
-import { HeroRow, ChartCard, GraficoBarrasAgrupadasH, type Kpi } from '@/components/graficos/Charts';
+import { HeroRow, ChartCard, GraficoBarrasAgrupadasH, GraficoBarrasAgrupadas, type Kpi } from '@/components/graficos/Charts';
 import { periodoPadrao, type PeriodoValor } from '@/lib/receitas/periodo';
 
 const num = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR').format(n));
 const money = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }));
 const money2 = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }));
 const pct = (n: number | null | undefined) => (n == null ? '—' : `${n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`);
+const dec1 = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+const roasFmt = (n: number | null | undefined) => (n == null ? '—' : `${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`);
 const data = (iso: string | null | undefined) => {
   if (!iso) return null;
   const d = new Date(iso);
@@ -49,7 +51,7 @@ function StatusBadge({ status, ativo }: { status: string | null; ativo: boolean 
   );
 }
 
-type SortKey = 'investimento' | 'impressoes' | 'alcance' | 'cliques' | 'ctr' | 'cpm' | 'cpc' | 'conversas';
+type SortKey = 'investimento' | 'impressoes' | 'alcance' | 'cliques' | 'ctr' | 'cpm' | 'cpc' | 'conversas' | 'frequencia' | 'custo_conversa';
 
 const COLS: { key: SortKey; label: string; fmt: (n: any) => string }[] = [
   { key: 'investimento', label: 'Investido', fmt: money },
@@ -60,6 +62,8 @@ const COLS: { key: SortKey; label: string; fmt: (n: any) => string }[] = [
   { key: 'cpm', label: 'CPM', fmt: money2 },
   { key: 'cpc', label: 'CPC', fmt: money2 },
   { key: 'conversas', label: 'Conversas', fmt: num },
+  { key: 'custo_conversa', label: 'R$/conversa', fmt: money2 },
+  { key: 'frequencia', label: 'Freq.', fmt: dec1 },
 ];
 
 function useSorted<T extends Record<string, any>>(rows: T[], key: SortKey) {
@@ -103,15 +107,28 @@ export default function AnunciosPage() {
         { label: 'Conversas', valor: num(r.conversas), icon: MessageCircle },
       ]
     : [];
+  const kpisEfic: Kpi[] = r
+    ? [
+        { label: 'Frequência', valor: dec1(r.frequencia), icon: Repeat },
+        { label: 'ROAS de compra', valor: roasFmt(r.roas_compra), icon: TrendingUp },
+        { label: 'Custo/conversa', valor: money2(r.custo_conversa), icon: MessageCircle },
+        { label: 'Custo/venda', valor: money2(r.custo_venda), icon: ShoppingCart },
+        { label: 'Leads', valor: num(r.leads), icon: UserPlus },
+        { label: 'Vídeos assistidos', valor: num(r.thruplays), icon: PlayCircle },
+      ]
+    : [];
 
   const campanhas = useMemo<any[]>(() => dados?.campanhas ?? [], [dados]);
   const anuncios = useMemo<any[]>(() => dados?.anuncios ?? [], [dados]);
+  const posicionamento = useMemo<any[]>(() => dados?.posicionamento ?? [], [dados]);
+  const demografia = useMemo<any[]>(() => dados?.demografia ?? [], [dados]);
   const campanhasSort = useSorted(campanhas, sortCamp);
   const anunciosSort = useSorted(anuncios, sortAd);
   const topCamp = useMemo(
     () => [...campanhas].sort((a, b) => b.investimento - a.investimento).slice(0, 10).reverse(),
     [campanhas],
   );
+  const topPos = useMemo(() => [...posicionamento].slice(0, 8).reverse(), [posicionamento]);
 
   return (
     <PageShell width="wide">
@@ -147,6 +164,35 @@ export default function AnunciosPage() {
             </span>
           </div>
           <HeroRow kpis={kpis} cols={6} />
+          <HeroRow kpis={kpisEfic} cols={6} />
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {topPos.length > 0 && (
+              <ChartCard titulo="Onde o investimento rende" subtitulo="gasto por posicionamento (Stories/Feed/Reels × IG/FB)">
+                <GraficoBarrasAgrupadasH
+                  data={topPos}
+                  yKey="local"
+                  series={[{ key: 'investimento', nome: 'Investido', cor: '#6366f1' }]}
+                  formatV={money}
+                  height={300}
+                />
+              </ChartCard>
+            )}
+            {demografia.length > 0 && (
+              <ChartCard titulo="Público alcançado (pago)" subtitulo="impressões por faixa etária e gênero">
+                <GraficoBarrasAgrupadas
+                  data={demografia}
+                  xKey="faixa"
+                  series={[
+                    { key: 'feminino', nome: 'Feminino', cor: '#ec4899' },
+                    { key: 'masculino', nome: 'Masculino', cor: '#3b82f6' },
+                  ]}
+                  formatV={num}
+                  height={300}
+                />
+              </ChartCard>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <ChartCard titulo="Investimento por campanha" subtitulo="top 10 campanhas por gasto no período">

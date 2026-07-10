@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchMetaAdsInsights, fetchMetaAdsBreakdown, hasMetaAdsCredentials, getAdAccountId } from '@/lib/meta-ads/insights';
+import { fetchMetaAdsInsights, fetchMetaAdsBreakdown, fetchMetaAdsBreakdowns, hasMetaAdsCredentials, getAdAccountId } from '@/lib/meta-ads/insights';
 
 /**
  * Detalhamento de mídia PAGA por CAMPANHA e por ANÚNCIO (aba "Anúncios").
@@ -35,9 +35,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [resumo, detalhe] = await Promise.all([
+    const [resumo, detalhe, quebras] = await Promise.all([
       fetchMetaAdsInsights(barId, inicio, fim),
       fetchMetaAdsBreakdown(barId, inicio, fim),
+      fetchMetaAdsBreakdowns(barId, inicio, fim),
     ]);
 
     return NextResponse.json({
@@ -55,10 +56,19 @@ export async function GET(request: NextRequest) {
             cpm: resumo.cpm,
             ctr: resumo.ctr,
             cpc: resumo.cpc,
+            frequencia: resumo.frequencia,
+            roas_compra: resumo.roas_compra,
+            custo_conversa: resumo.custo_conversa,
+            custo_venda: resumo.custo_venda,
+            leads: resumo.leads,
+            compras: resumo.compras,
+            thruplays: resumo.thruplays,
           }
         : null,
       campanhas: detalhe?.campanhas ?? [],
       anuncios: detalhe?.anuncios ?? [],
+      posicionamento: quebras?.posicionamento ?? [],
+      demografia: quebras?.demografia ?? [],
     });
   } catch (e: any) {
     console.error('[receitas/anuncios] Marketing API falhou:', e?.message);
