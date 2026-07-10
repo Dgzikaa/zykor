@@ -65,6 +65,28 @@ function computarExecucao(insumos: any[]) {
   return { linhas, custoPlanejado, custoReal, aderenciaPct };
 }
 
+// Trava DURA anti-erro-de-preenchimento. Bloqueia SÓ o fisicamente impossível, com ~zero falso-positivo:
+// NÃO usa tamanho de lote como sinal (fazer 400 pastéis de uma ficha "por 1 un" é legítimo — dá 400×).
+// Erro de verdade é QUEBRA DE PROPORÇÃO por unidade trocada (kg×g), não lote grande. As heurísticas
+// fuzzy (peso em tonelada, FC estranho) ficam no watchdog diário — lá é revisão, não bloqueio.
+function checarMagnitudesAbsurdas(body: any): string[] {
+  const erros: string[] = [];
+  const pm = body.peso_mestre_real != null ? Number(body.peso_mestre_real) : null;
+  const pb = body.peso_bruto != null ? Number(body.peso_bruto) : null;
+  const rReal = body.rendimento_real != null ? Number(body.rendimento_real) : null;
+  const rEsp = body.rendimento_esperado != null ? Number(body.rendimento_esperado) : null;
+  // 1) peso limpo (mestre) > peso bruto → impossível (não sai mais limpo do que entrou bruto)
+  if (pm != null && pb != null && pm > 0 && pb > 0 && pm > pb * 1.02) {
+    erros.push('O peso limpo (mestre) ficou maior que o peso bruto — confira os dois campos.');
+  }
+  // 2) rendimento real ≥ 50× a meta → só acontece por unidade trocada (ex.: digitar em g num campo "un").
+  //    A meta já acompanha o tamanho do lote, então o rendimento nunca chega a 50× dela de verdade.
+  if (rReal != null && rEsp != null && rReal > 0 && rEsp > 0 && rReal / rEsp >= 50) {
+    erros.push(`O rendimento real está ${Math.round(rReal / rEsp)}× a meta — provável erro de unidade. Confira e tente de novo.`);
+  }
+  return erros;
+}
+
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
@@ -78,6 +100,8 @@ export async function POST(request: NextRequest) {
   }
 
   const insumos: any[] = Array.isArray(body.insumos) ? body.insumos : [];
+  const absurdos = checarMagnitudesAbsurdas(body);
+  if (absurdos.length) return NextResponse.json({ success: false, error: absurdos.join(' ') }, { status: 400 });
   const { linhas, custoPlanejado, custoReal, aderenciaPct } = computarExecucao(insumos);
   // chave de idempotência gerada no cliente (1 por instância de execução) — o unique index
   // (bar_id, idempotencia_key) faz duplo/triplo submit colidir no banco em vez de duplicar.
@@ -286,6 +310,9 @@ export async function PUT(request: NextRequest) {
   const execId = Number(body.execucao_id);
   const barId = Number(body.bar_id) || user.bar_id;
   if (!execId || !barId) return NextResponse.json({ success: false, error: 'execucao_id e bar_id obrigatórios' }, { status: 400 });
+
+  const absurdos = checarMagnitudesAbsurdas(body);
+  if (absurdos.length) return NextResponse.json({ success: false, error: absurdos.join(' ') }, { status: 400 });
 
   const supabase = await getAdminClient();
   // confirma que a execução é do bar (o antes/depois da edição fica no trigger de auditoria)

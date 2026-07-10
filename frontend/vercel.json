@@ -39,6 +39,10 @@
     {
       "path": "/api/financeiro/fechamento/cron-mensal",
       "schedule": "0 13 5 * *"
+    },
+    {
+      "path": "/api/operacional/producoes/watchdog",
+      "schedule": "0 13 * * *"
     }
   ],
   "functions": {

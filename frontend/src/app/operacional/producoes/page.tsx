@@ -1057,18 +1057,25 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {sel.loadingItens ? <tr><td colSpan={6} className="px-2 py-6 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
                   : linhas.length === 0 ? <tr><td colSpan={6} className="px-2 py-6 text-center text-gray-400">Ficha sem componentes.</td></tr>
-                  : linhas.map(l => (
+                  : linhas.map(l => {
+                    // Mestre é exibido na MESMA unidade amigável do campo de peso (kg/L) pra não
+                    // conflitar com o "(kg)" do input; os demais seguem a base do insumo (g/ml/un).
+                    const uFat = l.it.is_mestre ? (entrada.fator || 1) : 1;
+                    const uLbl = l.it.is_mestre ? (entrada.unidade || '') : (l.it.unidade_exib || '');
+                    return (
                     <tr key={l.it.id} className={l.it.is_mestre ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}>
                       <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">
                         {l.it.is_mestre && <span className="text-amber-500 mr-1" title="Insumo mestre">★</span>}
                         {l.it.nome_componente || l.it.componente_codigo || `#${l.it.id}`}
-                        <span className="text-xs text-gray-400 ml-1">{l.it.unidade_exib || ''}</span>
+                        <span className="text-xs text-gray-400 ml-1">{uLbl}</span>
                       </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtNum(l.qtdPlan, 3)}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(l.qtdCalc, 3)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtNum(l.qtdPlan / uFat, 3)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(l.qtdCalc / uFat, 3)}</td>
                       <td className="px-2 py-1.5 text-right">
-                        <Input type="text" inputMode="decimal" step="any" value={sel.qtdReal[l.it.id] ?? ''} onChange={e => patch(sel.localId, { qtdReal: { ...sel.qtdReal, [l.it.id]: e.target.value } })}
-                          placeholder={l.it.is_mestre ? fmtNum(l.qtdCalc, 3) : 'obrigatório'} className={`h-8 text-right text-sm ${errUsado(l) ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
+                        {l.it.is_mestre
+                          ? <span className="text-xs text-gray-400">via peso ↑</span>
+                          : <Input type="text" inputMode="decimal" step="any" value={sel.qtdReal[l.it.id] ?? ''} onChange={e => patch(sel.localId, { qtdReal: { ...sel.qtdReal, [l.it.id]: e.target.value } })}
+                              placeholder="obrigatório" className={`h-8 text-right text-sm ${errUsado(l) ? 'border-red-500 ring-1 ring-red-500' : ''}`} />}
                       </td>
                       <td className="px-2 py-1.5 text-right tabular-nums">
                         {l.desvio == null ? '—' : (
@@ -1079,7 +1086,8 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
                       </td>
                       <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtBRL(l.cReal)}</td>
                     </tr>
-                  ))}
+                  );
+                })}
                 </tbody>
               </table>
             </div>
@@ -2629,14 +2637,17 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
                     : itens.map((it: any) => {
                       const c = calcItem(it);
                       const err = tentou && usadoVazio(it);
+                      // mestre na mesma unidade amigável do campo de peso (kg/L); demais na base do insumo
+                      const uFat = it.is_mestre ? (ent.fator || 1) : 1;
+                      const uLbl = it.is_mestre ? (ent.unidade || '') : (it.unidade_exib || '');
                       return (
                         <tr key={it.id} className={it.is_mestre ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}>
                           <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">
                             {it.is_mestre && <span className="text-amber-500 mr-1" title="Insumo mestre (dirigido pelo peso)">★</span>}
                             {it.nome_componente || it.componente_codigo || `#${it.id}`}
-                            <span className="text-xs text-gray-400 ml-1">{it.unidade_exib || ''}</span>
+                            <span className="text-xs text-gray-400 ml-1">{uLbl}</span>
                           </td>
-                          <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtNum(c.qtdCalc, 3)}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtNum(c.qtdCalc / uFat, 3)}</td>
                           <td className="px-2 py-1.5 text-right">
                             {it.is_mestre
                               ? <span className="text-xs text-gray-400">via peso</span>
