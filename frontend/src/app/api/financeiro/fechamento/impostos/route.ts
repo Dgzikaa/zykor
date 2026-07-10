@@ -32,7 +32,11 @@ const CAT_NOME = ['IMPOSTO', 'Imposto']; // resolvido por nome (case/acento-inse
 const MES_LABEL = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 interface BaseImpostos { faturamento_nf: number; faturamento_stone: number; couvert: number; gorjeta: number; bebidas_frias: number; }
+interface BaseCnpj extends BaseImpostos { cnpj_indice: number | null; cnpj_label: string; cnpj_documento: string | null; origem_xml: boolean; }
 interface Tributo { sigla: string; nome: string; valor: number; vencimento: string; periodicidade: 'mensal' | 'trimestral'; }
+
+/** Chave do log por tributo. Com CNPJ (Ordinário/Deboche têm 2) fica "SIGLA#indice"; sem, só "SIGLA". */
+const chaveLog = (sigla: string, cnpjIndice: number | null) => cnpjIndice == null ? sigla : `${sigla}#${cnpjIndice}`;
 
 /** Vencimento dia 20 do mês seguinte à competência. */
 function venc20MesSeguinte(ano: number, mes: number): string {
@@ -67,31 +71,61 @@ export function calcularTributos(base: BaseImpostos, ano: number, mes: number): 
   return { faturamento, baseLucro, baseMonofasica, tributos };
 }
 
-async function getBase(barId: number, ano: number, mes: number): Promise<BaseImpostos> {
+/**
+ * Base POR CNPJ. Bares com CNPJs cadastrados (Ordinário=2, Deboche=2) vêm de
+ * fn_impostos_base_mensal_cnpj (faturamento/bebida fria do XML importado; couvert/gorjeta da chave;
+ * Stone por empresa). Bar sem CNPJ cadastrado cai no legado (1 base agregada, cnpj_indice=null).
+ */
+async function getBasesCnpj(barId: number, ano: number, mes: number): Promise<BaseCnpj[]> {
   const supabase = getLancadorAdmin();
-  const { data } = await (supabase as any).rpc('fn_impostos_base_mensal', { p_bar: barId, p_ano: ano, p_mes: mes });
-  const r = (data as any[])?.[0] || {};
-  return {
+  const { data } = await (supabase as any).rpc('fn_impostos_base_mensal_cnpj', { p_bar: barId, p_ano: ano, p_mes: mes });
+  const rows = (data as any[]) || [];
+  if (rows.length > 0) {
+    return rows.map((r) => ({
+      cnpj_indice: r.cnpj_indice ?? null, cnpj_label: r.cnpj_label || `CNPJ ${r.cnpj_indice}`, cnpj_documento: r.cnpj_documento ?? null,
+      faturamento_nf: Number(r.faturamento_nf || 0), faturamento_stone: Number(r.faturamento_stone || 0),
+      couvert: Number(r.couvert || 0), gorjeta: Number(r.gorjeta || 0), bebidas_frias: Number(r.bebidas_frias || 0),
+      origem_xml: !!r.origem_xml,
+    }));
+  }
+  // legado (bar sem CNPJ cadastrado): 1 base agregada
+  const { data: legacy } = await (supabase as any).rpc('fn_impostos_base_mensal', { p_bar: barId, p_ano: ano, p_mes: mes });
+  const r = (legacy as any[])?.[0] || {};
+  return [{
+    cnpj_indice: null, cnpj_label: `Bar ${barId}`, cnpj_documento: null, origem_xml: false,
     faturamento_nf: Number(r.faturamento_nf || 0), faturamento_stone: Number(r.faturamento_stone || 0),
     couvert: Number(r.couvert || 0), gorjeta: Number(r.gorjeta || 0), bebidas_frias: Number(r.bebidas_frias || 0),
-  };
+  }];
 }
 
-/** Executa (idempotente) os 5 impostos do mês. `chaves` (opcional) limita a tributos específicos (siglas). Sem auth — quem chama garante. */
+/**
+ * Executa (idempotente) os impostos do mês, UM CONJUNTO POR CNPJ (Ordinário/Deboche = 2 → até 10
+ * lançamentos no MESMO Conta Azul). `chaves` (opcional) limita: aceita "SIGLA" (todos os CNPJs)
+ * ou "SIGLA#indice" (um CNPJ). Idempotente por chave "SIGLA#indice" no log. Sem auth — quem chama garante.
+ */
 export async function executarImpostos(barId: number, ano: number, mes: number, criadoPor: string | null, chaves?: string[]): Promise<{ status: number; body: any }> {
   const supabase = getLancadorAdmin();
   const competencia = ultimoDiaMes(ano, mes);
-  const base = await getBase(barId, ano, mes);
-  const { tributos } = calcularTributos(base, ano, mes);
+  const bases = await getBasesCnpj(barId, ano, mes);
 
   const log = () => (supabase.schema('financial' as any) as any).from('lancamento_manual_ca_log');
   const { data: jaLogs } = await log().select('chave').eq('bar_id', barId).eq('tipo', TIPO).eq('competencia', competencia);
   const feitos = new Set(((jaLogs as any[]) || []).map((r) => r.chave));
 
   const filtro = chaves?.length ? new Set(chaves) : null;
-  const pendentes = tributos.filter((t) => t.valor >= 0.01 && !feitos.has(t.sigla) && (!filtro || filtro.has(t.sigla)));
+  type Pend = { base: BaseCnpj; t: Tributo; chave: string };
+  const pendentes: Pend[] = [];
+  for (const base of bases) {
+    const { tributos } = calcularTributos(base, ano, mes);
+    for (const t of tributos) {
+      const chave = chaveLog(t.sigla, base.cnpj_indice);
+      if (t.valor < 0.01 || feitos.has(chave)) continue;
+      if (filtro && !filtro.has(t.sigla) && !filtro.has(chave)) continue;
+      pendentes.push({ base, t, chave });
+    }
+  }
   if (pendentes.length === 0) {
-    return { status: 200, body: { bar_id: barId, ano, mes, competencia, skipped: true, motivo: feitos.size ? 'já lançado' : 'sem base no mês', tributos } };
+    return { status: 200, body: { bar_id: barId, ano, mes, competencia, skipped: true, motivo: feitos.size ? 'já lançado' : 'sem base no mês' } };
   }
 
   const tokenResult = await getCAToken(barId);
@@ -103,24 +137,25 @@ export async function executarImpostos(barId: number, ano: number, mes: number, 
   if (!conta) return { status: 400, body: { error: 'Nenhuma conta financeira ativa no Conta Azul' } };
 
   const resultados: any[] = [];
-  for (const t of pendentes) {
-    const descricao = `Imposto ${t.sigla} ${MES_LABEL[mes]}/${ano} (simulado)`;
+  for (const { base, t, chave } of pendentes) {
+    const suf = base.cnpj_indice != null ? ` [${base.cnpj_label}]` : '';
+    const descricao = `Imposto ${t.sigla}${suf} ${MES_LABEL[mes]}/${ano} (simulado)`;
     const r = await criarLancamentoCA({
       token, sinal: 'DESPESA', competencia, vencimento: t.vencimento, valor: t.valor,
-      descricao, observacao: `Imposto ${t.sigla} simulado (placeholder) ${MES_LABEL[mes]}/${ano} via Zykor`,
+      descricao, observacao: `Imposto ${t.sigla} simulado (placeholder)${suf} ${MES_LABEL[mes]}/${ano} via Zykor`,
       categoriaId: cat.id, contaId: conta.id,
     });
     if (r.ok) {
       await log().insert({
-        bar_id: barId, tipo: TIPO, competencia, chave: t.sigla, sinal: 'DESPESA', valor: t.valor,
+        bar_id: barId, tipo: TIPO, competencia, chave, sinal: 'DESPESA', valor: t.valor,
         descricao, categoria_id: cat.id, categoria_nome: cat.nome, conta_id: conta.id, data_vencimento: t.vencimento,
         ca_protocol_id: r.protocolId, ca_status: r.status, baixado: false, criado_por: criadoPor,
       });
     }
-    resultados.push({ sigla: t.sigla, valor: t.valor, vencimento: t.vencimento, ok: r.ok, erro: r.erro, protocolId: r.protocolId });
+    resultados.push({ sigla: t.sigla, chave, cnpj_indice: base.cnpj_indice, cnpj_label: base.cnpj_label, valor: t.valor, vencimento: t.vencimento, ok: r.ok, erro: r.erro, protocolId: r.protocolId });
   }
   const algumErro = resultados.some((r) => !r.ok);
-  return { status: algumErro ? 207 : 200, body: { bar_id: barId, ano, mes, competencia, ok: !algumErro, resultados, tributos } };
+  return { status: algumErro ? 207 : 200, body: { bar_id: barId, ano, mes, competencia, ok: !algumErro, resultados } };
 }
 
 /** GET: preview do mês — não escreve. */
@@ -135,18 +170,47 @@ export async function GET(request: NextRequest) {
   const alvo = (Number.isFinite(ano) && Number.isFinite(mes) && mes >= 1 && mes <= 12) ? { ano, mes } : mesAnteriorBRT();
   const competencia = ultimoDiaMes(alvo.ano, alvo.mes);
 
-  const base = await getBase(barId, alvo.ano, alvo.mes);
-  const calc = calcularTributos(base, alvo.ano, alvo.mes);
+  const bases = await getBasesCnpj(barId, alvo.ano, alvo.mes);
   const supabase = getLancadorAdmin();
   const { data: logs } = await (supabase.schema('financial' as any) as any)
     .from('lancamento_manual_ca_log').select('chave, valor').eq('bar_id', barId).eq('tipo', TIPO).eq('competencia', competencia);
   const feitos: Record<string, any> = {};
   for (const r of ((logs as any[]) || [])) feitos[r.chave] = r;
 
+  // um bloco por CNPJ (base + tributos com status de lançamento)
+  const cnpjs = bases.map((base) => {
+    const calc = calcularTributos(base, alvo.ano, alvo.mes);
+    return {
+      cnpj_indice: base.cnpj_indice, cnpj_label: base.cnpj_label, cnpj_documento: base.cnpj_documento, origem_xml: base.origem_xml,
+      base: { faturamento_nf: base.faturamento_nf, faturamento_stone: base.faturamento_stone, faturamento: calc.faturamento,
+              couvert: base.couvert, gorjeta: base.gorjeta, bebidas_frias: base.bebidas_frias, base_lucro: calc.baseLucro, base_monofasica: calc.baseMonofasica },
+      tributos: calc.tributos.map((t) => {
+        const chave = chaveLog(t.sigla, base.cnpj_indice);
+        return { ...t, chave, ja_lancado: chave in feitos, valor_lancado: feitos[chave]?.valor ?? null };
+      }),
+    };
+  });
+
+  // total agregado (soma dos CNPJs) — resumo/topo da tela
+  const somaBase = (k: keyof BaseImpostos | 'faturamento' | 'base_lucro' | 'base_monofasica') =>
+    round2(cnpjs.reduce((s, c) => s + Number((c.base as any)[k] || 0), 0));
+  const totalTributos = ['IRPJ', 'CSLL', 'ICMS', 'COFINS', 'PIS'].map((sig) => {
+    const linhas = cnpjs.flatMap((c) => c.tributos.filter((t) => t.sigla === sig));
+    const base0 = linhas[0];
+    return { sigla: sig, nome: base0?.nome || sig, periodicidade: base0?.periodicidade || 'mensal', vencimento: base0?.vencimento || '',
+             valor: round2(linhas.reduce((s, t) => s + Number(t.valor || 0), 0)),
+             ja_lancado: linhas.length > 0 && linhas.every((t) => t.ja_lancado) };
+  });
+
   return NextResponse.json({
     bar_id: barId, ano: alvo.ano, mes: alvo.mes, competencia,
-    base: { ...base, faturamento: calc.faturamento, base_lucro: calc.baseLucro, base_monofasica: calc.baseMonofasica },
-    tributos: calc.tributos.map((t) => ({ ...t, ja_lancado: t.sigla in feitos, valor_lancado: feitos[t.sigla]?.valor ?? null })),
+    origem_xml: cnpjs.some((c) => c.origem_xml),
+    por_cnpj: cnpjs,
+    // compat/resumo: base e tributos agregados (soma dos CNPJs)
+    base: { faturamento_nf: somaBase('faturamento_nf'), faturamento_stone: somaBase('faturamento_stone'), faturamento: somaBase('faturamento'),
+            couvert: somaBase('couvert'), gorjeta: somaBase('gorjeta'), bebidas_frias: somaBase('bebidas_frias'),
+            base_lucro: somaBase('base_lucro'), base_monofasica: somaBase('base_monofasica') },
+    tributos: totalTributos,
   });
 }
 

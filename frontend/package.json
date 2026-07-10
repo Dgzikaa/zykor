@@ -69,6 +69,7 @@
         "dotenv": "^17.2.2",
         "echarts": "^6.1.0",
         "echarts-for-react": "^3.0.6",
+        "fflate": "^0.8.2",
         "framer-motion": "^12.23.26",
         "google-auth-library": "^10.3.0",
         "googleapis": "^159.0.0",
