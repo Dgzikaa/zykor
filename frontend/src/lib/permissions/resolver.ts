@@ -256,16 +256,18 @@ export function userHasModule(stored: ModulosPermitidos, moduleId: string): bool
   return userCan(stored, moduleId, 'ver');
 }
 
-/** Usuário tem acesso a PELO MENOS UM dos módulos requeridos? */
+/**
+ * Usuário tem acesso a PELO MENOS UM dos módulos requeridos?
+ * Delega a `userCan(..., 'ver')` por módulo: além do token liso e dos generics, isso faz
+ * QUALQUER grant granular ('<modulo>:ver/editar/inserir/excluir') conceder o "ver" — sem isso
+ * quem só tem os granulares (ex.: `ferramentas financeiro_pedidos_de_pagamento:ver`) era barrado
+ * na porta da página mesmo tendo direito legítimo (guard de página caía em acesso_negado).
+ */
 export function userHasAnyModule(stored: ModulosPermitidos, moduleIds: string[]): boolean {
   if (!moduleIds || moduleIds.length === 0) return true;
   const userSet = expandUserPermissions(stored);
   if (userSet.has(TODOS)) return true;
-  return moduleIds.some(id => {
-    const accept = acceptingTokensFor(id);
-    for (const a of accept) if (userSet.has(a)) return true;
-    return false;
-  });
+  return moduleIds.some(id => userCan(stored, id, 'ver'));
 }
 
 /** Lista de ids canônicos válidos (para validação/testes). */
