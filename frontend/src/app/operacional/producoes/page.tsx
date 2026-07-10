@@ -1281,32 +1281,29 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, podeExclui
     return m;
   }, [planSemana, fichas, secaoAtiva]);
 
-  // Produções cuja soma produzida na semana passou da qtd planejada (>5%).
-  const prodAcimaPlano = useMemo(() => {
-    const acima = new Set<number>();
-    if (!planWeek) return acima;
-    const produzido = new Map<number, number>(); // producao_id → total produzido (na unidade do plano)
+  // Por produção da semana: planejado (decidido_qtd) vs produzido (convertido p/ unidade do plano)
+  // + se passou (>5%). Usado no selo/alerta pra mostrar os números (planejado→produzido).
+  const planoResumoPorProd = useMemo(() => {
+    const m = new Map<number, { planejado: number; produzido: number; unidade?: string; acima: boolean }>();
+    if (!planWeek) return m;
+    planoQtdPorProd.forEach((v, prodId) => m.set(prodId, { planejado: v.qtd, produzido: 0, unidade: v.unidade, acima: false }));
     execsSecao.forEach((e: any) => {
       if (e.rendimento_real == null) return;
       const d = isoLocal(e.criado_em);
       if (d < planWeek.ini || d > planWeek.fim) return;
-      const plano = planoQtdPorProd.get(Number(e.producao_id));
-      if (!plano) return;
-      const fator = fatorParaUnidadePlano(plano.unidade);
-      produzido.set(Number(e.producao_id), (produzido.get(Number(e.producao_id)) || 0) + Number(e.rendimento_real) * fator);
+      const r = m.get(Number(e.producao_id));
+      if (!r) return;
+      r.produzido += Number(e.rendimento_real) * fatorParaUnidadePlano(r.unidade);
     });
-    for (const [prodId, total] of produzido) {
-      const plano = planoQtdPorProd.get(prodId);
-      if (plano && plano.qtd > 0 && total > plano.qtd * TOL_ACIMA_PLANO) acima.add(prodId);
-    }
-    return acima;
+    m.forEach((r) => { r.acima = r.planejado > 0 && r.produzido > r.planejado * TOL_ACIMA_PLANO; });
+    return m;
   }, [planWeek, execsSecao, planoQtdPorProd]);
 
   const acimaDoPlano = useCallback((e: any) => {
     if (!planWeek || !e?.criado_em) return false;
     const d = isoLocal(e.criado_em);
-    return d >= planWeek.ini && d <= planWeek.fim && prodAcimaPlano.has(Number(e.producao_id));
-  }, [planWeek, prodAcimaPlano]);
+    return d >= planWeek.ini && d <= planWeek.fim && !!planoResumoPorProd.get(Number(e.producao_id))?.acima;
+  }, [planWeek, planoResumoPorProd]);
 
   // Resumo da Semana: cruza o plano encerrado da semana com as execuções da semana (só da seção ativa)
   const resumo = useMemo(() => {
@@ -1333,9 +1330,9 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, podeExclui
       tempoTotal,
       custoPlan, custoReal, desvioRendTotal,
       foraPlano: foraPlanoN,
-      acimaPlano: prodAcimaPlano.size,
+      acimaPlano: [...planoResumoPorProd.values()].filter(r => r.acima).length,
     };
-  }, [semanaSel, execsSecao, planProdIds, foraDoPlano, prodAcimaPlano]);
+  }, [semanaSel, execsSecao, planProdIds, foraDoPlano, planoResumoPorProd]);
 
   // busca por texto no histórico (nome/código) + filtro por 1 dia (data local = coluna "Data")
   const execsView = useMemo(() => {
@@ -1539,7 +1536,14 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, podeExclui
               : execsView.map(e => (
                 <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer" onClick={() => abrirDetalhe(e)}>
                   <td className="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{fmtData(e.criado_em)}</td>
-                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{e.producao_nome || `#${e.producao_id}`}<span className="block text-xs text-gray-400">{e.producao_codigo || ''}</span></td>
+                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{e.producao_nome || `#${e.producao_id}`}<span className="block text-xs text-gray-400">{e.producao_codigo || ''}</span>
+                    {(() => {
+                      const r = acimaDoPlano(e) ? planoResumoPorProd.get(Number(e.producao_id)) : null;
+                      if (!r) return null;
+                      const un = r.unidade ? ` ${r.unidade}` : '';
+                      return <span className="block text-[11px] text-sky-600 dark:text-sky-400 font-medium mt-0.5 whitespace-nowrap"><TrendingUp className="inline w-3 h-3 mr-0.5 -mt-0.5" />plano {fmtNum(r.planejado, 1)} → feito {fmtNum(r.produzido, 1)}{un}</span>;
+                    })()}
+                  </td>
                   <td className="px-3 py-2 text-gray-600 dark:text-gray-300">{e.responsavel_nome || '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{e.duracao_seg != null ? fmtTempo(e.duracao_seg) : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{fmtBRL(e.custo_planejado)} <span className="text-gray-400">/</span> <span className="font-medium">{fmtBRL(e.custo_real)}</span></td>
