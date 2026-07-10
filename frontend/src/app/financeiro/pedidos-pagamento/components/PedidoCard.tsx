@@ -23,12 +23,13 @@ const AGENDAVEL = ['aprovado', 'erro_ca', 'erro_inter'];
  * pra despachar o "de sempre" sem abrir o pedido. Clicar no corpo abre o detalhe.
  */
 export function PedidoCard({
-  pedido, podeAprovar, categorias, contas, fornecedores, onOpen, onChange, onSelecao,
+  pedido, podeAprovar, categorias, contas, contaPadrao, fornecedores, onOpen, onChange, onSelecao,
 }: {
   pedido: Pedido;
   podeAprovar: boolean;
   categorias: Opcao[];
   contas: Opcao[];
+  contaPadrao?: string; // conta pagadora padrão do bar (pré-seleção quando o pedido não tem conta)
   fornecedores: Opcao[];
   onOpen: (id: string) => void;
   onChange: () => void;
@@ -48,6 +49,10 @@ export function PedidoCard({
   const [fornId, setFornId] = useState(pedido.contaazul_pessoa_id || '');
   const [acao, setAcao] = useState<null | 'aprovar' | 'rejeitar' | 'agendar'>(null);
 
+  // Conta efetiva = a escolhida OU a padrão do bar. Assim o select já exibe a conta padrão
+  // selecionada (ex.: "Ordinário Inter (INTER)") em vez de só o placeholder "Padrão do bar".
+  const contaEfetiva = contaId || contaPadrao || '';
+
   const usouSugestao = useMemo(
     () => !!catSugerida && catId === pedido.categoria_sugerida_id,
     [catSugerida, catId, pedido.categoria_sugerida_id]
@@ -55,8 +60,8 @@ export function PedidoCard({
 
   // Reporta as seleções atuais pro pai (o "Aprovar todos" precisa saber o que já está pronto).
   useEffect(() => {
-    onSelecao?.(pedido.id, { catId, contaId, fornId });
-  }, [catId, contaId, fornId, pedido.id, onSelecao]);
+    onSelecao?.(pedido.id, { catId, contaId: contaEfetiva, fornId });
+  }, [catId, contaEfetiva, fornId, pedido.id, onSelecao]);
 
   const aprovar = async () => {
     if (!catId) return showToast({ type: 'error', title: 'Escolha a categoria' });
@@ -66,7 +71,7 @@ export function PedidoCard({
       await api.post(`/api/financeiro/pedidos-pagamento/${pedido.id}/aprovar`, {
         categoria_id: catId,
         categoria_nome: categorias.find(c => c.value === catId)?.label,
-        conta_financeira_id: contaId || undefined,
+        conta_financeira_id: contaEfetiva || undefined,
         contaazul_pessoa_id: fornId,
       });
       showToast({ type: 'success', title: 'Aprovado!', message: 'Foi pra aba Aprovado. Clique em "Agendar" pra disparar CA + Inter.' });
@@ -177,7 +182,7 @@ export function PedidoCard({
           </div>
           <div>
             <div className="mb-1 text-[11px] text-muted-foreground">Conta pagadora (CA/Inter)</div>
-            <SearchableSelect value={contaId} onValueChange={(v) => setContaId(v || '')}
+            <SearchableSelect value={contaEfetiva} onValueChange={(v) => setContaId(v || '')}
               placeholder="Padrão do bar" searchPlaceholder="Filtrar..." emptyMessage="Nenhuma" options={contas} />
           </div>
           <div>

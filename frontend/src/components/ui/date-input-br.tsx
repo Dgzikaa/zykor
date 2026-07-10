@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { CalendarDays } from 'lucide-react';
 import { Input } from './input';
 import { cn } from '@/lib/utils';
 
@@ -40,14 +41,17 @@ interface Props {
   value: string;                    // ISO (YYYY-MM-DD) ou ''
   onChange: (iso: string) => void;  // emite ISO ('' quando vazio/incompleto)
   min?: string;                     // ISO — data mínima (marca borda vermelha se abaixo)
+  max?: string;                     // ISO — data máxima (passada ao seletor nativo)
   id?: string;
   className?: string;
   placeholder?: string;
   disabled?: boolean;
+  calendar?: boolean;               // exibe botão de calendário (abre o seletor nativo do navegador)
 }
 
-export function DateInputBR({ value, onChange, min, id, className, placeholder = 'dd/mm/aaaa', disabled }: Props) {
+export function DateInputBR({ value, onChange, min, max, id, className, placeholder = 'dd/mm/aaaa', disabled, calendar }: Props) {
   const [txt, setTxt] = React.useState(isoToBr(value));
+  const nativeRef = React.useRef<HTMLInputElement>(null);
 
   // Sincroniza quando o valor externo muda (reset do form, edição, etc.).
   React.useEffect(() => { setTxt(isoToBr(value)); }, [value]);
@@ -62,7 +66,15 @@ export function DateInputBR({ value, onChange, min, id, className, placeholder =
 
   const abaixoDoMin = !!(value && min && value < min);
 
-  return (
+  // Abre o calendário nativo do navegador. showPicker() precisa de gesto do usuário e do
+  // elemento renderizado (por isso o input fica opacity-0/tamanho-zero, não display:none).
+  const abrirCalendario = () => {
+    const el = nativeRef.current as (HTMLInputElement & { showPicker?: () => void }) | null;
+    if (!el || disabled) return;
+    try { el.showPicker?.(); } catch { el.focus(); }
+  };
+
+  const campo = (
     <Input
       id={id}
       value={txt}
@@ -71,7 +83,38 @@ export function DateInputBR({ value, onChange, min, id, className, placeholder =
       placeholder={placeholder}
       maxLength={10}
       disabled={disabled}
-      className={cn(abaixoDoMin && 'border-red-500', className)}
+      className={cn(abaixoDoMin && 'border-red-500', calendar && 'pr-9', className)}
     />
+  );
+
+  if (!calendar) return campo;
+
+  return (
+    <div className="relative">
+      {campo}
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={abrirCalendario}
+        disabled={disabled}
+        aria-label="Abrir calendário"
+        className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+      >
+        <CalendarDays className="h-4 w-4" />
+      </button>
+      {/* Seletor nativo: só a fonte do calendário; o texto exibido é o input mascarado acima. */}
+      <input
+        ref={nativeRef}
+        type="date"
+        value={value || ''}
+        min={min}
+        max={max}
+        disabled={disabled}
+        tabIndex={-1}
+        aria-hidden
+        onChange={(e) => onChange(e.target.value)}
+        className="pointer-events-none absolute right-1 top-1/2 h-0 w-0 -translate-y-1/2 opacity-0"
+      />
+    </div>
   );
 }

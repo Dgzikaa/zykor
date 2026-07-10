@@ -61,8 +61,8 @@ export default function PedidosPagamentoPage() {
   const [modo, setModo] = useState<ModoPagamento>('pagamentos');
 
   // Opções do CA carregadas 1x (só p/ quem aprova) → aprovação inline no card.
-  const [opcoes, setOpcoes] = useState<{ categorias: Opcao[]; contas: Opcao[]; fornecedores: Opcao[] }>({
-    categorias: [], contas: [], fornecedores: [],
+  const [opcoes, setOpcoes] = useState<{ categorias: Opcao[]; contas: Opcao[]; fornecedores: Opcao[]; contaPadrao: string }>({
+    categorias: [], contas: [], fornecedores: [], contaPadrao: '',
   });
 
   useEffect(() => {
@@ -148,17 +148,21 @@ export default function PedidosPagamentoPage() {
     let vivo = true;
     const j = (p: Promise<Response>) => p.then(r => r.json()).catch(() => ({}));
     Promise.all([
-      j(fetch(`/api/financeiro/contaazul/categorias?bar_id=${barId}`)),
+      // Só DESPESA: aqui tudo é pagamento, categoria de receita não faz sentido.
+      j(fetch(`/api/financeiro/contaazul/categorias?bar_id=${barId}&tipo=DESPESA`)),
       j(fetch(`/api/financeiro/contaazul/contas-financeiras?bar_id=${barId}&somente_pagadoras=true`)),
       j(fetch(`/api/financeiro/contaazul/stakeholders?bar_id=${barId}&perfil=FORNECEDOR`)),
     ]).then(([cat, ct, fo]) => {
       if (!vivo) return;
+      const contasAtivas = (ct.contas_financeiras || []).filter((c: any) => c.ativo !== false);
+      const padrao = contasAtivas.find((c: any) => c.pagadora_padrao);
       setOpcoes({
         categorias: (cat.categorias || []).filter((c: any) => c.ativo !== false)
           .map((c: any) => ({ value: c.contaazul_id, label: c.nome || c.categoria_nome })),
-        contas: (ct.contas_financeiras || []).filter((c: any) => c.ativo !== false)
+        contas: contasAtivas
           .map((c: any) => ({ value: String(c.contaazul_id), label: c.banco ? `${c.nome} (${c.banco})` : c.nome })),
         fornecedores: (fo.pessoas || []).map((p: any) => ({ value: p.contaazul_id, label: p.nome, searchHint: p.documento || '' })),
+        contaPadrao: padrao ? String(padrao.contaazul_id) : '',
       });
     });
     return () => { vivo = false; };
@@ -343,6 +347,7 @@ export default function PedidosPagamentoPage() {
                       podeAprovar={podeAprovar}
                       categorias={opcoes.categorias}
                       contas={opcoes.contas}
+                      contaPadrao={opcoes.contaPadrao}
                       fornecedores={opcoes.fornecedores}
                       onOpen={setDetalheId}
                       onChange={carregar}

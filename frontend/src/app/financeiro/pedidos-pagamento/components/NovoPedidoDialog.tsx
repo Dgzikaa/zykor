@@ -220,7 +220,7 @@ export function NovoPedidoDialog({
           </div>
 
           {/* Destaque financeiro: Valor, Vencimento e Competência — o que mais importa pro financeiro */}
-          <div className="rounded-lg border-2 border-blue-500/25 bg-blue-500/[0.04] p-3 space-y-2.5">
+          <div className="rounded-lg border-2 border-blue-500/25 bg-blue-500/[0.04] p-3 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide">Dados financeiros</span>
               <label className="flex items-center gap-1.5 cursor-pointer text-xs text-muted-foreground">
@@ -228,27 +228,28 @@ export function NovoPedidoDialog({
                 Várias competências?
               </label>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <Label className="mb-1 block text-xs font-medium">Valor {multiComp ? 'total' : ''} <span className="text-red-500">*</span></Label>
-                {multiComp ? (
-                  <div className="h-12 flex items-center rounded-md border border-[hsl(var(--border))] bg-muted/40 px-3 text-lg font-bold">
-                    {formatBRL(totalComp)}
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold pointer-events-none">R$</span>
-                    <Input id="valor" value={valor} onChange={(e) => setValor(formatValorInput(e.target.value))}
-                      placeholder="0,00" inputMode="decimal" className="h-12 pl-9 text-lg font-bold" />
-                  </div>
-                )}
-              </div>
+            {/* Valor em linha própria e largura total — valores grandes (ex.: R$ 223.579,00) não cortam. */}
+            <div>
+              <Label className="mb-1 block text-xs font-medium">Valor {multiComp ? 'total' : ''} <span className="text-red-500">*</span></Label>
+              {multiComp ? (
+                <div className="h-12 flex items-center rounded-md border border-[hsl(var(--border))] bg-muted/40 px-3 text-xl font-bold">
+                  {formatBRL(totalComp)}
+                </div>
+              ) : (
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold pointer-events-none">R$</span>
+                  <Input id="valor" value={valor} onChange={(e) => setValor(formatValorInput(e.target.value))}
+                    placeholder="0,00" inputMode="decimal" className="h-12 pl-10 text-xl font-bold" />
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="venc" className="mb-1 flex items-center gap-1 text-xs font-medium">
                   Vencimento <span className="text-red-500">*</span>
                   <CampoInfo texto="Data em que deve ser pago" />
                 </Label>
-                <DateInputBR id="venc" value={vencimento} onChange={setVencimento} min={hoje} className="h-12 text-base font-semibold" />
+                <DateInputBR id="venc" value={vencimento} onChange={setVencimento} min={hoje} calendar className="h-12 text-base font-semibold" />
               </div>
               <div>
                 <Label htmlFor="comp" className="mb-1 flex items-center gap-1 text-xs font-medium">
@@ -258,7 +259,7 @@ export function NovoPedidoDialog({
                 {multiComp ? (
                   <div className="h-12 flex items-center rounded-md border border-dashed border-[hsl(var(--border))] px-3 text-xs text-muted-foreground">definida por linha ↓</div>
                 ) : (
-                  <DateInputBR id="comp" value={competencia} onChange={setCompetencia} className="h-12 text-base font-semibold" />
+                  <DateInputBR id="comp" value={competencia} onChange={setCompetencia} calendar className="h-12 text-base font-semibold" />
                 )}
               </div>
             </div>
@@ -307,7 +308,7 @@ export function NovoPedidoDialog({
                   <div key={i} className="flex items-end gap-2">
                     <div className="w-36 shrink-0">
                       {i === 0 && <Label className="mb-1 block text-[11px]">Competência</Label>}
-                      <DateInputBR value={c.data} onChange={(iso) => setComp(i, { data: iso })} />
+                      <DateInputBR value={c.data} onChange={(iso) => setComp(i, { data: iso })} calendar />
                     </div>
                     <div className="w-28 shrink-0">
                       {i === 0 && <Label className="mb-1 block text-[11px]">Valor</Label>}

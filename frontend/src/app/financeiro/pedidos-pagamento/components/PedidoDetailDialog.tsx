@@ -117,7 +117,7 @@ export function PedidoDetailDialog({
       // Cada fetch isolado: 1 falha (ex.: token CA expirado) NAO pode zerar as outras opcoes.
       const j = (p: Promise<Response>) => p.then(r => r.json()).catch(() => ({}));
       const [cat, cc, ct, fo] = await Promise.all([
-        j(fetch(`/api/financeiro/contaazul/categorias?bar_id=${opBar}`)),
+        j(fetch(`/api/financeiro/contaazul/categorias?bar_id=${opBar}&tipo=DESPESA`)),
         j(fetch(`/api/financeiro/contaazul/centros-custo?bar_id=${opBar}`)),
         j(fetch(`/api/financeiro/contaazul/contas-financeiras?bar_id=${opBar}&somente_pagadoras=true`)),
         j(fetch(`/api/financeiro/contaazul/stakeholders?bar_id=${opBar}&perfil=FORNECEDOR`)),

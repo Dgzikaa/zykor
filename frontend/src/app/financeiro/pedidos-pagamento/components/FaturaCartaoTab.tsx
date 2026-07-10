@@ -102,7 +102,7 @@ export function FaturaCartaoTab() {
   const carregarOpcoesBar = useCallback(async (barId: number) => {
     const j = (p: Promise<Response>) => p.then(r => r.json()).catch(() => ({}));
     const [cat, fo, ct] = await Promise.all([
-      j(fetch(`/api/financeiro/contaazul/categorias?bar_id=${barId}`)),
+      j(fetch(`/api/financeiro/contaazul/categorias?bar_id=${barId}&tipo=DESPESA`)),
       j(fetch(`/api/financeiro/contaazul/stakeholders?bar_id=${barId}&perfil=FORNECEDOR`)),
       j(fetch(`/api/financeiro/contaazul/contas-financeiras?bar_id=${barId}&somente_pagadoras=true`)),
     ]);
