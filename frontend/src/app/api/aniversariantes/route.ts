@@ -22,17 +22,27 @@ export async function GET(req: NextRequest) {
       .lte('proximo_aniver', fim)
       .order('proximo_aniver')
       .order('valor_total_consumo', { ascending: false, nullsFirst: false })
-      .limit(500);
+      .limit(2000);
 
     if (error) throw error;
 
     const lista = data ?? [];
     const hoje7 = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+    // Contagem por nível (pros cards clicáveis)
+    const por_nivel: Record<string, number> = {};
+    for (const a of lista) {
+      const n = a.nivel || 'sem_nivel';
+      por_nivel[n] = (por_nivel[n] || 0) + 1;
+    }
+
     const stats = {
       total: lista.length,
       esta_semana: lista.filter((a: any) => a.proximo_aniver <= hoje7).length,
       vips: lista.filter((a: any) => ['ouro', 'diamante'].includes(a.nivel)).length,
       gasto_total: lista.reduce((s: number, a: any) => s + Number(a.valor_total_consumo || 0), 0),
+      com_telefone: lista.filter((a: any) => a.cliente_fone_norm).length,
+      por_nivel,
     };
     return NextResponse.json({ aniversariantes: lista, stats });
   } catch (e: any) {

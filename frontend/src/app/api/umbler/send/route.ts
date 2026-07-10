@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { authenticateUser } from '@/middleware/auth';
+import { getUmblerToken } from '@/lib/umbler';
 
 const supabase = createServiceRoleClient();
 
@@ -50,7 +51,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await sendUmblerMessage(config, to_phone, message);
+    const token = await getUmblerToken(supabase);
+    const result = await sendUmblerMessage(config, to_phone, message, token);
 
     if (result.success) {
       await supabase
@@ -90,13 +92,15 @@ interface UmblerConfig {
 async function sendUmblerMessage(
   config: UmblerConfig,
   toPhone: string,
-  message: string
+  message: string,
+  token: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
     const response = await fetch('https://app-utalk.umbler.com/api/v1/messages/simplified/', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${config.api_token}`,
+        // Token da conta com fallback pro env — ver src/lib/umbler.ts
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({

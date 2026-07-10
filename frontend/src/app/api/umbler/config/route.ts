@@ -59,9 +59,11 @@ export async function POST(request: NextRequest) {
       rate_limit_per_minute
     } = body;
 
-    if (!bar_id || !organization_id || !channel_id || !phone_number || !api_token) {
+    // api_token NÃO é mais obrigatório aqui — o token é da CONTA (integrations.umbler_account),
+    // não do canal. Aqui só cadastramos o canal/número do bar.
+    if (!bar_id || !organization_id || !channel_id || !phone_number) {
       return NextResponse.json(
-        { error: 'Campos obrigatórios: bar_id, organization_id, channel_id, phone_number, api_token' },
+        { error: 'Campos obrigatórios: bar_id, organization_id, channel_id, phone_number' },
         { status: 400 }
       );
     }
@@ -74,7 +76,7 @@ export async function POST(request: NextRequest) {
         channel_id,
         channel_name,
         phone_number,
-        api_token,
+        api_token: api_token || '', // coluna NOT NULL; token real fica na conta
         webhook_secret,
         rate_limit_per_minute: rate_limit_per_minute || 60,
         ativo: true

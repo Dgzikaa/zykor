@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { getUmblerToken } from '@/lib/umbler';
 
 export const dynamic = 'force-dynamic';
 
@@ -154,7 +155,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { api_token, organization_id } = config;
+    // Token da conta com fallback pro env — ver src/lib/umbler.ts
+    const { organization_id } = config;
+    const api_token = await getUmblerToken(supabase);
 
     // 2. Se foi passado session_id, buscar detalhes dessa sessão
     if (sessionId) {
