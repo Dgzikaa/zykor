@@ -35,10 +35,15 @@ export function BoletoScanner({
         return;
       }
 
-      // Pede a câmera direto — prompt limpo + erro específico por tipo.
+      // Pede a câmera direto — prompt limpo + erro específico por tipo. Pede ALTA RESOLUÇÃO:
+      // o código de barras do boleto é ITF (barras finas) e não decodifica em vídeo baixo/borrado.
       let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        });
+        // Foco contínuo (quando o aparelho suporta) — ajuda a nitidez pro leitor pegar as barras.
+        try { await stream.getVideoTracks()[0]?.applyConstraints({ advanced: [{ focusMode: 'continuous' } as any] }); } catch { /* nem todo device suporta */ }
       } catch (e: any) {
         const nome = String(e?.name || '');
         setErro(
