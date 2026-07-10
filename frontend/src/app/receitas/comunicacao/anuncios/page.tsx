@@ -160,6 +160,8 @@ export default function AnunciosPage() {
   );
 }
 
+const PAGINA = 50;
+
 function TabelaMetrica({
   titulo,
   rows,
@@ -177,11 +179,18 @@ function TabelaMetrica({
   setSort: (k: SortKey) => void;
   comThumb?: boolean;
 }) {
+  const [visiveis, setVisiveis] = useState(PAGINA);
+  // ao reordenar/trocar período, volta pro topo da lista
+  useEffect(() => setVisiveis(PAGINA), [sortKey, rows]);
+  const mostrados = rows.slice(0, visiveis);
+
   return (
     <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
       <div className="flex items-center justify-between px-4 py-3">
         <h3 className="text-sm font-semibold text-[hsl(var(--foreground))]">{titulo}</h3>
-        <span className="text-xs text-[hsl(var(--muted-foreground))]">{rows.length} itens · clique no cabeçalho pra ordenar</span>
+        <span className="text-xs text-[hsl(var(--muted-foreground))]">
+          {rows.length > visiveis ? `${visiveis} de ${rows.length}` : `${rows.length} itens`} · clique no cabeçalho pra ordenar
+        </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-sm">
@@ -203,14 +212,14 @@ function TabelaMetrica({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
+            {mostrados.map((row, i) => (
               <tr key={row.ad_id || `${row[rotuloKey]}-${i}`} className="border-b border-[hsl(var(--border))] last:border-0 hover:bg-[hsl(var(--muted)/0.4)]">
                 <td className="px-4 py-2">
                   <div className="flex items-center gap-2">
                     {comThumb &&
                       (row.thumbnail ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={row.thumbnail} alt="" className="h-9 w-9 shrink-0 rounded-md border border-[hsl(var(--border))] object-cover" />
+                        <img src={row.thumbnail} alt="" loading="lazy" decoding="async" className="h-9 w-9 shrink-0 rounded-md border border-[hsl(var(--border))] object-cover" />
                       ) : (
                         <div className="h-9 w-9 shrink-0 rounded-md border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)]" />
                       ))}
@@ -230,6 +239,17 @@ function TabelaMetrica({
           </tbody>
         </table>
       </div>
+      {rows.length > visiveis && (
+        <div className="flex justify-center border-t border-[hsl(var(--border))] p-3">
+          <button
+            type="button"
+            onClick={() => setVisiveis((v) => v + PAGINA)}
+            className="rounded-lg border border-[hsl(var(--border))] px-4 py-1.5 text-sm font-medium text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/0.5)]"
+          >
+            Carregar mais {Math.min(PAGINA, rows.length - visiveis)}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

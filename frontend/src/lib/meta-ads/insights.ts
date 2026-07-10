@@ -167,30 +167,35 @@ async function fetchInsightsRows(
   return rows;
 }
 
-/** Busca thumbnails dos criativos por ad_id (batch de 50). Best-effort — nunca lança. */
+/** Busca thumbnails dos criativos por ad_id (batches de 50, EM PARALELO). Best-effort — nunca lança. */
 async function fetchThumbnails(account: string, token: string, adIds: string[]): Promise<Record<string, string>> {
-  const map: Record<string, string> = {};
-  for (let i = 0; i < adIds.length; i += 50) {
-    const chunk = adIds.slice(i, i + 50);
-    try {
-      const params = new URLSearchParams({
-        ids: chunk.join(','),
-        fields: 'creative.fields(thumbnail_url)',
-        access_token: token,
-      });
-      const res = await fetch(`${GRAPH_BASE}/?${params.toString()}`, { next: { revalidate: 3600 } });
-      const json = await res.json();
-      if (res.ok) {
+  const chunks: string[][] = [];
+  for (let i = 0; i < adIds.length; i += 50) chunks.push(adIds.slice(i, i + 50));
+
+  const results = await Promise.all(
+    chunks.map(async (chunk) => {
+      try {
+        const params = new URLSearchParams({
+          ids: chunk.join(','),
+          fields: 'creative.fields(thumbnail_url)',
+          access_token: token,
+        });
+        const res = await fetch(`${GRAPH_BASE}/?${params.toString()}`, { next: { revalidate: 3600 } });
+        if (!res.ok) return {};
+        const json = await res.json();
+        const partial: Record<string, string> = {};
         for (const id of chunk) {
           const thumb = json?.[id]?.creative?.thumbnail_url;
-          if (thumb) map[id] = thumb;
+          if (thumb) partial[id] = thumb;
         }
+        return partial;
+      } catch {
+        return {}; // thumbnail é opcional; segue sem
       }
-    } catch {
-      /* thumbnail é opcional; segue sem */
-    }
-  }
-  return map;
+    }),
+  );
+
+  return Object.assign({}, ...results);
 }
 
 function toCampanhaRow(r: any): CampanhaRow {
