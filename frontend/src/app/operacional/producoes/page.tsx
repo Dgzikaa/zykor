@@ -560,7 +560,10 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     const custoPlan = linhas.reduce((s, l) => s + l.cPlan, 0);
     const custoReal = linhas.reduce((s, l) => s + l.cReal, 0);
     const rendEsperado = Number(prod.ficha?.rendimento || 0) * proporcao;
-    return { mestre, mestreQtd, baseMestre, entrada, proporcao, linhas, custoPlan, custoReal, rendEsperado };
+    // Rendimento vai na unidade do PRODUTO (ficha.unidade) — NÃO na do insumo mestre.
+    // Ex.: mestre em grama (fator kg=1000), mas o produto rende em "un" (fator 1) → sem ×1000.
+    const entRend = entradaPeso(prod.ficha?.unidade || null, rendEsperado);
+    return { mestre, mestreQtd, baseMestre, entrada, entRend, proporcao, linhas, custoPlan, custoReal, rendEsperado };
   };
 
   const iniciar = (prod: ActiveProd) => {
@@ -644,11 +647,11 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
 
   // detecta valores prováveis de erro de unidade (ex.: digitou 1,2 como se fosse kg onde a meta é 1.020 g)
   const checarUnidades = (prod: ActiveProd) => {
-    const { mestre, mestreQtd, baseMestre, entrada, linhas, rendEsperado } = calc(prod);
+    const { mestre, mestreQtd, baseMestre, entrada, entRend, linhas, rendEsperado } = calc(prod);
     const FATOR = 50; // diferença de ~50x+ quase sempre é confusão de unidade (g×kg, ml×L), não variação real
     const off = (val: number, ref: number) => ref > 0 && val > 0 && (val / ref >= FATOR || ref / val >= FATOR);
     const sus: { campo: string; valor: number; unidade: string | null; esperado: number }[] = [];
-    const rreal = (pf(prod.rendimentoReal) || 0) * entrada.fator; // digitado na unidade de entrada (kg/L) → base
+    const rreal = (pf(prod.rendimentoReal) || 0) * entRend.fator; // digitado na unidade do produto (un/kg/L) → base
     if (rendEsperado > 0 && off(rreal, rendEsperado)) sus.push({ campo: 'Rendimento real', valor: rreal, unidade: prod.ficha.unidade, esperado: rendEsperado });
     // pm/pb são digitados na unidade de entrada (kg/L) → converte p/ base antes de comparar com a ficha (base)
     const pm = (pf(prod.pesoMestre) || 0) * entrada.fator;
@@ -702,7 +705,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
     // congela o cronômetro na duração real (âncora de relógio) antes de gravar
     const seg = elapsedOf(prod);
     patch(prod.localId, { rodando: false, segundos: seg, rodandoDesde: null });
-    const { linhas, rendEsperado, mestre, entrada } = calc(prod);
+    const { linhas, rendEsperado, mestre, entrada, entRend } = calc(prod);
     // retroativa: se lançou uma data passada, ancora fim ao meio-dia dela (o desvio usa inicio::date)
     const hoje = new Date().toISOString().slice(0, 10);
     const agora = (prod.dataProducao && prod.dataProducao !== hoje)
@@ -720,8 +723,8 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
       fim: agora.toISOString(),
       duracao_seg: seg,
       rendimento_esperado: rendEsperado || null,
-      // guarda SEMPRE na unidade-base (g/ml): o rendimento digitado (kg/L) × fator de entrada
-      rendimento_real: (pf(prod.rendimentoReal) * entrada.fator) || null,
+      // rendimento na unidade do PRODUTO (ficha.unidade): un→fator 1 (sem ×1000), kg/L→×1000 p/ base
+      rendimento_real: (pf(prod.rendimentoReal) * entRend.fator) || null,
       // guarda SEMPRE na unidade-base (g/ml): o valor digitado (kg/L) × fator de entrada
       peso_mestre_real: (pf(prod.pesoMestre) * entrada.fator) || null,
       peso_bruto: mestre?.insumo_fc ? ((pf(prod.pesoBruto) * entrada.fator) || null) : null,
@@ -925,7 +928,7 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
       {!sel ? (
         <Card className="card-dark"><CardContent className="py-16 text-center text-gray-400"><Timer className="w-10 h-10 mx-auto mb-2 opacity-40" />Adicione uma produção acima para iniciar. Você pode ter várias rodando ao mesmo tempo.</CardContent></Card>
       ) : (() => {
-        const { mestre, mestreQtd, baseMestre, entrada, proporcao, linhas, custoPlan, custoReal, rendEsperado } = calc(sel);
+        const { mestre, mestreQtd, baseMestre, entrada, entRend, proporcao, linhas, custoPlan, custoReal, rendEsperado } = calc(sel);
         const mestreFc = !!mestre?.insumo_fc;
         const pbNum = pf(sel.pesoBruto) || 0;
         const plNum = pf(sel.pesoMestre) || 0;
@@ -1008,10 +1011,10 @@ function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[]; resp
                 </div>
               )}
               <div>
-                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real{(entrada.unidade || sel.ficha.unidade) ? ` (${entrada.unidade || sel.ficha.unidade})` : ''} * {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado / entrada.fator, 3)} {entrada.unidade || sel.ficha.unidade || ''}</span>}</label>
+                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real{(entRend.unidade || sel.ficha.unidade) ? ` (${entRend.unidade || sel.ficha.unidade})` : ''} * {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado / entRend.fator, 3)} {entRend.unidade || sel.ficha.unidade || ''}</span>}</label>
                 <Input type="text" inputMode="decimal" step="any" disabled={!iniciada} value={sel.rendimentoReal} onChange={e => patch(sel.localId, { rendimentoReal: e.target.value })} placeholder="produzido…" className={`h-10 ${errRend ? 'border-red-500 ring-1 ring-red-500' : ''}`} />
                 {errRend && <p className="text-[11px] text-red-600 dark:text-red-400 mt-0.5">Obrigatório — informe o rendimento produzido.</p>}
-                <AvisoUnidade valorBase={(pf(sel.rendimentoReal) || 0) * entrada.fator} esperadoBase={rendEsperado} base={sel.ficha.unidade} />
+                <AvisoUnidade valorBase={(pf(sel.rendimentoReal) || 0) * entRend.fator} esperadoBase={rendEsperado} base={sel.ficha.unidade} />
               </div>
             </div>
 
@@ -2455,8 +2458,9 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
         const ent = entradaPeso(m?.unidade_exib || null, Number(m?.quantidade || 0));
         if (exec.peso_mestre_real != null) setPesoMestre(String(Number(exec.peso_mestre_real) / ent.fator));
         if (exec.peso_bruto != null) setPesoBruto(String(Number(exec.peso_bruto) / ent.fator));
-        // rendimento salvo (base g/ml) → unidade de entrada (kg/L), igual ao peso do mestre
-        if (exec.rendimento_real != null) setRendReal(String(Number(exec.rendimento_real) / ent.fator));
+        // rendimento salvo → unidade do PRODUTO (ficha.unidade): un→fator 1 (sem ÷1000), kg/L→÷1000
+        const fatRend = entradaPeso(ficha?.unidade || null, Number(exec.rendimento_esperado ?? exec.rendimento_real ?? 0)).fator;
+        if (exec.rendimento_real != null) setRendReal(String(Number(exec.rendimento_real) / fatRend));
         // prefill "Usado" de cada insumo não-mestre com o qtd_real salvo (casa por código, fallback nome)
         const salvos = rExec?.success ? (rExec.insumos || []) : [];
         const byCod = new Map<string, any>(); const byNome = new Map<string, any>();
@@ -2488,6 +2492,8 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
   const pesoMestreBase = (pf(pesoMestre) || 0) * ent.fator;
   const proporcao = (mestre && pesoMestreBase > 0 && mestreQtd > 0) ? pesoMestreBase / mestreQtd : 1;
   const rendEsperado = Number(ficha?.rendimento || 0) * proporcao;
+  // rendimento na unidade do PRODUTO (ficha.unidade), NÃO na do insumo mestre — un não vira kg
+  const entRend = entradaPeso(ficha?.unidade || null, rendEsperado);
 
   // quantidade calculada (proporção) e o "usado" (override manual, ou o calculado) por item
   const calcItem = (it: any) => {
@@ -2536,7 +2542,7 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
         execucao_id: exec.id, bar_id: barId, producao_id: exec.producao_id,
         responsavel_id: resp, responsavel_nome: respNome, duracao_seg: dur,
         rendimento_esperado: rendEsperado || null,
-        rendimento_real: (pf(rendReal) * ent.fator) || null,  // digitado em kg/L → base g/ml
+        rendimento_real: (pf(rendReal) * entRend.fator) || null,  // unidade do produto (un→×1, kg/L→×1000)
         peso_mestre_real: pesoMestreBase || null,
         peso_bruto: mestreFc ? ((pf(pesoBruto) || 0) * ent.fator || null) : null,
         observacao: obs.trim() || null,
@@ -2596,7 +2602,7 @@ function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSav
                 </div>
               )}
               <div>
-                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real{(ent.unidade || ficha?.unidade) ? ` (${ent.unidade || ficha?.unidade})` : ''} {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado / ent.fator, 2)} {ent.unidade || ficha?.unidade || ''}</span>}</label>
+                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><Package className="w-3.5 h-3.5" />Rendimento real{(entRend.unidade || ficha?.unidade) ? ` (${entRend.unidade || ficha?.unidade})` : ''} {rendEsperado > 0 && <span className="text-gray-400">· meta {fmtNum(rendEsperado / entRend.fator, 2)} {entRend.unidade || ficha?.unidade || ''}</span>}</label>
                 <Input type="text" inputMode="decimal" step="any" value={rendReal} onChange={e => setRendReal(e.target.value)} placeholder="produzido…" className="h-10" />
               </div>
             </div>
