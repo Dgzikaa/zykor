@@ -7,6 +7,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Check, X, Loader2, Sparkles, Paperclip, CalendarClock } from 'lucide-react';
+import { isoToBr } from '@/components/ui/date-input-br';
 import {
   TIPO_LABEL, STATUS_LABEL, STATUS_COLOR, formatBRL, type Pedido,
 } from '../types';
@@ -135,15 +136,25 @@ export function PedidoCard({
               <Badge className="bg-purple-500/15 text-purple-600 text-[10px] shrink-0">Copia e cola</Badge>
             )}
           </div>
-          <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
+          <div className="text-xs text-muted-foreground mt-0.5">
             <div className="truncate">
               Solicitante: <span className="text-foreground/80">{pedido.solicitante_nome || '—'}</span>
               {pedido.beneficiario_nome ? ` · recebe: ${pedido.beneficiario_nome}` : ''}
             </div>
-            <div className="truncate">
-              Criado por: <span className="text-foreground/80">{pedido.solicitante_nome || '—'}</span> · vence {pedido.data_vencimento}
-              {pedido.data_competencia ? ` · comp. ${pedido.data_competencia}` : ''}
-            </div>
+          </div>
+          {/* Vencimento e Competência em destaque — mesmo porte do valor */}
+          <div className="flex items-center gap-4 mt-1.5">
+            <span className="flex items-baseline gap-1.5">
+              <CalendarClock className="w-3.5 h-3.5 self-center text-muted-foreground shrink-0" />
+              <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Vence</span>
+              <span className="text-sm font-semibold text-foreground">{isoToBr(pedido.data_vencimento) || '—'}</span>
+            </span>
+            {pedido.data_competencia && (
+              <span className="flex items-baseline gap-1.5">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Comp.</span>
+                <span className="text-sm font-semibold text-foreground">{isoToBr(pedido.data_competencia)}</span>
+              </span>
+            )}
           </div>
         </button>
         <div className="text-right shrink-0">
