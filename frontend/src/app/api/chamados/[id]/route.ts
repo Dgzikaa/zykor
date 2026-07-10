@@ -80,3 +80,13 @@ export const PATCH = withAuth(async ({ user, request }, ctx) => {
 
   return success({ ok: true });
 });
+
+// DELETE — exclui o chamado (só suporte). Mensagens caem por CASCADE. Uso: limpar chamado de teste.
+export const DELETE = withAuth(async ({ user }, ctx) => {
+  if (!isSuporte(user.email)) return fail('Apenas o suporte pode excluir chamado', 403);
+  const { id } = await ctx!.params;
+  const supabase = await getAdminClient();
+  const { error } = await supabase.schema('system').from('chamados').delete().eq('id', id);
+  if (error) return fail(error.message, 500);
+  return success({ ok: true });
+});

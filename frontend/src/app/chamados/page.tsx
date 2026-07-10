@@ -14,7 +14,7 @@ import {
 } from '@/lib/chamados';
 import {
   Plus, Search, Send, Loader2, X, ArrowLeft, MessageSquare, Inbox, LifeBuoy, Building2,
-  Mic, Square, Paperclip,
+  Mic, Square, Paperclip, Trash2,
 } from 'lucide-react';
 
 type Anexo = { url: string; nome?: string; tipo?: string };
@@ -78,6 +78,8 @@ function ChamadosInner() {
   const [busca, setBusca] = useState('');
   const [novoOpen, setNovoOpen] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [confirmExcluir, setConfirmExcluir] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
   const [resposta, setResposta] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [anexos, setAnexos] = useState<Anexo[]>([]);
@@ -190,6 +192,20 @@ function ChamadosInner() {
       if (r?.success) { setDetalhe((d) => (d ? { ...d, chamado: { ...d.chamado, status } } : d)); carregar(); toast.success(`Marcado como ${statusLabel(status)}`); }
       else toast.error(r?.error || 'Erro ao alterar');
     } catch { toast.error('Erro ao alterar'); }
+  };
+  const excluirChamado = async () => {
+    if (!detalhe) return;
+    setExcluindo(true);
+    try {
+      const r = await api.delete(`/api/chamados/${detalhe.chamado.id}`);
+      if (r?.success) {
+        const delId = detalhe.chamado.id;
+        setConfirmExcluir(false); setSelId(null); setDetalhe(null);
+        setChamados((prev) => prev.filter((c) => c.id !== delId));
+        toast.success('Chamado excluído');
+      } else toast.error(r?.error || 'Erro ao excluir');
+    } catch { toast.error('Erro ao excluir'); }
+    finally { setExcluindo(false); }
   };
   const mudarPrioridade = async (prioridade: ChamadoPrioridade) => {
     if (!detalhe) return;
@@ -343,6 +359,12 @@ function ChamadosInner() {
                         <span>· aberto {fmtHora(detalhe.chamado.criado_em)}</span>
                       </div>
                     </div>
+                    {suporte && (
+                      <button onClick={() => setConfirmExcluir(true)} title="Excluir chamado" aria-label="Excluir chamado"
+                        className="shrink-0 p-1.5 -mr-1 text-gray-400 hover:text-red-600">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                   {/* controles do suporte */}
                   {suporte && (
@@ -444,6 +466,25 @@ function ChamadosInner() {
         </div>
 
       {novoOpen && <NovoChamadoModal onClose={() => setNovoOpen(false)} onCriado={(id) => { setNovoOpen(false); carregar(); abrirDetalhe(id); }} />}
+
+      {/* confirmação de exclusão (só suporte) */}
+      {confirmExcluir && detalhe && (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/40 p-4" onClick={() => !excluindo && setConfirmExcluir(false)}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2.5 font-semibold text-gray-900 dark:text-white">
+              <div className="w-9 h-9 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0"><Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" /></div>
+              Excluir chamado
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mt-3">Excluir <b>&quot;{detalhe.chamado.assunto}&quot;</b> e toda a conversa? Não dá pra desfazer.</p>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setConfirmExcluir(false)} disabled={excluindo}>Cancelar</Button>
+              <Button variant="destructive" onClick={excluirChamado} disabled={excluindo}>
+                {excluindo ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1.5" />}Excluir
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lightbox — abre o print sobre a tela (só conferir), sem sair pra outra aba. Esc/clique-fora fecha. */}
       {lightbox && (
