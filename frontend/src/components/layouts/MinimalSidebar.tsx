@@ -162,9 +162,16 @@ const SidebarMenuItem = memo(({ item, isActive, isExpanded, onToggle, badges }: 
         </button>
         {isExpanded && (
           <div className="ml-7 mt-1 space-y-1">
-            {item.subItems!.map((subItem) => {
+            {(() => {
+              // "match mais específico vence": entre os irmãos que casam com a rota, só o de
+              // href mais longo fica ativo. Evita que um pai (ex.: /receitas) acenda junto com
+              // o filho (/receitas/comunicacao), já que ambos casam por prefixo.
+              const activeSubHref = item.subItems!
+                .filter((s) => pathname === s.href || pathname.startsWith(s.href + '/'))
+                .reduce<string | null>((best, s) => (!best || s.href.length > best.length ? s.href : best), null);
+              return item.subItems!.map((subItem) => {
               const SubIcon = subItem.icon;
-              const isSubActive = pathname === subItem.href || pathname.startsWith(subItem.href + '/');
+              const isSubActive = subItem.href === activeSubHref;
               const subBadge = badges[subItem.href] || subItem.badge;
 
               return (
@@ -189,7 +196,8 @@ const SidebarMenuItem = memo(({ item, isActive, isExpanded, onToggle, badges }: 
                   )}
                 </Link>
               );
-            })}
+              });
+            })()}
           </div>
         )}
       </div>
@@ -277,7 +285,10 @@ export function MinimalSidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">
         {filteredItems.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith((item.href || '') + '/');
+          // Seção acende se a rota casa com o href DELA ou com o de algum sub-item.
+          // Guarda contra href vazio (''+'/' = '/' casaria com tudo).
+          const matchHref = (h?: string) => !!h && (pathname === h || pathname.startsWith(h + '/'));
+          const isActive = matchHref(item.href) || (item.subItems?.some((s) => matchHref(s.href)) ?? false);
           const isExpanded = expandedItems.has(item.label);
 
           return (
