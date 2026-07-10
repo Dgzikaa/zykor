@@ -36,8 +36,8 @@ export async function realizarPagamentoBoletoInter(
     const { cert, key } = mtlsCredentials || getInterCertificates();
 
     const codBarra = String(linhaDigitavel || '').replace(/\D/g, '');
-    if (codBarra.length < 44) {
-      return { success: false, error: 'Linha digitável/código de barras inválido' };
+    if (![44, 47, 48].includes(codBarra.length)) {
+      return { success: false, error: `Linha digitável/código de barras inválido: ${codBarra.length} dígitos (esperado 44, 47 ou 48)` };
     }
     if (!dataVencimento || !/^\d{4}-\d{2}-\d{2}$/.test(dataVencimento)) {
       return { success: false, error: 'Data de vencimento do boleto é obrigatória (YYYY-MM-DD)' };

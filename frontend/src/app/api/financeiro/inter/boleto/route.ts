@@ -36,8 +36,10 @@ export async function POST(request: NextRequest) {
     const { valor, linha_digitavel, descricao, destinatario, data_pagamento, data_vencimento, inter_credencial_id } = body;
 
     const codBarra = String(linha_digitavel || '').replace(/\D/g, '');
-    if (!codBarra || codBarra.length < 44) {
-      return NextResponse.json({ success: false, error: 'Linha digitável inválida' }, { status: 400 });
+    // válido: 44 (código de barras) ou 47 (linha digitável bancária) ou 48 (convênio/tributo).
+    // 45/46 = linha truncada (dígito faltando na captura) → o Inter recusa com "Boleto inválido".
+    if (![44, 47, 48].includes(codBarra.length)) {
+      return NextResponse.json({ success: false, error: `Código de barras/linha digitável inválido: ${codBarra.length} dígitos (esperado 44, 47 ou 48). Recapture o boleto.` }, { status: 400 });
     }
     // dataVencimento é obrigatória no Inter; se não vier, usa a data de pagamento (vencimento do pedido)
     const dataVencimento = (typeof data_vencimento === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data_vencimento))
