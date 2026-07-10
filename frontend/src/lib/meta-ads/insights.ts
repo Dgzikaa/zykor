@@ -128,6 +128,9 @@ export interface AnuncioRow extends CampanhaRow {
   anuncio: string;
   conjunto: string;
   thumbnail: string | null;
+  status: string | null; // effective_status (ACTIVE, PAUSED, ...)
+  ativo: boolean;
+  criado_em: string | null; // created_time ISO
 }
 
 function actionValue(actions: any[], type: string): number {
@@ -167,8 +170,14 @@ async function fetchInsightsRows(
   return rows;
 }
 
-/** Busca thumbnails dos criativos por ad_id (batches de 50, EM PARALELO). Best-effort — nunca lança. */
-async function fetchThumbnails(account: string, token: string, adIds: string[]): Promise<Record<string, string>> {
+interface AdMeta {
+  thumbnail: string | null;
+  status: string | null;
+  criado_em: string | null;
+}
+
+/** Busca thumbnail + status + data de criação por ad_id (batches de 50, EM PARALELO). Best-effort — nunca lança. */
+async function fetchAdMeta(account: string, token: string, adIds: string[]): Promise<Record<string, AdMeta>> {
   const chunks: string[][] = [];
   for (let i = 0; i < adIds.length; i += 50) chunks.push(adIds.slice(i, i + 50));
 
@@ -177,20 +186,26 @@ async function fetchThumbnails(account: string, token: string, adIds: string[]):
       try {
         const params = new URLSearchParams({
           ids: chunk.join(','),
-          fields: 'creative.fields(thumbnail_url)',
+          fields: 'effective_status,created_time,creative.fields(thumbnail_url)',
           access_token: token,
         });
         const res = await fetch(`${GRAPH_BASE}/?${params.toString()}`, { next: { revalidate: 3600 } });
         if (!res.ok) return {};
         const json = await res.json();
-        const partial: Record<string, string> = {};
+        const partial: Record<string, AdMeta> = {};
         for (const id of chunk) {
-          const thumb = json?.[id]?.creative?.thumbnail_url;
-          if (thumb) partial[id] = thumb;
+          const ad = json?.[id];
+          if (ad) {
+            partial[id] = {
+              thumbnail: ad.creative?.thumbnail_url || null,
+              status: ad.effective_status || null,
+              criado_em: ad.created_time || null,
+            };
+          }
         }
         return partial;
       } catch {
-        return {}; // thumbnail é opcional; segue sem
+        return {}; // metadados são opcionais; segue sem
       }
     }),
   );
@@ -230,7 +245,7 @@ export async function fetchMetaAdsBreakdown(
     fetchInsightsRows(account, token, 'ad', inicio, fim, 'ad_id,ad_name,adset_name,campaign_name'),
   ]);
 
-  const thumbs = await fetchThumbnails(
+  const metas = await fetchAdMeta(
     account,
     token,
     adRows.map((r) => String(r.ad_id)).filter(Boolean),
@@ -238,13 +253,19 @@ export async function fetchMetaAdsBreakdown(
 
   const campanhas = campRows.map(toCampanhaRow).sort((a, b) => b.investimento - a.investimento);
   const anuncios: AnuncioRow[] = adRows
-    .map((r) => ({
-      ...toCampanhaRow(r),
-      ad_id: String(r.ad_id),
-      anuncio: r.ad_name || '(sem nome)',
-      conjunto: r.adset_name || '',
-      thumbnail: thumbs[String(r.ad_id)] || null,
-    }))
+    .map((r) => {
+      const m = metas[String(r.ad_id)];
+      return {
+        ...toCampanhaRow(r),
+        ad_id: String(r.ad_id),
+        anuncio: r.ad_name || '(sem nome)',
+        conjunto: r.adset_name || '',
+        thumbnail: m?.thumbnail || null,
+        status: m?.status || null,
+        ativo: m?.status === 'ACTIVE',
+        criado_em: m?.criado_em || null,
+      };
+    })
     .sort((a, b) => b.investimento - a.investimento);
 
   return { campanhas, anuncios };

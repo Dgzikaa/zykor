@@ -23,6 +23,31 @@ const num = (n: number | null | undefined) => (n == null ? '—' : new Intl.Numb
 const money = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }));
 const money2 = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }));
 const pct = (n: number | null | undefined) => (n == null ? '—' : `${n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`);
+const data = (iso: string | null | undefined) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+};
+const STATUS_LABEL: Record<string, string> = {
+  ACTIVE: 'Ativo', PAUSED: 'Pausado', ADSET_PAUSED: 'Pausado (conj.)', CAMPAIGN_PAUSED: 'Pausado (camp.)',
+  ARCHIVED: 'Arquivado', DELETED: 'Excluído', DISAPPROVED: 'Reprovado', PENDING_REVIEW: 'Em revisão', WITH_ISSUES: 'Com problema',
+};
+
+function StatusBadge({ status, ativo }: { status: string | null; ativo: boolean }) {
+  if (!status) return null;
+  const label = STATUS_LABEL[status] || status;
+  return (
+    <span
+      title={status}
+      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+        ativo ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-[hsl(var(--muted)/0.6)] text-[hsl(var(--muted-foreground))]'
+      }`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${ativo ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+      {label}
+    </span>
+  );
+}
 
 type SortKey = 'investimento' | 'impressoes' | 'alcance' | 'cliques' | 'ctr' | 'cpm' | 'cpc' | 'conversas';
 
@@ -224,8 +249,16 @@ function TabelaMetrica({
                         <div className="h-9 w-9 shrink-0 rounded-md border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)]" />
                       ))}
                     <div className="min-w-0">
-                      <div className="truncate font-medium text-[hsl(var(--foreground))]" title={row[rotuloKey]}>{row[rotuloKey]}</div>
-                      {comThumb && row.conjunto && <div className="truncate text-xs text-[hsl(var(--muted-foreground))]" title={row.campanha}>{row.campanha}</div>}
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-medium text-[hsl(var(--foreground))]" title={row[rotuloKey]}>{row[rotuloKey]}</span>
+                        {comThumb && <StatusBadge status={row.status} ativo={row.ativo} />}
+                      </div>
+                      {comThumb && (row.campanha || row.criado_em) && (
+                        <div className="truncate text-xs text-[hsl(var(--muted-foreground))]" title={row.campanha}>
+                          {row.campanha}
+                          {data(row.criado_em) && <span> · criado {data(row.criado_em)}</span>}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </td>
