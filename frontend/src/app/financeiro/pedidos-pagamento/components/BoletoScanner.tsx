@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, X, ScanLine } from 'lucide-react';
+import { Loader2, X, ScanLine, Camera } from 'lucide-react';
 import { decodificarBoleto, type BoletoDecodificado } from '../boletoBarcode';
 
 /**
@@ -12,9 +12,10 @@ import { decodificarBoleto, type BoletoDecodificado } from '../boletoBarcode';
  * leitura suja é descartada e ele segue tentando.
  */
 export function BoletoScanner({
-  onDetect, onClose,
+  onDetect, onFoto, onClose,
 }: {
   onDetect: (dados: BoletoDecodificado) => void;
+  onFoto: (file: File) => void;   // fallback: captura o frame e manda pro leitor por IA
   onClose: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -69,7 +70,11 @@ export function BoletoScanner({
 
         const hints = new Map<number, unknown>();
         hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.ITF]);
-        const reader = new BrowserMultiFormatReader(hints as any);
+        // TRY_HARDER = o ZXing gasta mais esforço por frame procurando o código (bem mais
+        // taxa de leitura pro ITF do boleto, que é a parte difícil no vídeo ao vivo).
+        hints.set(DecodeHintType.TRY_HARDER, true);
+        // decodifica mais frames por segundo (menos espera entre tentativas)
+        const reader = new BrowserMultiFormatReader(hints as any, { delayBetweenScanAttempts: 120 } as any);
 
         setStatus('Aponte a câmera pro código de barras do boleto');
         const controls = await reader.decodeFromStream(
@@ -99,6 +104,23 @@ export function BoletoScanner({
     };
   }, [onDetect]);
 
+  // Fallback robusto: captura o frame atual da câmera e manda pro leitor por IA (Claude),
+  // que lê valor/vencimento/linha digitável mesmo quando o código de barras não decodifica.
+  const tirarFoto = () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      try { controlsRef.current?.stop(); } catch { /* ok */ }
+      try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch { /* ok */ }
+      onFoto(new File([blob], 'boleto.jpg', { type: 'image/jpeg' }));
+    }, 'image/jpeg', 0.92);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-md w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
@@ -113,16 +135,23 @@ export function BoletoScanner({
             <Button variant="outline" size="sm" onClick={onClose}>Fechar e preencher manual</Button>
           </div>
         ) : (
-          <div className="relative bg-black">
-            <video ref={videoRef} className="w-full aspect-[4/3] object-cover" playsInline muted autoPlay />
-            {/* Guia visual — enquadre o código de barras nesta faixa */}
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="w-[85%] h-16 border-2 border-blue-400/80 rounded-md shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+          <>
+            <div className="relative bg-black">
+              <video ref={videoRef} className="w-full aspect-[4/3] object-cover" playsInline muted autoPlay />
+              {/* Guia visual — enquadre o código de barras nesta faixa */}
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="w-[85%] h-16 border-2 border-blue-400/80 rounded-md shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+              </div>
+              <div className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-xs text-center py-1.5 flex items-center justify-center gap-1.5">
+                <Loader2 className="w-3 h-3 animate-spin" />{status}
+              </div>
             </div>
-            <div className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-xs text-center py-1.5 flex items-center justify-center gap-1.5">
-              <Loader2 className="w-3 h-3 animate-spin" />{status}
+            {/* Fallback: se o código não decodificar, tira uma foto e a IA lê */}
+            <div className="p-2.5 flex items-center justify-center gap-2 border-t border-gray-100 dark:border-gray-800">
+              <span className="text-xs text-muted-foreground">Não leu na câmera?</span>
+              <Button size="sm" variant="outline" onClick={tirarFoto}><Camera className="w-4 h-4 mr-1.5" />Tirar foto (ler com IA)</Button>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>

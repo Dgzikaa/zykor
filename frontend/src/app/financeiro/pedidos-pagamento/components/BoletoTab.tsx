@@ -183,7 +183,7 @@ export function BoletoTab({
         </div>
       </div>
 
-      {scannerOpen && <BoletoScanner onDetect={onScan} onClose={() => setScannerOpen(false)} />}
+      {scannerOpen && <BoletoScanner onDetect={onScan} onFoto={(f) => { setScannerOpen(false); ler(f); }} onClose={() => setScannerOpen(false)} />}
 
       {/* Revisão dos dados */}
       {d && (
