@@ -529,8 +529,10 @@ export async function getOrcamentacaoCompleta(
       });
       // Surfacing automático: toda categoria_zykor mapeada a ESTE bloco (de-para) que não
       // está em nenhuma sub hardcoded vira uma linha aqui. Faz a aba Categorias refletir
-      // na Orçamentação sem editar a ESTRUTURA. Só blocos de despesa fixa.
-      if (bloco.tipo === 'despesa') {
+      // na Orçamentação sem editar a ESTRUTURA. Vale pra TODO bloco fixo — despesa E receita
+      // (Não Operacionais): antes só rodava em despesa, então categoria mapeada p/ Não
+      // Operacionais sumia silenciosamente. montarSub respeita bloco.tipo (receita soma).
+      {
         const cobertas = new Set<string>();
         bloco.subs.forEach(s => {
           const arr = s.filhos?.length ? s.filhos.flatMap(f => f.gold || []) : (s.gold || []);
