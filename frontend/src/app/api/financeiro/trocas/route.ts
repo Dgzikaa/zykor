@@ -40,6 +40,20 @@ export async function GET(request: NextRequest) {
     sentido: t.bar_origem === user.bar_id ? 'enviou' : 'recebeu',
   }));
 
+  // Resolve o NOME do insumo pra mostrar na coluna "Itens" (a tabela só guarda o código).
+  // Código i0XXX é reusado entre bares → resolve pelo catálogo do bar de ORIGEM (quem enviou).
+  const paresBarCod = new Set<string>();
+  for (const t of trocas) for (const it of (t.troca_itens || [])) if (it.insumo_codigo) paresBarCod.add(`${t.bar_origem}:${it.insumo_codigo}`);
+  if (paresBarCod.size) {
+    const bares = Array.from(new Set(trocas.map((t: any) => t.bar_origem)));
+    const cods = Array.from(new Set(trocas.flatMap((t: any) => (t.troca_itens || []).map((i: any) => i.insumo_codigo).filter(Boolean))));
+    const { data: cat } = await (sb() as any).schema('silver').from('insumo_catalogo')
+      .select('bar_id,codigo,nome').in('bar_id', bares).in('codigo', cods);
+    const nomePorBarCod = new Map<string, string>();
+    for (const c of (cat || [])) nomePorBarCod.set(`${c.bar_id}:${c.codigo}`, c.nome);
+    for (const t of trocas) for (const it of (t.troca_itens || [])) it.nome = nomePorBarCod.get(`${t.bar_origem}:${it.insumo_codigo}`) || null;
+  }
+
   // Status REAL do PIX (fonte: financial.pix_enviados, mantido pelo webhook do Inter).
   const refs = trocas.map((t: any) => `troca:${t.id}`);
   if (refs.length) {

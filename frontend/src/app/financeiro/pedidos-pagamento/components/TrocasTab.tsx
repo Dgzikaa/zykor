@@ -9,7 +9,7 @@ import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { DateInputBR } from '@/components/ui/date-input-br';
-import { ArrowRightLeft, Search, Trash2, Loader2, Plus } from 'lucide-react';
+import { ArrowRightLeft, ArrowRight, Search, Trash2, Loader2, Plus } from 'lucide-react';
 
 type Insumo = { id: number; codigo: string; nome: string; categoria?: string | null; preco_atual: number | null };
 type Item = { codigo: string; nome: string; quantidade: number; custo_unitario: number };
@@ -39,6 +39,7 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
   const [caPreview, setCaPreview] = useState<{ id: string; competencia: string; plano: any[]; pix?: any } | null>(null);
   const [caLoading, setCaLoading] = useState<string | null>(null);
   const [caLancando, setCaLancando] = useState(false);
+  const [excluindo, setExcluindo] = useState<string | null>(null);
 
   // preview (dry-run) dos lançamentos no CA — mostra as pernas SEM postar nada
   const abrirPreviewCA = async (trocaId: string) => {
@@ -112,6 +113,20 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
     } catch (e: any) {
       toast({ title: 'Erro ao registrar troca', description: e?.message || 'Falha ao registrar', variant: 'destructive' });
     } finally { setSalvando(false); }
+  };
+
+  // excluir/reprovar troca (ex.: registro de teste). Reverte o desvio dos dois bares na hora.
+  const excluirTroca = async (t: any) => {
+    if (!window.confirm(`Excluir esta troca de ${fmtBRL(t.valor)}? O desvio dos dois bares volta ao normal. Não dá pra desfazer.`)) return;
+    setExcluindo(t.id);
+    try {
+      const r = await api.delete(`/api/financeiro/trocas/${t.id}`);
+      if (!r.success) throw new Error(r.error);
+      toast({ title: 'Troca excluída', description: 'O desvio dos dois bares foi revertido.' });
+      carregarTrocas(); onLancado?.();
+    } catch (e: any) {
+      toast({ title: 'Erro ao excluir', description: e?.message || 'Falha', variant: 'destructive' });
+    } finally { setExcluindo(null); }
   };
 
   const nomeBar = (id: number) => availableBars.find((b) => b.id === id)?.nome || `Bar ${id}`;
@@ -219,23 +234,27 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 text-xs uppercase">
                   <tr>
                     <th className="text-left font-medium px-3 py-2">Data</th>
-                    <th className="text-left font-medium px-3 py-2">Sentido</th>
-                    <th className="text-left font-medium px-3 py-2">Contraparte</th>
+                    <th className="text-left font-medium px-3 py-2">De <span className="text-red-500">→</span> Para</th>
                     <th className="text-left font-medium px-3 py-2">Itens</th>
                     <th className="text-right font-medium px-3 py-2">Valor</th>
                     <th className="text-right font-medium px-3 py-2">Conta Azul</th>
+                    <th className="w-8" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {trocas.map((t) => {
-                    const enviou = t.sentido === 'enviou';
-                    const contraparte = enviou ? t.bar_destino : t.bar_origem;
                     return (
                       <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                         <td className="px-3 py-2 whitespace-nowrap">{fmtData(t.data_competencia)}</td>
-                        <td className="px-3 py-2"><Badge variant="outline" className={enviou ? 'text-amber-700 border-amber-300' : 'text-emerald-700 border-emerald-300'}>{enviou ? '↑ enviou' : '↓ recebeu'}</Badge></td>
-                        <td className="px-3 py-2">{nomeBar(contraparte)}</td>
-                        <td className="px-3 py-2 text-gray-500 text-xs">{(t.troca_itens || []).map((i: any) => `${i.insumo_codigo}×${fmtQtd(i.quantidade)}`).join(', ')}</td>
+                        {/* Fluxo absoluto (não relativo ao bar): sai de → entra em. Vermelho=saiu, verde=entrou. */}
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-1.5 whitespace-nowrap">
+                            <span className="text-red-600 dark:text-red-400 font-medium" title="De onde saiu">{nomeBar(t.bar_origem)}</span>
+                            <ArrowRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium" title="Para onde foi">{nomeBar(t.bar_destino)}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-gray-500 text-xs">{(t.troca_itens || []).map((i: any) => `${i.nome || i.insumo_codigo}×${fmtQtd(i.quantidade)}`).join(', ')}</td>
                         <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtBRL(t.valor)}</td>
                         <td className="px-3 py-2 text-right">
                           {(() => {
@@ -269,6 +288,15 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                               </div>
                             );
                           })()}
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          {t.status !== 'ca_lancado' && (
+                            <button onClick={() => excluirTroca(t)} disabled={excluindo === t.id}
+                              title="Excluir troca (reverte o desvio dos dois bares)"
+                              className="text-gray-400 hover:text-red-600 disabled:opacity-50">
+                              {excluindo === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
