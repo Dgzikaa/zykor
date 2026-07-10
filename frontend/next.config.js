@@ -95,10 +95,10 @@ const nextConfig = {
           },
           {
             // Bloqueia APIs sensíveis do browser. `camera=(self)` libera a câmera SÓ pro
-            // próprio site (scanner de boleto) — sem isso o getUserMedia é bloqueado sem
-            // nem pedir permissão. Microfone/geolocalização seguem bloqueados (não usados).
+            // próprio site (scanner de boleto); `microphone=(self)` idem (áudio→texto nos
+            // Chamados). Sem isso o getUserMedia é bloqueado sem nem pedir permissão.
             key: 'Permissions-Policy',
-            value: 'camera=(self), microphone=(), geolocation=(), interest-cohort=()',
+            value: 'camera=(self), microphone=(self), geolocation=(), interest-cohort=()',
           },
           {
             key: 'Content-Security-Policy',
