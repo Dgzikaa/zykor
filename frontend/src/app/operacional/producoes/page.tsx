@@ -13,7 +13,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
 import {
   Timer, Play, Pause, RotateCcw, Save, Search, Plus, Trash2, User,
-  Loader2, History, Package, Clock, TrendingDown, DollarSign, X, Scale, AlertTriangle, CalendarCheck,
+  Loader2, History, Package, Clock, TrendingDown, TrendingUp, DollarSign, X, Scale, AlertTriangle, CalendarCheck,
   CalendarDays, CheckCircle2, Gauge, ListChecks, Users, Pencil, UtensilsCrossed,
 } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
@@ -1200,6 +1200,7 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, podeExclui
   const [semanaSel, setSemanaSel] = useState<string | null>(null);
   const [diaSel, setDiaSel] = useState<string>(''); // filtro por 1 dia (YYYY-MM-DD); '' = todos
   const [soFora, setSoFora] = useState(false); // mostrar só execuções fora do plano
+  const [soAcimaPlano, setSoAcimaPlano] = useState(false); // mostrar só produções que passaram da QTD planejada
   const [rendFiltro, setRendFiltro] = useState<'todos' | 'abaixo' | 'dentro' | 'acima'>('todos'); // filtro por rendimento real vs esperado (±5%)
   const [planSemana, setPlanSemana] = useState<any | null>(null);
 
@@ -1258,6 +1259,55 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, podeExclui
     return d >= planWeek.ini && d <= planWeek.fim && !planProdIds.has(Number(e.producao_id));
   }, [planWeek, planProdIds]);
 
+  // ── "Acima do plano": produziu MAIS que a quantidade planejada na semana ──
+  // GOTCHA de unidade: pra kg/L o rendimento_real é gravado em g/ml (×1000), enquanto o
+  // plano (decidido_qtd) está em kg/L. un/porção/g/ml batem direto. Converte o produzido
+  // pra unidade do plano antes de comparar. Tolerância de 5% (evita ruído de arredondamento).
+  const TOL_ACIMA_PLANO = 1.05;
+  const fatorParaUnidadePlano = (unidade?: string) =>
+    /^(kg|l)$/i.test(String(unidade || '').trim()) ? 0.001 : 1; // g→kg, ml→L
+
+  // Total planejado (decidido_qtd somado na semana) + unidade, por produção da seção ativa.
+  const planoQtdPorProd = useMemo(() => {
+    const m = new Map<number, { qtd: number; unidade?: string }>();
+    (planSemana?.itens || []).forEach((it: any) => {
+      const f = fichas.find(x => x.id === it.producao_id);
+      if (!(f && secaoDeCodigo(f.codigo) === secaoAtiva)) return;
+      const cur = m.get(Number(it.producao_id)) || { qtd: 0, unidade: it.unidade };
+      cur.qtd += Number(it.decidido_qtd) || 0;
+      if (!cur.unidade && it.unidade) cur.unidade = it.unidade;
+      m.set(Number(it.producao_id), cur);
+    });
+    return m;
+  }, [planSemana, fichas, secaoAtiva]);
+
+  // Produções cuja soma produzida na semana passou da qtd planejada (>5%).
+  const prodAcimaPlano = useMemo(() => {
+    const acima = new Set<number>();
+    if (!planWeek) return acima;
+    const produzido = new Map<number, number>(); // producao_id → total produzido (na unidade do plano)
+    execsSecao.forEach((e: any) => {
+      if (e.rendimento_real == null) return;
+      const d = isoLocal(e.criado_em);
+      if (d < planWeek.ini || d > planWeek.fim) return;
+      const plano = planoQtdPorProd.get(Number(e.producao_id));
+      if (!plano) return;
+      const fator = fatorParaUnidadePlano(plano.unidade);
+      produzido.set(Number(e.producao_id), (produzido.get(Number(e.producao_id)) || 0) + Number(e.rendimento_real) * fator);
+    });
+    for (const [prodId, total] of produzido) {
+      const plano = planoQtdPorProd.get(prodId);
+      if (plano && plano.qtd > 0 && total > plano.qtd * TOL_ACIMA_PLANO) acima.add(prodId);
+    }
+    return acima;
+  }, [planWeek, execsSecao, planoQtdPorProd]);
+
+  const acimaDoPlano = useCallback((e: any) => {
+    if (!planWeek || !e?.criado_em) return false;
+    const d = isoLocal(e.criado_em);
+    return d >= planWeek.ini && d <= planWeek.fim && prodAcimaPlano.has(Number(e.producao_id));
+  }, [planWeek, prodAcimaPlano]);
+
   // Resumo da Semana: cruza o plano encerrado da semana com as execuções da semana (só da seção ativa)
   const resumo = useMemo(() => {
     if (!semanaSel) return null;
@@ -1283,14 +1333,16 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, podeExclui
       tempoTotal,
       custoPlan, custoReal, desvioRendTotal,
       foraPlano: foraPlanoN,
+      acimaPlano: prodAcimaPlano.size,
     };
-  }, [semanaSel, execsSecao, planProdIds, foraDoPlano]);
+  }, [semanaSel, execsSecao, planProdIds, foraDoPlano, prodAcimaPlano]);
 
   // busca por texto no histórico (nome/código) + filtro por 1 dia (data local = coluna "Data")
   const execsView = useMemo(() => {
     let base = execsSecao;
     if (diaSel) base = base.filter((e: any) => isoLocal(e.criado_em) === diaSel);
     if (soFora) base = base.filter((e: any) => foraDoPlano(e));
+    if (soAcimaPlano) base = base.filter((e: any) => acimaDoPlano(e));
     if (rendFiltro !== 'todos') base = base.filter((e: any) => {
       const esp = Number(e.rendimento_esperado), real = Number(e.rendimento_real);
       if (!(e.rendimento_esperado != null && e.rendimento_real != null && esp > 0)) return false; // sem rendimento registrado
@@ -1300,7 +1352,7 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, podeExclui
     const s = buscaProd.trim().toLowerCase();
     if (!s) return base;
     return base.filter((e: any) => (e.producao_nome || '').toLowerCase().includes(s) || (e.producao_codigo || '').toLowerCase().includes(s));
-  }, [execsSecao, buscaProd, diaSel, soFora, rendFiltro, foraDoPlano]);
+  }, [execsSecao, buscaProd, diaSel, soFora, soAcimaPlano, rendFiltro, foraDoPlano, acimaDoPlano]);
 
   const abrirDetalhe = async (e: any) => {
     setDetalhe(e); setDetInsumos([]);
@@ -1344,6 +1396,9 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, podeExclui
     // fora do plano: produziram algo que não estava no planejamento da semana
     if (foraDoPlano(e))
       out.push({ icon: AlertTriangle, label: 'fora do plano', cls: 'text-rose-600 border-rose-300 bg-rose-50 dark:bg-rose-900/20' });
+    // acima do plano: produziram MAIS que a quantidade planejada na semana (>5%)
+    if (acimaDoPlano(e))
+      out.push({ icon: TrendingUp, label: 'acima do plano', cls: 'text-sky-600 border-sky-300 bg-sky-50 dark:bg-sky-900/20' });
     return out;
   };
 
@@ -1384,6 +1439,10 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, podeExclui
           className={`inline-flex items-center gap-1 h-9 rounded-md border px-2.5 text-sm transition ${soFora ? 'border-rose-400 bg-rose-50 text-rose-600 dark:border-rose-800 dark:bg-rose-900/25 dark:text-rose-300' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
           <AlertTriangle className="w-3.5 h-3.5" />Só fora do plano
         </button>
+        <button onClick={() => setSoAcimaPlano(v => !v)} title="Mostrar só as produções que produziram MAIS que a quantidade planejada na semana (só com semana selecionada)"
+          className={`inline-flex items-center gap-1 h-9 rounded-md border px-2.5 text-sm transition ${soAcimaPlano ? 'border-sky-400 bg-sky-50 text-sky-600 dark:border-sky-800 dark:bg-sky-900/25 dark:text-sky-300' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
+          <TrendingUp className="w-3.5 h-3.5" />Só acima do plano
+        </button>
         <select value={rendFiltro} onChange={e => setRendFiltro(e.target.value as 'todos' | 'abaixo' | 'dentro' | 'acima')} title="Filtrar pelo rendimento real vs. esperado (tolerância ±5%)"
           className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm text-gray-900 dark:text-white">
           <option value="todos">Rendimento: todos</option>
@@ -1391,7 +1450,7 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, podeExclui
           <option value="dentro">✅ Dentro (±5%)</option>
           <option value="acima">🔺 Acima do rendimento</option>
         </select>
-        {(fProd || fResp || semanaSel || buscaProd || diaSel || soFora || rendFiltro !== 'todos') && <button onClick={() => { setFProd(null); setFResp(null); setSemanaSel(null); setBuscaProd(''); setDiaSel(''); setSoFora(false); setRendFiltro('todos'); }} className="text-xs text-gray-400 underline">limpar</button>}
+        {(fProd || fResp || semanaSel || buscaProd || diaSel || soFora || soAcimaPlano || rendFiltro !== 'todos') && <button onClick={() => { setFProd(null); setFResp(null); setSemanaSel(null); setBuscaProd(''); setDiaSel(''); setSoFora(false); setSoAcimaPlano(false); setRendFiltro('todos'); }} className="text-xs text-gray-400 underline">limpar</button>}
         <span className="text-xs text-gray-400 ml-auto">{execsView.length} execuç{execsView.length === 1 ? 'ão' : 'ões'}</span>
       </div>
 
@@ -1412,6 +1471,11 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, podeExclui
                 <div className="flex items-center gap-1 text-xs text-gray-500"><AlertTriangle className="w-3.5 h-3.5" />Fora do plano</div>
                 <div className={`text-lg font-bold tabular-nums ${resumo.foraPlano > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{resumo.foraPlano}</div>
                 <div className="text-[11px] text-gray-400">produção não planejada</div>
+              </div>
+              <div className={`rounded-lg border p-2 ${resumo.acimaPlano > 0 ? 'border-sky-300 bg-sky-50/60 dark:border-sky-900/50 dark:bg-sky-900/15' : 'border-gray-200 dark:border-gray-700'}`}>
+                <div className="flex items-center gap-1 text-xs text-gray-500"><TrendingUp className="w-3.5 h-3.5" />Acima do plano</div>
+                <div className={`text-lg font-bold tabular-nums ${resumo.acimaPlano > 0 ? 'text-sky-600 dark:text-sky-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{resumo.acimaPlano}</div>
+                <div className="text-[11px] text-gray-400">produziu + que o planejado</div>
               </div>
               <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2">
                 <div className="flex items-center gap-1 text-xs text-gray-500"><Package className="w-3.5 h-3.5" />Aderência média</div>
@@ -1471,7 +1535,7 @@ function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, podeExclui
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading ? <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-              : execsView.length === 0 ? <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400">{soFora ? 'Nenhuma produção fora do plano 🎉 (tudo dentro do planejamento).' : diaSel ? `Nenhuma execução em ${fmtDM(diaSel)}.` : buscaProd ? 'Nenhuma execução com essa busca.' : 'Nenhuma execução registrada ainda.'}</td></tr>
+              : execsView.length === 0 ? <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400">{soAcimaPlano ? (semanaSel ? 'Nenhuma produção acima da quantidade planejada 👍 (tudo dentro do plano).' : 'Selecione uma semana pra comparar com o planejado.') : soFora ? 'Nenhuma produção fora do plano 🎉 (tudo dentro do planejamento).' : diaSel ? `Nenhuma execução em ${fmtDM(diaSel)}.` : buscaProd ? 'Nenhuma execução com essa busca.' : 'Nenhuma execução registrada ainda.'}</td></tr>
               : execsView.map(e => (
                 <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer" onClick={() => abrirDetalhe(e)}>
                   <td className="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{fmtData(e.criado_em)}</td>
