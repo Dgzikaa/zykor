@@ -168,6 +168,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'PackageX', label: 'Venda Perdida (ruptura)', href: '/operacional/venda-perdida-ruptura', permission: 'gestao' },
       { icon: 'Percent', label: 'Vazamento (descontos)', href: '/operacional/vazamento-descontos', permission: 'gestao' },
       { icon: 'UsersRound', label: 'Escala × Venda', href: '/operacional/escala-produtividade', permission: 'gestao' },
+      { icon: 'Activity', label: 'Termômetro do Dia', href: '/operacional/termometro', permission: 'gestao' },
     ],
   },
   {
