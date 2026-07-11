@@ -10,9 +10,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { ArrowLeft, Loader2, Music, TrendingUp, CalendarClock, Users2 } from 'lucide-react';
-import {
-  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
-} from 'recharts';
+import { GraficoBarra } from '@/components/graficos/Charts';
 
 const fmtBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v || 0);
 const fmtBRL2 = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
@@ -171,17 +169,19 @@ export default function ArtistaPerfilPage() {
               <Card className="mb-4">
                 <CardContent className="py-4">
                   <div className="text-sm font-medium mb-3">Faturamento × custo por show</div>
-                  <ResponsiveContainer width="100%" height={260}>
-                    <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-                      <XAxis dataKey="data" fontSize={11} tickMargin={6} interval="preserveStartEnd" />
-                      <YAxis fontSize={11} tickFormatter={(v) => `${Math.round(v / 1000)}k`} width={36} />
-                      <Tooltip formatter={(v: any, n: any) => [fmtBRL(Number(v)), n === 'fat' ? 'Faturamento' : 'Custo']} labelClassName="text-xs" />
-                      <Legend formatter={(v) => (v === 'fat' ? 'Faturamento' : 'Custo atração')} wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="fat" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={36} />
-                      <Line dataKey="custo" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
+                  <GraficoBarra
+                    data={chartData}
+                    xKey="data"
+                    valueKey="fat"
+                    nomeBarra="Faturamento"
+                    cor="#10b981"
+                    lineKey="custo"
+                    nomeLinha="Custo atração"
+                    corLinha="#f59e0b"
+                    height={260}
+                    formatV={fmtBRL}
+                    formatLine={fmtBRL}
+                  />
                 </CardContent>
               </Card>
             )}

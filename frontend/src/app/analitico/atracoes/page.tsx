@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer } from 'recharts';
+import { GraficoLinha } from '@/components/graficos/Charts';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -330,15 +330,7 @@ function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolCh
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><DollarSign className="h-4 w-4 text-emerald-500" />Evolução do cachê</CardTitle><CardDescription>quanto {nome} recebeu por show ao longo do tempo</CardDescription></CardHeader>
         <CardContent><div style={{ width: '100%', height: 240 }}>
-          <ResponsiveContainer>
-            <LineChart data={evolChart} margin={{ top: 6, right: 12, left: 4, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v) => fmtMesAno(String(v))} interval="preserveStartEnd" minTickGap={40} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} width={38} />
-              <RTooltip formatter={((v: number) => moneyC(Number(v))) as any} labelFormatter={(l) => fmtData(String(l))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-              <Line type="monotone" dataKey="cache" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} name="cachê" />
-            </LineChart>
-          </ResponsiveContainer>
+          <GraficoLinha data={evolChart} xKey="label" series={[{ key: 'cache', nome: 'cachê', cor: '#10b981' }]} height={240} formatV={moneyC} />
         </div></CardContent>
       </Card>
 
@@ -347,30 +339,13 @@ function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolCh
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Users className="h-4 w-4 text-blue-500" />Público por show</CardTitle><CardDescription>quanta gente veio nas noites de {nome}</CardDescription></CardHeader>
           <CardContent><div style={{ width: '100%', height: 220 }}>
-            <ResponsiveContainer>
-              <AreaChart data={evolChart} margin={{ top: 6, right: 12, left: 4, bottom: 0 }}>
-                <defs><linearGradient id="gPub" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6" stopOpacity={0.5} /><stop offset="100%" stopColor="#3b82f6" stopOpacity={0} /></linearGradient></defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v) => fmtMesAno(String(v))} interval="preserveStartEnd" minTickGap={40} />
-                <YAxis tick={{ fontSize: 11 }} width={34} />
-                <RTooltip formatter={((v: number) => [num(Number(v)), 'público']) as any} labelFormatter={(l) => fmtData(String(l))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                <Area type="monotone" dataKey="publico" stroke="#3b82f6" fill="url(#gPub)" name="público" />
-              </AreaChart>
-            </ResponsiveContainer>
+            <GraficoLinha data={evolChart} xKey="label" series={[{ key: 'publico', nome: 'público', cor: '#3b82f6' }]} height={220} formatV={num} area />
           </div></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-violet-500" />Faturamento da noite</CardTitle><CardDescription>o quanto a casa fez nas noites de {nome}</CardDescription></CardHeader>
           <CardContent><div style={{ width: '100%', height: 220 }}>
-            <ResponsiveContainer>
-              <LineChart data={evolChart} margin={{ top: 6, right: 12, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v) => fmtMesAno(String(v))} interval="preserveStartEnd" minTickGap={40} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} width={38} />
-                <RTooltip formatter={((v: number) => moneyC(Number(v))) as any} labelFormatter={(l) => fmtData(String(l))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                <Line type="monotone" dataKey="fat" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 2 }} name="faturamento" />
-              </LineChart>
-            </ResponsiveContainer>
+            <GraficoLinha data={evolChart} xKey="label" series={[{ key: 'fat', nome: 'faturamento', cor: '#8b5cf6' }]} height={220} formatV={moneyC} />
           </div></CardContent>
         </Card>
       </div>

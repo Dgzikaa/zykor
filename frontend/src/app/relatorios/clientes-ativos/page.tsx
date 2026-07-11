@@ -26,7 +26,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart as RechartsBarChart, Bar } from 'recharts';
+import { GraficoBarrasAgrupadas, GraficoLinha } from '@/components/graficos/Charts';
 
 // Componente de Tooltip para métricas
 const MetricTooltip = ({ children, content }: { children: React.ReactNode; content: string }) => (
@@ -506,30 +506,15 @@ export default function ClientesAtivosPage() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <ResponsiveContainer width="100%" height={300}>
-                            <RechartsBarChart data={evolucaoData}>
-                              <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-                              <XAxis 
-                                dataKey="mesLabel" 
-                                className="text-gray-600 dark:text-gray-400"
-                                tick={{ fill: 'currentColor' }}
-                              />
-                              <YAxis 
-                                className="text-gray-600 dark:text-gray-400"
-                                tick={{ fill: 'currentColor' }}
-                              />
-                              <Tooltip 
-                                contentStyle={{
-                                  backgroundColor: 'var(--background)',
-                                  border: '1px solid var(--border)',
-                                  borderRadius: '8px'
-                                }}
-                              />
-                              <Legend />
-                              <Bar dataKey="novosClientes" name="Novos Clientes" fill="#10b981" />
-                              <Bar dataKey="clientesRetornantes" name="Retornantes" fill="#3b82f6" />
-                            </RechartsBarChart>
-                          </ResponsiveContainer>
+                          <GraficoBarrasAgrupadas
+                            data={evolucaoData}
+                            xKey="mesLabel"
+                            series={[
+                              { key: 'novosClientes', nome: 'Novos Clientes', cor: '#10b981' },
+                              { key: 'clientesRetornantes', nome: 'Retornantes', cor: '#3b82f6' },
+                            ]}
+                            height={300}
+                          />
                         </CardContent>
                       </Card>
 
@@ -541,46 +526,16 @@ export default function ClientesAtivosPage() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <ResponsiveContainer width="100%" height={300}>
-                            <LineChart data={evolucaoData}>
-                              <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-                              <XAxis 
-                                dataKey="mesLabel" 
-                                className="text-gray-600 dark:text-gray-400"
-                                tick={{ fill: 'currentColor' }}
-                              />
-                              <YAxis 
-                                className="text-gray-600 dark:text-gray-400"
-                                tick={{ fill: 'currentColor' }}
-                                tickFormatter={(value) => `${value.toFixed(1)}%`}
-                              />
-                              <Tooltip 
-                                contentStyle={{
-                                  backgroundColor: 'var(--background)',
-                                  border: '1px solid var(--border)',
-                                  borderRadius: '8px'
-                                }}
-                                formatter={(value: any) => `${parseFloat(value).toFixed(2)}%`}
-                              />
-                              <Legend />
-                              <Line 
-                                type="monotone" 
-                                dataKey="percentualNovos" 
-                                name="% Novos" 
-                                stroke="#10b981" 
-                                strokeWidth={2}
-                                dot={{ fill: '#10b981' }}
-                              />
-                              <Line 
-                                type="monotone" 
-                                dataKey="percentualRetornantes" 
-                                name="% Retornantes" 
-                                stroke="#3b82f6" 
-                                strokeWidth={2}
-                                dot={{ fill: '#3b82f6' }}
-                              />
-                            </LineChart>
-                          </ResponsiveContainer>
+                          <GraficoLinha
+                            data={evolucaoData}
+                            xKey="mesLabel"
+                            series={[
+                              { key: 'percentualNovos', nome: '% Novos', cor: '#10b981' },
+                              { key: 'percentualRetornantes', nome: '% Retornantes', cor: '#3b82f6' },
+                            ]}
+                            height={300}
+                            formatV={(v) => `${v.toFixed(1)}%`}
+                          />
                         </CardContent>
                       </Card>
 
@@ -592,36 +547,12 @@ export default function ClientesAtivosPage() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <ResponsiveContainer width="100%" height={300}>
-                            <LineChart data={evolucaoData}>
-                              <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-                              <XAxis 
-                                dataKey="mesLabel" 
-                                className="text-gray-600 dark:text-gray-400"
-                                tick={{ fill: 'currentColor' }}
-                              />
-                              <YAxis 
-                                className="text-gray-600 dark:text-gray-400"
-                                tick={{ fill: 'currentColor' }}
-                              />
-                              <Tooltip 
-                                contentStyle={{
-                                  backgroundColor: 'var(--background)',
-                                  border: '1px solid var(--border)',
-                                  borderRadius: '8px'
-                                }}
-                              />
-                              <Legend />
-                              <Line 
-                                type="monotone" 
-                                dataKey="baseAtiva" 
-                                name="Base Ativa" 
-                                stroke="#f59e0b" 
-                                strokeWidth={3}
-                                dot={{ fill: '#f59e0b', r: 4 }}
-                              />
-                            </LineChart>
-                          </ResponsiveContainer>
+                          <GraficoLinha
+                            data={evolucaoData}
+                            xKey="mesLabel"
+                            series={[{ key: 'baseAtiva', nome: 'Base Ativa', cor: '#f59e0b' }]}
+                            height={300}
+                          />
                         </CardContent>
                       </Card>
 
@@ -633,36 +564,12 @@ export default function ClientesAtivosPage() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <ResponsiveContainer width="100%" height={300}>
-                            <LineChart data={evolucaoData}>
-                              <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-                              <XAxis 
-                                dataKey="mesLabel" 
-                                className="text-gray-600 dark:text-gray-400"
-                                tick={{ fill: 'currentColor' }}
-                              />
-                              <YAxis 
-                                className="text-gray-600 dark:text-gray-400"
-                                tick={{ fill: 'currentColor' }}
-                              />
-                              <Tooltip 
-                                contentStyle={{
-                                  backgroundColor: 'var(--background)',
-                                  border: '1px solid var(--border)',
-                                  borderRadius: '8px'
-                                }}
-                              />
-                              <Legend />
-                              <Line 
-                                type="monotone" 
-                                dataKey="totalClientes" 
-                                name="Total de Clientes" 
-                                stroke="#8b5cf6" 
-                                strokeWidth={3}
-                                dot={{ fill: '#8b5cf6', r: 4 }}
-                              />
-                            </LineChart>
-                          </ResponsiveContainer>
+                          <GraficoLinha
+                            data={evolucaoData}
+                            xKey="mesLabel"
+                            series={[{ key: 'totalClientes', nome: 'Total de Clientes', cor: '#8b5cf6' }]}
+                            height={300}
+                          />
                         </CardContent>
                       </Card>
                     </div>

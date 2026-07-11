@@ -7,24 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Bot, User, BarChart3 } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  ComposedChart,
-  Area,
-  AreaChart
-} from 'recharts';
+import { GraficoLinha, GraficoBarra, GraficoDonut } from '@/components/graficos/Charts';
 
 interface Message {
   id: string;
@@ -145,51 +128,33 @@ export default function AgentChat() {
     switch (chartData.type) {
       case 'line':
         return (
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={chartData.data}>
-              <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-              <XAxis dataKey="name" className="text-sm" />
-              <YAxis className="text-sm" />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="value" stroke="#3B82F6" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
+          <GraficoLinha
+            data={chartData.data}
+            xKey="name"
+            series={[{ key: 'value', nome: 'Valor', cor: '#3B82F6' }]}
+            height={400}
+          />
         );
       case 'bar':
         return (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={chartData.data}>
-              <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-              <XAxis dataKey="name" className="text-sm" />
-              <YAxis className="text-sm" />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="value" fill="#3B82F6" />
-            </BarChart>
-          </ResponsiveContainer>
+          <GraficoBarra
+            data={chartData.data}
+            xKey="name"
+            valueKey="value"
+            cor="#3B82F6"
+            height={400}
+            nomeBarra="Valor"
+          />
         );
       case 'pie':
         return (
-          <ResponsiveContainer width="100%" height={400}>
-            <PieChart>
-              <Pie
-                data={chartData.data}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
-                outerRadius={120}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {chartData.data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          <GraficoDonut
+            data={chartData.data}
+            nameKey="name"
+            valueKey="value"
+            cores={COLORS}
+            height={400}
+          />
         );
       default:
         return <div>Tipo de gráfico não suportado</div>;

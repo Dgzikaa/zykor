@@ -28,15 +28,7 @@ import {
   Target,
   Activity
 } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer
-} from 'recharts';
+import { GraficoBarra } from '@/components/graficos/Charts';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 
@@ -383,15 +375,14 @@ export default function PadroesComportamentoPage() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <ResponsiveContainer width="100%" height={250}>
-                          <BarChart data={prepararDadosDias(clienteSelecionado.distribuicao_dias)}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="dia" />
-                            <YAxis />
-                            <Tooltip />
-                            <Bar dataKey="visitas" fill="#3b82f6" />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <GraficoBarra
+                          data={prepararDadosDias(clienteSelecionado.distribuicao_dias)}
+                          xKey="dia"
+                          valueKey="visitas"
+                          nomeBarra="Visitas"
+                          cor="#3b82f6"
+                          height={250}
+                        />
                       </CardContent>
                     </Card>
 
@@ -403,15 +394,14 @@ export default function PadroesComportamentoPage() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <ResponsiveContainer width="100%" height={250}>
-                          <BarChart data={Object.entries(clienteSelecionado.distribuicao_mensal || {}).map(([mes, count]) => ({ mes, visitas: count }))}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
-                            <YAxis />
-                            <Tooltip />
-                            <Bar dataKey="visitas" fill="#10b981" />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <GraficoBarra
+                          data={Object.entries(clienteSelecionado.distribuicao_mensal || {}).map(([mes, count]) => ({ mes, visitas: count }))}
+                          xKey="mes"
+                          valueKey="visitas"
+                          nomeBarra="Visitas"
+                          cor="#10b981"
+                          height={250}
+                        />
                       </CardContent>
                     </Card>
                   </div>

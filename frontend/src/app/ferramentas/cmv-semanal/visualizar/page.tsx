@@ -30,7 +30,7 @@ import {
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
 import { useToast } from '@/hooks/use-toast';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { GraficoLinha, GraficoBarrasAgrupadas } from '@/components/graficos/Charts';
 
 interface CMVSemanal {
   id: number;
@@ -289,46 +289,16 @@ export default function CMVSemanalVisualizarPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={dadosGrafico}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-                <XAxis 
-                  dataKey="semana" 
-                  className="text-gray-600 dark:text-gray-400"
-                />
-                <YAxis className="text-gray-600 dark:text-gray-400" />
-                <Tooltip 
-                  contentStyle={{
-                    backgroundColor: 'var(--color-bg)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '8px'
-                  }}
-                />
-                <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="CMV Limpo" 
-                  stroke="#3b82f6" 
-                  strokeWidth={2}
-                  dot={{ fill: '#3b82f6' }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="CMV Teórico" 
-                  stroke="#10b981" 
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={{ fill: '#10b981' }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="Gap" 
-                  stroke="#ef4444" 
-                  strokeWidth={2}
-                  dot={{ fill: '#ef4444' }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <GraficoLinha
+              data={dadosGrafico}
+              xKey="semana"
+              series={[
+                { key: 'CMV Limpo', nome: 'CMV Limpo', cor: '#3b82f6' },
+                { key: 'CMV Teórico', nome: 'CMV Teórico', cor: '#10b981' },
+                { key: 'Gap', nome: 'Gap', cor: '#ef4444' },
+              ]}
+              height={300}
+            />
           </CardContent>
         </Card>
 
@@ -341,29 +311,18 @@ export default function CMVSemanalVisualizarPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={dadosConsumos}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-                <XAxis 
-                  dataKey="semana" 
-                  className="text-gray-600 dark:text-gray-400"
-                />
-                <YAxis className="text-gray-600 dark:text-gray-400" />
-                <Tooltip 
-                  contentStyle={{
-                    backgroundColor: 'var(--color-bg)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '8px'
-                  }}
-                  formatter={(value) => formatarMoeda(value as number)}
-                />
-                <Legend />
-                <Bar dataKey="Sócios" fill="#8b5cf6" />
-                <Bar dataKey="Benefícios" fill="#ec4899" />
-                <Bar dataKey="ADM" fill="#f59e0b" />
-                <Bar dataKey="Artista" fill="#10b981" />
-              </BarChart>
-            </ResponsiveContainer>
+            <GraficoBarrasAgrupadas
+              data={dadosConsumos}
+              xKey="semana"
+              series={[
+                { key: 'Sócios', nome: 'Sócios', cor: '#8b5cf6' },
+                { key: 'Benefícios', nome: 'Benefícios', cor: '#ec4899' },
+                { key: 'ADM', nome: 'ADM', cor: '#f59e0b' },
+                { key: 'Artista', nome: 'Artista', cor: '#10b981' },
+              ]}
+              height={300}
+              formatV={formatarMoeda}
+            />
           </CardContent>
         </Card>
 

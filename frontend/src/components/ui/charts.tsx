@@ -1,18 +1,7 @@
 'use client';
 
-import React from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-} from 'recharts';
+import { GraficoLinha, GraficoBarra } from '@/components/graficos/Charts';
 
 export function useRechartsTheme() {
   const { theme } = useTheme();
@@ -26,36 +15,31 @@ export function useRechartsTheme() {
   };
 }
 
+// API pública mantida (data, xKey, yKey, color, height) — corpo delega ao ECharts (GraficoLinha/GraficoBarra).
 export function RechartsLine({ data, xKey, yKey, color = '#4A90E2', height = 260 }: any) {
-  const th = useRechartsTheme();
   return (
     <div className="card-dark p-4">
-      <ResponsiveContainer width="100%" height={height}>
-        <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <CartesianGrid stroke={th.grid} strokeDasharray="3 3" />
-          <XAxis dataKey={xKey} stroke={th.axis} />
-          <YAxis stroke={th.axis} />
-          <Tooltip contentStyle={{ background: th.tooltipBg, borderColor: th.tooltipBorder }} />
-          <Line type="monotone" dataKey={yKey} stroke={color} strokeWidth={2} dot={false} />
-        </LineChart>
-      </ResponsiveContainer>
+      <GraficoLinha
+        data={data}
+        xKey={xKey}
+        series={[{ key: yKey, nome: yKey, cor: color }]}
+        height={height}
+      />
     </div>
   );
 }
 
 export function RechartsBar({ data, xKey, yKey, color = '#8B5FBF', height = 260 }: any) {
-  const th = useRechartsTheme();
   return (
     <div className="card-dark p-4">
-      <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <CartesianGrid stroke={th.grid} strokeDasharray="3 3" />
-          <XAxis dataKey={xKey} stroke={th.axis} />
-          <YAxis stroke={th.axis} />
-          <Tooltip contentStyle={{ background: th.tooltipBg, borderColor: th.tooltipBorder }} />
-          <Bar dataKey={yKey} fill={color} radius={[6, 6, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
+      <GraficoBarra
+        data={data}
+        xKey={xKey}
+        valueKey={yKey}
+        cor={color}
+        height={height}
+        nomeBarra={yKey}
+      />
     </div>
   );
 }

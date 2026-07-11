@@ -16,19 +16,7 @@ import {
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
+import { GraficoBarra, GraficoLinha, GraficoDonut, GraficoBarraH } from '@/components/graficos/Charts';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface MetricasResumo {
@@ -107,6 +95,13 @@ export default function MetricasAgentePage() {
     name: intent,
     value: count
   }));
+
+  const horaData = porHora.map((d) => ({ hora: `${d.hora}h`, queries: d.queries }));
+
+  const diaData = porDia.map((d) => {
+    const dt = new Date(d.dia);
+    return { dia: `${dt.getDate()}/${dt.getMonth() + 1}`, queries: d.queries };
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -271,27 +266,14 @@ export default function MetricasAgentePage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={porHora}>
-                        <XAxis 
-                          dataKey="hora" 
-                          tickFormatter={(v) => `${v}h`}
-                          stroke="#9CA3AF"
-                        />
-                        <YAxis stroke="#9CA3AF" />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#1F2937', 
-                            border: 'none',
-                            borderRadius: '8px',
-                            color: '#F9FAFB'
-                          }}
-                          formatter={(value: number | undefined) => [`${value} queries`, 'Quantidade']}
-                          labelFormatter={(label) => `${label}h`}
-                        />
-                        <Bar dataKey="queries" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <GraficoBarra
+                      data={horaData}
+                      xKey="hora"
+                      valueKey="queries"
+                      cor="#3B82F6"
+                      height={250}
+                      nomeBarra="Quantidade"
+                    />
                   </CardContent>
                 </Card>
               </motion.div>
@@ -310,39 +292,12 @@ export default function MetricasAgentePage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <LineChart data={porDia}>
-                        <XAxis 
-                          dataKey="dia" 
-                          tickFormatter={(v) => {
-                            const d = new Date(v);
-                            return `${d.getDate()}/${d.getMonth() + 1}`;
-                          }}
-                          stroke="#9CA3AF"
-                        />
-                        <YAxis stroke="#9CA3AF" />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#1F2937', 
-                            border: 'none',
-                            borderRadius: '8px',
-                            color: '#F9FAFB'
-                          }}
-                          formatter={(value: number | undefined) => [`${value} queries`, 'Quantidade']}
-                          labelFormatter={(label) => {
-                            const d = new Date(label);
-                            return d.toLocaleDateString('pt-BR');
-                          }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="queries" 
-                          stroke="#8B5CF6" 
-                          strokeWidth={2}
-                          dot={{ fill: '#8B5CF6', strokeWidth: 2 }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <GraficoLinha
+                      data={diaData}
+                      xKey="dia"
+                      series={[{ key: 'queries', nome: 'Quantidade', cor: '#8B5CF6' }]}
+                      height={250}
+                    />
                   </CardContent>
                 </Card>
               </motion.div>
@@ -364,33 +319,13 @@ export default function MetricasAgentePage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <PieChart>
-                        <Pie
-                          data={intentData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={100}
-                          paddingAngle={3}
-                          dataKey="value"
-                          label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`}
-                        >
-                          {intentData.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#1F2937', 
-                            border: 'none',
-                            borderRadius: '8px',
-                            color: '#F9FAFB'
-                          }}
-                          formatter={(value: number | undefined) => [`${value} queries`, 'Quantidade']}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <GraficoDonut
+                      data={intentData}
+                      nameKey="name"
+                      valueKey="value"
+                      height={250}
+                      cores={COLORS}
+                    />
                   </CardContent>
                 </Card>
               </motion.div>
@@ -409,31 +344,13 @@ export default function MetricasAgentePage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={agenteData} layout="vertical">
-                        <XAxis type="number" stroke="#9CA3AF" />
-                        <YAxis 
-                          type="category" 
-                          dataKey="nome" 
-                          width={100}
-                          stroke="#9CA3AF"
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#1F2937', 
-                            border: 'none',
-                            borderRadius: '8px',
-                            color: '#F9FAFB'
-                          }}
-                          formatter={(value: number | undefined, name: string | undefined) => {
-                            if (name === 'queries') return [`${value} queries`, 'Quantidade'];
-                            if (name === 'tempo') return [`${Math.round(value as number)}ms`, 'Tempo médio'];
-                            return [value, name];
-                          }}
-                        />
-                        <Bar dataKey="queries" fill="#F59E0B" radius={[0, 4, 4, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <GraficoBarraH
+                      data={agenteData}
+                      xKey="nome"
+                      valueKey="queries"
+                      cor="#F59E0B"
+                      height={250}
+                    />
                   </CardContent>
                 </Card>
               </motion.div>
