@@ -18,6 +18,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { toast } from 'sonner';
 
 interface NPSMetrica {
@@ -48,14 +49,14 @@ export default function NPSCategorizadoPage() {
   const { selectedBar } = useBar();
 
   const [tipo, setTipo] = useState<'dia' | 'semana'>('semana');
-  const [dados, setDados] = useState<NPSDado[]>([]);
-  const [loading, setLoading] = useState(false);
   const [dataInicio, setDataInicio] = useState(() => {
     const data = new Date();
     data.setMonth(data.getMonth() - 2); // Últimos 2 meses
     return data.toISOString().split('T')[0];
   });
   const [dataFim, setDataFim] = useState(new Date().toISOString().split('T')[0]);
+  // datas "aplicadas" na busca — só mudam ao clicar Buscar ou trocar tipo/bar (editar as datas não refaz sozinho)
+  const [applied, setApplied] = useState({ inicio: dataInicio, fim: dataFim });
   
   // Modal de comentários
   const [modalComentarios, setModalComentarios] = useState(false);
@@ -70,35 +71,28 @@ export default function NPSCategorizadoPage() {
     return () => setPageTitle('');
   }, [setPageTitle]);
 
+  // Ao trocar tipo/bar, "aplica" as datas atuais — mesmos gatilhos de refetch do useEffect original.
   useEffect(() => {
-    buscarDados();
+    setApplied({ inicio: dataInicio, fim: dataFim });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipo, selectedBar]);
 
-  const buscarDados = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        bar_id: selectedBar?.id?.toString() || '',
-        tipo,
-        data_inicio: dataInicio,
-        data_fim: dataFim
-      });
+  // Cache via SWR: chave = bar + tipo + datas aplicadas. Mesmo shape (result.success/result.data).
+  const { data: resp, isLoading, mutate } = useApiSWR<any>(
+    selectedBar?.id
+      ? `/api/nps/agregado?bar_id=${selectedBar.id}&tipo=${tipo}&data_inicio=${applied.inicio}&data_fim=${applied.fim}`
+      : null,
+    {
+      keepPreviousData: false,
+      onError: () => toast.error('Erro ao carregar dados'),
+      onSuccess: (d: any) => { if (!d?.success) toast.error('Erro ao buscar dados'); },
+    },
+  );
+  const dados: NPSDado[] = resp?.success ? resp.data : [];
+  const loading = isLoading;
 
-      const response = await fetch(`/api/nps/agregado?${params}`);
-      const result = await response.json();
-
-      if (result.success) {
-        setDados(result.data);
-      } else {
-        toast.error('Erro ao buscar dados');
-      }
-    } catch (error) {
-      console.error('Erro:', error);
-      toast.error('Erro ao carregar dados');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Buscar: aplica as datas atuais e força revalidação (mesmo que a chave não mude).
+  const buscarDados = () => { setApplied({ inicio: dataInicio, fim: dataFim }); mutate(); };
 
   const getCorClassificacao = (classificacao: string) => {
     switch (classificacao) {

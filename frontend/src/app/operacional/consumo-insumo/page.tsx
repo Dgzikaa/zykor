@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut, Search, Loader2, Download, ChevronDown, ChevronRight } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
@@ -73,8 +74,6 @@ export default function SaidasPage() {
     return out;
   }, []);
 
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const [busca, setBusca] = useState('');
   const [cat, setCat] = useState<string | null>(null);
   const [aberto, setAberto] = useState<string | null>(null);
@@ -84,17 +83,18 @@ export default function SaidasPage() {
 
   const temDrill = aba !== 'geral'; // Geral não abre quebra por produto
 
-  const carregar = useCallback(async () => {
-    if (!barId) return;
-    setLoading(true); setAberto(null); setBreakdown(null); setCat(null);
-    try {
-      const r = await api.get(`/api/operacional/consumo-insumo?bar_id=${barId}&ini=${range.ini}&fim=${range.fim}&aba=${aba}`);
-      if (!r.success) throw new Error(r.error);
-      setRows(r.rows || []);
-    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
-    finally { setLoading(false); }
-  }, [barId, range.ini, range.fim, aba]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { carregar(); }, [carregar]);
+  // Cache via SWR: chave = bar + intervalo + aba. Mesmo shape (r.success/r.rows) do api.get anterior.
+  const { data: resp, isLoading } = useApiSWR<any>(
+    barId ? `/api/operacional/consumo-insumo?bar_id=${barId}&ini=${range.ini}&fim=${range.fim}&aba=${aba}` : null,
+    {
+      onError: (e: any) => toast({ title: 'Erro', description: e?.message, variant: 'destructive' }),
+      onSuccess: (r: any) => { if (!r?.success) toast({ title: 'Erro', description: r?.error, variant: 'destructive' }); },
+    },
+  );
+  const rows = useMemo<any[]>(() => (resp?.success ? (resp.rows || []) : []), [resp]);
+  const loading = isLoading;
+  // Ao trocar filtros (bar/intervalo/aba), fecha o drill e limpa a categoria — igual ao início do carregar() original.
+  useEffect(() => { setAberto(null); setBreakdown(null); setCat(null); }, [barId, range.ini, range.fim, aba]);
 
   const abrirBreak = async (codigo: string) => {
     if (!temDrill) return;

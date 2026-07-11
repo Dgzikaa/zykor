@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,11 +40,21 @@ function EventosAnaliticoInner() {
   const [dataSelecionada, setDataSelecionada] = useState<string>(dataParam || ontem());
   const [granularidade, setGranularidade] = useState<'dia' | 'semana' | 'mes'>('dia');
 
-  const [evento, setEvento] = useState<EventoResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
-
   const barId = selectedBar?.id;
+
+  // Cache via SWR: a chave inclui data + bar + granularidade; trocar re-busca.
+  // bar_id continua na URL (a API lê o filtro por query param).
+  const eventoEndpoint = barId
+    ? `/api/analitico/evento?data=${dataSelecionada}&bar_id=${barId}&gran=${granularidade}`
+    : null;
+  const { data: eventoResp, isLoading: loading, error: swrErro } =
+    useApiSWR<EventoResponse>(eventoEndpoint);
+  const evento: EventoResponse | null = eventoResp?.success ? eventoResp : null;
+  const erro: string | null = swrErro
+    ? String(swrErro)
+    : eventoResp && !eventoResp.success
+      ? ((eventoResp as any).error || 'Falha ao carregar evento')
+      : null;
 
   useEffect(() => {
     setPageTitle('📊 Análise de Eventos');
@@ -70,26 +81,6 @@ function EventosAnaliticoInner() {
     },
     [dataSelecionada, router]
   );
-
-  // Busca dados agregados do evento
-  useEffect(() => {
-    if (!barId) return;
-    let ativo = true;
-    setLoading(true);
-    setErro(null);
-    fetch(`/api/analitico/evento?data=${dataSelecionada}&bar_id=${barId}&gran=${granularidade}`)
-      .then((r) => r.json())
-      .then((json) => {
-        if (!ativo) return;
-        if (json?.success) setEvento(json);
-        else setErro(json?.error || 'Falha ao carregar evento');
-      })
-      .catch((e) => ativo && setErro(String(e)))
-      .finally(() => ativo && setLoading(false));
-    return () => {
-      ativo = false;
-    };
-  }, [dataSelecionada, barId, granularidade]);
 
   const naoEncontrado = evento && evento.success && !evento.encontrado;
 

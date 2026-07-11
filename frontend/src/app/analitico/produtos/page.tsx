@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import PageHeader from '@/components/layouts/PageHeader'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { Package, ShoppingCart, TrendingUp, DollarSign, Target, Download, CalendarDays, Calendar, Star, Percent } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { useApiSWR } from '@/hooks/useApiSWR'
 import { useBar } from '@/contexts/BarContext'
 import { usePageTitle } from '@/contexts/PageTitleContext'
 import { AnimatedCounter, AnimatedCurrency } from '@/components/ui/animated-counter'
@@ -49,71 +50,52 @@ interface ApiResponse {
 
 
 export default function ProdutosPage() {
-  const [produtos, setProdutos] = useState<Produto[]>([])
-  const [estatisticas, setEstatisticas] = useState<EstatisticasProdutos | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [diaSemanaFiltro, setDiaSemanaFiltro] = useState<string>('todos')
   const [grupoFiltro, setGrupoFiltro] = useState<string>('todos')
   const [activeTab, setActiveTab] = useState<string>('produtos')
-  
 
-  
+
+
   const { selectedBar } = useBar()
   const { toast } = useToast()
   const { setPageTitle } = usePageTitle()
-  const isApiCallingRef = useRef(false)
 
   useEffect(() => {
     setPageTitle('📦 Produtos')
     return () => setPageTitle('')
   }, [setPageTitle])
 
-  const fetchProdutos = useCallback(async () => {
-    if (isApiCallingRef.current) return
-    
-    try {
-      isApiCallingRef.current = true
-      setLoading(true)
-      setError(null)
-            const params = new URLSearchParams()
-      if (selectedBar?.id) {
-        params.append('bar_id', selectedBar.id.toString())
-      }
-      if (diaSemanaFiltro !== 'todos') {
-        params.append('dia_semana', diaSemanaFiltro)
-      }
-      if (grupoFiltro !== 'todos') {
-        params.append('grupo', grupoFiltro)
-      }
+  // Cache via SWR: a chave inclui o bar (BarContext) + dia_semana + grupo.
+  // bar_id continua na URL (a API lê o filtro por query param).
+  const endpoint = useMemo(() => {
+    if (!selectedBar?.id) return null
+    const params = new URLSearchParams()
+    params.append('bar_id', selectedBar.id.toString())
+    if (diaSemanaFiltro !== 'todos') {
+      params.append('dia_semana', diaSemanaFiltro)
+    }
+    if (grupoFiltro !== 'todos') {
+      params.append('grupo', grupoFiltro)
+    }
+    return `/api/analitico/produtos-final?${params.toString()}`
+  }, [selectedBar?.id, diaSemanaFiltro, grupoFiltro])
 
-      const response = await fetch(`/api/analitico/produtos-final?${params.toString()}`)
-      
-      if (!response.ok) {
-        throw new Error(`Erro ${response.status}: ${response.statusText}`)
-      }
+  const { data: resp, isLoading, error: swrError, mutate } = useApiSWR<ApiResponse>(endpoint)
+  const produtos: Produto[] = resp?.produtos ?? []
+  const estatisticas: EstatisticasProdutos | null = resp?.estatisticas ?? null
+  const loading = !selectedBar?.id || isLoading
+  const error = swrError ? 'Erro ao carregar dados dos produtos' : null
 
-      const data: ApiResponse = await response.json()
-      setProdutos(data.produtos)
-      setEstatisticas(data.estatisticas)
-
-    } catch (err) {
-      console.error('Erro ao buscar produtos:', err)
-      setError('Erro ao carregar dados dos produtos')
+  useEffect(() => {
+    if (swrError) {
+      console.error('Erro ao buscar produtos:', swrError)
       toast({
         title: "Erro ao carregar produtos",
         description: "Não foi possível carregar os dados dos produtos. Tente novamente.",
         variant: "destructive",
       })
-    } finally {
-      setLoading(false)
-      isApiCallingRef.current = false
     }
-  }, [selectedBar, diaSemanaFiltro, grupoFiltro])
-
-  useEffect(() => {
-    fetchProdutos()
-  }, [fetchProdutos])
+  }, [swrError, toast])
 
   const formatCurrency = (value: number) => FMT_PRD_BRL.format(value)
 
@@ -273,7 +255,7 @@ export default function ProdutosPage() {
               <p className="text-gray-600 dark:text-gray-400 mb-4">
                 {error}
               </p>
-              <Button onClick={fetchProdutos} variant="outline">
+              <Button onClick={() => mutate()} variant="outline">
                 Tentar novamente
               </Button>
             </div>

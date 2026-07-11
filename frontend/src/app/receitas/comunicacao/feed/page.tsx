@@ -5,9 +5,10 @@
  * engajamento (bons × ruins) e compara os formatos. Fonte: /api/instagram/feed.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Loader2, Images, Image as ImageIcon, Heart, MessageCircle, Bookmark, Eye, TrendingUp, ExternalLink } from 'lucide-react';
 
 type Post = {
@@ -27,25 +28,18 @@ export default function FeedComunicacaoPage() {
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
   const [dias, setDias] = useState(90);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [formatos, setFormatos] = useState<Formato[]>([]);
-  const [totais, setTotais] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [ordem, setOrdem] = useState<'melhores' | 'piores'>('melhores');
 
   useEffect(() => { setPageTitle('📸 Feed — performance dos posts'); return () => setPageTitle(''); }, [setPageTitle]);
 
-  const carregar = useCallback(async () => {
-    if (!barId) return;
-    setLoading(true);
-    try {
-      const r = await fetch(`/api/instagram/feed?bar_id=${barId}&dias=${dias}`).then((x) => x.json());
-      if (r?.success) { setPosts(r.posts || []); setFormatos(r.formatos || []); setTotais(r.totais || null); }
-      else { setPosts([]); setFormatos([]); setTotais(null); }
-    } catch { setPosts([]); setFormatos([]); setTotais(null); }
-    finally { setLoading(false); }
-  }, [barId, dias]);
-  useEffect(() => { carregar(); }, [carregar]);
+  // Cache via SWR: chave inclui bar (BarContext) + dias; trocar re-busca. Mesmo shape do fetch anterior.
+  const { data: resp, isLoading } = useApiSWR<any>(
+    barId ? `/api/instagram/feed?bar_id=${barId}&dias=${dias}` : null,
+  );
+  const posts: Post[] = resp?.success ? (resp.posts || []) : [];
+  const formatos: Formato[] = resp?.success ? (resp.formatos || []) : [];
+  const totais: any = resp?.success ? (resp.totais || null) : null;
+  const loading = isLoading;
 
   const lista = ordem === 'melhores' ? posts : [...posts].reverse();
   const melhorFormato = formatos[0]?.formato;

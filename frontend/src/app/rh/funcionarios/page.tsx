@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
-import { api } from '@/lib/api-client';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Users, Loader2, Search, Plus, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp, LayoutGrid, List, Download, Network } from 'lucide-react';
 import { FuncionarioDialog } from './_components/FuncionarioDialog';
 import { DossieDialog } from './_components/DossieDialog';
@@ -61,10 +61,6 @@ export default function FuncionariosPage() {
     return () => setPageTitle('');
   }, [setPageTitle]);
 
-  const [lista, setLista] = useState<Funcionario[]>([]);
-  const [cargos, setCargos] = useState<Opcao[]>([]);
-  const [areas, setAreas] = useState<Opcao[]>([]);
-  const [loading, setLoading] = useState(false);
   const [q, setQ] = useState('');
   const [filtroArea, setFiltroArea] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
@@ -75,33 +71,43 @@ export default function FuncionariosPage() {
   const [dossieId, setDossieId] = useState<number | null>(null);
   const [vista, setVista] = useState<'cards' | 'tabela'>('cards');
 
-  const carregar = useCallback(async () => {
-    if (!selectedBar) return;
-    setLoading(true);
-    try {
-      const sp = new URLSearchParams();
-      if (q) sp.set('q', q);
-      if (filtroArea) sp.set('area_id', filtroArea);
-      if (filtroTipo) sp.set('tipo', filtroTipo);
-      if (filtroAtivo) sp.set('ativo', filtroAtivo);
-      const res = await api.get(`/api/rh/funcionarios?${sp.toString()}`);
-      setLista(res.funcionarios || []);
-    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao carregar funcionários', message: e?.message }); }
-    finally { setLoading(false); }
-  }, [selectedBar, q, filtroArea, filtroTipo, filtroAtivo, showToast]);
+  // Endpoint da lista (bar via header do apiCall; filtros na URL). O debounce de
+  // 250ms é preservado: a chave só muda depois que o usuário para de digitar/filtrar.
+  const listaEndpoint = useMemo(() => {
+    if (!selectedBar) return null;
+    const sp = new URLSearchParams();
+    if (q) sp.set('q', q);
+    if (filtroArea) sp.set('area_id', filtroArea);
+    if (filtroTipo) sp.set('tipo', filtroTipo);
+    if (filtroAtivo) sp.set('ativo', filtroAtivo);
+    return `/api/rh/funcionarios?${sp.toString()}`;
+  }, [selectedBar, q, filtroArea, filtroTipo, filtroAtivo]);
 
-  const carregarOpcoes = useCallback(async () => {
-    if (!selectedBar) return;
-    try { const res = await api.get('/api/rh/funcionarios/opcoes'); setCargos(res.cargos || []); setAreas(res.areas || []); }
-    catch { /* silencioso */ }
-  }, [selectedBar]);
+  const [listaEndpointDebounced, setListaEndpointDebounced] = useState<string | null>(null);
+  useEffect(() => {
+    const t = setTimeout(() => setListaEndpointDebounced(listaEndpoint), 250);
+    return () => clearTimeout(t);
+  }, [listaEndpoint]);
 
-  useEffect(() => { carregarOpcoes(); }, [carregarOpcoes]);
-  useEffect(() => { const t = setTimeout(carregar, 250); return () => clearTimeout(t); }, [carregar]);
+  // Cache via SWR: a chave inclui o bar (BarContext) + filtros; trocar re-busca.
+  const { data: listaResp, isLoading: loading, error, mutate: mutateLista } =
+    useApiSWR<{ funcionarios: Funcionario[] }>(listaEndpointDebounced);
+  const lista: Funcionario[] = listaResp?.funcionarios || [];
+
+  // Opções (cargos/áreas): hook próprio, silencioso, chave só o bar.
+  const { data: opcoesResp } = useApiSWR<{ cargos: Opcao[]; areas: Opcao[] }>(
+    selectedBar ? '/api/rh/funcionarios/opcoes' : null
+  );
+  const cargos: Opcao[] = opcoesResp?.cargos || [];
+  const areas: Opcao[] = opcoesResp?.areas || [];
+
+  useEffect(() => {
+    if (error) showToast({ type: 'error', title: 'Erro ao carregar funcionários', message: (error as any)?.message });
+  }, [error, showToast]);
 
   const novo = () => { setEditando(null); setFormAberto(true); };
   const editar = (f: Funcionario) => { setEditando(f); setFormAberto(true); setDossieId(null); };
-  const onSalvo = () => { setFormAberto(false); setEditando(null); carregar(); };
+  const onSalvo = () => { setFormAberto(false); setEditando(null); mutateLista(); };
 
   const tipoTag = useMemo(() => (t: string | null) => {
     if (t === 'Freela') return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';

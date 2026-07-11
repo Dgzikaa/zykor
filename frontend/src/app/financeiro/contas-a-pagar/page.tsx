@@ -1,7 +1,8 @@
 ﻿'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -78,10 +79,6 @@ export default function ContasAPagarPage() {
   }, [setPageTitle]);
   const barId = selectedBar?.id;
 
-  const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
-  const [totalizadores, setTotalizadores] = useState<Totalizadores | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit] = useState(50);
 
@@ -96,76 +93,36 @@ export default function ContasAPagarPage() {
   const [sortColumn, setSortColumn] = useState('data_vencimento');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [centrosCusto, setCentrosCusto] = useState<CentroCusto[]>([]);
+  // Lançamentos (DESPESA) via SWR: chave inclui o bar (header) + página + filtros na URL.
+  const lancParams = new URLSearchParams({
+    bar_id: String(barId),
+    tipo: 'DESPESA',
+    page: String(page),
+    limit: String(limit),
+    ordenar: sortColumn,
+    ordem: sortDirection,
+  });
+  if (dataVencimentoDe) lancParams.set('data_vencimento_de', dataVencimentoDe);
+  if (dataVencimentoAte) lancParams.set('data_vencimento_ate', dataVencimentoAte);
+  if (dataCompetenciaDe) lancParams.set('data_competencia_de', dataCompetenciaDe);
+  if (dataCompetenciaAte) lancParams.set('data_competencia_ate', dataCompetenciaAte);
+  if (statusFilter) lancParams.set('status', statusFilter);
+  if (categoriaFilter) lancParams.set('categoria', categoriaFilter);
+  if (centroCustoFilter) lancParams.set('centro_custo', centroCustoFilter);
+  if (busca) lancParams.set('busca', busca);
 
-  const fetchLancamentos = useCallback(async () => {
-    if (!barId) return;
+  const { data: lancData, isLoading: loading, mutate } = useApiSWR<any>(
+    barId ? `/api/financeiro/contaazul/lancamentos?${lancParams.toString()}` : null,
+  );
+  const lancamentos: Lancamento[] = lancData?.data || [];
+  const total: number = lancData?.total || 0;
+  const totalizadores: Totalizadores | null = lancData?.totalizadores || null;
 
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        bar_id: String(barId),
-        tipo: 'DESPESA',
-        page: String(page),
-        limit: String(limit),
-        ordenar: sortColumn,
-        ordem: sortDirection
-      });
-
-      if (dataVencimentoDe) params.set('data_vencimento_de', dataVencimentoDe);
-      if (dataVencimentoAte) params.set('data_vencimento_ate', dataVencimentoAte);
-      if (dataCompetenciaDe) params.set('data_competencia_de', dataCompetenciaDe);
-      if (dataCompetenciaAte) params.set('data_competencia_ate', dataCompetenciaAte);
-      if (statusFilter) params.set('status', statusFilter);
-      if (categoriaFilter) params.set('categoria', categoriaFilter);
-      if (centroCustoFilter) params.set('centro_custo', centroCustoFilter);
-      if (busca) params.set('busca', busca);
-
-      const res = await fetch('/api/financeiro/contaazul/lancamentos?' + params.toString());
-      const data = await res.json();
-
-      if (res.ok) {
-        setLancamentos(data.data || []);
-        setTotal(data.total || 0);
-        setTotalizadores(data.totalizadores || null);
-      }
-    } catch (err) {
-      console.error('Erro ao buscar lancamentos:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [barId, page, limit, dataVencimentoDe, dataVencimentoAte, dataCompetenciaDe, dataCompetenciaAte, statusFilter, categoriaFilter, centroCustoFilter, busca, sortColumn, sortDirection]);
-
-  const fetchFiltros = useCallback(async () => {
-    if (!barId) return;
-
-    try {
-      const [catRes, ccRes] = await Promise.all([
-        fetch('/api/financeiro/contaazul/categorias?bar_id=' + barId),
-        fetch('/api/financeiro/contaazul/centros-custo?bar_id=' + barId)
-      ]);
-
-      if (catRes.ok) {
-        const catData = await catRes.json();
-        setCategorias(catData.data || []);
-      }
-      if (ccRes.ok) {
-        const ccData = await ccRes.json();
-        setCentrosCusto(ccData.data || []);
-      }
-    } catch (err) {
-      console.error('Erro ao buscar filtros:', err);
-    }
-  }, [barId]);
-
-  useEffect(() => {
-    fetchLancamentos();
-  }, [fetchLancamentos]);
-
-  useEffect(() => {
-    fetchFiltros();
-  }, [fetchFiltros]);
+  // Opções de filtro (categorias + centros de custo) — 2 GETs paralelos, silenciosos em erro.
+  const { data: catData } = useApiSWR<any>(barId ? `/api/financeiro/contaazul/categorias?bar_id=${barId}` : null);
+  const { data: ccData } = useApiSWR<any>(barId ? `/api/financeiro/contaazul/centros-custo?bar_id=${barId}` : null);
+  const categorias: Categoria[] = catData?.data || [];
+  const centrosCusto: CentroCusto[] = ccData?.data || [];
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -392,7 +349,7 @@ export default function ContasAPagarPage() {
                   placeholder="Descricao ou fornecedor..."
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { setPage(1); fetchLancamentos(); } }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { setPage(1); mutate(); } }}
                   className="pl-9"
                 />
               </div>

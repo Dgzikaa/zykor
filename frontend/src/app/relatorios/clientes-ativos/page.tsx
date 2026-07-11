@@ -24,6 +24,7 @@ import {
 import { toast } from 'sonner';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { GraficoBarrasAgrupadas, GraficoLinha } from '@/components/graficos/Charts';
@@ -95,89 +96,53 @@ export default function ClientesAtivosPage() {
   const { setPageTitle } = usePageTitle();
   const { selectedBar } = useBar();
 
-  const [loading, setLoading] = useState(false);
-  const [loadingEvolucao, setLoadingEvolucao] = useState(false);
-  const [data, setData] = useState<ClientesAtivosData | null>(null);
-  const [evolucaoData, setEvolucaoData] = useState<EvolucaoMensal[]>([]);
   const [periodo, setPeriodo] = useState<'dia' | 'semana' | 'mes'>('semana');
   const [dataCustom, setDataCustom] = useState(new Date().toISOString().split('T')[0]);
   const [mesesEvolucao, setMesesEvolucao] = useState(12);
+
+  // Cache via SWR: as chaves incluem o bar (BarContext) + período/data e meses.
+  // data_inicio sempre acompanha dataCustom (é o que o código original enviava).
+  const dadosEndpoint = selectedBar?.id
+    ? `/api/clientes-ativos?periodo=${periodo}&bar_id=${selectedBar.id}&data_inicio=${dataCustom}`
+    : null;
+  const { data: dadosResp, error: dadosErr, isLoading: loading } = useApiSWR<any>(dadosEndpoint);
+  const data: ClientesAtivosData | null = dadosResp?.success ? dadosResp.data : null;
+
+  const evolucaoEndpoint = selectedBar?.id
+    ? `/api/clientes-ativos/evolucao?bar_id=${selectedBar.id}&meses=${mesesEvolucao}`
+    : null;
+  const { data: evolucaoResp, error: evolucaoErr, isLoading: loadingEvolucao } =
+    useApiSWR<any>(evolucaoEndpoint);
+  const evolucaoData: EvolucaoMensal[] = evolucaoResp?.success ? evolucaoResp.data : [];
 
   useEffect(() => {
     setPageTitle('👥 Clientes Ativos');
   }, [setPageTitle]);
 
   useEffect(() => {
-    // Quando muda o período, resetar dataCustom para hoje
+    // Quando muda o período (ou o bar), resetar dataCustom para hoje.
+    // O SWR re-busca sozinho ao mudar a chave (período + data + bar).
     const hoje = new Date().toISOString().split('T')[0];
     setDataCustom(hoje);
-    buscarDados(hoje);
-    buscarEvolucao();
   }, [periodo, selectedBar]);
 
+  // Toasts de erro (preserva o comportamento de sinalizar falhas).
   useEffect(() => {
-    buscarEvolucao();
-  }, [mesesEvolucao]);
-
-  const buscarDados = async (dataEspecifica?: string) => {
-    setLoading(true);
-    try {
-      const barId = selectedBar?.id;
-      if (!barId) return;
-      const params = new URLSearchParams({
-        periodo,
-        bar_id: barId.toString()
-      });
-
-      if (dataEspecifica || (periodo !== 'semana')) {
-        params.append('data_inicio', dataEspecifica || dataCustom);
-      }
-
-      const response = await fetch(`/api/clientes-ativos?${params}`);
-      const result = await response.json();
-
-      if (result.success) {
-        setData(result.data);
-      } else {
-        toast.error(result.error || 'Erro ao buscar dados de clientes');
-      }
-    } catch (error) {
-      console.error('Erro ao buscar dados:', error);
-      toast.error('Erro ao buscar dados de clientes');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const buscarEvolucao = async () => {
-    setLoadingEvolucao(true);
-    try {
-      const barId = selectedBar?.id;
-      if (!barId) return;
-      const params = new URLSearchParams({
-        bar_id: barId.toString(),
-        meses: mesesEvolucao.toString()
-      });
-
-      const response = await fetch(`/api/clientes-ativos/evolucao?${params}`);
-      const result = await response.json();
-
-      if (result.success) {
-        setEvolucaoData(result.data);
-      } else {
-        toast.error(result.error || 'Erro ao buscar dados de evolução');
-      }
-    } catch (error) {
-      console.error('Erro ao buscar evolução:', error);
-      toast.error('Erro ao buscar dados de evolução');
-    } finally {
-      setLoadingEvolucao(false);
-    }
-  };
+    if (dadosErr) toast.error('Erro ao buscar dados de clientes');
+  }, [dadosErr]);
+  useEffect(() => {
+    if (dadosResp && !dadosResp.success) toast.error(dadosResp.error || 'Erro ao buscar dados de clientes');
+  }, [dadosResp]);
+  useEffect(() => {
+    if (evolucaoErr) toast.error('Erro ao buscar dados de evolução');
+  }, [evolucaoErr]);
+  useEffect(() => {
+    if (evolucaoResp && !evolucaoResp.success) toast.error(evolucaoResp.error || 'Erro ao buscar dados de evolução');
+  }, [evolucaoResp]);
 
   const navegarPeriodo = (direcao: 'anterior' | 'proximo') => {
     const dataAtual = new Date(dataCustom);
-    
+
     if (periodo === 'dia') {
       dataAtual.setDate(dataAtual.getDate() + (direcao === 'proximo' ? 1 : -1));
     } else if (periodo === 'semana') {
@@ -185,10 +150,9 @@ export default function ClientesAtivosPage() {
     } else if (periodo === 'mes') {
       dataAtual.setMonth(dataAtual.getMonth() + (direcao === 'proximo' ? 1 : -1));
     }
-    
+
     const novaData = dataAtual.toISOString().split('T')[0];
     setDataCustom(novaData);
-    buscarDados(novaData);
   };
 
   const getInsightIcon = (tipo: string) => {
@@ -276,7 +240,6 @@ export default function ClientesAtivosPage() {
                       value={dataCustom}
                       onChange={(e) => {
                         setDataCustom(e.target.value);
-                        buscarDados(e.target.value);
                       }}
                       disabled={loading}
                       className="w-48 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"

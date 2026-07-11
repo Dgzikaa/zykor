@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
-import { api } from '@/lib/api-client';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { ArrowLeft, Loader2, Music, TrendingUp, CalendarClock, Users2 } from 'lucide-react';
 import { GraficoBarra } from '@/components/graficos/Charts';
 
@@ -35,32 +35,28 @@ export default function ArtistaPerfilPage() {
   const { setPageTitle } = usePageTitle();
   const key = decodeURIComponent((params?.key as string) || '');
 
-  const [loading, setLoading] = useState(true);
-  const [header, setHeader] = useState<any>(null);
-  const [shows, setShows] = useState<any[]>([]);
-  const [participacoes, setParticipacoes] = useState<any[]>([]);
-  const [produtos, setProdutos] = useState<any[]>([]);
-  const [grupos, setGrupos] = useState<any[]>([]);
-  const [semAtracao, setSemAtracao] = useState<number | null>(null);
+  const encKey = encodeURIComponent(key);
+  const onErro = (e: any) => showToast({ type: 'error', title: 'Erro ao carregar artista', message: e?.message });
 
-  const carregar = useCallback(async () => {
-    if (!selectedBar || !key) return;
-    setLoading(true);
-    try {
-      const [det, prod, comSem] = await Promise.all([
-        api.get(`/api/financeiro/beneficiarios/artistas/detalhe?key=${encodeURIComponent(key)}`),
-        api.get(`/api/financeiro/beneficiarios/artistas/produtos?key=${encodeURIComponent(key)}`),
-        api.get('/api/financeiro/beneficiarios/artistas/dia-com-sem'),
-      ]);
-      setHeader(det.header); setShows(det.shows || []); setParticipacoes(det.participacoes || []);
-      setProdutos(prod.produtos || []); setGrupos(prod.grupos || []);
-      const geralSem = (comSem.linhas || []).find((l: any) => l.segmento === 'sem' && l.dia_semana === null);
-      setSemAtracao(geralSem ? geralSem.fat_medio : null);
-    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao carregar artista', message: e?.message }); }
-    finally { setLoading(false); }
-  }, [selectedBar, key, showToast]);
+  // 3 GETs paralelos via SWR (antes Promise.all). Chave inclui o bar (header) + a key.
+  const gate = !!(selectedBar?.id && key);
+  const { data: det, isLoading: loadingDet } = useApiSWR<any>(
+    gate ? `/api/financeiro/beneficiarios/artistas/detalhe?key=${encKey}` : null, { onError: onErro });
+  const { data: prod, isLoading: loadingProd } = useApiSWR<any>(
+    gate ? `/api/financeiro/beneficiarios/artistas/produtos?key=${encKey}` : null, { onError: onErro });
+  const { data: comSem, isLoading: loadingComSem } = useApiSWR<any>(
+    gate ? '/api/financeiro/beneficiarios/artistas/dia-com-sem' : null, { onError: onErro });
 
-  useEffect(() => { carregar(); }, [carregar]);
+  const loading = !gate || loadingDet || loadingProd || loadingComSem;
+  const header = det?.header ?? null;
+  const shows: any[] = det?.shows || [];
+  const participacoes: any[] = det?.participacoes || [];
+  const produtos: any[] = prod?.produtos || [];
+  const grupos: any[] = prod?.grupos || [];
+  const semAtracao = useMemo<number | null>(() => {
+    const geralSem = (comSem?.linhas || []).find((l: any) => l.segmento === 'sem' && l.dia_semana === null);
+    return geralSem ? geralSem.fat_medio : null;
+  }, [comSem]);
 
   useEffect(() => {
     setPageTitle(header?.nome ? `🎵 ${header.nome}` : '🎵 Beneficiário');

@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent } from '@/components/ui/card';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
-import { api } from '@/lib/api-client';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { ReceiptText, Loader2, FileText, Ban, CalendarDays, BarChart3, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { GraficoBase } from '@/components/graficos/GraficoBase';
 
@@ -53,15 +53,6 @@ function NotasFiscaisInner() {
   const [aba, setAba] = useState<'diario' | 'mensal'>('diario');
   const [meses, setMeses] = useState<string[]>([]);
   const [mesSel, setMesSel] = useState<string>('');
-  const [cnpjs, setCnpjs] = useState<Cnpj[]>([]);
-  const [dias, setDias] = useState<Dia[]>([]);
-  const [resumo, setResumo] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-
-  const [mensal, setMensal] = useState<Mes[]>([]);
-  const [cnpjsMensal, setCnpjsMensal] = useState<Cnpj[]>([]);
-  const [loadingMensal, setLoadingMensal] = useState(false);
-
   const periodo = useMemo(() => {
     if (!mesSel) return null;
     const [y, m] = mesSel.split('-').map(Number);
@@ -69,45 +60,31 @@ function NotasFiscaisInner() {
     return { de: `${mesSel}-01`, ate: `${mesSel}-${String(ultimo).padStart(2, '0')}` };
   }, [mesSel]);
 
-  const carregarDiario = useCallback(async () => {
-    if (!selectedBar?.id) return;
-    setLoading(true);
-    try {
-      const qs = new URLSearchParams();
-      if (periodo) { qs.set('de', periodo.de); qs.set('ate', periodo.ate); }
-      const r = await api.get(`/api/financeiro/notas-fiscais?${qs.toString()}`);
-      if (!r?.success) throw new Error(r?.error || 'Falha ao carregar');
-      setCnpjs(r.cnpjs || []);
-      setDias(r.dias || []);
-      setResumo(r.resumo || null);
-      if ((r.meses_disponiveis || []).length) {
-        setMeses(r.meses_disponiveis);
-        if (!mesSel) setMesSel(r.meses_disponiveis[0]);
-      }
-    } catch (e: any) {
-      showToast({ type: 'error', title: 'Erro ao carregar notas fiscais', message: e?.message });
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedBar?.id, periodo, mesSel, showToast]);
+  // Diário via SWR: chave inclui o bar (header) + período (de/ate). Sem mesSel ainda,
+  // busca sem período e popula o seletor a partir de meses_disponiveis.
+  const diarioQs = new URLSearchParams();
+  if (periodo) { diarioQs.set('de', periodo.de); diarioQs.set('ate', periodo.ate); }
+  const { data: diarioResp, isLoading: loadingDiario } = useApiSWR<any>(
+    selectedBar?.id ? `/api/financeiro/notas-fiscais?${diarioQs.toString()}` : null,
+    { onError: (e: any) => showToast({ type: 'error', title: 'Erro ao carregar notas fiscais', message: e?.message }) },
+  );
+  const cnpjs: Cnpj[] = diarioResp?.cnpjs || [];
+  const dias: Dia[] = diarioResp?.dias || [];
+  const resumo = diarioResp?.resumo || null;
+  const loading = !selectedBar?.id || loadingDiario;
 
-  const carregarMensal = useCallback(async () => {
-    if (!selectedBar?.id) return;
-    setLoadingMensal(true);
-    try {
-      const r = await api.get('/api/financeiro/notas-fiscais/mensal');
-      if (!r?.success) throw new Error(r?.error || 'Falha ao carregar');
-      setCnpjsMensal(r.cnpjs || []);
-      setMensal(r.meses || []);
-    } catch (e: any) {
-      showToast({ type: 'error', title: 'Erro ao carregar série mensal', message: e?.message });
-    } finally {
-      setLoadingMensal(false);
-    }
-  }, [selectedBar?.id, showToast]);
+  useEffect(() => {
+    const md = diarioResp?.meses_disponiveis;
+    if (md?.length) { setMeses(md); setMesSel((prev) => prev || md[0]); }
+  }, [diarioResp]);
 
-  useEffect(() => { carregarDiario(); }, [carregarDiario]);
-  useEffect(() => { if (aba === 'mensal' && mensal.length === 0) carregarMensal(); }, [aba, mensal.length, carregarMensal]);
+  // Mensal lazy: só busca ao abrir a aba; SWR cacheia (não re-busca ao voltar).
+  const { data: mensalResp, isLoading: loadingMensal } = useApiSWR<any>(
+    selectedBar?.id && aba === 'mensal' ? '/api/financeiro/notas-fiscais/mensal' : null,
+    { onError: (e: any) => showToast({ type: 'error', title: 'Erro ao carregar série mensal', message: e?.message }) },
+  );
+  const mensal: Mes[] = mensalResp?.meses || [];
+  const cnpjsMensal: Cnpj[] = mensalResp?.cnpjs || [];
 
   const maxDia = useMemo(() => Math.max(1, ...dias.map((d) => d.total_autorizado)), [dias]);
 

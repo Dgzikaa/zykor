@@ -9,6 +9,7 @@ import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Banknote, Loader2, ArrowDownCircle, ArrowUpCircle, ListTree, CalendarDays, Wallet, Filter, Check, Search, Clock, Receipt, X, ChevronsUpDown } from 'lucide-react';
 
 type Saida = { dt_gerencial: string; trn: number; num_lancamento: number | null; motivo: string; valor_saida: number; obs: string | null };
@@ -274,17 +275,9 @@ export function FluxoContaHub({ only }: { only?: 'entradas' | 'saidas' | 'turnos
   const [aba, setAba] = useState<'entradas' | 'saidas' | 'turnos'>(only ?? 'entradas');
   const [meses, setMeses] = useState<string[]>([]);
   const [mesSel, setMesSel] = useState<string>('');
-  const [saidas, setSaidas] = useState<Saida[]>([]);
-  const [entradas, setEntradas] = useState<Entrada[]>([]);
-  const [turnos, setTurnos] = useState<Turno[]>([]);
-  const [resumo, setResumo] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-
   // Lançar saída no CA
   const [lancados, setLancados] = useState<Record<string, boolean>>({}); // "trn-num" -> baixado
   const [entLanc, setEntLanc] = useState<Record<string, boolean>>({}); // dt_gerencial -> baixado (entradas)
-  const [catOpts, setCatOpts] = useState<CatOpt[]>([]);
-  const [contaCaixa, setContaCaixa] = useState<{ id: string; nome: string } | null>(null);
   const [modal, setModal] = useState<Saida | null>(null);
   const lancKey = (trn: number, num: number | null) => `${trn}-${num}`;
 
@@ -295,48 +288,40 @@ export function FluxoContaHub({ only }: { only?: 'entradas' | 'saidas' | 'turnos
     return { de: `${mesSel}-01`, ate: `${mesSel}-${String(ultimo).padStart(2, '0')}` };
   }, [mesSel]);
 
-  const carregar = useCallback(async () => {
-    if (!selectedBar?.id) return;
-    setLoading(true);
-    try {
-      const qs = new URLSearchParams();
-      if (periodo) { qs.set('de', periodo.de); qs.set('ate', periodo.ate); }
-      const r = await api.get(`/api/financeiro/saidas-caixa?${qs.toString()}`);
-      if (!r?.success) throw new Error(r?.error || 'Falha ao carregar');
-      setSaidas(r.saidas || []);
-      setEntradas(r.entradas || []);
-      setTurnos(r.turnos || []);
-      setResumo(r.resumo || null);
-      const lm: Record<string, boolean> = {};
-      for (const l of (r.lancados || [])) lm[lancKey(l.trn, l.num_lancamento)] = !!l.baixado;
-      setLancados(lm);
-      const em: Record<string, boolean> = {};
-      for (const l of (r.entradas_lancadas || [])) em[l.dt_gerencial] = !!l.baixado;
-      setEntLanc(em);
-      if ((r.meses_disponiveis || []).length) {
-        setMeses(r.meses_disponiveis);
-        if (!mesSel) setMesSel(r.meses_disponiveis[0]);
-      }
-    } catch (e: any) {
-      showToast({ type: 'error', title: 'Erro ao carregar fluxo de dinheiro', message: e?.message });
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedBar?.id, periodo, mesSel, showToast]);
+  // Fluxo (entradas/saídas/turnos) via SWR: chave inclui o bar (header) + período.
+  const qs = new URLSearchParams();
+  if (periodo) { qs.set('de', periodo.de); qs.set('ate', periodo.ate); }
+  const { data: fluxoResp, isLoading, mutate } = useApiSWR<any>(
+    selectedBar?.id ? `/api/financeiro/saidas-caixa?${qs.toString()}` : null,
+    { onError: (e: any) => showToast({ type: 'error', title: 'Erro ao carregar fluxo de dinheiro', message: e?.message }) },
+  );
+  const saidas: Saida[] = fluxoResp?.saidas || [];
+  const entradas: Entrada[] = fluxoResp?.entradas || [];
+  const turnos: Turno[] = fluxoResp?.turnos || [];
+  const resumo = fluxoResp?.resumo || null;
+  const loading = !selectedBar?.id || isLoading;
 
-  useEffect(() => { carregar(); }, [carregar]);
-
-  // categorias (despesa) + conta Caixa Dinheiro pro modal de lançamento
+  // Semeia os mapas de "lançado" e o seletor de meses a partir da resposta (só quando success).
   useEffect(() => {
-    if (!selectedBar?.id) return;
-    (async () => {
-      try {
-        const r = await api.get(`/api/financeiro/saidas-caixa/lancar?bar_id=${selectedBar.id}`);
-        setCatOpts(r?.categorias || []);
-        setContaCaixa(r?.conta || null);
-      } catch { /* silencioso — o modal avisa se faltar */ }
-    })();
-  }, [selectedBar?.id]);
+    if (!fluxoResp?.success) return;
+    const lm: Record<string, boolean> = {};
+    for (const l of (fluxoResp.lancados || [])) lm[`${l.trn}-${l.num_lancamento}`] = !!l.baixado;
+    setLancados(lm);
+    const em: Record<string, boolean> = {};
+    for (const l of (fluxoResp.entradas_lancadas || [])) em[l.dt_gerencial] = !!l.baixado;
+    setEntLanc(em);
+    if ((fluxoResp.meses_disponiveis || []).length) {
+      setMeses(fluxoResp.meses_disponiveis);
+      setMesSel((prev) => prev || fluxoResp.meses_disponiveis[0]);
+    }
+  }, [fluxoResp]);
+
+  // categorias (despesa) + conta Caixa Dinheiro pro modal de lançamento (silencioso em erro)
+  const { data: lancMeta } = useApiSWR<any>(
+    selectedBar?.id ? `/api/financeiro/saidas-caixa/lancar?bar_id=${selectedBar.id}` : null,
+  );
+  const catOpts: CatOpt[] = lancMeta?.categorias || [];
+  const contaCaixa: { id: string; nome: string } | null = lancMeta?.conta || null;
 
   // Filtros por aba
   const fSaidas = useTableFilter<Saida>(
@@ -613,7 +598,7 @@ export function FluxoContaHub({ only }: { only?: 'entradas' | 'saidas' | 'turnos
           catOpts={catOpts}
           conta={contaCaixa}
           onClose={() => setModal(null)}
-          onDone={(baixado) => { setLancados((m) => ({ ...m, [lancKey(modal.trn, modal.num_lancamento)]: baixado })); setModal(null); }}
+          onDone={(baixado) => { setLancados((m) => ({ ...m, [lancKey(modal.trn, modal.num_lancamento)]: baixado })); setModal(null); mutate(); }}
         />
       )}
     </div>

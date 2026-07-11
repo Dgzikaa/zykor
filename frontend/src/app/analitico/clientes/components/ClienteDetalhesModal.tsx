@@ -20,6 +20,7 @@ import {
   Users,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { useApiSWR } from '@/hooks/useApiSWR'
 import type {
   Cliente,
   DetalhesResponse,
@@ -55,13 +56,55 @@ export function ClienteDetalhesModal({
   const { toast } = useToast()
   const toastRef = useRef(toast)
   toastRef.current = toast
-  
-  const [visitasDetalhadas, setVisitasDetalhadas] = useState<VisitaDetalhada[]>([])
-  const [diaDestaque, setDiaDestaque] = useState('')
-  const [loadingVisitas, setLoadingVisitas] = useState(false)
-  const [perfilConsumo, setPerfilConsumo] = useState<PerfilConsumo | null>(null)
-  const [loadingPerfil, setLoadingPerfil] = useState(false)
+
   const [paginaTempos, setPaginaTempos] = useState(1)
+
+  const telefone = cliente?.telefone ?? null
+  // Só busca com modal aberto, cliente selecionado, bar e telefone presentes.
+  const ativo = isOpen && !!cliente && !!barId && !!telefone
+  // Chaves incluem telefone + bar (BarContext / header do apiCall).
+  // keepPreviousData=false: ao trocar de cliente, não vazar dados do anterior.
+  const { data: detalhesResp, error: detalhesErr, isLoading: loadingVisitas } =
+    useApiSWR<DetalhesResponse>(
+      ativo ? `/api/analitico/clientes/detalhes?telefone=${encodeURIComponent(telefone!)}` : null,
+      { keepPreviousData: false }
+    )
+  const { data: perfilResp, isLoading: loadingPerfil } =
+    useApiSWR<{ perfil?: PerfilConsumo }>(
+      ativo ? `/api/analitico/clientes/perfil-consumo?telefone=${encodeURIComponent(telefone!)}` : null,
+      { keepPreviousData: false }
+    )
+
+  const visitasDetalhadas: VisitaDetalhada[] = detalhesResp?.visitas || []
+  const diaDestaque = detalhesResp ? (detalhesResp.dia_destaque || 'Não definido') : ''
+  const perfilConsumo: PerfilConsumo | null = perfilResp?.perfil ?? null
+
+  // Reset de paginação ao trocar de cliente / abrir-fechar o modal.
+  useEffect(() => {
+    setPaginaTempos(1)
+  }, [cliente, isOpen])
+
+  // Alerta quando não há bar selecionado (preserva o toast original).
+  useEffect(() => {
+    if (isOpen && cliente && !barId) {
+      toastRef.current({
+        title: 'Bar não selecionado',
+        description: 'Selecione um bar para carregar visitas e perfil de consumo.',
+        variant: 'destructive',
+      })
+    }
+  }, [isOpen, cliente, barId])
+
+  // Toast de erro ao carregar visitas (perfil de consumo é opcional, sem toast).
+  useEffect(() => {
+    if (detalhesErr) {
+      toastRef.current({
+        title: 'Erro ao carregar detalhes',
+        description: detalhesErr instanceof Error ? detalhesErr.message : 'Erro desconhecido',
+        variant: 'destructive',
+      })
+    }
+  }, [detalhesErr])
 
   const handleOpenChange = (open: boolean) => {
     if (!open) onClose()
@@ -96,94 +139,6 @@ export function ClienteDetalhesModal({
     },
     [toast]
   )
-
-  useEffect(() => {
-    if (!isOpen || !cliente) {
-      setVisitasDetalhadas([])
-      setDiaDestaque('')
-      setPerfilConsumo(null)
-      setPaginaTempos(1)
-      return
-    }
-
-    if (!barId) {
-      toastRef.current({
-        title: 'Bar não selecionado',
-        description: 'Selecione um bar para carregar visitas e perfil de consumo.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    const telefone = cliente.telefone
-    if (!telefone) {
-      setVisitasDetalhadas([])
-      setDiaDestaque('')
-      setPerfilConsumo(null)
-      return
-    }
-
-    const headers = { 'x-selected-bar-id': String(barId) }
-    let cancelled = false
-
-    const fetchVisitas = async () => {
-      setLoadingVisitas(true)
-      try {
-        const q = encodeURIComponent(telefone)
-        const response = await fetch(`/api/analitico/clientes/detalhes?telefone=${q}`, {
-          headers,
-        })
-        if (!response.ok) {
-          throw new Error('Erro ao carregar detalhes das visitas')
-        }
-        const data: DetalhesResponse = await response.json()
-        if (!cancelled) {
-          setVisitasDetalhadas(data.visitas || [])
-          setDiaDestaque(data.dia_destaque || 'Não definido')
-        }
-      } catch (err) {
-        if (!cancelled) {
-          toastRef.current({
-            title: 'Erro ao carregar detalhes',
-            description: err instanceof Error ? err.message : 'Erro desconhecido',
-            variant: 'destructive',
-          })
-          setVisitasDetalhadas([])
-        }
-      } finally {
-        if (!cancelled) setLoadingVisitas(false)
-      }
-    }
-
-    const fetchPerfil = async () => {
-      setLoadingPerfil(true)
-      setPerfilConsumo(null)
-      try {
-        const q = encodeURIComponent(telefone)
-        const response = await fetch(`/api/analitico/clientes/perfil-consumo?telefone=${q}`, {
-          headers,
-        })
-        if (!response.ok) {
-          return
-        }
-        const data = await response.json()
-        if (!cancelled && data.perfil) {
-          setPerfilConsumo(data.perfil as PerfilConsumo)
-        }
-      } catch {
-        // perfil é opcional
-      } finally {
-        if (!cancelled) setLoadingPerfil(false)
-      }
-    }
-
-    setPaginaTempos(1)
-    void Promise.all([fetchVisitas(), fetchPerfil()])
-
-    return () => {
-      cancelled = true
-    }
-  }, [isOpen, cliente, barId])
 
   const produtosFavoritos = perfilConsumo?.produtos_favoritos ?? []
   const categoriasFavoritas = perfilConsumo?.categorias_favoritas ?? []

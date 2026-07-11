@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GraficoBarra } from '@/components/graficos/Charts';
@@ -43,19 +44,25 @@ function seloArtista(a: any, momPubUp: boolean | null): { txt: string; cls: stri
 }
 
 export default function InsightsTab({ barId, periodo }: { barId?: number; periodo: number }) {
-  const [rank, setRank] = useState<any[] | null>(null);
-  const [dias, setDias] = useState<any[] | null>(null);
   const ateStr = new Date().toISOString().slice(0, 10);
   const deStr = (() => { const d = new Date(); d.setMonth(d.getMonth() - periodo); return d.toISOString().slice(0, 10); })();
 
-  useEffect(() => {
-    if (!barId) return;
-    setRank(null); setDias(null);
-    fetch(`/api/analitico/atracoes?periodo=${periodo}&bar_id=${barId}`, { cache: 'no-store' })
-      .then(r => r.json()).then(j => setRank(j.data || [])).catch(() => setRank([]));
-    fetch(`/api/analitico/atracoes?view=insights-dias&periodo=${periodo}&bar_id=${barId}`, { cache: 'no-store' })
-      .then(r => r.json()).then(j => setDias(j.dias || [])).catch(() => setDias([]));
-  }, [barId, periodo]);
+  // Cache via SWR: 2 GETs independentes (ranking + insights-dias). Chave inclui bar + período.
+  // Mesmo shape do fetch anterior (j.data / j.dias). Erro => [] (igual ao .catch original).
+  const { data: rankResp, error: rankErr } = useApiSWR<any>(
+    barId ? `/api/analitico/atracoes?periodo=${periodo}&bar_id=${barId}` : null,
+  );
+  const { data: diasResp, error: diasErr } = useApiSWR<any>(
+    barId ? `/api/analitico/atracoes?view=insights-dias&periodo=${periodo}&bar_id=${barId}` : null,
+  );
+  const rank = useMemo<any[] | null>(
+    () => (rankErr ? [] : rankResp ? (rankResp.data || []) : null),
+    [rankResp, rankErr],
+  );
+  const dias = useMemo<any[] | null>(
+    () => (diasErr ? [] : diasResp ? (diasResp.dias || []) : null),
+    [diasResp, diasErr],
+  );
 
   // momentum por artista (últimos 3 shows × 3 anteriores) + cadência (shows/mês) + selo
   const artistas = useMemo(() => {
