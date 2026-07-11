@@ -299,12 +299,12 @@ export default function ContasAPagarPage() {
             </div>
             <div className="space-y-2">
               <Label>Status</Label>
-              <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+              <Select value={statusFilter || '__all__'} onValueChange={(v) => { setStatusFilter(v === '__all__' ? '' : v); setPage(1); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="__all__">Todos</SelectItem>
                   <SelectItem value="PENDENTE,EM_ABERTO">Em Aberto</SelectItem>
                   <SelectItem value="QUITADO,PAGO,RECEBIDO">Pago</SelectItem>
                   <SelectItem value="ATRASADO">Atrasado</SelectItem>
@@ -315,12 +315,12 @@ export default function ContasAPagarPage() {
             </div>
             <div className="space-y-2">
               <Label>Categoria</Label>
-              <Select value={categoriaFilter} onValueChange={(v) => { setCategoriaFilter(v); setPage(1); }}>
+              <Select value={categoriaFilter || '__all__'} onValueChange={(v) => { setCategoriaFilter(v === '__all__' ? '' : v); setPage(1); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todas" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas</SelectItem>
+                  <SelectItem value="__all__">Todas</SelectItem>
                   {categorias.map((cat) => (
                     <SelectItem key={cat.id} value={cat.nome}>{cat.nome}</SelectItem>
                   ))}
@@ -329,12 +329,12 @@ export default function ContasAPagarPage() {
             </div>
             <div className="space-y-2">
               <Label>Centro de Custo</Label>
-              <Select value={centroCustoFilter} onValueChange={(v) => { setCentroCustoFilter(v); setPage(1); }}>
+              <Select value={centroCustoFilter || '__all__'} onValueChange={(v) => { setCentroCustoFilter(v === '__all__' ? '' : v); setPage(1); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="__all__">Todos</SelectItem>
                   {centrosCusto.map((cc) => (
                     <SelectItem key={cc.id} value={cc.nome}>{cc.nome}</SelectItem>
                   ))}

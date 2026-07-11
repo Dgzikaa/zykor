@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { HandCoins, Loader2, Send, Check, AlertTriangle, ChevronRight } from 'lucide-react';
@@ -35,36 +36,23 @@ export function ConsumacoesTab() {
   const { showToast } = useToast();
   const [gran, setGran] = useState<Gran>('dia');
   const [dataRef, setDataRef] = useState(ontemISO());
-  const [dia, setDia] = useState<{ itens: Item[]; totalDespesas: number; ignorado: number; soma_zero: number } | null>(null);
-  const [periodo, setPeriodo] = useState<{ dias: DiaResumo[]; total: number; dias_pendentes: string[] } | null>(null);
-  const [loading, setLoading] = useState(false);
   const [lancandoChave, setLancandoChave] = useState<string | null>(null);
   const [lancandoDia, setLancandoDia] = useState<string | null>(null);
   const [lancandoLote, setLancandoLote] = useState(false);
 
   const range = useMemo(() => gran === 'dia' ? { de: dataRef, ate: dataRef } : gran === 'semana' ? semanaDe(dataRef) : mesDe(dataRef), [gran, dataRef]);
 
-  const carregar = useCallback(async () => {
-    if (!selectedBar?.id || !dataRef) return;
-    setLoading(true);
-    try {
-      if (gran === 'dia') {
-        const r = await api.get(`/api/financeiro/fechamento/consumacao?bar_id=${selectedBar.id}&data=${dataRef}`);
-        if (r?.error) throw new Error(r.error);
-        setDia(r); setPeriodo(null);
-      } else {
-        const { de, ate } = range;
-        const r = await api.get(`/api/financeiro/fechamento/consumacao?bar_id=${selectedBar.id}&de=${de}&ate=${ate}`);
-        if (r?.error) throw new Error(r.error);
-        setPeriodo(r); setDia(null);
-      }
-    } catch (e: any) {
-      showToast({ type: 'error', title: 'Erro ao carregar consumações', message: e?.message });
-      setDia(null); setPeriodo(null);
-    } finally { setLoading(false); }
-  }, [selectedBar?.id, gran, dataRef, range, showToast]);
-
-  useEffect(() => { carregar(); }, [carregar]);
+  // Cache via SWR: a chave inclui bar + granularidade (endpoint dia vs período). mutate() = refetch pós-POST.
+  const { data: resp, isValidating: loading, mutate } = useApiSWR<any>(
+    selectedBar?.id && dataRef
+      ? (gran === 'dia'
+          ? `/api/financeiro/fechamento/consumacao?bar_id=${selectedBar.id}&data=${dataRef}`
+          : `/api/financeiro/fechamento/consumacao?bar_id=${selectedBar.id}&de=${range.de}&ate=${range.ate}`)
+      : null,
+    { onError: (e: any) => showToast({ type: 'error', title: 'Erro ao carregar consumações', message: e?.message }) }
+  );
+  const dia: { itens: Item[]; totalDespesas: number; ignorado: number; soma_zero: number } | null = gran === 'dia' ? (resp ?? null) : null;
+  const periodo: { dias: DiaResumo[]; total: number; dias_pendentes: string[] } | null = gran !== 'dia' ? (resp ?? null) : null;
 
   const ocupado = lancandoChave !== null || lancandoDia !== null || lancandoLote;
 
@@ -78,14 +66,14 @@ export function ConsumacoesTab() {
   const lancarUm = async (chave: string) => {
     if (!selectedBar?.id) return;
     setLancandoChave(chave);
-    try { await postDia(dataRef, { chave }); showToast({ type: 'success', title: 'Lançado no Conta Azul' }); await carregar(); }
+    try { await postDia(dataRef, { chave }); showToast({ type: 'success', title: 'Lançado no Conta Azul' }); await mutate(); }
     catch (e: any) { showToast({ type: 'error', title: 'Falha ao lançar', message: e?.message }); }
     finally { setLancandoChave(null); }
   };
   const lancarDia = async (d: string) => {
     if (!selectedBar?.id) return;
     setLancandoDia(d);
-    try { await postDia(d); showToast({ type: 'success', title: `Dia ${brDate(d)} lançado` }); await carregar(); }
+    try { await postDia(d); showToast({ type: 'success', title: `Dia ${brDate(d)} lançado` }); await mutate(); }
     catch (e: any) { showToast({ type: 'error', title: 'Falha ao lançar', message: e?.message }); }
     finally { setLancandoDia(null); }
   };
@@ -98,7 +86,7 @@ export function ConsumacoesTab() {
     }
     showToast({ type: erros ? 'error' : 'success', title: `${ok} dia(s) lançado(s)${erros ? `, ${erros} com erro` : ''}` });
     setLancandoLote(false);
-    await carregar();
+    await mutate();
   };
 
   return (

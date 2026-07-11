@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useMemo, useState } from 'react';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -94,9 +95,6 @@ const emptyForm = (): FormEntry => ({
 
 export function DreManualTab({ barId }: { barId: number }) {
   const { toast } = useToast();
-  const [entries, setEntries] = useState<DreEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
 
   // Filtros
   const [anoFiltro, setAnoFiltro] = useState<number>(new Date().getFullYear());
@@ -108,29 +106,25 @@ export function DreManualTab({ barId }: { barId: number }) {
   const [form, setForm] = useState<FormEntry>(emptyForm());
   const [salvando, setSalvando] = useState(false);
 
-  const carregar = useCallback(async () => {
-    setLoading(true);
-    setErro(null);
-    try {
-      const sp = new URLSearchParams({
-        bar_id: String(barId),
-        ano: String(anoFiltro),
-      });
-      if (mesFiltro !== 'todos') sp.set('mes', String(mesFiltro));
-      const r = await fetch(`/api/estrategico/orcamentacao/dre-manual?${sp.toString()}`);
-      const d = await r.json();
-      if (d.success) setEntries(d.data || []);
-      else setErro(d.error || 'Erro ao carregar');
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Erro de rede');
-    } finally {
-      setLoading(false);
-    }
+  // Cache via SWR: chave = endpoint (bar_id + ano + mes). Trocar filtros re-busca.
+  const endpoint = useMemo(() => {
+    const sp = new URLSearchParams({
+      bar_id: String(barId),
+      ano: String(anoFiltro),
+    });
+    if (mesFiltro !== 'todos') sp.set('mes', String(mesFiltro));
+    return `/api/estrategico/orcamentacao/dre-manual?${sp.toString()}`;
   }, [barId, anoFiltro, mesFiltro]);
 
-  useEffect(() => {
-    carregar();
-  }, [carregar]);
+  const { data, isLoading: loading, error, mutate } = useApiSWR<{ success?: boolean; data?: DreEntry[]; error?: string }>(
+    barId ? endpoint : null,
+  );
+  const entries = useMemo<DreEntry[]>(() => (data?.success ? (data.data || []) : []), [data]);
+  const erro = data && data.success === false
+    ? (data.error || 'Erro ao carregar')
+    : error
+      ? (error instanceof Error ? error.message : 'Erro de rede')
+      : null;
 
   // Categorias disponiveis pra macro selecionado no form
   const categoriasDoMacroForm = form.categoria_macro
@@ -178,7 +172,7 @@ export function DreManualTab({ barId }: { barId: number }) {
       setCriando(false);
       setEditandoId(null);
       setForm(emptyForm());
-      await carregar();
+      await mutate();
     } catch (e) {
       toast({ title: 'Erro ao salvar', description: e instanceof Error ? e.message : 'erro', variant: 'destructive' });
     } finally {
@@ -195,7 +189,7 @@ export function DreManualTab({ barId }: { barId: number }) {
       const j = await resp.json();
       if (!resp.ok || !j.success) throw new Error(j.error || 'Erro');
       toast({ title: 'Removido' });
-      await carregar();
+      await mutate();
     } catch (e) {
       toast({ title: 'Erro ao remover', description: e instanceof Error ? e.message : 'erro', variant: 'destructive' });
     }
@@ -251,7 +245,7 @@ export function DreManualTab({ barId }: { barId: number }) {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={carregar} className="gap-1">
+          <Button variant="outline" size="sm" onClick={() => mutate()} className="gap-1">
             <RefreshCw className="w-3 h-3" /> Atualizar
           </Button>
           {!criando && (

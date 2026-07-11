@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api-client';
@@ -36,9 +37,6 @@ function Conteudo() {
   const barId = selectedBar?.id;
 
   const [data, setData] = useState(ontemBRT());
-  const [preview, setPreview] = useState<any | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [lancando, setLancando] = useState(false);
   const [confirmar, setConfirmar] = useState(false);
   const [resultado, setResultado] = useState<any | null>(null);
@@ -49,16 +47,14 @@ function Conteudo() {
   const [colapsadas, setColapsadas] = useState<Set<string>>(new Set()); // CNPJs recolhidos
   const toggleColapso = (emp: string) => setColapsadas((s) => { const n = new Set(s); n.has(emp) ? n.delete(emp) : n.add(emp); return n; });
 
-  const carregar = useCallback(async () => {
-    if (!barId) return;
-    setLoading(true); setErro(null); setResultado(null);
-    try {
-      const r = await api.get(`/api/financeiro/stone/contas-a-receber-diario?data=${data}&bar_id=${barId}`);
-      setPreview(r);
-    } catch (e: any) { setPreview(null); setErro(e?.message || 'Erro no preview'); }
-    finally { setLoading(false); }
-  }, [barId, data]);
-  useEffect(() => { carregar(); }, [carregar]);
+  // Cache via SWR: a chave inclui o bar + a data; trocar re-busca. Toda a UI derivada do
+  // preview fica atrás de `!erro`, então manter o preview anterior num erro não a exibe.
+  const { data: preview, isLoading: loading, error: swrError, mutate } = useApiSWR<any>(
+    barId ? `/api/financeiro/stone/contas-a-receber-diario?data=${data}&bar_id=${barId}` : null,
+  );
+  const erro = swrError ? (swrError.message || 'Erro no preview') : null;
+  // Atualizar preview = limpa o resultado anterior e revalida (mesma semântica do carregar original).
+  const carregar = useCallback(() => { setResultado(null); mutate(); }, [mutate]);
 
   const lancar = async () => {
     if (!barId) return;

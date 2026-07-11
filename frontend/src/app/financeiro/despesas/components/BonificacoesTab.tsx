@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Gift, Loader2, Send, Check, Plus, Trash2, AlertTriangle } from 'lucide-react';
@@ -40,8 +41,6 @@ export function BonificacoesTab() {
   const { showToast } = useToast();
   const opcoesMes = useMemo(() => ultimosMeses(12), []);
   const [sel, setSel] = useState(opcoesMes[0]?.key || '');
-  const [data, setData] = useState<Preview | null>(null);
-  const [loading, setLoading] = useState(false);
   const [lancandoId, setLancandoId] = useState<number | null>(null);
   const [excluindoId, setExcluindoId] = useState<number | null>(null);
 
@@ -57,20 +56,13 @@ export function BonificacoesTab() {
 
   const { ano, mes } = useMemo(() => { const [a, m] = sel.split('-').map(Number); return { ano: a, mes: m }; }, [sel]);
 
-  const carregar = useCallback(async () => {
-    if (!selectedBar?.id || !ano || !mes) return;
-    setLoading(true);
-    try {
-      const r = await api.get(`/api/financeiro/fechamento/bonificacoes?bar_id=${selectedBar.id}&ano=${ano}&mes=${mes}`);
-      if (r?.error) throw new Error(r.error);
-      setData(r);
-    } catch (e: any) {
-      showToast({ type: 'error', title: 'Erro ao carregar bonificações', message: e?.message });
-      setData(null);
-    } finally { setLoading(false); }
-  }, [selectedBar?.id, ano, mes, showToast]);
-
-  useEffect(() => { carregar(); }, [carregar]);
+  // Cache via SWR: a chave inclui bar + ano + mes; trocar re-busca. mutate() = refetch pós-POST.
+  const { data, isLoading: loading, mutate } = useApiSWR<Preview>(
+    selectedBar?.id && ano && mes
+      ? `/api/financeiro/fechamento/bonificacoes?bar_id=${selectedBar.id}&ano=${ano}&mes=${mes}`
+      : null,
+    { onError: (e: any) => showToast({ type: 'error', title: 'Erro ao carregar bonificações', message: e?.message }) }
+  );
 
   // default da competência da receita = 1º dia do mês selecionado
   useEffect(() => { setCompReceita(primeiroDiaISO(ano, mes)); }, [ano, mes]);
@@ -98,7 +90,7 @@ export function BonificacoesTab() {
       if (r?.ok) {
         showToast({ type: 'success', title: 'Bonificação cadastrada' });
         setFornecedor(''); setReferente(''); setValor(''); setCompDespesa(hojeISO());
-        await carregar();
+        await mutate();
       } else showToast({ type: 'error', title: 'Falha ao cadastrar', message: r?.error || 'Erro' });
     } catch (e: any) {
       showToast({ type: 'error', title: 'Falha ao cadastrar', message: e?.message });
@@ -112,7 +104,7 @@ export function BonificacoesTab() {
       const r = await api.post('/api/financeiro/fechamento/bonificacoes/lancar', { bar_id: selectedBar.id, id });
       if (r?.ok) showToast({ type: 'success', title: r?.skipped ? 'Já estava lançada' : 'Bonificação lançada no CA (receita + despesa)' });
       else showToast({ type: 'error', title: 'Falha ao lançar', message: (r?.resultados || []).find((x: any) => !x.ok)?.erro || r?.error || 'Erro' });
-      await carregar();
+      await mutate();
     } catch (e: any) {
       showToast({ type: 'error', title: 'Falha ao lançar', message: e?.message });
     } finally { setLancandoId(null); }
@@ -123,7 +115,7 @@ export function BonificacoesTab() {
     setExcluindoId(id);
     try {
       const r = await api.delete(`/api/financeiro/fechamento/bonificacoes?bar_id=${selectedBar.id}&id=${id}`);
-      if (r?.ok) { showToast({ type: 'success', title: 'Bonificação excluída' }); await carregar(); }
+      if (r?.ok) { showToast({ type: 'success', title: 'Bonificação excluída' }); await mutate(); }
       else showToast({ type: 'error', title: 'Não foi possível excluir', message: r?.error || 'Erro' });
     } catch (e: any) {
       showToast({ type: 'error', title: 'Não foi possível excluir', message: e?.message });

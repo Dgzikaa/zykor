@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -154,30 +155,19 @@ export default function BalancoPage() {
   const [ano, setAno] = useState(hoje.getFullYear());
   const [mes, setMes] = useState(hoje.getMonth() + 1); // mês atual (1-indexed)
   const [qtdMeses, setQtdMeses] = useState(6);
-  const [meses, setMeses] = useState<Mes[]>([]);
-  const [loading, setLoading] = useState(true);
   const [editKey, setEditKey] = useState<string | null>(null);
   const [editVal, setEditVal] = useState('');
   // Blocos recolhidos (id do bloco bold -> true = escondido). Default: todos abertos.
   const [colapsados, setColapsados] = useState<Record<string, boolean>>({});
 
-  const carregadoRef = useRef(false);
-  const carregar = useCallback(async () => {
-    if (!selectedBar?.id) return;
-    // Skeleton só no primeiro load — recargas após salvar atualizam em silêncio
-    // (sem o "flash" da tela inteira virar cinza).
-    if (!carregadoRef.current) setLoading(true);
-    try {
-      const r = await fetch(`/api/financeiro/balanco?bar_id=${selectedBar.id}&ano=${ano}&mes=${mes}&n=${qtdMeses}`, { cache: 'no-store' });
-      const j = await r.json();
-      // Caixa+Investimentos é 100% manual — NÃO sobrepor com o snapshot do CA.
-      // (O snapshot segue sendo capturado pelo cron p/ o vigia de caixa apertado, mas não preenche este campo.)
-      const meses = Array.isArray(j.meses) ? j.meses : [];
-      setMeses(meses);
-      carregadoRef.current = true;
-    } finally { setLoading(false); }
-  }, [selectedBar?.id, ano, mes, qtdMeses]);
-  useEffect(() => { carregar(); }, [carregar]);
+  // Cache via SWR: a chave inclui bar + ano/mês/n. keepPreviousData faz as recargas após
+  // salvar atualizarem em silêncio (skeleton só no 1º load), substituindo o carregadoRef.
+  // Caixa+Investimentos é 100% manual — o backend não sobrepõe com o snapshot do CA.
+  const { data: balancoData, isLoading, mutate: carregar } = useApiSWR<{ meses?: Mes[] }>(
+    selectedBar?.id ? `/api/financeiro/balanco?bar_id=${selectedBar.id}&ano=${ano}&mes=${mes}&n=${qtdMeses}` : null,
+  );
+  const meses: Mes[] = Array.isArray(balancoData?.meses) ? balancoData!.meses! : [];
+  const loading = !selectedBar?.id || isLoading;
 
   const salvar = async (m: Mes, campo: string) => {
     if (!selectedBar?.id) return;
@@ -192,17 +182,14 @@ export default function BalancoPage() {
   };
 
   // ---- Cadastro de imobilizado (depreciação) ----
-  const [ativos, setAtivos] = useState<any[]>([]);
   const formVazio = { descricao: '', valor: '', data_aquisicao: '', tipo: 'reinvestimento', taxa_anual: '10' };
   const [form, setForm] = useState(formVazio);
 
-  const carregarAtivos = useCallback(async () => {
-    if (!selectedBar?.id) return;
-    const r = await fetch(`/api/financeiro/balanco/imobilizado?bar_id=${selectedBar.id}`, { cache: 'no-store' });
-    const j = await r.json();
-    setAtivos(Array.isArray(j.ativos) ? j.ativos : []);
-  }, [selectedBar?.id]);
-  useEffect(() => { carregarAtivos(); }, [carregarAtivos]);
+  // Cache via SWR: chave por bar. mutate após cadastrar/remover atualiza a lista.
+  const { data: imobData, mutate: carregarAtivos } = useApiSWR<{ ativos?: any[] }>(
+    selectedBar?.id ? `/api/financeiro/balanco/imobilizado?bar_id=${selectedBar.id}` : null,
+  );
+  const ativos: any[] = Array.isArray(imobData?.ativos) ? imobData!.ativos! : [];
 
   const addAtivo = async () => {
     if (!selectedBar?.id || !form.descricao || !form.valor || !form.data_aquisicao) {

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -110,11 +111,7 @@ export default function ContaAzulPage() {
   }, [setPageTitle]);
   const barId = selectedBar?.id;
 
-  const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
-  const [totalizadores, setTotalizadores] = useState<Totalizadores | null>(null);
-  const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit] = useState(50);
 
@@ -124,43 +121,28 @@ export default function ContaAzulPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [busca, setBusca] = useState('');
 
-  const fetchLancamentos = useCallback(async () => {
-    if (!barId) return;
+  // Monta os mesmos params da URL original — a chave do SWR inclui bar + página + filtros.
+  const params = new URLSearchParams({
+    bar_id: String(barId),
+    page: String(page),
+    limit: String(limit),
+  });
+  if (tipoFilter) params.append('tipo', tipoFilter);
+  if (statusFilter) params.append('status', statusFilter);
+  if (dataVencimentoDe) params.append('data_vencimento_de', dataVencimentoDe);
+  if (dataVencimentoAte) params.append('data_vencimento_ate', dataVencimentoAte);
+  if (busca) params.append('busca', busca);
 
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        bar_id: String(barId),
-        page: String(page),
-        limit: String(limit),
-      });
-
-      if (tipoFilter) params.append('tipo', tipoFilter);
-      if (statusFilter) params.append('status', statusFilter);
-      if (dataVencimentoDe) params.append('data_vencimento_de', dataVencimentoDe);
-      if (dataVencimentoAte) params.append('data_vencimento_ate', dataVencimentoAte);
-      if (busca) params.append('busca', busca);
-
-      const response = await fetch(`/api/financeiro/contaazul/lancamentos?${params}`);
-      
-      if (!response.ok) {
-        throw new Error('Erro ao buscar lançamentos');
-      }
-
-      const data = await response.json();
-      setLancamentos(data.lancamentos || []);
-      setTotal(data.total || 0);
-      setTotalizadores(data.totalizadores || null);
-    } catch (error) {
-      console.error('Erro:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [barId, page, limit, tipoFilter, statusFilter, dataVencimentoDe, dataVencimentoAte, busca]);
-
-  useEffect(() => {
-    fetchLancamentos();
-  }, [fetchLancamentos]);
+  // Cache via SWR: navegar/voltar e trocar filtros reusa o cache (dedupe 30s); a chave inclui o bar.
+  const { data, isLoading, mutate } = useApiSWR<{
+    lancamentos?: Lancamento[];
+    total?: number;
+    totalizadores?: Totalizadores | null;
+  }>(barId ? `/api/financeiro/contaazul/lancamentos?${params.toString()}` : null);
+  const lancamentos = data?.lancamentos || [];
+  const total = data?.total || 0;
+  const totalizadores = data?.totalizadores || null;
+  const loading = !barId || isLoading;
 
   const handleSync = async () => {
     if (!barId) return;
@@ -179,7 +161,7 @@ export default function ContaAzulPage() {
       });
 
       if (response.ok) {
-        await fetchLancamentos();
+        await mutate();
       }
     } catch (error) {
       console.error('Erro ao sincronizar:', error);

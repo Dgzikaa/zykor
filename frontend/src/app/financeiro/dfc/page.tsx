@@ -1,7 +1,8 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -29,32 +30,21 @@ export default function DfcPage() {
   }, [setPageTitle]);
   const [ano, setAno] = useState(new Date().getFullYear());
   const [soConciliado, setSoConciliado] = useState(true); // padrão: só conciliado (decisão do sócio)
-  const [linhas, setLinhas] = useState<Linha[]>([]);
-  const [loading, setLoading] = useState(true);
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
-  const [foraDepara, setForaDepara] = useState<ForaItem[]>([]);
   const [soPendentes, setSoPendentes] = useState(false);
 
-  const carregarDfc = useCallback(() => {
-    if (!selectedBar) return;
-    setLoading(true);
-    fetch(`/api/financeiro/dfc?bar_id=${selectedBar.id}&ano=${ano}&conciliado=${soConciliado ? '1' : '0'}`, { cache: 'no-store' })
-      .then(r => r.json())
-      .then(d => setLinhas(Array.isArray(d.linhas) ? d.linhas : []))
-      .catch(() => setLinhas([]))
-      .finally(() => setLoading(false));
-  }, [selectedBar, ano, soConciliado]);
-  useEffect(() => { carregarDfc(); }, [carregarDfc]);
+  // Cache via SWR: chave por bar + ano + conciliado. mutate revalida após classificar.
+  const { data: dfcData, isLoading, mutate: carregarDfc } = useApiSWR<{ linhas?: Linha[] }>(
+    selectedBar ? `/api/financeiro/dfc?bar_id=${selectedBar.id}&ano=${ano}&conciliado=${soConciliado ? '1' : '0'}` : null,
+  );
+  const linhas: Linha[] = Array.isArray(dfcData?.linhas) ? dfcData!.linhas! : [];
+  const loading = !selectedBar || isLoading;
 
-  // Categorias fora do de-para do DFC (aba classificador self-service).
-  const carregarFora = useCallback(() => {
-    if (!selectedBar) return;
-    fetch(`/api/financeiro/dfc/fora-depara?bar_id=${selectedBar.id}&ano=${ano}`, { cache: 'no-store' })
-      .then(r => r.json())
-      .then(d => setForaDepara(Array.isArray(d.categorias) ? d.categorias : []))
-      .catch(() => setForaDepara([]));
-  }, [selectedBar, ano]);
-  useEffect(() => { carregarFora(); }, [carregarFora]);
+  // Categorias fora do de-para do DFC (aba classificador self-service). Chave por bar + ano.
+  const { data: foraData, mutate: carregarFora } = useApiSWR<{ categorias?: ForaItem[] }>(
+    selectedBar ? `/api/financeiro/dfc/fora-depara?bar_id=${selectedBar.id}&ano=${ano}` : null,
+  );
+  const foraDepara: ForaItem[] = Array.isArray(foraData?.categorias) ? foraData!.categorias! : [];
 
   // Classifica a categoria num grupo do DFC (exceção do bar) e recarrega.
   const [salvandoCat, setSalvandoCat] = useState<string | null>(null);

@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -86,27 +87,14 @@ export default function InstagramDashboardPage() {
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
   const { toast } = useToast();
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
 
-  const carregar = useCallback(async () => {
-    if (!selectedBar?.id) return;
-    setLoading(true);
-    try {
-      const r = await fetch(`/api/instagram/dashboard?bar_id=${selectedBar.id}`);
-      const j = await r.json();
-      setData(j);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedBar?.id]);
-
-  useEffect(() => {
-    carregar();
-  }, [carregar]);
+  // Cache via SWR: a chave inclui o bar; trocar re-busca. mutate() = refetch pós-sync.
+  const { data, isLoading, mutate } = useApiSWR<DashboardData>(
+    selectedBar?.id ? `/api/instagram/dashboard?bar_id=${selectedBar.id}` : null
+  );
+  // Skeleton enquanto o bar ainda não carregou OU a 1ª busca está em voo.
+  const loading = !selectedBar?.id || isLoading;
 
   useEffect(() => {
     setPageTitle('📸 Instagram');
@@ -123,7 +111,7 @@ export default function InstagramDashboardPage() {
       const j = await r.json();
       if (j?.success) {
         toast({ title: 'Sincronizado!', description: 'Dados atualizados.' });
-        await carregar();
+        await mutate();
       } else {
         toast({ title: 'Erro', description: j?.erro || 'Falha ao sincronizar', variant: 'destructive' });
       }

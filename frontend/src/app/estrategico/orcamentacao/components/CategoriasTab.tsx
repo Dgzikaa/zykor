@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Save, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useApiSWR } from '@/hooks/useApiSWR';
 
 // Blocos válidos da Orçamentação/DRE (espelham a ESTRUTURA do orcamentacao-service).
 const BLOCOS = [
@@ -45,30 +46,25 @@ const anos = Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - i);
 export function CategoriasTab({ barId }: { barId: number }) {
   const { toast } = useToast();
   const [ano, setAno] = useState(new Date().getFullYear());
-  const [rows, setRows] = useState<CategoriaRow[]>([]);
-  const [loading, setLoading] = useState(false);
   const [salvando, setSalvando] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [soNaoMapeadas, setSoNaoMapeadas] = useState(false);
   const [edits, setEdits] = useState<Record<string, Edicao>>({});
 
-  const carregar = useCallback(async () => {
-    if (!barId) return;
-    setLoading(true);
-    try {
-      const r = await fetch(`/api/estrategico/orcamentacao/categorias?bar_id=${barId}&ano=${ano}`, { cache: 'no-store' });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j?.error || 'Falha ao carregar');
-      setRows((j.categorias || []) as CategoriaRow[]);
-      setEdits({});
-    } catch (e: any) {
-      toast({ title: 'Erro ao carregar categorias', description: e?.message, variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
-  }, [barId, ano, toast]);
+  // Cache via SWR: chave = endpoint (bar_id + ano). Trocar bar/ano re-busca.
+  const { data, isLoading: loading, mutate } = useApiSWR<{ categorias?: CategoriaRow[] }>(
+    barId ? `/api/estrategico/orcamentacao/categorias?bar_id=${barId}&ano=${ano}` : null,
+    {
+      shouldRetryOnError: false,
+      onError: (e: any) =>
+        toast({ title: 'Erro ao carregar categorias', description: e?.message, variant: 'destructive' }),
+    },
+  );
+  const rows = useMemo(() => (data?.categorias || []) as CategoriaRow[], [data]);
 
-  useEffect(() => { carregar(); }, [carregar]);
+  // Ao trocar bar/ano, descarta edições pendentes (equivalente ao setEdits({}) do
+  // antigo carregar()). Salvar também reseta (ver abaixo).
+  useEffect(() => { setEdits({}); }, [barId, ano]);
 
   const editOf = (row: CategoriaRow): Edicao =>
     edits[row.categoria_ca] ?? {
@@ -105,7 +101,8 @@ export function CategoriasTab({ barId }: { barId: number }) {
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error || 'Falha ao salvar');
       toast({ title: 'Categoria salva', description: `"${row.categoria_ca}" — Orçamentação reprocessada para ${ano}.` });
-      await carregar();
+      setEdits({});
+      await mutate();
     } catch (err: any) {
       toast({ title: 'Erro ao salvar', description: err?.message, variant: 'destructive' });
     } finally {

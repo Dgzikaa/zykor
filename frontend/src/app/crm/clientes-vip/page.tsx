@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useBar } from '@/contexts/BarContext'
+import { useApiSWR } from '@/hooks/useApiSWR'
 import { usePageTitle } from '@/contexts/PageTitleContext'
 import { AnimatedCounter, AnimatedCurrency } from '@/components/ui/animated-counter'
 import { motion } from 'framer-motion'
@@ -64,9 +65,6 @@ export default function ClientesVIPPage() {
     return () => setPageTitle('')
   }, [setPageTitle])
 
-  const [clientes, setClientes] = useState<ClienteVIP[]>([])
-  const [estatisticas, setEstatisticas] = useState<Estatisticas | null>(null)
-  const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [busca, setBusca] = useState('')
   const [clienteSelecionado, setClienteSelecionado] = useState<ClienteVIP | null>(null)
@@ -74,33 +72,13 @@ export default function ClientesVIPPage() {
   const { toast } = useToast()
   const { selectedBar } = useBar()
 
-  const fetchClientes = useCallback(async () => {
-    if (!selectedBar) return
-
-    try {
-      setLoading(true)
-      const response = await fetch('/api/crm/clientes-vip', {
-        headers: {
-          'x-selected-bar-id': String(selectedBar.id)
-        }
-      })
-
-      if (!response.ok) throw new Error('Erro ao buscar clientes')
-
-      const data = await response.json()
-      setClientes(data.clientes || [])
-      setEstatisticas(data.estatisticas || null)
-    } catch (error) {
-      console.error('Erro:', error)
-      toast({
-        title: 'Erro ao carregar dados',
-        description: 'Não foi possível buscar os clientes VIP',
-        variant: 'destructive'
-      })
-    } finally {
-      setLoading(false)
-    }
-  }, [selectedBar, toast])
+  // Cache via SWR: a chave inclui o bar (via context); o bar_id vai no header x-selected-bar-id. mutate() = refetch pós-sync.
+  const { data: resp, isLoading: loading, mutate } = useApiSWR<{ clientes?: ClienteVIP[]; estatisticas?: Estatisticas | null }>(
+    selectedBar ? '/api/crm/clientes-vip' : null,
+    { onError: () => toast({ title: 'Erro ao carregar dados', description: 'Não foi possível buscar os clientes VIP', variant: 'destructive' }) }
+  )
+  const clientes = resp?.clientes || []
+  const estatisticas = resp?.estatisticas || null
 
   const syncPerfis = async () => {
     if (!selectedBar) return
@@ -131,7 +109,7 @@ export default function ClientesVIPPage() {
       })
 
       // Recarregar dados
-      await fetchClientes()
+      await mutate()
     } catch (error) {
       console.error('Erro no sync:', error)
       toast({
@@ -143,10 +121,6 @@ export default function ClientesVIPPage() {
       setSyncing(false)
     }
   }
-
-  useEffect(() => {
-    fetchClientes()
-  }, [fetchClientes])
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {

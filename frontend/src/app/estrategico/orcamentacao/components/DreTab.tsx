@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, ChevronRight, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useApiSWR } from '@/hooks/useApiSWR';
 
 interface DreRow {
   bar_id: number;
@@ -85,8 +86,6 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
   const { toast } = useToast();
   const anoAtualSistema = new Date().getFullYear();
   const [ano, setAno] = useState<number>(anoInicial ?? anoAtualSistema);
-  const [linhas, setLinhas] = useState<DreRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
   // Macros colapsados (mostra só a linha TOTAL). Default: tudo expandido.
   const [colapsados, setColapsados] = useState<Set<string>>(new Set());
@@ -94,18 +93,18 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
   const [linhaSelecionada, setLinhaSelecionada] = useState<number | null>(null);
 
   // Só lê a DRE (view financial.dre_excel agrega o bronze direto).
-  const lerDre = async () => {
-    setLoading(true);
-    try {
-      const r = await fetch(`/api/estrategico/orcamentacao/dre-excel?bar_id=${barId}&ano=${ano}`, { cache: 'no-store' });
-      const j = await r.json();
-      setLinhas((j?.linhas || []).map((l: any) => ({
-        ...l,
-        valor_com_sinal: Number(l.valor_com_sinal),
-        percentual_receita: l.percentual_receita == null ? null : Number(l.percentual_receita),
-      })));
-    } finally { setLoading(false); }
-  };
+  // Cache via SWR: chave = endpoint (bar_id + ano). Trocar bar/ano re-busca.
+  const { data: dreData, isLoading: loading, mutate } = useApiSWR<{ linhas?: any[] }>(
+    barId ? `/api/estrategico/orcamentacao/dre-excel?bar_id=${barId}&ano=${ano}` : null,
+  );
+  const linhas = useMemo<DreRow[]>(
+    () => (dreData?.linhas || []).map((l: any) => ({
+      ...l,
+      valor_com_sinal: Number(l.valor_com_sinal),
+      percentual_receita: l.percentual_receita == null ? null : Number(l.percentual_receita),
+    })),
+    [dreData],
+  );
 
   // Sincronizar com o Conta Azul + reler a DRE.
   // - 'rapido' (padrão, ~5-15s): incremental por data_alteracao. Pega edições de valor
@@ -132,11 +131,9 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
       toast({ title: 'Erro de rede', description: e instanceof Error ? e.message : 'Erro', variant: 'destructive' });
     } finally {
       setSincronizando(false);
-      await lerDre();
+      await mutate();
     }
   };
-
-  useEffect(() => { lerDre(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [barId, ano]);
 
   const toggleMacro = (nome: string) => {
     setColapsados(prev => {

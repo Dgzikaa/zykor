@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { api } from '@/lib/api-client';
 import { ChefHat, Search, Loader2, CalendarDays, Sparkles, RefreshCw, Play, Lock, Unlock, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Beer, X } from 'lucide-react';
 
@@ -43,7 +44,6 @@ export default function PlanoProducaoPage() {
   const barId = selectedBar?.id;
   const [res, setRes] = useState<any | null>(null);
   const [itens, setItens] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const [busca, setBusca] = useState('');
   const [aba, setAba] = useState<'Cozinha' | 'Bar'>('Cozinha'); // planejamento separado Cozinha × Bar
   const [filtroProd, setFiltroProd] = useState<'todos' | 'produzir' | 'nao'>('todos');
@@ -54,15 +54,15 @@ export default function PlanoProducaoPage() {
   const [diaModal, setDiaModal] = useState<any | null>(null); // produção com o modal de dias aberto
   const [modalDias, setModalDias] = useState<Record<string, string>>({}); // iso → receitas (digitado)
 
-  const carregar = useCallback(async () => {
-    if (!barId) return; setLoading(true);
-    try {
-      const qs = semanaSel ? `?semana=${encodeURIComponent(semanaSel)}` : '';
-      const r = await api.get(`/api/operacional/plano-producao${qs}`);
-      if (r.success) { setRes(r); setItens(r.itens || []); }
-    } finally { setLoading(false); }
-  }, [barId, semanaSel]);
-  useEffect(() => { carregar(); }, [carregar]);
+  // Cache via SWR: a chave inclui bar + semana selecionada; trocar re-busca. mutate() = refetch pós-edição.
+  const { data: swrRes, isValidating: loading, mutate } = useApiSWR<any>(
+    barId ? `/api/operacional/plano-producao${semanaSel ? `?semana=${encodeURIComponent(semanaSel)}` : ''}` : null
+  );
+  // itens é uma cópia local editável (patchItem faz UI otimista); semeia do servidor só em success, igual ao carregar antigo.
+  useEffect(() => {
+    if (swrRes?.success) { setRes(swrRes); setItens(swrRes.itens || []); }
+  }, [swrRes]);
+  const carregar = () => mutate();
 
   const semanaAtual = semanaSel ?? res?.semana_sel ?? null; // semana em foco
 

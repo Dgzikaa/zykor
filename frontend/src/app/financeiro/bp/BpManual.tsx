@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
@@ -30,8 +31,6 @@ export function BpManual({ barId }: { barId: number }) {
     return () => setPageTitle('');
   }, [setPageTitle]);
   const [ano, setAno] = useState(new Date().getFullYear());
-  const [dados, setDados] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [mesSel, setMesSel] = useState(new Date().getMonth() + 1);
   const [cmpA, setCmpA] = useState(8);
   const [cmpB, setCmpB] = useState(9);
@@ -42,14 +41,11 @@ export function BpManual({ barId }: { barId: number }) {
   const [abertas, setAbertas] = useState<Record<string, boolean>>({});
   const [paisAbertos, setPaisAbertos] = useState<Record<string, boolean>>({});
 
-  const carregar = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await fetch(`/api/estrategico/orcamentacao/todos-meses?bar_id=${barId}&ano=${ano}`, { cache: 'no-store' }).then((x) => x.json());
-      setDados(r.data || []);
-    } catch { setDados([]); } finally { setLoading(false); }
-  }, [barId, ano]);
-  useEffect(() => { carregar(); }, [carregar]);
+  // Cache via SWR: chave = endpoint (bar_id + ano). Trocar bar/ano re-busca.
+  const { data: resp, isLoading: loading, mutate } = useApiSWR<{ data?: any[] }>(
+    barId ? `/api/estrategico/orcamentacao/todos-meses?bar_id=${barId}&ano=${ano}` : null,
+  );
+  const dados = useMemo<any[]>(() => resp?.data || [], [resp]);
 
   const mesData = useMemo(() => dados.find((m) => m.mes === mesSel), [dados, mesSel]);
 
@@ -84,7 +80,7 @@ export function BpManual({ barId }: { barId: number }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bar_id: barId, ano, mes: mesSel, categoria_nome: nome, valor_planejado: isNaN(valor) ? 0 : valor }),
       });
-      setEditKey(null); await carregar();
+      setEditKey(null); await mutate();
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao salvar', message: e?.message }); }
     finally { setSalvando(null); }
   };
