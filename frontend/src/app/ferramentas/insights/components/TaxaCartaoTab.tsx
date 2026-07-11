@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GraficoBarraH, GraficoLinha } from '@/components/graficos/Charts';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 
 interface Props { dataInicio: string; dataFim: string }
 
@@ -27,20 +28,9 @@ const ddmm = (iso: string) => { const [, m, d] = iso.split('-'); return `${d}/${
 
 export function TaxaCartaoTab({ dataInicio, dataFim }: Props) {
   const { selectedBar } = useBar();
-  const [data, setData] = useState<ApiData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!selectedBar) return;
-    setLoading(true);
-    setError(null);
-    fetch(`/api/ferramentas/insights/taxas-cartao?bar_id=${selectedBar.id}&data_inicio=${dataInicio}&data_fim=${dataFim}`)
-      .then((r) => r.json())
-      .then((r) => { if (r.success) setData(r); else setError(r.error || 'Erro'); })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [selectedBar?.id, dataInicio, dataFim]);
+  const { data, isLoading: loading, error } = useApiSWR<ApiData>(
+    selectedBar?.id ? `/api/ferramentas/insights/taxas-cartao?bar_id=${selectedBar.id}&data_inicio=${dataInicio}&data_fim=${dataFim}` : null
+  );
 
   const bandeiras = useMemo(
     () => (data?.por_bandeira || []).map((b) => ({ ...b, nome: nomeBandeira(b.brand_id) })),
@@ -49,7 +39,7 @@ export function TaxaCartaoTab({ dataInicio, dataFim }: Props) {
   const porDia = useMemo(() => (data?.por_dia || []).map((d) => ({ ...d, label: ddmm(d.dia) })), [data?.por_dia]);
 
   if (loading) return <Skeleton className="h-96 w-full" />;
-  if (error) return <p className="text-red-500">{error}</p>;
+  if (error) return <p className="text-red-500">{(error as Error)?.message || 'Erro ao carregar'}</p>;
   if (!data || !data.kpis) return null;
 
   const k = data.kpis;

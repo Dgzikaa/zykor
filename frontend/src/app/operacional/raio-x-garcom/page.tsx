@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DollarSign, Receipt, Percent, Wine } from 'lucide-react';
 import { HeroRow, ChartCard, ChartGrid, GraficoBarraH, type Kpi } from '@/components/graficos/Charts';
@@ -41,22 +42,14 @@ export default function RaioXGarcomPage() {
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
   const [dias, setDias] = useState<(typeof PERIODOS)[number]>(30);
-  const [data, setData] = useState<Resp | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading: loading } = useApiSWR<Resp>(
+    selectedBar?.id ? `/api/operacional/raio-x-garcom?bar_id=${selectedBar.id}&dias=${dias}` : null
+  );
 
   useEffect(() => {
     setPageTitle('🧑‍🍳 Raio-x por Garçom');
     return () => setPageTitle('');
   }, [setPageTitle]);
-
-  useEffect(() => {
-    if (!selectedBar?.id) return;
-    setLoading(true);
-    fetch(`/api/operacional/raio-x-garcom?bar_id=${selectedBar.id}&dias=${dias}`)
-      .then((r) => r.json())
-      .then(setData)
-      .finally(() => setLoading(false));
-  }, [selectedBar?.id, dias]);
 
   const casa = data?.casa;
   const garcons = data?.garcons || [];

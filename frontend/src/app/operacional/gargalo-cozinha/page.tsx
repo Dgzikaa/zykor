@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Clock, Timer, Truck, Users, AlertTriangle } from 'lucide-react';
 import {
@@ -45,22 +46,14 @@ export default function GargaloCozinhaPage() {
   const { setPageTitle } = usePageTitle();
   const [dias, setDias] = useState<(typeof PERIODOS)[number]>(30);
   const [categoria, setCategoria] = useState<Categoria>('cozinha');
-  const [data, setData] = useState<Resp | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading: loading } = useApiSWR<Resp>(
+    selectedBar?.id ? `/api/operacional/gargalo-cozinha?bar_id=${selectedBar.id}&dias=${dias}&categoria=${categoria}` : null
+  );
 
   useEffect(() => {
     setPageTitle('⏱️ Gargalo de Cozinha');
     return () => setPageTitle('');
   }, [setPageTitle]);
-
-  useEffect(() => {
-    if (!selectedBar?.id) return;
-    setLoading(true);
-    fetch(`/api/operacional/gargalo-cozinha?bar_id=${selectedBar.id}&dias=${dias}&categoria=${categoria}`)
-      .then((r) => r.json())
-      .then(setData)
-      .finally(() => setLoading(false));
-  }, [selectedBar?.id, dias, categoria]);
 
   const k = data?.kpis;
   const limiteMin = useMemo(() => {

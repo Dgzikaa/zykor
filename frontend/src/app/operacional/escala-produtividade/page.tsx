@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Gauge, TrendingDown, TrendingUp } from 'lucide-react';
 import { HeroRow, ChartCard, GraficoBarra, type Kpi } from '@/components/graficos/Charts';
@@ -31,22 +32,14 @@ export default function EscalaProdutividadePage() {
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
   const [dias, setDias] = useState<(typeof PERIODOS)[number]>(90);
-  const [data, setData] = useState<Resp | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading: loading } = useApiSWR<Resp>(
+    selectedBar?.id ? `/api/operacional/escala-produtividade?bar_id=${selectedBar.id}&dias=${dias}` : null
+  );
 
   useEffect(() => {
     setPageTitle('👥 Escala × Venda');
     return () => setPageTitle('');
   }, [setPageTitle]);
-
-  useEffect(() => {
-    if (!selectedBar?.id) return;
-    setLoading(true);
-    fetch(`/api/operacional/escala-produtividade?bar_id=${selectedBar.id}&dias=${dias}`)
-      .then((r) => r.json())
-      .then(setData)
-      .finally(() => setLoading(false));
-  }, [selectedBar?.id, dias]);
 
   const k = data?.kpis;
   const horas = useMemo(() => (data?.por_hora || []).map((h) => ({ ...h, label: `${h.hora}h` })), [data?.por_hora]);
