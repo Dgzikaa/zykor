@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
           .from('bronze_contaazul_lancamentos')
           .select('categoria_nome, valor_bruto, valor_pago, bar_id')
           .is('excluido_em', null)
-          .order('id'); // ORDER estavel pra paginacao consistente
+          .order('contaazul_id'); // ORDER estavel pra paginacao (tabela nao tem 'id'; PK = bar_id+contaazul_id)
         if (barId) query = query.eq('bar_id', parseInt(barId));
         if (ano && mes) {
           const anoN = parseInt(ano);

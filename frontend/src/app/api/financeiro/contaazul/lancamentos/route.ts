@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
           .select('valor_bruto, valor_pago, status, tipo')
           .eq('bar_id', parseInt(barId))
           .is('excluido_em', null)
-          .order('id'); // ORDER estavel pra paginacao
+          .order('contaazul_id'); // ORDER estavel pra paginacao (tabela nao tem 'id'; PK = bar_id+contaazul_id)
         if (tipo) q = q.eq('tipo', tipo);
         if (status) q = q.eq('status', status);
         if (dataVencimentoDe) q = q.gte('data_vencimento', dataVencimentoDe);
