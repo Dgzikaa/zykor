@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Lightbulb, Clock, XCircle, CreditCard, Calendar, Users, DollarSign, Sparkles } from 'lucide-react';
+import { Lightbulb, Clock, XCircle, CreditCard, Calendar, Users, DollarSign, Sparkles, Percent } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { CurvaHorariaTab } from './components/CurvaHorariaTab';
 import { CancelamentosTab } from './components/CancelamentosTab';
@@ -19,6 +19,7 @@ import { ReservasTab } from './components/ReservasTab';
 import { CohortTab } from './components/CohortTab';
 import { CacRoasTab } from './components/CacRoasTab';
 import { ReviewsNLPTab } from './components/ReviewsNLPTab';
+import { TaxaCartaoTab } from './components/TaxaCartaoTab';
 
 const MESES_LABEL = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
@@ -98,7 +99,7 @@ export default function InsightsPage() {
         </Card>
 
         <Tabs defaultValue="curva" className="w-full">
-          <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-1 h-auto">
+          <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-1 h-auto">
             <TabsTrigger value="curva" className="flex items-center gap-2 py-2">
               <Clock className="w-4 h-4" />
               <span className="hidden lg:inline">Curva horária</span>
@@ -110,6 +111,10 @@ export default function InsightsPage() {
             <TabsTrigger value="meios" className="flex items-center gap-2 py-2">
               <CreditCard className="w-4 h-4" />
               <span className="hidden lg:inline">Meios pgto</span>
+            </TabsTrigger>
+            <TabsTrigger value="taxas" className="flex items-center gap-2 py-2">
+              <Percent className="w-4 h-4" />
+              <span className="hidden lg:inline">Taxas cartão</span>
             </TabsTrigger>
             <TabsTrigger value="reservas" className="flex items-center gap-2 py-2">
               <Calendar className="w-4 h-4" />
@@ -137,6 +142,9 @@ export default function InsightsPage() {
           </TabsContent>
           <TabsContent value="meios" className="mt-4">
             <MeiosPagamentoTab dataInicio={dataInicio} dataFim={dataFim} />
+          </TabsContent>
+          <TabsContent value="taxas" className="mt-4">
+            <TaxaCartaoTab dataInicio={dataInicio} dataFim={dataFim} />
           </TabsContent>
           <TabsContent value="reservas" className="mt-4">
             <ReservasTab dataInicio={dataInicio} dataFim={dataFim} />
