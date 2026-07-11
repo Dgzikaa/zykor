@@ -4,9 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { HelpCircle } from 'lucide-react';
-import {
-  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Legend,
-} from 'recharts';
+import { GraficoBarrasAgrupadas } from '@/components/graficos/Charts';
 import { useBar } from '@/contexts/BarContext';
 
 interface ApiData {
@@ -78,27 +76,20 @@ export function CacRoasTab({ ano: anoProp }: { ano?: number } = {}) {
           <CardTitle>Marketing × Clientes novos por mês</CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={320}>
-            <ComposedChart data={data.meses}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-              <XAxis dataKey="nome" />
-              <YAxis yAxisId="left" tickFormatter={v => `R$ ${(v / 1000).toFixed(0)}k`} />
-              <YAxis yAxisId="right" orientation="right" />
-              <RTooltip
-                contentStyle={{ background: '#1f2937', border: 'none', borderRadius: 8 }}
-                itemStyle={{ color: '#fff' }}
-                labelStyle={{ color: '#fff' }}
-                formatter={(v: any, n: any) => {
-                  if (n === 'Clientes novos') return v;
-                  return fmtBRL(Number(v));
-                }}
-              />
-              <Legend />
-              <Bar yAxisId="left" dataKey="mkt_investido" fill="#f59e0b" name="Mkt investido" />
-              <Bar yAxisId="left" dataKey="fat_clientes_novos" fill="#10b981" name="Fat. dos novos" />
-              <Line yAxisId="right" type="monotone" dataKey="clientes_novos" stroke="#3b82f6" name="Clientes novos" strokeWidth={2} />
-            </ComposedChart>
-          </ResponsiveContainer>
+          <GraficoBarrasAgrupadas
+            data={data.meses}
+            xKey="nome"
+            series={[
+              { key: 'mkt_investido', nome: 'Mkt investido', cor: '#f59e0b' },
+              { key: 'fat_clientes_novos', nome: 'Fat. dos novos', cor: '#10b981' },
+            ]}
+            lineKey="clientes_novos"
+            nomeLinha="Clientes novos"
+            corLinha="#3b82f6"
+            height={320}
+            formatV={fmtBRL}
+            formatLine={(v) => v.toLocaleString('pt-BR')}
+          />
         </CardContent>
       </Card>
 

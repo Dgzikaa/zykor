@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RTooltip, Legend } from 'recharts';
+import { GraficoDonut } from '@/components/graficos/Charts';
 import { useBar } from '@/contexts/BarContext';
 
 interface Props { dataInicio: string; dataFim: string }
@@ -58,28 +58,14 @@ export function MeiosPagamentoTab({ dataInicio, dataFim }: Props) {
         <Card>
           <CardHeader><CardTitle>Mix de pagamento</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={data.distribuicao}
-                  dataKey="valor_bruto"
-                  nameKey="meio"
-                  cx="50%" cy="50%"
-                  outerRadius={100}
-                  label={(e: any) => `${e.pct.toFixed(1)}%`}
-                >
-                  {data.distribuicao.map((_, i) => (
-                    <Cell key={i} fill={CORES[i % CORES.length]} />
-                  ))}
-                </Pie>
-                <RTooltip
-                  formatter={(v: any) => fmtBRL(Number(v))}
-                  contentStyle={{ background: '#1f2937', border: 'none', borderRadius: 8 }}
-                  itemStyle={{ color: '#fff' }}
-                />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            <GraficoDonut
+              data={data.distribuicao}
+              nameKey="meio"
+              valueKey="valor_bruto"
+              height={300}
+              formatV={fmtBRL}
+              cores={CORES}
+            />
           </CardContent>
         </Card>
 

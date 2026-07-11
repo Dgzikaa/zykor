@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer } from 'recharts';
+import { GraficoBarra, GraficoBarrasAgrupadas } from '@/components/graficos/Charts';
 
 interface Props { dataInicio: string; dataFim: string }
 
@@ -118,49 +118,36 @@ export function ReservasTab({ dataInicio, dataFim }: Props) {
         <Card>
           <CardHeader><CardTitle>Antecedência da reserva</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={data.lead_time_distribuicao}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
-                <YAxis />
-                <RTooltip contentStyle={{ background: '#1f2937', border: 'none', borderRadius: 8 }} itemStyle={{ color: '#fff' }} labelStyle={{ color: '#fff' }} />
-                <Bar dataKey="count" fill="#8b5cf6" name="Reservas" />
-              </BarChart>
-            </ResponsiveContainer>
+            <GraficoBarra data={data.lead_time_distribuicao} xKey="bucket" valueKey="count" nomeBarra="Reservas" cor="#8b5cf6" height={240} />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader><CardTitle>Reservas + comparecimento por dia da semana</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={data.por_dia_semana}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey="dia_semana" tick={{ fontSize: 11 }} />
-                <YAxis />
-                <RTooltip
-                  contentStyle={{ background: '#1f2937', border: 'none', borderRadius: 8 }}
-                  itemStyle={{ color: '#fff' }} labelStyle={{ color: '#fff' }}
-                />
-                <Bar dataKey="qtd" fill="#3b82f6" name="Reservas" />
-                <Bar dataKey="presentes" fill="#10b981" name="Sentaram" />
-              </BarChart>
-            </ResponsiveContainer>
+            <GraficoBarrasAgrupadas
+              data={data.por_dia_semana}
+              xKey="dia_semana"
+              series={[
+                { key: 'qtd', nome: 'Reservas', cor: '#3b82f6' },
+                { key: 'presentes', nome: 'Sentaram', cor: '#10b981' },
+              ]}
+              height={240}
+            />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader><CardTitle>Horário preferido</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={data.por_hora}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey="hora" tickFormatter={h => `${h}h`} />
-                <YAxis />
-                <RTooltip contentStyle={{ background: '#1f2937', border: 'none', borderRadius: 8 }} itemStyle={{ color: '#fff' }} labelFormatter={h => `${h}h`} />
-                <Bar dataKey="qtd" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
+            <GraficoBarra
+              data={data.por_hora.map(h => ({ ...h, hora_label: `${h.hora}h` }))}
+              xKey="hora_label"
+              valueKey="qtd"
+              nomeBarra="Reservas"
+              cor="#3b82f6"
+              height={240}
+            />
           </CardContent>
         </Card>
 
