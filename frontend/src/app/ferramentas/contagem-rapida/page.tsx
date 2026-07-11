@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { useUser } from '@/contexts/UserContext';
 import { toast } from 'sonner';
 
@@ -53,9 +54,11 @@ export default function ContagemRapidaPage() {
   const { selectedBar } = useBar();
   const { user } = useUser();
   
-  const [insumos, setInsumos] = useState<Insumo[]>([]);
-  const [insumosFiltrados, setInsumosFiltrados] = useState<Insumo[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Insumos via SWR: cache por bar (chave inclui selectedBar.id), sem refetch a cada navegacao.
+  const { data: insumosData, isLoading: loading, mutate: mutateInsumos } = useApiSWR<any>(
+    '/api/operacional/receitas/insumos?ativo=true',
+  );
+  const insumos: Insumo[] = useMemo(() => insumosData?.data || [], [insumosData]);
   const [salvando, setSalvando] = useState(false);
 
   // Busca e filtros
@@ -78,12 +81,8 @@ export default function ContagemRapidaPage() {
     return () => setPageTitle('');
   }, [setPageTitle]);
 
-  useEffect(() => {
-    carregarInsumos();
-  }, [selectedBar]);
-
-  useEffect(() => {
-    // Filtrar insumos
+  // Filtro derivado (tipo/categoria/busca) — useMemo em vez de state+effect.
+  const insumosFiltrados: Insumo[] = useMemo(() => {
     let filtrados = insumos;
 
     if (filtroTipo !== 'todos') {
@@ -103,25 +102,8 @@ export default function ContagemRapidaPage() {
       );
     }
 
-    setInsumosFiltrados(filtrados);
+    return filtrados;
   }, [insumos, filtroTipo, filtroCategoria, busca]);
-
-  const carregarInsumos = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/operacional/receitas/insumos?ativo=true');
-      const result = await response.json();
-
-      if (result.data) {
-        setInsumos(result.data);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar insumos:', error);
-      toast.error('Erro ao carregar insumos');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const selecionarInsumo = (insumo: Insumo) => {
     setInsumoSelecionado(insumo);
@@ -227,7 +209,7 @@ export default function ContagemRapidaPage() {
       if (sucessos > 0) {
         toast.success(`✅ ${sucessos} contagens salvas com sucesso!`);
         setContagens([]);
-        carregarInsumos();
+        mutateInsumos();
       }
 
       if (erros > 0) {
