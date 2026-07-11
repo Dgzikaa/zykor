@@ -7,7 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { LoadingState } from '@/components/ui/loading-state'
-import { Clock, Calendar, TrendingUp, Users, BarChart3, Timer } from 'lucide-react'
+import { Clock, Calendar, TrendingUp, Users, BarChart3, Timer, DollarSign } from 'lucide-react'
+import { GiroMesaTab } from './GiroMesaTab'
 import { useToast } from '@/hooks/use-toast'
 import { useBar } from '@/contexts/BarContext'
 import { useApiSWR } from '@/hooks/useApiSWR'
@@ -206,6 +207,10 @@ export default function TempoEstadiaPage() {
                 <TabsTrigger value="clientes" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-600 dark:text-gray-300 dark:data-[state=active]:text-white">
                   <Users className="w-4 h-4 mr-2" />
                   Top Clientes
+                </TabsTrigger>
+                <TabsTrigger value="giro" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-600 dark:text-gray-300 dark:data-[state=active]:text-white">
+                  <DollarSign className="w-4 h-4 mr-2" />
+                  Giro / Receita
                 </TabsTrigger>
               </TabsList>
 
@@ -412,6 +417,11 @@ export default function TempoEstadiaPage() {
                     </div>
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              {/* Giro / Receita */}
+              <TabsContent value="giro">
+                <GiroMesaTab />
               </TabsContent>
             </Tabs>
           </>
