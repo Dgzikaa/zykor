@@ -123,7 +123,7 @@ export function GraficoBarra({
   const option = useMemo(() => ({
     textStyle: baseTextStyle,
     grid: { top: mostrarRotulo ? 20 : 12, right: temLinha ? 52 : 14, bottom: temLinha ? 44 : 24, left: 6, containLabel: true },
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: hexA(th.muted, 0.08) } }, backgroundColor: th.surface, borderColor: th.eixo, borderWidth: 1, textStyle: { color: th.texto, fontSize: 12 } },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: hexA(th.muted, 0.08) } }, backgroundColor: th.surface, borderColor: th.eixo, borderWidth: 1, textStyle: { color: th.texto, fontSize: 12 }, formatter: (ps: any) => { const arr = Array.isArray(ps) ? ps : [ps]; const head = arr[0]?.axisValueLabel ?? arr[0]?.name ?? ''; const body = arr.map((p: any) => { const v = p.seriesType === 'line' ? (formatLine ? formatLine(p.value) : fmtNum(p.value)) : (formatV ? formatV(p.value) : fmtNum(p.value)); return `${p.marker} ${p.seriesName}: <b>${v}</b>`; }).join('<br/>'); return `${head}<br/>${body}`; } },
     legend: temLinha ? { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } } : undefined,
     xAxis: { type: 'category', data: rows.map((d) => d[xKey]), axisLine: { lineStyle: { color: th.eixo } }, axisTick: { show: false }, axisLabel: { color: th.texto2, fontSize: 11, rotate: rotacaoX, hideOverlap: true } },
     yAxis: temLinha ? [
@@ -215,7 +215,7 @@ export function GraficoBarrasAgrupadas({
   const option = useMemo(() => ({
     textStyle: baseTextStyle,
     grid: { top: mostrarRotulo ? 20 : 12, right: temLinha ? 52 : 14, bottom: 44, left: 6, containLabel: true },
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: hexA(th.muted, 0.08) } }, backgroundColor: th.surface, borderColor: th.eixo, borderWidth: 1, textStyle: { color: th.texto, fontSize: 12 } },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: hexA(th.muted, 0.08) } }, backgroundColor: th.surface, borderColor: th.eixo, borderWidth: 1, textStyle: { color: th.texto, fontSize: 12 }, formatter: (ps: any) => { const arr = Array.isArray(ps) ? ps : [ps]; const head = arr[0]?.axisValueLabel ?? arr[0]?.name ?? ''; const body = arr.map((p: any) => { const v = p.seriesType === 'line' ? (formatLine ? formatLine(p.value) : fmtNum(p.value)) : (formatV ? formatV(p.value) : fmtNum(p.value)); return `${p.marker} ${p.seriesName}: <b>${v}</b>`; }).join('<br/>'); return `${head}<br/>${body}`; } },
     legend: { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } },
     xAxis: { type: 'category', data: rows.map((d) => d[xKey]), axisLine: { lineStyle: { color: th.eixo } }, axisTick: { show: false }, axisLabel: { color: th.texto2, fontSize: 11, rotate: rotacaoX, hideOverlap: true } },
     yAxis: temLinha ? [
