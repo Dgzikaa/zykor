@@ -49,6 +49,13 @@ export default function CardapioPage() {
   const porClasse = data?.por_classe || {};
   const lista = porClasse[classeAtiva] || [];
 
+  // Encalhados: todos os produtos achatados, ordenados do MENOS vendido (baixa rotatividade).
+  // Baixa venda + margem baixa = candidato a sair do cardápio.
+  const encalhados = (['star', 'plowhorse', 'puzzle', 'dog'] as const)
+    .flatMap(c => (porClasse[c] || []).map((p: any) => ({ ...p, _classe: c })))
+    .sort((a: any, b: any) => (a.qtd_vendida || 0) - (b.qtd_vendida || 0))
+    .slice(0, 40);
+
   const scatter = ['star','plowhorse','puzzle','dog'].flatMap(cls =>
     (porClasse[cls] || []).map((p: any) => ({
       classe: cls,
@@ -150,6 +157,7 @@ export default function CardapioPage() {
       <Tabs defaultValue="engenharia" className="space-y-6">
         <TabsList>
           <TabsTrigger value="engenharia">Engenharia</TabsTrigger>
+          <TabsTrigger value="encalhados">Encalhados</TabsTrigger>
           <TabsTrigger value="custos">Custos</TabsTrigger>
           <TabsTrigger value="historico">Histórico de preços</TabsTrigger>
         </TabsList>
@@ -240,6 +248,51 @@ export default function CardapioPage() {
       </Card>
 
           </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="encalhados" className="mt-0">
+          {loading ? (
+            <Skeleton className="h-96" />
+          ) : (
+            <Card className="p-6">
+              <h2 className="font-semibold mb-1">Produtos encalhados (menos vendidos)</h2>
+              <p className="text-xs text-gray-500 mb-4">
+                Ordenado do MENOS vendido no período. Baixa venda <b>e</b> margem baixa (🐶 Dog) = forte candidato a sair do cardápio.
+              </p>
+              {encalhados.length === 0 ? (
+                <p className="text-sm text-gray-500 py-6 text-center">Sem dados no período.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-xs text-gray-500 border-b">
+                      <tr>
+                        <th className="text-left py-2">Produto</th>
+                        <th className="text-left py-2">Grupo</th>
+                        <th className="text-center py-2">Classe</th>
+                        <th className="text-right py-2">Qtd vendida</th>
+                        <th className="text-right py-2">Preço méd.</th>
+                        <th className="text-right py-2">Margem %</th>
+                        <th className="text-right py-2">Receita</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {encalhados.map((p: any) => (
+                        <tr key={p.produto_codigo} className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-900/30">
+                          <td className="py-2 max-w-xs truncate" title={p.produto_desc}>{p.produto_desc}</td>
+                          <td className="py-2 text-xs text-gray-500">{p.grupo_desc}</td>
+                          <td className="py-2 text-center" title={classes[p._classe as keyof typeof classes]?.titulo}>{classes[p._classe as keyof typeof classes]?.icone}</td>
+                          <td className="py-2 text-right tabular-nums font-semibold">{fmt(p.qtd_vendida)}</td>
+                          <td className="py-2 text-right tabular-nums">{fmtMoeda(p.preco_medio)}</td>
+                          <td className={`py-2 text-right tabular-nums ${Number(p.margem_perc) < 30 ? 'text-red-500 font-semibold' : ''}`}>{fmt(p.margem_perc)}%</td>
+                          <td className="py-2 text-right tabular-nums text-gray-500">{fmtMoeda(p.receita_total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
           )}
         </TabsContent>
 
