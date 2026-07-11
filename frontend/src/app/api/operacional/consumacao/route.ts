@@ -43,24 +43,31 @@ export async function GET(request: NextRequest) {
   try {
     const fator = await getFatorCmv(supabase, barId);
 
-    // Chamada ÚNICA (perf 2026-07-11): a função é WITH RECURSIVE (explosão de ficha) + scans
-    // pesados de bronze — o LIMIT/OFFSET NÃO evita recomputar as CTEs, então paginar re-rodava
-    // a query inteira por página (junho = 6 páginas ≈ 6× o custo → ~10s). Não há cap de linhas
-    // no PostgREST (pgrst.db_max_rows não setado em nenhuma role), então 1 chamada traz TUDO.
-    // p_limit alto = "sem limite"; row-count validado (junho bar3 = 5232 linhas, igual à paginação).
-    const { data, error } = await (supabase as any).rpc('get_consumos_9_detalhes_custo_semana', {
-      input_bar_id: barId,
-      input_data_inicio: dataInicio,
-      input_data_fim: dataFim,
-      input_categoria: null,
-      p_fator: fator,
-      p_limit: 10_000_000,
-      p_offset: 0,
-    });
-    if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    // Paginação em SQL via p_limit/p_offset (cada página ≤1000 → nunca bate no cap do PostgREST).
+    // ATENÇÃO (2026-07-11): o PostgREST do Supabase TEM cap de 1000 linhas na RESPOSTA de RPC
+    // (db-max-rows=1000 setado no nível do PROJETO, não na role — não aparece em pg_roles.rolconfig).
+    // Tentar 1 chamada com p_limit alto TRUNCA em 1000 SILENCIOSAMENTE (perde linhas). NÃO fazer.
+    // A função já ordena de forma determinística, então o offset é estável.
+    const PAGE = 1000;
+    const rows: any[] = [];
+    for (let off = 0; ; off += PAGE) {
+      const { data, error } = await (supabase as any).rpc('get_consumos_9_detalhes_custo_semana', {
+        input_bar_id: barId,
+        input_data_inicio: dataInicio,
+        input_data_fim: dataFim,
+        input_categoria: null,
+        p_fator: fator,
+        p_limit: PAGE,
+        p_offset: off,
+      });
+      if (error) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      }
+      const chunk = (data as any[]) || [];
+      rows.push(...chunk);
+      if (chunk.length < PAGE) break;
+      if (off >= 200000) break; // trava de segurança
     }
-    const rows: any[] = (data as any[]) || [];
 
     // vínculos por mesa (override de categoria + entidade) e cadastros p/ os dropdowns
     const fin = (supabase as any).schema('financial');
