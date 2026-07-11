@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useBar } from '@/hooks/useBar';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { 
   Copy, 
   Check, 
@@ -33,9 +34,6 @@ interface DadosSemana {
 
 export default function DadosReuniaoPage() {
   const { bar } = useBar();
-  const [dados, setDados] = useState<DadosSemana[]>([]);
-  const [textoParaCopiar, setTextoParaCopiar] = useState('');
-  const [loading, setLoading] = useState(true);
   const [copiado, setCopiado] = useState(false);
   const [numSemanas, setNumSemanas] = useState(12);
   const { setPageTitle } = usePageTitle();
@@ -45,29 +43,14 @@ export default function DadosReuniaoPage() {
     return () => setPageTitle('');
   }, [setPageTitle]);
 
-  const fetchDados = async () => {
-    if (!bar?.id) return;
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/relatorios/dados-reuniao?bar_id=${bar.id}&semanas=${numSemanas}`);
-      const result = await response.json();
-      
-      if (result.success) {
-        setDados(result.data);
-        setTextoParaCopiar(result.textoParaCopiar);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar dados:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (bar?.id) {
-      fetchDados();
-    }
-  }, [bar?.id, numSemanas]);
+  // Cache via SWR: a chave inclui o bar (context) + os params (bar_id/semanas).
+  // Trocar de bar ou de nº de semanas re-busca automaticamente.
+  const { data: result, isLoading, mutate } = useApiSWR<any>(
+    bar?.id ? `/api/relatorios/dados-reuniao?bar_id=${bar.id}&semanas=${numSemanas}` : null
+  );
+  const dados: DadosSemana[] = result?.success ? result.data : [];
+  const textoParaCopiar: string = result?.success ? result.textoParaCopiar : '';
+  const loading = !bar?.id || isLoading;
 
   const copiarParaClipboard = async () => {
     try {
@@ -116,7 +99,7 @@ export default function DadosReuniaoPage() {
               </select>
 
               <Button
-                onClick={fetchDados}
+                onClick={() => mutate()}
                 variant="outline"
                 disabled={loading}
               >

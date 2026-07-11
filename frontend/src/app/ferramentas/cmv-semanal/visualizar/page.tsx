@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ import {
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
 import { useToast } from '@/hooks/use-toast';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { GraficoLinha, GraficoBarrasAgrupadas } from '@/components/graficos/Charts';
 
 interface CMVSemanal {
@@ -62,62 +63,37 @@ export default function CMVSemanalVisualizarPage() {
   const { user } = useUser();
   const { toast } = useToast();
 
-  const [loading, setLoading] = useState(true);
-  const [cmvs, setCmvs] = useState<CMVSemanal[]>([]);
   const [anoFiltro, setAnoFiltro] = useState(() => new Date().getFullYear());
 
-  // Carregar dados
-  const carregarCMVs = useCallback(async () => {
-    if (!selectedBar || !user) return;
+  // Cache via SWR: chave inclui bar + ano; trocar o ano re-busca.
+  // A chave já isola por bar (BarContext). Só busca com bar + usuário prontos.
+  const { data: resp, isLoading, mutate } = useApiSWR<{ data?: CMVSemanal[] }>(
+    selectedBar?.id && user
+      ? `/api/cmv-semanal?bar_id=${selectedBar.id}&ano=${anoFiltro}`
+      : null,
+    {
+      onError: () => {
+        toast({
+          title: 'Erro ao carregar CMVs',
+          description: 'Não foi possível carregar os dados',
+          variant: 'destructive',
+        });
+      },
+    },
+  );
+  const loading = !selectedBar || !user || isLoading;
 
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        bar_id: selectedBar.id.toString(),
-        ano: anoFiltro.toString()
-      });
-
-      const response = await fetch(`/api/cmv-semanal?${params}`, {
-        headers: {
-          'x-selected-bar-id': String(selectedBar?.id || '')
-        }
-      });
-
-      if (!response.ok) throw new Error('Erro ao carregar CMVs');
-
-      const data = await response.json();
-      
-      // Filtrar apenas CMVs com dados (não zerados) e que já começaram (sem semanas futuras)
-      const hojeISO = new Date().toISOString().split('T')[0];
-      const cmvsComDados = (data.data || []).filter((cmv: CMVSemanal) =>
-        cmv.data_inicio <= hojeISO &&
-        (cmv.faturamento_cmvivel > 0 || cmv.cmv_real > 0)
-      );
-      
-      setCmvs(cmvsComDados);
-
-    } catch (error) {
-      console.error('Erro ao carregar CMVs:', error);
-      toast({
-        title: "Erro ao carregar CMVs",
-        description: "Não foi possível carregar os dados",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedBar, user, anoFiltro, toast]);
+  // Filtrar apenas CMVs com dados (não zerados) e que já começaram (sem semanas futuras)
+  const hojeISO = new Date().toISOString().split('T')[0];
+  const cmvs: CMVSemanal[] = (resp?.data || []).filter((cmv: CMVSemanal) =>
+    cmv.data_inicio <= hojeISO &&
+    (cmv.faturamento_cmvivel > 0 || cmv.cmv_real > 0)
+  );
 
   useEffect(() => {
     setPageTitle('📊 Visualização CMV Semanal');
     return () => setPageTitle('');
   }, [setPageTitle]);
-
-  useEffect(() => {
-    if (selectedBar && user) {
-      carregarCMVs();
-    }
-  }, [selectedBar, user, anoFiltro, carregarCMVs]);
 
   if (loading) {
     return (
@@ -193,7 +169,7 @@ export default function CMVSemanalVisualizarPage() {
               </SelectContent>
             </Select>
             <Button
-              onClick={carregarCMVs}
+              onClick={() => mutate()}
               variant="outline"
               className="btn-outline-dark"
               leftIcon={<RefreshCcw className="h-4 w-4" />}

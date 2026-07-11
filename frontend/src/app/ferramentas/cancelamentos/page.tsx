@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { XCircle, X } from 'lucide-react';
@@ -54,10 +55,7 @@ const dataLabel = (s: string) =>
  */
 export default function CancelamentosPage() {
   const { selectedBar } = useBar();
-  const [loading, setLoading] = useState(true);
   const [dias, setDias] = useState<number>(30);
-  const [diario, setDiario] = useState<Dia[]>([]);
-  const [motivos, setMotivos] = useState<Motivo[]>([]);
 
   // modal de detalhe
   const [diaModal, setDiaModal] = useState<string | null>(null);
@@ -70,23 +68,13 @@ export default function CancelamentosPage() {
     return () => setPageTitle('');
   }, [setPageTitle]);
 
-  useEffect(() => {
-    if (!selectedBar?.id) return;
-    let ativo = true;
-    setLoading(true);
-    fetch(`/api/ferramentas/cancelamentos?dias=${dias}`, {
-      headers: { 'x-selected-bar-id': String(selectedBar.id) },
-    })
-      .then((r) => r.json())
-      .then((j) => {
-        if (!ativo) return;
-        setDiario(j.success ? j.diario : []);
-        setMotivos(j.success ? j.motivos : []);
-      })
-      .catch(() => { if (ativo) { setDiario([]); setMotivos([]); } })
-      .finally(() => { if (ativo) setLoading(false); });
-    return () => { ativo = false; };
-  }, [selectedBar?.id, dias]);
+  // Cache via SWR: a chave inclui bar (BarContext, via header) + dias; trocar re-busca.
+  const { data: resp, isLoading } = useApiSWR<any>(
+    selectedBar?.id ? `/api/ferramentas/cancelamentos?dias=${dias}` : null,
+  );
+  const diario: Dia[] = resp?.success ? resp.diario : [];
+  const motivos: Motivo[] = resp?.success ? resp.motivos : [];
+  const loading = !selectedBar?.id || isLoading;
 
   const abrirDia = useCallback((dia: string) => {
     if (!selectedBar?.id) return;

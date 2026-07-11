@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChefHat } from 'lucide-react';
@@ -31,8 +32,6 @@ const COR_PONTO: Record<string, string> = {
 
 export default function CardapioPage() {
   const { selectedBar } = useBar();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [dias, setDias] = useState(30);
   const [classeAtiva, setClasseAtiva] = useState<keyof typeof classes>('star');
   const { setPageTitle } = usePageTitle();
@@ -40,12 +39,11 @@ export default function CardapioPage() {
 
   useEffect(() => { setPageTitle('🍽️ Engenharia de Cardápio'); return () => setPageTitle(''); }, [setPageTitle]);
 
-  useEffect(() => {
-    if (!selectedBar?.id) return;
-    setLoading(true);
-    fetch(`/api/cardapio/engenharia?bar_id=${selectedBar.id}&dias=${dias}`)
-      .then(r => r.json()).then(setData).finally(() => setLoading(false));
-  }, [selectedBar?.id, dias]);
+  // Cache via SWR: a chave inclui bar + dias; trocar o período re-busca.
+  const { data, isLoading } = useApiSWR<any>(
+    selectedBar?.id ? `/api/cardapio/engenharia?bar_id=${selectedBar.id}&dias=${dias}` : null,
+  );
+  const loading = !selectedBar?.id || isLoading;
 
   const resumo = data?.resumo || {};
   const porClasse = data?.por_classe || {};

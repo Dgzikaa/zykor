@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GraficoLinha } from '@/components/graficos/Charts';
@@ -42,23 +43,19 @@ const fidelizaCor = (p: number) => p >= 25 ? 'text-emerald-600 dark:text-emerald
 const npsDimCor = (nota: number) => nota >= 4.2 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : nota >= 3.5 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
 
 export default function LabelsTab({ barId, periodo }: { barId?: number; periodo: number }) {
-  const [resp, setResp] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [sort, setSort] = useState<Sort>('fat_total');
   const [selKey, setSelKey] = useState<string | null>(null);
 
-  const carregar = useCallback(async () => {
-    if (!barId) return;
-    setLoading(true); setResp(null);
-    try {
-      const r = await fetch(`/api/analitico/labels?periodo=${periodo}&bar_id=${barId}`, { cache: 'no-store' });
-      const j = await r.json();
-      setResp(j);
-      setSelKey(j?.labels?.[0]?.key ?? null);
-    } catch { setResp({ labels: [] }); }
-    finally { setLoading(false); }
-  }, [barId, periodo]);
-  useEffect(() => { carregar(); }, [carregar]);
+  // Cache via SWR: a chave inclui o bar (context) + os params (periodo/bar_id).
+  // Trocar de bar ou de período re-busca automaticamente.
+  const { data: resp, isLoading } = useApiSWR<any>(
+    barId ? `/api/analitico/labels?periodo=${periodo}&bar_id=${barId}` : null
+  );
+  const loading = !barId || isLoading;
+
+  // Ao chegar novos dados (troca de bar/período), seleciona a 1ª label — igual
+  // ao comportamento anterior que setava selKey após cada fetch.
+  useEffect(() => { setSelKey(resp?.labels?.[0]?.key ?? null); }, [resp]);
 
   const labels: any[] = useMemo(() => resp?.labels || [], [resp]);
   const stats = resp?.stats;

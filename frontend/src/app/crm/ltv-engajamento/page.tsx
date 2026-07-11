@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 
 interface ClienteLTV {
   telefone: string;
@@ -76,41 +77,19 @@ export default function LTVEngajamentoPage() {
     return () => setPageTitle('');
   }, [setPageTitle]);
 
-  const [clientes, setClientes] = useState<ClienteLTV[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
-  const [fromCache, setFromCache] = useState(false);
-  const [ticketMedioBar, setTicketMedioBar] = useState(0);
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [filtroConfianca, setFiltroConfianca] = useState<'todos' | 'confiaveis' | 'preliminares'>('todos');
   const itensPorPagina = 20;
 
-  const fetchLTV = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/crm/ltv-engajamento?limite=5000&bar_id=${selectedBar?.id}`);
-      const result = await response.json();
-
-      if (result.success) {
-        setClientes(result.data || []);
-        setStats(result.stats);
-        setFromCache(result.fromCache || false);
-        setTicketMedioBar(result.ticket_medio_bar || 0);
-      } else {
-        console.error('Erro na API:', result.error);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar LTV:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!selectedBar?.id) return;
-    fetchLTV();
-  }, [selectedBar?.id]);
+  // Cache via SWR: a chave inclui o bar (BarContext); trocar de bar re-busca.
+  const { data: result, isLoading, mutate } = useApiSWR<any>(
+    selectedBar?.id ? `/api/crm/ltv-engajamento?limite=5000&bar_id=${selectedBar.id}` : null,
+  );
+  const clientes: ClienteLTV[] = result?.success ? (result.data || []) : [];
+  const stats: Stats | null = result?.success ? result.stats : null;
+  const fromCache: boolean = result?.success ? (result.fromCache || false) : false;
+  const loading = !selectedBar?.id || isLoading;
 
   useEffect(() => {
     setPaginaAtual(1);
@@ -240,9 +219,9 @@ export default function LTVEngajamentoPage() {
                 Cache
               </Badge>
             )}
-            <Button 
-              onClick={fetchLTV} 
-              variant="outline" 
+            <Button
+              onClick={() => mutate()}
+              variant="outline"
               disabled={loading}
               className="border-gray-300 dark:border-gray-600"
             >

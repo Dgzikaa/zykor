@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import PageHeader from '@/components/layouts/PageHeader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -10,6 +10,7 @@ import { LoadingState } from '@/components/ui/loading-state'
 import { Clock, Calendar, TrendingUp, Users, BarChart3, Timer } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useBar } from '@/contexts/BarContext'
+import { useApiSWR } from '@/hooks/useApiSWR'
 import { usePageTitle } from '@/contexts/PageTitleContext'
 import { motion } from 'framer-motion'
 
@@ -65,55 +66,22 @@ function formatarMes(periodo: string): string {
 }
 
 export default function TempoEstadiaPage() {
-  const [data, setData] = useState<RelatorioData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
   const { selectedBar } = useBar()
   const { setPageTitle } = usePageTitle()
-  const hasFetchedRef = useRef(false)
-  const lastBarIdRef = useRef<number | null>(null)
 
   useEffect(() => {
     setPageTitle('⏱️ Tempo de Estadia')
     return () => setPageTitle('')
   }, [setPageTitle])
 
-  useEffect(() => {
-    // Evitar loop: só buscar se bar mudou ou ainda não buscou
-    if (!selectedBar?.id) return
-    if (hasFetchedRef.current && lastBarIdRef.current === selectedBar.id) return
-    
-    const fetchData = async () => {
-      setLoading(true)
-      setError(null)
-      
-      try {
-        const response = await fetch('/api/relatorios/tempo-estadia', {
-          headers: {
-            'x-selected-bar-id': String(selectedBar.id)
-          }
-        })
-        
-        if (!response.ok) {
-          throw new Error('Erro ao buscar dados')
-        }
-        
-        const result = await response.json()
-        setData(result)
-        hasFetchedRef.current = true
-        lastBarIdRef.current = selectedBar.id
-      } catch (err) {
-        setError('Erro ao carregar relatório')
-        hasFetchedRef.current = true
-        lastBarIdRef.current = selectedBar.id
-      } finally {
-        setLoading(false)
-      }
-    }
-    
-    fetchData()
-  }, [selectedBar?.id])
+  // Cache via SWR: a chave inclui o bar (context) e o apiCall injeta o header
+  // x-selected-bar-id automaticamente, então o isolamento por bar é preservado.
+  const { data, isLoading, error: swrError } = useApiSWR<RelatorioData>(
+    selectedBar?.id ? '/api/relatorios/tempo-estadia' : null
+  )
+  const loading = isLoading
+  const error = swrError ? 'Erro ao carregar relatório' : null
 
   if (!selectedBar?.id) {
     return (

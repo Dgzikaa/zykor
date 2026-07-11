@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { GraficoBarra } from '@/components/graficos/Charts';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 
 interface PadraoCliente {
@@ -59,34 +60,17 @@ export default function PadroesComportamentoPage() {
     return () => setPageTitle('');
   }, [setPageTitle]);
 
-  const [clientes, setClientes] = useState<PadraoCliente[]>([]);
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
   const [clienteSelecionado, setClienteSelecionado] = useState<PadraoCliente | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
 
-  const fetchPadroes = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/crm/padroes-comportamento?limite=100&bar_id=${selectedBar?.id}`);
-      const result = await response.json();
-
-      if (result.success) {
-        setClientes(result.data);
-        setStats(result.stats);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar padrões:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!selectedBar?.id) return;
-    fetchPadroes();
-  }, [selectedBar?.id]);
+  // Cache via SWR: a chave inclui o bar (context), então trocar de bar re-busca.
+  const { data: result, isLoading } = useApiSWR<any>(
+    selectedBar?.id ? `/api/crm/padroes-comportamento?limite=100&bar_id=${selectedBar.id}` : null
+  );
+  const clientes: PadraoCliente[] = result?.success ? result.data : [];
+  const stats = result?.success ? result.stats : null;
+  const loading = !selectedBar?.id || isLoading;
 
   const buscarCliente = async (telefone: string) => {
     try {

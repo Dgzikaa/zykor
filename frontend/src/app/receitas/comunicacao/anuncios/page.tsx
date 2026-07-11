@@ -12,7 +12,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { DollarSign, Eye, MousePointerClick, Target, Percent, MessageCircle, ArrowUpDown, Repeat, TrendingUp, ShoppingCart, PlayCircle, UserPlus } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
-import { api } from '@/lib/api-client';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { PageShell } from '@/components/layout/PageShell';
 import { PeriodRangePicker } from '@/components/receitas/PeriodRangePicker';
 import { CardRoas } from '@/components/receitas/CardRoas';
@@ -74,8 +74,6 @@ export default function AnunciosPage() {
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
   const [periodo, setPeriodo] = useState<PeriodoValor>(() => periodoPadrao('mes', 'trimestral'));
-  const [dados, setDados] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [sortCamp, setSortCamp] = useState<SortKey>('investimento');
   const [sortAd, setSortAd] = useState<SortKey>('investimento');
 
@@ -86,15 +84,12 @@ export default function AnunciosPage() {
 
   const barId = selectedBar?.id;
 
-  useEffect(() => {
-    if (!barId) return;
-    setLoading(true);
-    api
-      .get(`/api/receitas/anuncios?bar_id=${barId}&inicio=${periodo.inicio}&fim=${periodo.fim}`)
-      .then((r: any) => setDados(r?.success ? r : null))
-      .catch(() => setDados(null))
-      .finally(() => setLoading(false));
-  }, [barId, periodo.inicio, periodo.fim]);
+  // Cache via SWR: a chave inclui bar + período; trocar filtro re-busca.
+  const { data: resp, isLoading } = useApiSWR<any>(
+    barId ? `/api/receitas/anuncios?bar_id=${barId}&inicio=${periodo.inicio}&fim=${periodo.fim}` : null,
+  );
+  const dados = resp?.success ? resp : null;
+  const loading = !barId || isLoading;
 
   const r = dados?.resumo;
   const kpis: Kpi[] = r
