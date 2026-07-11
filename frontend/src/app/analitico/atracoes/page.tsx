@@ -127,8 +127,11 @@ export default function AtracoesPage() {
   useEffect(() => { if (aba === 'ranking' && ranking === null) carregarRanking(); }, [aba, ranking, carregarRanking]);
 
   const evol = traj?.evolucao || [];
-  // 1 ponto POR SHOW (label = data ISO única); eixo exibe mês/ano, tooltip mostra a data exata.
-  const evolChart = evol.map(e => ({ ...e, label: e.data.slice(0, 10) }));
+  // 1 ponto POR SHOW; eixo exibe dd/mm (compacto e único por show).
+  const evolChart = evol.map(e => {
+    const [, m, d] = e.data.slice(0, 10).split('-');
+    return { ...e, label: `${d}/${m}` };
+  });
   const crescPublico = traj && traj.primeiro?.publico ? Math.round(((traj.atual.publico! - traj.primeiro.publico!) / traj.primeiro.publico!) * 100) : null;
 
   return (
