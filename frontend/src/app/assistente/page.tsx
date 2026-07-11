@@ -9,22 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, BarChart3, TrendingUp, Calendar, Users, DollarSign, MessageSquare } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  ComposedChart
-} from 'recharts';
+import { GraficoLinha, GraficoBarra, GraficoBarrasAgrupadas, GraficoDonut } from '@/components/graficos/Charts';
 
 interface Message {
   id: string;
@@ -185,73 +170,55 @@ export default function AssistentePage() {
           )}
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={400}>
-            {chartType === 'line' ? (
-              <LineChart data={chartData.data}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="value" stroke="#8884d8" strokeWidth={2} />
-                {chartData.additionalLines?.map((line: any, index: number) => (
-                  <Line 
-                    key={index}
-                    type="monotone" 
-                    dataKey={line.key} 
-                    stroke={COLORS[index % COLORS.length]} 
-                    strokeWidth={2}
-                    name={line.name}
-                  />
-                ))}
-              </LineChart>
-            ) : chartType === 'bar' ? (
-              <BarChart data={chartData.data}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="value" fill="#8884d8" />
-                {chartData.additionalBars?.map((bar: any, index: number) => (
-                  <Bar 
-                    key={index}
-                    dataKey={bar.key} 
-                    fill={COLORS[index % COLORS.length]}
-                    name={bar.name}
-                  />
-                ))}
-              </BarChart>
-            ) : chartType === 'pie' ? (
-              <PieChart>
-                <Pie
-                  data={chartData.data}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={150}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {chartData.data.map((entry: any, index: number) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            ) : (
-              <ComposedChart data={chartData.data}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="vendas" fill="#8884d8" name="Vendas" />
-                <Line type="monotone" dataKey="publico" stroke="#ff7300" name="Público" />
-              </ComposedChart>
-            )}
-          </ResponsiveContainer>
+          {chartType === 'line' ? (
+            <GraficoLinha
+              data={chartData.data}
+              xKey="name"
+              series={[
+                { key: 'value', nome: 'Valor', cor: '#8884d8' },
+                ...(chartData.additionalLines?.map((line: any, index: number) => ({
+                  key: line.key,
+                  nome: line.name,
+                  cor: COLORS[index % COLORS.length],
+                })) || []),
+              ]}
+              height={400}
+            />
+          ) : chartType === 'bar' ? (
+            <GraficoBarrasAgrupadas
+              data={chartData.data}
+              xKey="name"
+              series={[
+                { key: 'value', nome: 'Valor', cor: '#8884d8' },
+                ...(chartData.additionalBars?.map((bar: any, index: number) => ({
+                  key: bar.key,
+                  nome: bar.name,
+                  cor: COLORS[index % COLORS.length],
+                })) || []),
+              ]}
+              height={400}
+            />
+          ) : chartType === 'pie' ? (
+            <GraficoDonut
+              data={chartData.data}
+              nameKey="name"
+              valueKey="value"
+              cores={COLORS}
+              height={400}
+            />
+          ) : (
+            <GraficoBarra
+              data={chartData.data}
+              xKey="name"
+              valueKey="vendas"
+              cor="#8884d8"
+              nomeBarra="Vendas"
+              lineKey="publico"
+              corLinha="#ff7300"
+              nomeLinha="Público"
+              height={400}
+            />
+          )}
         </CardContent>
       </Card>
     );

@@ -6,16 +6,13 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  AreaChart,
-  Area,
-  PieChart,
-  Pie,
   Cell,
   XAxis,
   YAxis,
   Tooltip,
   CartesianGrid,
 } from 'recharts';
+import { GraficoBarraH, GraficoBarra, GraficoLinha, GraficoDonut } from '@/components/graficos/Charts';
 
 export interface LinhaAnalise {
   categoria: string;
@@ -228,59 +225,27 @@ export default function Analises({ linhas, fator }: { linhas: LinhaAnalise[]; fa
         </Bloco>
 
         <Bloco titulo="Evolução do custo por dia">
-          <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={porDia} margin={{ left: 4, right: 16 }}>
-              <defs>
-                <linearGradient id="gConsumo" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.5} />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0.05} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.3} />
-              <XAxis dataKey="dia" tick={tickCls} minTickGap={16} />
-              <YAxis tick={tickCls} tickFormatter={moeda} width={56} />
-              <Tooltip formatter={(v) => moedaFull(Number(v))} />
-              <Area type="monotone" dataKey="custo" stroke="#6366f1" strokeWidth={2} fill="url(#gConsumo)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          <GraficoLinha
+            data={porDia}
+            xKey="dia"
+            series={[{ key: 'custo', nome: 'Custo', cor: '#6366f1' }]}
+            area
+            height={260}
+            formatV={moeda}
+          />
         </Bloco>
 
         <Bloco titulo="Top 10 pessoas/mesas por custo">
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={topPessoas} layout="vertical" margin={{ left: 10, right: 16 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.3} horizontal={false} />
-              <XAxis type="number" tick={tickCls} tickFormatter={moeda} />
-              <YAxis type="category" dataKey="nome" tick={tickCls} width={120} />
-              <Tooltip formatter={(v) => moedaFull(Number(v))} cursor={{ fill: '#94a3b833' }} />
-              <Bar dataKey="custo" fill="#0ea5e9" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <GraficoBarraH data={topPessoas} xKey="nome" valueKey="custo" cor="#0ea5e9" height={300} formatV={moeda} />
         </Bloco>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Bloco titulo="Custo por dia da semana">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={porDow} margin={{ left: 4, right: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.3} vertical={false} />
-                <XAxis dataKey="dow" tick={tickCls} />
-                <YAxis tick={tickCls} tickFormatter={moeda} width={48} />
-                <Tooltip formatter={(v) => moedaFull(Number(v))} cursor={{ fill: '#94a3b833' }} />
-                <Bar dataKey="custo" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <GraficoBarra data={porDow} xKey="dow" valueKey="custo" cor="#f59e0b" height={260} formatV={moeda} />
           </Bloco>
 
           <Bloco titulo="Real (ficha) × Estimado">
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie data={ficha} dataKey="valor" nameKey="nome" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                  {ficha.map((e) => (
-                    <Cell key={e.nome} fill={e.cor} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => moedaFull(Number(v))} />
-              </PieChart>
-            </ResponsiveContainer>
+            <GraficoDonut data={ficha} nameKey="nome" valueKey="valor" cores={ficha.map((f) => f.cor)} height={260} formatV={moeda} />
             <div className="flex justify-center gap-4 text-xs text-gray-500">
               {ficha.map((f) => (
                 <span key={f.nome} className="inline-flex items-center gap-1">
@@ -294,15 +259,7 @@ export default function Analises({ linhas, fator }: { linhas: LinhaAnalise[]; fa
       </div>
 
       <Bloco titulo="Top produtos consumidos (por custo)">
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={topProdutos} layout="vertical" margin={{ left: 10, right: 16 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.3} horizontal={false} />
-            <XAxis type="number" tick={tickCls} tickFormatter={moeda} />
-            <YAxis type="category" dataKey="nome" tick={tickCls} width={200} />
-            <Tooltip formatter={(v) => moedaFull(Number(v))} cursor={{ fill: '#94a3b833' }} />
-            <Bar dataKey="custo" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        <GraficoBarraH data={topProdutos} xKey="nome" valueKey="custo" cor="#8b5cf6" height={280} formatV={moeda} />
       </Bloco>
     </div>
   );

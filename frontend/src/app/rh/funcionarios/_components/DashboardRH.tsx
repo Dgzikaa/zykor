@@ -5,9 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
-import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, AreaChart, Area, CartesianGrid,
-} from 'recharts';
+import { GraficoBarraH, GraficoLinha } from '@/components/graficos/Charts';
 import {
   Users, Loader2, Palmtree, CalendarX, AlertTriangle, Smile, Clock, TrendingUp, TrendingDown, FileWarning, ClipboardCheck, Cake, Gift, Inbox, Check, X,
 } from 'lucide-react';
@@ -104,16 +102,14 @@ export function DashboardRH() {
               </span>
               {d.movimentacao.demissoes_90d > 0 && <span className="rounded-full px-2 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">−{d.movimentacao.demissoes_90d} dem. 90d</span>}
             </div>
-            <ResponsiveContainer width="100%" height={Math.max(120, d.headcount.por_area.length * 26)}>
-              <BarChart data={d.headcount.por_area} layout="vertical" margin={{ left: 8, right: 16 }}>
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="area" width={90} tick={{ fontSize: 11 }} />
-                <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
-                <Bar dataKey="n" radius={[0, 4, 4, 0]} barSize={16}>
-                  {d.headcount.por_area.map((_: any, i: number) => <Cell key={i} fill={CORES[i % CORES.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <GraficoBarraH
+              data={d.headcount.por_area}
+              xKey="area"
+              valueKey="n"
+              height={Math.max(120, d.headcount.por_area.length * 26)}
+              cor={CORES[0]}
+              maxItens={d.headcount.por_area.length}
+            />
           </CardContent>
         </Card>
 
@@ -127,13 +123,14 @@ export function DashboardRH() {
                   <div className="text-3xl font-bold text-emerald-600">{fel.pct}%</div>
                   <div className="text-xs text-muted-foreground mb-1">satisfação · média {fel.media}</div>
                 </div>
-                <ResponsiveContainer width="100%" height={70}>
-                  <AreaChart data={fel.trend} margin={{ left: 0, right: 0, top: 4, bottom: 0 }}>
-                    <defs><linearGradient id="gf" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity={0.4} /><stop offset="100%" stopColor="#10b981" stopOpacity={0} /></linearGradient></defs>
-                    <Tooltip labelFormatter={(v) => fmtData(String(v))} formatter={(v: any) => [`${v}%`, 'satisfação']} />
-                    <Area type="monotone" dataKey="pct" stroke="#10b981" fill="url(#gf)" strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <GraficoLinha
+                  data={fel.trend}
+                  xKey="data"
+                  series={[{ key: 'pct', nome: 'satisfação', cor: '#10b981' }]}
+                  height={70}
+                  area
+                  formatV={(v) => `${v}%`}
+                />
                 <div className="space-y-1 mt-2">
                   {fel.dimensoes.map((dim: any) => (
                     <div key={dim.label} className="flex items-center gap-2">

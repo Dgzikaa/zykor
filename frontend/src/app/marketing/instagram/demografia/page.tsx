@@ -5,10 +5,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  PieChart, Pie, Cell,
-} from 'recharts';
+import { GraficoDonut, GraficoBarra, GraficoBarraH } from '@/components/graficos/Charts';
 import { Users, MapPin, UserCircle, TrendingUp } from 'lucide-react';
 
 type Dash = {
@@ -138,24 +135,14 @@ export default function DemografiaPage() {
             <h2 className="font-semibold">Distribuição por gênero</h2>
           </div>
           {genero.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={genero.map(g => ({ ...g, name: generoLabel[g.name] || g.name }))}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={90}
-                  label={({ name, percent }) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}
-                >
-                  {genero.map((_, idx) => (
-                    <Cell key={idx} fill={COLORS_MULTI[idx % COLORS_MULTI.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v: any) => fmt(v)} />
-              </PieChart>
-            </ResponsiveContainer>
+            <GraficoDonut
+              data={genero.map(g => ({ ...g, name: generoLabel[g.name] || g.name }))}
+              nameKey="name"
+              valueKey="value"
+              height={250}
+              formatV={(v) => fmt(v)}
+              cores={COLORS_MULTI}
+            />
           ) : (
             <p className="text-sm text-gray-500 text-center py-8">Sem dado de gênero</p>
           )}
@@ -167,15 +154,14 @@ export default function DemografiaPage() {
             <h2 className="font-semibold">Distribuição por idade</h2>
           </div>
           {idade.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={idade} margin={{ top: 10, right: 10, bottom: 10, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="name" fontSize={11} />
-                <YAxis tickFormatter={fmt} fontSize={11} />
-                <Tooltip formatter={(v: any) => fmt(v)} />
-                <Bar dataKey="value" fill="#ec4899" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <GraficoBarra
+              data={idade}
+              xKey="name"
+              valueKey="value"
+              height={250}
+              cor="#ec4899"
+              formatV={(v) => fmt(v)}
+            />
           ) : (
             <p className="text-sm text-gray-500 text-center py-8">Sem dado de idade</p>
           )}
@@ -189,15 +175,15 @@ export default function DemografiaPage() {
           <h2 className="font-semibold">Top 15 cidades</h2>
         </div>
         {cidades.length > 0 ? (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={cidades} layout="vertical" margin={{ top: 10, right: 20, bottom: 10, left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis type="number" tickFormatter={fmt} fontSize={11} />
-              <YAxis type="category" dataKey="name" fontSize={11} width={120} />
-              <Tooltip formatter={(v: any) => fmt(v)} />
-              <Bar dataKey="value" fill="#ec4899" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <GraficoBarraH
+            data={cidades}
+            xKey="name"
+            valueKey="value"
+            height={400}
+            cor="#ec4899"
+            formatV={(v) => fmt(v)}
+            maxItens={15}
+          />
         ) : (
           <p className="text-sm text-gray-500 text-center py-8">Sem dado de cidade</p>
         )}
@@ -208,15 +194,14 @@ export default function DemografiaPage() {
         <Card className="p-6">
           <h2 className="font-semibold mb-4">Top 10 países</h2>
           {paises.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={paises} layout="vertical" margin={{ top: 10, right: 30, bottom: 10, left: 120 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis type="number" tickFormatter={fmt} fontSize={11} />
-                <YAxis type="category" dataKey="name" fontSize={11} width={120} />
-                <Tooltip formatter={(v: any) => fmt(v)} />
-                <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <GraficoBarraH
+              data={paises}
+              xKey="name"
+              valueKey="value"
+              height={300}
+              cor="#8b5cf6"
+              formatV={(v) => fmt(v)}
+            />
           ) : (
             <p className="text-sm text-gray-500 text-center py-8">Sem dado de país</p>
           )}
@@ -228,28 +213,14 @@ export default function DemografiaPage() {
             De onde vem o alcance: posts, reels, stories, anúncios.
           </p>
           {reachBd.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart
-                data={reachBd}
-                layout="vertical"
-                margin={{ top: 8, right: 40, left: 8, bottom: 8 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
-                <XAxis type="number" tickFormatter={(v) => fmt(v)} tick={{ fontSize: 11 }} />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  width={84}
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip formatter={(v: any) => fmt(v)} />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]} label={{ position: 'right', formatter: (v: any) => fmt(v), fontSize: 11 }}>
-                  {reachBd.map((_, idx) => (
-                    <Cell key={idx} fill={COLORS_PINK[idx % COLORS_PINK.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <GraficoBarraH
+              data={reachBd}
+              xKey="name"
+              valueKey="value"
+              height={280}
+              cor={COLORS_PINK[0]}
+              formatV={(v) => fmt(v)}
+            />
           ) : (
             <p className="text-sm text-gray-500 text-center py-8">
               Sem breakdown ainda. Próxima sincronização vai trazer.

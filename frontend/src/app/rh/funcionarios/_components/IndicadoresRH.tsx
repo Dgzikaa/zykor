@@ -5,9 +5,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
-import {
-  ResponsiveContainer, ComposedChart, Area, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
-} from 'recharts';
+import { GraficoBase } from '@/components/graficos/GraficoBase';
+import { GraficoLinha, GraficoBarrasAgrupadas } from '@/components/graficos/Charts';
 import { useToast } from '@/components/ui/toast';
 import { Users, Loader2, TrendingDown, UserPlus, UserMinus, CalendarX, Smile, Copy, MessageSquare } from 'lucide-react';
 
@@ -84,19 +83,18 @@ export function IndicadoresRH() {
       <Card className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
         <CardContent className="py-4">
           <div className="text-sm font-semibold mb-2 flex items-center gap-1.5"><Users className="w-4 h-4" />Headcount, admissões e demissões</div>
-          <ResponsiveContainer width="100%" height={240}>
-            <ComposedChart data={d.meses} margin={{ left: 0, right: 8, top: 8 }}>
-              <defs><linearGradient id="hc" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={0.35} /><stop offset="100%" stopColor="#6366f1" stopOpacity={0} /></linearGradient></defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Area type="monotone" dataKey="headcount" name="Headcount" stroke="#6366f1" fill="url(#hc)" strokeWidth={2} />
-              <Bar dataKey="admissoes" name="Admissões" fill="#10b981" radius={[3, 3, 0, 0]} barSize={10} />
-              <Bar dataKey="demissoes" name="Demissões" fill="#f97316" radius={[3, 3, 0, 0]} barSize={10} />
-            </ComposedChart>
-          </ResponsiveContainer>
+          <GraficoBarrasAgrupadas
+            data={d.meses}
+            xKey="label"
+            series={[
+              { key: 'admissoes', nome: 'Admissões', cor: '#10b981' },
+              { key: 'demissoes', nome: 'Demissões', cor: '#f97316' },
+            ]}
+            lineKey="headcount"
+            nomeLinha="Headcount"
+            corLinha="#6366f1"
+            height={240}
+          />
         </CardContent>
       </Card>
 
@@ -104,32 +102,31 @@ export function IndicadoresRH() {
         <Card className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
           <CardContent className="py-4">
             <div className="text-sm font-semibold mb-2 flex items-center gap-1.5"><TrendingDown className="w-4 h-4 text-rose-500" />Turnover mensal (%)</div>
-            <ResponsiveContainer width="100%" height={200}>
-              <ComposedChart data={d.meses} margin={{ left: 0, right: 8, top: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} unit="%" />
-                <Tooltip formatter={(v: any) => [`${v}%`, 'Turnover']} />
-                <Line type="monotone" dataKey="turnover" name="Turnover" stroke="#e11d48" strokeWidth={2} dot={{ r: 2 }} />
-              </ComposedChart>
-            </ResponsiveContainer>
+            <GraficoLinha
+              data={d.meses}
+              xKey="label"
+              series={[{ key: 'turnover', nome: 'Turnover', cor: '#e11d48' }]}
+              height={200}
+              formatV={(v) => `${v}%`}
+            />
           </CardContent>
         </Card>
 
         <Card className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
           <CardContent className="py-4">
             <div className="text-sm font-semibold mb-2 flex items-center gap-1.5"><CalendarX className="w-4 h-4 text-amber-500" />Absenteísmo (faltas + atestados)</div>
-            <ResponsiveContainer width="100%" height={200}>
-              <ComposedChart data={d.meses} margin={{ left: 0, right: 8, top: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="faltas" name="Faltas" stackId="a" fill="#f59e0b" radius={[0, 0, 0, 0]} barSize={14} />
-                <Bar dataKey="atestados" name="Atestados" stackId="a" fill="#eab308" radius={[3, 3, 0, 0]} barSize={14} />
-              </ComposedChart>
-            </ResponsiveContainer>
+            <GraficoBase
+              tipo="barra"
+              stacked
+              data={d.meses}
+              xKey="label"
+              series={[
+                { key: 'faltas', label: 'Faltas' },
+                { key: 'atestados', label: 'Atestados' },
+              ]}
+              cores={['#f59e0b', '#eab308']}
+              height={200}
+            />
           </CardContent>
         </Card>
       </div>

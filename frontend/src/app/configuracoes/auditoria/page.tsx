@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Shield, Search, Download, Filter, User, Clock, Database, Loader2, AlertTriangle, ListChecks, ChevronRight, ChevronDown, Users, Wifi, XCircle, CheckCircle2, BarChart3, ShieldAlert, Trash2, Activity, Zap, Timer, Smartphone, Gauge, TrendingUp, Monitor, Check } from 'lucide-react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, AreaChart, Area, Legend } from 'recharts';
+import { GraficoBase } from '@/components/graficos/GraficoBase';
+import { GraficoBarra, GraficoBarraH, GraficoBarrasAgrupadas, GraficoLinha } from '@/components/graficos/Charts';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 
@@ -664,50 +665,44 @@ export default function AuditoriaPage() {
         {/* Atividade por dia */}
         <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><BarChart3 className="h-4 w-4 text-violet-600" />Atividade por dia (últimos 30 dias)</CardTitle></CardHeader>
           <CardContent>
-            <div style={{ width: '100%', height: 220 }}>
-              <ResponsiveContainer>
-                <BarChart data={porDia} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="dia" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Bar dataKey="inseriu" stackId="a" fill="#10b981" name="Criou" />
-                  <Bar dataKey="editou" stackId="a" fill="#8b5cf6" name="Editou" />
-                  <Bar dataKey="excluiu" stackId="a" fill="#f43f5e" name="Excluiu" radius={[3,3,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <GraficoBase
+              tipo="barra"
+              stacked
+              data={porDia}
+              xKey="dia"
+              series={[
+                { key: 'inseriu', label: 'Criou' },
+                { key: 'editou', label: 'Editou' },
+                { key: 'excluiu', label: 'Excluiu' },
+              ]}
+              cores={['#10b981', '#8b5cf6', '#f43f5e']}
+              height={220}
+            />
           </CardContent>
         </Card>
 
         {/* Online por hora + Ações por hora */}
         <div className="grid md:grid-cols-2 gap-4">
           <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Wifi className="h-4 w-4 text-emerald-500" />Usuários online por hora do dia</CardTitle><CardDescription>quando o pessoal mais usa o sistema</CardDescription></CardHeader>
-            <CardContent><div style={{ width: '100%', height: 220 }}>
-              <ResponsiveContainer>
-                <BarChart data={onlineHora} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="hora" tick={{ fontSize: 10 }} interval={1} />
-                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Bar dataKey="n" fill="#10b981" name="sessões" radius={[3,3,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <CardContent><div className="w-full">
+              <GraficoBarra data={onlineHora} xKey="hora" valueKey="n" cor="#10b981" nomeBarra="sessões" height={220} />
             </div></CardContent>
           </Card>
           <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4 text-violet-500" />Ações por hora do dia</CardTitle><CardDescription>pico de operação no sistema</CardDescription></CardHeader>
-            <CardContent><div style={{ width: '100%', height: 220 }}>
-              <ResponsiveContainer>
-                <BarChart data={acoesHora} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="hora" tick={{ fontSize: 10 }} interval={1} />
-                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Bar dataKey="inseriu" stackId="a" fill="#10b981" name="Criou" />
-                  <Bar dataKey="editou" stackId="a" fill="#8b5cf6" name="Editou" />
-                  <Bar dataKey="excluiu" stackId="a" fill="#f43f5e" name="Excluiu" radius={[3,3,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <CardContent><div className="w-full">
+              <GraficoBase
+                tipo="barra"
+                stacked
+                data={acoesHora}
+                xKey="hora"
+                series={[
+                  { key: 'inseriu', label: 'Criou' },
+                  { key: 'editou', label: 'Editou' },
+                  { key: 'excluiu', label: 'Excluiu' },
+                ]}
+                cores={['#10b981', '#8b5cf6', '#f43f5e']}
+                height={220}
+              />
             </div></CardContent>
           </Card>
         </div>
@@ -715,30 +710,13 @@ export default function AuditoriaPage() {
         {/* Concorrência + Duração das sessões */}
         <div className="grid md:grid-cols-2 gap-4">
           <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-sky-500" />Concorrência ao longo do tempo</CardTitle><CardDescription>sessões ativas por hora</CardDescription></CardHeader>
-            <CardContent><div style={{ width: '100%', height: 220 }}>
-              <ResponsiveContainer>
-                <AreaChart data={conc} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
-                  <defs><linearGradient id="gConc" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0ea5e9" stopOpacity={0.5} /><stop offset="100%" stopColor="#0ea5e9" stopOpacity={0} /></linearGradient></defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="ts" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Area type="monotone" dataKey="n" stroke="#0ea5e9" fill="url(#gConc)" name="online" />
-                </AreaChart>
-              </ResponsiveContainer>
+            <CardContent><div className="w-full">
+              <GraficoLinha data={conc} xKey="ts" series={[{ key: 'n', nome: 'online', cor: '#0ea5e9' }]} area height={220} />
             </div></CardContent>
           </Card>
           <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Clock className="h-4 w-4 text-indigo-500" />Duração das sessões</CardTitle><CardDescription>quantas sessões em cada faixa de tempo</CardDescription></CardHeader>
-            <CardContent><div style={{ width: '100%', height: 220 }}>
-              <ResponsiveContainer>
-                <BarChart data={hist} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="faixa" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Bar dataKey="n" fill="#6366f1" name="sessões" radius={[3,3,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <CardContent><div className="w-full">
+              <GraficoBarra data={hist} xKey="faixa" valueKey="n" cor="#6366f1" nomeBarra="sessões" height={220} />
             </div></CardContent>
           </Card>
         </div>
@@ -746,38 +724,25 @@ export default function AuditoriaPage() {
         {/* Logins por dia + Top telas/endpoints */}
         <div className="grid md:grid-cols-2 gap-4">
           <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500" />Logins por dia</CardTitle><CardDescription>sucesso × falha</CardDescription></CardHeader>
-            <CardContent><div style={{ width: '100%', height: 220 }}>
-              <ResponsiveContainer>
-                <BarChart data={loginsDia} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="dia" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} /><Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="ok" fill="#10b981" name="ok" radius={[3,3,0,0]} />
-                  <Bar dataKey="falho" fill="#f43f5e" name="falhou" radius={[3,3,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <CardContent><div className="w-full">
+              <GraficoBarrasAgrupadas
+                data={loginsDia}
+                xKey="dia"
+                series={[
+                  { key: 'ok', nome: 'ok', cor: '#10b981' },
+                  { key: 'falho', nome: 'falhou', cor: '#f43f5e' },
+                ]}
+                height={220}
+              />
             </div></CardContent>
           </Card>
           <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Monitor className="h-4 w-4 text-violet-500" />{temTelas ? 'Telas onde o pessoal passa mais tempo' : 'Endpoints mais acionados'}</CardTitle><CardDescription>{temTelas ? 'tempo ativo acumulado por tela' : 'começa a medir tempo por tela nos próximos acessos'}</CardDescription></CardHeader>
-            <CardContent><div style={{ width: '100%', height: 220 }}>
-              <ResponsiveContainer>
-                {temTelas ? (
-                  <BarChart data={telas} layout="vertical" margin={{ top: 0, right: 40, left: 10, bottom: 0 }}>
-                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => fmtDur(v)} />
-                    <YAxis type="category" dataKey="nome" tick={{ fontSize: 10 }} width={150} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={((v: number) => fmtDur(Number(v))) as any} />
-                    <Bar dataKey="seg" fill="#8b5cf6" radius={[0,3,3,0]} />
-                  </BarChart>
-                ) : (
-                  <BarChart data={endpoints} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
-                    <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                    <YAxis type="category" dataKey="nome" tick={{ fontSize: 9 }} width={160} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                    <Bar dataKey="n" fill="#8b5cf6" radius={[0,3,3,0]} />
-                  </BarChart>
-                )}
-              </ResponsiveContainer>
+            <CardContent><div className="w-full">
+              {temTelas ? (
+                <GraficoBarraH data={telas} xKey="nome" valueKey="seg" cor="#8b5cf6" formatV={(v) => fmtDur(v)} height={220} />
+              ) : (
+                <GraficoBarraH data={endpoints} xKey="nome" valueKey="n" cor="#8b5cf6" height={220} />
+              )}
             </div></CardContent>
           </Card>
         </div>
@@ -785,30 +750,16 @@ export default function AuditoriaPage() {
         {/* Por bar: ações (agora) + tempo (enche com o tracker) */}
         <div className="grid md:grid-cols-2 gap-4">
           <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4 text-violet-500" />Ações por bar</CardTitle><CardDescription>onde o pessoal está mexendo</CardDescription></CardHeader>
-            <CardContent><div style={{ width: '100%', height: 200 }}>
-              <ResponsiveContainer>
-                <BarChart data={acoesBar} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
-                  <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <YAxis type="category" dataKey="nome" tick={{ fontSize: 11 }} width={110} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Bar dataKey="n" fill="#8b5cf6" radius={[0,3,3,0]} name="ações" />
-                </BarChart>
-              </ResponsiveContainer>
+            <CardContent><div className="w-full">
+              <GraficoBarraH data={acoesBar} xKey="nome" valueKey="n" cor="#8b5cf6" height={200} />
             </div></CardContent>
           </Card>
           <Card><CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Timer className="h-4 w-4 text-emerald-500" />Tempo ativo por bar</CardTitle><CardDescription>{temTempoBar ? 'tempo navegando em cada bar' : 'começa a medir nos próximos acessos'}</CardDescription></CardHeader>
-            <CardContent><div style={{ width: '100%', height: 200 }}>
+            <CardContent><div className="w-full" style={{ minHeight: 200 }}>
               {temTempoBar ? (
-                <ResponsiveContainer>
-                  <BarChart data={tempoBar} layout="vertical" margin={{ top: 0, right: 40, left: 10, bottom: 0 }}>
-                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => fmtDur(v)} />
-                    <YAxis type="category" dataKey="nome" tick={{ fontSize: 11 }} width={110} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={((v: number) => fmtDur(Number(v))) as any} />
-                    <Bar dataKey="seg" fill="#10b981" radius={[0,3,3,0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <GraficoBarraH data={tempoBar} xKey="nome" valueKey="seg" cor="#10b981" formatV={(v) => fmtDur(v)} height={200} />
               ) : (
-                <div className="h-full flex items-center justify-center text-center text-xs text-gray-400 px-4">Ainda sem dado — o tempo por bar é novo e vai aparecer conforme o pessoal navegar (depois do deploy).</div>
+                <div className="h-[200px] flex items-center justify-center text-center text-xs text-gray-400 px-4">Ainda sem dado — o tempo por bar é novo e vai aparecer conforme o pessoal navegar (depois do deploy).</div>
               )}
             </div></CardContent>
           </Card>
@@ -816,15 +767,8 @@ export default function AuditoriaPage() {
 
         {/* Tabelas mais alteradas (audit) */}
         <Card><CardHeader className="pb-2"><CardTitle className="text-base">Tabelas mais alteradas</CardTitle></CardHeader>
-          <CardContent><div style={{ width: '100%', height: 240 }}>
-            <ResponsiveContainer>
-              <BarChart data={topTab} layout="vertical" margin={{ top: 0, right: 12, left: 10, bottom: 0 }}>
-                <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                <YAxis type="category" dataKey="nome" tick={{ fontSize: 10 }} width={140} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                <Bar dataKey="total" fill="#8b5cf6" radius={[0,3,3,0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <CardContent><div className="w-full">
+            <GraficoBarraH data={topTab} xKey="nome" valueKey="total" cor="#8b5cf6" height={240} />
           </div></CardContent>
         </Card>
 

@@ -105,11 +105,13 @@ export function GraficoBarraH({
 // ---------------------------------------------------------------------------
 export function GraficoBarra({
   data, xKey, valueKey, lineKey, height = 320, formatV, formatLine,
-  cor, corLinha, nomeBarra = 'Valor', nomeLinha = '%', mostrarRotulo = false, mediaLinha = false, rotacaoX = 0,
+  cor, corLinha, nomeBarra = 'Valor', nomeLinha = '%', mostrarRotulo = false, mediaLinha = false, rotacaoX = 0, corPorItem,
 }: {
   data: any[]; xKey: string; valueKey: string; lineKey?: string; height?: number;
   formatV?: Fmt; formatLine?: Fmt; cor?: string; corLinha?: string;
   nomeBarra?: string; nomeLinha?: string; mostrarRotulo?: boolean; mediaLinha?: boolean; rotacaoX?: number;
+  // cor condicional por barra (ex.: destacar pico, positivo/negativo). Recebe (valor, índice).
+  corPorItem?: (valor: number, index: number) => string;
 }) {
   const th = useGraficoTheme();
   const rows = useMemo(() => data || [], [data]);
@@ -127,7 +129,7 @@ export function GraficoBarra({
       { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { show: false }, axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => (formatLine ? formatLine(v) : fmtNum(v)) } },
     ] : { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: th.grid } }, axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => (formatV ? formatV(v) : fmtNum(v)) } },
     series: [
-      { name: nomeBarra, type: 'bar', data: rows.map((d) => Number(d[valueKey]) || 0), barMaxWidth: 30, itemStyle: { borderRadius: [4, 4, 0, 0], color: corBar }, label: mostrarRotulo ? { show: true, position: 'top', color: th.texto2, fontSize: 10, formatter: (p: any) => (formatV ? formatV(p.value) : fmtNum(p.value)) } : undefined },
+      { name: nomeBarra, type: 'bar', data: rows.map((d) => Number(d[valueKey]) || 0), barMaxWidth: 30, itemStyle: { borderRadius: [4, 4, 0, 0], color: corPorItem ? (p: any) => corPorItem(Number(p.value) || 0, p.dataIndex) : corBar }, label: mostrarRotulo ? { show: true, position: 'top', color: th.texto2, fontSize: 10, formatter: (p: any) => (formatV ? formatV(p.value) : fmtNum(p.value)) } : undefined },
       ...(temLinha ? [{
         name: nomeLinha, type: 'line', yAxisIndex: 1,
         data: rows.map((d) => (d[lineKey!] == null ? null : Number(d[lineKey!]))),
@@ -142,7 +144,7 @@ export function GraficoBarra({
         } : undefined,
       }] : []),
     ],
-  }), [th, rows, xKey, valueKey, lineKey, formatV, formatLine, corBar, corLin, temLinha, nomeBarra, nomeLinha, mostrarRotulo, mediaLinha, rotacaoX]);
+  }), [th, rows, xKey, valueKey, lineKey, formatV, formatLine, corBar, corLin, temLinha, nomeBarra, nomeLinha, mostrarRotulo, mediaLinha, rotacaoX, corPorItem]);
   if (!rows.length) return <Vazio height={height} />;
   return <ReactECharts option={option} style={{ height, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />;
 }
@@ -151,10 +153,14 @@ export function GraficoBarra({
 // GraficoLinha — série(s) temporal(is) em linha (com área opcional)
 // ---------------------------------------------------------------------------
 export function GraficoLinha({
-  data, xKey, series, height = 300, formatV, cores, area = false, rotacaoX = 0,
+  data, xKey, series, height = 300, formatV, cores, area = false, rotacaoX = 0, markLines, tooltipFormatter,
 }: {
   data: any[]; xKey: string; series: { key: string; nome: string; cor?: string }[];
   height?: number; formatV?: Fmt; cores?: string[]; area?: boolean; rotacaoX?: number;
+  // linhas de referência horizontais (meta, zero, threshold). Ex.: [{ valor: 0 }, { valor: 34, label: 'Meta', cor: '#f00' }]
+  markLines?: { valor: number; label?: string; cor?: string }[];
+  // tooltip totalmente custom (recebe os params do ECharts, retorna HTML string)
+  tooltipFormatter?: (params: any) => string;
 }) {
   const th = useGraficoTheme();
   const rows = useMemo(() => data || [], [data]);
@@ -162,7 +168,7 @@ export function GraficoLinha({
   const option = useMemo(() => ({
     textStyle: baseTextStyle,
     grid: { top: 12, right: 14, bottom: series.length > 1 ? 44 : 24, left: 6, containLabel: true },
-    tooltip: { trigger: 'axis', backgroundColor: th.surface, borderColor: th.eixo, borderWidth: 1, textStyle: { color: th.texto, fontSize: 12 }, valueFormatter: (v: any) => (formatV ? formatV(Number(v)) : fmtNum(v)) },
+    tooltip: { trigger: 'axis', backgroundColor: th.surface, borderColor: th.eixo, borderWidth: 1, textStyle: { color: th.texto, fontSize: 12 }, ...(tooltipFormatter ? { formatter: tooltipFormatter } : { valueFormatter: (v: any) => (formatV ? formatV(Number(v)) : fmtNum(v)) }) },
     legend: series.length > 1 ? { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } } : undefined,
     xAxis: { type: 'category', data: rows.map((d) => d[xKey]), boundaryGap: false, axisLine: { lineStyle: { color: th.eixo } }, axisTick: { show: false }, axisLabel: { color: th.texto2, fontSize: 11, rotate: rotacaoX, hideOverlap: true } },
     yAxis: { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: th.grid } }, axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => (formatV ? formatV(v) : fmtNum(v)) } },
@@ -171,8 +177,17 @@ export function GraficoLinha({
       smooth: true, symbol: 'circle', symbolSize: 6,
       lineStyle: { width: 2, color: s.cor || paleta[i % paleta.length] }, itemStyle: { color: s.cor || paleta[i % paleta.length] },
       areaStyle: area ? { color: hexA(s.cor || paleta[i % paleta.length], 0.12) } : undefined,
+      // linhas de referência anexadas à 1ª série
+      markLine: (i === 0 && markLines && markLines.length) ? {
+        silent: true, symbol: 'none',
+        data: markLines.map((m) => ({
+          yAxis: m.valor,
+          lineStyle: { color: m.cor || th.muted, type: 'dashed', width: 1.2 },
+          label: { show: !!m.label, formatter: m.label || '', color: m.cor || th.muted, fontSize: 10, position: 'insideEndTop' },
+        })),
+      } : undefined,
     })),
-  }), [th, rows, xKey, series, formatV, paleta, area, rotacaoX]);
+  }), [th, rows, xKey, series, formatV, paleta, area, rotacaoX, markLines, tooltipFormatter]);
   if (!rows.length) return <Vazio height={height} />;
   return <ReactECharts option={option} style={{ height, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />;
 }

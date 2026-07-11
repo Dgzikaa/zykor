@@ -1,16 +1,6 @@
 'use client';
 
-import {
-  Bar,
-  CartesianGrid,
-  Cell,
-  ComposedChart,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { GraficoBarrasAgrupadas } from '@/components/graficos/Charts';
 import {
   AlertTriangle,
   CalendarHeart,
@@ -260,24 +250,16 @@ export function TabPlanejado({ data, gran }: Props) {
           <p className="text-[11px] text-gray-400 mb-2">
             Meta M1 congelada (claro) vs faturamento realizado (escuro) de cada evento do período.
           </p>
-          <ResponsiveContainer width="100%" height={280}>
-            <ComposedChart data={serie} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-              <Tooltip
-                formatter={(value: any, name: any) => [formatCurrency(Number(value)), name]}
-                labelFormatter={(l: any) => l}
-              />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="planejado" name="Planejado (M1)" fill="#93c5fd" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="realizado" name="Realizado" radius={[4, 4, 0, 0]}>
-                {serie.map((e, i) => (
-                  <Cell key={i} fill={e.realizado >= e.planejado ? '#16a34a' : '#dc2626'} />
-                ))}
-              </Bar>
-            </ComposedChart>
-          </ResponsiveContainer>
+          <GraficoBarrasAgrupadas
+            data={serie}
+            xKey="label"
+            series={[
+              { key: 'planejado', nome: 'Planejado (M1)', cor: '#93c5fd' },
+              { key: 'realizado', nome: 'Realizado', cor: '#2563eb' },
+            ]}
+            height={280}
+            formatV={(v) => formatCurrency(v)}
+          />
         </div>
       )}
 

@@ -19,20 +19,7 @@ import {
   CheckCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-  BarChart,
-  Bar,
-  Legend,
-  Cell
-} from 'recharts'
+import { GraficoBarra } from '@/components/graficos/Charts'
 import { usePageTitle } from '@/contexts/PageTitleContext'
 
 interface TicketData {
@@ -704,39 +691,15 @@ export default function AnaliseCouvertPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dadosGraficoEvolucao}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                  <XAxis 
-                    dataKey="data" 
-                    stroke="#9ca3af"
-                    fontSize={12}
-                  />
-                  <YAxis 
-                    stroke="#9ca3af"
-                    fontSize={12}
-                    tickFormatter={(value) => `R$${value}`}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#1f2937', 
-                      border: '1px solid #374151',
-                      borderRadius: '8px',
-                      color: '#fff'
-                    }}
-                    labelStyle={{ color: '#fff' }}
-                    itemStyle={{ color: '#fff' }}
-                    formatter={(value: number | undefined) => [formatCurrency(value), 'Ticket Médio']}
-                  />
-                  <Bar dataKey="ticket_medio" radius={[4, 4, 0, 0]}>
-                    {dadosGraficoEvolucao.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.cor} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <GraficoBarra
+              data={dadosGraficoEvolucao}
+              xKey="data"
+              valueKey="ticket_medio"
+              height={320}
+              nomeBarra="Ticket Médio"
+              formatV={(v) => formatCurrency(v)}
+              corPorItem={(_v, idx) => (dadosGraficoEvolucao[idx]?.periodo === 'antes' ? '#3b82f6' : '#10b981')}
+            />
           </CardContent>
         </Card>
 
@@ -749,38 +712,15 @@ export default function AnaliseCouvertPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dadosGraficoEvolucao}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                  <XAxis 
-                    dataKey="data" 
-                    stroke="#9ca3af"
-                    fontSize={12}
-                  />
-                  <YAxis 
-                    stroke="#9ca3af"
-                    fontSize={12}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#1f2937', 
-                      border: '1px solid #374151',
-                      borderRadius: '8px',
-                      color: '#fff'
-                    }}
-                    labelStyle={{ color: '#fff' }}
-                    itemStyle={{ color: '#fff' }}
-                    formatter={(value: number | undefined) => [(value ?? 0).toLocaleString(), 'Clientes']}
-                  />
-                  <Bar dataKey="clientes" radius={[4, 4, 0, 0]}>
-                    {dadosGraficoEvolucao.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.periodo === 'antes' ? '#8b5cf6' : '#a855f7'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <GraficoBarra
+              data={dadosGraficoEvolucao}
+              xKey="data"
+              valueKey="clientes"
+              height={320}
+              nomeBarra="Clientes"
+              formatV={(v) => (v ?? 0).toLocaleString()}
+              corPorItem={(_v, idx) => (dadosGraficoEvolucao[idx]?.periodo === 'antes' ? '#8b5cf6' : '#a855f7')}
+            />
           </CardContent>
         </Card>
       </div>

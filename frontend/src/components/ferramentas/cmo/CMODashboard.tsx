@@ -5,7 +5,8 @@ import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle } from 'lucide-react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import { GraficoLinha } from '@/components/graficos/Charts';
+import { GraficoBase } from '@/components/graficos/GraficoBase';
 
 interface CMOData {
   id: string;
@@ -225,39 +226,15 @@ export default function CMODashboard() {
               <CardDescription>Histórico semanal com meta</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <AreaChart data={dadosGrafico}>
-                  <defs>
-                    <linearGradient id="colorCMO" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="semana" />
-                  <YAxis tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
-                  <Tooltip
-                    formatter={(value: number | undefined) => formatarMoeda(value)}
-                    labelStyle={{ color: '#000' }}
-                  />
-                  <Legend />
-                  <Area
-                    type="monotone"
-                    dataKey="CMO Total"
-                    stroke="#3b82f6"
-                    fillOpacity={1}
-                    fill="url(#colorCMO)"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="Meta"
-                    stroke="#ef4444"
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    dot={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <GraficoLinha
+                data={dadosGrafico}
+                xKey="semana"
+                series={[{ key: 'CMO Total', nome: 'CMO Total', cor: '#3b82f6' }]}
+                area
+                height={400}
+                formatV={(v) => formatarMoeda(v)}
+                markLines={[{ valor: metaCMO, label: 'Meta', cor: '#ef4444' }]}
+              />
             </CardContent>
           </Card>
 
@@ -268,22 +245,21 @@ export default function CMODashboard() {
               <CardDescription>Distribuição dos 4 componentes</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={dadosGrafico}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="semana" />
-                  <YAxis tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
-                  <Tooltip
-                    formatter={(value: number | undefined) => formatarMoeda(value)}
-                    labelStyle={{ color: '#000' }}
-                  />
-                  <Legend />
-                  <Bar dataKey="Freelas" stackId="a" fill="#8b5cf6" />
-                  <Bar dataKey="Fixos" stackId="a" fill="#3b82f6" />
-                  <Bar dataKey="Alimentação" stackId="a" fill="#f59e0b" />
-                  <Bar dataKey="Pro Labore" stackId="a" fill="#10b981" />
-                </BarChart>
-              </ResponsiveContainer>
+              <GraficoBase
+                tipo="barra"
+                stacked
+                data={dadosGrafico}
+                xKey="semana"
+                series={[
+                  { key: 'Freelas', label: 'Freelas' },
+                  { key: 'Fixos', label: 'Fixos' },
+                  { key: 'Alimentação', label: 'Alimentação' },
+                  { key: 'Pro Labore', label: 'Pro Labore' },
+                ]}
+                height={400}
+                formatY={(v) => formatarMoeda(v)}
+                cores={['#8b5cf6', '#3b82f6', '#f59e0b', '#10b981']}
+              />
             </CardContent>
           </Card>
 
@@ -294,22 +270,12 @@ export default function CMODashboard() {
               <CardDescription>Número de funcionários ao longo das semanas</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={dadosGrafico}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="semana" />
-                  <YAxis />
-                  <Tooltip labelStyle={{ color: '#000' }} />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="funcionarios"
-                    stroke="#3b82f6"
-                    strokeWidth={3}
-                    name="Nº Funcionários"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <GraficoLinha
+                data={dadosGrafico}
+                xKey="semana"
+                series={[{ key: 'funcionarios', nome: 'Nº Funcionários', cor: '#3b82f6' }]}
+                height={300}
+              />
             </CardContent>
           </Card>
 

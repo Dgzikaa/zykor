@@ -3,9 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Cell,
-} from 'recharts';
+import { GraficoBarra } from '@/components/graficos/Charts';
 import { useBar } from '@/contexts/BarContext';
 
 interface Props {
@@ -66,25 +64,15 @@ export function CurvaHorariaTab({ dataInicio, dataFim }: Props) {
           <CardTitle>Faturamento médio por hora (período)</CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={data.distribuicao_por_hora}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-              <XAxis dataKey="hora" tickFormatter={h => `${h}h`} />
-              <YAxis tickFormatter={v => `R$ ${(v / 1000).toFixed(0)}k`} />
-              <RTooltip
-                formatter={(v: any) => fmtBRL(Number(v))}
-                labelFormatter={h => `${h}h`}
-                contentStyle={{ background: '#1f2937', border: 'none', borderRadius: 8 }}
-                labelStyle={{ color: '#fff' }}
-                itemStyle={{ color: '#fff' }}
-              />
-              <Bar dataKey="faturamento_medio_dia" name="Médio/dia">
-                {data.distribuicao_por_hora.map((d, i) => (
-                  <Cell key={i} fill={d.hora === data.resumo.hora_pico ? '#10b981' : '#3b82f6'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <GraficoBarra
+            data={data.distribuicao_por_hora}
+            xKey="hora"
+            valueKey="faturamento_medio_dia"
+            height={320}
+            formatV={fmtBRL}
+            nomeBarra="Médio/dia"
+            corPorItem={(_, i) => data.distribuicao_por_hora[i].hora === data.resumo.hora_pico ? '#10b981' : '#3b82f6'}
+          />
         </CardContent>
       </Card>
 

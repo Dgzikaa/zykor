@@ -8,7 +8,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { ReceiptText, Loader2, FileText, Ban, CalendarDays, BarChart3, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { GraficoBase } from '@/components/graficos/GraficoBase';
 
 type Cnpj = { indice: number; label: string; documento: string | null };
 type DiaCnpj = { total_autorizado: number; total_nfe: number; total_cancelado: number; qtd_notas: number; qtd_nfe: number };
@@ -244,23 +244,17 @@ function NotasFiscaisInner() {
                 <h2 className="text-sm font-medium">Total emitido por mês (empilhado por CNPJ)</h2>
                 {loadingMensal && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
               </div>
-              <div className="h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => fmtBRLk(v)} width={44} />
-                    <Tooltip
-                      formatter={(v: any, name: any) => [fmtBRL(v), cnpjsMensal.find((c) => `c${c.indice}` === name)?.label || name]}
-                      labelFormatter={(l) => `Mês: ${l}`}
-                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                    />
-                    <Legend formatter={(name) => cnpjsMensal.find((c) => `c${c.indice}` === name)?.label || name} wrapperStyle={{ fontSize: 12 }} />
-                    {cnpjsMensal.map((c) => (
-                      <Bar key={c.indice} dataKey={`c${c.indice}`} stackId="nf" fill={hexCnpj(c.indice)} radius={[2, 2, 0, 0]} />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="w-full">
+                <GraficoBase
+                  tipo="barra"
+                  stacked
+                  data={chartData}
+                  xKey="label"
+                  series={cnpjsMensal.map((c) => ({ key: `c${c.indice}`, label: c.label }))}
+                  cores={cnpjsMensal.map((c) => hexCnpj(c.indice))}
+                  formatY={(v) => fmtBRLk(v)}
+                  height={288}
+                />
               </div>
             </CardContent>
           </Card>
