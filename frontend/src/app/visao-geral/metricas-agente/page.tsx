@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Activity, DollarSign, Star, Users, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { useBarContext } from '@/contexts/BarContext'
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { GraficoLinha } from '@/components/graficos/Charts'
 
 interface Metrica {
   id: string
@@ -191,36 +191,12 @@ export default function MetricasAgentePage() {
                         <h3 className="card-title-dark text-base mb-4">
                           {nomeMetrica.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                         </h3>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <LineChart data={dadosGrafico}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                            <XAxis 
-                              dataKey="data" 
-                              stroke="#9CA3AF"
-                              style={{ fontSize: '12px' }}
-                            />
-                            <YAxis 
-                              stroke="#9CA3AF"
-                              style={{ fontSize: '12px' }}
-                            />
-                            <Tooltip 
-                              contentStyle={{
-                                backgroundColor: '#1F2937',
-                                border: '1px solid #374151',
-                                borderRadius: '8px'
-                              }}
-                              labelStyle={{ color: '#F3F4F6' }}
-                            />
-                            <Line 
-                              type="monotone" 
-                              dataKey="valor" 
-                              stroke="#3B82F6" 
-                              strokeWidth={2}
-                              dot={{ fill: '#3B82F6', r: 4 }}
-                              activeDot={{ r: 6 }}
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
+                        <GraficoLinha
+                          data={dadosGrafico}
+                          xKey="data"
+                          series={[{ key: 'valor', nome: 'Valor', cor: '#3B82F6' }]}
+                          height={300}
+                        />
                       </div>
                     )
                   })}

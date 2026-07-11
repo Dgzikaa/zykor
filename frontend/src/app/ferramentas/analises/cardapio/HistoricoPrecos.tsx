@@ -7,7 +7,7 @@ import { api } from '@/lib/api-client';
 import {
   ArrowDown, ArrowRight, ArrowUp, ChevronDown, ChevronRight, History, Search, Sparkles, TrendingDown, TrendingUp,
 } from 'lucide-react';
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from 'recharts';
+import { GraficoLinha } from '@/components/graficos/Charts';
 
 const fmtMoeda = (n: number | null | undefined) =>
   n == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
@@ -116,16 +116,16 @@ function SerieChart({ barId, produtoCodigo }: { barId: number; produtoCodigo: st
   return (
     <div className="py-3">
       <p className="text-xs text-gray-500 mb-2 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Evolução (180 dias)</p>
-      <ResponsiveContainer width="100%" height={160}>
-        <LineChart data={dados} margin={{ top: 5, right: 12, left: -8, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis dataKey="d" fontSize={10} />
-          <YAxis fontSize={10} tickFormatter={(v) => `R$${v}`} width={48} />
-          <RTooltip formatter={(v: any) => fmtMoeda(Number(v))} labelClassName="text-xs" />
-          <Line type="monotone" dataKey="custo" name="Custo" stroke="#6366f1" strokeWidth={2} dot={{ r: 2 }} />
-          <Line type="monotone" dataKey="preco" name="Preço" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
-        </LineChart>
-      </ResponsiveContainer>
+      <GraficoLinha
+        data={dados}
+        xKey="d"
+        series={[
+          { key: 'custo', nome: 'Custo', cor: '#6366f1' },
+          { key: 'preco', nome: 'Preço', cor: '#94a3b8' },
+        ]}
+        height={160}
+        formatV={fmtMoeda}
+      />
     </div>
   );
 }
