@@ -230,8 +230,6 @@ const nextConfig = {
       'date-fns',
       'recharts',
       '@supabase/supabase-js',
-      'chart.js',
-      'react-chartjs-2',
       'react-big-calendar',
     ],
     esmExternals: true,

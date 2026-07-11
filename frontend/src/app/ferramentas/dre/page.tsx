@@ -32,13 +32,10 @@ import {
 } from "lucide-react";
 import { LoadingState } from '@/components/ui/loading-state';
 import DreManualModal from "@/components/dre/DreManualModal";
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, Title, Filler } from 'chart.js';
-import { Pie, Line } from 'react-chartjs-2';
+import { GraficoDonut, GraficoLinha } from '@/components/graficos/Charts';
 import { toast } from 'sonner';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
-
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, Title, Filler);
 
 interface Categoria {
   nome: string;
@@ -475,126 +472,29 @@ export default function DrePage() {
     return macro.nome === "Receita" ? macro.total_entradas : macro.total_saidas;
   };
 
-  // Dados para o gráfico de pizza (usando dados anuais)
-  const pieChartData = (yearlyData ? {
-    labels: yearlyData.macroCategorias
-      .filter(macro => macro.nome !== "Investimentos" && macro.nome !== "Sócios")
-      .map(macro => macro.nome),
-    datasets: [
-      {
-        data: yearlyData.macroCategorias
-          .filter(macro => macro.nome !== "Investimentos" && macro.nome !== "Sócios")
-          .map(macro => Math.abs(macro.total_entradas - macro.total_saidas)),
-        backgroundColor: [
-          '#10B981', '#EF4444', '#F59E0B', '#3B82F6', '#8B5CF6',
-          '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
-        ],
-        borderWidth: 2,
-        borderColor: '#1F2937'
-      }
-    ]
-  } : null);
+  // Dados para o gráfico de rosca (dados anuais) — exclui Investimentos/Sócios
+  const pieData = yearlyData
+    ? yearlyData.macroCategorias
+        .filter(macro => macro.nome !== "Investimentos" && macro.nome !== "Sócios")
+        .map(macro => ({
+          nome: macro.nome,
+          valor: Math.abs(macro.total_entradas - macro.total_saidas),
+        }))
+    : [];
 
   // Dados para o gráfico de linha (dados reais dos últimos 12 meses)
-  const lineChartData = {
-    labels: historicalData.map(item => `${item.monthName} ${item.year}`),
-    datasets: [
-      {
-        label: 'EBITDA',
-        data: historicalData.map(item => item.ebitda),
-        borderColor: '#3B82F6',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        tension: 0.4,
-        fill: true
-      },
-      {
-        label: 'Receitas',
-        data: historicalData.map(item => item.receitas),
-        borderColor: '#10B981',
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-        tension: 0.4,
-        fill: true
-      },
-      {
-        label: 'Custos',
-        data: historicalData.map(item => item.custos),
-        borderColor: '#EF4444',
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        tension: 0.4,
-        fill: true
-      }
-    ]
-  };
+  const lineData = historicalData.map(item => ({
+    mes: `${item.monthName} ${item.year}`,
+    ebitda: item.ebitda,
+    receitas: item.receitas,
+    custos: item.custos,
+  }));
+  const lineSeries = [
+    { key: 'ebitda', nome: 'EBITDA', cor: '#3B82F6' },
+    { key: 'receitas', nome: 'Receitas', cor: '#10B981' },
+    { key: 'custos', nome: 'Custos', cor: '#EF4444' },
+  ];
 
-  const pieChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'bottom' as const,
-        labels: {
-          color: '#D1D5DB',
-          font: {
-            size: 12
-          }
-        }
-      },
-      tooltip: {
-        callbacks: {
-          label: function(context: any) {
-            const value = context.parsed;
-            return `${context.label}: ${formatCurrency(value)}`;
-          }
-        }
-      }
-    }
-  };
-
-  const lineChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'top' as const,
-        labels: {
-          color: '#D1D5DB',
-          font: {
-            size: 12
-          }
-        }
-      },
-      tooltip: {
-        callbacks: {
-          label: function(context: any) {
-            const value = context.parsed.y;
-            return `${context.dataset.label}: ${formatCurrency(value)}`;
-          }
-        }
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        grid: {
-          color: '#374151'
-        },
-        ticks: {
-          color: '#D1D5DB',
-          callback: function(value: any) {
-            return formatCurrency(value);
-          }
-        }
-      },
-      x: {
-        grid: {
-          color: '#374151'
-        },
-        ticks: {
-          color: '#D1D5DB'
-        }
-      }
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
@@ -732,9 +632,9 @@ export default function DrePage() {
                         <PieChart className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 mr-2" />
                         <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Distribuição por Categoria</h3>
                       </div>
-                      <div className="h-48 sm:h-64">
-                        {pieChartData ? (
-                          <Pie data={pieChartData} options={pieChartOptions} />
+                      <div className="h-64">
+                        {pieData.length > 0 ? (
+                          <GraficoDonut data={pieData} nameKey="nome" valueKey="valor" formatV={formatCurrency} height={256} />
                         ) : (
                           <div className="h-full flex items-center justify-center">
                             <div className="text-center">
@@ -751,7 +651,7 @@ export default function DrePage() {
                         <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 mr-2" />
                         <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Evolução Temporal</h3>
                       </div>
-                      <div className="h-48 sm:h-64">
+                      <div className="h-64">
                         {loadingHistorical ? (
                           <div className="h-full flex items-center justify-center">
                             <div className="text-center">
@@ -760,7 +660,7 @@ export default function DrePage() {
                             </div>
                           </div>
                         ) : historicalData.length > 0 ? (
-                          <Line data={lineChartData} options={lineChartOptions} />
+                          <GraficoLinha data={lineData} xKey="mes" series={lineSeries} formatV={formatCurrency} area height={256} />
                         ) : (
                           <div className="h-full flex items-center justify-center">
                             <div className="text-center">
