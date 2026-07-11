@@ -38,9 +38,10 @@ export async function GET(request: NextRequest) {
 
   for (const bar of BARES_BRIEFING) {
     try {
-      const briefing = await montarBriefingBar(supabase, bar, hojeISO, ontemISO);
+      const { briefing, motivo } = await montarBriefingBar(supabase, bar, hojeISO, ontemISO);
       if (!briefing) {
-        resultados.push({ bar: bar.nome, pulado: true, motivo: 'sem_movimento_ontem' });
+        // 'dados_defasados' = recálculo de ontem ainda não rodou/consolidou → segura (não manda número velho)
+        resultados.push({ bar: bar.nome, pulado: true, motivo });
         continue;
       }
       if (dryRun) {

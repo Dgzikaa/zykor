@@ -19,7 +19,7 @@ import { getAdminClient } from '@/lib/supabase-admin';
 const UMBLER_BASE = 'https://app-utalk.umbler.com/api/v1';
 const UMBLER_FROM = process.env.UMBLER_NOTIF_FROM || '5561998584761';
 const UMBLER_ORG = process.env.UMBLER_NOTIF_ORG || 'aDjKophL8jEd_D8m';
-const UMBLER_TOKEN = process.env.UMBLER_API_TOKEN || '';
+const UMBLER_TOKEN_ENV = process.env.UMBLER_API_TOKEN || '';
 const UMBLER_TEMPLATE = process.env.UMBLER_NOTIF_TEMPLATE_ID || 'akvdZtIp0v4fiRGQ'; // zykor_alerta
 
 /**
@@ -51,6 +51,28 @@ function normalizarTelefone(tel: string): string | null {
 }
 
 /**
+ * Token da Umbler: env `UMBLER_API_TOKEN` primeiro; se ausente, cai no banco
+ * (`integrations.umbler_account` id=1) — mesma fonte usada pelos outros endpoints Umbler.
+ * Assim o envio (ex.: cron do briefing) não depende de uma env var extra na Vercel.
+ */
+async function resolverTokenUmbler(
+  supabase: Awaited<ReturnType<typeof getAdminClient>>
+): Promise<string> {
+  if (UMBLER_TOKEN_ENV) return UMBLER_TOKEN_ENV;
+  try {
+    const { data } = await supabase
+      .schema('integrations')
+      .from('umbler_account')
+      .select('api_token')
+      .eq('id', 1)
+      .maybeSingle();
+    return (data as { api_token?: string } | null)?.api_token || '';
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Envia WhatsApp para os usuários dados (por auth_id), resolvendo o telefone de cada um.
  * Best-effort — nunca lança. Retorna quantos foram, quantos sem telefone e quantas falhas.
  */
@@ -58,11 +80,15 @@ export async function enviarWhatsAppParaUsuarios(
   usuarioIds: string[],
   payload: WhatsAppPayload
 ): Promise<WhatsAppResult> {
-  if (!UMBLER_TOKEN || !UMBLER_FROM || !UMBLER_ORG || !UMBLER_TEMPLATE || usuarioIds.length === 0) {
+  if (!UMBLER_FROM || !UMBLER_ORG || !UMBLER_TEMPLATE || usuarioIds.length === 0) {
     return { enviados: 0, semTelefone: usuarioIds.length, falhas: 0 };
   }
 
   const supabase = await getAdminClient();
+  const UMBLER_TOKEN = await resolverTokenUmbler(supabase);
+  if (!UMBLER_TOKEN) {
+    return { enviados: 0, semTelefone: usuarioIds.length, falhas: 0 };
+  }
   const { data: users, error } = await supabase
     .schema('auth_custom')
     .from('usuarios')

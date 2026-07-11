@@ -39,6 +39,14 @@ export interface BriefingComposto {
   mensagem: string;
 }
 
+export type MotivoBriefing = 'ok' | 'sem_movimento' | 'dados_defasados';
+
+export interface MontagemBriefing {
+  briefing: BriefingComposto | null;
+  /** por que (não) montou — para log/observabilidade do cron */
+  motivo: MotivoBriefing;
+}
+
 /** R$ compacto pt-BR: 86010 → "R$ 86,0k"; 105 → "R$ 105". */
 export function fmtBRLk(v: number): string {
   if (v >= 1000) return `R$ ${(v / 1000).toFixed(1).replace('.', ',')}k`;
@@ -79,37 +87,53 @@ export function formatBriefing(
   return { titulo, mensagem: partes.join(' ') };
 }
 
+/** Data (yyyy-mm-dd) em BRT (UTC-3 fixo) a partir de um timestamptz ISO. */
+function dataBRT(tsISO: string): string {
+  return new Date(new Date(tsISO).getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 /**
- * Lê o banco e monta o briefing de um bar para um dia (ontem). Retorna null se o bar
- * não operou no dia. Best-effort de leitura — quem chama trata erros.
+ * Lê o banco e monta o briefing de um bar para um dia (ontem).
+ *
+ * Guarda de frescor: só monta o placar se o `real_r` de ontem foi RECALCULADO HOJE
+ * (`calculado_em` = hoje BRT) e não está pendente (`precisa_recalculo = false`). O recálculo
+ * roda ~08:45 BRT; sem essa guarda, disparar cedo mandaria número defasado/subestimado.
+ * `motivo` distingue "bar fechado" de "dados ainda não consolidaram" para o log do cron.
  */
 export async function montarBriefingBar(
   supabase: SupabaseClient,
   bar: BriefingBar,
   hojeISO: string,
   ontemISO: string
-): Promise<BriefingComposto | null> {
+): Promise<MontagemBriefing> {
   // Placar de ontem
   const { data: evRows } = await supabase
     .schema('operations')
     .from('eventos_base')
-    .select('real_r, m1_r, cl_real')
+    .select('real_r, m1_r, cl_real, precisa_recalculo, calculado_em')
     .eq('bar_id', bar.barId)
     .eq('data_evento', ontemISO)
     .limit(1);
 
-  const ev = evRows?.[0] as { real_r: number | null; m1_r: number | null; cl_real: number | null } | undefined;
-  let placar: PlacarDia | null = null;
-  if (ev && ev.real_r != null && Number(ev.real_r) > 0) {
-    const real = Number(ev.real_r);
-    const clientes = Number(ev.cl_real ?? 0);
-    placar = {
-      real,
-      meta: ev.m1_r != null ? Number(ev.m1_r) : null,
-      clientes,
-      ticket: clientes > 0 ? real / clientes : null,
-    };
-  }
+  const ev = evRows?.[0] as
+    | { real_r: number | null; m1_r: number | null; cl_real: number | null; precisa_recalculo: boolean | null; calculado_em: string | null }
+    | undefined;
+
+  const teveMovimento = !!(ev && ev.real_r != null && Number(ev.real_r) > 0);
+  if (!teveMovimento) return { briefing: null, motivo: 'sem_movimento' };
+
+  const fresco =
+    ev!.precisa_recalculo === false && !!ev!.calculado_em && dataBRT(ev!.calculado_em) === hojeISO;
+  if (!fresco) return { briefing: null, motivo: 'dados_defasados' };
+
+  const real = Number(ev!.real_r);
+  const clientes = Number(ev!.cl_real ?? 0);
+  const placar: PlacarDia = {
+    real,
+    meta: ev!.m1_r != null ? Number(ev!.m1_r) : null,
+    clientes,
+    ticket: clientes > 0 ? real / clientes : null,
+  };
 
   // Ponto de atenção do mês (mesma régua da home)
   const { data: mensalRows } = await supabase
@@ -130,5 +154,6 @@ export async function montarBriefingBar(
     ? { label: destaques.atencao[0].label, valorTexto: destaques.atencao[0].valorTexto }
     : null;
 
-  return formatBriefing(bar.nome, hojeISO, placar, at);
+  const briefing = formatBriefing(bar.nome, hojeISO, placar, at);
+  return { briefing, motivo: briefing ? 'ok' : 'sem_movimento' };
 }
