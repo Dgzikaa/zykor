@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePageTitle } from '@/contexts/PageTitleContext';
+import { useBar } from '@/contexts/BarContext';
 
 interface Campanha {
   id: string;
@@ -112,6 +113,8 @@ interface AnaliseCampanha {
 
 export default function AnaliseCampanhasPage() {
   const { setPageTitle } = usePageTitle();
+  const { selectedBar } = useBar();
+  const barId = selectedBar?.id;
 
   useEffect(() => {
     setPageTitle('📣 Análise de Campanhas');
@@ -127,11 +130,12 @@ export default function AnaliseCampanhasPage() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchCampanhas = useCallback(async () => {
+    if (!barId) return;
     setLoading(true);
     setError(null);
     try {
       // Buscar campanhas diretamente da API Umbler bulksend com cruzamento
-      const response = await fetch('/api/umbler/bulksend?bar_id=3&limit=20&cruzamento=true');
+      const response = await fetch(`/api/umbler/bulksend?bar_id=${barId}&limit=20&cruzamento=true`);
       const data = await response.json();
       
       if (data.success && data.campanhas) {
@@ -145,7 +149,7 @@ export default function AnaliseCampanhasPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [barId]);
 
   const fetchDetalhes = async (campanhaId: string) => {
     // Redirecionar para a página dedicada de detalhes da campanha

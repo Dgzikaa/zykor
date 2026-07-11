@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
+import { useBar } from '@/contexts/BarContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -98,6 +99,8 @@ interface Metricas {
 
 export default function ConversasPage() {
   const { setPageTitle } = usePageTitle();
+  const { selectedBar } = useBar();
+  const barId = selectedBar?.id;
 
   useEffect(() => {
     setPageTitle('💬 Conversas');
@@ -116,14 +119,16 @@ export default function ConversasPage() {
   const [modalAberto, setModalAberto] = useState(false);
 
   useEffect(() => {
+    if (!barId) return;
     fetchConversas();
     fetchMetricas();
-  }, [filtroStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroStatus, barId]);
 
   const fetchConversas = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ bar_id: '3', limit: '50' });
+      const params = new URLSearchParams({ bar_id: String(barId), limit: '50' });
       if (filtroStatus) params.append('status', filtroStatus);
       if (filtroBusca) params.append('telefone', filtroBusca);
 
@@ -140,7 +145,7 @@ export default function ConversasPage() {
   const fetchMetricas = async () => {
     setLoadingMetricas(true);
     try {
-      const response = await fetch('/api/umbler/metricas?bar_id=3&periodo=7');
+      const response = await fetch(`/api/umbler/metricas?bar_id=${barId}&periodo=7`);
       const data = await response.json();
       setMetricas(data);
     } catch (error) {

@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePageTitle } from '@/contexts/PageTitleContext';
+import { useBar } from '@/contexts/BarContext';
 
 interface MetricasAnalise {
   total_destinatarios: number;
@@ -152,6 +153,8 @@ export default function CampanhaDetalhesPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('todos');
   const { setPageTitle } = usePageTitle();
+  const { selectedBar } = useBar();
+  const barId = selectedBar?.id;
 
   useEffect(() => {
     setPageTitle('📣 Campanha');
@@ -159,12 +162,12 @@ export default function CampanhaDetalhesPage() {
   }, [setPageTitle]);
 
   const fetchDetalhes = useCallback(async (dataAlvo?: string) => {
-    if (!campanhaId) return;
-    
+    if (!campanhaId || !barId) return;
+
     setLoading(true);
     setError(null);
     try {
-      let url = `/api/umbler/bulksend?bar_id=3&session_id=${campanhaId}&cruzamento=true`;
+      let url = `/api/umbler/bulksend?bar_id=${barId}&session_id=${campanhaId}&cruzamento=true`;
       if (dataAlvo) {
         url += `&data_evento=${dataAlvo}`;
       }
@@ -182,7 +185,7 @@ export default function CampanhaDetalhesPage() {
     } finally {
       setLoading(false);
     }
-  }, [campanhaId]);
+  }, [campanhaId, barId]);
 
   useEffect(() => {
     fetchDetalhes(dataEvento || undefined);
