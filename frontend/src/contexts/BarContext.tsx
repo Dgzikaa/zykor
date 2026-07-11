@@ -6,6 +6,8 @@ import {
   useState,
   useEffect,
   useRef,
+  useCallback,
+  useMemo,
   ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
@@ -59,27 +61,61 @@ export function BarProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [retryNonce, setRetryNonce] = useState(0);
 
-  const resetBars = () => {
-    setSelectedBar(null);
-    setAvailableBars([]);
-    setIsLoading(true);
-    // Resetar flag para permitir recarga
-    hasLoadedBarsRef.current = false;
-    // Resetar favicon para default
-    updateFavicon();
-  };
-
   // Flag para evitar loops de sincronização
   const isSyncingRef = useRef(false);
-  
+
   // Flag para controlar se já carregou os bares
   const hasLoadedBarsRef = useRef(false);
 
+  // Função para atualizar favicon baseado no bar.
+  // Se o bar tem logo cadastrada (logoUrl), usa ela como favicon; senão, cai no Zykor.
+  // Sem dependências externas (só toca no DOM) -> identidade estável.
+  const updateFavicon = useCallback((barName?: string, logoUrl?: string | null) => {
+    if (typeof window === 'undefined') return;
+
+    const faviconPath = logoUrl || '/logos/zykor-logo-white.png';
+    const appleTouchPath = logoUrl || '/favicons/zykor/apple-touch-icon.png';
+
+    // Atualizar favicon principal
+    let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+    if (!favicon) {
+      favicon = document.createElement('link');
+      favicon.rel = 'icon';
+      document.head.appendChild(favicon);
+    }
+    favicon.href = faviconPath;
+
+    // Atualizar favicon 32x32
+    let favicon32 = document.querySelector(
+      'link[rel="icon"][sizes="32x32"]'
+    ) as HTMLLinkElement;
+    if (!favicon32) {
+      favicon32 = document.createElement('link');
+      favicon32.rel = 'icon';
+      favicon32.setAttribute('sizes', '32x32');
+      favicon32.type = 'image/png';
+      document.head.appendChild(favicon32);
+    }
+    favicon32.href = faviconPath;
+
+    // Atualizar apple-touch-icon
+    let appleIcon = document.querySelector(
+      'link[rel="apple-touch-icon"]'
+    ) as HTMLLinkElement;
+    if (!appleIcon) {
+      appleIcon = document.createElement('link');
+      appleIcon.rel = 'apple-touch-icon';
+      document.head.appendChild(appleIcon);
+    }
+    appleIcon.href = appleTouchPath;
+  }, []);
+
   // Função auxiliar para sincronizar as permissões do bar selecionado no localStorage
   // TODO(rodrigo/2026-05): sgb_user mantido apenas como cache, fonte de verdade é JWT
-  const syncBarPermissions = (bar: Bar) => {
+  // Só usa refs -> identidade estável.
+  const syncBarPermissions = useCallback((bar: Bar) => {
     if (typeof window === 'undefined' || isSyncingRef.current) return;
-    
+
     if (bar.modulos_permitidos) {
       try {
         isSyncingRef.current = true;
@@ -100,7 +136,17 @@ export function BarProvider({ children }: { children: ReactNode }) {
         }, 100);
       }
     }
-  };
+  }, []);
+
+  const resetBars = useCallback(() => {
+    setSelectedBar(null);
+    setAvailableBars([]);
+    setIsLoading(true);
+    // Resetar flag para permitir recarga
+    hasLoadedBarsRef.current = false;
+    // Resetar favicon para default
+    updateFavicon();
+  }, [updateFavicon]);
 
   useEffect(() => {
     // Only run on client side
@@ -120,7 +166,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
         if (!userInitialized) {
           return;
         }
-        
+
         // Se já carregou os bares, não recarregar (evita loops)
         if (hasLoadedBarsRef.current) {
           return;
@@ -212,7 +258,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
                 // Fixar a seleção desta aba + garantir cookie p/ Server Components
                 persistSelectedBarId(barToSelect.id);
                 setBarCookie(barToSelect.id);
-                
+
                 // Marcar que os bares foram carregados
                 hasLoadedBarsRef.current = true;
 
@@ -238,7 +284,7 @@ export function BarProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [user, userInitialized, retryNonce]);
+  }, [user, userInitialized, retryNonce, updateFavicon, syncBarPermissions]);
 
   // Listener para mudanças no usuário
   useEffect(() => {
@@ -283,53 +329,11 @@ export function BarProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [isLoading, availableBars.length, userInitialized, user?.email]);
 
-  // Função para atualizar favicon baseado no bar.
-  // Se o bar tem logo cadastrada (logoUrl), usa ela como favicon; senão, cai no Zykor.
-  const updateFavicon = (barName?: string, logoUrl?: string | null) => {
-    if (typeof window === 'undefined') return;
-
-    const faviconPath = logoUrl || '/logos/zykor-logo-white.png';
-    const appleTouchPath = logoUrl || '/favicons/zykor/apple-touch-icon.png';
-
-    // Atualizar favicon principal
-    let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
-    if (!favicon) {
-      favicon = document.createElement('link');
-      favicon.rel = 'icon';
-      document.head.appendChild(favicon);
-    }
-    favicon.href = faviconPath;
-
-    // Atualizar favicon 32x32
-    let favicon32 = document.querySelector(
-      'link[rel="icon"][sizes="32x32"]'
-    ) as HTMLLinkElement;
-    if (!favicon32) {
-      favicon32 = document.createElement('link');
-      favicon32.rel = 'icon';
-      favicon32.setAttribute('sizes', '32x32');
-      favicon32.type = 'image/png';
-      document.head.appendChild(favicon32);
-    }
-    favicon32.href = faviconPath;
-
-    // Atualizar apple-touch-icon
-    let appleIcon = document.querySelector(
-      'link[rel="apple-touch-icon"]'
-    ) as HTMLLinkElement;
-    if (!appleIcon) {
-      appleIcon = document.createElement('link');
-      appleIcon.rel = 'apple-touch-icon';
-      document.head.appendChild(appleIcon);
-    }
-    appleIcon.href = appleTouchPath;
-  };
-
   // Função para alterar o bar selecionado.
   // IMPORTANTE: a seleção é POR ABA (sessionStorage) e a atualização é "soft"
   // (router.refresh), nunca window.location.reload(). Abas diferentes podem ficar
   // em bares diferentes sem brigar pelo cookie/localStorage compartilhado.
-  const handleSetSelectedBar = (bar: Bar) => {
+  const handleSetSelectedBar = useCallback((bar: Bar) => {
     const previousBarId = selectedBar?.id;
     setSelectedBar(bar);
 
@@ -353,21 +357,23 @@ export function BarProvider({ children }: { children: ReactNode }) {
       // Atualização soft dos Server Components (sem reload de página inteira)
       router.refresh();
     }
-  };
+  }, [selectedBar, router, updateFavicon, syncBarPermissions]);
 
-  return (
-    <BarContext.Provider
-      value={{
-        selectedBar,
-        availableBars,
-        setSelectedBar: handleSetSelectedBar,
-        isLoading,
-        resetBars,
-      }}
-    >
-      {children}
-    </BarContext.Provider>
+  // Value memoizado: só muda quando o estado real muda (selectedBar/availableBars/
+  // isLoading). Evita re-render de TODOS os consumidores de useBar (usado no app
+  // inteiro por causa do bar_id) quando o provider re-renderiza sem mudança de estado.
+  const value = useMemo<BarContextType>(
+    () => ({
+      selectedBar,
+      availableBars,
+      setSelectedBar: handleSetSelectedBar,
+      isLoading,
+      resetBars,
+    }),
+    [selectedBar, availableBars, isLoading, handleSetSelectedBar, resetBars]
   );
+
+  return <BarContext.Provider value={value}>{children}</BarContext.Provider>;
 }
 
 export function useBar() {

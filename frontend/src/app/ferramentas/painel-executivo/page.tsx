@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { useBar } from '@/contexts/BarContext';
+import { useApiSWR } from '@/hooks/useApiSWR';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TrendingUp, DollarSign, Wallet, Users, AlertTriangle, Percent, ArrowRight } from 'lucide-react';
@@ -31,21 +32,20 @@ function Kpi({ label, value, sub, accent = 'slate', icon }: { label: string; val
 
 export default function PainelExecutivoPage() {
   const { selectedBar } = useBar();
-  const [d, setD] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const { setPageTitle } = usePageTitle();
+
+  // Cache via SWR: navegar pra cá e voltar não re-busca do zero (dedupe 30s).
+  // A chave inclui o bar, então trocar de bar re-busca automaticamente.
+  const { data: d, isLoading } = useApiSWR<any>(
+    selectedBar?.id ? `/api/estrategico/painel-executivo?bar_id=${selectedBar.id}` : null
+  );
+  // Skeleton enquanto o bar ainda não carregou OU a 1ª busca está em voo.
+  const loading = !selectedBar?.id || isLoading;
 
   useEffect(() => {
     setPageTitle('📈 Painel Executivo');
     return () => setPageTitle('');
   }, [setPageTitle]);
-
-  useEffect(() => {
-    if (!selectedBar?.id) return;
-    setLoading(true);
-    fetch(`/api/estrategico/painel-executivo?bar_id=${selectedBar.id}`, { cache: 'no-store' })
-      .then(r => r.json()).then(setD).finally(() => setLoading(false));
-  }, [selectedBar?.id]);
 
   if (loading) return <main className="max-w-7xl mx-auto px-6 py-8 space-y-4"><Skeleton className="h-32" /><Skeleton className="h-32" /></main>;
 

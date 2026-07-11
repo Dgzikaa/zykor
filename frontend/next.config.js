@@ -1,5 +1,11 @@
 const path = require('path');
 
+// Bundle analyzer — ativado por `npm run build:analyze` (NEXT_PUBLIC_ANALYZE_BUNDLE=true).
+// Só instrumenta o build webpack (build:analyze roda `next build` sem --turbopack).
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.NEXT_PUBLIC_ANALYZE_BUNDLE === 'true',
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // ✅ Otimizações básicas
@@ -250,4 +256,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+module.exports = withBundleAnalyzer(nextConfig);
