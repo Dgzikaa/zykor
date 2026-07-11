@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     rows = await paginate<any>(
       () => {
         let q = (supabase as any)
-          .schema('gold').from('stone_conciliacao_diaria')
+          .schema('gold').from('mv_stone_conciliacao_diaria')
           .select('*')
           .eq('bar_id', user.bar_id)
           .order('data', { ascending: false });
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
   // Meses e CNPJs disponíveis (varredura leve: só data + cnpj do bar inteiro)
   const dimRows = await paginate<any>(
     () => (supabase as any)
-      .schema('gold').from('stone_conciliacao_diaria')
+      .schema('gold').from('mv_stone_conciliacao_diaria')
       .select('data, stone_cnpjs')
       .eq('bar_id', user.bar_id)
       .order('data', { ascending: false }),
