@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Cell } from 'recharts';
+import { GraficoBarra } from '@/components/graficos/Charts';
 import { CalendarDays, TrendingUp, TrendingDown, Minus, Sparkles, AlertTriangle, Star, Users, Lightbulb } from 'lucide-react';
 import { NpsRetornoCard, NpsLotacaoCard, NpsTemasCard } from '@/components/nps/NpsCasa';
 
@@ -161,29 +161,13 @@ export default function InsightsTab({ barId, periodo }: { barId?: number; period
             <div>
               <div className="text-[11px] text-gray-400 mb-1">Faturamento médio por dia</div>
               <div style={{ width: '100%', height: 180 }}>
-                <ResponsiveContainer>
-                  <BarChart data={dias} margin={{ top: 4, right: 8, left: 4, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                    <XAxis dataKey="dia" tick={{ fontSize: 10 }} tickFormatter={(v) => String(v).slice(0, 3)} />
-                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} width={34} />
-                    <RTooltip formatter={((v: number) => money(Number(v))) as any} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                    <Bar dataKey="fat_medio" radius={[4, 4, 0, 0]}>{dias.map((_, i) => <Cell key={i} fill="#8b5cf6" />)}</Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <GraficoBarra data={dias} xKey="dia" valueKey="fat_medio" nomeBarra="Faturamento" cor="#8b5cf6" height={180} formatV={money} />
               </div>
             </div>
             <div>
               <div className="text-[11px] text-gray-400 mb-1">Público médio por dia</div>
               <div style={{ width: '100%', height: 180 }}>
-                <ResponsiveContainer>
-                  <BarChart data={dias} margin={{ top: 4, right: 8, left: 4, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                    <XAxis dataKey="dia" tick={{ fontSize: 10 }} tickFormatter={(v) => String(v).slice(0, 3)} />
-                    <YAxis tick={{ fontSize: 10 }} width={30} />
-                    <RTooltip formatter={((v: number) => [num(Number(v)), 'público']) as any} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                    <Bar dataKey="publico_medio" radius={[4, 4, 0, 0]}>{dias.map((_, i) => <Cell key={i} fill="#3b82f6" />)}</Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <GraficoBarra data={dias} xKey="dia" valueKey="publico_medio" nomeBarra="Público" cor="#3b82f6" height={180} formatV={num} />
               </div>
             </div>
           </div>
