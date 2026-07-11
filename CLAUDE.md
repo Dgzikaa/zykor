@@ -49,6 +49,15 @@ zykor/
 5. CONSUMO    — KPIs -> dashboards, AI, reports
 ```
 
+## Dev Standards — OBRIGATÓRIO
+
+**Antes de criar qualquer página, API, função ou gráfico novo, seguir `docs/PADROES-DEV.md`.**
+Resumo do que é inegociável: gráfico = só ECharts do hub `components/graficos/Charts.tsx` (nunca outra lib);
+busca de dados no cliente = `useApiSWR` (cache por bar), nunca `useEffect(fetch)` novo; rota API filtra por
+`bar_id`, pagina com `lib/supabase/paginate.ts` acima de 1000 linhas, resposta com chave nomeada; página nova
+entra no menu (`lib/navigation/menu.ts`) + permissão + `setPageTitle`; SQL segue medallion + convenções.
+Divergir do padrão exige alinhamento explícito antes.
+
 ## Critical Rules
 
 1. **SEMPRE filtrar por `bar_id`** em todas as queries. NUNCA assumir um bar.
