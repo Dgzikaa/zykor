@@ -230,7 +230,6 @@ const nextConfig = {
       '@radix-ui/react-slider',
       'framer-motion',
       'date-fns',
-      'recharts',
       '@supabase/supabase-js',
       'react-big-calendar',
     ],
