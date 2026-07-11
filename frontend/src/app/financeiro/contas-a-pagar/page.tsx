@@ -114,15 +114,15 @@ export default function ContasAPagarPage() {
   const { data: lancData, isLoading: loading, mutate } = useApiSWR<any>(
     barId ? `/api/financeiro/contaazul/lancamentos?${lancParams.toString()}` : null,
   );
-  const lancamentos: Lancamento[] = lancData?.data || [];
+  const lancamentos: Lancamento[] = lancData?.lancamentos || [];
   const total: number = lancData?.total || 0;
   const totalizadores: Totalizadores | null = lancData?.totalizadores || null;
 
   // Opções de filtro (categorias + centros de custo) — 2 GETs paralelos, silenciosos em erro.
   const { data: catData } = useApiSWR<any>(barId ? `/api/financeiro/contaazul/categorias?bar_id=${barId}` : null);
   const { data: ccData } = useApiSWR<any>(barId ? `/api/financeiro/contaazul/centros-custo?bar_id=${barId}` : null);
-  const categorias: Categoria[] = catData?.data || [];
-  const centrosCusto: CentroCusto[] = ccData?.data || [];
+  const categorias: Categoria[] = catData?.categorias || [];
+  const centrosCusto: CentroCusto[] = ccData?.centros_custo || [];
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
