@@ -43,31 +43,22 @@ export async function GET(request: NextRequest) {
   try {
     const fator = await getFatorCmv(supabase, barId);
 
-    // Paginação em SQL via p_limit/p_offset (cada página ≤1000 → nunca bate no cap do PostgREST).
-    // ATENÇÃO (2026-07-11): o PostgREST do Supabase TEM cap de 1000 linhas na RESPOSTA de RPC
-    // (db-max-rows=1000 setado no nível do PROJETO, não na role — não aparece em pg_roles.rolconfig).
-    // Tentar 1 chamada com p_limit alto TRUNCA em 1000 SILENCIOSAMENTE (perde linhas). NÃO fazer.
-    // A função já ordena de forma determinística, então o offset é estável.
-    const PAGE = 1000;
-    const rows: any[] = [];
-    for (let off = 0; ; off += PAGE) {
-      const { data, error } = await (supabase as any).rpc('get_consumos_9_detalhes_custo_semana', {
-        input_bar_id: barId,
-        input_data_inicio: dataInicio,
-        input_data_fim: dataFim,
-        input_categoria: null,
-        p_fator: fator,
-        p_limit: PAGE,
-        p_offset: off,
-      });
-      if (error) {
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-      }
-      const chunk = (data as any[]) || [];
-      rows.push(...chunk);
-      if (chunk.length < PAGE) break;
-      if (off >= 200000) break; // trava de segurança
+    // Wrapper json_agg (perf 2026-07-11): a função base é WITH RECURSIVE + scans pesados de bronze;
+    // paginar (p_limit/p_offset ≤1000, por causa do cap de 1000 do PostgREST) re-rodava as CTEs por
+    // página → junho = 6 páginas ≈ 6× o custo (~10s). O wrapper `_agg` faz json_agg da função (p_limit
+    // NULL = roda 1×) e RETORNA JSON: 1 linha só, então o cap de 1000 (que limita LINHAS) NÃO trunca o
+    // array. Row-count validado (junho bar3 = 5232, igual à paginação). Ver feedback do cap 1000.
+    const { data, error } = await (supabase as any).rpc('get_consumos_9_detalhes_custo_semana_agg', {
+      input_bar_id: barId,
+      input_data_inicio: dataInicio,
+      input_data_fim: dataFim,
+      input_categoria: null,
+      p_fator: fator,
+    });
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
+    const rows: any[] = (data as any[]) || [];
 
     // vínculos por mesa (override de categoria + entidade) e cadastros p/ os dropdowns
     const fin = (supabase as any).schema('financial');
