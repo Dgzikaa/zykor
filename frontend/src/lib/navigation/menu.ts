@@ -138,6 +138,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'ChefHat', label: 'Fichas Técnicas', href: '/operacional/fichas-tecnicas', permission: 'gestao' },
       { icon: 'Timer', label: 'Controle de Produção', href: '/operacional/producoes', permission: 'controle_producao' },
       { icon: 'Clock', label: 'Gargalo de Cozinha', href: '/operacional/gargalo-cozinha', permission: 'gestao' },
+      { icon: 'UserCheck', label: 'Raio-x por Garçom', href: '/operacional/raio-x-garcom', permission: 'gestao' },
       { icon: 'CalendarDays', label: 'Planejamento da Produção', href: '/operacional/plano-producao', permission: 'gestao' },
       { icon: 'ShoppingCart', label: 'Planejamento de Compras', href: '/operacional/plano-compras', permission: 'gestao' },
       { icon: 'Boxes', label: 'Estoque', href: '/operacional/estoque-historico', permission: 'gestao' },
