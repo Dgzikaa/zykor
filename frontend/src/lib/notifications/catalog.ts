@@ -149,6 +149,15 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
     canaisSuportados: ['in_app', 'push', 'whatsapp'],
     urlPadrao: '/estrategico/desempenho',
   },
+  {
+    key: 'briefing_diario',
+    label: 'Briefing diário do dono',
+    descricao: 'Resumo automático de cada manhã: placar de ontem (faturamento vs meta) + ponto de atenção.',
+    categoria: 'eventos',
+    severidadePadrao: 'info',
+    canaisSuportados: ['in_app', 'whatsapp'],
+    urlPadrao: '/estrategico/desempenho',
+  },
 
   // ---- Estoque & Compras ----
   {
@@ -219,6 +228,8 @@ export const EVENTOS_OCULTOS_NA_MATRIZ = new Set<string>([
   'aviso_manual',
   'condicao_atingida',
   'feedback_novo',
+  // Destinatários definidos por código (piloto: Rodrigo + Pedro), não pela matriz de regras.
+  'briefing_diario',
 ]);
 
 const EVENTS_BY_KEY = new Map(NOTIFICATION_EVENTS.map((e) => [e.key, e]));
