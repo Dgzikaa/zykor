@@ -6,9 +6,13 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Sparkles as Crystal, Users, DollarSign, RefreshCw, TrendingUp } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ErrorBar } from 'recharts';
+import dynamic from 'next/dynamic';
+import { useGraficoTheme } from '@/components/graficos/GraficoBase';
 import { useToast } from '@/hooks/use-toast';
 import { usePageTitle } from '@/contexts/PageTitleContext';
+
+// ECharts inline (barra + whisker de intervalo de confiança via série custom) — sem equivalente no catálogo.
+const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
 
 const fmtMoeda = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n));
 const fmt = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR').format(n));
@@ -21,6 +25,7 @@ export default function PrevisaoPage() {
   const [loading, setLoading] = useState(true);
   const [recalc, setRecalc] = useState(false);
   const { setPageTitle } = usePageTitle();
+  const th = useGraficoTheme();
 
   useEffect(() => { setPageTitle('🔮 Previsão de Demanda'); return () => setPageTitle(''); }, [setPageTitle]);
 
@@ -51,8 +56,36 @@ export default function PrevisaoPage() {
   const chartData = previsoes.slice(0, 14).map((p: any) => ({
     dia: `${dias[new Date(p.data_evento + 'T12:00:00').getDay()]} ${p.data_evento.slice(8, 10)}/${p.data_evento.slice(5, 7)}`,
     fat: p.fat_previsto,
-    erro: [p.fat_previsto - p.ic_inferior, p.ic_superior - p.fat_previsto],
+    ic_inf: p.ic_inferior,
+    ic_sup: p.ic_superior,
   }));
+
+  // barra (fat) + whisker de IC 80% (série custom, renderItem desenha as hastes)
+  const barOption = {
+    grid: { top: 12, right: 14, bottom: 72, left: 6, containLabel: true },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, backgroundColor: th.surface, borderColor: th.eixo, borderWidth: 1, textStyle: { color: th.texto, fontSize: 12 }, valueFormatter: (v: any) => fmtMoeda(Number(v)) },
+    xAxis: { type: 'category', data: chartData.map((d: any) => d.dia), axisLine: { lineStyle: { color: th.eixo } }, axisTick: { show: false }, axisLabel: { color: th.texto2, fontSize: 10, rotate: 30, hideOverlap: true } },
+    yAxis: { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: th.grid } }, axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => fmtMoeda(v) } },
+    series: [
+      { name: 'Faturamento previsto', type: 'bar', data: chartData.map((d: any) => d.fat), itemStyle: { color: '#ec4899', borderRadius: [4, 4, 0, 0] }, barMaxWidth: 30 },
+      {
+        type: 'custom', silent: true, z: 3,
+        data: chartData.map((d: any, i: number) => [i, d.ic_inf, d.ic_sup]),
+        renderItem: (_p: any, api: any) => {
+          const idx = api.value(0);
+          const low = api.coord([idx, api.value(1)]);
+          const high = api.coord([idx, api.value(2)]);
+          const x = low[0]; const hw = 4;
+          const style = { stroke: th.muted, lineWidth: 1.5 };
+          return { type: 'group', children: [
+            { type: 'line', shape: { x1: x, y1: low[1], x2: x, y2: high[1] }, style },
+            { type: 'line', shape: { x1: x - hw, y1: high[1], x2: x + hw, y2: high[1] }, style },
+            { type: 'line', shape: { x1: x - hw, y1: low[1], x2: x + hw, y2: low[1] }, style },
+          ] };
+        },
+      },
+    ],
+  };
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
@@ -86,17 +119,7 @@ export default function PrevisaoPage() {
 
       <Card className="p-6">
         <h2 className="font-semibold mb-4">Faturamento previsto — próximos 14 dias</h2>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="dia" fontSize={10} angle={-30} textAnchor="end" height={70} />
-            <YAxis tickFormatter={fmtMoeda} fontSize={11} />
-            <Tooltip formatter={(v: any) => fmtMoeda(v)} />
-            <Bar dataKey="fat" fill="#ec4899" radius={[4, 4, 0, 0]}>
-              <ErrorBar dataKey="erro" stroke="#9ca3af" width={4} />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <ReactECharts option={barOption} style={{ height: 300, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />
       </Card>
 
       <Card className="p-6">

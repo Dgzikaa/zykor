@@ -107,7 +107,7 @@ export function DashboardRH() {
               xKey="area"
               valueKey="n"
               height={Math.max(120, d.headcount.por_area.length * 26)}
-              cor={CORES[0]}
+              corPorItem={(_d, i) => CORES[i % CORES.length]}
               maxItens={d.headcount.por_area.length}
             />
           </CardContent>

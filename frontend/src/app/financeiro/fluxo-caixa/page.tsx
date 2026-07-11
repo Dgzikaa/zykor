@@ -11,9 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Wallet, AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
-import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine,
-} from 'recharts';
+import { GraficoLinha } from '@/components/graficos/Charts';
 
 const fmtBRL = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n || 0);
 const parseV = (v: string) => Number(String(v).replace(/[R$.\s]/g, '').replace(',', '.')) || 0;
@@ -114,16 +112,20 @@ export default function FluxoCaixaPage() {
 
         {loading ? <Skeleton className="h-[340px]" /> : chart.length > 0 ? (
           <Card className="p-3">
-            <ResponsiveContainer width="100%" height={340}>
-              <AreaChart data={chart} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey="dia" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={24} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} width={44} />
-                <Tooltip formatter={(v: any) => fmtBRL(Number(v))} labelFormatter={(l) => `Dia ${l}`} />
-                <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="4 4" />
-                <Area type="monotone" dataKey="saldo" stroke="#2563eb" fill="#2563eb" fillOpacity={0.12} strokeWidth={2} name="Saldo" />
-              </AreaChart>
-            </ResponsiveContainer>
+            <GraficoLinha
+              data={chart}
+              xKey="dia"
+              series={[{ key: 'saldo', nome: 'Saldo', cor: '#2563eb' }]}
+              area
+              height={340}
+              formatV={(v) => `${Math.round(v / 1000)}k`}
+              markLines={[{ valor: 0, cor: '#ef4444' }]}
+              tooltipFormatter={(params: any) => {
+                const arr = Array.isArray(params) ? params : [params];
+                const p = arr[0];
+                return `Dia ${p?.axisValue}<br/>${p?.marker} Saldo: <b>${fmtBRL(Number(p?.value))}</b>`;
+              }}
+            />
           </Card>
         ) : (
           <Card><CardContent className="py-12 text-center text-muted-foreground">Informe o saldo atual pra ver a projeção.</CardContent></Card>

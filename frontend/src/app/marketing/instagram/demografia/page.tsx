@@ -218,7 +218,7 @@ export default function DemografiaPage() {
               xKey="name"
               valueKey="value"
               height={280}
-              cor={COLORS_PINK[0]}
+              corPorItem={(d, i) => COLORS_PINK[i % COLORS_PINK.length]}
               formatV={(v) => fmt(v)}
             />
           ) : (

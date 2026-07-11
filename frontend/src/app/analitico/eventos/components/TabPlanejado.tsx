@@ -259,6 +259,9 @@ export function TabPlanejado({ data, gran }: Props) {
             ]}
             height={280}
             formatV={(v) => formatCurrency(v)}
+            corPorItem={(serieKey, d) =>
+              serieKey === 'realizado' ? (d.realizado >= d.planejado ? '#16a34a' : '#dc2626') : null
+            }
           />
         </div>
       )}

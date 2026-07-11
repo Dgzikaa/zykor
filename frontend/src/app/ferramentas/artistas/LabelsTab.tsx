@@ -4,14 +4,13 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, Legend } from 'recharts';
+import { GraficoLinha } from '@/components/graficos/Charts';
 import { Tag, Users, DollarSign, TrendingUp, TrendingDown, Minus, Trophy, Sparkles, Activity, Flame, ArrowUp, ArrowDown, Star } from 'lucide-react';
 
 const money = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const moneyK = (v: number) => `${Math.round((v || 0) / 1000)}k`;
 const num = (v: number) => Math.round(v || 0).toLocaleString('pt-BR');
 const fmtData = (d?: string) => (d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—');
-const fmtSemana = (d?: string) => (d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '');
 
 // consistência (coef. de variação) -> selo
 function cvSelo(cv: number): { txt: string; cls: string } {
@@ -143,20 +142,23 @@ export default function LabelsTab({ barId, periodo }: { barId?: number; periodo:
             <CardDescription>cada linha é uma label (as {grafico.series.length} mais frequentes) — dá pra ver quem sustenta e quem oscila</CardDescription>
           </CardHeader>
           <CardContent>
-            <div style={{ width: '100%', height: 300 }}>
-              <ResponsiveContainer>
-                <LineChart data={grafico.dados} margin={{ top: 6, right: 16, left: 4, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="semana" tick={{ fontSize: 10 }} tickFormatter={(v) => fmtSemana(String(v))} interval="preserveStartEnd" minTickGap={32} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => moneyK(Number(v))} width={40} />
-                  <RTooltip formatter={((v: number, name: string) => [money(Number(v)), grafico.series.find((s: any) => s.key === name)?.nome || name]) as any} labelFormatter={(l) => `Semana de ${fmtData(String(l))}`} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v) => grafico.series.find((s: any) => s.key === v)?.nome || v} />
-                  {grafico.series.map((s: any) => (
-                    <Line key={s.key} type="monotone" dataKey={s.key} name={s.key} stroke={s.cor} strokeWidth={2} dot={{ r: 2 }} connectNulls />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            <GraficoLinha
+              data={grafico.dados}
+              xKey="semana"
+              series={grafico.series.map((s: any) => ({ key: s.key, nome: s.nome, cor: s.cor }))}
+              height={300}
+              connectNulls
+              formatV={(v) => moneyK(Number(v))}
+              tooltipFormatter={(params: any) => {
+                const arr = Array.isArray(params) ? params : [params];
+                const semana = arr[0]?.axisValue;
+                const linhas = arr
+                  .filter((p: any) => p.value != null)
+                  .map((p: any) => `${p.marker} ${p.seriesName}: <b>${money(Number(p.value))}</b>`)
+                  .join('<br/>');
+                return `Semana de ${fmtData(String(semana))}<br/>${linhas}`;
+              }}
+            />
           </CardContent>
         </Card>
       )}
@@ -334,18 +336,26 @@ function LabelDetalhe({ l }: { l: any }) {
 
         {/* evolução semanal da label */}
         {l.serie?.length > 1 && (
-          <div style={{ width: '100%', height: 220 }}>
-            <ResponsiveContainer>
-              <LineChart data={l.serie} margin={{ top: 6, right: 12, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis dataKey="semana" tick={{ fontSize: 10 }} tickFormatter={(v) => fmtSemana(String(v))} interval="preserveStartEnd" minTickGap={32} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => moneyK(Number(v))} width={40} />
-                <RTooltip formatter={((v: number, n: string) => [money(Number(v)), n === 'meta' ? 'meta' : 'faturamento']) as any} labelFormatter={(x) => `Semana de ${fmtData(String(x))}`} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                <Line type="monotone" dataKey="fat" name="fat" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 2 }} />
-                <Line type="monotone" dataKey="meta" name="meta" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="4 3" dot={false} connectNulls />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <GraficoLinha
+            data={l.serie}
+            xKey="semana"
+            series={[
+              { key: 'fat', nome: 'Faturamento', cor: '#8b5cf6' },
+              { key: 'meta', nome: 'Meta', cor: '#f59e0b', dashed: true },
+            ]}
+            height={220}
+            connectNulls
+            formatV={(v) => moneyK(Number(v))}
+            tooltipFormatter={(params: any) => {
+              const arr = Array.isArray(params) ? params : [params];
+              const semana = arr[0]?.axisValue;
+              const linhas = arr
+                .filter((p: any) => p.value != null)
+                .map((p: any) => `${p.marker} ${p.seriesName}: <b>${money(Number(p.value))}</b>`)
+                .join('<br/>');
+              return `Semana de ${fmtData(String(semana))}<br/>${linhas}`;
+            }}
+          />
         )}
 
         {/* ranking de artistas na label */}

@@ -2,16 +2,6 @@
 
 import { useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from 'recharts';
 import { GraficoBarraH, GraficoBarra, GraficoLinha, GraficoDonut } from '@/components/graficos/Charts';
 
 export interface LinhaAnalise {
@@ -55,7 +45,6 @@ const COR_CAT: Record<string, string> = {
 };
 
 const moeda = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
-const moedaFull = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const normMesa = (m: string | null) => (m || '').toUpperCase().replace(/[^A-Z0-9]/g, '') || '—';
 const DOW_L = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const dowDe = (s: string) => new Date(s + 'T12:00:00').getDay();
@@ -179,8 +168,6 @@ export default function Analises({ linhas, fator }: { linhas: LinhaAnalise[]; fa
     return <div className="py-16 text-center text-gray-400">Sem dados no período/filtro para analisar.</div>;
   }
 
-  const tickCls = { fontSize: 11, fill: '#94a3b8' };
-
   return (
     <div className="space-y-4">
       {/* KPIs */}
@@ -209,19 +196,14 @@ export default function Analises({ linhas, fator }: { linhas: LinhaAnalise[]; fa
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Bloco titulo="Custo por categoria">
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={porCategoria} layout="vertical" margin={{ left: 10, right: 16 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.3} horizontal={false} />
-              <XAxis type="number" tick={tickCls} tickFormatter={moeda} />
-              <YAxis type="category" dataKey="nome" tick={tickCls} width={100} />
-              <Tooltip formatter={(v) => moedaFull(Number(v))} cursor={{ fill: '#94a3b833' }} />
-              <Bar dataKey="custo" radius={[0, 4, 4, 0]}>
-                {porCategoria.map((e) => (
-                  <Cell key={e.cat} fill={COR_CAT[e.cat] || '#64748b'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <GraficoBarraH
+            data={porCategoria}
+            xKey="nome"
+            valueKey="custo"
+            height={260}
+            formatV={moeda}
+            corPorItem={(d) => COR_CAT[d.cat] || '#64748b'}
+          />
         </Bloco>
 
         <Bloco titulo="Evolução do custo por dia">

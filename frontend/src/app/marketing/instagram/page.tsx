@@ -19,15 +19,7 @@ import {
   Image as ImageIcon,
   Layers,
 } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-} from 'recharts';
+import { GraficoLinha } from '@/components/graficos/Charts';
 import { useToast } from '@/hooks/use-toast';
 
 type DashboardData = {
@@ -182,7 +174,7 @@ export default function InstagramDashboardPage() {
   const evolucaoComDiff = evolucao.map((p, i) => {
     const anterior = i > 0 ? evolucao[i - 1].followers : null;
     const diff = p.followers != null && anterior != null ? p.followers - anterior : null;
-    return { ...p, diff };
+    return { ...p, diff, dataLabel: fmtDateOnly(p.data) };
   });
   const topPosts = data.top_posts ?? [];
 
@@ -275,34 +267,24 @@ export default function InstagramDashboardPage() {
       <Card className="p-6">
         <h2 className="text-lg font-semibold mb-4">Evolução de seguidores (30 dias)</h2>
         {evolucao.length > 1 ? (
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={evolucaoComDiff}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="data" tickFormatter={fmtDateOnly} fontSize={11} />
-              <YAxis tickFormatter={fmtNum} fontSize={11} domain={['auto', 'auto']} />
-              <Tooltip
-                content={({ active, payload }: any) => {
-                  if (!active || !payload?.length) return null;
-                  const p = payload[0].payload;
-                  const diff: number | null = p.diff;
-                  return (
-                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-xs shadow-md">
-                      <div className="font-medium mb-1 text-gray-900 dark:text-gray-100">{fmtDateOnly(p.data)}</div>
-                      <div className="text-gray-700 dark:text-gray-300">
-                        <b>{fmtNum(p.followers)}</b> seguidores
-                      </div>
-                      {diff != null && (
-                        <div className={diff > 0 ? 'text-emerald-600' : diff < 0 ? 'text-red-600' : 'text-gray-500'}>
-                          {diff > 0 ? `+${fmtNum(diff)}` : fmtNum(diff)} no dia
-                        </div>
-                      )}
-                    </div>
-                  );
-                }}
-              />
-              <Line type="monotone" dataKey="followers" stroke="#ec4899" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+          <GraficoLinha
+            data={evolucaoComDiff}
+            xKey="dataLabel"
+            series={[{ key: 'followers', nome: 'Seguidores', cor: '#ec4899' }]}
+            height={250}
+            formatV={fmtNum}
+            tooltipFormatter={(params: any) => {
+              const idx = params?.[0]?.dataIndex ?? 0;
+              const row = evolucaoComDiff[idx];
+              if (!row) return '';
+              const diff = row.diff;
+              const diffHtml =
+                diff != null
+                  ? `<div style="color:${diff > 0 ? '#059669' : diff < 0 ? '#dc2626' : '#6b7280'}">${diff > 0 ? `+${fmtNum(diff)}` : fmtNum(diff)} no dia</div>`
+                  : '';
+              return `<div style="font-weight:500;margin-bottom:4px">${fmtDateOnly(row.data)}</div><div><b>${fmtNum(row.followers)}</b> seguidores</div>${diffHtml}`;
+            }}
+          />
         ) : (
           <p className="text-sm text-gray-500 py-8 text-center">
             Aguardando histórico de pelo menos 2 dias pra plotar evolução.

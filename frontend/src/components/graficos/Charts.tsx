@@ -76,9 +76,11 @@ export function HeroRow({ kpis, cols = 6 }: { kpis: Kpi[]; cols?: number }) {
 // GraficoBarraH — barra horizontal (ranking / divergente)
 // ---------------------------------------------------------------------------
 export function GraficoBarraH({
-  data, xKey, valueKey, height = 340, formatV, diverging = false, cor, maxItens = 14,
+  data, xKey, valueKey, height = 340, formatV, diverging = false, cor, maxItens = 14, corPorItem,
 }: {
   data: any[]; xKey: string; valueKey: string; height?: number; formatV?: Fmt; diverging?: boolean; cor?: string; maxItens?: number;
+  // cor por barra (ex.: cor por categoria). Recebe o DADO da linha e o índice.
+  corPorItem?: (dado: any, index: number) => string;
 }) {
   const th = useGraficoTheme();
   const rows = useMemo(() => [...(data || [])].slice(0, maxItens).reverse(), [data, maxItens]);
@@ -92,10 +94,10 @@ export function GraficoBarraH({
     series: [{
       type: 'bar', data: rows.map((d) => Number(d[valueKey]) || 0),
       barMaxWidth: 18,
-      itemStyle: { borderRadius: [0, 4, 4, 0], color: (p: any) => (diverging ? (p.value < 0 ? th.cores[5] : th.cores[1]) : corPos) },
+      itemStyle: { borderRadius: [0, 4, 4, 0], color: corPorItem ? (p: any) => corPorItem(rows[p.dataIndex], p.dataIndex) : (p: any) => (diverging ? (p.value < 0 ? th.cores[5] : th.cores[1]) : corPos) },
       label: { show: true, position: 'right', color: th.texto2, fontSize: 11, formatter: (p: any) => (formatV ? formatV(p.value) : fmtNum(p.value)) },
     }],
-  }), [th, rows, xKey, valueKey, formatV, diverging, corPos]);
+  }), [th, rows, xKey, valueKey, formatV, diverging, corPos, corPorItem]);
   if (!rows.length) return <Vazio height={height} />;
   return <ReactECharts option={option} style={{ height, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />;
 }
@@ -153,14 +155,16 @@ export function GraficoBarra({
 // GraficoLinha — série(s) temporal(is) em linha (com área opcional)
 // ---------------------------------------------------------------------------
 export function GraficoLinha({
-  data, xKey, series, height = 300, formatV, cores, area = false, rotacaoX = 0, markLines, tooltipFormatter,
+  data, xKey, series, height = 300, formatV, cores, area = false, rotacaoX = 0, markLines, tooltipFormatter, connectNulls = false,
 }: {
-  data: any[]; xKey: string; series: { key: string; nome: string; cor?: string }[];
+  data: any[]; xKey: string; series: { key: string; nome: string; cor?: string; dashed?: boolean }[];
   height?: number; formatV?: Fmt; cores?: string[]; area?: boolean; rotacaoX?: number;
   // linhas de referência horizontais (meta, zero, threshold). Ex.: [{ valor: 0 }, { valor: 34, label: 'Meta', cor: '#f00' }]
   markLines?: { valor: number; label?: string; cor?: string }[];
   // tooltip totalmente custom (recebe os params do ECharts, retorna HTML string)
   tooltipFormatter?: (params: any) => string;
+  // conecta pontos através de gaps (null) em vez de zerar — para séries esparsas
+  connectNulls?: boolean;
 }) {
   const th = useGraficoTheme();
   const rows = useMemo(() => data || [], [data]);
@@ -173,9 +177,9 @@ export function GraficoLinha({
     xAxis: { type: 'category', data: rows.map((d) => d[xKey]), boundaryGap: false, axisLine: { lineStyle: { color: th.eixo } }, axisTick: { show: false }, axisLabel: { color: th.texto2, fontSize: 11, rotate: rotacaoX, hideOverlap: true } },
     yAxis: { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: th.grid } }, axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => (formatV ? formatV(v) : fmtNum(v)) } },
     series: series.map((s, i) => ({
-      name: s.nome, type: 'line', data: rows.map((d) => Number(d[s.key]) || 0),
-      smooth: true, symbol: 'circle', symbolSize: 6,
-      lineStyle: { width: 2, color: s.cor || paleta[i % paleta.length] }, itemStyle: { color: s.cor || paleta[i % paleta.length] },
+      name: s.nome, type: 'line', data: rows.map((d) => { const v = d[s.key]; return connectNulls && v == null ? null : (Number(v) || 0); }),
+      smooth: true, symbol: 'circle', symbolSize: 6, connectNulls: connectNulls || undefined,
+      lineStyle: { width: 2, color: s.cor || paleta[i % paleta.length], type: s.dashed ? 'dashed' : 'solid' }, itemStyle: { color: s.cor || paleta[i % paleta.length] },
       areaStyle: area ? { color: hexA(s.cor || paleta[i % paleta.length], 0.12) } : undefined,
       // linhas de referência anexadas à 1ª série
       markLine: (i === 0 && markLines && markLines.length) ? {
@@ -187,7 +191,7 @@ export function GraficoLinha({
         })),
       } : undefined,
     })),
-  }), [th, rows, xKey, series, formatV, paleta, area, rotacaoX, markLines, tooltipFormatter]);
+  }), [th, rows, xKey, series, formatV, paleta, area, rotacaoX, markLines, tooltipFormatter, connectNulls]);
   if (!rows.length) return <Vazio height={height} />;
   return <ReactECharts option={option} style={{ height, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />;
 }
@@ -196,10 +200,12 @@ export function GraficoLinha({
 // GraficoBarrasAgrupadas — N séries de barra lado a lado + linha opcional (2º eixo)
 // ---------------------------------------------------------------------------
 export function GraficoBarrasAgrupadas({
-  data, xKey, series, lineKey, height = 300, formatV, formatLine, cores, nomeLinha = '%', corLinha, mostrarRotulo = false, rotacaoX = 0,
+  data, xKey, series, lineKey, height = 300, formatV, formatLine, cores, nomeLinha = '%', corLinha, mostrarRotulo = false, rotacaoX = 0, corPorItem,
 }: {
   data: any[]; xKey: string; series: { key: string; nome: string; cor?: string }[]; lineKey?: string;
   height?: number; formatV?: Fmt; formatLine?: Fmt; cores?: string[]; nomeLinha?: string; corLinha?: string; mostrarRotulo?: boolean; rotacaoX?: number;
+  // cor condicional por barra numa série (ex.: realizado verde/vermelho vs meta). null/undefined = usa a cor da série.
+  corPorItem?: (serieKey: string, dado: any, index: number) => string | null | undefined;
 }) {
   const th = useGraficoTheme();
   const rows = useMemo(() => data || [], [data]);
@@ -219,7 +225,7 @@ export function GraficoBarrasAgrupadas({
     series: [
       ...series.map((s, i) => ({
         name: s.nome, type: 'bar', data: rows.map((d) => Number(d[s.key]) || 0), barMaxWidth: 22,
-        itemStyle: { borderRadius: [3, 3, 0, 0], color: s.cor || paleta[i % paleta.length] },
+        itemStyle: { borderRadius: [3, 3, 0, 0], color: corPorItem ? (p: any) => (corPorItem(s.key, rows[p.dataIndex], p.dataIndex) || s.cor || paleta[i % paleta.length]) : (s.cor || paleta[i % paleta.length]) },
         label: mostrarRotulo ? { show: true, position: 'top', color: th.texto2, fontSize: 9, formatter: (p: any) => (formatV ? formatV(p.value) : fmtNum(p.value)) } : undefined,
       })),
       ...(temLinha ? [{
@@ -228,7 +234,7 @@ export function GraficoBarrasAgrupadas({
         label: mostrarRotulo ? { show: true, position: 'top', color: corLin, fontSize: 9, formatter: (p: any) => (formatLine ? formatLine(p.value) : fmtNum(p.value)) } : undefined,
       }] : []),
     ],
-  }), [th, rows, xKey, series, lineKey, formatV, formatLine, paleta, temLinha, nomeLinha, corLin, mostrarRotulo, rotacaoX]);
+  }), [th, rows, xKey, series, lineKey, formatV, formatLine, paleta, temLinha, nomeLinha, corLin, mostrarRotulo, rotacaoX, corPorItem]);
   if (!rows.length) return <Vazio height={height} />;
   return <ReactECharts option={option} style={{ height, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />;
 }

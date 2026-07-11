@@ -10,18 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
-import { 
-  ComposedChart,
-  Line,
-  Bar,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer
-} from 'recharts';
-import { 
+import dynamic from 'next/dynamic';
+import { useGraficoTheme } from '@/components/graficos/GraficoBase';
+import {
   TrendingUpIcon, 
   UsersIcon, 
   DollarSignIcon, 
@@ -33,6 +24,9 @@ import {
   LineChartIcon,
   PackageIcon
 } from 'lucide-react';
+
+// ECharts inline (combo barra + 3 linhas) — sem equivalente no catálogo.
+const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
 
 interface HorarioPicoData {
   hora: number;
@@ -96,6 +90,7 @@ interface HorarioPicoChartProps {
 
 export function HorarioPicoChart({ dataSelecionada, onDataChange }: HorarioPicoChartProps) {
   const { selectedBar } = useBar();
+  const th = useGraficoTheme();
   const [dados, setDados] = useState<HorarioPicoData[]>([]);
   const [estatisticas, setEstatisticas] = useState<Estatisticas | null>(null);
   const [stockoutResumo, setStockoutResumo] = useState<StockoutResumo | null>(null);
@@ -262,39 +257,6 @@ export function HorarioPicoChart({ dataSelecionada, onDataChange }: HorarioPicoC
     return `${dia}/${mes}/${ano}`;
   };
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white dark:bg-gray-800 p-4 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg min-w-[250px]">
-          <p className="font-semibold text-gray-900 dark:text-white mb-2">
-            {`Horário: ${label}`}
-          </p>
-          <div className="space-y-1">
-            {payload
-              .sort((a: any, b: any) => b.value - a.value) // Ordenar por valor decrescente (maior primeiro)
-              .map((entry: any, index: number) => (
-                <div key={index} className="flex items-center justify-between text-sm">
-                  <span style={{ color: entry.color }} className="font-medium">
-                    {entry.dataKey === 'recorde_faturamento' && estatisticas?.data_recorde 
-                      ? `Recorde (${formatarData(estatisticas.data_recorde)}):`
-                      : `${entry.name}:`
-                    }
-                  </span>
-                  <span className="ml-2 font-semibold text-gray-900 dark:text-white">
-                    {entry.name === 'pessoas_presentes'
-                      ? `${entry.value} pessoas`
-                      : formatarMoeda(entry.value)
-                    }
-                  </span>
-                </div>
-              ))}
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
   if (loading) {
     return (
       <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -325,6 +287,96 @@ export function HorarioPicoChart({ dataSelecionada, onDataChange }: HorarioPicoC
       </Card>
     );
   }
+
+  const nomeRecorde = estatisticas?.data_recorde
+    ? `Recorde (${formatarData(estatisticas.data_recorde)})`
+    : `Recorde (${diaSemana})`;
+
+  const chartSeries: any[] = [];
+  if (linhasVisiveis.faturamento) {
+    chartSeries.push({
+      name: 'Faturamento Atual',
+      type: 'bar',
+      data: dados.map(d => d.faturamento),
+      itemStyle: { color: cores.faturamento, opacity: 0.8, borderRadius: [4, 4, 0, 0] },
+      barMaxWidth: 40,
+    });
+  }
+  if (linhasVisiveis.semana_passada) {
+    chartSeries.push({
+      name: 'Semana Passada',
+      type: 'line',
+      smooth: true,
+      data: dados.map(d => d.faturamento_semana_passada),
+      lineStyle: { color: cores.semana_passada, width: 3 },
+      itemStyle: { color: cores.semana_passada },
+      symbol: 'circle',
+      symbolSize: 8,
+    });
+  }
+  if (linhasVisiveis.media_ultimas_4) {
+    chartSeries.push({
+      name: 'Média 4 Semanas',
+      type: 'line',
+      smooth: true,
+      data: dados.map(d => d.media_ultimas_4),
+      lineStyle: { color: cores.media_ultimas_4, width: 3, type: [8, 8] },
+      itemStyle: { color: cores.media_ultimas_4 },
+      symbol: 'circle',
+      symbolSize: 8,
+    });
+  }
+  if (linhasVisiveis.recorde) {
+    chartSeries.push({
+      name: nomeRecorde,
+      type: 'line',
+      smooth: true,
+      data: dados.map(d => d.recorde_faturamento),
+      lineStyle: { color: cores.recorde, width: 3, type: [4, 4] },
+      itemStyle: { color: cores.recorde },
+      symbol: 'circle',
+      symbolSize: 8,
+    });
+  }
+
+  const chartOption = {
+    grid: { top: 40, right: 30, bottom: 10, left: 20, containLabel: true },
+    legend: { top: 0, textStyle: { color: th.texto2, fontSize: 12 } },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: th.surface,
+      borderColor: th.eixo,
+      borderWidth: 1,
+      textStyle: { color: th.texto, fontSize: 12 },
+      formatter: (params: any[]) => {
+        if (!params?.length) return '';
+        const rows = [...params]
+          .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+          .map(p => {
+            const nome = p.seriesName;
+            const valor = formatarMoeda(Number(p.value ?? 0));
+            return `<div style="display:flex;justify-content:space-between;gap:16px"><span style="color:${p.color};font-weight:500">${nome}:</span><span style="font-weight:600">${valor}</span></div>`;
+          })
+          .join('');
+        return `<div style="font-weight:600;margin-bottom:4px">Horário: ${params[0].axisValue}</div>${rows}`;
+      },
+    },
+    xAxis: {
+      type: 'category',
+      data: dados.map(d => (d as any).hora_formatada),
+      axisLine: { lineStyle: { color: th.eixo } },
+      axisTick: { show: false },
+      axisLabel: { color: th.texto2, fontSize: 12 },
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: th.grid } },
+      axisLabel: { color: th.muted, fontSize: 12, formatter: (v: number) => `R$ ${(v / 1000).toFixed(0)}k` },
+    },
+    series: chartSeries,
+  };
 
   return (
     <div className="space-y-6">
@@ -531,81 +583,7 @@ export function HorarioPicoChart({ dataSelecionada, onDataChange }: HorarioPicoC
 
           {/* Gráfico - altura responsiva */}
           <div className="h-[280px] sm:h-[360px] lg:h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={dados} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis 
-                  dataKey="hora_formatada" 
-                  className="text-xs"
-                  tick={{ fontSize: 12 }}
-                />
-                <YAxis 
-                  yAxisId="faturamento"
-                  orientation="left"
-                  tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
-                  className="text-xs"
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                
-                {/* Barras de Faturamento */}
-                {linhasVisiveis.faturamento && (
-                  <Bar
-                    yAxisId="faturamento"
-                    dataKey="faturamento"
-                    fill={cores.faturamento}
-                    name="Faturamento Atual"
-                    radius={[4, 4, 0, 0]}
-                    fillOpacity={0.8}
-                  />
-                )}
-                
-                {/* Linha Semana Passada */}
-                {linhasVisiveis.semana_passada && (
-                  <Line
-                    yAxisId="faturamento"
-                    type="monotone"
-                    dataKey="faturamento_semana_passada"
-                    stroke={cores.semana_passada}
-                    strokeWidth={3}
-                    name="Semana Passada"
-                    dot={{ fill: cores.semana_passada, strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, stroke: cores.semana_passada, strokeWidth: 2 }}
-                  />
-                )}
-                
-                {/* Linha Média 4 Semanas */}
-                {linhasVisiveis.media_ultimas_4 && (
-                  <Line
-                    yAxisId="faturamento"
-                    type="monotone"
-                    dataKey="media_ultimas_4"
-                    stroke={cores.media_ultimas_4}
-                    strokeWidth={3}
-                    strokeDasharray="8 8"
-                    name="Média 4 Semanas"
-                    dot={{ fill: cores.media_ultimas_4, strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, stroke: cores.media_ultimas_4, strokeWidth: 2 }}
-                  />
-                )}
-                
-                {/* Linha Recorde */}
-                {linhasVisiveis.recorde && (
-                  <Line
-                    yAxisId="faturamento"
-                    type="monotone"
-                    dataKey="recorde_faturamento"
-                    stroke={cores.recorde}
-                    strokeWidth={3}
-                    strokeDasharray="4 4"
-                    name={estatisticas?.data_recorde ? `Recorde (${formatarData(estatisticas.data_recorde)})` : `Recorde (${diaSemana})`}
-                    dot={{ fill: cores.recorde, strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, stroke: cores.recorde, strokeWidth: 2 }}
-                  />
-                )}
-              </ComposedChart>
-            </ResponsiveContainer>
+            <ReactECharts option={chartOption} style={{ height: '100%', width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />
           </div>
 
           {/* Cards de Comparação */}

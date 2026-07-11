@@ -1,24 +1,17 @@
 'use client';
 
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  LabelList,
-  Legend,
-  Line,
-  ComposedChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import dynamic from 'next/dynamic';
 import { HorarioPicoChart } from '@/components/ferramentas/HorarioPicoChart';
 import { ConsumoPorHorarioChart } from '@/components/ferramentas/ConsumoPorHorarioChart';
 import ProdutosDoDiaDataTable from '@/components/ferramentas/ProdutosDoDiaDataTable';
+import { useGraficoTheme } from '@/components/graficos/GraficoBase';
+import { GraficoBarra } from '@/components/graficos/Charts';
 import { formatCurrency } from '@/lib/utils';
 import { EventoResponse, Gran } from './types';
+
+// ECharts inline (barra + 2 linhas no 2º eixo, 100%-empilhado, barra+linha com eixos
+// invertidos) — sem equivalente no catálogo. Padrão: dynamic + useGraficoTheme + option custom.
+const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
 
 function ddmm(iso: string) {
   const [, m, d] = iso.split('-');
@@ -35,6 +28,7 @@ const lblPct = (v: any) => {
   const n = Number(v) || 0;
   return n >= 6 ? `${Math.round(n)}%` : ''; // esconde fatia muito pequena
 };
+const fmtKAxis = (v: number) => `${(v / 1000).toFixed(0)}k`;
 const LBL_STYLE = { fontSize: 10, fill: '#6b7280', fontWeight: 600 } as const;
 const LBL_PCT_STYLE = { fontSize: 9, fill: '#ffffff', fontWeight: 700 } as const;
 
@@ -46,6 +40,7 @@ interface Props {
 }
 
 export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia' }: Props) {
+  const th = useGraficoTheme();
   const m = data.metricas!;
   const baseEventos = data.baseline?.eventos ?? [];
   const isPeriodo = gran !== 'dia';
@@ -110,6 +105,230 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
     respostas: n.respostas,
   }));
 
+  // ── Faturamento vs público/reservas — barra (fat) + 2 linhas no 2º eixo ──
+  const optFatPublico = {
+    textStyle: { fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif' },
+    grid: { top: 24, right: 48, bottom: 40, left: 8, containLabel: true },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: th.surface,
+      borderColor: th.eixo,
+      borderWidth: 1,
+      textStyle: { color: th.texto, fontSize: 12 },
+      formatter: (params: any[]) => {
+        const head = params[0]?.axisValueLabel ?? params[0]?.name ?? '';
+        const linhas = params
+          .map((p) => {
+            const val =
+              p.seriesName === 'Faturamento'
+                ? formatCurrency(Number(p.value))
+                : Number(p.value).toLocaleString('pt-BR');
+            return `${p.marker} ${p.seriesName}: <b>${val}</b>`;
+          })
+          .join('<br/>');
+        return `${head}<br/>${linhas}`;
+      },
+    },
+    legend: { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } },
+    xAxis: {
+      type: 'category',
+      data: serie.map((e) => e.label),
+      axisLine: { lineStyle: { color: th.eixo } },
+      axisTick: { show: false },
+      axisLabel: { color: th.texto2, fontSize: 11, hideOverlap: true },
+    },
+    yAxis: [
+      {
+        type: 'value',
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { lineStyle: { color: th.grid } },
+        axisLabel: { color: th.muted, fontSize: 10, formatter: (v: number) => fmtKAxis(v) },
+      },
+      {
+        type: 'value',
+        position: 'right',
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { show: false },
+        axisLabel: { color: th.muted, fontSize: 10 },
+      },
+    ],
+    series: [
+      {
+        name: 'Faturamento',
+        type: 'bar',
+        yAxisIndex: 0,
+        data: serie.map((e) => e.faturamento),
+        barMaxWidth: 30,
+        itemStyle: {
+          borderRadius: [4, 4, 0, 0],
+          color: (p: any) => (serie[p.dataIndex]?.atual ? '#2563eb' : '#93c5fd'),
+        },
+        label: {
+          show: true,
+          position: 'top',
+          formatter: (p: any) => lblCompact(p.value),
+          color: LBL_STYLE.fill,
+          fontSize: LBL_STYLE.fontSize,
+          fontWeight: LBL_STYLE.fontWeight,
+        },
+      },
+      {
+        name: 'Público',
+        type: 'line',
+        yAxisIndex: 1,
+        data: serie.map((e) => e.publico),
+        smooth: false,
+        symbol: 'circle',
+        symbolSize: 6,
+        lineStyle: { width: 2, color: '#16a34a' },
+        itemStyle: { color: '#16a34a' },
+      },
+      {
+        name: 'Reservas',
+        type: 'line',
+        yAxisIndex: 1,
+        data: serie.map((e) => e.reservas),
+        smooth: false,
+        symbol: 'circle',
+        symbolSize: 6,
+        lineStyle: { width: 2, color: '#d97706', type: 'dashed' },
+        itemStyle: { color: '#d97706' },
+      },
+    ],
+  };
+
+  // ── Evolução do mix (%) — barra 100%-empilhada (comida/bebida/drink) ──
+  // Normaliza para % do total da linha (geometria 100%-stacked); preserva o valor
+  // real em `raw` para o rótulo centralizado e o tooltip.
+  const mixRows = serie.map((e) => {
+    const soma = e.comida + e.bebida + e.drink || 1;
+    return {
+      label: e.label,
+      comida: { value: (e.comida / soma) * 100, raw: e.comida },
+      bebida: { value: (e.bebida / soma) * 100, raw: e.bebida },
+      drink: { value: (e.drink / soma) * 100, raw: e.drink },
+    };
+  });
+  const mixSerie = (nome: string, key: 'comida' | 'bebida' | 'drink', cor: string) => ({
+    name: nome,
+    type: 'bar' as const,
+    stack: 'mix',
+    data: mixRows.map((r) => r[key]),
+    itemStyle: { color: cor },
+    label: {
+      show: true,
+      position: 'inside' as const,
+      formatter: (p: any) => lblPct(p.data?.raw),
+      color: LBL_PCT_STYLE.fill,
+      fontSize: LBL_PCT_STYLE.fontSize,
+      fontWeight: LBL_PCT_STYLE.fontWeight,
+    },
+  });
+  const optMix = {
+    textStyle: { fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif' },
+    grid: { top: 12, right: 14, bottom: 40, left: 8, containLabel: true },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: th.surface,
+      borderColor: th.eixo,
+      borderWidth: 1,
+      textStyle: { color: th.texto, fontSize: 12 },
+      formatter: (params: any[]) => {
+        const head = params[0]?.axisValueLabel ?? params[0]?.name ?? '';
+        const linhas = params
+          .map((p) => `${p.marker} ${p.seriesName}: <b>${Number(p.data?.raw ?? 0).toFixed(1)}%</b>`)
+          .join('<br/>');
+        return `${head}<br/>${linhas}`;
+      },
+    },
+    legend: { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } },
+    xAxis: {
+      type: 'category',
+      data: mixRows.map((r) => r.label),
+      axisLine: { lineStyle: { color: th.eixo } },
+      axisTick: { show: false },
+      axisLabel: { color: th.texto2, fontSize: 11, hideOverlap: true },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: th.grid } },
+      axisLabel: { color: th.muted, fontSize: 10, formatter: (v: number) => `${v}%` },
+    },
+    series: [
+      mixSerie('Comida', 'comida', '#f59e0b'),
+      mixSerie('Bebida', 'bebida', '#3b82f6'),
+      mixSerie('Drink', 'drink', '#8b5cf6'),
+    ],
+  };
+
+  // ── NPS por dia — barra (respostas, 2º eixo à direita) + linha (score, eixo esq. -100..100) ──
+  const optNps = {
+    textStyle: { fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif' },
+    grid: { top: 16, right: 48, bottom: 40, left: 8, containLabel: true },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: th.surface,
+      borderColor: th.eixo,
+      borderWidth: 1,
+      textStyle: { color: th.texto, fontSize: 12 },
+    },
+    legend: { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } },
+    xAxis: {
+      type: 'category',
+      data: npsSerie.map((n) => n.label),
+      axisLine: { lineStyle: { color: th.eixo } },
+      axisTick: { show: false },
+      axisLabel: { color: th.texto2, fontSize: 10, hideOverlap: true },
+    },
+    yAxis: [
+      {
+        type: 'value',
+        min: -100,
+        max: 100,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { lineStyle: { color: th.grid } },
+        axisLabel: { color: th.muted, fontSize: 10 },
+      },
+      {
+        type: 'value',
+        position: 'right',
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { show: false },
+        axisLabel: { color: th.muted, fontSize: 10 },
+      },
+    ],
+    series: [
+      {
+        name: 'Respostas',
+        type: 'bar',
+        yAxisIndex: 1,
+        data: npsSerie.map((n) => n.respostas),
+        barMaxWidth: 30,
+        itemStyle: { color: '#e5e7eb', borderRadius: [4, 4, 0, 0] },
+      },
+      {
+        name: 'NPS',
+        type: 'line',
+        yAxisIndex: 0,
+        data: npsSerie.map((n) => n.score),
+        smooth: false,
+        symbol: 'circle',
+        symbolSize: 6,
+        lineStyle: { width: 2, color: '#8b5cf6' },
+        itemStyle: { color: '#8b5cf6' },
+      },
+    ],
+  };
+
   return (
     <div className="space-y-4">
       {/* Faturamento por hora — só faz sentido na visão de dia único */}
@@ -131,49 +350,7 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
                 : 'Comparação deste evento com as 4 datas anteriores do mesmo dia da semana'
             }
           >
-            <ResponsiveContainer width="100%" height={260}>
-              <ComposedChart data={serie} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis
-                  yAxisId="l"
-                  tick={{ fontSize: 10 }}
-                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                />
-                <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 10 }} />
-                <Tooltip
-                  formatter={(value: any, name: any) =>
-                    name === 'Faturamento'
-                      ? formatCurrency(Number(value))
-                      : Number(value).toLocaleString('pt-BR')
-                  }
-                />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar yAxisId="l" dataKey="faturamento" name="Faturamento" radius={[4, 4, 0, 0]}>
-                  {serie.map((e, i) => (
-                    <Cell key={i} fill={e.atual ? '#2563eb' : '#93c5fd'} />
-                  ))}
-                  <LabelList dataKey="faturamento" position="top" formatter={lblCompact} style={LBL_STYLE} />
-                </Bar>
-                <Line
-                  yAxisId="r"
-                  dataKey="publico"
-                  name="Público"
-                  stroke="#16a34a"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                />
-                <Line
-                  yAxisId="r"
-                  dataKey="reservas"
-                  name="Reservas"
-                  stroke="#d97706"
-                  strokeWidth={2}
-                  strokeDasharray="5 4"
-                  dot={{ r: 3 }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+            <ReactECharts option={optFatPublico} style={{ height: 260, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />
           </ChartCard>
 
           {/* Custo artístico */}
@@ -185,20 +362,16 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
                 : 'Quanto a atração custou em relação às datas anteriores'
             }
           >
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={serie} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
-                <Bar dataKey="c_art" name="Custo artístico" radius={[4, 4, 0, 0]}>
-                  {serie.map((e, i) => (
-                    <Cell key={i} fill={e.atual ? '#d97706' : '#fcd34d'} />
-                  ))}
-                  <LabelList dataKey="c_art" position="top" formatter={lblCompact} style={LBL_STYLE} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <GraficoBarra
+              data={serie}
+              xKey="label"
+              valueKey="c_art"
+              height={260}
+              nomeBarra="Custo artístico"
+              formatV={lblCompact}
+              mostrarRotulo
+              corPorItem={(_v, i) => (serie[i]?.atual ? '#d97706' : '#fcd34d')}
+            />
           </ChartCard>
 
           {/* Evolução do mix */}
@@ -206,24 +379,7 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
             titulo="Evolução do mix (%)"
             descricao="Como a divisão comida / bebida / drink mudou ao longo das datas"
           >
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={serie} margin={{ top: 8, right: 8, left: 8, bottom: 0 }} stackOffset="expand">
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} />
-                <Tooltip formatter={(value: any) => `${Number(value).toFixed(1)}%`} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="comida" name="Comida" stackId="mix" fill="#f59e0b">
-                  <LabelList dataKey="comida" position="center" formatter={lblPct} style={LBL_PCT_STYLE} />
-                </Bar>
-                <Bar dataKey="bebida" name="Bebida" stackId="mix" fill="#3b82f6">
-                  <LabelList dataKey="bebida" position="center" formatter={lblPct} style={LBL_PCT_STYLE} />
-                </Bar>
-                <Bar dataKey="drink" name="Drink" stackId="mix" fill="#8b5cf6">
-                  <LabelList dataKey="drink" position="center" formatter={lblPct} style={LBL_PCT_STYLE} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <ReactECharts option={optMix} style={{ height: 260, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />
           </ChartCard>
 
           {/* Ticket médio */}
@@ -231,20 +387,16 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
             titulo={isPeriodo ? 'Ticket médio por evento' : 'Ticket médio vs últimas datas'}
             descricao="Consumo médio por pessoa ao longo das datas"
           >
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={serie} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}`} />
-                <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
-                <Bar dataKey="ticket" name="Ticket médio" radius={[4, 4, 0, 0]}>
-                  {serie.map((e, i) => (
-                    <Cell key={i} fill={e.atual ? '#16a34a' : '#86efac'} />
-                  ))}
-                  <LabelList dataKey="ticket" position="top" formatter={lblCompact} style={LBL_STYLE} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <GraficoBarra
+              data={serie}
+              xKey="label"
+              valueKey="ticket"
+              height={260}
+              nomeBarra="Ticket médio"
+              formatV={lblCompact}
+              mostrarRotulo
+              corPorItem={(_v, i) => (serie[i]?.atual ? '#16a34a' : '#86efac')}
+            />
           </ChartCard>
         </div>
       ) : (
@@ -266,60 +418,59 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
               titulo="Faturamento médio por dia da semana"
               descricao="Qual dia da semana rende mais, em média"
             >
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={porDiaSemana} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
-                  <Bar dataKey="fatMed" name="Fat. médio" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <GraficoBarra
+                data={porDiaSemana}
+                xKey="label"
+                valueKey="fatMed"
+                height={240}
+                nomeBarra="Fat. médio"
+                cor="#2563eb"
+                formatV={fmtKAxis}
+              />
             </ChartCard>
 
             <ChartCard
               titulo="Público médio por dia da semana"
               descricao="Movimento típico de cada dia"
             >
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={porDiaSemana} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip formatter={(value: any) => Number(value).toLocaleString('pt-BR')} />
-                  <Bar dataKey="pubMed" name="Público médio" fill="#16a34a" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <GraficoBarra
+                data={porDiaSemana}
+                xKey="label"
+                valueKey="pubMed"
+                height={240}
+                nomeBarra="Público médio"
+                cor="#16a34a"
+              />
             </ChartCard>
 
             <ChartCard
               titulo="Cancelamentos por dia da semana"
               descricao="Onde se concentra o cancelamento (R$)"
             >
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={porDiaSemana} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
-                  <Bar dataKey="cancel" name="Cancelamentos" fill="#dc2626" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <GraficoBarra
+                data={porDiaSemana}
+                xKey="label"
+                valueKey="cancel"
+                height={240}
+                nomeBarra="Cancelamentos"
+                cor="#dc2626"
+                formatV={fmtKAxis}
+              />
             </ChartCard>
 
             <ChartCard
               titulo="Conta assinada por dia da semana"
               descricao="Onde se concentra a conta assinada (R$)"
             >
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={porDiaSemana} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
-                  <Bar dataKey="conta" name="Conta assinada" fill="#d97706" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <GraficoBarra
+                data={porDiaSemana}
+                xKey="label"
+                valueKey="conta"
+                height={240}
+                nomeBarra="Conta assinada"
+                cor="#d97706"
+                formatV={fmtKAxis}
+              />
             </ChartCard>
           </div>
         </>
@@ -330,25 +481,7 @@ export function TabRelatorios({ data, dataSelecionada, onDataChange, gran = 'dia
           titulo="NPS por dia"
           descricao="Evolução diária do NPS no período (faixa -100 a 100)"
         >
-          <ResponsiveContainer width="100%" height={260}>
-            <ComposedChart data={npsSerie} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-              <YAxis yAxisId="l" domain={[-100, 100]} tick={{ fontSize: 10 }} />
-              <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar yAxisId="r" dataKey="respostas" name="Respostas" fill="#e5e7eb" radius={[4, 4, 0, 0]} />
-              <Line
-                yAxisId="l"
-                dataKey="score"
-                name="NPS"
-                stroke="#8b5cf6"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+          <ReactECharts option={optNps} style={{ height: 260, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />
         </ChartCard>
       )}
 

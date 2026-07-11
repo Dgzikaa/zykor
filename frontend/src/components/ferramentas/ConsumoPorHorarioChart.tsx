@@ -1,19 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { GraficoBase } from '@/components/graficos/GraficoBase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useBar } from '@/contexts/BarContext';
-import { formatCurrency } from '@/lib/utils';
 import { Package } from 'lucide-react';
 
 interface ProdutoHora {
@@ -88,47 +78,15 @@ export function ConsumoPorHorarioChart({ dataSelecionada }: Props) {
     });
   }, [horas, metric]);
 
-  const fmt = (v: number) =>
-    metric === 'valor' ? formatCurrency(v) : Math.round(v).toLocaleString('pt-BR');
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (!active || !payload || !payload.length) return null;
-    const row = payload[0].payload;
-    const prods: ProdutoHora[] = row._produtos || [];
-    return (
-      <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg min-w-[220px]">
-        <p className="font-semibold text-gray-900 dark:text-white mb-2 text-sm">{label}</p>
-        <div className="space-y-1">
-          {prods.map((p, i) => (
-            <div key={i} className="flex items-center justify-between text-xs gap-3">
-              <span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300">
-                <span
-                  className="inline-block w-2 h-2 rounded-sm"
-                  style={{ background: CORES[i] }}
-                />
-                {p.produto}
-              </span>
-              <span className="font-semibold text-gray-900 dark:text-gray-100">
-                {fmt(metric === 'valor' ? p.valor : p.quantidade)}
-              </span>
-            </div>
-          ))}
-          {row.outros > 0 && (
-            <div className="flex items-center justify-between text-xs gap-3 pt-1 border-t border-gray-100 dark:border-gray-700">
-              <span className="flex items-center gap-1.5 text-gray-500">
-                <span
-                  className="inline-block w-2 h-2 rounded-sm"
-                  style={{ background: COR_OUTROS }}
-                />
-                Outros
-              </span>
-              <span className="font-medium text-gray-500">{fmt(row.outros)}</span>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
+  // séries posicionais fixas: 1º..5º produto de cada hora + "Outros" (cores preservadas por posição)
+  const chartSeries = [
+    { key: 'p0', label: '1º' },
+    { key: 'p1', label: '2º' },
+    { key: 'p2', label: '3º' },
+    { key: 'p3', label: '4º' },
+    { key: 'p4', label: '5º' },
+    { key: 'outros', label: 'Outros' },
+  ];
 
   return (
     <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -187,23 +145,16 @@ export function ConsumoPorHorarioChart({ dataSelecionada }: Props) {
             (Disponível após a coleta/backfill da query de produtos por horário.)
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={360}>
-            <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-              <XAxis dataKey="horaLabel" tick={{ fontSize: 11 }} />
-              <YAxis
-                tick={{ fontSize: 10 }}
-                tickFormatter={(v) =>
-                  metric === 'valor' ? `${(v / 1000).toFixed(0)}k` : `${v}`
-                }
-              />
-              <Tooltip content={<CustomTooltip />} />
-              {[0, 1, 2, 3, 4].map((i) => (
-                <Bar key={i} dataKey={`p${i}`} stackId="prod" fill={CORES[i]} />
-              ))}
-              <Bar dataKey="outros" stackId="prod" fill={COR_OUTROS} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <GraficoBase
+            tipo="barra"
+            stacked
+            data={chartData}
+            xKey="horaLabel"
+            series={chartSeries}
+            cores={[...CORES, COR_OUTROS]}
+            height={360}
+            formatY={(v) => (metric === 'valor' ? `${(v / 1000).toFixed(0)}k` : `${v}`)}
+          />
         )}
       </CardContent>
     </Card>

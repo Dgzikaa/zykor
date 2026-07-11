@@ -5,7 +5,7 @@ import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Award, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
+import { GraficoLinha } from '@/components/graficos/Charts';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 
 const fmt = (n: number | null | undefined) =>
@@ -107,17 +107,16 @@ export default function QualidadePage() {
       {/* EVOLUÇÃO */}
       <Card className="p-6">
         <h2 className="font-semibold mb-4">Evolução do score (12 semanas)</h2>
-        <ResponsiveContainer width="100%" height={250}>
-          <LineChart data={historico.map((h: any) => ({ semana: `S${h.numero_semana}`, score: Number(h.score) }))}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="semana" fontSize={11} />
-            <YAxis domain={[0, 100]} fontSize={11} />
-            <Tooltip />
-            <ReferenceLine y={85} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Excelente (85)', fontSize: 10, fill: '#10b981' }} />
-            <ReferenceLine y={70} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: 'Bom (70)', fontSize: 10, fill: '#f59e0b' }} />
-            <Line type="monotone" dataKey="score" stroke="#ec4899" strokeWidth={3} dot={{ r: 5 }} />
-          </LineChart>
-        </ResponsiveContainer>
+        <GraficoLinha
+          data={historico.map((h: any) => ({ semana: `S${h.numero_semana}`, score: Number(h.score) }))}
+          xKey="semana"
+          series={[{ key: 'score', nome: 'Score', cor: '#ec4899' }]}
+          height={250}
+          markLines={[
+            { valor: 85, label: 'Excelente (85)', cor: '#10b981' },
+            { valor: 70, label: 'Bom (70)', cor: '#f59e0b' },
+          ]}
+        />
       </Card>
 
       {/* COMPONENTES */}

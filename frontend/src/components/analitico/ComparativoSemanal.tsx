@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+import { useGraficoTheme } from '@/components/graficos/GraficoBase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,20 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  ComposedChart,
-  Line,
-  Bar,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer,
-  Cell,
-  LabelList
-} from 'recharts';
-import { 
+import {
   Calendar,
   DollarSign,
   TrendingUp,
@@ -34,6 +23,10 @@ import {
 } from 'lucide-react';
 import { useBar } from '@/contexts/BarContext';
 import { useToast } from '@/hooks/use-toast';
+
+// ECharts inline — gráficos combinados (barra + N linhas, 2º eixo, cores condicionais, tooltips custom)
+// não cabem nos componentes do catálogo. Padrão de referência: ferramentas/analises/previsao.
+const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
 
 interface HorarioSemanalData {
   hora: number;
@@ -148,6 +141,7 @@ const MESES_OPCOES = [
 export function ComparativoSemanal() {
   const { selectedBar } = useBar();
   const { toast } = useToast();
+  const th = useGraficoTheme();
   
   const [dados, setDados] = useState<HorarioSemanalData[]>([]);
   const [estatisticas, setEstatisticas] = useState<EstatisticasSemana | null>(null);
@@ -383,141 +377,337 @@ export function ComparativoSemanal() {
 
   const coresDinamicas = gerarCoresDinamicas();
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const dadosHora = dados.find(d => d.hora_formatada === label);
-      
-      return (
-        <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
-          <p className="font-semibold text-gray-900 dark:text-white mb-2">
-            {`${label}`}
-          </p>
-          
-          {modoComparacao === 'individual' && dadosHora ? (
-            // 🎯 CORREÇÃO: Modo Individual - Mostrar dados disponíveis
-            <>
-              {(() => {
-                const coresPorDiaSemana = {
-                  'Dom': '#EF4444', 'Seg': '#F59E0B', 'Ter': '#84CC16', 
-                  'Qua': '#10B981', 'Qui': '#06B6D4', 'Sex': '#3B82F6', 'Sáb': '#8B5CF6'
-                };
-                
-                const dadosPorDiaSemana = new Map<string, { valores: number[], cor: string }>();
-                
-                // 🎯 PRIMEIRO: Tentar usar campos dia_* (novo formato)
-                Object.keys(dadosHora).forEach(key => {
-                  if (key.startsWith('dia_') && dadosHora[key] > 0) {
-                    const diaAbrev = key.replace('dia_', '');
-                    const diaCapitalizado = diaAbrev.charAt(0).toUpperCase() + diaAbrev.slice(1);
-                    
-                    dadosPorDiaSemana.set(diaCapitalizado, {
-                      valores: [dadosHora[key]],
-                      cor: coresPorDiaSemana[diaCapitalizado] || '#6B7280'
-                    });
-                  }
-                });
-                
-                // 🎯 FALLBACK: Se não há campos dia_*, usar dados individuais
-                if (dadosPorDiaSemana.size === 0 && dadosHora.todas_datas && dadosHora.datas_ordenadas) {
-                  Object.entries(dadosHora.todas_datas)
-                    .filter(([data, valor]) => valor > 0)
-                    .forEach(([data, valor]) => {
-                      const dataObj = new Date(data + 'T12:00:00');
-                      const diaSemana = dataObj.toLocaleDateString('pt-BR', { weekday: 'long' });
-                      const diaAbrev = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1, 3);
-                      
-                      if (!dadosPorDiaSemana.has(diaAbrev)) {
-                        dadosPorDiaSemana.set(diaAbrev, { 
-                          valores: [], 
-                          cor: coresPorDiaSemana[diaAbrev] || '#6B7280' 
-                        });
-                      }
-                      dadosPorDiaSemana.get(diaAbrev)!.valores.push(valor);
-                    });
-                }
-                
-                // Se ainda não há dados, mostrar apenas o valor atual
-                if (dadosPorDiaSemana.size === 0) {
-                  const valorAtual = dadosHora.faturamento_atual || 0;
-                  if (valorAtual > 0) {
-                    return (
-                      <p className="text-sm flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                        <span className="text-gray-700 dark:text-gray-300">
-                          Atual: {formatarMoeda(valorAtual)}
-                        </span>
-                      </p>
-                    );
-                  }
-                }
-                
-                // Mostrar dados por dia da semana
-                return Array.from(dadosPorDiaSemana.entries())
-                  .map(([diaAbrev, dados]) => {
-                    const media = dados.valores.reduce((sum, val) => sum + val, 0) / dados.valores.length;
-                    const count = dados.valores.length;
-                    
-                    return (
-                      <p key={diaAbrev} className="text-sm flex items-center gap-2">
-                        <div 
-                          className="w-3 h-3 rounded-full" 
-                          style={{ backgroundColor: dados.cor }}
-                        ></div>
-                        <span className="text-gray-700 dark:text-gray-300">
-                          {count > 1 
-                            ? `${diaAbrev} (${count}x): ${formatarMoeda(media)}`
-                            : `${diaAbrev}: ${formatarMoeda(media)}`
-                          }
-                        </span>
-                      </p>
-                    );
-                  })
-                  .sort((a, b) => {
-                    // Ordenar por ordem dos dias da semana
-                    const ordemDias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-                    const diaA = a.key as string;
-                    const diaB = b.key as string;
-                    return ordemDias.indexOf(diaA) - ordemDias.indexOf(diaB);
-                  });
-              })()}
-              {dadosHora.media_4_semanas > 0 && (
-                <p className="text-sm text-red-600 dark:text-red-400 mt-1 pt-1 border-t border-gray-200 dark:border-gray-600">
-                  {`Média Geral: ${formatarMoeda(dadosHora.media_4_semanas)}`}
-                </p>
-              )}
-            </>
-          ) : (
-            // Modo Mês x Mês: Comportamento original
-            payload
-              .sort((a: any, b: any) => b.value - a.value)
-              .map((entry: any, index: number) => {
-                let dataLabel = entry.name;
-                
-                if (modoComparacao === 'mes_x_mes') {
-                  if (entry.dataKey === 'faturamento_atual') {
-                    dataLabel = MESES_OPCOES.find(m => m.value === mesesSelecionados[0])?.label.split(' ')[0] || 'Mês 1';
-                  } else if (entry.dataKey === 'faturamento_semana1') {
-                    dataLabel = MESES_OPCOES.find(m => m.value === mesesSelecionados[1])?.label.split(' ')[0] || 'Mês 2';
-                  } else if (entry.dataKey === 'faturamento_semana2') {
-                    dataLabel = MESES_OPCOES.find(m => m.value === mesesSelecionados[2])?.label.split(' ')[0] || 'Mês 3';
-                  } else if (entry.dataKey === 'faturamento_semana3') {
-                    dataLabel = MESES_OPCOES.find(m => m.value === mesesSelecionados[3])?.label.split(' ')[0] || 'Mês 4';
-                  } else if (entry.dataKey === 'media_4_semanas') {
-                    dataLabel = 'Média Geral';
-                  }
-                }
-                
-                return (
-                  <p key={index} style={{ color: entry.color }} className="text-sm">
-                    {`${dataLabel}: ${formatarMoeda(entry.value)}`}
-                  </p>
-                );
-              })
-          )}
-        </div>
+  // Formatador de valores do eixo/label dos gráficos (mesma regra dos rótulos recharts anteriores)
+  const kfmt = (value: number) => `R$ ${(value / 1000).toFixed(0)}k`;
+
+  // ── Gráfico de Valor Total (barra) — ambos os modos ──
+  // Reconstrói os 2 layouts recharts (múltiplas barras por dia da semana / barra única por mês)
+  // preservando cores condicionais, rótulos e o conteúdo exato dos tooltips custom.
+  const buildValorTotalOption = () => {
+    const xData = dadosValorTotal.map(d => d.data_formatada);
+    const yAxis = {
+      type: 'value' as const,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: th.grid } },
+      axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => kfmt(v) },
+    };
+    const xAxis = {
+      type: 'category' as const,
+      data: xData,
+      axisLine: { lineStyle: { color: th.eixo } },
+      axisTick: { show: false },
+      axisLabel: { color: th.muted, fontSize: 11, hideOverlap: true },
+    };
+
+    if (modoComparacao === 'mes_x_mes' && diaSelecionado === 'todos') {
+      // 🚀 LAYOUT ESTRATÉGICO: Múltiplas barras por dia da semana
+      const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      const coresDias = ['#EF4444', '#F59E0B', '#84CC16', '#10B981', '#06B6D4', '#3B82F6', '#8B5CF6'];
+      return {
+        grid: { top: 48, right: 24, bottom: 8, left: 8, containLabel: true },
+        xAxis,
+        yAxis,
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: { type: 'shadow' },
+          backgroundColor: th.surface,
+          borderColor: th.eixo,
+          borderWidth: 1,
+          textStyle: { color: th.texto, fontSize: 12 },
+          formatter: (params: any) => {
+            const comValor = params.filter((p: any) => p.value > 0);
+            const totalMes = comValor.reduce((sum: number, p: any) => sum + p.value, 0);
+            const label = params[0]?.axisValue ?? '';
+            let html = `<div style="min-width:200px">`;
+            html += `<div style="font-weight:600;color:${th.texto};margin-bottom:6px">${label} - Todos os Dias</div>`;
+            html += `<div style="font-size:13px;color:#3B82F6;font-weight:500;margin-bottom:6px">Total do Mês: ${formatarMoeda(totalMes)}</div>`;
+            html += `<div style="border-top:1px solid ${th.eixo};padding-top:6px">`;
+            html += `<div style="font-size:11px;color:${th.texto2};margin-bottom:4px">Por dia da semana:</div>`;
+            comValor.slice().sort((a: any, b: any) => b.value - a.value).forEach((p: any) => {
+              html += `<div style="font-size:11px;color:${th.texto};display:flex;justify-content:space-between;gap:12px;align-items:center"><span><span style="color:${p.color}">●</span> ${p.seriesName}</span><span style="font-weight:500">${formatarMoeda(p.value)}</span></div>`;
+            });
+            html += `</div></div>`;
+            return html;
+          },
+        },
+        series: diasSemana.map((dia, index) => ({
+          name: dia,
+          type: 'bar',
+          data: dadosValorTotal.map(d => d[dia.toLowerCase()] || 0),
+          itemStyle: { color: coresDias[index], opacity: 0.8 },
+          label: {
+            show: true,
+            position: 'top',
+            color: th.texto2,
+            fontSize: 10,
+            formatter: (p: any) => (p.value && p.value > 0) ? kfmt(p.value) : '',
+          },
+        })),
+      };
+    }
+
+    // LAYOUT ORIGINAL: Uma barra por mês/data (cor condicional por entry)
+    const nomeBarra = modoComparacao === 'mes_x_mes'
+      ? `Média ${DIAS_SEMANA.find(d => d.value === diaSelecionado)?.label}s por Mês`
+      : `${DIAS_SEMANA.find(d => d.value === diaSelecionado)?.label}s por Data`;
+    return {
+      grid: { top: 32, right: 24, bottom: 8, left: 8, containLabel: true },
+      xAxis,
+      yAxis,
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        backgroundColor: th.surface,
+        borderColor: th.eixo,
+        borderWidth: 1,
+        textStyle: { color: th.texto, fontSize: 12 },
+        formatter: (params: any) => {
+          const data = dadosValorTotal[params[0]?.dataIndex];
+          if (!data) return '';
+          const titulo = modoComparacao === 'mes_x_mes'
+            ? `${data.mes} (Total do Mês)`
+            : `${data.data_formatada} (${data.mes})`;
+          let html = `<div>`;
+          html += `<div style="font-weight:600;color:${th.texto};margin-bottom:6px">${titulo}</div>`;
+          html += `<div style="font-size:13px;color:#3B82F6;margin-bottom:6px"><strong>${modoComparacao === 'mes_x_mes' ? `Média: ${formatarMoeda(data.valor_total)}` : `Total: ${formatarMoeda(data.valor_total)}`}</strong></div>`;
+          if (modoComparacao === 'mes_x_mes' && data.sextas_detalhes && data.sextas_detalhes.length > 0) {
+            html += `<div style="border-top:1px solid ${th.eixo};padding-top:6px">`;
+            html += `<div style="font-size:11px;color:${th.texto2};margin-bottom:4px">Valores individuais (${data.sextas_detalhes.length}x):</div>`;
+            data.sextas_detalhes.slice().sort((a: any, b: any) => b.valor - a.valor).forEach((sexta: any) => {
+              html += `<div style="font-size:11px;color:${th.texto}">${sexta.data} - ${formatarMoeda(sexta.valor)}</div>`;
+            });
+            html += `</div>`;
+          }
+          html += `</div>`;
+          return html;
+        },
+      },
+      series: [{
+        name: nomeBarra,
+        type: 'bar',
+        data: dadosValorTotal.map(d => ({ value: d.valor_total, itemStyle: { color: d.cor, opacity: 0.8 } })),
+        label: {
+          show: true,
+          position: 'top',
+          color: th.texto2,
+          fontSize: 10,
+          formatter: (p: any) => kfmt(p.value),
+        },
+      }],
+    };
+  };
+
+  // ── Gráfico por Hora (barra + N linhas) — reconstrói o CustomTooltip recharts ──
+  const buildHoraOption = () => {
+    const coresPorDiaSemana: Record<string, string> = {
+      'Dom': '#EF4444', 'Seg': '#F59E0B', 'Ter': '#84CC16',
+      'Qua': '#10B981', 'Qui': '#06B6D4', 'Sex': '#3B82F6', 'Sáb': '#8B5CF6'
+    };
+    const xData = dados.map(d => d.hora_formatada);
+    const series: any[] = [];
+    // metadados p/ reconstruir os rótulos do tooltip no modo Mês x Mês (recharts usava entry.dataKey)
+    const dataKeyByName: Record<string, string> = {};
+    const legendData: string[] = [];
+
+    const pushLinha = (name: string, dataKey: string, color: string, opts: { width?: number; dash?: boolean; symbolSize?: number } = {}) => {
+      dataKeyByName[name] = dataKey;
+      legendData.push(name);
+      series.push({
+        name,
+        type: 'line',
+        smooth: true,
+        symbolSize: opts.symbolSize ?? 8,
+        data: dados.map((h: any) => (h[dataKey] ?? null)),
+        itemStyle: { color },
+        lineStyle: { color, width: opts.width ?? 2, type: opts.dash ? 'dashed' : 'solid' },
+      });
+    };
+    const pushBarra = (name: string, dataKey: string, color: string, opacity: number) => {
+      dataKeyByName[name] = dataKey;
+      legendData.push(name);
+      series.push({
+        name,
+        type: 'bar',
+        data: dados.map((h: any) => (h[dataKey] ?? null)),
+        itemStyle: { color, opacity },
+      });
+    };
+
+    if (modoComparacao === 'individual' && dados.length > 0) {
+      // 🎯 Modo Individual — uma linha por dia da semana (só os que têm dados)
+      const diasComDados = new Set<string>();
+      dados.forEach((horario: any) => {
+        Object.keys(horario).forEach(key => {
+          if (key.startsWith('dia_') && horario[key] > 0) {
+            const diaAbrev = key.replace('dia_', '');
+            diasComDados.add(diaAbrev.charAt(0).toUpperCase() + diaAbrev.slice(1));
+          }
+        });
+      });
+
+      if (diasComDados.size === 0 && dados[0].datas_ordenadas) {
+        // Fallback: datas individuais agrupadas por dia da semana
+        const datasPorDiaSemana = new Map<string, string[]>();
+        dados[0].datas_ordenadas
+          .filter(data => linhasVisiveisDinamicas[data] !== false)
+          .forEach(data => {
+            const dataObj = new Date(data + 'T12:00:00');
+            const diaSemana = dataObj.toLocaleDateString('pt-BR', { weekday: 'long' });
+            const diaAbrev = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1, 3);
+            if (!datasPorDiaSemana.has(diaAbrev)) datasPorDiaSemana.set(diaAbrev, []);
+            datasPorDiaSemana.get(diaAbrev)!.push(data);
+          });
+        Array.from(datasPorDiaSemana.entries()).forEach(([diaAbrev, datasDodia]) => {
+          const dataKey = `data_${datasDodia[0].replace(/-/g, '_')}`;
+          pushLinha(diaAbrev, dataKey, coresPorDiaSemana[diaAbrev] || '#6B7280');
+        });
+      } else {
+        Array.from(diasComDados).forEach(diaAbrev => {
+          pushLinha(diaAbrev, `dia_${diaAbrev.toLowerCase()}`, coresPorDiaSemana[diaAbrev] || '#6B7280');
+        });
+      }
+    } else {
+      // Modo Mês x Mês: barra atual + linhas semana1/2/3
+      if (linhasVisiveis.atual) {
+        pushBarra(
+          modoComparacao === 'mes_x_mes' ? `Média ${MESES_OPCOES.find(m => m.value === mesesSelecionados[0])?.label.split(' ')[0]}` : 'Data 1',
+          'faturamento_atual', cores.atual, 0.7
+        );
+      }
+      if (linhasVisiveis.semana1) {
+        pushLinha(
+          modoComparacao === 'mes_x_mes' ? `Média ${MESES_OPCOES.find(m => m.value === mesesSelecionados[1])?.label.split(' ')[0]}` : 'Data 2',
+          'faturamento_semana1', cores.semana1
+        );
+      }
+      if (linhasVisiveis.semana2 && (modoComparacao !== 'mes_x_mes' || mesesSelecionados.length > 2)) {
+        pushLinha(
+          modoComparacao === 'mes_x_mes' ? `Média ${MESES_OPCOES.find(m => m.value === mesesSelecionados[2])?.label.split(' ')[0] || 'Mês 3'}` : 'Data 3',
+          'faturamento_semana2', cores.semana2
+        );
+      }
+      if (linhasVisiveis.semana3 && (modoComparacao !== 'mes_x_mes' || mesesSelecionados.length > 3)) {
+        pushLinha(
+          modoComparacao === 'mes_x_mes' ? `Média ${MESES_OPCOES.find(m => m.value === mesesSelecionados[3])?.label.split(' ')[0] || 'Mês 4'}` : 'Data 4',
+          'faturamento_semana3', cores.semana3
+        );
+      }
+    }
+
+    if (linhasVisiveis.media) {
+      pushLinha(
+        modoComparacao === 'mes_x_mes' ? 'Média Geral' : 'Média 4 Semanas',
+        'media_4_semanas', cores.media, { width: 3, dash: true, symbolSize: 10 }
       );
     }
-    return null;
+
+    return {
+      grid: { top: 40, right: 24, bottom: 8, left: 8, containLabel: true },
+      legend: { top: 4, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 12 }, data: legendData },
+      xAxis: {
+        type: 'category' as const,
+        data: xData,
+        axisLine: { lineStyle: { color: th.eixo } },
+        axisTick: { show: false },
+        axisLabel: { color: th.muted, fontSize: 11, hideOverlap: true },
+      },
+      yAxis: {
+        type: 'value' as const,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { lineStyle: { color: th.grid } },
+        axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => kfmt(v) },
+      },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        backgroundColor: th.surface,
+        borderColor: th.eixo,
+        borderWidth: 1,
+        textStyle: { color: th.texto, fontSize: 12 },
+        formatter: (params: any) => {
+          const label = Array.isArray(params) ? (params[0]?.axisValue ?? '') : params.axisValue;
+          const dadosHora: any = dados.find(d => d.hora_formatada === label);
+          let html = `<div><div style="font-weight:600;color:${th.texto};margin-bottom:6px">${label}</div>`;
+
+          if (modoComparacao === 'individual' && dadosHora) {
+            // Modo Individual — agrega por dia da semana a partir de dadosHora (igual ao CustomTooltip)
+            const dadosPorDiaSemana = new Map<string, { valores: number[]; cor: string }>();
+            Object.keys(dadosHora).forEach(key => {
+              if (key.startsWith('dia_') && dadosHora[key] > 0) {
+                const diaAbrev = key.replace('dia_', '');
+                const diaCapitalizado = diaAbrev.charAt(0).toUpperCase() + diaAbrev.slice(1);
+                dadosPorDiaSemana.set(diaCapitalizado, {
+                  valores: [dadosHora[key]],
+                  cor: coresPorDiaSemana[diaCapitalizado] || '#6B7280',
+                });
+              }
+            });
+            if (dadosPorDiaSemana.size === 0 && dadosHora.todas_datas && dadosHora.datas_ordenadas) {
+              Object.entries(dadosHora.todas_datas)
+                .filter(([, valor]) => (valor as number) > 0)
+                .forEach(([data, valor]) => {
+                  const dataObj = new Date(data + 'T12:00:00');
+                  const diaSemana = dataObj.toLocaleDateString('pt-BR', { weekday: 'long' });
+                  const diaAbrev = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1, 3);
+                  if (!dadosPorDiaSemana.has(diaAbrev)) {
+                    dadosPorDiaSemana.set(diaAbrev, { valores: [], cor: coresPorDiaSemana[diaAbrev] || '#6B7280' });
+                  }
+                  dadosPorDiaSemana.get(diaAbrev)!.valores.push(valor as number);
+                });
+            }
+            if (dadosPorDiaSemana.size === 0) {
+              const valorAtual = dadosHora.faturamento_atual || 0;
+              if (valorAtual > 0) {
+                html += `<div style="font-size:13px;display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:12px;height:12px;border-radius:9999px;background:#3B82F6"></span><span style="color:${th.texto2}">Atual: ${formatarMoeda(valorAtual)}</span></div>`;
+              }
+            } else {
+              const ordemDias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+              Array.from(dadosPorDiaSemana.entries())
+                .map(([diaAbrev, d]) => {
+                  const media = d.valores.reduce((sum, val) => sum + val, 0) / d.valores.length;
+                  return { diaAbrev, cor: d.cor, media, count: d.valores.length };
+                })
+                .sort((a, b) => ordemDias.indexOf(a.diaAbrev) - ordemDias.indexOf(b.diaAbrev))
+                .forEach(e => {
+                  const txt = e.count > 1
+                    ? `${e.diaAbrev} (${e.count}x): ${formatarMoeda(e.media)}`
+                    : `${e.diaAbrev}: ${formatarMoeda(e.media)}`;
+                  html += `<div style="font-size:13px;display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:12px;height:12px;border-radius:9999px;background:${e.cor}"></span><span style="color:${th.texto2}">${txt}</span></div>`;
+                });
+            }
+            if (dadosHora.media_4_semanas > 0) {
+              html += `<div style="font-size:13px;color:#EF4444;margin-top:4px;padding-top:4px;border-top:1px solid ${th.eixo}">Média Geral: ${formatarMoeda(dadosHora.media_4_semanas)}</div>`;
+            }
+          } else {
+            // Modo Mês x Mês: reaproveita as séries, reetiquetando por dataKey
+            const arr = Array.isArray(params) ? params.slice() : [params];
+            arr.sort((a: any, b: any) => b.value - a.value).forEach((entry: any) => {
+              let dataLabel = entry.seriesName;
+              if (modoComparacao === 'mes_x_mes') {
+                const dataKey = dataKeyByName[entry.seriesName];
+                if (dataKey === 'faturamento_atual') {
+                  dataLabel = MESES_OPCOES.find(m => m.value === mesesSelecionados[0])?.label.split(' ')[0] || 'Mês 1';
+                } else if (dataKey === 'faturamento_semana1') {
+                  dataLabel = MESES_OPCOES.find(m => m.value === mesesSelecionados[1])?.label.split(' ')[0] || 'Mês 2';
+                } else if (dataKey === 'faturamento_semana2') {
+                  dataLabel = MESES_OPCOES.find(m => m.value === mesesSelecionados[2])?.label.split(' ')[0] || 'Mês 3';
+                } else if (dataKey === 'faturamento_semana3') {
+                  dataLabel = MESES_OPCOES.find(m => m.value === mesesSelecionados[3])?.label.split(' ')[0] || 'Mês 4';
+                } else if (dataKey === 'media_4_semanas') {
+                  dataLabel = 'Média Geral';
+                }
+              }
+              html += `<div style="font-size:13px;color:${entry.color}">${dataLabel}: ${formatarMoeda(entry.value)}</div>`;
+            });
+          }
+          html += `</div>`;
+          return html;
+        },
+      },
+      series,
+    };
   };
 
   const formatarData = (data: string) => {
@@ -1105,155 +1295,14 @@ export function ComparativoSemanal() {
               </div>
               
               <div className="h-80 relative">
-                <ResponsiveContainer width="100%" height="100%">
-                  {modoComparacao === 'mes_x_mes' && diaSelecionado === 'todos' ? (
-                    // 🚀 LAYOUT ESTRATÉGICO: Múltiplas barras por dia da semana
-                    <ComposedChart data={dadosValorTotal} margin={{ top: 60, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                    <XAxis 
-                      dataKey="data_formatada" 
-                      className="text-xs"
-                    />
-                    <YAxis 
-                      tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
-                      className="text-xs"
-                    />
-                    <Tooltip 
-                      content={({ active, payload, label }) => {
-                        if (active && payload && payload.length) {
-                          const dadosComValor = payload.filter((entry: any) => entry.value > 0);
-                          const totalMes = dadosComValor.reduce((sum: number, entry: any) => sum + entry.value, 0);
-                          
-                          return (
-                            <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg min-w-[200px]">
-                              <p className="font-semibold text-gray-900 dark:text-white mb-2">
-                                {label} - Todos os Dias
-                              </p>
-                              
-                              <p className="text-sm text-blue-600 dark:text-blue-400 mb-2 font-medium">
-                                Total do Mês: {formatarMoeda(totalMes)}
-                              </p>
-                              
-                              <div className="border-t border-gray-200 dark:border-gray-600 pt-2">
-                                <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Por dia da semana:</p>
-                                {dadosComValor
-                                  .sort((a: any, b: any) => b.value - a.value)
-                                  .map((entry: any, index: number) => (
-                                    <p key={index} className="text-xs text-gray-700 dark:text-gray-300 flex justify-between items-center">
-                                      <span>
-                                        <span style={{ color: entry.color }}>●</span> {entry.name}
-                                      </span>
-                                      <span className="font-medium">{formatarMoeda(entry.value)}</span>
-                                    </p>
-                                  ))
-                                }
-                </div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    
-                    {/* Barras para cada dia da semana */}
-                    {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia, index) => {
-                      const cores = ['#EF4444', '#F59E0B', '#84CC16', '#10B981', '#06B6D4', '#3B82F6', '#8B5CF6'];
-                      return (
-                        <Bar
-                          key={dia}
-                          dataKey={dia.toLowerCase()}
-                          name={dia}
-                          fill={cores[index]}
-                          opacity={0.8}
-                        >
-                          <LabelList 
-                            dataKey={dia.toLowerCase()}
-                            position="top" 
-                            formatter={(value: any) => (value && value > 0) ? `R$ ${(value / 1000).toFixed(0)}k` : ''}
-                            className="text-xs fill-gray-600 dark:fill-gray-300"
-                          />
-                        </Bar>
-                      );
-                    })}
-                  </ComposedChart>
-                ) : (
-                  // LAYOUT ORIGINAL: Uma barra por mês/data
-                  <ComposedChart data={dadosValorTotal} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                    <XAxis 
-                      dataKey="data_formatada" 
-                      className="text-xs"
-                    />
-                    <YAxis 
-                      tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
-                      className="text-xs"
-                    />
-                    <Tooltip 
-                      content={({ active, payload, label }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload;
-                          
-                          return (
-                            <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
-                              <p className="font-semibold text-gray-900 dark:text-white mb-2">
-                                {modoComparacao === 'mes_x_mes' 
-                                  ? `${data.mes} (Total do Mês)`
-                                  : `${data.data_formatada} (${data.mes})`
-                                }
-                              </p>
-                              
-                              <p className="text-sm text-blue-600 dark:text-blue-400 mb-2">
-                                <strong>
-                                  {modoComparacao === 'mes_x_mes' 
-                                    ? `Média: ${formatarMoeda(data.valor_total)}`
-                                    : `Total: ${formatarMoeda(data.valor_total)}`
-                                  }
-                                </strong>
-                              </p>
-                              
-                              {modoComparacao === 'mes_x_mes' && data.sextas_detalhes && data.sextas_detalhes.length > 0 && (
-                                <div className="border-t border-gray-200 dark:border-gray-600 pt-2">
-                                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                    Valores individuais ({data.sextas_detalhes.length}x):
-                                  </p>
-                                  {data.sextas_detalhes
-                                    .sort((a: any, b: any) => b.valor - a.valor)
-                                    .map((sexta: any, index: number) => (
-                                      <p key={index} className="text-xs text-gray-700 dark:text-gray-300">
-                                        {sexta.data} - {formatarMoeda(sexta.valor)}
-                                      </p>
-                                    ))
-                                  }
-                                </div>
-                              )}
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Bar
-                      dataKey="valor_total"
-                      name={modoComparacao === 'mes_x_mes' 
-                        ? `Média ${DIAS_SEMANA.find(d => d.value === diaSelecionado)?.label}s por Mês`
-                        : `${DIAS_SEMANA.find(d => d.value === diaSelecionado)?.label}s por Data`
-                      }
-                      opacity={0.8}
-                    >
-                      <LabelList 
-                        dataKey="valor_total" 
-                        position="top" 
-                        formatter={(value: any) => `R$ ${(value / 1000).toFixed(0)}k`}
-                        className="text-xs fill-gray-600 dark:fill-gray-300"
-                      />
-                      {dadosValorTotal.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.cor} />
-                      ))}
-                    </Bar>
-                  </ComposedChart>
-                )}
-              </ResponsiveContainer>
-            </div>
+                <ReactECharts
+                  option={buildValorTotalOption()}
+                  style={{ height: '100%', width: '100%' }}
+                  opts={{ renderer: 'canvas' }}
+                  notMerge
+                  lazyUpdate
+                />
+              </div>
           </div>
         </CardContent>
       </Card>
@@ -1280,154 +1329,13 @@ export function ComparativoSemanal() {
           <div className="h-96">
             {/* 🛡️ Verificação de segurança antes de renderizar o gráfico */}
             {dados && dados.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={dados} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis 
-                  dataKey="hora_formatada" 
-                  className="text-xs"
-                />
-                <YAxis 
-                  tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
-                  className="text-xs"
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-
-                {modoComparacao === 'individual' && dados.length > 0 ? (
-                  // 🎯 CORREÇÃO: Modo Individual - Renderizar apenas dias com dados
-                  (() => {
-                    const coresPorDiaSemana = {
-                      'Dom': '#EF4444', 'Seg': '#F59E0B', 'Ter': '#84CC16', 
-                      'Qua': '#10B981', 'Qui': '#06B6D4', 'Sex': '#3B82F6', 'Sáb': '#8B5CF6'
-                    };
-                    
-                    // 🎯 NOVA LÓGICA: Verificar quais campos dia_* existem nos dados
-                    const diasComDados = new Set<string>();
-                    
-                    // Verificar se há dados nos campos dia_*
-                    dados.forEach(horario => {
-                      Object.keys(horario).forEach(key => {
-                        if (key.startsWith('dia_') && horario[key] > 0) {
-                          const diaAbrev = key.replace('dia_', '');
-                          const diaCapitalizado = diaAbrev.charAt(0).toUpperCase() + diaAbrev.slice(1);
-                          diasComDados.add(diaCapitalizado);
-                        }
-                      });
-                    });
-                    
-                    // Se não há campos dia_*, usar lógica de fallback com datas individuais
-                    if (diasComDados.size === 0 && dados[0].datas_ordenadas) {
-                      const datasPorDiaSemana = new Map<string, string[]>();
-                      
-                      dados[0].datas_ordenadas
-                        .filter(data => linhasVisiveisDinamicas[data] !== false)
-                        .forEach(data => {
-                          const dataObj = new Date(data + 'T12:00:00');
-                          const diaSemana = dataObj.toLocaleDateString('pt-BR', { weekday: 'long' });
-                          const diaAbrev = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1, 3);
-                          
-                          if (!datasPorDiaSemana.has(diaAbrev)) {
-                            datasPorDiaSemana.set(diaAbrev, []);
-                          }
-                          datasPorDiaSemana.get(diaAbrev)!.push(data);
-                        });
-                      
-                      // Renderizar usando dados individuais (modo antigo)
-                      return Array.from(datasPorDiaSemana.entries()).map(([diaAbrev, datasDodia]) => {
-                        const dataKey = `data_${datasDodia[0].replace(/-/g, '_')}`;
-                        
-                        return (
-                          <Line
-                            key={diaAbrev}
-                            type="monotone"
-                            dataKey={dataKey}
-                            name={diaAbrev}
-                            stroke={coresPorDiaSemana[diaAbrev] || '#6B7280'}
-                            strokeWidth={2}
-                            dot={{ r: 4 }}
-                          />
-                        );
-                      });
-                    }
-                    
-                    // 🎯 RENDERIZAR: Uma linha por dia da semana (apenas os que têm dados)
-                    return Array.from(diasComDados).map(diaAbrev => {
-                      const dataKey = `dia_${diaAbrev.toLowerCase()}`;
-                      
-                      return (
-                        <Line
-                          key={diaAbrev}
-                          type="monotone"
-                          dataKey={dataKey}
-                          name={diaAbrev}
-                          stroke={coresPorDiaSemana[diaAbrev] || '#6B7280'}
-                          strokeWidth={2}
-                          dot={{ r: 4 }}
-                        />
-                      );
-                    });
-                  })()
-                ) : (
-                  // Modo Mês x Mês: Comportamento original
-                  <>
-                    {linhasVisiveis.atual && (
-                      <Bar
-                        dataKey="faturamento_atual"
-                        name={modoComparacao === 'mes_x_mes' ? `Média ${MESES_OPCOES.find(m => m.value === mesesSelecionados[0])?.label.split(' ')[0]}` : "Data 1"}
-                        fill={cores.atual}
-                        opacity={0.7}
-                      />
-                    )}
-
-                    {linhasVisiveis.semana1 && (
-                      <Line
-                        type="monotone"
-                        dataKey="faturamento_semana1"
-                        name={modoComparacao === 'mes_x_mes' ? `Média ${MESES_OPCOES.find(m => m.value === mesesSelecionados[1])?.label.split(' ')[0]}` : "Data 2"}
-                        stroke={cores.semana1}
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                      />
-                    )}
-
-                    {linhasVisiveis.semana2 && (modoComparacao !== 'mes_x_mes' || mesesSelecionados.length > 2) && (
-                      <Line
-                        type="monotone"
-                        dataKey="faturamento_semana2"
-                        name={modoComparacao === 'mes_x_mes' ? `Média ${MESES_OPCOES.find(m => m.value === mesesSelecionados[2])?.label.split(' ')[0] || 'Mês 3'}` : "Data 3"}
-                        stroke={cores.semana2}
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                      />
-                    )}
-
-                    {linhasVisiveis.semana3 && (modoComparacao !== 'mes_x_mes' || mesesSelecionados.length > 3) && (
-                      <Line
-                        type="monotone"
-                        dataKey="faturamento_semana3"
-                        name={modoComparacao === 'mes_x_mes' ? `Média ${MESES_OPCOES.find(m => m.value === mesesSelecionados[3])?.label.split(' ')[0] || 'Mês 4'}` : "Data 4"}
-                        stroke={cores.semana3}
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                      />
-                    )}
-                  </>
-                )}
-
-                {linhasVisiveis.media && (
-                  <Line
-                    type="monotone"
-                    dataKey="media_4_semanas"
-                    name={modoComparacao === 'mes_x_mes' ? "Média Geral" : "Média 4 Semanas"}
-                    stroke={cores.media}
-                    strokeWidth={3}
-                    strokeDasharray="5 5"
-                    dot={{ r: 5 }}
-                  />
-                )}
-                </ComposedChart>
-              </ResponsiveContainer>
+              <ReactECharts
+                option={buildHoraOption()}
+                style={{ height: '100%', width: '100%' }}
+                opts={{ renderer: 'canvas' }}
+                notMerge
+                lazyUpdate
+              />
             ) : (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">

@@ -5,11 +5,15 @@ import { useBar } from '@/contexts/BarContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChefHat } from 'lucide-react';
-import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceLine } from 'recharts';
+import dynamic from 'next/dynamic';
+import { useGraficoTheme } from '@/components/graficos/GraficoBase';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import CustoManualEditor from './CustoManualEditor';
 import HistoricoPrecos from './HistoricoPrecos';
 import { usePageTitle } from '@/contexts/PageTitleContext';
+
+// ECharts inline (scatter matriz 2×2 com markLine nas medianas) — sem equivalente no catálogo.
+const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false });
 
 const fmt = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(n));
 const fmtMoeda = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n));
@@ -32,6 +36,7 @@ export default function CardapioPage() {
   const [dias, setDias] = useState(30);
   const [classeAtiva, setClasseAtiva] = useState<keyof typeof classes>('star');
   const { setPageTitle } = usePageTitle();
+  const th = useGraficoTheme();
 
   useEffect(() => { setPageTitle('🍽️ Engenharia de Cardápio'); return () => setPageTitle(''); }, [setPageTitle]);
 
@@ -56,6 +61,74 @@ export default function CardapioPage() {
       margem: p.margem_unitaria,
     }))
   );
+
+  const scatterOption = {
+    grid: { top: 16, right: 24, bottom: 48, left: 56 },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: th.surface,
+      borderColor: th.eixo,
+      borderWidth: 1,
+      textStyle: { color: th.texto, fontSize: 12 },
+      formatter: (params: any) => {
+        const d = params.data;
+        return `<div style="font-weight:600">${d.nome}</div><div style="color:${th.texto2}">${d.qtd} vendidos · margem R$ ${Number(d.margem).toFixed(2)}</div>`;
+      },
+    },
+    legend: {
+      show: true,
+      bottom: 0,
+      textStyle: { color: th.texto2, fontSize: 11 },
+      data: (['star','plowhorse','puzzle','dog'] as const).map(cls => classes[cls].titulo),
+    },
+    xAxis: {
+      type: 'value',
+      name: 'Popularidade (× mediana)',
+      nameLocation: 'middle',
+      nameGap: 30,
+      nameTextStyle: { color: th.texto2, fontSize: 11 },
+      min: 0,
+      max: 5,
+      axisLine: { lineStyle: { color: th.eixo } },
+      axisTick: { show: false },
+      axisLabel: { color: th.muted, fontSize: 11 },
+      splitLine: { lineStyle: { color: th.grid, type: 'dashed' } },
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Margem unit. (× mediana)',
+      nameLocation: 'middle',
+      nameGap: 38,
+      nameTextStyle: { color: th.texto2, fontSize: 11 },
+      min: 0,
+      max: 5,
+      axisLine: { lineStyle: { color: th.eixo } },
+      axisTick: { show: false },
+      axisLabel: { color: th.muted, fontSize: 11 },
+      splitLine: { lineStyle: { color: th.grid, type: 'dashed' } },
+    },
+    series: (['star','plowhorse','puzzle','dog'] as const).map((cls, i) => ({
+      name: classes[cls].titulo,
+      type: 'scatter',
+      symbolSize: 12,
+      itemStyle: { color: COR_PONTO[cls] },
+      data: scatter
+        .filter(s => s.classe === cls)
+        .map(s => ({ value: [s.x, s.y], nome: s.nome, qtd: s.qtd, margem: s.margem })),
+      // medianas (× mediana = 1) que dividem os 4 quadrantes — só na 1ª série
+      ...(i === 0
+        ? {
+            markLine: {
+              silent: true,
+              symbol: 'none',
+              lineStyle: { color: th.muted, type: 'dashed' },
+              label: { show: false },
+              data: [{ xAxis: 1 }, { yAxis: 1 }],
+            },
+          }
+        : {}),
+    })),
+  };
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
@@ -115,37 +188,7 @@ export default function CardapioPage() {
       <Card className="p-6">
         <h2 className="font-semibold mb-1">Matriz de classificação</h2>
         <p className="text-xs text-gray-500 mb-4">Linha tracejada = mediana. Pontos no canto direito-cima são stars.</p>
-        <ResponsiveContainer width="100%" height={400}>
-          <ScatterChart>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis type="number" dataKey="x" name="Popularidade" domain={[0, 5]}
-              label={{ value: 'Popularidade (× mediana)', position: 'insideBottom', offset: -5, fontSize: 11 }} fontSize={11} />
-            <YAxis type="number" dataKey="y" name="Margem" domain={[0, 5]}
-              label={{ value: 'Margem unit. (× mediana)', angle: -90, position: 'insideLeft', fontSize: 11 }} fontSize={11} />
-            <ReferenceLine x={1} stroke="#9ca3af" strokeDasharray="3 3" />
-            <ReferenceLine y={1} stroke="#9ca3af" strokeDasharray="3 3" />
-            <Tooltip
-              content={({ active, payload }: any) => {
-                if (!active || !payload?.[0]) return null;
-                const p = payload[0].payload;
-                return (
-                  <div className="bg-white dark:bg-gray-900 border rounded p-2 text-xs shadow-lg">
-                    <p className="font-semibold">{p.nome}</p>
-                    <p className="text-gray-500">{p.qtd} vendidos · margem R$ {p.margem.toFixed(2)}</p>
-                  </div>
-                );
-              }}
-            />
-            {(['star','plowhorse','puzzle','dog'] as const).map(cls => (
-              <Scatter
-                key={cls}
-                name={classes[cls].titulo}
-                data={scatter.filter(s => s.classe === cls)}
-                fill={COR_PONTO[cls]}
-              />
-            ))}
-          </ScatterChart>
-        </ResponsiveContainer>
+        <ReactECharts option={scatterOption} style={{ height: 400, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />
       </Card>
 
       {/* Lista da classe selecionada */}
