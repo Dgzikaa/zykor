@@ -163,7 +163,7 @@ export default function FerramentasPage() {
       title: 'DRE',
       description: 'Demonstrativo de Resultado do Exercício',
       icon: FileText,
-      href: '/ferramentas/dre',
+      href: '/financeiro/dre',
       badge: 'Ativo',
       badgeColor: 'border-cyan-200 text-cyan-700 dark:border-cyan-700 dark:text-cyan-300',
       iconBgColor: 'bg-cyan-100 dark:bg-cyan-900/30',

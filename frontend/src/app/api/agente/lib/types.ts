@@ -63,7 +63,7 @@ export const DEEP_LINKS: Record<string, { label: string; href: string }[]> = {
     { label: 'CRM Inteligente', href: '/crm' }
   ],
   cmv: [
-    { label: 'DRE Completo', href: '/ferramentas/dre' },
+    { label: 'DRE Completo', href: '/financeiro/dre' },
     { label: 'Orçamentação', href: '/estrategico/orcamentacao' }
   ],
   meta: [

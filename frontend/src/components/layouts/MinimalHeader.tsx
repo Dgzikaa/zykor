@@ -45,7 +45,6 @@ const routeMapping: Record<string, { name: string }> = {
   '/estrategico/planejamento-comercial': { name: 'Planejamento Comercial' },
   '/estrategico/orcamentacao': { name: 'Orçamentação' },
   '/operacional': { name: 'Operacional' },
-  '/ferramentas/dre': { name: 'DRE' },
   '/operacional/agendamentos': { name: 'Agendamentos' },
   '/ferramentas': { name: 'Ferramentas' },
   '/financeiro/agendamentos': { name: 'Agendamento' },

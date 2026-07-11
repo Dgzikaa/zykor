@@ -16,6 +16,8 @@ const nextConfig = {
   // ✅ Redirects de rotas movidas pra /ferramentas/analises (2026-05-29)
   async redirects() {
     return [
+      // DRE legada duplicada (consultava view_dre inexistente) -> DRE oficial do menu
+      { source: '/ferramentas/dre',                  destination: '/financeiro/dre',                     permanent: true },
       { source: '/estrategico/qualidade',            destination: '/ferramentas/analises/quality',       permanent: true },
       { source: '/estrategico/cardapio',             destination: '/ferramentas/analises/cardapio',      permanent: true },
       { source: '/estrategico/combos',               destination: '/ferramentas/analises/combos',        permanent: true },

@@ -19,7 +19,7 @@ export default function OperacionalPage() {
     {
       title: 'DRE',
       description: 'Demonstrativo de Resultado do Exercício',
-      href: '/ferramentas/dre',
+      href: '/financeiro/dre',
       icon: CheckSquare,
       color: 'text-blue-600 dark:text-blue-400',
     },
