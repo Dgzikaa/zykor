@@ -13,18 +13,23 @@ import {
 import { useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabase';
 import { useUser } from '@/contexts/UserContext';
-import { setBarCookie } from '@/lib/cookies';
+import { setBarCookie, getBarCookie } from '@/lib/cookies';
 
-// Bar selecionado é POR ABA (sessionStorage), não compartilhado entre abas.
-// localStorage é mantido apenas como "último bar usado" para seedar abas novas.
+// Bar selecionado é COMPARTILHADO entre abas via cookie `sgb_bar_id` (cookie-first, 2026-07-11).
+// O cookie é legível no SERVIDOR (Server Components/middleware) -> a página já renderiza com o
+// bar certo (destrava RSC). localStorage é espelho p/ sincronizar as abas (storage event).
+// (Antes era por-aba via sessionStorage; mudou p/ cookie-first porque abas raramente usam bares
+// diferentes ao mesmo tempo, e o ganho de RSC compensa — decisão do Rodrigo.)
 const SELECTED_BAR_KEY = 'sgb_selected_bar_id';
 
-// Lê o bar da aba: sessionStorage (verdade da aba) -> localStorage (último usado).
+// Lê o bar selecionado: cookie (compartilhado, verdade) -> localStorage/sessionStorage (fallback).
 export const getTabSelectedBarId = (): string | null => {
   if (typeof window === 'undefined') return null;
+  const cookieBar = getBarCookie();
+  if (cookieBar != null) return String(cookieBar);
   return (
-    sessionStorage.getItem(SELECTED_BAR_KEY) ||
-    localStorage.getItem(SELECTED_BAR_KEY)
+    localStorage.getItem(SELECTED_BAR_KEY) ||
+    sessionStorage.getItem(SELECTED_BAR_KEY)
   );
 };
 
@@ -304,6 +309,27 @@ export function BarProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Sync entre abas (cookie-first): quando OUTRA aba troca de bar, ela grava no localStorage
+  // e o `storage` event dispara aqui -> esta aba alinha no mesmo bar (cookie + favicon + perms +
+  // router.refresh). Não re-persiste (o localStorage já mudou na aba de origem) -> sem eco/loop.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== SELECTED_BAR_KEY || !e.newValue) return;
+      const novoId = parseInt(e.newValue);
+      if (Number.isNaN(novoId) || novoId === selectedBar?.id) return;
+      const found = availableBars.find((b) => b.id === novoId);
+      if (!found) return;
+      setSelectedBar(found);
+      setBarCookie(found.id);
+      updateFavicon(found.nome, found.logo_url);
+      syncBarPermissions(found);
+      router.refresh();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [selectedBar?.id, availableBars, router, updateFavicon, syncBarPermissions]);
+
   // Retry automatico se o load terminou com lista vazia (race entre /api/auth/me
   // e /api/configuracoes/bars/user-bars, cookie/token chegando atrasado).
   // Implementacao anterior usava setTimeout encadeado que nao re-disparava o main
@@ -330,9 +356,9 @@ export function BarProvider({ children }: { children: ReactNode }) {
   }, [isLoading, availableBars.length, userInitialized, user?.email]);
 
   // Função para alterar o bar selecionado.
-  // IMPORTANTE: a seleção é POR ABA (sessionStorage) e a atualização é "soft"
-  // (router.refresh), nunca window.location.reload(). Abas diferentes podem ficar
-  // em bares diferentes sem brigar pelo cookie/localStorage compartilhado.
+  // IMPORTANTE: a seleção é COMPARTILHADA entre abas (cookie `sgb_bar_id` + localStorage);
+  // a atualização é "soft" (router.refresh), nunca window.location.reload(). Ao trocar aqui,
+  // as OUTRAS abas recebem o `storage` event e se alinham no mesmo bar (cookie-first).
   const handleSetSelectedBar = useCallback((bar: Bar) => {
     const previousBarId = selectedBar?.id;
     setSelectedBar(bar);
