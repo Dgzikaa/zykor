@@ -50,10 +50,13 @@ export default function PainelExecutivoClient({ initialBar, initialData }: { ini
 
   // Cache via SWR: navegar pra cá e voltar não re-busca do zero (dedupe 30s).
   // A chave inclui o bar, então trocar de bar re-busca automaticamente.
-  const { data: d, isLoading } = useApiSWR<any>(
+  const { data: swrData, isLoading } = useApiSWR<any>(
     selectedBar?.id ? `/api/estrategico/painel-executivo?bar_id=${selectedBar.id}` : null,
     canUseInitial ? { fallbackData: initialData } : undefined
   );
+  // Cai EXPLICITAMENTE no dado do servidor quando o SWR ainda não tem (SSR / 1º paint): o SWR
+  // com chave null não devolve fallbackData, então garantimos aqui -> KPIs já no HTML do servidor.
+  const d = swrData ?? (canUseInitial ? initialData : undefined);
   // Skeleton só quando NÃO há nada (sem dado do servidor e sem busca concluída).
   const loading = isLoading && !d;
 
