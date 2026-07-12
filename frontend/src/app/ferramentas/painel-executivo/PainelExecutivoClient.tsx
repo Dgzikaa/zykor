@@ -41,17 +41,21 @@ export default function PainelExecutivoClient({ initialBar, initialData }: { ini
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
 
-  const barMatches = selectedBar?.id != null && initialBar != null && selectedBar.id === initialBar;
+  // cookie-first: initialBar (cookie, lido no servidor) = o bar que ESTA aba vai assumir, então os
+  // dados do servidor (initialData) são seguros como fallbackData SEMPRE — inclusive no 1º paint SSR,
+  // quando selectedBar ainda é null (a chave vira null → SWR devolve o fallbackData). Resultado: o
+  // HTML do servidor já vem com os KPIs, sem skeleton. Guarda a borda: se a aba assumir um bar
+  // DIFERENTE do cookie (não deveria no cookie-first), não usa o fallback stale.
+  const canUseInitial = initialData != null && (selectedBar?.id == null || selectedBar.id === initialBar);
 
   // Cache via SWR: navegar pra cá e voltar não re-busca do zero (dedupe 30s).
   // A chave inclui o bar, então trocar de bar re-busca automaticamente.
-  // fallbackData (dados do servidor) só quando o bar bate — evita mostrar dado de outro bar.
   const { data: d, isLoading } = useApiSWR<any>(
     selectedBar?.id ? `/api/estrategico/painel-executivo?bar_id=${selectedBar.id}` : null,
-    barMatches && initialData ? { fallbackData: initialData } : undefined
+    canUseInitial ? { fallbackData: initialData } : undefined
   );
-  // Skeleton enquanto o bar ainda não carregou OU a 1ª busca está em voo (sem fallback).
-  const loading = !selectedBar?.id || (isLoading && !d);
+  // Skeleton só quando NÃO há nada (sem dado do servidor e sem busca concluída).
+  const loading = isLoading && !d;
 
   useEffect(() => {
     setPageTitle('📈 Painel Executivo');
