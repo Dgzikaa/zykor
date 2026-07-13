@@ -19,7 +19,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from '@/contexts/ThemeContext';
 import { NotificationCenter } from '@/components/NotificationCenter';
-import { ChamadosButton } from '@/components/ChamadosButton';
+import { HelpMenu } from '@/components/HelpMenu';
 import { ContaAzulSyncButton } from '@/components/ContaAzulSyncButton';
 import { BarLogo } from '@/components/BarLogo';
 import { useMobileMenu } from '@/contexts/MobileMenuContext';
@@ -144,8 +144,8 @@ export function MinimalHeader() {
       {/* Right: Actions */}
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
 
-        {/* Central de Chamados */}
-        <ChamadosButton />
+        {/* Ajuda: Abrir chamado + Wiki */}
+        <HelpMenu />
 
         {/* Notifications */}
         <NotificationCenter />

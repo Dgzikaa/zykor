@@ -1,0 +1,129 @@
+/* Estilos de leitura da Wiki. Escopo em .wiki-prose pra não vazar pro resto do app.
+   Usa as CSS vars de tema (hsl(var(--...))) então já funciona em claro e escuro. */
+
+.wiki-prose {
+  color: hsl(var(--foreground));
+  font-size: 0.975rem;
+  line-height: 1.7;
+  max-width: 46rem;
+}
+
+.wiki-prose > *:first-child { margin-top: 0; }
+
+.wiki-prose h1 {
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 1rem;
+  scroll-margin-top: 5rem;
+}
+
+.wiki-prose h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 2.2rem 0 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid hsl(var(--border));
+  scroll-margin-top: 5rem;
+}
+
+.wiki-prose h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 1.6rem 0 0.5rem;
+  scroll-margin-top: 5rem;
+}
+
+.wiki-prose h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 1.2rem 0 0.4rem;
+}
+
+.wiki-prose p { margin: 0.75rem 0; }
+
+.wiki-prose a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.wiki-prose a:hover { opacity: 0.85; }
+
+.wiki-prose ul,
+.wiki-prose ol { margin: 0.75rem 0; padding-left: 1.4rem; }
+.wiki-prose li { margin: 0.3rem 0; }
+.wiki-prose ul { list-style: disc; }
+.wiki-prose ol { list-style: decimal; }
+.wiki-prose li::marker { color: hsl(var(--muted-foreground)); }
+
+.wiki-prose strong { font-weight: 700; color: hsl(var(--foreground)); }
+
+.wiki-prose blockquote {
+  margin: 1rem 0;
+  padding: 0.6rem 1rem;
+  border-left: 3px solid hsl(var(--primary));
+  background: hsl(var(--muted) / 0.4);
+  border-radius: 0 0.4rem 0.4rem 0;
+  color: hsl(var(--muted-foreground));
+}
+.wiki-prose blockquote p { margin: 0.25rem 0; }
+
+.wiki-prose code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  background: hsl(var(--muted) / 0.7);
+  padding: 0.12rem 0.35rem;
+  border-radius: 0.3rem;
+  border: 1px solid hsl(var(--border));
+}
+
+.wiki-prose pre {
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+  background: hsl(var(--muted) / 0.5);
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.6rem;
+  overflow-x: auto;
+}
+.wiki-prose pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.wiki-prose hr {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid hsl(var(--border));
+}
+
+/* Tabelas — o coração da wiki ("coluna por coluna"). Scroll horizontal isolado. */
+.wiki-table-wrap {
+  margin: 1rem 0;
+  overflow-x: auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.6rem;
+}
+.wiki-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.wiki-prose thead th {
+  text-align: left;
+  font-weight: 700;
+  background: hsl(var(--muted) / 0.6);
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid hsl(var(--border));
+  white-space: nowrap;
+}
+.wiki-prose tbody td {
+  padding: 0.55rem 0.8rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.6);
+  vertical-align: top;
+}
+.wiki-prose tbody tr:last-child td { border-bottom: 0; }
+.wiki-prose tbody tr:hover { background: hsl(var(--muted) / 0.3); }
