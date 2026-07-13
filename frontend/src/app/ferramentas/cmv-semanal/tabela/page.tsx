@@ -36,6 +36,7 @@ import {
   RefreshCw,
   Settings,
   Save,
+  Undo2,
 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -417,6 +418,10 @@ export default function CMVSemanalTabelaPage() {
     'cma-cma_resultado': true,
   });
   const [editando, setEditando] = useState<{ semanaId: string; campo: string } | null>(null);
+  // Ctrl+Z — pilha das últimas alterações manuais (bonificações / CMV teórico) p/ desfazer.
+  const [undoStack, setUndoStack] = useState<Array<{ semanaId: string; campo: string; valorAnterior: number; label: string }>>([]);
+  const [desfazendo, setDesfazendo] = useState(false);
+  const desfazerRef = useRef<() => void>(() => {});
   const [valorEdit, setValorEdit] = useState('');
   
   // Modal Drill-Down
@@ -849,56 +854,83 @@ export default function CMVSemanalTabelaPage() {
   };
 
   // Salvar métrica editada
+  // Rótulo amigável dos campos editáveis (usado no toast do desfazer).
+  const metricaLabel = (campo: string) =>
+    campo === 'bonificacoes' ? 'Bonificações' : campo === 'cmv_teorico_percentual' ? 'CMV Teórico (%)' : campo;
+
+  // Persiste UM campo editável (PUT). Reusado pelo salvar e pelo desfazer (Ctrl+Z).
+  const persistirMetrica = async (semanaId: string, campo: string, numValue: number): Promise<boolean> => {
+    // CMV Teórico manual mora na coluna *_manual (separada da que o ETL sobrescreve).
+    const campoBackend = campo === 'cmv_teorico_percentual' ? 'cmv_teorico_percentual_manual' : campo;
+    try {
+      let response: Response;
+      if (visao === 'mensal') {
+        const semana = semanas.find(s => s.id === semanaId);
+        if (!semana || !selectedBar) throw new Error('Semana ou bar não encontrado');
+        response = await fetch('/api/cmv-semanal/mensal', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bar_id: selectedBar.id, ano: semana.ano, mes: semana.semana, [campoBackend]: numValue }),
+        });
+      } else {
+        response = await fetch('/api/cmv-semanal', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: semanaId, [campoBackend]: numValue }),
+        });
+      }
+      return response.ok;
+    } catch {
+      return false;
+    }
+  };
+
   const salvarMetrica = async (semanaId: string, campo: string) => {
     const numValue = parseFloat(valorEdit.replace(',', '.'));
-
     if (isNaN(numValue)) {
       setEditando(null);
       toast({ title: 'Erro', description: 'Valor inválido', variant: 'destructive' });
       return;
     }
+    // Guarda o valor ANTERIOR pra permitir Ctrl+Z.
+    const campoBackend = campo === 'cmv_teorico_percentual' ? 'cmv_teorico_percentual_manual' : campo;
+    const anterior = Number((semanas.find(s => s.id === semanaId) as any)?.[campoBackend] ?? 0);
 
-    try {
-      let response: Response;
-
-      // CMV Teórico manual mora na coluna *_manual (separada da que o ETL sobrescreve).
-      // UI conhece a chave virtual cmv_teorico_percentual; aqui mapeamos pro nome real.
-      const campoBackend = campo === 'cmv_teorico_percentual' ? 'cmv_teorico_percentual_manual' : campo;
-
-      if (visao === 'mensal') {
-        // Visão mensal: salva em financial.cmv_mensal via upsert (bar_id, ano, mes).
-        // semanaId no modo mensal é "${ano}-${mes}" (ID fictício, não existe em cmv_semanal).
-        const semana = semanas.find(s => s.id === semanaId);
-        if (!semana || !selectedBar) throw new Error('Semana ou bar não encontrado');
-
-        response = await fetch('/api/cmv-semanal/mensal', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            bar_id: selectedBar.id,
-            ano: semana.ano,
-            mes: semana.semana, // no modo mensal, "semana" guarda o mês (ver carregarDados)
-            [campoBackend]: numValue,
-          }),
-        });
-      } else {
-        // Visão semanal: salva em cmv_semanal por id real
-        response = await fetch('/api/cmv-semanal', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: semanaId, [campoBackend]: numValue }),
-        });
-      }
-
-      if (!response.ok) throw new Error('Erro ao salvar');
-
-      toast({ title: 'Salvo!', description: 'Valor atualizado' });
-      setEditando(null);
-      carregarDados();
-    } catch (error) {
-      toast({ title: 'Erro', description: 'Falha ao salvar', variant: 'destructive' });
+    const ok = await persistirMetrica(semanaId, campo, numValue);
+    setEditando(null);
+    if (!ok) { toast({ title: 'Erro', description: 'Falha ao salvar', variant: 'destructive' }); return; }
+    if (anterior !== numValue) {
+      setUndoStack(prev => [...prev.slice(-19), { semanaId, campo, valorAnterior: anterior, label: metricaLabel(campo) }]);
     }
+    toast({ title: 'Salvo!', description: 'Valor atualizado' });
+    carregarDados();
   };
+
+  // Desfaz a última alteração manual (Ctrl+Z ou botão): regrava o valor anterior.
+  const desfazer = async () => {
+    if (undoStack.length === 0) { toast({ title: 'Nada pra desfazer' }); return; }
+    const last = undoStack[undoStack.length - 1];
+    setDesfazendo(true);
+    const ok = await persistirMetrica(last.semanaId, last.campo, last.valorAnterior);
+    setDesfazendo(false);
+    if (!ok) { toast({ title: 'Erro ao desfazer', variant: 'destructive' }); return; }
+    setUndoStack(prev => prev.slice(0, -1));
+    toast({ title: 'Desfeito', description: `${last.label} voltou ao valor anterior.` });
+    carregarDados();
+  };
+  desfazerRef.current = desfazer;
+
+  // Atalho global Ctrl+Z / Cmd+Z (fora de campos de digitação) → desfazer.
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+        const t = e.target as HTMLElement | null;
+        if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+        e.preventDefault();
+        desfazerRef.current();
+      }
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, []);
 
   // Obter valor da métrica
   const getValorMetrica = (semana: CMVSemanal, key: string): number | null => {
@@ -1250,6 +1282,19 @@ export default function CMVSemanalTabelaPage() {
                 <Settings className="w-4 h-4 mr-2" />
                 Metas
               </Button>
+              {undoStack.length > 0 && (
+                <Button
+                  onClick={desfazer}
+                  disabled={desfazendo}
+                  size="sm"
+                  variant="outline"
+                  className="h-9"
+                  title="Desfazer a última alteração manual (Ctrl+Z)"
+                >
+                  <Undo2 className={cn('w-4 h-4 mr-2', desfazendo && 'animate-spin')} />
+                  Desfazer ({undoStack.length})
+                </Button>
+              )}
               <Button
                 onClick={atualizarCompleto}
                 disabled={atualizando || !selectedBar?.id}
