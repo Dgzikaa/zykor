@@ -6,7 +6,6 @@
     "scripts": {
         "dev": "next dev --port 3001",
         "wiki:build": "node scripts/build-wiki.mjs",
-        "prebuild": "node scripts/build-wiki.mjs",
         "build": "next build --turbopack",
         "build:analyze": "NEXT_PUBLIC_ANALYZE_BUNDLE=true next build",
         "build:production": "NODE_ENV=production next build --turbopack && next-sitemap",

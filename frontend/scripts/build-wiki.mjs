@@ -6,8 +6,9 @@
  * 100% confiável e ainda deixa a busca client-side trivial (os dados já vêm no JS).
  *
  * Fonte da verdade = os .md (versionados, fáceis de escrever/revisar).
- * generated.ts é DERIVADO — não edite à mão. Rode `npm run wiki:build`.
- * Roda também no `prebuild` (antes de todo build).
+ * generated.ts é DERIVADO — não edite à mão. Rode `npm run wiki:build` e COMMITE
+ * o generated.ts junto. NÃO roda no build da Vercel de propósito: o .vercelignore
+ * remove scripts/ e **/*.md do deploy, então o runtime usa o generated.ts commitado.
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { readdirSync, statSync } from 'node:fs';
@@ -96,6 +97,13 @@ for (const file of files) {
     excerpt: plainExcerpt(body),
     body,
   });
+}
+
+// Proteção: nunca sobrescreve o índice com vazio (ex.: se rodar onde os .md foram
+// removidos). Sem .md achado, mantém o generated.ts commitado.
+if (articles.length === 0) {
+  console.warn('[wiki] nenhum .md encontrado em content/wiki — generated.ts NÃO foi alterado.');
+  process.exit(0);
 }
 
 articles.sort((a, b) => (a.area).localeCompare(b.area) || a.order - b.order || a.title.localeCompare(b.title));
