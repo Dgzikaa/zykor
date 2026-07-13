@@ -4,17 +4,18 @@
  * @descricao Captura stories ativos + métricas (a cada 4h)
  *
  * Stories no Instagram somem da Graph API após 24h, e as métricas
- * (impressions, reach, replies, etc) só são acessíveis enquanto o story
+ * (views, reach, replies, etc) só são acessíveis enquanto o story
  * está vivo. Por isso esta function:
- *   1. Roda a cada 4h (6x/dia) — garante captura de TODOS os stories
- *   2. Faz captura única: insere com métricas no momento e nunca mais
- *      atualiza (porque depois de 24h não dá pra buscar de novo)
+ *   1. Roda no cron — garante captura de TODOS os stories (com paginação)
+ *   2. Atualiza enquanto o story está vivo; se o insight falhar e o story
+ *      já existe, PRESERVA o valor já capturado (nunca zera com null)
  */
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import {
   listarContasAtivas,
+  igGet,
   igGetAllPaged,
   startSyncLog,
   marcarUltimaSync,
@@ -59,16 +60,13 @@ serve(async (req) => {
         processados++;
         const storyDetail = story as any;
 
-        // Verifica se já existe (não atualizamos métricas antigas — captura é única)
+        // Verifica se já existe (pra não sobrescrever métricas boas com null)
         const { data: existente } = await supabase
           .from('instagram_stories')
-          .select('id, impressions')
+          .select('id, views')
           .eq('bar_id', conta.bar_id)
           .eq('ig_media_id', story.id)
           .maybeSingle();
-
-        // Se já tem métricas registradas, pula (não dá pra refetch após 24h)
-        if (existente && (existente as any).impressions != null) continue;
 
         // Busca insights — só funciona se story ainda ativo
         let insights: Record<string, number> = {};
@@ -85,6 +83,9 @@ serve(async (req) => {
           // Insights podem falhar pra stories muito recentes (sem dados) ou expirados
           console.warn(`[ig-stories] insights falharam pra ${story.id}:`, String(e).slice(0, 200));
         }
+
+        // Se não veio insight e o story já existe, PRESERVA o capturado (não zera com null)
+        if (Object.keys(insights).length === 0 && existente) continue;
 
         const row = {
           bar_id: conta.bar_id,
