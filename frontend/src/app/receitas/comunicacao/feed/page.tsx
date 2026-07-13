@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { useApiSWR } from '@/hooks/useApiSWR';
-import { Loader2, Images, Image as ImageIcon, Heart, MessageCircle, Bookmark, Eye, TrendingUp, ExternalLink } from 'lucide-react';
+import { Loader2, Images, Image as ImageIcon, Video, Heart, MessageCircle, Bookmark, Eye, TrendingUp, ExternalLink } from 'lucide-react';
 
 type Post = {
   ig_media_id: string; formato: string; caption: string; permalink: string; thumbnail: string | null;
@@ -29,12 +29,15 @@ export default function FeedComunicacaoPage() {
   const barId = selectedBar?.id;
   const [dias, setDias] = useState(90);
   const [ordem, setOrdem] = useState<'melhores' | 'piores'>('melhores');
+  const [de, setDe] = useState('');
+  const [ate, setAte] = useState('');
 
   useEffect(() => { setPageTitle('📸 Feed — performance dos posts'); return () => setPageTitle(''); }, [setPageTitle]);
 
   // Cache via SWR: chave inclui bar (BarContext) + dias; trocar re-busca. Mesmo shape do fetch anterior.
+  const rangeQS = de && ate ? `&inicio=${de}&fim=${ate}` : '';
   const { data: resp, isLoading } = useApiSWR<any>(
-    barId ? `/api/instagram/feed?bar_id=${barId}&dias=${dias}` : null,
+    barId ? `/api/instagram/feed?bar_id=${barId}&dias=${dias}${rangeQS}` : null,
   );
   const posts: Post[] = resp?.success ? (resp.posts || []) : [];
   const formatos: Formato[] = resp?.success ? (resp.formatos || []) : [];
@@ -56,6 +59,15 @@ export default function FeedComunicacaoPage() {
           <option value={180}>6 meses</option>
           <option value={365}>1 ano</option>
         </select>
+        <span className="text-sm text-gray-400">ou data</span>
+        <input type="date" value={de} onChange={(e) => setDe(e.target.value)}
+          className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm" />
+        <span className="text-gray-400">–</span>
+        <input type="date" value={ate} onChange={(e) => setAte(e.target.value)}
+          className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm" />
+        {(de || ate) && (
+          <button onClick={() => { setDe(''); setAte(''); }} className="text-xs text-gray-500 underline">limpar</button>
+        )}
         {loading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
       </div>
 
@@ -68,10 +80,11 @@ export default function FeedComunicacaoPage() {
       ) : (
         <>
           {/* resumo */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {[
               { l: 'Posts', v: fmtN(totais?.qtd || 0) },
-              { l: 'Engajamento médio', v: fmtN(totais?.engajamento_medio || 0) },
+              { l: 'Média de interações', v: fmtN(totais?.engajamento_medio || 0) },
+              { l: 'Taxa de engajamento', v: fmtPct(totais && totais.alcance_medio > 0 ? totais.engajamento_medio / totais.alcance_medio : 0) },
               { l: 'Alcance médio', v: fmtN(totais?.alcance_medio || 0) },
               { l: 'Melhor formato', v: melhorFormato || '—' },
             ].map((c) => (
@@ -84,11 +97,11 @@ export default function FeedComunicacaoPage() {
 
           {/* comparação de formato */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Carrossel × Imagem — qual rende mais</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Formatos — qual rende mais</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {formatos.map((f) => {
                 const melhor = f.formato === melhorFormato;
-                const Icone = f.formato === 'Carrossel' ? Images : ImageIcon;
+                const Icone = f.formato === 'Reels' || f.formato === 'Vídeo' ? Video : f.formato === 'Carrossel' ? Images : ImageIcon;
                 return (
                   <div key={f.formato} className={`rounded-xl border p-4 ${melhor ? 'border-pink-300 dark:border-pink-800 bg-pink-50/50 dark:bg-pink-900/10' : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900'}`}>
                     <div className="flex items-center justify-between">
@@ -96,7 +109,7 @@ export default function FeedComunicacaoPage() {
                       {melhor && <span className="inline-flex items-center gap-1 text-[11px] font-medium text-pink-600"><TrendingUp className="w-3.5 h-3.5" />melhor</span>}
                     </div>
                     <div className="grid grid-cols-3 gap-2 mt-3 text-center">
-                      <div><div className="text-lg font-bold text-gray-900 dark:text-white">{fmtN(f.engajamento_medio)}</div><div className="text-[10px] text-gray-400 uppercase">Engaj. médio</div></div>
+                      <div><div className="text-lg font-bold text-gray-900 dark:text-white">{fmtN(f.engajamento_medio)}</div><div className="text-[10px] text-gray-400 uppercase">Média interações</div></div>
                       <div><div className="text-lg font-bold text-gray-900 dark:text-white">{fmtN(f.alcance_medio)}</div><div className="text-[10px] text-gray-400 uppercase">Alcance médio</div></div>
                       <div><div className="text-lg font-bold text-gray-900 dark:text-white">{fmtPct(f.taxa_media)}</div><div className="text-[10px] text-gray-400 uppercase">Taxa engaj.</div></div>
                     </div>

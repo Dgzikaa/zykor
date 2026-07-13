@@ -16,6 +16,8 @@ export default function StoriesPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [dias, setDias] = useState<number>(90);
+  const [de, setDe] = useState('');
+  const [ate, setAte] = useState('');
 
   useEffect(() => {
     setPageTitle('🎬 Stories');
@@ -25,9 +27,10 @@ export default function StoriesPage() {
   useEffect(() => {
     if (!selectedBar?.id) return;
     setLoading(true);
-    fetch(`/api/instagram/stories?bar_id=${selectedBar.id}&dias=${dias}`)
+    const rangeQS = de && ate ? `&inicio=${de}&fim=${ate}` : '';
+    fetch(`/api/instagram/stories?bar_id=${selectedBar.id}&dias=${dias}${rangeQS}`)
       .then(r => r.json()).then(setData).finally(() => setLoading(false));
-  }, [selectedBar?.id, dias]);
+  }, [selectedBar?.id, dias, de, ate]);
 
   if (loading) return <main className="max-w-7xl mx-auto px-6 py-8"><Skeleton className="h-96" /></main>;
 
@@ -42,17 +45,28 @@ export default function StoriesPage() {
             Últimos {dias} dias. <span className="text-amber-600">Meta só permite ler stories ativos (24h life), então só temos o que o sync capturou (roda a cada 2h).</span>
           </p>
         </div>
-        <select
-          value={dias}
-          onChange={e => setDias(parseInt(e.target.value, 10))}
-          className="w-full sm:w-auto px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
-        >
-          <option value={7}>7 dias</option>
-          <option value={30}>30 dias</option>
-          <option value={90}>90 dias</option>
-          <option value={180}>180 dias</option>
-          <option value={365}>365 dias</option>
-        </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={dias}
+            onChange={e => setDias(parseInt(e.target.value, 10))}
+            className="w-full sm:w-auto px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
+          >
+            <option value={7}>7 dias</option>
+            <option value={30}>30 dias</option>
+            <option value={90}>90 dias</option>
+            <option value={180}>180 dias</option>
+            <option value={365}>365 dias</option>
+          </select>
+          <span className="text-sm text-gray-400">ou data</span>
+          <input type="date" value={de} onChange={e => setDe(e.target.value)}
+            className="px-2 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900" />
+          <span className="text-gray-400">–</span>
+          <input type="date" value={ate} onChange={e => setAte(e.target.value)}
+            className="px-2 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900" />
+          {(de || ate) && (
+            <button onClick={() => { setDe(''); setAte(''); }} className="text-xs text-gray-500 underline">limpar</button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

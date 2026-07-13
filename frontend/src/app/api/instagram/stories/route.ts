@@ -12,13 +12,19 @@ export async function GET(req: NextRequest) {
     const sp = req.nextUrl.searchParams;
     const barId = Number(sp.get('bar_id'));
     const dias = Number(sp.get('dias') ?? 7);
+    const inicio = sp.get('inicio');
+    const fim = sp.get('fim');
     if (!barId) return NextResponse.json({ error: 'bar_id obrigatorio' }, { status: 400 });
 
     const supabase = await getAdminClient();
     const desde = new Date(Date.now() - dias * 86400000).toISOString();
-    const { data } = await (supabase as any).schema('integrations').from('instagram_stories')
-      .select('*').eq('bar_id', barId).gte('timestamp_post', desde)
-      .order('timestamp_post', { ascending: false });
+    // Data explícita (inicio/fim) tem precedência sobre o período relativo (dias)
+    let q = (supabase as any).schema('integrations').from('instagram_stories')
+      .select('*').eq('bar_id', barId);
+    q = inicio && fim
+      ? q.gte('timestamp_post', inicio).lte('timestamp_post', `${fim}T23:59:59.999`)
+      : q.gte('timestamp_post', desde);
+    const { data } = await q.order('timestamp_post', { ascending: false });
 
     const stories = data || [];
     const totalReach = stories.reduce((s: number, x: any) => s + (x.reach ?? 0), 0);

@@ -3,28 +3,34 @@ import { getAdminClient } from '@/lib/supabase-admin';
 
 /**
  * GET /api/instagram/feed?bar_id=N&dias=90
- * Performance dos posts de FEED (carrossel/imagem, NÃO reels/stories): ranqueia por
- * engajamento e compara formato (Carrossel × Imagem) — quais posts foram bons/ruins.
+ * Performance dos posts do feed (Reels + Carrossel + Imagem, NÃO stories): ranqueia por
+ * engajamento e compara formato (Reels × Carrossel × Imagem) — quais posts foram bons/ruins.
  */
 export const dynamic = 'force-dynamic';
 export const revalidate = 60;
 
-const fmtLabel = (mt: string) => (mt === 'CAROUSEL_ALBUM' ? 'Carrossel' : mt === 'IMAGE' ? 'Imagem' : mt);
+const fmtLabel = (mt: string) => (mt === 'CAROUSEL_ALBUM' ? 'Carrossel' : mt === 'IMAGE' ? 'Imagem' : mt === 'VIDEO' ? 'Vídeo' : mt);
 
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
     const barId = Number(sp.get('bar_id'));
     const dias = Number(sp.get('dias') ?? 90);
+    const inicio = sp.get('inicio');
+    const fim = sp.get('fim');
     if (!barId) return NextResponse.json({ error: 'bar_id obrigatorio' }, { status: 400 });
 
     const supabase = await getAdminClient();
     const desde = new Date(Date.now() - dias * 86400000).toISOString();
 
-    const { data: posts } = await (supabase as any).schema('integrations').from('instagram_posts')
-      .select('ig_media_id, media_type, caption, permalink, thumbnail_url, media_url, timestamp_post, comments_count, like_count')
-      .eq('bar_id', barId).eq('media_product_type', 'FEED').gte('timestamp_post', desde)
-      .order('timestamp_post', { ascending: false });
+    // Data explícita (inicio/fim) tem precedência sobre o período relativo (dias)
+    let q = (supabase as any).schema('integrations').from('instagram_posts')
+      .select('ig_media_id, media_type, media_product_type, caption, permalink, thumbnail_url, media_url, timestamp_post, comments_count, like_count')
+      .eq('bar_id', barId).in('media_product_type', ['FEED', 'REELS']);
+    q = inicio && fim
+      ? q.gte('timestamp_post', inicio).lte('timestamp_post', `${fim}T23:59:59.999`)
+      : q.gte('timestamp_post', desde);
+    const { data: posts } = await q.order('timestamp_post', { ascending: false });
 
     if (!posts?.length) return NextResponse.json({ success: true, posts: [], totais: null, formatos: [] });
 
@@ -47,7 +53,7 @@ export async function GET(req: NextRequest) {
       const engajamento = likes + comments + shares + saves;
       return {
         ig_media_id: p.ig_media_id,
-        formato: fmtLabel(p.media_type),
+        formato: p.media_product_type === 'REELS' ? 'Reels' : fmtLabel(p.media_type),
         media_type: p.media_type,
         caption: p.caption ?? '',
         permalink: p.permalink,

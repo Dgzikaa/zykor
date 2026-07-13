@@ -49,7 +49,7 @@ export default function ComunicacaoPage() {
   const kpisOrg: Kpi[] = org?.conectado
     ? [
         { label: 'Alcance (orgânico)', valor: num(org.alcance), icon: Eye },
-        { label: 'Engajamento', valor: num(org.engajamento), icon: Heart },
+        { label: 'Interações', valor: num(org.engajamento), icon: Heart },
         { label: 'Taxa de engajamento', valor: pct(org.alcance > 0 ? (org.engajamento / org.alcance) * 100 : null), icon: Percent },
         { label: 'Stories', valor: num(org.qtd_stories), icon: Camera },
         { label: 'Alcance dos stories', valor: num(org.alcance_stories), icon: Eye },
@@ -89,13 +89,13 @@ export default function ComunicacaoPage() {
           </div>
 
           {org?.conectado && Array.isArray(org.serie_mensal) && org.serie_mensal.length > 0 && (
-            <ChartCard titulo="Alcance & Engajamento" subtitulo="orgânico do Instagram, mês a mês (alcance em barra, engajamento em linha)">
+            <ChartCard titulo="Alcance & Interações" subtitulo="orgânico do Instagram, mês a mês (alcance em barra, interações em linha)">
               <GraficoBarrasAgrupadas
                 data={org.serie_mensal}
                 xKey="label"
                 series={[{ key: 'alcance', nome: 'Alcance', cor: '#8b5cf6' }]}
                 lineKey="engajamento"
-                nomeLinha="Engajamento"
+                nomeLinha="Interações"
                 formatV={num}
                 formatLine={num}
                 height={280}

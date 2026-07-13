@@ -23,6 +23,7 @@ const num = (n: number | null | undefined) => (n == null ? '—' : new Intl.Numb
 const money = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }));
 const money2 = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }));
 const pct = (n: number | null | undefined) => (n == null ? '—' : `${n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`);
+const pct2 = (n: number | null | undefined) => (n == null ? '—' : `${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`);
 const dec1 = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
 const roasFmt = (n: number | null | undefined) => (n == null ? '—' : `${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`);
 const data = (iso: string | null | undefined) => {
@@ -58,7 +59,7 @@ const COLS: { key: SortKey; label: string; fmt: (n: any) => string }[] = [
   { key: 'impressoes', label: 'Impressões', fmt: num },
   { key: 'alcance', label: 'Alcance', fmt: num },
   { key: 'cliques', label: 'Cliques', fmt: num },
-  { key: 'ctr', label: 'CTR', fmt: pct },
+  { key: 'ctr', label: 'CTR', fmt: pct2 },
   { key: 'cpm', label: 'CPM', fmt: money2 },
   { key: 'cpc', label: 'CPC', fmt: money2 },
   { key: 'conversas', label: 'Conversas', fmt: num },
@@ -98,12 +99,13 @@ export default function AnunciosPage() {
         { label: 'Alcance', valor: num(r.alcance), icon: Eye },
         { label: 'Cliques', valor: num(r.cliques), icon: MousePointerClick },
         { label: 'CPM', valor: money2(r.cpm), icon: Target },
-        { label: 'CTR', valor: pct(r.ctr), icon: Percent },
+        { label: 'CTR', valor: pct2(r.ctr), icon: Percent },
         { label: 'Conversas', valor: num(r.conversas), icon: MessageCircle },
       ]
     : [];
   const kpisEfic: Kpi[] = r
     ? [
+        { label: 'Custo/clique', valor: money2(r.cpc), icon: MousePointerClick },
         { label: 'Frequência', valor: dec1(r.frequencia), icon: Repeat },
         { label: 'ROAS de compra', valor: roasFmt(r.roas_compra), icon: TrendingUp },
         { label: 'Custo/conversa', valor: money2(r.custo_conversa), icon: MessageCircle },

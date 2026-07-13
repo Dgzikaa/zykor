@@ -65,6 +65,7 @@ export function CardCrescimento({ barId, periodo }: { barId?: number; periodo: P
           lineKey="variacao_pct"
           nomeBarra="Fat/dia aberto"
           nomeLinha="Variação"
+          corLinha="#f97316"
           formatV={money0}
           formatLine={pctSig}
           mostrarRotulo
