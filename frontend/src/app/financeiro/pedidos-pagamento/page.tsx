@@ -25,7 +25,7 @@ import TrocasTab from './components/TrocasTab';
 import { FaturaCartaoTab } from './components/FaturaCartaoTab';
 import { ConsolidadoTab } from './components/ConsolidadoTab';
 
-type ModoPagamento = 'pagamentos' | 'consolidado' | 'freela' | 'boleto' | 'fatura' | 'trocas';
+type ModoPagamento = 'pagamentos' | 'freela' | 'boleto' | 'fatura' | 'trocas';
 
 export default function PedidosPagamentoPage() {
   const { setPageTitle } = usePageTitle();
@@ -66,7 +66,7 @@ export default function PedidosPagamentoPage() {
   useEffect(() => {
     const aba = searchParams.get('aba');
     const novo = searchParams.get('novo') === '1';
-    const abasValidas: ModoPagamento[] = ['pagamentos', 'consolidado', 'freela', 'boleto', 'fatura', 'trocas'];
+    const abasValidas: ModoPagamento[] = ['pagamentos', 'freela', 'boleto', 'fatura', 'trocas'];
     if (aba && abasValidas.includes(aba as ModoPagamento)) setModo(aba as ModoPagamento);
     if (novo) { setModo('pagamentos'); setNovoOpen(true); }
     if (aba || novo) router.replace('/financeiro/pedidos-pagamento');
@@ -119,7 +119,7 @@ export default function PedidosPagamentoPage() {
   // Fallback do real-time: poll silencioso (12s) + ao voltar o foco pra aba. Cobre
   // rede caindo / broadcast perdido, sem piscar spinner. Só na aba "Pagamentos".
   useEffect(() => {
-    if (!barId || (modo !== 'pagamentos' && modo !== 'consolidado')) return;
+    if (!barId || modo !== 'pagamentos') return;
     const tick = () => { if (document.visibilityState === 'visible') carregar(true); };
     const t = setInterval(tick, 12000);
     document.addEventListener('visibilitychange', tick);
@@ -254,7 +254,6 @@ export default function PedidosPagamentoPage() {
           <Tabs value={modo} onValueChange={(v) => setModo(v as ModoPagamento)} className="mb-4">
             <TabsList>
               <TabsTrigger value="pagamentos">PIX</TabsTrigger>
-              <TabsTrigger value="consolidado">Consolidado</TabsTrigger>
               <TabsTrigger value="freela">Freela</TabsTrigger>
               <TabsTrigger value="boleto">Boleto</TabsTrigger>
               {podeAprovar && <TabsTrigger value="fatura">Cartão de Crédito</TabsTrigger>}
@@ -270,10 +269,6 @@ export default function PedidosPagamentoPage() {
                 <p className="text-sm text-muted-foreground">Selecione um bar no menu superior.</p>
               </CardContent>
             </Card>
-          )}
-
-          {barId && modo === 'consolidado' && (
-            <ConsolidadoTab pedidos={pedidosLista} onOpenDetalhe={setDetalheId} />
           )}
 
           {barId && modo === 'freela' && <FreelaTab barId={barId} podeAprovar={podeAprovar} onLancado={carregar} />}
@@ -307,6 +302,7 @@ export default function PedidosPagamentoPage() {
                     <TabsTrigger value="aprovado">Aprovado</TabsTrigger>
                     <TabsTrigger value="recusado">Recusado</TabsTrigger>
                     <TabsTrigger value="todos">Todos</TabsTrigger>
+                    <TabsTrigger value="consolidado">Consolidado</TabsTrigger>
                   </TabsList>
                 </Tabs>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -322,11 +318,13 @@ export default function PedidosPagamentoPage() {
                       Agendar todos ({agendaveis.length})
                     </Button>
                   )}
-                  <Button variant={soComprovante ? 'default' : 'ghost'} size="sm" onClick={() => setSoComprovante(s => !s)}>
-                    <Paperclip className="w-3.5 h-3.5 mr-1.5" />
-                    {soComprovante ? 'Só c/ comprovante' : 'Todos'}
-                  </Button>
-                  {podeAprovar && (
+                  {tab !== 'consolidado' && (
+                    <Button variant={soComprovante ? 'default' : 'ghost'} size="sm" onClick={() => setSoComprovante(s => !s)}>
+                      <Paperclip className="w-3.5 h-3.5 mr-1.5" />
+                      {soComprovante ? 'Só c/ comprovante' : 'Todos'}
+                    </Button>
+                  )}
+                  {podeAprovar && tab !== 'consolidado' && (
                     <Button variant={soMeus ? 'default' : 'ghost'} size="sm" onClick={() => setSoMeus(s => !s)}>
                       {soMeus ? 'Mostrando: meus' : 'Mostrando: todos'}
                     </Button>
@@ -334,7 +332,9 @@ export default function PedidosPagamentoPage() {
                 </div>
               </div>
 
-              {loading ? (
+              {tab === 'consolidado' ? (
+                <ConsolidadoTab pedidos={pedidosLista} onOpenDetalhe={setDetalheId} />
+              ) : loading ? (
                 <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
               ) : filtrados.length === 0 ? (
                 <Card>
