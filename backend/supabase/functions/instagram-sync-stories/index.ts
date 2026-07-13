@@ -15,17 +15,17 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import {
   listarContasAtivas,
-  igGet,
+  igGetAllPaged,
   startSyncLog,
   marcarUltimaSync,
   isTokenInvalido,
 } from '../_shared/instagram-client.ts';
 
 const STORY_INSIGHT_METRICS = [
-  'impressions',
+  'views',   // substitui 'impressions' (descontinuado pelo Meta pra stories)
   'reach',
   'replies',
-  'navigation',  // substitui exits/taps_forward/taps_back nas APIs mais novas
+  'total_interactions',
   'follows',
   'profile_visits',
   'shares',
@@ -48,13 +48,12 @@ serve(async (req) => {
     let processados = 0;
 
     try {
-      const resp = await igGet<{ data: Array<{ id: string }> }>(
+      // Pagina TODOS os stories ativos (bar posta dezenas/dia; igGet pegava só a 1ª página)
+      const stories = await igGetAllPaged<{ id: string }>(
         `${conta.ig_business_id}/stories`,
         conta.access_token,
         { fields: 'id,media_type,media_url,thumbnail_url,permalink,timestamp' },
       );
-
-      const stories = resp.data || [];
 
       for (const story of stories) {
         processados++;
@@ -95,8 +94,10 @@ serve(async (req) => {
           media_url: storyDetail.media_url,
           thumbnail_url: storyDetail.thumbnail_url,
           timestamp_post: storyDetail.timestamp,
+          views: insights.views ?? null,
           impressions: insights.impressions ?? null,
           reach: insights.reach ?? null,
+          total_interactions: insights.total_interactions ?? null,
           replies: insights.replies ?? null,
           follows: insights.follows ?? null,
           profile_visits: insights.profile_visits ?? null,

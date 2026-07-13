@@ -69,9 +69,10 @@ export default function StoriesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Kpi rotulo="Stories" valor={fmt(t.qtd)} icone={<Camera className="w-4 h-4" />} />
-        <Kpi rotulo="Reach total" valor={fmt(t.reach)} icone={<Eye className="w-4 h-4" />} />
+        <Kpi rotulo="Visualizações" valor={fmt(t.views)} icone={<Eye className="w-4 h-4" />} />
+        <Kpi rotulo="Reach (contas)" valor={fmt(t.reach)} icone={<Eye className="w-4 h-4" />} />
         <Kpi rotulo="Replies" valor={fmt(t.replies)} icone={<MessageCircle className="w-4 h-4" />} />
         <Kpi rotulo="Follows ganhos" valor={fmt(t.follows_ganhos)} icone={<UserPlus className="w-4 h-4" />} cor="text-emerald-600" />
         <Kpi rotulo="Profile visits" valor={fmt(t.profile_visits)} icone={<TrendingUp className="w-4 h-4" />} />

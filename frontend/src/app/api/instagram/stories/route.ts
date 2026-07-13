@@ -27,7 +27,9 @@ export async function GET(req: NextRequest) {
     const { data } = await q.order('timestamp_post', { ascending: false });
 
     const stories = data || [];
+    const totalViews = stories.reduce((s: number, x: any) => s + (x.views ?? 0), 0);
     const totalReach = stories.reduce((s: number, x: any) => s + (x.reach ?? 0), 0);
+    const totalInteractions = stories.reduce((s: number, x: any) => s + (x.total_interactions ?? 0), 0);
     const totalReplies = stories.reduce((s: number, x: any) => s + (x.replies ?? 0), 0);
     const totalFollows = stories.reduce((s: number, x: any) => s + (x.follows ?? 0), 0);
     const totalProfileVisits = stories.reduce((s: number, x: any) => s + (x.profile_visits ?? 0), 0);
@@ -35,7 +37,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       stories,
-      totais: { reach: totalReach, replies: totalReplies, follows_ganhos: totalFollows, profile_visits: totalProfileVisits, qtd: stories.length },
+      totais: { views: totalViews, reach: totalReach, interactions: totalInteractions, replies: totalReplies, follows_ganhos: totalFollows, profile_visits: totalProfileVisits, qtd: stories.length },
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message }, { status: 500 });

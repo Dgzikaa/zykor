@@ -52,7 +52,7 @@ export default function ComunicacaoPage() {
         { label: 'Interações', valor: num(org.engajamento), icon: Heart },
         { label: 'Taxa de engajamento', valor: pct(org.alcance > 0 ? (org.engajamento / org.alcance) * 100 : null), icon: Percent },
         { label: 'Stories', valor: num(org.qtd_stories), icon: Camera },
-        { label: 'Alcance dos stories', valor: num(org.alcance_stories), icon: Eye },
+        { label: 'Visualizações dos stories', valor: num(org.views_stories), icon: Eye },
         { label: 'Visitas de perfil', valor: num(org.visitas_perfil), icon: Users },
         { label: 'Seguidores', valor: num(org.seguidores), icon: UserPlus },
       ]

@@ -13,7 +13,7 @@ import { bucketDe } from '@/lib/receitas/periodo';
  *
  * GET ?bar_id=&inicio=&fim=
  * Retorna { conectado, alcance, engajamento, visitas_perfil, seguidores,
- *           qtd_stories, alcance_stories, serie_mensal, dias }
+ *           qtd_stories, views_stories, serie_mensal, dias }
  */
 export const dynamic = 'force-dynamic';
 const supabase = createServiceRoleClient();
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
   let sq = (supabase as any)
     .schema('integrations')
     .from('instagram_stories')
-    .select('timestamp_post, reach')
+    .select('timestamp_post, reach, views')
     .eq('bar_id', barId);
   if (de) sq = sq.gte('timestamp_post', de);
   if (ate) sq = sq.lte('timestamp_post', `${ate}T23:59:59`);
@@ -111,7 +111,8 @@ export async function GET(request: NextRequest) {
   const ultimo = (conta as any[])[conta.length - 1];
   const somaConta = (k: string) => (conta as any[]).reduce((s, r) => s + (Number(r[k]) || 0), 0);
   const stories = sto.error ? [] : sto.data || [];
-  const alcanceStories = (stories as any[]).reduce((s, r) => s + (Number(r.reach) || 0), 0);
+  // Visualizações (views) dos stories — bate com "Visualizações Totais" da ferramenta de referência
+  const viewsStories = (stories as any[]).reduce((s, r) => s + (Number(r.views) || 0), 0);
 
   return NextResponse.json({
     success: true,
@@ -121,7 +122,7 @@ export async function GET(request: NextRequest) {
     visitas_perfil: somaConta('profile_views'),
     seguidores: ultimo?.followers_count ?? null,
     qtd_stories: (stories as any[]).length,
-    alcance_stories: alcanceStories,
+    views_stories: viewsStories,
     serie_mensal,
     dias: conta.length,
   });
