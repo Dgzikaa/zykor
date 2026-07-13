@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 // PATCH — classifica uma linha: bar, categoria e/ou status ('ignorado'/'novo').
 //   Não toca em linhas já lançadas (status 'lancado').
 // =====================================================
-const CAMPOS = ['bar_id', 'categoria_id', 'categoria_nome', 'status'];
+const CAMPOS = ['bar_id', 'categoria_id', 'categoria_nome', 'status', 'descricao'];
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await authenticateUser(request);

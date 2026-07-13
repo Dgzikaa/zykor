@@ -59,6 +59,10 @@ export function FaturaCartaoTab() {
   const [lendo, setLendo] = useState(false);
   const [lancandoId, setLancandoId] = useState<string | null>(null);
   const [encerrando, setEncerrando] = useState(false);
+  // #25 — seleção p/ lançar várias linhas de uma vez.
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
+  const [lancandoLote, setLancandoLote] = useState(false);
+  const toggleSel = (id: string) => setSelecionadas(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const [opcoesBar, setOpcoesBar] = useState<Record<number, OpcoesBar>>({});
   const [config, setConfig] = useState<Record<number, { fornecedorId: string; contaId: string }>>({});
@@ -187,6 +191,34 @@ export function FaturaCartaoTab() {
     }
   };
 
+  // #25 — lança em LOTE as linhas selecionadas que já têm bar + categoria. Sequencial (sem rajada).
+  const lancarLote = async () => {
+    const alvos = filtradas.filter(l => selecionadas.has(l.id) && l.tipo === 'compra' && l.status === 'novo');
+    const prontos = alvos.filter(l => (l.bar_id ?? faturaSel?.bar_id ?? selectedBar?.id) && l.categoria_id);
+    const semDados = alvos.length - prontos.length;
+    if (!prontos.length) return showToast({ type: 'warning', title: 'Nada pronto pra lançar', message: 'Faltam bar/categoria nas linhas selecionadas.' });
+    if (!window.confirm(`Lançar ${prontos.length} linha(s) no Conta Azul?${semDados ? `\n${semDados} sem bar/categoria ficam de fora.` : ''}`)) return;
+    setLancandoLote(true);
+    let ok = 0, err = 0;
+    for (const l of prontos) {
+      const bar = (l.bar_id ?? faturaSel?.bar_id ?? selectedBar?.id) as number;
+      const cfg = config[bar];
+      try {
+        const res = await api.post(`/api/financeiro/cartao-fatura/${l.id}/lancar`, {
+          bar_id: bar, categoria_id: l.categoria_id, categoria_nome: l.categoria_nome,
+          pessoa_id: cfg?.fornecedorId || undefined, conta_financeira_id: cfg?.contaId || undefined,
+          data_vencimento: faturaSel?.vencimento || undefined,
+        });
+        setLinhas(prev => prev.map(x => (x.id === l.id ? res.linha : x)));
+        ok++;
+      } catch { err++; }
+    }
+    setLancandoLote(false);
+    setSelecionadas(new Set());
+    showToast({ type: err ? 'warning' : 'success', title: `${ok} lançada(s)`, message: [err ? `${err} com erro` : '', semDados ? `${semDados} puladas (dados faltando)` : ''].filter(Boolean).join(' · ') || undefined });
+    carregarBase();
+  };
+
   const encerrarFatura = async () => {
     if (!faturaSel) return;
     const naoLancados = linhas.filter(l => l.tipo === 'compra' && l.status === 'novo').length;
@@ -229,6 +261,14 @@ export function FaturaCartaoTab() {
   const pendentes = useMemo(() => linhas.filter(l => l.tipo === 'compra' && l.status === 'novo').length, [linhas]);
 
   const editavelFatura = faturaSel?.status === 'aberta';
+  // Linhas que dá pra selecionar/lançar (compra pendente numa fatura aberta).
+  const lancaveis = useMemo(() => filtradas.filter(l => editavelFatura && l.tipo === 'compra' && l.status === 'novo'), [filtradas, editavelFatura]);
+  const todasSel = lancaveis.length > 0 && lancaveis.every(l => selecionadas.has(l.id));
+  const toggleTodas = () => setSelecionadas(prev => {
+    if (lancaveis.every(l => prev.has(l.id))) { const n = new Set(prev); lancaveis.forEach(l => n.delete(l.id)); return n; }
+    const n = new Set(prev); lancaveis.forEach(l => n.add(l.id)); return n;
+  });
+  useEffect(() => { setSelecionadas(new Set()); }, [faturaSelId]);
 
   return (
     <div className="space-y-3">
@@ -313,6 +353,12 @@ export function FaturaCartaoTab() {
             <Button size="sm" variant={soCompras ? 'default' : 'ghost'} onClick={() => setSoCompras(s => !s)}>Só compras</Button>
             <Button size="sm" variant={esconderLancados ? 'default' : 'ghost'} onClick={() => setEsconderLancados(s => !s)}>Esconder lançados</Button>
             {anyCol && <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={clearAll}>✕ limpar filtros de coluna</Button>}
+            {editavelFatura && selecionadas.size > 0 && (
+              <Button size="sm" onClick={lancarLote} disabled={lancandoLote}>
+                {lancandoLote ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
+                Lançar selecionadas ({selecionadas.size})
+              </Button>
+            )}
             <span className="ml-auto text-xs text-muted-foreground">{filtradas.length} linhas · {pendentes} a lançar</span>
           </div>
 
@@ -326,6 +372,12 @@ export function FaturaCartaoTab() {
               <table className="w-full text-sm">
                 <thead className="text-xs text-muted-foreground border-b bg-muted/30">
                   <tr>
+                    <th className="px-2 w-8">
+                      {lancaveis.length > 0 && (
+                        <input type="checkbox" checked={todasSel} onChange={toggleTodas}
+                          title="Selecionar todas as lançáveis" className="w-4 h-4 accent-[hsl(var(--primary))] cursor-pointer" />
+                      )}
+                    </th>
                     <th className="text-left py-2 px-2">Data</th>
                     <th className="text-left px-2">Estabelecimento</th>
                     <ColumnFilterHeader label="Titular" options={optionsByCol.titular_nome || []}
@@ -347,8 +399,27 @@ export function FaturaCartaoTab() {
                     const ignorado = l.status === 'ignorado';
                     return (
                       <tr key={l.id} className={`border-b last:border-0 ${ignorado ? 'opacity-40' : ''} ${lancado ? 'bg-green-500/5' : ''}`}>
+                        <td className="px-2">
+                          {editavelFatura && l.tipo === 'compra' && l.status === 'novo' && (
+                            <input type="checkbox" checked={selecionadas.has(l.id)} onChange={() => toggleSel(l.id)}
+                              className="w-4 h-4 accent-[hsl(var(--primary))] cursor-pointer" aria-label="Selecionar linha p/ lançar em lote" />
+                          )}
+                        </td>
                         <td className="py-1.5 px-2 whitespace-nowrap text-muted-foreground text-xs">{fmtDataBR(l.data_transacao)}</td>
-                        <td className="px-2"><div className="truncate max-w-[220px]">{l.descricao}{l.parcela ? <span className="text-muted-foreground text-xs"> · {l.parcela}</span> : ''}</div></td>
+                        <td className="px-2">
+                          {editavelFatura && !lancado && !ignorado ? (
+                            <div className="flex items-center gap-1">
+                              {/* #24 — edita o estabelecimento antes de lançar (salva ao sair do campo) */}
+                              <input defaultValue={l.descricao}
+                                onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== l.descricao) patchLinha(l, { descricao: v }); }}
+                                title="Editar o estabelecimento antes de lançar"
+                                className="h-8 w-full max-w-[240px] text-xs border rounded px-1.5 bg-background" />
+                              {l.parcela ? <span className="text-muted-foreground text-xs shrink-0">· {l.parcela}</span> : null}
+                            </div>
+                          ) : (
+                            <div className="truncate max-w-[220px]">{l.descricao}{l.parcela ? <span className="text-muted-foreground text-xs"> · {l.parcela}</span> : ''}</div>
+                          )}
+                        </td>
                         <td className="px-2 text-xs whitespace-nowrap">{l.titular_nome || '—'}</td>
                         <td className="px-2 text-xs text-muted-foreground whitespace-nowrap">{l.cartao_final ? `••${l.cartao_final}` : '—'}</td>
                         <td className="px-2 text-right whitespace-nowrap font-medium">{fmtBRL(l.valor)}</td>
