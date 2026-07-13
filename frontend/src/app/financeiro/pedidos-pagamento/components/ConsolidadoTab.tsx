@@ -14,7 +14,10 @@ import { STATUS_LABEL, STATUS_COLOR, formatBRL, type Pedido } from '../types';
 // espera aprovação, recusado, cancelado e rascunho.
 const STATUS_CONSOLIDADO = new Set(['aprovado', 'agendado', 'pago', 'erro_ca', 'erro_inter']);
 
-const SEM_VENC = 'sem-vencimento';
+type AgruparPor = 'vencimento' | 'competencia';
+const SEM_VENC = 'sem-data';
+const dataDoPedido = (p: Pedido, por: AgruparPor) =>
+  ((por === 'competencia' ? p.data_competencia : p.data_vencimento) || '').slice(0, 10) || SEM_VENC;
 
 // 'YYYY-MM-DD' → Date ao meio-dia local (evita o shift de fuso que joga pro dia anterior).
 function parseLocalDate(iso: string): Date | null {
@@ -25,16 +28,16 @@ function parseLocalDate(iso: string): Date | null {
 
 const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
-function labelDia(chave: string): string {
-  if (chave === SEM_VENC) return 'Sem vencimento';
+function labelDia(chave: string, por: AgruparPor): string {
+  if (chave === SEM_VENC) return por === 'competencia' ? 'Sem competência' : 'Sem vencimento';
   const d = parseLocalDate(chave);
   if (!d) return isoToBr(chave) || chave;
   return `${DIAS_SEMANA[d.getDay()]}, ${isoToBr(chave)}`;
 }
 
 // Texto no mesmo formato das mensagens do grupo — pra colar em qualquer lugar.
-function textoResumoDia(chave: string, itens: Pedido[]): string {
-  const cabecalho = `📅 ${labelDia(chave)} — ${itens.length} pagamento(s) · ${formatBRL(
+function textoResumoDia(chave: string, itens: Pedido[], por: AgruparPor): string {
+  const cabecalho = `📅 ${labelDia(chave, por)} — ${itens.length} pagamento(s) · ${formatBRL(
     itens.reduce((s, p) => s + (p.valor || 0), 0)
   )}`;
   const blocos = itens.map((p) =>
@@ -66,15 +69,16 @@ export function ConsolidadoTab({
 }) {
   const { showToast } = useToast();
   const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
+  const [agruparPor, setAgruparPor] = useState<AgruparPor>('vencimento');
 
   const grupos = useMemo(() => {
     const inclusos = pedidos.filter((p) => STATUS_CONSOLIDADO.has(p.status));
     const mapa = new Map<string, Pedido[]>();
     for (const p of inclusos) {
-      const chave = (p.data_vencimento || '').slice(0, 10) || SEM_VENC;
+      const chave = dataDoPedido(p, agruparPor);
       (mapa.get(chave) ?? mapa.set(chave, []).get(chave)!).push(p);
     }
-    // Dias em ordem cronológica (vencimento mais próximo primeiro); "sem vencimento" no fim.
+    // Dias em ordem cronológica (data mais próxima primeiro); "sem data" no fim.
     const chaves = [...mapa.keys()].sort((a, b) => {
       if (a === SEM_VENC) return 1;
       if (b === SEM_VENC) return -1;
@@ -85,7 +89,7 @@ export function ConsolidadoTab({
       const total = itens.reduce((s, p) => s + (p.valor || 0), 0);
       return { chave, itens, total };
     });
-  }, [pedidos]);
+  }, [pedidos, agruparPor]);
 
   const totalGeral = useMemo(() => grupos.reduce((s, g) => s + g.total, 0), [grupos]);
   const qtdTotal = useMemo(() => grupos.reduce((s, g) => s + g.itens.length, 0), [grupos]);
@@ -99,7 +103,7 @@ export function ConsolidadoTab({
 
   const copiar = async (chave: string, itens: Pedido[]) => {
     try {
-      await navigator.clipboard.writeText(textoResumoDia(chave, itens));
+      await navigator.clipboard.writeText(textoResumoDia(chave, itens, agruparPor));
       showToast({ type: 'success', title: 'Resumo copiado', message: 'Cole onde quiser (WhatsApp, e-mail...).' });
     } catch {
       showToast({ type: 'error', title: 'Não deu pra copiar', message: 'Seu navegador bloqueou a área de transferência.' });
@@ -119,6 +123,22 @@ export function ConsolidadoTab({
 
   return (
     <div className="space-y-3">
+      {/* Agrupar por: Vencimento (o que sai do caixa no dia) × Competência (regime contábil) */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-muted-foreground uppercase tracking-wide">Agrupar por</span>
+        <div className="inline-flex rounded-lg border border-[hsl(var(--border))] p-0.5">
+          {([['vencimento', 'Vencimento'], ['competencia', 'Competência']] as [AgruparPor, string][]).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setAgruparPor(v)}
+              className={`rounded-md px-3 py-1 text-sm font-medium transition ${agruparPor === v ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Total geral */}
       <div className="flex items-center justify-between gap-3 rounded-lg border border-[hsl(var(--border))] bg-muted/30 px-4 py-3">
         <span className="text-sm text-muted-foreground">
@@ -136,7 +156,7 @@ export function ConsolidadoTab({
               <button onClick={() => toggle(chave)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
                 {aberto ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
                 <CalendarClock className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span className="font-semibold truncate">{labelDia(chave)}</span>
+                <span className="font-semibold truncate">{labelDia(chave, agruparPor)}</span>
                 <Badge variant="secondary" className="shrink-0">{itens.length}</Badge>
               </button>
               <span className="font-bold shrink-0">{formatBRL(total)}</span>

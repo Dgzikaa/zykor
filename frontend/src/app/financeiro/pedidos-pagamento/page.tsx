@@ -45,6 +45,11 @@ export default function PedidosPagamentoPage() {
   const [agendandoTodos, setAgendandoTodos] = useState(false);
   // Seleções (categoria/conta/fornecedor) de cada card — alimenta o "Aprovar todos".
   const [selecoes, setSelecoes] = useState<Record<string, { catId: string; contaId: string; fornId: string }>>({});
+  // #14 — seleção manual (checkbox) p/ aprovar SÓ os marcados em lote.
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const toggleSelecionado = useCallback((id: string) => setSelecionados(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+  }), []);
   const [novoOpen, setNovoOpen] = useState(false);
   const [detalheId, setDetalheId] = useState<string | null>(null);
   const [modo, setModo] = useState<ModoPagamento>('pagamentos');
@@ -176,11 +181,10 @@ export default function PedidosPagamentoPage() {
     setSelecoes(prev => ({ ...prev, [id]: sel }));
   }, []);
 
-  // Aprova em LOTE os pendentes que já estão prontos (categoria + fornecedor). SEQUENCIAL —
-  // 1 de cada vez, sem rajada (evita rate limit do CA/Inter). Pula os incompletos e reporta.
-  const aprovarTodos = useCallback(async () => {
-    const pendentes = pedidosLista.filter(p => TAB_STATUS.solicitado(p.status));
-    const prep = pendentes.map(p => {
+  // Núcleo do "aprovar em lote": recebe os pedidos-alvo, aprova só os que já estão prontos
+  // (categoria + fornecedor), SEQUENCIAL — 1 de cada vez, sem rajada (evita rate limit CA/Inter).
+  const aprovarLote = useCallback(async (alvos: Pedido[], rotulo: string) => {
+    const prep = alvos.map(p => {
       const sel = selecoes[p.id] || { catId: '', contaId: '', fornId: '' };
       const catId = sel.catId || p.categoria_id || p.categoria_sugerida_id || '';
       const fornId = sel.fornId || p.contaazul_pessoa_id || '';
@@ -192,7 +196,7 @@ export default function PedidosPagamentoPage() {
     if (!prontos.length) {
       return showToast({ type: 'warning', title: 'Nada pronto pra aprovar', message: 'Faltam categoria e/ou fornecedor nos pedidos.' });
     }
-    if (!window.confirm(`Aprovar ${prontos.length} pedido(s) de uma vez?${faltando ? `\n${faltando} sem categoria/fornecedor ficam de fora.` : ''}`)) return;
+    if (!window.confirm(`Aprovar ${prontos.length} ${rotulo}?${faltando ? `\n${faltando} sem categoria/fornecedor ficam de fora.` : ''}`)) return;
 
     setAprovandoTodos(true);
     let ok = 0, err = 0;
@@ -210,13 +214,21 @@ export default function PedidosPagamentoPage() {
       }
     }
     setAprovandoTodos(false);
+    setSelecionados(new Set());
     showToast({
       type: err ? 'warning' : 'success',
       title: `${ok} aprovado(s)`,
       message: [err ? `${err} com erro` : '', faltando ? `${faltando} pulados (dados faltando)` : ''].filter(Boolean).join(' · ') || undefined,
     });
     carregar();
-  }, [pedidosLista, selecoes, opcoes.categorias, showToast, carregar]);
+  }, [selecoes, opcoes.categorias, showToast, carregar]);
+
+  const pendentesSolicitado = useMemo(() => pedidosLista.filter(p => TAB_STATUS.solicitado(p.status)), [pedidosLista]);
+  const aprovarTodos = useCallback(() => aprovarLote(pendentesSolicitado, 'pedido(s) de uma vez'), [aprovarLote, pendentesSolicitado]);
+  const aprovarSelecionados = useCallback(() => aprovarLote(pendentesSolicitado.filter(p => selecionados.has(p.id)), 'selecionado(s)'), [aprovarLote, pendentesSolicitado, selecionados]);
+
+  // Limpa a seleção ao trocar de aba/modo/bar (evita aprovar item que não está mais à vista).
+  useEffect(() => { setSelecionados(new Set()); }, [tab, modo, barId]);
 
   // Agenda em LOTE (dispara CA + Inter) os aprovados. SEQUENCIAL — 1 timing, sem rate burst.
   const agendarTodos = useCallback(async () => {
@@ -306,8 +318,14 @@ export default function PedidosPagamentoPage() {
                   </TabsList>
                 </Tabs>
                 <div className="flex items-center gap-2 flex-wrap">
+                  {podeAprovar && tab === 'solicitado' && selecionados.size > 0 && (
+                    <Button size="sm" onClick={aprovarSelecionados} disabled={aprovandoTodos}>
+                      {aprovandoTodos ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Check className="w-4 h-4 mr-1.5" />}
+                      Aprovar selecionados ({selecionados.size})
+                    </Button>
+                  )}
                   {podeAprovar && tab === 'solicitado' && countSolicitado > 0 && (
-                    <Button size="sm" onClick={aprovarTodos} disabled={aprovandoTodos}>
+                    <Button variant={selecionados.size > 0 ? 'outline' : 'default'} size="sm" onClick={aprovarTodos} disabled={aprovandoTodos}>
                       {aprovandoTodos ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Check className="w-4 h-4 mr-1.5" />}
                       Aprovar todos ({countSolicitado})
                     </Button>
@@ -357,6 +375,9 @@ export default function PedidosPagamentoPage() {
                       onOpen={setDetalheId}
                       onChange={carregar}
                       onSelecao={onSelecao}
+                      selecionavel={tab === 'solicitado'}
+                      selecionado={selecionados.has(p.id)}
+                      onToggleSelecionado={toggleSelecionado}
                     />
                   ))}
                 </div>

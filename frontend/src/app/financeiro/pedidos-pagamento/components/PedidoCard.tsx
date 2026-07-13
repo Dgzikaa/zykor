@@ -25,6 +25,7 @@ const AGENDAVEL = ['aprovado', 'erro_ca', 'erro_inter'];
  */
 export function PedidoCard({
   pedido, podeAprovar, categorias, contas, contaPadrao, fornecedores, onOpen, onChange, onSelecao,
+  selecionavel, selecionado, onToggleSelecionado,
 }: {
   pedido: Pedido;
   podeAprovar: boolean;
@@ -36,6 +37,10 @@ export function PedidoCard({
   onChange: () => void;
   // Reporta as seleções pro pai (usado pelo "Aprovar todos" em lote).
   onSelecao?: (id: string, sel: { catId: string; contaId: string; fornId: string }) => void;
+  // #14 — checkbox de seleção manual p/ "Aprovar selecionados" em lote.
+  selecionavel?: boolean;
+  selecionado?: boolean;
+  onToggleSelecionado?: (id: string) => void;
 }) {
   const { showToast } = useToast();
   const mostrarInline = podeAprovar && APROVAVEL.includes(pedido.status);
@@ -123,6 +128,16 @@ export function PedidoCard({
   return (
     <div className="rounded-lg border border-[hsl(var(--border))] bg-card transition hover:bg-muted/20">
       <div className="flex items-center gap-3 p-3">
+        {selecionavel && podeAprovar && (
+          <input
+            type="checkbox"
+            checked={!!selecionado}
+            onChange={() => onToggleSelecionado?.(pedido.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="w-4 h-4 shrink-0 accent-[hsl(var(--primary))] cursor-pointer"
+            aria-label="Selecionar para aprovar em lote"
+          />
+        )}
         <button onClick={() => onOpen(pedido.id)} className="flex-1 min-w-0 text-left">
           <div className="flex items-center gap-2">
             <span className="font-medium truncate">{pedido.descricao}</span>
