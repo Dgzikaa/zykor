@@ -59,6 +59,13 @@ export default function EstoqueHistoricoPage() {
   const [totalGeral, setTotalGeral] = useState(0);
   const [loading, setLoading] = useState(false);
   const [busca, setBusca] = useState('');
+  // Filtros de coluna + ordenação (padrão: maior valor primeiro).
+  const [fArea, setFArea] = useState('');
+  const [fCategoria, setFCategoria] = useState('');
+  const [sortBy, setSortBy] = useState<'valor' | 'qtd' | 'nome'>('valor');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const toggleSort = (col: 'valor' | 'qtd' | 'nome') =>
+    sortBy === col ? setSortDir(d => (d === 'asc' ? 'desc' : 'asc')) : (setSortBy(col), setSortDir('desc'));
   const [comparar, setComparar] = useState(false);
   const [dataB, setDataB] = useState<string | null>(null);
   const [comp, setComp] = useState<any | null>(null);
@@ -130,10 +137,29 @@ export default function EstoqueHistoricoPage() {
 
   const trocarData = (d: string) => { setData(d); carregar(tipo, d); if (comparar) carregarComp(tipo, d, dataB); };
 
+  // Valores distintos p/ os filtros de coluna (Área / Categoria).
+  const areasDisp = useMemo(() => Array.from(new Set(itens.map((i: any) => i.area).filter(Boolean))).sort() as string[], [itens]);
+  const categoriasDisp = useMemo(() => Array.from(new Set(itens.map((i: any) => i.categoria).filter(Boolean))).sort() as string[], [itens]);
+
   const itensView = useMemo(() => {
     const s = busca.trim().toLowerCase();
-    return itens.filter(i => !s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s));
-  }, [itens, busca]);
+    // Ignora filtro que não existe na classe atual (evita tela vazia ao trocar de aba).
+    const areaAtiva = fArea && areasDisp.includes(fArea) ? fArea : '';
+    const catAtiva = fCategoria && categoriasDisp.includes(fCategoria) ? fCategoria : '';
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return itens
+      .filter(i =>
+        (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)) &&
+        (!areaAtiva || i.area === areaAtiva) &&
+        (!catAtiva || (i.categoria || '') === catAtiva)
+      )
+      .slice()
+      .sort((a, b) => {
+        if (sortBy === 'nome') return dir * String(a.insumo_nome || '').localeCompare(String(b.insumo_nome || ''), 'pt-BR');
+        if (sortBy === 'qtd') return dir * (Number(a.estoque_final || 0) - Number(b.estoque_final || 0));
+        return dir * (Number(a.valor || 0) - Number(b.valor || 0));
+      });
+  }, [itens, busca, fArea, fCategoria, areasDisp, categoriasDisp, sortBy, sortDir]);
   const compView = useMemo(() => {
     if (!comp) return [];
     const s = busca.trim().toLowerCase();
@@ -230,6 +256,30 @@ export default function EstoqueHistoricoPage() {
           </div>
         </div>
 
+        {/* Filtros de coluna (Área / Categoria) — só na visão simples */}
+        {!comparar && (areasDisp.length > 1 || categoriasDisp.length > 1) && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-xs text-gray-400 uppercase tracking-wide">Filtrar:</span>
+            {areasDisp.length > 1 && (
+              <select value={fArea} onChange={e => setFArea(e.target.value)}
+                className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
+                <option value="">Todas as áreas</option>
+                {areasDisp.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            )}
+            {categoriasDisp.length > 1 && (
+              <select value={fCategoria} onChange={e => setFCategoria(e.target.value)}
+                className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm capitalize">
+                <option value="">Todas as categorias</option>
+                {categoriasDisp.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
+            {(fArea || fCategoria) && (
+              <button onClick={() => { setFArea(''); setFCategoria(''); }} className="text-xs text-indigo-600 hover:underline">Limpar filtros</button>
+            )}
+          </div>
+        )}
+
         {comparar && comp?.resumo && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">{fmtData(comp.data_a)}</div><div className="text-xl font-bold">{fmtBRL(comp.resumo.valor_a)}</div></CardContent></Card>
@@ -284,10 +334,18 @@ export default function EstoqueHistoricoPage() {
                 ? <th className="text-left font-medium px-3 py-2">Categoria</th>
                 : <><th className="text-left font-medium px-3 py-2">Área</th><th className="text-left font-medium px-3 py-2">Categoria</th></>}
               {classe === 'limpeza' && <th className="text-right font-medium px-3 py-2">Estoque Ideal</th>}
-              <th className="text-right font-medium px-3 py-2">Qtd. contada</th>
+              <th className="text-right font-medium px-3 py-2">
+                <button onClick={() => toggleSort('qtd')} className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
+                  Qtd. contada {sortBy === 'qtd' && (sortDir === 'asc' ? '▲' : '▼')}
+                </button>
+              </th>
               {classe === 'limpeza' && <th className="text-right font-medium px-3 py-2">Sug. Pedido</th>}
               <th className="text-right font-medium px-3 py-2">{classe === 'limpeza' ? 'Preço' : classe === 'producao' ? 'Custo (ficha)' : 'Preço VMarket (na data)'}</th>
-              <th className="text-right font-medium px-3 py-2">Valor</th>
+              <th className="text-right font-medium px-3 py-2">
+                <button onClick={() => toggleSort('valor')} className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
+                  Valor {sortBy === 'valor' && (sortDir === 'asc' ? '▲' : '▼')}
+                </button>
+              </th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading ? <tr><td colSpan={classe === 'limpeza' ? 8 : 7} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>

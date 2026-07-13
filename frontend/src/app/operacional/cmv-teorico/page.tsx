@@ -78,6 +78,10 @@ export default function CmvTeoricoPage() {
   const [manualCod, setManualCod] = useState<Record<number, string>>({});
   const [cadOpen, setCadOpen] = useState<number | null>(null); // prd com o mini-form de cadastro aberto
   const [cadCat, setCadCat] = useState<'b' | 'c' | 'd' | 'o'>('b');
+  // Resolvidos nesta sessão (cadastrado/vinculado/ignorado): somem da lista NA HORA, mesmo
+  // que a matview do "fora do de-para" só atualize depois (evita o item continuar aparecendo).
+  const [resolvidos, setResolvidos] = useState<Set<number>>(new Set());
+  const marcarResolvidos = (prds: number[]) => setResolvidos(prev => { const n = new Set(prev); prds.forEach(p => n.add(p)); return n; });
   const range = useMemo(() => calcRange(gran, dataRef), [gran, dataRef]);
   const carregarPeriodo = useCallback(async () => {
     if (!barId) return; setLoadingPer(true);
@@ -133,6 +137,7 @@ export default function CmvTeoricoPage() {
       const r = await api.post('/api/operacional/cmv-teorico', { bar_id: barId, action: 'vincular_depara', pares });
       if (!r.success) throw new Error(r.error);
       toast({ title: pares.length > 1 ? `${r.vinculados} vinculados` : 'Vinculado', description: 'Já entra no CMV.' });
+      marcarResolvidos(pares.map(x => x.prd));
       await carregarPeriodo();
     } catch (e: any) { toast({ title: 'Erro ao vincular', description: e?.message, variant: 'destructive' }); }
     finally { setDpBusy(false); }
@@ -143,6 +148,7 @@ export default function CmvTeoricoPage() {
       const r = await api.post('/api/operacional/cmv-teorico', { bar_id: barId, action: 'ignorar_depara', prds });
       if (!r.success) throw new Error(r.error);
       toast({ title: `${r.ignorados} ignorado(s)`, description: 'Não aparece mais na lista.' });
+      marcarResolvidos(prds.map(x => x.prd));
       await carregarPeriodo();
     } catch (e: any) { toast({ title: 'Erro ao ignorar', description: e?.message, variant: 'destructive' }); }
     finally { setDpBusy(false); }
@@ -154,12 +160,15 @@ export default function CmvTeoricoPage() {
       if (!r.success) throw new Error(r.error);
       toast({ title: `Cadastrado (${r.codigo})`, description: 'Produto criado e vinculado. Monte a ficha em Fichas Técnicas.' });
       setCadOpen(null);
+      marcarResolvidos([p.prd]);
       await carregarPeriodo();
     } catch (e: any) { toast({ title: 'Erro ao cadastrar', description: e?.message, variant: 'destructive' }); }
     finally { setDpBusy(false); }
   };
+  // Lista "fora do de-para" já sem os resolvidos nesta sessão (cadastrado/vinculado/ignorado).
+  const foraDepara = useMemo(() => ((periodo?.fora_depara || []) as any[]).filter(p => !resolvidos.has(p.prd)), [periodo, resolvidos]);
   // só entram no "vincular em massa" os exatos sem ambiguidade E cuja sugestão NÃO está mapeada a outro código
-  const exatos = useMemo(() => ((periodo?.fora_depara || []) as any[]).filter(p => p.nivel === 'exato' && !p.ambiguo && p.sugestao_codigo && !p.sugestao_ja_mapeada), [periodo]);
+  const exatos = useMemo(() => foraDepara.filter(p => p.nivel === 'exato' && !p.ambiguo && p.sugestao_codigo && !p.sugestao_ja_mapeada), [foraDepara]);
 
   const cats = useMemo(() => Array.from(new Set(produtos.map(p => p.categoria || 'Outros'))).sort(), [produtos]);
   const escopo = useMemo(() => {
@@ -351,7 +360,7 @@ export default function CmvTeoricoPage() {
                 🔗 <b>{periodo.headline.fora_depara_n}</b> produtos vendidos no ContaHub <b>fora do de-para</b> ({fmtBRL(periodo.headline.fora_depara_fat)}) — sem código interno/ficha, invisíveis no CMV · clique pra ver
               </button>
             )}
-            {mostrarForaDp && (periodo.fora_depara || []).length > 0 && (
+            {mostrarForaDp && foraDepara.length > 0 && (
               <Card className="card-dark overflow-hidden"><CardContent className="p-0">
                 {!soLeitura && exatos.length > 0 && (
                   <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-emerald-50/70 dark:bg-emerald-900/15 border-b border-emerald-200 dark:border-emerald-800">
@@ -371,7 +380,7 @@ export default function CmvTeoricoPage() {
                     <th className="text-left font-medium px-3 py-2">Sugestão / vincular</th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {(periodo.fora_depara || []).map((p: any) => {
+                    {foraDepara.map((p: any) => {
                       const cod = (manualCod[p.prd] ?? '').trim();
                       const vincManual = () => { if (cod) vincularDepara([{ prd: p.prd, cod_interno: cod }]); };
                       return (
