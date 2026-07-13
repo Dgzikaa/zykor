@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
-import { Boxes, Loader2, Search, CalendarDays, RefreshCw, Plus, Pencil } from 'lucide-react';
+import { Boxes, Loader2, Search, CalendarDays, RefreshCw, Plus, Pencil, AlertTriangle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -57,6 +57,8 @@ export default function EstoqueHistoricoPage() {
   const [itens, setItens] = useState<any[]>([]);
   const [totaisArea, setTotaisArea] = useState<any[]>([]);
   const [totalGeral, setTotalGeral] = useState(0);
+  const [anomalosN, setAnomalosN] = useState(0);
+  const [soAnomalos, setSoAnomalos] = useState(false);
   const [loading, setLoading] = useState(false);
   const [busca, setBusca] = useState('');
   // Filtros de coluna + ordenação (padrão: maior valor primeiro).
@@ -114,6 +116,7 @@ export default function EstoqueHistoricoPage() {
         setItens(r.itens || []);
         setTotaisArea(r.totais_area || []);
         setTotalGeral(r.total_geral || 0);
+        setAnomalosN(r.anomalos_n || 0);
       }
     } finally { setLoading(false); }
   }, [barId, classe]);
@@ -156,7 +159,8 @@ export default function EstoqueHistoricoPage() {
       .filter(i =>
         (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)) &&
         (!areaAtiva || i.area === areaAtiva) &&
-        (!catAtiva || (i.categoria || '') === catAtiva)
+        (!catAtiva || (i.categoria || '') === catAtiva) &&
+        (!soAnomalos || i.anomalo)
       )
       .slice()
       .sort((a, b) => {
@@ -164,7 +168,7 @@ export default function EstoqueHistoricoPage() {
         if (sortBy === 'qtd') return dir * (Number(a.estoque_final || 0) - Number(b.estoque_final || 0));
         return dir * (Number(a.valor || 0) - Number(b.valor || 0));
       });
-  }, [itens, busca, fArea, fCategoria, areasDisp, categoriasDisp, sortBy, sortDir]);
+  }, [itens, busca, fArea, fCategoria, areasDisp, categoriasDisp, sortBy, sortDir, soAnomalos]);
   const compView = useMemo(() => {
     if (!comp) return [];
     const s = busca.trim().toLowerCase();
@@ -285,6 +289,15 @@ export default function EstoqueHistoricoPage() {
           </div>
         )}
 
+        {/* #6 — insight de contagens fora do costume (clica pra filtrar) */}
+        {!comparar && anomalosN > 0 && (
+          <button onClick={() => setSoAnomalos(v => !v)}
+            className={`flex items-center gap-2 text-left text-sm rounded-lg px-3 py-2 border w-full sm:w-auto ${soAnomalos ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-400 text-amber-800 dark:text-amber-200' : 'bg-amber-50 dark:bg-amber-900/15 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-100/70 dark:hover:bg-amber-900/25'}`}>
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span><b>{anomalosN}</b> contagem(ns) fora do costume — possível preenchimento ou preço errado. {soAnomalos ? 'Mostrando só elas — clique p/ ver todas.' : 'Clique pra revisar.'}</span>
+          </button>
+        )}
+
         {comparar && comp?.resumo && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">{fmtData(comp.data_a)}</div><div className="text-xl font-bold">{fmtBRL(comp.resumo.valor_a)}</div></CardContent></Card>
@@ -317,7 +330,12 @@ export default function EstoqueHistoricoPage() {
                       {podeEditar && CLASSES_CADASTRO.includes(classe) && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}</td>
+                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
+                    <span className="inline-flex items-center gap-1.5" title={it.anomalo ? (it.anomalia_motivo || 'Fora do padrão') : undefined}>
+                      {it.anomalo && <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                      {it.insumo_nome}
+                    </span>
+                  </td>
                   <td className="px-3 py-2"><Badge variant="outline">{it.area || '—'}</Badge></td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-400 text-xs">{it.estoque_min == null && it.estoque_max == null ? '—' : `${it.estoque_min ?? '—'} / ${it.estoque_max ?? '—'}`}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{Number(it.estoque_final || 0).toLocaleString('pt-BR')}</td>
@@ -362,7 +380,12 @@ export default function EstoqueHistoricoPage() {
                       {podeEditar && CLASSES_CADASTRO.includes(classe) && it.insumo_codigo && <button onClick={() => abrirCadastro(it.insumo_codigo)} className="text-gray-400 hover:text-indigo-600" title="Editar item"><Pencil className="w-3 h-3" /></button>}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}</td>
+                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
+                    <span className="inline-flex items-center gap-1.5" title={it.anomalo ? (it.anomalia_motivo || 'Fora do padrão') : undefined}>
+                      {it.anomalo && <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                      {it.insumo_nome}
+                    </span>
+                  </td>
                   {classe === 'limpeza'
                     ? <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{it.categoria || '—'}</td>
                     : <><td className="px-3 py-2"><Badge variant="outline">{it.area || '—'}</Badge></td><td className="px-3 py-2 text-gray-500 dark:text-gray-400">{it.categoria || '—'}</td></>}

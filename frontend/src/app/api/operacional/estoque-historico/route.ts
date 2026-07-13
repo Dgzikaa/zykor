@@ -103,14 +103,59 @@ export async function GET(request: NextRequest) {
     for (const c of (cad || [])) if (c.codigo) unidContagem[String(c.codigo)] = c.unidade_contagem || '';
   }
 
+  // #6 — baseline p/ sinalizar contagens "fora do costume" (possível preenchimento ou preço
+  // errado): histórico do PRÓPRIO item (mesmo tipo/classe) nos últimos ~120 dias, exceto a data
+  // atual. Usa MEDIANA (robusta a 1 valor esquisito). Só julga com ≥3 contagens anteriores.
+  const desde = new Date(new Date(dataSel + 'T00:00:00').getTime() - 120 * 864e5).toISOString().slice(0, 10);
+  let qHist = silver.from('estoque_contagem')
+    .select('insumo_codigo, data_contagem, estoque_final, valor')
+    .eq('bar_id', user.bar_id).eq('classe', classe)
+    .gte('data_contagem', desde).lt('data_contagem', dataSel);
+  if (tipo === 'diaria') qHist = qHist.eq('curva_a', true); else qHist = qHist.eq('tipo_contagem', tipo);
+  const { data: histRows } = await qHist;
+  const histMap: Record<string, { valores: number[]; precos: number[] }> = {};
+  for (const h of (histRows || [])) {
+    const cod = String(h.insumo_codigo || ''); if (!cod) continue;
+    const v = Number(h.valor || 0), q = Number(h.estoque_final || 0);
+    (histMap[cod] ??= { valores: [], precos: [] });
+    if (v > 0) histMap[cod].valores.push(v);
+    if (v > 0 && q > 0) histMap[cod].precos.push(v / q);
+  }
+  const mediana = (arr: number[]): number | null => {
+    if (!arr.length) return null;
+    const s = [...arr].sort((a, b) => a - b); const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+  // Retorna {anomalo, motivo} comparando o item da data atual com a mediana do seu histórico.
+  const sinalAnomalia = (codigo: string, valorAtual: number, qtdAtual: number) => {
+    const h = histMap[String(codigo)]; if (!h || h.valores.length < 3) return { anomalo: false, motivo: '' as string };
+    const medV = mediana(h.valores);
+    if (medV && medV > 0 && valorAtual > 0) {
+      const r = valorAtual / medV;
+      if (r >= 3 && Math.abs(valorAtual - medV) >= 100) return { anomalo: true, motivo: `Valor ${r.toFixed(1)}× acima do costume — confira preenchimento/preço` };
+      if (r <= 1 / 3 && Math.abs(valorAtual - medV) >= 100) return { anomalo: true, motivo: `Valor bem abaixo do costume — confira preenchimento` };
+    }
+    if (h.precos.length >= 3 && qtdAtual > 0 && valorAtual > 0) {
+      const medP = mediana(h.precos); const curP = valorAtual / qtdAtual;
+      if (medP && medP > 0) { const rp = curP / medP; if (rp >= 2 || rp <= 0.5) return { anomalo: true, motivo: 'Preço unitário fora do padrão — confira o cadastro/VMarket' }; }
+    }
+    return { anomalo: false, motivo: '' };
+  };
+
+  let anomalos_n = 0;
   const itens = (rows || []).map((r: any) => {
     const estoque_final = Number(r.estoque_final ?? 0);
     const estoque_ideal = r.estoque_ideal == null ? null : Number(r.estoque_ideal);
     const valor = Number(r.valor ?? 0);
+    const _sig = sinalAnomalia(r.insumo_codigo, valor, estoque_final);
+    if (_sig.anomalo) anomalos_n++;
     return {
       ...r,
       estoque_final,
       estoque_ideal,
+      // #6: contagem fora do costume (possível preenchimento/preço errado).
+      anomalo: _sig.anomalo,
+      anomalia_motivo: _sig.motivo || null,
       // unidade como o bar conta (cadastro); vazio → a tela mostra só o número.
       unidade_contagem: unidContagem[String(r.insumo_codigo)] || null,
       // Limpeza: Sug. Pedido = repor até o ideal (nunca negativo).
@@ -143,7 +188,7 @@ export async function GET(request: NextRequest) {
   const ordem = ['Comidas', 'Salão', 'Drinks', 'Alimentação', 'Produção Cozinha', 'Produção Drinks'];
   const totais_area = Object.values(areaMap).sort((a, b) => (ordem.indexOf(a.area) - ordem.indexOf(b.area)));
 
-  return NextResponse.json({ success: true, tipo, classe, datas, data: dataSel, itens, totais_area, total_geral });
+  return NextResponse.json({ success: true, tipo, classe, datas, data: dataSel, itens, totais_area, total_geral, anomalos_n });
 }
 
 /**
