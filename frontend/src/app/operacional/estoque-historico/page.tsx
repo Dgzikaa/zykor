@@ -137,6 +137,11 @@ export default function EstoqueHistoricoPage() {
 
   const trocarData = (d: string) => { setData(d); carregar(tipo, d); if (comparar) carregarComp(tipo, d, dataB); };
 
+  // Unidade a exibir na coluna Qtd: insumo/produção usam a unidade de CONTAGEM do cadastro
+  // (quando houver — senão só o número); limpeza mantém a unidade-base própria.
+  const unidadeCol = (it: any): string | null =>
+    (classe === 'insumo' || classe === 'producao') ? (it.unidade_contagem || null) : (it.unidade_medida || null);
+
   // Valores distintos p/ os filtros de coluna (Área / Categoria).
   const areasDisp = useMemo(() => Array.from(new Set(itens.map((i: any) => i.area).filter(Boolean))).sort() as string[], [itens]);
   const categoriasDisp = useMemo(() => Array.from(new Set(itens.map((i: any) => i.categoria).filter(Boolean))).sort() as string[], [itens]);
@@ -362,7 +367,7 @@ export default function EstoqueHistoricoPage() {
                     ? <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{it.categoria || '—'}</td>
                     : <><td className="px-3 py-2"><Badge variant="outline">{it.area || '—'}</Badge></td><td className="px-3 py-2 text-gray-500 dark:text-gray-400">{it.categoria || '—'}</td></>}
                   {classe === 'limpeza' && <td className="px-3 py-2 text-right tabular-nums text-gray-500">{it.estoque_ideal == null ? '—' : fmtQtd(it.estoque_ideal, it.unidade_medida)}</td>}
-                  <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.estoque_final, it.unidade_medida)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.estoque_final, unidadeCol(it))}</td>
                   {classe === 'limpeza' && <td className={`px-3 py-2 text-right tabular-nums ${Number(it.sug_pedido) > 0 ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-gray-400'}`}>{it.sug_pedido == null ? '—' : fmtQtd(it.sug_pedido, it.unidade_medida)}</td>}
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{it.custo_unitario ? fmtBRL(it.custo_unitario) : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{it.valor ? fmtBRL(it.valor) : '—'}</td>

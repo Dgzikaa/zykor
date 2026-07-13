@@ -94,6 +94,15 @@ export async function GET(request: NextRequest) {
     .order('categoria', { ascending: true }).order('insumo_nome', { ascending: true });
   if (e2) return NextResponse.json({ success: false, error: e2.message }, { status: 500 });
 
+  // Unidade de CONTAGEM (do cadastro) por código — pra exibir a unidade como o bar conta,
+  // não a unidade-base (ml/g) que confunde. insumo→operations.insumos, produção→producao_base.
+  const unidContagem: Record<string, string> = {};
+  if (classe === 'insumo' || isProducao) {
+    const { data: cad } = await ops.from(isProducao ? 'producao_base' : 'insumos')
+      .select('codigo, unidade_contagem').eq('bar_id', user.bar_id);
+    for (const c of (cad || [])) if (c.codigo) unidContagem[String(c.codigo)] = c.unidade_contagem || '';
+  }
+
   const itens = (rows || []).map((r: any) => {
     const estoque_final = Number(r.estoque_final ?? 0);
     const estoque_ideal = r.estoque_ideal == null ? null : Number(r.estoque_ideal);
@@ -102,6 +111,8 @@ export async function GET(request: NextRequest) {
       ...r,
       estoque_final,
       estoque_ideal,
+      // unidade como o bar conta (cadastro); vazio → a tela mostra só o número.
+      unidade_contagem: unidContagem[String(r.insumo_codigo)] || null,
       // Limpeza: Sug. Pedido = repor até o ideal (nunca negativo).
       sug_pedido: isLimpeza && estoque_ideal != null ? Math.max(0, estoque_ideal - estoque_final) : null,
       // Custo/un: VMarket quando confiável; senão o EFETIVO (valor ÷ qtd) — reflete o custo do
