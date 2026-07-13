@@ -232,9 +232,10 @@ export async function POST(request: NextRequest) {
       const { error } = await admin.from('produto_contahub_map').upsert({ bar_id: barId, prd: p.prd, cod_interno: p.cod_interno }, { onConflict: 'bar_id,prd' });
       if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
+    // Refresh da matview é BEST-EFFORT: o vínculo já está gravado. Se estourar o timeout,
+    // NÃO falha a request — a tela remove o item na hora (otimista) e o cron atualiza a matview.
     const { error: rErr } = await (admin as any).schema('silver').rpc('fn_refresh_vendas_depara');
-    if (rErr) return NextResponse.json({ success: false, error: `vinculado, mas o refresh falhou (${rErr.message}) — some no próximo cron` }, { status: 500 });
-    return NextResponse.json({ success: true, vinculados: pares.length });
+    return NextResponse.json({ success: true, vinculados: pares.length, refresh_ok: !rErr, ...(rErr ? { warning: 'refresh adiado — atualiza no próximo cron' } : {}) });
   }
 
   // ----- CADASTRAR: o item vendido NÃO existe no cardápio (nome parecido é outro produto,
@@ -262,9 +263,9 @@ export async function POST(request: NextRequest) {
       const itens = (src || []).map((it: any) => { const { id, created_at, updated_at, ...rest } = it; void id; void created_at; void updated_at; return { ...rest, produto_id: novo.id, producao_id: null }; });
       if (itens.length) await admin.from('producao_ficha_item').insert(itens);
     }
+    // Refresh best-effort (ver vincular): cadastro já gravado; timeout não falha a request.
     const { error: rErr } = await (admin as any).schema('silver').rpc('fn_refresh_vendas_depara');
-    if (rErr) return NextResponse.json({ success: false, error: `cadastrado (${codigo}), mas o refresh falhou (${rErr.message}) — some no próximo cron` }, { status: 500 });
-    return NextResponse.json({ success: true, codigo });
+    return NextResponse.json({ success: true, codigo, refresh_ok: !rErr, ...(rErr ? { warning: 'refresh adiado — atualiza no próximo cron' } : {}) });
   }
 
   // ----- IGNORAR: prd que não é produto de cardápio (ingresso, vale, taxa, embalagem…) -----
