@@ -528,12 +528,16 @@ export function PedidoDetailDialog({
             {/* Marcar como pago — copia e cola (manual) ou pagamento fora do fluxo */}
             {podeAprovar && (pedido.status === 'aprovado' || pedido.status === 'agendado') && (
               <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 flex items-center justify-between gap-3">
-                <p className="text-xs text-muted-foreground">
-                  {pedido.pix_copia_cola
-                    ? 'Depois de pagar colando o código no app do Inter, confirme aqui.'
-                    : 'Pago fora do fluxo automático? Confirme o pagamento aqui.'}
-                </p>
-                <Button size="sm" onClick={marcarPago} disabled={marcandoPago} className="shrink-0">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-0.5">Marcar como pago</p>
+                  <p className="text-xs text-muted-foreground">
+                    {pedido.pix_copia_cola
+                      ? 'Este pedido é PIX copia-e-cola (não sai pelo Inter automático). Pague colando o código no app do banco e confirme aqui pra fechar o pedido como pago.'
+                      : 'Use quando o pagamento foi feito FORA do fluxo automático do Inter (copia-e-cola, QR, TED, dinheiro). Confirma o pagamento e muda o status pra pago.'}
+                  </p>
+                </div>
+                <Button size="sm" onClick={marcarPago} disabled={marcandoPago} className="shrink-0"
+                  title="Confirma manualmente o pagamento de um pedido aprovado/agendado que não passou pelo PIX automático do Inter.">
                   {marcandoPago ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
                   Marcar como pago
                 </Button>

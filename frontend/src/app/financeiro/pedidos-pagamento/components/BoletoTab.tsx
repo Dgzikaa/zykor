@@ -13,6 +13,7 @@ import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Loader2, FileScan, Sparkles, Send, AlertTriangle, PencilLine, ScanLine, Receipt } from 'lucide-react';
 import { BoletoScanner } from './BoletoScanner';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { PedidoCard, type Opcao } from './PedidoCard';
 import { type Pedido } from '../types';
 import { type TabKey, TAB_STATUS } from '../statusTabs';
@@ -54,6 +55,9 @@ export function BoletoTab({
   // Competência e observação NÃO vêm do boleto — quem sobe preenche.
   const [competencia, setCompetencia] = useState('');
   const [observacao, setObservacao] = useState('');
+  // #20 — conta de pagamento (pré-preenchida com a padrão do bar). '' = usa a padrão.
+  const [contaId, setContaId] = useState('');
+  const contaEfetiva = contaId || contaPadrao || '';
 
   const ler = async (file: File) => {
     setArquivoNome(file.name);
@@ -116,7 +120,7 @@ export function BoletoTab({
     setD((p) => (p ? { ...p, [campo]: campo === 'valor' ? Number(valor.replace(/[R$\s.]/g, '').replace(',', '.')) || null : valor } : p));
 
   const reset = () => {
-    setD(null); setArquivoNome(''); setAvisos([]); setCompetencia(''); setObservacao('');
+    setD(null); setArquivoNome(''); setAvisos([]); setCompetencia(''); setObservacao(''); setContaId('');
   };
 
   const criar = async () => {
@@ -140,6 +144,7 @@ export function BoletoTab({
         beneficiario_nome: d.beneficiario || null,
         cpf_cnpj: d.cpf_cnpj || null,
         linha_digitavel: d.linha_digitavel || null,
+        conta_financeira_id: contaEfetiva || undefined,
         observacao: [observacao.trim(), d.banco ? `Banco ${d.banco}` : ''].filter(Boolean).join(' · ') || null,
       });
       showToast({ type: 'success', title: 'Pedido de boleto criado', message: 'Foi pra aprovação.' });
@@ -234,9 +239,16 @@ export function BoletoTab({
               <Input value={d.linha_digitavel || ''} onChange={(e) => upd('linha_digitavel', e.target.value)} placeholder="código de barras do boleto (47/48 dígitos)" inputMode="numeric"
                 className={!d.linha_digitavel ? 'border-amber-400' : ''} />
             </div>
-            <div>
-              <Label className="mb-1.5 block">Observação <span className="text-muted-foreground text-xs">(opcional)</span></Label>
-              <Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} rows={2} placeholder="Ex.: entrega Ambev, conta de água da unidade…" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label className="mb-1.5 block">Conta de Pagamento <span className="text-muted-foreground text-xs">(padrão do bar)</span></Label>
+                <SearchableSelect value={contaEfetiva} onValueChange={(v) => setContaId(v || '')}
+                  placeholder={contaPadrao ? 'Padrão do bar' : 'Selecione a conta'} searchPlaceholder="Filtrar…" emptyMessage="Nenhuma" options={contas} />
+              </div>
+              <div>
+                <Label className="mb-1.5 block">Observação <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+                <Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} rows={2} placeholder="Ex.: entrega Ambev, conta de água da unidade…" />
+              </div>
             </div>
             <div className="flex items-center justify-between pt-1">
               <span className="text-sm text-muted-foreground">{d.valor ? `Total ${fmtBRL(d.valor)}` : ''}</span>

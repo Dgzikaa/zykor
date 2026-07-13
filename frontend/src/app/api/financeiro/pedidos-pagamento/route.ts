@@ -216,6 +216,7 @@ export async function POST(request: NextRequest) {
     precisa_comprovante: body.precisa_comprovante === true,
     // Pré-sugestões opcionais (financeiro confirma na aprovação)
     contaazul_pessoa_id: body.contaazul_pessoa_id || null,
+    conta_financeira_id: body.conta_financeira_id || null,
     categoria_id: body.categoria_id || null,
     categoria_nome: body.categoria_nome || null,
     centro_custo_id: body.centro_custo_id || null,
