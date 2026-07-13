@@ -46,6 +46,10 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // NÃO entra no menu lateral: acesso só pelo ícone (?) no header. Mesmo padrão do /home.
   { path: '/chamados', requiredModules: [] },
 
+  // Wiki do Zykor — documentação livre pra QUALQUER usuário autenticado. Acesso pelo
+  // ícone (?) no header (NÃO entra no menu lateral). Cobre /wiki e /wiki/* por prefixo.
+  { path: '/wiki', requiredModules: [] },
+
   // Revisão de feedbacks (só admin). O widget de envio é global; a REVISÃO é restrita.
   { path: '/configuracoes/feedbacks', adminOnly: true },
 
