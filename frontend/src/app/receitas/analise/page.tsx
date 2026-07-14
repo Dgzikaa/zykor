@@ -53,6 +53,8 @@ export default function AnaliseReceitasPage() {
   const { setPageTitle } = usePageTitle();
   const [mes, setMes] = useState<string>(mesAtual());
   const [janela, setJanela] = useState<number>(6); // quantos meses a matriz mostra (termina no mês de referência)
+  const [rDe, setRDe] = useState(''); // intervalo de data explícito (sobrepõe mês+janela na matriz)
+  const [rAte, setRAte] = useState('');
   const [comp, setComp] = useState<{ dias: DiaCmp[]; labels: any } | null>(null);
   const [loadingComp, setLoadingComp] = useState(true);
   const [contexto, setContexto] = useState('');
@@ -71,11 +73,12 @@ export default function AnaliseReceitasPage() {
 
   // janela da matriz: `janela` meses terminando no mês de referência
   const { inicio, fim } = useMemo(() => {
+    if (rDe && rAte) return { inicio: rDe, fim: rAte };
     const [ano, m] = mes.split('-').map(Number);
     const ini = new Date(Date.UTC(ano, (m - 1) - (janela - 1), 1));
     const fimD = new Date(Date.UTC(ano, m, 0)); // último dia do mês de referência
     return { inicio: ini.toISOString().slice(0, 10), fim: fimD.toISOString().slice(0, 10) };
-  }, [mes, janela]);
+  }, [mes, janela, rDe, rAte]);
 
   useEffect(() => {
     if (!barId) return;
@@ -183,15 +186,26 @@ export default function AnaliseReceitasPage() {
                 <h2 className="text-sm font-semibold text-[hsl(var(--foreground))]">Faturamento médio por dia da semana — mês a mês</h2>
                 <p className="text-xs text-[hsl(var(--muted-foreground))]">Média por ocorrência de cada dia, com a variação vs o mês anterior. Verde mais forte = dia/mês melhor.</p>
               </div>
-              <label className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
-                Janela
-                <select value={janela} onChange={(e) => setJanela(Number(e.target.value))}
-                  className="h-8 rounded-md border border-[hsl(var(--border))] bg-transparent px-2 text-sm text-[hsl(var(--foreground))]">
-                  <option value={3}>3 meses</option>
-                  <option value={6}>6 meses</option>
-                  <option value={12}>12 meses</option>
-                </select>
-              </label>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+                <label className="flex items-center gap-2">
+                  Janela
+                  <select value={janela} onChange={(e) => setJanela(Number(e.target.value))} disabled={!!(rDe && rAte)}
+                    className="h-8 rounded-md border border-[hsl(var(--border))] bg-transparent px-2 text-sm text-[hsl(var(--foreground))] disabled:opacity-50">
+                    <option value={3}>3 meses</option>
+                    <option value={6}>6 meses</option>
+                    <option value={12}>12 meses</option>
+                  </select>
+                </label>
+                <span>ou intervalo</span>
+                <input type="date" value={rDe} onChange={(e) => setRDe(e.target.value)}
+                  className="h-8 rounded-md border border-[hsl(var(--border))] bg-transparent px-1.5 text-sm text-[hsl(var(--foreground))]" />
+                <span>–</span>
+                <input type="date" value={rAte} onChange={(e) => setRAte(e.target.value)}
+                  className="h-8 rounded-md border border-[hsl(var(--border))] bg-transparent px-1.5 text-sm text-[hsl(var(--foreground))]" />
+                {(rDe || rAte) && (
+                  <button onClick={() => { setRDe(''); setRAte(''); }} className="underline">limpar</button>
+                )}
+              </div>
             </div>
             <MatrizFaturamentoDiaSemana barId={barId} inicio={inicio} fim={fim} />
           </div>

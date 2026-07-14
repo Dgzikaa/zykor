@@ -43,8 +43,14 @@ export function CardDiaSemana({ barId, periodo }: { barId?: number; periodo: Per
   const [meses, setMeses] = useState<{ key: string; label: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Comparativo (mês de referência = fim do período selecionado)
-  const mesRef = (periodo.fim || '').slice(0, 7);
+  // Range local opcional (selecionar data direto no card) — sobrepõe o período global
+  const [de, setDe] = useState('');
+  const [ate, setAte] = useState('');
+  const ini = de && ate ? de : periodo.inicio;
+  const fimEff = de && ate ? ate : periodo.fim;
+
+  // Comparativo (mês de referência = fim do range efetivo)
+  const mesRef = (fimEff || '').slice(0, 7);
   const [comp, setComp] = useState<Comp>('mom');
   const [cmpDias, setCmpDias] = useState<any[]>([]);
   const [cmpLabels, setCmpLabels] = useState<Record<string, string>>({});
@@ -54,7 +60,7 @@ export function CardDiaSemana({ barId, periodo }: { barId?: number; periodo: Per
     if (!barId) return;
     setLoading(true);
     api
-      .get(`/api/receitas/dia-semana-mensal?bar_id=${barId}&inicio=${periodo.inicio}&fim=${periodo.fim}`)
+      .get(`/api/receitas/dia-semana-mensal?bar_id=${barId}&inicio=${ini}&fim=${fimEff}`)
       .then((r: any) => {
         if (r?.success) {
           setDias(r.dias ?? []);
@@ -69,7 +75,7 @@ export function CardDiaSemana({ barId, periodo }: { barId?: number; periodo: Per
         setMeses([]);
       })
       .finally(() => setLoading(false));
-  }, [barId, periodo.inicio, periodo.fim]);
+  }, [barId, ini, fimEff]);
 
   useEffect(() => {
     if (!barId || !mesRef) return;
@@ -88,7 +94,23 @@ export function CardDiaSemana({ barId, periodo }: { barId?: number; periodo: Per
   const altura = Math.max(340, meses.length * 78);
 
   return (
-    <ChartCard titulo="Faturamento por Dia da Semana" subtitulo="média por dia da semana, mês a mês (com variação vs mês anterior)" className="md:col-span-2">
+    <ChartCard
+      titulo="Faturamento por Dia da Semana"
+      subtitulo="média por dia da semana, mês a mês (com variação vs mês anterior)"
+      className="md:col-span-2"
+      right={
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <input type="date" value={de} onChange={(e) => setDe(e.target.value)}
+            className="h-8 rounded-md border border-[hsl(var(--border))] bg-transparent px-1.5 text-xs text-[hsl(var(--foreground))]" />
+          <span className="text-[hsl(var(--muted-foreground))]">–</span>
+          <input type="date" value={ate} onChange={(e) => setAte(e.target.value)}
+            className="h-8 rounded-md border border-[hsl(var(--border))] bg-transparent px-1.5 text-xs text-[hsl(var(--foreground))]" />
+          {(de || ate) && (
+            <button onClick={() => { setDe(''); setAte(''); }} className="text-[hsl(var(--muted-foreground))] underline">limpar</button>
+          )}
+        </div>
+      }
+    >
       {loading ? (
         <div className="flex h-[340px] items-center justify-center text-[hsl(var(--muted-foreground))]">
           <Loader2 className="h-6 w-6 animate-spin" />
