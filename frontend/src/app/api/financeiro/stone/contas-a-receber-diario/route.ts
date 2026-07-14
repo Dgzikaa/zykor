@@ -175,6 +175,36 @@ async function getCAToken(barId: number): Promise<{ token: string } | { error: s
   return { token: cred.access_token };
 }
 
+// CNPJ da Stone Instituição de Pagamento (o mesmo nos 2 bares). Base da resolução dinâmica abaixo.
+const STONE_CNPJ = '16501555000157';
+
+/**
+ * Resolve os contatos Stone (cliente dos recebíveis + fornecedor da taxa) DINAMICAMENTE pelo CNPJ:
+ * pega o contato ATIVO no CA com documento = STONE_CNPJ e o perfil certo, caindo no UUID do CONFIG
+ * como fallback. Assim, se reorganizarem os contatos Stone no Conta Azul (dedup/recriar/renomear),
+ * o push acha o contato certo sem editar código — desde que o contato ativo tenha o CNPJ preenchido.
+ * (Bar 4: o fornecedor da taxa hoje está sem CNPJ no cadastro → cai no fallback do CONFIG.)
+ */
+async function resolverContatosStone(barId: number, cfg: BarStoneConfig): Promise<BarStoneConfig> {
+  const supabase = getSupabaseAdmin();
+  const { data: pessoas } = await (supabase.schema('bronze' as any) as any)
+    .from('bronze_contaazul_pessoas')
+    .select('contaazul_id, ativo, raw_data')
+    .eq('bar_id', barId)
+    .eq('documento', STONE_CNPJ)
+    .neq('ativo', false);
+  const arr = ((pessoas as any[]) || []);
+  const temPerfil = (p: any, perfil: string) =>
+    Array.isArray(p?.raw_data?.perfis) && p.raw_data.perfis.some((x: string) => String(x).toLowerCase() === perfil);
+  const cliente = arr.find((p) => temPerfil(p, 'cliente'));
+  const fornecedor = arr.find((p) => temPerfil(p, 'fornecedor'));
+  return {
+    ...cfg,
+    cliente_id: cliente?.contaazul_id || cfg.cliente_id,
+    taxa: { ...cfg.taxa, fornecedor_id: fornecedor?.contaazul_id || cfg.taxa.fornecedor_id },
+  };
+}
+
 /**
  * Trava anti-mis-book de CONTATO. Os UUIDs de contato/fornecedor do CONFIG são fixos no código.
  * Se algum for DELETADO ou inativado no CA (ex.: dedup de contatos), o push não pode continuar
@@ -388,11 +418,12 @@ export async function GET(request: NextRequest) {
   if (!user) return authErrorResponse('Usuário não autenticado');
   if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.conciliacao, 'ver')) return permissionErrorResponse('Sem permissão');
   const barId = Number(new URL(request.url).searchParams.get('bar_id')) || Number(user.bar_id);
-  const cfg = CONFIG[barId];
-  if (!cfg) return NextResponse.json({ error: `Bar ${barId} ainda não configurado para Stone->CA` }, { status: 400 });
+  const cfgBase = CONFIG[barId];
+  if (!cfgBase) return NextResponse.json({ error: `Bar ${barId} ainda não configurado para Stone->CA` }, { status: 400 });
   const data = new URL(request.url).searchParams.get('data') || ontemBRT();
 
   try {
+    const cfg = await resolverContatosStone(barId, cfgBase);
     const alertasContato = await contatosInvalidos(barId, cfg);
     const linhas = await getLinhas(barId, data);
     const supabase = getSupabaseAdmin();
@@ -481,10 +512,12 @@ export async function executarStoneDiario(
   data: string,
   criadoPor: string | null,
 ): Promise<{ status: number; body: any }> {
-  const cfg = CONFIG[barId];
-  if (!cfg) return { status: 400, body: { error: `Bar ${barId} ainda não configurado para Stone->CA` } };
+  const cfgBase = CONFIG[barId];
+  if (!cfgBase) return { status: 400, body: { error: `Bar ${barId} ainda não configurado para Stone->CA` } };
+  // Resolve o contato Stone certo pelo CNPJ (fallback no UUID do CONFIG) — reflete mudanças no CA.
+  const cfg = await resolverContatosStone(barId, cfgBase);
 
-  // Trava: não lança nada se o contato/fornecedor do CONFIG tiver sido deletado/inativado no CA.
+  // Trava: não lança nada se o contato/fornecedor resolvido tiver sido deletado/inativado no CA.
   const probsContato = await contatosInvalidos(barId, cfg);
   if (probsContato.length) {
     return {

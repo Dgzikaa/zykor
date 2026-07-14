@@ -195,9 +195,28 @@ export async function POST(request: NextRequest) {
       pessoa_id,
     } = body || {};
 
-    const barIdNum = Number(user.bar_id);
+    const supabase = getSupabaseAdmin();
+    let barIdNum = Number(user.bar_id);
     if (!Number.isFinite(barIdNum)) {
       return NextResponse.json({ error: 'Usuário sem bar associado' }, { status: 400 });
+    }
+    // bar_id: por segurança o default é o do usuário autenticado. Mas um chamador interno (ex.: o
+    // agendar de um pedido) manda o bar_id EXPLÍCITO do pedido — honramos SÓ se o usuário tem acesso
+    // a esse bar, pra o lançamento cair sempre no CA do bar DO PEDIDO e nunca no bar SELECIONADO do
+    // operador (bug 14/07: boleto do Ordinário foi agendado no Conta Azul do Deboche).
+    const bodyBarId = Number(body?.bar_id);
+    if (Number.isFinite(bodyBarId) && bodyBarId !== barIdNum) {
+      const { data: acessoBar } = await supabase
+        .schema('auth_custom' as any)
+        .from('usuarios_bares')
+        .select('bar_id')
+        .eq('usuario_id', (user as any).auth_id)
+        .eq('bar_id', bodyBarId)
+        .maybeSingle();
+      if (!acessoBar) {
+        return NextResponse.json({ error: `Sem acesso ao bar ${bodyBarId} para lançar no Conta Azul` }, { status: 403 });
+      }
+      barIdNum = bodyBarId;
     }
     const valorNum = Number(valor);
     if (!Number.isFinite(valorNum) || valorNum <= 0) {
@@ -218,7 +237,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: tokenResult.error }, { status: tokenResult.status });
     }
     const token = tokenResult.token;
-    const supabase = getSupabaseAdmin();
 
     // Resolver pessoa_id (fornecedor) — 3 caminhos: pessoa_id direto > documento > nome normalizado
     let resolvedPessoaId: string | null = pessoa_id || null;
