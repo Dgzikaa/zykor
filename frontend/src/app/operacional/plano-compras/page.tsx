@@ -8,7 +8,7 @@ import { PageShell } from '@/components/layout/PageShell';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
-import { ShoppingCart, Search, Loader2, CalendarDays, RefreshCw, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
+import { ShoppingCart, Search, Loader2, CalendarDays, RefreshCw, ChevronDown, ChevronRight, AlertTriangle, Eye, EyeOff, RotateCcw } from 'lucide-react';
 
 const fmtN = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtI = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
@@ -29,6 +29,11 @@ const NIVEIS = [50, 60, 70, 80, 85, 90, 95, 96, 97, 98, 99, 99.9];
 const NIVEL_Z: Record<number, number> = { 50: 0, 60: 0.254, 70: 0.525, 80: 0.842, 85: 1.037, 90: 1.282, 95: 1.645, 96: 1.751, 97: 1.88, 98: 2.055, 99: 2.325, 99.9: 3.1 };
 const zDe = (n: number) => NIVEL_Z[n] ?? 1.645;
 const r2 = (v: number) => Number(v.toFixed(2));
+// Média ponderada por recência (peso = posição+1) e desvio padrão — espelham o route, p/ recompute
+// ao vivo quando o usuário edita/ignora uma semana. `ign[i]` = semana ignorada (fora da média).
+const mediaPond = (s: number[], ign: boolean[]) => { let n = 0, d = 0; s.forEach((v, i) => { if (ign[i]) return; if (v > 0) { n += v * (i + 1); d += (i + 1); } }); return d > 0 ? n / d : 0; };
+const desvPad = (s: number[]) => { const k = s.length; if (k < 2) return 0; const m = s.reduce((a, v) => a + v, 0) / k; return Math.sqrt(s.reduce((a, v) => a + (v - m) ** 2, 0) / (k - 1)); };
+const ehProteina = (secao?: string | null) => /prote/i.test(secao || '');
 
 export default function PlanoComprasPage() {
   const { selectedBar } = useBar();
@@ -39,6 +44,7 @@ export default function PlanoComprasPage() {
   const [loading, setLoading] = useState(false);
   const [busca, setBusca] = useState('');
   const [soCurvaA, setSoCurvaA] = useState(false);
+  const [soProteina, setSoProteina] = useState(false);
   const [filtro, setFiltro] = useState<'todos' | 'comprar' | 'nao'>('todos');
   const [secao, setSecao] = useState('');
   const [aberto, setAberto] = useState<string | null>(null);
@@ -61,10 +67,11 @@ export default function PlanoComprasPage() {
     const s = busca.trim().toLowerCase();
     return ((res?.itens || []) as any[]).filter((i) =>
       (!soCurvaA || i.curva_a)
+      && (!soProteina || ehProteina(i.secao_vmarket))
       && (filtro === 'todos' || (filtro === 'comprar' ? !i.nao_comprar : i.nao_comprar))
       && (!secao || i.secao_vmarket === secao)
       && (!s || (i.nome || '').toLowerCase().includes(s) || (i.codigo || '').toLowerCase().includes(s)));
-  }, [res, busca, soCurvaA, filtro, secao]);
+  }, [res, busca, soCurvaA, soProteina, filtro, secao]);
 
   // muda o nível de serviço do insumo: recalcula PR/sugestão ao vivo (PR = Média6s + DesvPad × z)
   // e persiste. Tudo em unidade-base (mesma dos campos da linha).
@@ -85,6 +92,37 @@ export default function PlanoComprasPage() {
     });
     try { await api.post('/api/operacional/plano-compras', { bar_id: barId, action: 'config', insumo_codigo: it.codigo, nivel_servico: ns }); }
     catch { /* fica salvo local; próximo refresh corrige */ }
+  };
+
+  // Ajusta a saída de UMA semana: valor na mão (patch.valorBase, unidade-base; null = volta ao
+  // automático) e/ou ignorar (patch.ignorar). Recalcula Média6/DesvPad/PR/Sugestão ao vivo (só as
+  // semanas não-ignoradas entram) e persiste. Fica registrado quem alterou (usuario) no banco.
+  const salvarSaida = async (it: any, i: number, patch: { valorBase?: number | null; ignorar?: boolean }) => {
+    const semana = it.semanas?.[i];
+    if (!semana) return;
+    const saidas = [...(it.saidas || [])];
+    const ignorados = [...(it.ignorados || [])];
+    const manuais = [...(it.manuais || [])];
+    const orig = (it.saidas_orig || [])[i] ?? 0;
+    if ('valorBase' in patch) {
+      if (patch.valorBase == null) { saidas[i] = orig; manuais[i] = false; }
+      else { saidas[i] = patch.valorBase; manuais[i] = true; }
+    }
+    if ('ignorar' in patch) ignorados[i] = !!patch.ignorar;
+    const valor_manual = manuais[i] ? saidas[i] : null;
+    const ignorar = !!ignorados[i];
+    const media6 = mediaPond(saidas, ignorados);
+    const desvpad = desvPad(saidas.filter((_, k) => !ignorados[k]));
+    const pr = media6 + desvpad * zDe(it.nivel_servico);
+    const sugestaoBase = pr - it.estoque + it.ab;
+    const naoComprar = sugestaoBase <= 0;
+    const sugestaoQtd = !naoComprar ? Math.ceil(sugestaoBase / (it.embalagem || 1)) : 0;
+    const ultima = saidas.length ? saidas[saidas.length - 1] : null;
+    setRes((prev: any) => prev ? { ...prev, itens: (prev.itens as any[]).map((x) => x.codigo === it.codigo
+      ? { ...x, saidas, ignorados, manuais, ultima, media6: r2(media6), desvpad: r2(desvpad), pr: r2(pr), sugestao_base: r2(sugestaoBase), sugestao_qtd: sugestaoQtd, nao_comprar: naoComprar }
+      : x) } : prev);
+    try { await api.post('/api/operacional/plano-compras', { bar_id: barId, action: 'saida_ajuste', insumo_codigo: it.codigo, semana_ini: semana, valor_manual, ignorar }); }
+    catch { /* fica local; próximo refresh corrige */ }
   };
 
   const totComprar = useMemo(() => linhas.filter((i) => !i.nao_comprar).length, [linhas]);
@@ -126,6 +164,7 @@ export default function PlanoComprasPage() {
             {secoes.map((s) => <option key={s as string} value={s as string} className="text-gray-900">{s as string}</option>)}
           </select>
           <button onClick={() => setSoCurvaA(v => !v)}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${soCurvaA ? 'ring-1 ring-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>Só Curva A</Badge></button>
+          <button onClick={() => setSoProteina(v => !v)}><Badge variant="outline" className={`cursor-pointer text-rose-600 border-rose-300 ${soProteina ? 'ring-1 ring-rose-400 bg-rose-50 dark:bg-rose-900/20' : ''}`}>Só Proteínas (P)</Badge></button>
           <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
             {([['todos', 'Todos'], ['comprar', 'Comprar'], ['nao', 'Não comprar']] as const).map(([v, label]) => (
               <button key={v} onClick={() => setFiltro(v)} className={`px-3 py-1.5 ${filtro === v ? 'bg-emerald-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>{label}</button>
@@ -185,15 +224,31 @@ export default function PlanoComprasPage() {
                   <td className="px-1.5 py-2 text-right tabular-nums whitespace-nowrap">{it.comprado > 0 ? <span className="text-gray-700 dark:text-gray-200">{fmtI(it.comprado)} emb.</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
                 </tr>
                 {expandido && <tr className="bg-gray-50/60 dark:bg-gray-800/30">
-                  <td colSpan={10} className="px-2 py-2">
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                      <span className="font-medium text-gray-600 dark:text-gray-300">Uso direto por semana:</span>
+                  <td colSpan={10} className="px-3 py-2.5">
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                      <span className="font-medium text-gray-600 dark:text-gray-300 mr-1">Uso direto por semana:</span>
                       {(it.semanas || []).map((wk: string, i: number) => {
-                        const v = it.saidas?.[i] ?? 0;
-                        return <span key={wk} className={`inline-flex items-center gap-1 rounded px-2 py-0.5 ${v > 0 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 line-through'}`}>{fmtDM(wk)}: <b>{fmtEmb(v, it.embalagem)} emb</b> <span className="opacity-60">×{i + 1}</span></span>;
+                        const vBase = it.saidas?.[i] ?? 0;
+                        const ign = it.ignorados?.[i];
+                        const man = it.manuais?.[i];
+                        const vEmb = r2(vBase / (it.embalagem || 1));
+                        return (
+                          <span key={wk} className={`inline-flex items-center gap-1 rounded px-2 py-1 border ${ign ? 'border-gray-200 dark:border-gray-700 bg-gray-100/70 dark:bg-gray-800/60 text-gray-400' : 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'}`}>
+                            <span className="font-medium">{fmtDM(wk)}</span>
+                            <input key={`${wk}-${man}-${ign}-${vEmb}`} type="number" step="any" defaultValue={vEmb} disabled={ign}
+                              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                              onBlur={e => { const raw = e.target.value.trim().replace(',', '.'); const emb = raw === '' ? null : Number(raw); if (emb != null && (!isFinite(emb) || emb < 0)) return; salvarSaida(it, i, { valorBase: emb == null ? null : emb * (it.embalagem || 1) }); }}
+                              title={man ? 'Editado na mão — clique p/ mudar' : 'Editar valor (em embalagens)'}
+                              className={`w-12 bg-transparent text-right tabular-nums outline-none border-b ${man ? 'border-amber-400 text-amber-600 dark:text-amber-300 font-semibold' : 'border-transparent'} ${ign ? 'line-through' : ''}`} />
+                            <span className="opacity-60">emb ×{i + 1}</span>
+                            <button onClick={() => salvarSaida(it, i, { ignorar: !ign })} title={ign ? 'Voltar a considerar na média' : 'Ignorar esta semana na média'} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">{ign ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}</button>
+                            {(man || ign) && <button onClick={() => salvarSaida(it, i, { valorBase: null, ignorar: false })} title="Resetar (voltar ao automático)" className="text-gray-400 hover:text-red-600"><RotateCcw className="w-3 h-3" /></button>}
+                          </span>
+                        );
                       })}
-                      <span className="text-gray-600 dark:text-gray-300">= média <b>{fmtEmb(it.media6, it.embalagem)} emb</b></span>
+                      <span className="text-gray-600 dark:text-gray-300 ml-1">= média <b>{fmtEmb(it.media6, it.embalagem)} emb</b></span>
                     </div>
+                    <p className="mt-1.5 text-[10px] text-gray-400">Editar troca o valor da semana no cálculo (fica <b>registrado que foi manual</b> — borda amarela). O olho <b>ignora</b> a semana (sai da média e do desvio). ↺ volta ao automático.</p>
                   </td>
                 </tr>}
                 </Fragment>

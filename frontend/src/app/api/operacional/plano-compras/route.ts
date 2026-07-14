@@ -12,7 +12,8 @@ const r2 = (v: number) => Number(v.toFixed(2));
 
 const NIVEL_Z: Record<number, number> = { 50: 0, 60: 0.254, 70: 0.525, 80: 0.842, 85: 1.037, 90: 1.282, 95: 1.645, 96: 1.751, 97: 1.88, 98: 2.055, 99: 2.325, 99.9: 3.1 };
 const zDe = (n: number) => NIVEL_Z[n] ?? 1.645;
-const mediaPonderada = (s: number[]) => { let n = 0, d = 0; s.forEach((v, i) => { if (v > 0) { n += v * (i + 1); d += (i + 1); } }); return d > 0 ? n / d : 0; };
+// Média ponderada por recência (peso = posição+1). `ign[i]` = semana ignorada (fora da média).
+const mediaPonderada = (s: number[], ign?: boolean[]) => { let n = 0, d = 0; s.forEach((v, i) => { if (ign?.[i]) return; if (v > 0) { n += v * (i + 1); d += (i + 1); } }); return d > 0 ? n / d : 0; };
 const desvioPadrao = (s: number[]) => { const k = s.length; if (k < 2) return 0; const m = s.reduce((a, v) => a + v, 0) / k; return Math.sqrt(s.reduce((a, v) => a + (v - m) ** 2, 0) / (k - 1)); };
 const semanaIniDe = (d: Date) => { const dow = (d.getDay() + 6) % 7; const m = new Date(d); m.setDate(d.getDate() - dow); return isoD(m); };
 const addDias = (iso: string, n: number) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
@@ -52,10 +53,28 @@ export async function GET(request: NextRequest) {
   const cfgMap = new Map<string, number>();
   (cfgs || []).forEach((c: any) => cfgMap.set(String(c.insumo_codigo).toUpperCase(), Number(c.nivel_servico)));
 
+  // ajustes manuais do histórico de saída por semana (valor na mão e/ou ignorar da média)
+  const { data: ajs } = await (sb() as any).schema('operations').from('compras_plano_saida_ajuste')
+    .select('insumo_codigo, semana_ini, valor_manual, ignorar').eq('bar_id', barId);
+  const ajMap = new Map<string, { valor_manual: number | null; ignorar: boolean }>();
+  (ajs || []).forEach((a: any) => ajMap.set(`${String(a.insumo_codigo).toUpperCase()}|${a.semana_ini}`,
+    { valor_manual: a.valor_manual == null ? null : Number(a.valor_manual), ignorar: !!a.ignorar }));
+
   const itens = ((data || []) as any[]).map((r) => {
-    const saidas = (r.saidas || []).map(num);
-    const media6 = mediaPonderada(saidas);
-    const desvpad = desvioPadrao(saidas);
+    const semanas: string[] = r.semanas || [];
+    const saidasOrig = (r.saidas || []).map(num);
+    // aplica os ajustes: valor_manual sobrescreve o calculado; ignorar tira a semana da média/desvio.
+    const saidas: number[] = [];
+    const ignorados: boolean[] = [];
+    const manuais: boolean[] = [];
+    semanas.forEach((wk, i) => {
+      const aj = ajMap.get(`${String(r.insumo_codigo).toUpperCase()}|${wk}`);
+      ignorados.push(!!aj?.ignorar);
+      manuais.push(!!(aj && aj.valor_manual != null));
+      saidas.push(aj && aj.valor_manual != null ? aj.valor_manual : (saidasOrig[i] ?? 0));
+    });
+    const media6 = mediaPonderada(saidas, ignorados);
+    const desvpad = desvioPadrao(saidas.filter((_, i) => !ignorados[i]));
     // unidade-base + tamanho da embalagem: catálogo (override/seed) com fallback derivado do NOME —
     // MESMA fonte da tela de Insumos, pra os números baterem (lib compartilhado).
     const u = (r.base && num(r.embalagem) > 0) ? { base: r.base as string, embalagem: num(r.embalagem) } : deriveUnid(r.nome, r.unidade_medida);
@@ -73,7 +92,8 @@ export async function GET(request: NextRequest) {
       secao_vmarket: r.secao_vmarket || null,
       embalagem, base: u.base, unidade: u.base, custo: num(r.custo), curva_a: r.curva_a === true,
       estoque: r2(estoque), ab: r2(ab), comprado: num(r.comprado),
-      media6: r2(media6), desvpad: r2(desvpad), saidas, semanas: r.semanas || [], ultima,
+      media6: r2(media6), desvpad: r2(desvpad), saidas, saidas_orig: saidasOrig, ignorados, manuais,
+      semanas, ultima,
       nivel_servico: nivel, pr: r2(pr), sugestao_base: r2(sugestaoBase), sugestao_qtd: sugestaoQtd, nao_comprar: naoComprar,
     };
   }).sort((a, b) => b.sugestao_qtd - a.sugestao_qtd);
@@ -103,5 +123,36 @@ export async function POST(request: NextRequest) {
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   }
+
+  // POST { action:'saida_ajuste', insumo_codigo, semana_ini, valor_manual?, ignorar? }
+  // Ajusta o histórico de saída de uma semana: valor na mão (unidade-base) e/ou ignorar da média.
+  // Sem valor manual e sem ignorar → remove o ajuste (volta ao automático).
+  if (body.action === 'saida_ajuste') {
+    const codigo = String(body.insumo_codigo || '').trim();
+    const semana = String(body.semana_ini || '').trim();
+    if (!codigo) return NextResponse.json({ success: false, error: 'insumo_codigo obrigatório' }, { status: 400 });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(semana)) return NextResponse.json({ success: false, error: 'semana_ini inválida (AAAA-MM-DD)' }, { status: 400 });
+    const ignorar = body.ignorar === true;
+    const vm = body.valor_manual;
+    const valorManual = (vm === null || vm === undefined || vm === '') ? null : Number(vm);
+    if (valorManual != null && (!isFinite(valorManual) || valorManual < 0)) {
+      return NextResponse.json({ success: false, error: 'valor_manual inválido' }, { status: 400 });
+    }
+    const ops = (sb() as any).schema('operations');
+    if (!ignorar && valorManual == null) {
+      const { error } = await ops.from('compras_plano_saida_ajuste').delete()
+        .eq('bar_id', barId).eq('insumo_codigo', codigo).eq('semana_ini', semana);
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true, removido: true });
+    }
+    const { error } = await ops.from('compras_plano_saida_ajuste').upsert({
+      bar_id: barId, insumo_codigo: codigo, semana_ini: semana,
+      valor_manual: valorManual, ignorar, usuario: user.email || (user as any).nome || null,
+      atualizado_em: new Date().toISOString(),
+    }, { onConflict: 'bar_id,insumo_codigo,semana_ini' });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
+  }
+
   return NextResponse.json({ success: false, error: 'ação inválida' }, { status: 400 });
 }
