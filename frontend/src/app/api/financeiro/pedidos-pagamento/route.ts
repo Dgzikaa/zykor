@@ -138,7 +138,8 @@ export async function POST(request: NextRequest) {
 
   // Competências múltiplas (opcional): 1 PIX cheio → N lançamentos no CA, um por
   // competência/valor. O valor total do pedido passa a ser a SOMA das competências.
-  const competencias: Array<{ data_competencia: string; valor: number; descricao: string | null }> = [];
+  // Cada competência é uma linha de RATEIO: data + valor + (opcional) categoria própria (#21).
+  const competencias: Array<{ data_competencia: string; valor: number; descricao: string | null; categoria_id: string | null; categoria_nome: string | null }> = [];
   if (Array.isArray(body.competencias)) {
     for (let i = 0; i < body.competencias.length; i++) {
       const c = body.competencias[i];
@@ -154,6 +155,8 @@ export async function POST(request: NextRequest) {
         data_competencia: d,
         valor: Math.round(v * 100) / 100,
         descricao: c?.descricao ? String(c.descricao).trim() : null,
+        categoria_id: c?.categoria_id ? String(c.categoria_id) : null,
+        categoria_nome: c?.categoria_nome ? String(c.categoria_nome) : null,
       });
     }
   }
@@ -217,8 +220,10 @@ export async function POST(request: NextRequest) {
     // Pré-sugestões opcionais (financeiro confirma na aprovação)
     contaazul_pessoa_id: body.contaazul_pessoa_id || null,
     conta_financeira_id: body.conta_financeira_id || null,
-    categoria_id: body.categoria_id || null,
-    categoria_nome: body.categoria_nome || null,
+    // Com rateio por categoria (#21): se o pedido não tem categoria no topo, herda a da 1ª
+    // linha — assim as validações de aprovar/agendar (que exigem categoria) passam.
+    categoria_id: body.categoria_id || competencias.find(c => c.categoria_id)?.categoria_id || null,
+    categoria_nome: body.categoria_nome || competencias.find(c => c.categoria_id)?.categoria_nome || null,
     centro_custo_id: body.centro_custo_id || null,
     centro_custo_nome: body.centro_custo_nome || null,
     criado_por: user.auth_id,
@@ -268,6 +273,8 @@ export async function POST(request: NextRequest) {
       data_competencia: c.data_competencia,
       valor: c.valor,
       descricao: c.descricao,
+      categoria_id: c.categoria_id,
+      categoria_nome: c.categoria_nome,
       ordem: i,
     }));
     const { error: errComp } = await fin(supabase)

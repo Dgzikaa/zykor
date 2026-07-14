@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DateInputBR } from '@/components/ui/date-input-br';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Loader2, FileScan, Sparkles, Send, AlertTriangle, PencilLine, ScanLine, Receipt } from 'lucide-react';
+import { Loader2, FileScan, Sparkles, Send, AlertTriangle, PencilLine, ScanLine, Receipt, X, Plus } from 'lucide-react';
 import { BoletoScanner } from './BoletoScanner';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { PedidoCard, type Opcao } from './PedidoCard';
@@ -58,6 +58,11 @@ export function BoletoTab({
   // #20 — conta de pagamento (pré-preenchida com a padrão do bar). '' = usa a padrão.
   const [contaId, setContaId] = useState('');
   const contaEfetiva = contaId || contaPadrao || '';
+  // #21 — dividir o boleto em 2+ categorias (rateio). Cada linha vira 1 lançamento no CA.
+  const [usarRateio, setUsarRateio] = useState(false);
+  const [rateio, setRateio] = useState<Array<{ catId: string; valor: string }>>([{ catId: '', valor: '' }, { catId: '', valor: '' }]);
+  const numBR = (v: string) => Number(String(v).replace(/\./g, '').replace(',', '.')) || 0;
+  const rateioSoma = usarRateio ? rateio.reduce((s, r) => s + numBR(r.valor), 0) : 0;
 
   const ler = async (file: File) => {
     setArquivoNome(file.name);
@@ -121,6 +126,7 @@ export function BoletoTab({
 
   const reset = () => {
     setD(null); setArquivoNome(''); setAvisos([]); setCompetencia(''); setObservacao(''); setContaId('');
+    setUsarRateio(false); setRateio([{ catId: '', valor: '' }, { catId: '', valor: '' }]);
   };
 
   const criar = async () => {
@@ -128,6 +134,12 @@ export function BoletoTab({
     if (!d.valor || d.valor <= 0) return showToast({ type: 'error', title: 'Informe o valor' });
     if (!d.vencimento) return showToast({ type: 'error', title: 'Informe o vencimento' });
     if (!competencia) return showToast({ type: 'error', title: 'Informe a competência', message: 'A data de competência é preenchida por quem sobe o boleto.' });
+    // #21 — se dividir em categorias, valida linhas + soma antes de criar.
+    const rateioLinhas = usarRateio ? rateio.filter(r => r.catId && numBR(r.valor) > 0) : [];
+    if (usarRateio) {
+      if (rateioLinhas.length < 2) return showToast({ type: 'error', title: 'Rateio incompleto', message: 'Preencha ao menos 2 categorias com valor.' });
+      if (Math.abs(rateioSoma - (d.valor || 0)) > 0.01) return showToast({ type: 'error', title: 'Soma não bate', message: `As categorias somam ${fmtBRL(rateioSoma)}, mas o boleto é ${fmtBRL(d.valor || 0)}.` });
+    }
     if (!d.linha_digitavel) {
       // Sem linha digitável não dá pra pagar via Inter na aprovação — avisa mas deixa seguir.
       const ok = window.confirm('Sem a linha digitável o boleto não será pago automaticamente pelo Inter na aprovação. Criar mesmo assim?');
@@ -146,6 +158,11 @@ export function BoletoTab({
         linha_digitavel: d.linha_digitavel || null,
         conta_financeira_id: contaEfetiva || undefined,
         observacao: [observacao.trim(), d.banco ? `Banco ${d.banco}` : ''].filter(Boolean).join(' · ') || null,
+        // #21: rateio por categoria → cada linha vira 1 lançamento no CA (mesma competência).
+        competencias: usarRateio ? rateioLinhas.map(r => ({
+          data_competencia: competencia, valor: numBR(r.valor),
+          categoria_id: r.catId, categoria_nome: categorias.find(c => c.value === r.catId)?.label || null,
+        })) : undefined,
       });
       showToast({ type: 'success', title: 'Pedido de boleto criado', message: 'Foi pra aprovação.' });
       reset();
@@ -250,6 +267,35 @@ export function BoletoTab({
                 <Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} rows={2} placeholder="Ex.: entrega Ambev, conta de água da unidade…" />
               </div>
             </div>
+            {/* #21 — dividir o boleto em 2+ categorias (rateio). Cada linha vira 1 lançamento no CA. */}
+            <div>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={usarRateio} onChange={(e) => setUsarRateio(e.target.checked)} className="w-4 h-4 accent-[hsl(var(--primary))]" />
+                Dividir em categorias (rateio)
+              </label>
+              {usarRateio && (
+                <div className="mt-2 space-y-2 rounded-lg border border-[hsl(var(--border))] p-3">
+                  {rateio.map((r, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <SearchableSelect value={r.catId} onValueChange={(v) => setRateio((prev) => prev.map((x, ix) => (ix === i ? { ...x, catId: v || '' } : x)))}
+                          placeholder="Categoria" searchPlaceholder="Filtrar…" emptyMessage="Nenhuma" options={categorias} />
+                      </div>
+                      <Input value={r.valor} onChange={(e) => setRateio((prev) => prev.map((x, ix) => (ix === i ? { ...x, valor: e.target.value } : x)))}
+                        placeholder="0,00" inputMode="decimal" className="w-28" />
+                      {rateio.length > 2 && (
+                        <button onClick={() => setRateio((prev) => prev.filter((_, ix) => ix !== i))} className="text-muted-foreground hover:text-red-600" title="Remover linha"><X className="w-4 h-4" /></button>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between">
+                    <button onClick={() => setRateio((prev) => [...prev, { catId: '', valor: '' }])} className="text-xs text-indigo-600 hover:underline inline-flex items-center gap-1"><Plus className="w-3 h-3" />adicionar categoria</button>
+                    <span className={`text-xs font-medium ${Math.abs(rateioSoma - (d.valor || 0)) < 0.01 ? 'text-emerald-600' : 'text-amber-600'}`}>Soma {fmtBRL(rateioSoma)} / {fmtBRL(d.valor || 0)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center justify-between pt-1">
               <span className="text-sm text-muted-foreground">{d.valor ? `Total ${fmtBRL(d.valor)}` : ''}</span>
               <Button onClick={criar} disabled={criando}>

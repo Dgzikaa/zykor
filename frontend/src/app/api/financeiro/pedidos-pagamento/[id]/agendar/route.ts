@@ -124,7 +124,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .order('ordem', { ascending: true });
   const competencias = (compsData || []) as PedidoCompetencia[];
 
-  const criarLancamentoCA = async (args: { data_competencia: string; valor: number; descricao: string }): Promise<string> => {
+  const criarLancamentoCA = async (args: { data_competencia: string; valor: number; descricao: string; categoria_id?: string | null }): Promise<string> => {
     const r = await fetch(`${origin}/api/financeiro/contaazul/lancamentos`, {
       method: 'POST',
       headers: internalHeaders,
@@ -134,7 +134,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         data_vencimento: p.data_vencimento,
         valor: args.valor,
         descricao: args.descricao,
-        categoria_id: p.categoria_id,
+        // #21: categoria por linha (rateio) quando houver; senão a do pedido.
+        categoria_id: args.categoria_id || p.categoria_id,
         centro_custo_id: p.centro_custo_id || undefined,
         conta_financeira_id: p.conta_financeira_id,
         pessoa_id: p.contaazul_pessoa_id,
@@ -201,7 +202,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         ? `${p.descricao} — ${comp.descricao}`
         : `${p.descricao} (comp. ${comp.data_competencia})`;
       try {
-        const caId = await criarLancamentoCA({ data_competencia: comp.data_competencia, valor: comp.valor, descricao: desc });
+        const caId = await criarLancamentoCA({ data_competencia: comp.data_competencia, valor: comp.valor, descricao: desc, categoria_id: (comp as any).categoria_id || null });
         await fin(supabase).from('pedidos_pagamento_competencias').update({ contaazul_lancamento_id: caId }).eq('id', comp.id);
         comp.contaazul_lancamento_id = caId;
       } catch (e: any) {
