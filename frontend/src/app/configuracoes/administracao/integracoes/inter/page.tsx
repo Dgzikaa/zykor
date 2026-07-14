@@ -5,7 +5,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
-import { Loader2, KeyRound, CheckCircle2, XCircle, Save, ShieldCheck, FileUp, Plus, Landmark } from 'lucide-react';
+import { Loader2, KeyRound, CheckCircle2, XCircle, Save, ShieldCheck, FileUp, Plus, Landmark, Plug } from 'lucide-react';
 
 type Conta = { id: number; empresa_nome: string; cnpj: string | null; conta_corrente: string | null; formato: string; configurado: boolean };
 
@@ -18,6 +18,8 @@ export default function InterCredenciaisPage() {
   const [contas, setContas] = useState<Conta[]>([]);
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [testando, setTestando] = useState<number | null>(null);
+  const [teste, setTeste] = useState<{ id: number; ok: boolean; texto: string } | null>(null);
 
   // formulário
   const [editId, setEditId] = useState<number | null>(null);
@@ -86,6 +88,17 @@ export default function InterCredenciaisPage() {
     } finally { setSalvando(false); }
   };
 
+  const testar = async (id: number) => {
+    if (!barId) return;
+    setTestando(id); setTeste(null);
+    try {
+      const r = await api.post('/api/configuracoes/credenciais/inter', { bar_id: barId, action: 'testar', id });
+      setTeste({ id, ok: !!r.success, texto: r.success ? (r.msg || 'Conexão OK.') : (r.error || 'Falhou') });
+    } catch (e: any) {
+      setTeste({ id, ok: false, texto: e?.message || 'Falha no teste' });
+    } finally { setTestando(null); }
+  };
+
   const editar = (c: Conta) => {
     setEditId(c.id); setEmpresa(c.empresa_nome || ''); setCnpj(c.cnpj || '');
     setContaCorrente(c.conta_corrente || ''); setClientId(''); setClientSecret('');
@@ -134,11 +147,24 @@ export default function InterCredenciaisPage() {
                           <td className="py-2">{c.formato === 'envelope'
                             ? <span className="inline-flex items-center gap-1 text-emerald-600"><ShieldCheck className="w-3.5 h-3.5" />cifrado</span>
                             : <span className="text-amber-600">{c.formato}</span>}</td>
-                          <td className="py-2 text-right"><button type="button" onClick={() => editar(c)} className="text-xs text-primary hover:underline">substituir</button></td>
+                          <td className="py-2 text-right">
+                            <div className="inline-flex items-center gap-3">
+                              <button type="button" onClick={() => testar(c.id)} disabled={testando === c.id} className="text-xs text-primary hover:underline inline-flex items-center gap-1 disabled:opacity-40">
+                                {testando === c.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plug className="w-3 h-3" />}testar
+                              </button>
+                              <button type="button" onClick={() => editar(c)} className="text-xs text-primary hover:underline">substituir</button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+              {teste && (
+                <div className={`text-sm flex items-center gap-1.5 ${teste.ok ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {teste.ok ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                  <span>Conta #{teste.id}: {teste.texto}</span>
                 </div>
               )}
             </section>

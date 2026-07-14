@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { encryptSecret } from '@/lib/crypto/secretBox';
+import { resolveInterCredential } from '@/lib/inter/resolveCredential';
+import { getInterAccessToken } from '@/lib/inter/getAccessToken';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +68,29 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const barId = Number(body.bar_id) || user.bar_id;
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
+
+  // ---- TESTAR CONEXÃO ---- exercita OAuth + mTLS no Inter (sem pagar nada). Confirma se o
+  // certificado/chave e o client_id/secret batem antes de sair pagando.
+  if (body.action === 'testar') {
+    const id = body.id ? Number(body.id) : null;
+    let q = supabase.from('api_credentials').select('*').eq('bar_id', barId).in('sistema', ['inter', 'banco_inter']).eq('ativo', true);
+    if (id) q = q.eq('id', id);
+    const { data } = await q.order('id', { ascending: true }).limit(1).maybeSingle();
+    if (!data) return NextResponse.json({ success: false, error: 'Nenhuma credencial Inter ativa nesse bar.' }, { status: 404 });
+    try {
+      const cred = await resolveInterCredential(data);
+      const token = await getInterAccessToken(cred.clientId, cred.clientSecret, 'pagamento-pix.write', cred.mtls);
+      return NextResponse.json({ success: !!token, id: data.id, empresa: data.empresa_nome, msg: 'Conexão OK — token obtido, certificado válido.' });
+    } catch (e: any) {
+      const raw = String(e?.message || e);
+      // Dicas amigáveis pros erros mais comuns.
+      let dica = raw;
+      if (/invalid_client|unauthorized|401|403/i.test(raw)) dica = 'client_id/client_secret incorretos, ou a aplicação Inter não tem o escopo de pagamento.';
+      else if (/handshake|SSL|certificate|EPROTO|ERR_|decrypt|PEM|tlsv1|alert/i.test(raw)) dica = 'Certificado/chave inválidos ou não correspondem à aplicação Inter.';
+      else if (/envelope|cifrad/i.test(raw)) dica = raw; // já é claro
+      return NextResponse.json({ success: false, id: data.id, error: dica }, { status: 200 });
+    }
+  }
 
   const client_id = String(body.client_id || '').trim();
   const client_secret = String(body.client_secret || '');
