@@ -6,10 +6,10 @@ import { STATUS_LABEL, STATUS_COLOR, type PedidoStatus } from '@/app/financeiro/
 // Item mínimo de um freela lançado (1 diária) — comum à operação e ao financeiro.
 export type FreelaItem = {
   id: string;
-  beneficiario_nome: string | null;
+  beneficiario_nome?: string | null | undefined;
   valor: number;
   status: PedidoStatus;
-  data_competencia: string | null;
+  data_competencia?: string | null | undefined;
   data_vencimento: string;
 };
 
