@@ -98,6 +98,47 @@ export function AbaAnalise({ secaoAtiva }: { secaoAtiva: Secao }) {
     };
   }, [doPeriodo]);
 
+  // #9 — Planejado × Realizado da QUANTIDADE de receitas (só na visão Semana): compara o nº de
+  // receitas que o plano mandou produzir (decidido_receitas) com quantas foram feitas (execuções).
+  const [planoItens, setPlanoItens] = useState<any[]>([]);
+  const [loadingPlano, setLoadingPlano] = useState(false);
+  useEffect(() => {
+    if (!barId || gran !== 'semana' || !periodoSel) { setPlanoItens([]); return; }
+    let vivo = true; setLoadingPlano(true);
+    api.get(`/api/operacional/plano-producao?semana=${periodoSel}&calendario=1`)
+      .then((r: any) => { if (vivo && r.success) setPlanoItens(r.itens || []); })
+      .catch(() => {})
+      .finally(() => { if (vivo) setLoadingPlano(false); });
+    return () => { vivo = false; };
+  }, [barId, gran, periodoSel]);
+
+  const planoVsReal = useMemo(() => {
+    if (gran !== 'semana') return [];
+    // planejado por produção (soma decidido_receitas), só da seção ativa
+    const plan = new Map<number, { nome: string; codigo: string; planejado: number }>();
+    for (const it of planoItens) {
+      if (secaoDeCodigo(it.producao_cod) !== secaoAtiva) continue;
+      const cur = plan.get(it.producao_id) || { nome: it.producao_nome || `#${it.producao_id}`, codigo: it.producao_cod || '', planejado: 0 };
+      cur.planejado += Number(it.decidido_receitas || 0);
+      plan.set(it.producao_id, cur);
+    }
+    // realizado = nº de execuções da semana por produção (na seção ativa)
+    const real = new Map<number, number>();
+    for (const e of doPeriodo) real.set(e.producao_id, (real.get(e.producao_id) || 0) + 1);
+    const ids = new Set<number>([...plan.keys(), ...real.keys()]);
+    return Array.from(ids).map((id) => {
+      const p = plan.get(id);
+      const ex = doPeriodo.find((e) => e.producao_id === id);
+      return {
+        producao_id: id,
+        nome: p?.nome || ex?.producao_nome || `#${id}`,
+        codigo: p?.codigo || ex?.producao_codigo || '',
+        planejado: p?.planejado || 0,
+        realizado: real.get(id) || 0,
+      };
+    }).sort((a, b) => (b.planejado + b.realizado) - (a.planejado + a.realizado));
+  }, [gran, planoItens, doPeriodo, secaoAtiva]);
+
   const corNota = (n: number | null) => n == null ? 'text-gray-400' : n >= 90 ? 'text-emerald-600 dark:text-emerald-400' : n >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
   const corDesvio = (v: number) => v > 0.005 ? 'text-red-600 dark:text-red-400' : v < -0.005 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-900 dark:text-gray-100';
 
@@ -170,6 +211,48 @@ export function AbaAnalise({ secaoAtiva }: { secaoAtiva: Secao }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* #9 — Planejado × Realizado da quantidade de receitas (só na visão Semana) */}
+      {gran === 'semana' && (
+        <Card className="card-dark">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-1.5 mb-2 text-sm font-semibold text-violet-700 dark:text-violet-300">
+              <ListChecks className="w-4 h-4" />Planejado × Realizado <span className="text-gray-400 font-normal">(nº de receitas na semana)</span>
+            </div>
+            {loadingPlano ? (
+              <div className="py-4 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
+            ) : planoVsReal.length === 0 ? (
+              <div className="py-4 text-center text-gray-400 text-sm">Sem plano encerrado nem produção nesta semana para {secaoAtiva}.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
+                    <th className="text-left font-medium px-3 py-1.5">Receita</th>
+                    <th className="text-right font-medium px-3 py-1.5">Planejado</th>
+                    <th className="text-right font-medium px-3 py-1.5">Feito</th>
+                    <th className="text-right font-medium px-3 py-1.5">Δ</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {planoVsReal.map((r) => {
+                      const delta = r.realizado - r.planejado;
+                      const cor = delta === 0 ? 'text-emerald-600 dark:text-emerald-400' : delta < 0 ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400';
+                      return (
+                        <tr key={r.producao_id}>
+                          <td className="px-3 py-1.5 text-gray-900 dark:text-gray-100">{r.nome}{r.codigo && <span className="text-gray-400 font-mono text-xs"> · {r.codigo}</span>}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{r.planejado}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{r.realizado}</td>
+                          <td className={`px-3 py-1.5 text-right tabular-nums font-medium ${cor}`}>{delta > 0 ? '+' : ''}{delta}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="text-[11px] text-gray-400 mt-1.5 px-1">Δ verde = fez o planejado · vermelho = fez menos · amarelo = fez a mais. "Feito" = nº de execuções da receita na semana.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* listagem: as produções do período filtrado */}
       <Card className="card-dark">
