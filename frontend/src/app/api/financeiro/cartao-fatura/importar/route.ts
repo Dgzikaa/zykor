@@ -100,6 +100,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // #23 — o arquivo (Itaú) traz vencimento/valor no cabeçalho → atualiza a fatura (fonte da
+    // verdade; o usuário não precisa digitar). Nubank (OFX/CSV) não traz → não mexe.
+    const upFat: Record<string, unknown> = {};
+    if (parsed.vencimento) upFat.vencimento = parsed.vencimento;
+    if (parsed.valor_total != null) upFat.valor_informado = parsed.valor_total;
+    if (Object.keys(upFat).length) {
+      await fin(supabase).from('cartao_faturas').update(upFat).eq('id', faturaId);
+    }
+
     // Devolve TODAS as linhas da fatura (novas + já vistas, com o status atual).
     const { data: todasData, error: errTodas } = await fin(supabase)
       .from('cartao_fatura_linhas').select('*').eq('fatura_id', faturaId).order('data_transacao', { ascending: false });
@@ -113,6 +122,8 @@ export async function POST(request: NextRequest) {
       importadas: linhas.length,
       novos: novos.length,
       ja_vistos: linhas.length - novos.length,
+      vencimento_arquivo: parsed.vencimento ?? null,
+      valor_arquivo: parsed.valor_total ?? null,
       linhas: todas,
     });
   } catch (e: any) {

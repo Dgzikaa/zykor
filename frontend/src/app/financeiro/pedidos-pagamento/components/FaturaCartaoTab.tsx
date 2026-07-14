@@ -154,7 +154,9 @@ export function FaturaCartaoTab() {
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'falha ao importar');
       setLinhas(json.linhas || []);
-      showToast({ type: 'success', title: `${BANCO_LABEL[json.banco] || json.banco} · ${json.importadas} linhas`, message: `${json.novos} novas, ${json.ja_vistos} já na fatura.` });
+      // #23 — o arquivo do Itaú traz vencimento/valor no cabeçalho; avisa que foi puxado.
+      const extra = json.vencimento_arquivo ? ` · vencimento ${fmtDataBR(json.vencimento_arquivo)} e valor do arquivo` : '';
+      showToast({ type: 'success', title: `${BANCO_LABEL[json.banco] || json.banco} · ${json.importadas} linhas`, message: `${json.novos} novas, ${json.ja_vistos} já na fatura${extra}.` });
       carregarBase();
     } catch (e: any) {
       showToast({ type: 'error', title: 'Erro ao importar', message: e?.message });
@@ -518,11 +520,11 @@ function NovaFaturaDialog({ open, onOpenChange, cartoes, onCriada, onAbrirCartoe
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="mb-1.5 block">Vencimento</Label>
+              <Label className="mb-1.5 block">Vencimento <span className="text-muted-foreground text-xs">(Itaú: puxo do arquivo)</span></Label>
               <DateInputBR value={venc} onChange={setVenc} />
             </div>
             <div>
-              <Label className="mb-1.5 block">Valor da fatura <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+              <Label className="mb-1.5 block">Valor da fatura <span className="text-muted-foreground text-xs">(opcional · Itaú puxa do arquivo)</span></Label>
               <Input value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" inputMode="decimal" />
             </div>
           </div>

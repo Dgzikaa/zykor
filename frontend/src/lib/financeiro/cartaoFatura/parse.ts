@@ -36,6 +36,9 @@ export interface CartaoParseResult {
   banco: CartaoBanco;
   formato: CartaoFormato;
   linhas: CartaoLinhaNormalizada[];
+  // Cabeçalho da fatura (quando o arquivo traz — hoje o Itaú): vencimento ISO e valor total.
+  vencimento?: string | null;
+  valor_total?: number | null;
 }
 
 // ----------------------------- helpers -------------------------------------
@@ -86,13 +89,34 @@ function comHash(l: Omit<CartaoLinhaNormalizada, 'dedupe_hash'>): CartaoLinhaNor
 
 // ----------------------------- Itaú (.xls/.xlsx) ---------------------------
 
-function parseItauXls(buffer: Buffer): CartaoLinhaNormalizada[] {
+function parseItauXls(buffer: Buffer): { linhas: CartaoLinhaNormalizada[]; vencimento: string | null; valor_total: number | null } {
   const wb = XLSX.read(buffer, { type: 'buffer', cellDates: false });
   const linhas: CartaoLinhaNormalizada[] = [];
+  let vencimento: string | null = null;
+  let valor_total: number | null = null;
 
   for (const nome of wb.SheetNames) {
     const ws = wb.Sheets[nome];
     const rows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, raw: true, defval: null });
+
+    // Cabeçalho da fatura: acha as colunas "Vencimento" e "Valor (parcial)" e lê a linha de baixo.
+    for (let i = 0; i < rows.length && (vencimento == null || valor_total == null); i++) {
+      const r = rows[i] || [];
+      const idxVenc = r.findIndex((c: any) => String(c || '').trim().toLowerCase() === 'vencimento');
+      const idxVal = r.findIndex((c: any) => /valor\s*\(parcial\)|valor\s+da\s+fatura|valor\s+total/i.test(String(c || '')));
+      if (idxVenc < 0 && idxVal < 0) continue;
+      const next = rows[i + 1] || [];
+      if (idxVenc >= 0 && vencimento == null) {
+        const raw = next[idxVenc];
+        vencimento = typeof raw === 'number' ? excelSerialToISO(raw)
+          : (String(raw || '').match(/(\d{2})\/(\d{2})\/(\d{4})/) ? (() => { const m = String(raw).match(/(\d{2})\/(\d{2})\/(\d{4})/)!; return `${m[3]}-${m[2]}-${m[1]}`; })() : null);
+      }
+      if (idxVal >= 0 && valor_total == null) {
+        const raw = next[idxVal];
+        const v = typeof raw === 'number' ? raw : parsePtBrNumber(String(raw || ''));
+        if (Number.isFinite(v) && Math.abs(v) > 0) valor_total = Math.round(Math.abs(v) * 100) / 100;
+      }
+    }
 
     // Acha a linha de cabeçalho: col B = "Data" e col C começa com "Lan".
     let head = -1;
@@ -137,7 +161,7 @@ function parseItauXls(buffer: Buffer): CartaoLinhaNormalizada[] {
       }));
     }
   }
-  return linhas;
+  return { linhas, vencimento, valor_total };
 }
 
 // ----------------------------- Nubank OFX ----------------------------------
@@ -261,7 +285,8 @@ export function parseFaturaCartao(buffer: Buffer, filename: string): CartaoParse
   }
   // Excel (Itaú): .xls (BIFF antigo) ou .xlsx — SheetJS lê os dois.
   else if (nome.endsWith('.xls') || nome.endsWith('.xlsx') || head.startsWith('PK') || head.charCodeAt(0) === 0xd0) {
-    res = { banco: 'itau', formato: 'xls', linhas: parseItauXls(buffer) };
+    const it = parseItauXls(buffer);
+    res = { banco: 'itau', formato: 'xls', linhas: it.linhas, vencimento: it.vencimento, valor_total: it.valor_total };
   } else {
     throw new Error('Formato não reconhecido. Envie .xls/.xlsx (Itaú) ou .csv/.ofx (Nubank).');
   }
