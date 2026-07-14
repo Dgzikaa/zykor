@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { encryptSecret } from '@/lib/crypto/secretBox';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,16 +43,68 @@ export async function GET(request: NextRequest) {
       configurado: !!(row.client_id || row.configuracoes?.enc),
     }));
 
-    if (data_safe.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'Credenciais do Inter não encontradas' },
-        { status: 404 }
-      );
-    }
-
+    // Sem credencial ainda = lista vazia (a tela de cadastro trata isso), não é erro.
     return NextResponse.json({ success: true, data: data_safe });
   } catch (error) {
     console.error('❌ Erro ao buscar credenciais:', error);
     return NextResponse.json({ success: false, error: 'Erro interno do servidor' }, { status: 500 });
   }
+}
+
+/**
+ * POST — cadastra/atualiza a credencial Inter de um bar (self-serve, só admin).
+ * Recebe client_id/client_secret/cert(PEM)/key(PEM)/conta_corrente e CIFRA no servidor
+ * (envelope encryption, CREDENTIALS_MASTER_KEY só no Vercel). O banco só recebe texto cifrado.
+ * Substitui o script scripts/cadastrar-credencial-inter.mjs. Passe `id` p/ atualizar uma existente.
+ */
+export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  if ((user.role as string) !== 'admin') {
+    return NextResponse.json({ success: false, error: 'Apenas admin pode cadastrar credenciais bancárias.' }, { status: 403 });
+  }
+  const body = await request.json().catch(() => ({}));
+  const barId = Number(body.bar_id) || user.bar_id;
+  if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
+
+  const client_id = String(body.client_id || '').trim();
+  const client_secret = String(body.client_secret || '');
+  const conta_corrente = String(body.conta_corrente || '').trim();
+  const cert = String(body.cert || '').trim();
+  const key = String(body.key || '').trim();
+  const empresa_nome = String(body.empresa_nome || '').trim();
+  const empresa_cnpj = body.cnpj ? String(body.cnpj).trim() : null;
+  const id = body.id ? Number(body.id) : null;
+
+  if (!client_id || !client_secret || !conta_corrente || !cert || !key) {
+    return NextResponse.json({ success: false, error: 'Preencha client_id, client_secret, conta corrente, certificado e chave.' }, { status: 400 });
+  }
+  if (!/-----BEGIN [A-Z ]*CERTIFICATE-----/.test(cert)) {
+    return NextResponse.json({ success: false, error: 'Certificado inválido — cole/suba o arquivo PEM (-----BEGIN CERTIFICATE-----).' }, { status: 400 });
+  }
+  if (!/-----BEGIN (RSA |EC )?PRIVATE KEY-----/.test(key)) {
+    return NextResponse.json({ success: false, error: 'Chave privada inválida — esperado PEM (-----BEGIN PRIVATE KEY-----).' }, { status: 400 });
+  }
+
+  let enc: { client_secret: string; cert: string; key: string };
+  try {
+    enc = { client_secret: encryptSecret(client_secret), cert: encryptSecret(cert), key: encryptSecret(key) };
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: `Falha ao cifrar (CREDENTIALS_MASTER_KEY configurada no Vercel?): ${e?.message || e}` }, { status: 500 });
+  }
+
+  const row: any = {
+    bar_id: barId, sistema: 'banco_inter', ambiente: 'producao',
+    client_id, client_secret: null,
+    empresa_nome: empresa_nome || `Inter bar ${barId}`, empresa_cnpj,
+    ativo: true,
+    configuracoes: { conta_corrente, enc },
+    atualizado_em: new Date().toISOString(),
+  };
+
+  const { error } = id
+    ? await supabase.from('api_credentials').update(row).eq('id', id).eq('bar_id', barId).in('sistema', ['inter', 'banco_inter'])
+    : await supabase.from('api_credentials').insert(row);
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
 }

@@ -150,6 +150,7 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     acento: 'orange-600',
     fontesAuth: [{ tipo: 'api_credentials', sistema: ['banco_inter'] }],
     volumeTabela: { schema: 'financial', tabela: 'inter_webhook_logs', colunaTempo: 'recebido_em' },
+    acoes: [{ id: 'config_inter', label: 'Configurar credenciais', tipo: 'externa', url: '/configuracoes/administracao/integracoes/inter' }],
   },
 
   // ─── RESERVAS / EVENTOS ──────────────────────────────────────────────
