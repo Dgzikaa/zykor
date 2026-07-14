@@ -14,6 +14,7 @@ import { DateInputBR } from '@/components/ui/date-input-br';
 import { ColumnFilterHeader, useColumnFilters, type FilterCol } from '@/components/ui/column-filter-header';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
+import { getSelectedBarId } from '@/lib/selected-bar';
 import { Loader2, Upload, Send, EyeOff, RotateCcw, CheckCircle2, Plus, CreditCard, Lock, Archive } from 'lucide-react';
 
 interface Cartao { id: string; banco: string; tipo: string; dono: string }
@@ -149,7 +150,7 @@ export function FaturaCartaoTab() {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('fatura_id', faturaSelId);
-      const barId = localStorage.getItem('sgb_selected_bar_id');
+      const barId = getSelectedBarId();
       const res = await fetch('/api/financeiro/cartao-fatura/importar', { method: 'POST', headers: barId ? { 'x-selected-bar-id': barId } : {}, body: fd });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'falha ao importar');

@@ -22,15 +22,16 @@ import { setBarCookie, getBarCookie } from '@/lib/cookies';
 // diferentes ao mesmo tempo, e o ganho de RSC compensa — decisão do Rodrigo.)
 const SELECTED_BAR_KEY = 'sgb_selected_bar_id';
 
-// Lê o bar selecionado: cookie (compartilhado, verdade) -> localStorage/sessionStorage (fallback).
+// Lê o bar selecionado com ISOLAMENTO POR-ABA: sessionStorage (verdade DESTA aba) primeiro; só cai
+// no cookie/localStorage pra semear uma aba nova. Antes era cookie-first (compartilhado), o que
+// fazia uma aba herdar o bar de outra e lançar no bar errado (bug 14/07). Ver [[lib/selected-bar]].
 export const getTabSelectedBarId = (): string | null => {
   if (typeof window === 'undefined') return null;
+  const tabBar = sessionStorage.getItem(SELECTED_BAR_KEY);
+  if (tabBar != null) return tabBar;
   const cookieBar = getBarCookie();
   if (cookieBar != null) return String(cookieBar);
-  return (
-    localStorage.getItem(SELECTED_BAR_KEY) ||
-    sessionStorage.getItem(SELECTED_BAR_KEY)
-  );
+  return localStorage.getItem(SELECTED_BAR_KEY);
 };
 
 // Persiste a seleção da aba (sessionStorage) + hint global (localStorage).
@@ -309,26 +310,12 @@ export function BarProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Sync entre abas (cookie-first): quando OUTRA aba troca de bar, ela grava no localStorage
-  // e o `storage` event dispara aqui -> esta aba alinha no mesmo bar (cookie + favicon + perms +
-  // router.refresh). Não re-persiste (o localStorage já mudou na aba de origem) -> sem eco/loop.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== SELECTED_BAR_KEY || !e.newValue) return;
-      const novoId = parseInt(e.newValue);
-      if (Number.isNaN(novoId) || novoId === selectedBar?.id) return;
-      const found = availableBars.find((b) => b.id === novoId);
-      if (!found) return;
-      setSelectedBar(found);
-      setBarCookie(found.id);
-      updateFavicon(found.nome, found.logo_url);
-      syncBarPermissions(found);
-      router.refresh();
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, [selectedBar?.id, availableBars, router, updateFavicon, syncBarPermissions]);
+  // ISOLAMENTO POR-ABA (14/07/2026): REMOVIDO o sync automático entre abas. Antes, quando outra aba
+  // trocava de bar, o `storage` event trocava o bar DESTA aba silenciosamente (router.refresh) — o
+  // financeiro trabalha Ordinário numa aba e Deboche em outra, então uma aba "virava" a outra sem a
+  // pessoa perceber e o boleto era lançado no bar errado. Agora cada aba mantém o SEU bar
+  // (sessionStorage é a verdade da aba; ver getTabSelectedBarId e lib/selected-bar). O cookie segue
+  // semeando o bar de uma aba NOVA no 1º load; abas já abertas não se atropelam mais.
 
   // Retry automatico se o load terminou com lista vazia (race entre /api/auth/me
   // e /api/configuracoes/bars/user-bars, cookie/token chegando atrasado).

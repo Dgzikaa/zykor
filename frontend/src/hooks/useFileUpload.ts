@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { getSelectedBarId } from '@/lib/selected-bar';
 
 // =====================================================
 // TIPOS E INTERFACES
@@ -168,7 +169,7 @@ export function useFileUpload() {
         }));
 
         // Pegar bar_id selecionado para header
-        const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
+        const selectedBarId = getSelectedBarId();
         const headers: Record<string, string> = {};
 
         if (selectedBarId) {
@@ -238,7 +239,7 @@ export function useFileUpload() {
   // Função para remover arquivo
   const deleteFile = useCallback(async (fileId: string): Promise<void> => {
     try {
-      const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
+      const selectedBarId = getSelectedBarId();
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -273,7 +274,7 @@ export function useFileUpload() {
   // Função para listar uploads
   const listUploads = useCallback(async (folder?: string) => {
     try {
-      const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
+      const selectedBarId = getSelectedBarId();
       const headers: Record<string, string> = {};
 
       if (selectedBarId) {

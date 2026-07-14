@@ -12,6 +12,7 @@ import { DateInputBR } from '@/components/ui/date-input-br';
 import { useToast } from '@/components/ui/toast';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { api } from '@/lib/api-client';
+import { getSelectedBarId } from '@/lib/selected-bar';
 import { Loader2, Paperclip, HelpCircle, Plus, Trash2 } from 'lucide-react';
 import { type PedidoTipo, formatBRL } from '../types';
 import { parsePixCopiaCola } from '../pixEmv';
@@ -165,7 +166,7 @@ export function NovoPedidoDialog({
       if (arquivo && res?.pedido?.id) {
         const fd = new FormData();
         fd.append('file', arquivo);
-        const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
+        const selectedBarId = getSelectedBarId();
         await fetch(`/api/financeiro/pedidos-pagamento/${res.pedido.id}/anexos`, {
           method: 'POST',
           headers: selectedBarId ? { 'x-selected-bar-id': selectedBarId } : {},

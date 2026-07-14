@@ -18,6 +18,7 @@ import { PedidoCard, type Opcao } from './PedidoCard';
 import { type Pedido } from '../types';
 import { type TabKey, TAB_STATUS } from '../statusTabs';
 import { type BoletoDecodificado } from '../boletoBarcode';
+import { getSelectedBarId } from '@/lib/selected-bar';
 
 type DadosBoleto = {
   valor: number | null;
@@ -76,7 +77,7 @@ export function BoletoTab({
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const barId = localStorage.getItem('sgb_selected_bar_id');
+      const barId = getSelectedBarId();
       const res = await fetch('/api/financeiro/boleto/ler', {
         method: 'POST',
         headers: barId ? { 'x-selected-bar-id': barId } : {},

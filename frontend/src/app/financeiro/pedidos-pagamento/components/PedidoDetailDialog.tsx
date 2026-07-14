@@ -13,6 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
+import { getSelectedBarId } from '@/lib/selected-bar';
+import { useBar } from '@/contexts/BarContext';
 import {
   Loader2, Send, Check, X, Paperclip, Trash2, FileText, History, Save, Copy, CheckCircle2, CalendarClock,
 } from 'lucide-react';
@@ -33,6 +35,7 @@ export function PedidoDetailDialog({
   onChange: () => void;
 }) {
   const { showToast } = useToast();
+  const { availableBars } = useBar();
   const [loading, setLoading] = useState(false);
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [comentarios, setComentarios] = useState<Comentario[]>([]);
@@ -241,6 +244,9 @@ export function PedidoDetailDialog({
   const [agendando, setAgendando] = useState(false);
   const agendar = async () => {
     if (!pedido) return;
+    // Confirma o BAR do lançamento (o CA vai pro bar DO PEDIDO) — guarda contra bar errado (bug 14/07).
+    const barNome = availableBars.find((b) => b.id === pedido.bar_id)?.nome || `bar ${pedido.bar_id}`;
+    if (!window.confirm(`Vai lançar no Conta Azul do bar:\n\n➡  ${barNome.toUpperCase()}\n\nÉ o bar certo desse boleto? Confira antes de agendar.`)) return;
     setAgendando(true);
     try {
       await api.post(`/api/financeiro/pedidos-pagamento/${pedido.id}/agendar`, {});
@@ -300,7 +306,7 @@ export function PedidoDetailDialog({
     if (!pedido) return;
     const fd = new FormData();
     fd.append('file', file);
-    const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
+    const selectedBarId = getSelectedBarId();
     try {
       const r = await fetch(`/api/financeiro/pedidos-pagamento/${pedido.id}/anexos`, {
         method: 'POST',

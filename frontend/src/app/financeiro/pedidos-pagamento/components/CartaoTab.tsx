@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
+import { getSelectedBarId } from '@/lib/selected-bar';
 import { Loader2, CreditCard, Sparkles, Save, Send } from 'lucide-react';
 
 type Cat = { categoria_id: string | null; categoria_nome: string };
@@ -28,7 +29,7 @@ export function CartaoTab() {
     setNome(file.name); setLendo(true); setLinhas([]);
     try {
       const fd = new FormData(); fd.append('file', file);
-      const barId = localStorage.getItem('sgb_selected_bar_id');
+      const barId = getSelectedBarId();
       const res = await fetch('/api/financeiro/cartao/ler', { method: 'POST', headers: barId ? { 'x-selected-bar-id': barId } : {}, body: fd });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'falha na leitura');

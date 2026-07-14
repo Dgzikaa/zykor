@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
+import { useBar } from '@/contexts/BarContext';
 import { Check, X, Loader2, Sparkles, Paperclip, CalendarClock } from 'lucide-react';
 import { isoToBr } from '@/components/ui/date-input-br';
 import {
@@ -43,6 +44,7 @@ export function PedidoCard({
   onToggleSelecionado?: (id: string) => void;
 }) {
   const { showToast } = useToast();
+  const { availableBars } = useBar();
   const mostrarInline = podeAprovar && APROVAVEL.includes(pedido.status);
   // Esconde "Agendar" de copia-e-cola já lançado no CA (status fica 'aprovado' pós-lançamento).
   const podeAgendar = podeAprovar && AGENDAVEL.includes(pedido.status)
@@ -97,6 +99,10 @@ export function PedidoCard({
 
   // AGENDAR (etapa 2): dispara a criação no CA + PIX no Inter de um pedido já aprovado.
   const agendar = async () => {
+    // Confirma o BAR do lançamento (o CA vai pro bar DO PEDIDO). Guarda contra lançar no bar errado
+    // quando o operador está com outra aba/bar (bug 14/07).
+    const barNome = availableBars.find((b) => b.id === pedido.bar_id)?.nome || `bar ${pedido.bar_id}`;
+    if (!window.confirm(`Vai lançar no Conta Azul do bar:\n\n➡  ${barNome.toUpperCase()}\n\nÉ o bar certo desse boleto? Confira antes de agendar.`)) return;
     setAcao('agendar');
     try {
       await api.post(`/api/financeiro/pedidos-pagamento/${pedido.id}/agendar`, {});

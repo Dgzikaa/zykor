@@ -9,6 +9,7 @@
  */
 
 import { isPublicRoute } from '@/lib/auth/public-routes';
+import { getSelectedBarId } from '@/lib/selected-bar';
 
 export interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -33,7 +34,7 @@ export async function apiCall(endpoint: string, options: ApiOptions = {}) {
     // 2. Multi-tenancy: Enviar bar_id selecionado via header
     //    O servidor valida se o usuário tem acesso a este bar
     if (typeof window !== 'undefined') {
-      const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
+      const selectedBarId = getSelectedBarId(); // por-aba (sessionStorage), não o localStorage compartilhado
       if (selectedBarId) {
         headers['x-selected-bar-id'] = selectedBarId;
       }
@@ -146,7 +147,7 @@ export const uploadsApi = {
   // Fazer upload de arquivo (com FormData)
   upload: async (formData: FormData) => {
     try {
-      const selectedBarId = localStorage.getItem('sgb_selected_bar_id');
+      const selectedBarId = getSelectedBarId();
       const headers: Record<string, string> = {};
 
       if (selectedBarId) {
