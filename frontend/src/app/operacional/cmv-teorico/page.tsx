@@ -204,7 +204,7 @@ export default function CmvTeoricoPage() {
   const fichaSemPreco = escopo.filter(fichaSemPrecoFn).length;
   const semPreco = escopo.filter(semPrecoFn).length;
   // expandir/recolher todos — só produtos que têm alguma origem (CH/Yuzer) pra abrir
-  const codigosComOrigem = useMemo(() => view.filter((p: any) => (p.origens || []).length > 0).map((p: any) => p.codigo), [view]);
+  const codigosComOrigem = useMemo(() => view.filter((p: any) => (p.origens || []).length > 1).map((p: any) => p.codigo), [view]);
   const todosAbertos = codigosComOrigem.length > 0 && codigosComOrigem.every((c: string) => expandido.has(c));
   const toggleTodos = () => setExpandido(todosAbertos ? new Set() : new Set(codigosComOrigem));
 
@@ -296,32 +296,36 @@ export default function CmvTeoricoPage() {
                 : view.length === 0 ? <tr><td colSpan={dataAnterior ? 8 : 7} className="px-3 py-10 text-center text-gray-400">Sem produtos. Monte as fichas e clique em Recalcular.</td></tr>
                 : view.map((p: any) => {
                   const origens = (p.origens || []) as any[];
-                  const temOrig = origens.length > 0;
+                  // 1 origem só → mostra preço/margem/CMV DIRETO na linha (sem expandir).
+                  // >1 origens → linha mostra "—" e os valores por código só aparecem ao expandir.
+                  const uni = origens.length === 1 ? origens[0] : null;
+                  const expandivel = origens.length > 1;
                   const aberto = expandido.has(p.codigo);
                   return (
                   <Fragment key={p.produto_id}>
-                    <tr onClick={() => temOrig && toggleExp(p.codigo)} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${temOrig ? 'cursor-pointer' : ''} ${aberto ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}`}>
+                    <tr onClick={() => expandivel && toggleExp(p.codigo)} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${expandivel ? 'cursor-pointer' : ''} ${aberto ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}`}>
                       <td className="px-3 py-2 font-mono text-xs text-gray-500">
                         <span className="inline-flex items-center gap-1">
-                          {temOrig ? (aberto ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />) : <span className="w-3.5 inline-block" />}
+                          {expandivel ? (aberto ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />) : <span className="w-3.5 inline-block" />}
                           {p.codigo}
                         </span>
                       </td>
                       <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
                         {p.nome}
-                        {p.n_ch > 0 && <span className="ml-2 text-[10px] rounded px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 align-middle">{p.n_ch} CH</span>}
-                        {p.tem_yuzer && <span className="ml-1 text-[10px] rounded px-1.5 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 align-middle">🎟️ {p.n_yuzer > 1 ? `${p.n_yuzer} Yuzer` : 'Yuzer'}</span>}
+                        {expandivel && p.n_ch > 0 && <span className="ml-2 text-[10px] rounded px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 align-middle">{p.n_ch} CH</span>}
+                        {expandivel && p.tem_yuzer && <span className="ml-1 text-[10px] rounded px-1.5 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 align-middle">🎟️ {p.n_yuzer > 1 ? `${p.n_yuzer} Yuzer` : 'Yuzer'}</span>}
+                        {uni && uni.tipo === 'yuzer' && <span className="ml-2 text-[10px] rounded px-1.5 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 align-middle">🎟️ Yuzer</span>}
                       </td>
                       <td className="px-3 py-2"><Badge variant="outline">{p.categoria || 'Outros'}</Badge></td>
                       <td className="px-3 py-2 text-right tabular-nums">{p.custo ? fmtBRL(p.custo) : '—'}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-gray-300 dark:text-gray-600">—</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-gray-300 dark:text-gray-600">—</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-gray-300 dark:text-gray-600">—</td>
+                      <td className={`px-3 py-2 text-right tabular-nums ${uni ? 'text-blue-600 dark:text-blue-400' : 'text-gray-300 dark:text-gray-600'}`}>{uni ? (uni.preco != null ? fmtBRL(uni.preco) : '—') : '—'}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums ${uni ? '' : 'text-gray-300 dark:text-gray-600'}`}>{uni && uni.margem != null ? fmtBRL(uni.margem) : '—'}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums font-bold ${uni ? corCmv(uni.cmv_pct) : 'text-gray-300 dark:text-gray-600'}`}>{uni ? fmtPct(uni.cmv_pct) : '—'}</td>
                       {dataAnterior && <td className="px-3 py-2 text-right tabular-nums text-xs">
                         {p.delta_cmv == null ? '—' : <span className={p.delta_cmv > 0 ? 'text-red-500' : p.delta_cmv < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}>{p.delta_cmv > 0 ? <TrendingUp className="w-3 h-3 inline" /> : p.delta_cmv < 0 ? <TrendingDown className="w-3 h-3 inline" /> : null} {p.delta_cmv > 0 ? '+' : ''}{p.delta_cmv}pp</span>}
                       </td>}
                     </tr>
-                    {aberto && origens.map((o: any, i: number) => (
+                    {expandivel && aberto && origens.map((o: any, i: number) => (
                       <tr key={`${p.codigo}-${o.tipo}-${o.codigo}-${i}`} className="bg-gray-50/60 dark:bg-gray-800/20 text-xs">
                         <td className="px-3 py-1.5 font-mono text-gray-500">
                           <span className="inline-flex items-center gap-1.5 pl-5">
