@@ -15,6 +15,7 @@ import { PageShell } from '@/components/layout/PageShell';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { CadastrarItemModal } from './GerenciarItensModal';
+import { ColumnFilterHeader, useColumnFilters, type FilterCol } from '@/components/ui/column-filter-header';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (d: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
@@ -61,9 +62,7 @@ export default function EstoqueHistoricoPage() {
   const [soAnomalos, setSoAnomalos] = useState(false);
   const [loading, setLoading] = useState(false);
   const [busca, setBusca] = useState('');
-  // Filtros de coluna + ordenação (padrão: maior valor primeiro).
-  const [fArea, setFArea] = useState('');
-  const [fCategoria, setFCategoria] = useState('');
+  // Ordenação (padrão: maior valor primeiro). Filtros de coluna estilo Excel via useColumnFilters.
   const [sortBy, setSortBy] = useState<'valor' | 'qtd' | 'nome'>('valor');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const toggleSort = (col: 'valor' | 'qtd' | 'nome') =>
@@ -145,30 +144,29 @@ export default function EstoqueHistoricoPage() {
   const unidadeCol = (it: any): string | null =>
     (classe === 'insumo' || classe === 'producao') ? (it.unidade_contagem || null) : (it.unidade_medida || null);
 
-  // Valores distintos p/ os filtros de coluna (Área / Categoria).
-  const areasDisp = useMemo(() => Array.from(new Set(itens.map((i: any) => i.area).filter(Boolean))).sort() as string[], [itens]);
-  const categoriasDisp = useMemo(() => Array.from(new Set(itens.map((i: any) => i.categoria).filter(Boolean))).sort() as string[], [itens]);
+  // #3 — filtros de coluna estilo Excel (multi-seleção) em Área e Categoria.
+  const filterCols = useMemo<FilterCol<any>[]>(() => [
+    { id: 'area', get: (r) => r.area || '—' },
+    { id: 'categoria', get: (r) => r.categoria || '—' },
+  ], []);
+  // Base = busca + "só fora do padrão"; os filtros de coluna operam por cima dela.
+  const baseItens = useMemo(() => {
+    const s = busca.trim().toLowerCase();
+    return itens.filter(i =>
+      (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)) &&
+      (!soAnomalos || i.anomalo)
+    );
+  }, [itens, busca, soAnomalos]);
+  const { setCol, colFilter, optionsByCol, view: colFiltrados, anyCol, clearAll } = useColumnFilters(baseItens, filterCols);
 
   const itensView = useMemo(() => {
-    const s = busca.trim().toLowerCase();
-    // Ignora filtro que não existe na classe atual (evita tela vazia ao trocar de aba).
-    const areaAtiva = fArea && areasDisp.includes(fArea) ? fArea : '';
-    const catAtiva = fCategoria && categoriasDisp.includes(fCategoria) ? fCategoria : '';
     const dir = sortDir === 'asc' ? 1 : -1;
-    return itens
-      .filter(i =>
-        (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)) &&
-        (!areaAtiva || i.area === areaAtiva) &&
-        (!catAtiva || (i.categoria || '') === catAtiva) &&
-        (!soAnomalos || i.anomalo)
-      )
-      .slice()
-      .sort((a, b) => {
-        if (sortBy === 'nome') return dir * String(a.insumo_nome || '').localeCompare(String(b.insumo_nome || ''), 'pt-BR');
-        if (sortBy === 'qtd') return dir * (Number(a.estoque_final || 0) - Number(b.estoque_final || 0));
-        return dir * (Number(a.valor || 0) - Number(b.valor || 0));
-      });
-  }, [itens, busca, fArea, fCategoria, areasDisp, categoriasDisp, sortBy, sortDir, soAnomalos]);
+    return [...colFiltrados].sort((a, b) => {
+      if (sortBy === 'nome') return dir * String(a.insumo_nome || '').localeCompare(String(b.insumo_nome || ''), 'pt-BR');
+      if (sortBy === 'qtd') return dir * (Number(a.estoque_final || 0) - Number(b.estoque_final || 0));
+      return dir * (Number(a.valor || 0) - Number(b.valor || 0));
+    });
+  }, [colFiltrados, sortBy, sortDir]);
   const compView = useMemo(() => {
     if (!comp) return [];
     const s = busca.trim().toLowerCase();
@@ -265,27 +263,11 @@ export default function EstoqueHistoricoPage() {
           </div>
         </div>
 
-        {/* Filtros de coluna (Área / Categoria) — só na visão simples */}
-        {!comparar && (areasDisp.length > 1 || categoriasDisp.length > 1) && (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-xs text-gray-400 uppercase tracking-wide">Filtrar:</span>
-            {areasDisp.length > 1 && (
-              <select value={fArea} onChange={e => setFArea(e.target.value)}
-                className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
-                <option value="">Todas as áreas</option>
-                {areasDisp.map(a => <option key={a} value={a}>{a}</option>)}
-              </select>
-            )}
-            {categoriasDisp.length > 1 && (
-              <select value={fCategoria} onChange={e => setFCategoria(e.target.value)}
-                className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm capitalize">
-                <option value="">Todas as categorias</option>
-                {categoriasDisp.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            )}
-            {(fArea || fCategoria) && (
-              <button onClick={() => { setFArea(''); setFCategoria(''); }} className="text-xs text-indigo-600 hover:underline">Limpar filtros</button>
-            )}
+        {/* Filtros de coluna estilo Excel ficam nos cabeçalhos Área/Categoria da tabela. */}
+        {!comparar && anyCol && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-xs text-gray-400 uppercase tracking-wide">Filtros de coluna ativos</span>
+            <button onClick={clearAll} className="text-xs text-indigo-600 hover:underline">Limpar filtros</button>
           </div>
         )}
 
@@ -354,8 +336,11 @@ export default function EstoqueHistoricoPage() {
               <th className="text-left font-medium px-3 py-2">Cód.</th>
               <th className="text-left font-medium px-3 py-2">{classe === 'limpeza' ? 'Item' : classe === 'producao' ? 'Produção' : 'Insumo'}</th>
               {classe === 'limpeza'
-                ? <th className="text-left font-medium px-3 py-2">Categoria</th>
-                : <><th className="text-left font-medium px-3 py-2">Área</th><th className="text-left font-medium px-3 py-2">Categoria</th></>}
+                ? <ColumnFilterHeader label="Categoria" className="py-2" options={optionsByCol.categoria || []} selected={colFilter.categoria || new Set()} onChange={(n) => setCol('categoria', n)} />
+                : <>
+                    <ColumnFilterHeader label="Área" className="py-2" options={optionsByCol.area || []} selected={colFilter.area || new Set()} onChange={(n) => setCol('area', n)} />
+                    <ColumnFilterHeader label="Categoria" className="py-2" options={optionsByCol.categoria || []} selected={colFilter.categoria || new Set()} onChange={(n) => setCol('categoria', n)} />
+                  </>}
               {classe === 'limpeza' && <th className="text-right font-medium px-3 py-2">Estoque Ideal</th>}
               <th className="text-right font-medium px-3 py-2">
                 <button onClick={() => toggleSort('qtd')} className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
