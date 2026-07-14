@@ -26,8 +26,24 @@ import { SessionManager } from '@/components/SessionManager';
 import { SessionHeartbeat } from '@/components/SessionHeartbeat';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://zykor.com.br'),
   title: 'Zykor - O núcleo da gestão de bares',
   description: 'Zykor - Plataforma completa de gestão para bares e casas noturnas.',
+  openGraph: {
+    type: 'website',
+    siteName: 'Zykor',
+    title: 'Zykor - O núcleo da gestão de bares',
+    description: 'Zykor - Plataforma completa de gestão para bares e casas noturnas.',
+    url: 'https://zykor.com.br',
+    locale: 'pt_BR',
+    images: [{ url: '/logos/zykor-logo-white-bg.png', width: 1024, height: 1024, alt: 'Zykor' }],
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Zykor - O núcleo da gestão de bares',
+    description: 'Zykor - Plataforma completa de gestão para bares e casas noturnas.',
+    images: ['/logos/zykor-logo-white-bg.png'],
+  },
 };
 
 export const viewport: Viewport = {

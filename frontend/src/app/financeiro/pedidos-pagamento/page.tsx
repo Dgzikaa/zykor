@@ -54,7 +54,7 @@ export default function PedidosPagamentoPage() {
   const [detalheId, setDetalheId] = useState<string | null>(null);
   const [modo, setModo] = useState<ModoPagamento>('pagamentos');
 
-  // Opções do CA carregadas 1x (só p/ quem aprova) → aprovação inline no card.
+  // Opções do CA (categorias/contas/fornecedores) → sugestão na criação do boleto + aprovação inline.
   const [opcoes, setOpcoes] = useState<{ categorias: Opcao[]; contas: Opcao[]; fornecedores: Opcao[]; contaPadrao: string }>({
     categorias: [], contas: [], fornecedores: [], contaPadrao: '',
   });
@@ -136,9 +136,13 @@ export default function PedidosPagamentoPage() {
     };
   }, [barId, modo, carregar]);
 
-  // Opções do CA (categorias / contas pagadoras / fornecedores) — só se pode aprovar.
+  // Opções do CA (categorias / contas pagadoras / fornecedores). Carrega p/ QUALQUER usuário da
+  // página: quem SOBE boleto também precisa da lista de categorias (sugestão + "Dividir em
+  // categorias"/rateio), conta de pagamento e fornecedor. Os controles de APROVAÇÃO inline seguem
+  // restritos a quem aprova (mostrarInline no PedidoCard). Bug: gate em podeAprovar deixava o
+  // solicitante sem nenhuma categoria no rateio do boleto.
   useEffect(() => {
-    if (!barId || !podeAprovar) return;
+    if (!barId) return;
     let vivo = true;
     const j = (p: Promise<Response>) => p.then(r => r.json()).catch(() => ({}));
     Promise.all([
@@ -160,7 +164,7 @@ export default function PedidosPagamentoPage() {
       });
     });
     return () => { vivo = false; };
-  }, [barId, podeAprovar]);
+  }, [barId]);
 
   // Freela é gerido/aprovado na aba própria (semanal) — fora da lista principal.
   // PIX = tudo que NÃO é freela nem boleto (boleto vive na aba própria).
