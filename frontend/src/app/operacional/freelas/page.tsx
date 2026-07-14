@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { PageShell } from '@/components/layout/PageShell';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
@@ -13,7 +12,8 @@ import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitur
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api-client';
 import { HandCoins, Loader2, Plus, Search, Send, ChevronLeft, ChevronRight, Check, X, Pencil, Trash2, Lock, Unlock, CheckCircle2 } from 'lucide-react';
-import { STATUS_LABEL, STATUS_COLOR, type PedidoStatus } from '@/app/financeiro/pedidos-pagamento/types';
+import { type PedidoStatus } from '@/app/financeiro/pedidos-pagamento/types';
+import { FreelaPorDia, type FreelaItem } from '@/components/freelas/FreelaPorDia';
 
 type Freela = { id: string; nome: string; funcao: string | null; valor_padrao: number | null; chave_pix: string | null; contaazul_pessoa_id: string | null };
 type Pedido = { id: string; beneficiario_nome: string | null; valor: number; status: PedidoStatus; data_vencimento: string; data_competencia: string | null; contaazul_pessoa_id: string | null };
@@ -95,20 +95,6 @@ export default function FreelasOperacaoPage() {
     });
   }, [roster, busca, sel]);
 
-  // Agrupa por freela (1 linha, N diárias somadas).
-  const grupos = (list: Pedido[]) => {
-    const m = new Map<string, { nome: string; itens: Pedido[]; total: number }>();
-    for (const p of list) {
-      const key = p.contaazul_pessoa_id || norm(p.beneficiario_nome) || p.id;
-      const g = m.get(key) || { nome: p.beneficiario_nome || '—', itens: [], total: 0 };
-      g.itens.push(p); g.total += Number(p.valor || 0); m.set(key, g);
-    }
-    for (const g of m.values()) g.itens.sort((a, b) => (a.data_competencia || a.data_vencimento).localeCompare(b.data_competencia || b.data_vencimento));
-    return Array.from(m.entries()).map(([key, g]) => ({ key, ...g }));
-  };
-  const gruposRascunho = useMemo(() => grupos(rascunhos), [rascunhos]);
-  const gruposEnviado = useMemo(() => grupos(enviados), [enviados]);
-
   const lancar = async () => {
     const itens = selecionados.map(([freela_id, v]) => ({ freela_id, valor: parseValor(v.valor) })).filter(i => i.valor > 0);
     if (itens.length === 0) return toast({ title: 'Selecione freelas e informe os valores', variant: 'destructive' });
@@ -121,13 +107,13 @@ export default function FreelasOperacaoPage() {
     finally { setLancando(false); }
   };
 
-  const salvarEdicao = async (p: Pedido) => {
+  const salvarEdicao = async (p: FreelaItem) => {
     const v = parseValor(editVal);
     if (!(v > 0)) return toast({ title: 'Valor inválido', variant: 'destructive' });
     try { await api.put('/api/operacional/freelas', { id: p.id, valor: v }); setEditId(null); await carregar(); }
     catch (e: any) { toast({ title: 'Erro ao editar', description: e?.message, variant: 'destructive' }); }
   };
-  const excluir = async (p: Pedido) => {
+  const excluir = async (p: FreelaItem) => {
     if (!window.confirm(`Remover a diária de ${p.beneficiario_nome || 'freela'} (${ddmm(p.data_competencia || p.data_vencimento)} · ${fmtBRL(p.valor)})?`)) return;
     try { await api.delete(`/api/operacional/freelas?id=${p.id}`); await carregar(); }
     catch (e: any) { toast({ title: 'Erro ao remover', description: e?.message, variant: 'destructive' }); }
@@ -194,25 +180,7 @@ export default function FreelasOperacaoPage() {
                     </Button>
                   )}
                 </div>
-                <div className="space-y-1.5">
-                  {gruposEnviado.map(g => (
-                    <div key={g.key} className="rounded-lg border border-[hsl(var(--border))] p-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium truncate text-sm">{g.nome}{g.itens.length > 1 && <span className="text-muted-foreground text-xs"> · {g.itens.length} diárias</span>}</span>
-                        <span className="font-semibold text-sm shrink-0">{fmtBRL(g.total)}</span>
-                      </div>
-                      <div className="mt-1">
-                        {g.itens.map(p => (
-                          <div key={p.id} className="flex items-center gap-2 text-xs py-1 border-t border-[hsl(var(--border))]/40 first:border-t-0">
-                            <span className="text-muted-foreground w-12 shrink-0">{ddmm(p.data_competencia || p.data_vencimento)}</span>
-                            <span className="flex-1 tabular-nums font-medium">{fmtBRL(p.valor)}</span>
-                            <Badge className={`${STATUS_COLOR[p.status]} text-[10px] shrink-0`}>{STATUS_LABEL[p.status]}</Badge>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <FreelaPorDia itens={enviados} />
               </CardContent>
             </Card>
           )}
@@ -233,38 +201,20 @@ export default function FreelasOperacaoPage() {
                     </Button>
                   )}
                 </div>
-                <div className="space-y-1.5">
-                  {gruposRascunho.map(g => (
-                    <div key={g.key} className="rounded-lg border border-[hsl(var(--border))] p-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium truncate text-sm">{g.nome}{g.itens.length > 1 && <span className="text-muted-foreground text-xs"> · {g.itens.length} diárias</span>}</span>
-                        <span className="font-semibold text-sm shrink-0">{fmtBRL(g.total)}</span>
-                      </div>
-                      <div className="mt-1">
-                        {g.itens.map(p => (
-                          <div key={p.id} className="flex items-center gap-2 text-xs py-1 border-t border-[hsl(var(--border))]/40 first:border-t-0">
-                            <span className="text-muted-foreground w-12 shrink-0">{ddmm(p.data_competencia || p.data_vencimento)}</span>
-                            {editId === p.id ? (
-                              <div className="flex items-center gap-1 flex-1">
-                                <Input value={editVal} onChange={e => setEditVal(e.target.value)} inputMode="decimal" className="h-7 w-24 text-right text-xs" />
-                                <Button size="sm" className="h-7 px-2" onClick={() => salvarEdicao(p)}><Check className="w-3 h-3" /></Button>
-                                <button onClick={() => setEditId(null)} className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
-                              </div>
-                            ) : (
-                              <>
-                                <span className="flex-1 tabular-nums font-medium">{fmtBRL(p.valor)}</span>
-                                {podeInserir && <>
-                                  <button onClick={() => { setEditId(p.id); setEditVal(String(p.valor).replace('.', ',')); }} title="Editar valor" className="text-muted-foreground hover:text-indigo-600 shrink-0"><Pencil className="w-3.5 h-3.5" /></button>
-                                  <button onClick={() => excluir(p)} title="Remover diária" className="text-muted-foreground hover:text-red-600 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
-                                </>}
-                              </>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                <FreelaPorDia itens={rascunhos} mostrarStatus={false} acao={(it) => (
+                  editId === it.id ? (
+                    <div className="flex items-center gap-1">
+                      <Input value={editVal} onChange={e => setEditVal(e.target.value)} inputMode="decimal" className="h-7 w-20 text-right text-xs" />
+                      <Button size="sm" className="h-7 px-2" onClick={() => salvarEdicao(it)}><Check className="w-3 h-3" /></Button>
+                      <button onClick={() => setEditId(null)} className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
                     </div>
-                  ))}
-                </div>
+                  ) : podeInserir ? (
+                    <>
+                      <button onClick={() => { setEditId(it.id); setEditVal(String(it.valor).replace('.', ',')); }} title="Editar valor" className="text-muted-foreground hover:text-indigo-600"><Pencil className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => excluir(it)} title="Remover" className="text-muted-foreground hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </>
+                  ) : null
+                )} />
               </CardContent>
             </Card>
           )}

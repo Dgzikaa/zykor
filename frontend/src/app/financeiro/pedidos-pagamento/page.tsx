@@ -23,6 +23,7 @@ import { BoletoTab } from './components/BoletoTab';
 import TrocasTab from './components/TrocasTab';
 import { FaturaCartaoTab } from './components/FaturaCartaoTab';
 import { ConsolidadoTab } from './components/ConsolidadoTab';
+import { FreelaPorDia } from '@/components/freelas/FreelaPorDia';
 
 type ModoPagamento = 'pagamentos' | 'freela' | 'boleto' | 'fatura' | 'trocas';
 
@@ -80,8 +81,17 @@ export default function PedidosPagamentoPage() {
     if (!barId) return;
     if (!silent) setLoading(true);
     try {
-      const res = await api.get(`/api/financeiro/pedidos-pagamento?escopo=${soMeus ? 'meus' : 'todos'}`);
-      setPedidos(res.pedidos || []);
+      const escopo = soMeus ? 'meus' : 'todos';
+      // Freela é buscado À PARTE (tipo=freela, limite alto): a lista geral ordena por created_at
+      // e tem limite (100) — com muito boleto/PIX recente os freelas (mais antigos) caíam fora.
+      const [res, resFreela] = await Promise.all([
+        api.get(`/api/financeiro/pedidos-pagamento?escopo=${escopo}`),
+        api.get(`/api/financeiro/pedidos-pagamento?tipo=freela&escopo=${escopo}&limit=500`),
+      ]);
+      const geral = res.pedidos || [];
+      const idsGeral = new Set(geral.map((p: any) => p.id));
+      const freelaExtra = (resFreela.pedidos || []).filter((p: any) => !idsGeral.has(p.id));
+      setPedidos([...geral, ...freelaExtra]);
       setPodeAprovar(!!res.pode_aprovar);
     } catch (e: any) {
       if (!silent) showToast({ type: 'error', title: 'Erro ao carregar', message: e?.message });
@@ -91,6 +101,22 @@ export default function PedidosPagamentoPage() {
   }, [barId, soMeus, showToast]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  // Freela (aba própria, layout por dia): aprovar/agendar 1 pessoa. Freela já traz categoria +
+  // fornecedor do cadastro do beneficiário → aprovar/agendar com corpo vazio (a rota usa os do pedido).
+  const [freelaBusy, setFreelaBusy] = useState<string | null>(null);
+  const aprovarFreela = useCallback(async (id: string) => {
+    setFreelaBusy(id);
+    try { await api.post(`/api/financeiro/pedidos-pagamento/${id}/aprovar`, {}); await carregar(); }
+    catch (e: any) { showToast({ type: 'error', title: 'Erro ao aprovar', message: e?.message }); }
+    finally { setFreelaBusy(null); }
+  }, [carregar, showToast]);
+  const agendarFreela = useCallback(async (id: string) => {
+    setFreelaBusy(id);
+    try { await api.post(`/api/financeiro/pedidos-pagamento/${id}/agendar`, {}); await carregar(); }
+    catch (e: any) { showToast({ type: 'error', title: 'Erro ao agendar', message: e?.message }); }
+    finally { setFreelaBusy(null); }
+  }, [carregar, showToast]);
 
   // REAL-TIME (push): o servidor emite um "ping" por Broadcast a cada escrita
   // (criar/aprovar/rejeitar/pagar/editar) → a lista atualiza no mesmo segundo, sem
@@ -372,6 +398,22 @@ export default function PedidosPagamentoPage() {
                     Nenhum pedido nesta aba.
                   </CardContent>
                 </Card>
+              ) : modo === 'freela' ? (
+                // Freela: mesmo layout da operação (por dia → pessoas), com aprovar/agendar por pessoa.
+                <FreelaPorDia itens={filtrados} acao={(it) => {
+                  if (!podeAprovar) return null;
+                  if (it.status === 'aguardando_aprovacao') return (
+                    <Button size="sm" className="h-7 px-2 text-xs" disabled={freelaBusy === it.id} onClick={() => aprovarFreela(it.id)}>
+                      {freelaBusy === it.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Aprovar'}
+                    </Button>
+                  );
+                  if (['aprovado', 'erro_ca', 'erro_inter'].includes(it.status)) return (
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={freelaBusy === it.id} onClick={() => agendarFreela(it.id)}>
+                      {freelaBusy === it.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Agendar'}
+                    </Button>
+                  );
+                  return null;
+                }} />
               ) : (
                 <div className="space-y-2">
                   {filtrados.map((p) => (
