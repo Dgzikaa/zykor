@@ -59,12 +59,13 @@ const SUBGRUPOS_POR_MACRO: Record<string, { nome: string; inclui: (cat: string) 
     { nome: 'CMO Fixo', inclui: (c) => CMO_FIXO.has(c) },
     { nome: 'CMO Freelas', inclui: (c) => c.startsWith('FREELA') },
   ],
-  // Despesas Comerciais agrupadas como na Orçamentação: Marketing, Consumação/Cortesias e
-  // Atrações & Eventos. É SÓ agrupamento visual (não muda nenhum valor da DRE).
+  // Despesas Comerciais agrupadas como na Orçamentação (só visual, não muda valor):
+  //  · Marketing: as de Marketing + as consumações Aniversários/Benefício/Pontos/Influencers.
+  //  · Atrações & Eventos: Atrações, consumação de Artistas e Produção de Eventos.
   'Despesas Comerciais': [
-    { nome: 'Marketing', inclui: (c) => c.startsWith('Marketing') },
-    { nome: 'Consumação / Cortesias', inclui: (c) => c.startsWith('[Consumação]') },
-    { nome: 'Atrações & Eventos', inclui: (c) => ['Atrações Programação', 'Produção Eventos', 'Produção Mensal Fixo'].includes(c) },
+    { nome: 'Marketing', inclui: (c) => c.startsWith('Marketing')
+      || ['[Consumação] Aniversários', '[Consumação] Benefício Clientes', '[Consumação] Programa de Pontos', '[Consumação] Influencers'].includes(c) },
+    { nome: 'Atrações & Eventos', inclui: (c) => ['Atrações Programação', '[Consumação] Artistas', 'Produção Eventos', 'Produção Mensal Fixo'].includes(c) },
   ],
 };
 
