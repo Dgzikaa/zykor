@@ -17,7 +17,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { PedidoCard, type Opcao } from './PedidoCard';
 import { type Pedido } from '../types';
 import { type TabKey, TAB_STATUS } from '../statusTabs';
-import { type BoletoDecodificado } from '../boletoBarcode';
+import { type BoletoDecodificado, linhaDigitavelValida } from '../boletoBarcode';
 import { getSelectedBarId } from '@/lib/selected-bar';
 
 type DadosBoleto = {
@@ -56,6 +56,9 @@ export function BoletoTab({
   // Competência e observação NÃO vêm do boleto — quem sobe preenche.
   const [competencia, setCompetencia] = useState('');
   const [observacao, setObservacao] = useState('');
+  // Descrição que vai pro Conta Azul. null = ainda não editada → segue o padrão "Boleto <beneficiário>";
+  // depois de editada, vale o texto do usuário. (O agendar já manda p.descricao pro CA.)
+  const [descricao, setDescricao] = useState<string | null>(null);
   // #20 — conta de pagamento (pré-preenchida com a padrão do bar). '' = usa a padrão.
   const [contaId, setContaId] = useState('');
   const contaEfetiva = contaId || contaPadrao || '';
@@ -130,7 +133,7 @@ export function BoletoTab({
     setD((p) => (p ? { ...p, [campo]: campo === 'valor' ? Number(valor.replace(/[R$\s.]/g, '').replace(',', '.')) || null : valor } : p));
 
   const reset = () => {
-    setD(null); setArquivoNome(''); setAvisos([]); setCompetencia(''); setObservacao(''); setContaId('');
+    setD(null); setArquivoNome(''); setAvisos([]); setCompetencia(''); setObservacao(''); setDescricao(null); setContaId('');
     setUsarRateio(false); setRateio([{ catId: '', valor: '' }, { catId: '', valor: '' }]);
     setCatId(''); setFornId('');
   };
@@ -150,12 +153,19 @@ export function BoletoTab({
       // Sem linha digitável não dá pra pagar via Inter na aprovação — avisa mas deixa seguir.
       const ok = window.confirm('Sem a linha digitável o boleto não será pago automaticamente pelo Inter na aprovação. Criar mesmo assim?');
       if (!ok) return;
+    } else if (!linhaDigitavelValida(d.linha_digitavel)) {
+      // Linha com nº de dígitos/DV errado (ex.: 46) → o Inter recusa na hora de pagar. Pega aqui.
+      const n = String(d.linha_digitavel).replace(/\D/g, '').length;
+      const ok = window.confirm(`A linha digitável parece inválida (${n} dígitos / dígito verificador não confere). O Inter vai recusar o pagamento. Confira e corrija o campo. Criar mesmo assim?`);
+      if (!ok) return;
     }
     setCriando(true);
     try {
+      // Descrição pro CA: a editada (se houver) ou o padrão "Boleto <beneficiário>".
+      const descFinal = (descricao ?? '').trim() || `Boleto ${d.beneficiario || ''}`.trim() || 'Boleto';
       await api.post('/api/financeiro/pedidos-pagamento', {
         tipo: 'fornecedor',
-        descricao: `Boleto ${d.beneficiario || ''}`.trim(),
+        descricao: descFinal,
         valor: d.valor,
         data_vencimento: d.vencimento,
         data_competencia: competencia,
@@ -270,9 +280,15 @@ export function BoletoTab({
               </div>
             </div>
             <div>
-              <Label className="mb-1.5 block">Linha digitável {!d.linha_digitavel && <span className="text-amber-600 text-xs">— não lida, digite p/ pagar via Inter</span>}</Label>
+              <Label className="mb-1.5 block">Linha digitável {!d.linha_digitavel
+                ? <span className="text-amber-600 text-xs">— não lida, digite p/ pagar via Inter</span>
+                : !linhaDigitavelValida(d.linha_digitavel) && <span className="text-red-600 text-xs">— {String(d.linha_digitavel).replace(/\D/g, '').length} dígitos / DV não confere, confira (o Inter recusa)</span>}</Label>
               <Input value={d.linha_digitavel || ''} onChange={(e) => upd('linha_digitavel', e.target.value)} placeholder="código de barras do boleto (47/48 dígitos)" inputMode="numeric"
-                className={!d.linha_digitavel ? 'border-amber-400' : ''} />
+                className={!d.linha_digitavel ? 'border-amber-400' : !linhaDigitavelValida(d.linha_digitavel) ? 'border-red-400' : ''} />
+            </div>
+            <div>
+              <Label className="mb-1.5 block">Descrição <span className="text-muted-foreground text-xs">(vai pro Conta Azul — já vem pronta, edite se quiser)</span></Label>
+              <Input value={descricao ?? `Boleto ${d.beneficiario || ''}`.trim()} onChange={(e) => setDescricao(e.target.value)} placeholder="Boleto <beneficiário>" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>

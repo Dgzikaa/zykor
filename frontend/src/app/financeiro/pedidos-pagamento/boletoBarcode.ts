@@ -52,6 +52,32 @@ function fatorParaVencimento(fator: number): string | null {
 }
 
 /**
+ * Valida uma LINHA DIGITÁVEL (ou código de barras) pelos dígitos verificadores — pega
+ * leitura truncada/errada da IA ANTES de mandar pro Inter (que recusaria).
+ *  - 44 díg. (código de barras): valida o DV geral (mod11).
+ *  - 47 díg. (linha bancária): valida os 3 DVs de campo (mod10) + o DV geral (mod11).
+ *  - 48 díg. (convênio/tributo): só o tamanho (estrutura de arrecadação é outra).
+ * Qualquer outro tamanho (ex.: 46 = 1 dígito perdido na leitura) → inválido.
+ */
+export function linhaDigitavelValida(digitos: string): boolean {
+  const d = (digitos || '').replace(/\D/g, '');
+  if (d.length === 44) return decodificarBoleto(d).valido;
+  if (d.length === 48) return true; // arrecadação — não validamos o DV aqui
+  if (d.length !== 47) return false;
+  // 3 campos com DV mod10
+  if (mod10(d.slice(0, 9)) !== Number(d[9])) return false;
+  if (mod10(d.slice(10, 20)) !== Number(d[20])) return false;
+  if (mod10(d.slice(21, 31)) !== Number(d[31])) return false;
+  // DV geral (mod11) — reconstrói o código de barras (44) a partir da linha
+  const dvGeral = d[32];
+  const banco = d.slice(0, 3), moeda = d.slice(3, 4);
+  const fator = d.slice(33, 37), valor = d.slice(37, 47);
+  const campoLivre = d.slice(4, 9) + d.slice(10, 20) + d.slice(21, 31); // 25
+  const bc = banco + moeda + dvGeral + fator + valor + campoLivre; // 44
+  return dvBarcodeMod11(bc) === Number(dvGeral);
+}
+
+/**
  * Recebe os dígitos lidos do código de barras. Aceita 44 (boleto bancário) e devolve
  * a linha digitável + valor + vencimento. Se o DV geral não bater, `valido=false`
  * (leitura suja da câmera — o scanner continua tentando).
