@@ -62,7 +62,10 @@ interface BarStoneConfig {
 //               DSCBR            (115466500) créd/déb→DSCBR Inter, pix→DSCBR Stone; taxa→DSCBR Inter.
 const CONFIG: Record<number, BarStoneConfig> = {
   3: {
-    cliente_id: 'afe2340b-9e88-40d9-acfb-0d3a71b9dcaa', // STONE INSTITUIÇÃO DE PAGAMENTO (CLIENTE)
+    // Contato Stone CANÔNICO (CNPJ 16501555000157, perfis Cliente+Fornecedor, ativo). O antigo
+    // afe2340b era um duplicado PF sem CNPJ que foi DELETADO no CA (14/07) — o push continuava
+    // lançando nele porque o UUID era hardcoded. Consolidado no mesmo contato da taxa (af680bf0).
+    cliente_id: 'af680bf0-1970-465e-b8df-ae8e1b85a775', // STONE INSTITUICAO DE PAGAMENTO S.A (Cliente+Fornecedor)
     categorias: {
       CREDITO: { categoria_id: '0f5a3cab-0759-46a2-86b4-3a224da52a1e', label: 'Crédito' },
       DEBITO: { categoria_id: '21159a4f-f665-4630-8a49-ea66b9e05965', label: 'Débito' },
@@ -170,6 +173,33 @@ async function getCAToken(barId: number): Promise<{ token: string } | { error: s
   if (error || !cred?.access_token) return { error: 'Credenciais do Conta Azul não encontradas', status: 404 };
   if (cred.expires_at && new Date(cred.expires_at) < new Date()) return { error: 'Token CA expirado. Reconecte o Conta Azul.', status: 401 };
   return { token: cred.access_token };
+}
+
+/**
+ * Trava anti-mis-book de CONTATO. Os UUIDs de contato/fornecedor do CONFIG são fixos no código.
+ * Se algum for DELETADO ou inativado no CA (ex.: dedup de contatos), o push não pode continuar
+ * lançando no contato morto — valida contra o sync (bronze_contaazul_pessoas.ativo) e devolve os
+ * problemas pra bloquear (execução) ou avisar (preview). Foi exatamente o que aconteceu em 14/07:
+ * deletaram o duplicado Stone no CA e o Zykor seguiu lançando no UUID antigo.
+ */
+async function contatosInvalidos(barId: number, cfg: BarStoneConfig): Promise<string[]> {
+  const supabase = getSupabaseAdmin();
+  const ids = [...new Set([cfg.cliente_id, cfg.taxa.fornecedor_id])];
+  const { data: pessoas } = await (supabase.schema('bronze' as any) as any)
+    .from('bronze_contaazul_pessoas')
+    .select('contaazul_id, nome, ativo')
+    .eq('bar_id', barId)
+    .in('contaazul_id', ids);
+  const mapa = new Map<string, { nome: string; ativo: boolean }>(
+    ((pessoas as any[]) || []).map((p) => [String(p.contaazul_id), { nome: String(p.nome), ativo: !!p.ativo }]),
+  );
+  const probs: string[] = [];
+  for (const id of ids) {
+    const p = mapa.get(id);
+    if (!p) probs.push(`contato ${id} não existe mais no Conta Azul (deletado)`);
+    else if (!p.ativo) probs.push(`contato "${p.nome}" (${id}) está INATIVO no Conta Azul`);
+  }
+  return probs;
 }
 
 async function getLinhas(barId: number, data: string): Promise<LinhaDia[]> {
@@ -363,6 +393,7 @@ export async function GET(request: NextRequest) {
   const data = new URL(request.url).searchParams.get('data') || ontemBRT();
 
   try {
+    const alertasContato = await contatosInvalidos(barId, cfg);
     const linhas = await getLinhas(barId, data);
     const supabase = getSupabaseAdmin();
     const { data: log } = await (supabase.schema('financial' as any) as any)
@@ -422,6 +453,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       bar_id: barId,
       data,
+      alertas_contato: alertasContato, // não-vazio => contato do CONFIG foi deletado/inativado no CA
       resumo: {
         recebiveis: recebiveis.length,
         lancamentos_taxa: compensacao.length, // 0 ou 2
@@ -451,6 +483,18 @@ export async function executarStoneDiario(
 ): Promise<{ status: number; body: any }> {
   const cfg = CONFIG[barId];
   if (!cfg) return { status: 400, body: { error: `Bar ${barId} ainda não configurado para Stone->CA` } };
+
+  // Trava: não lança nada se o contato/fornecedor do CONFIG tiver sido deletado/inativado no CA.
+  const probsContato = await contatosInvalidos(barId, cfg);
+  if (probsContato.length) {
+    return {
+      status: 409,
+      body: {
+        error: `Contato Stone inválido no Conta Azul — corrija o CONFIG antes de lançar. ${probsContato.join('; ')}`,
+        contatos_invalidos: probsContato,
+      },
+    };
+  }
 
   const tokenResult = await getCAToken(barId);
   if ('error' in tokenResult) return { status: tokenResult.status, body: { error: tokenResult.error } };
