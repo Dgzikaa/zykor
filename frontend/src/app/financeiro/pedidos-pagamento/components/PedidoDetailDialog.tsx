@@ -19,7 +19,7 @@ import {
   Loader2, Send, Check, X, Paperclip, Trash2, FileText, History, Save, Copy, CheckCircle2, CalendarClock,
 } from 'lucide-react';
 import {
-  TIPO_LABEL, STATUS_LABEL, STATUS_COLOR, formatBRL,
+  TIPO_LABEL, STATUS_COLOR, statusLabel, formatBRL,
   type Pedido, type Comentario, type Anexo, type HistoricoItem, type Competencia,
 } from '../types';
 import { isBoleto } from '../statusTabs';
@@ -332,7 +332,7 @@ export function PedidoDetailDialog({
             {pedido ? (
               <>
                 <span>{TIPO_LABEL[pedido.tipo]}</span>
-                <Badge className={STATUS_COLOR[pedido.status]}>{STATUS_LABEL[pedido.status]}</Badge>
+                <Badge className={STATUS_COLOR[pedido.status]}>{statusLabel(pedido)}</Badge>
                 <span className="ml-auto text-base font-bold">{formatBRL(pedido.valor)}</span>
               </>
             ) : 'Carregando...'}

@@ -10,7 +10,7 @@ import { useBar } from '@/contexts/BarContext';
 import { Check, X, Loader2, Sparkles, Paperclip, CalendarClock } from 'lucide-react';
 import { isoToBr } from '@/components/ui/date-input-br';
 import {
-  TIPO_LABEL, STATUS_LABEL, STATUS_COLOR, formatBRL, type Pedido,
+  TIPO_LABEL, STATUS_COLOR, statusLabel, formatBRL, type Pedido,
 } from '../types';
 
 export interface Opcao { value: string; label: string; searchHint?: string }
@@ -180,7 +180,7 @@ export function PedidoCard({
         </button>
         <div className="text-right shrink-0">
           <div className="font-semibold">{formatBRL(pedido.valor)}</div>
-          <Badge className={`${STATUS_COLOR[pedido.status]} text-[10px] mt-0.5`}>{STATUS_LABEL[pedido.status]}</Badge>
+          <Badge className={`${STATUS_COLOR[pedido.status]} text-[10px] mt-0.5`}>{statusLabel(pedido)}</Badge>
         </div>
         {mostrarInline && (
           <div className="flex flex-col gap-1 shrink-0">

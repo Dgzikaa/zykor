@@ -128,5 +128,24 @@ export const STATUS_COLOR: Record<PedidoStatus, string> = {
   cancelado: 'bg-gray-500/15 text-gray-500',
 };
 
+/**
+ * Label do status, DINÂMICO pra 'agendado' (PIX/boleto já enviado ao Inter): mostra
+ * "Agendado p/ DD/MM" quando o vencimento é FUTURO; "Aguardando aprovação" (do sócio no app do
+ * Inter) quando é pra pagar já. O webhook do Inter fecha em 'pago' sozinho quando executa. Os demais
+ * status seguem o STATUS_LABEL fixo.
+ */
+export function statusLabel(p: { status: string; data_vencimento?: string | null }): string {
+  if (p.status === 'agendado') {
+    const venc = p.data_vencimento || '';
+    const hoje = new Date().toISOString().slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(venc) && venc > hoje) {
+      const [, m, d] = venc.split('-');
+      return `Agendado p/ ${d}/${m}`;
+    }
+    return 'Aguardando aprovação';
+  }
+  return STATUS_LABEL[p.status as PedidoStatus] ?? p.status;
+}
+
 export const formatBRL = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
