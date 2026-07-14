@@ -291,15 +291,27 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     finally { setSemCadBusy(null); }
   };
 
-  // editar códigos ContaHub / Yuzer do produto (finalização)
+  // editar códigos ContaHub / Yuzer do produto (finalização) — por CHIP (adicionar/remover),
+  // sem digitar vírgula: CH busca nos códigos reais do ContaHub (à prova de erro de digitação);
+  // Yuzer adiciona o ID. Salva como arrays (a API faz o diff add/remove).
   const [editCods, setEditCods] = useState(false);
-  const [chVal, setChVal] = useState('');
-  const [yzVal, setYzVal] = useState('');
-  const abrirCods = () => { setChVal((selObj?.cods_ch || []).join(', ')); setYzVal((selObj?.cods_yuzer || []).join(', ')); setEditCods(true); };
+  const [chArr, setChArr] = useState<number[]>([]);
+  const [yzArr, setYzArr] = useState<number[]>([]);
+  const [chBusca, setChBusca] = useState('');
+  const [yzInput, setYzInput] = useState('');
+  const abrirCods = () => {
+    setChArr(((selObj?.cods_ch || []) as any[]).map(Number).filter((n) => Number.isFinite(n) && n > 0));
+    setYzArr(((selObj?.cods_yuzer || []) as any[]).map(Number).filter((n) => Number.isFinite(n) && n > 0));
+    setChBusca(''); setYzInput(''); setEditCods(true);
+  };
+  const addCh = (prd: number) => { if (Number.isFinite(prd) && prd > 0) setChArr((a) => a.includes(prd) ? a : [...a, prd]); setChBusca(''); };
+  const rmCh = (prd: number) => setChArr((a) => a.filter((p) => p !== prd));
+  const addYz = () => { const n = Number(String(yzInput).trim()); if (Number.isFinite(n) && n > 0) { setYzArr((a) => a.includes(n) ? a : [...a, n]); setYzInput(''); } };
+  const rmYz = (id: number) => setYzArr((a) => a.filter((p) => p !== id));
   const salvarCods = async () => {
     if (!selObj) return;
     try {
-      const r = await api.post('/api/operacional/produtos', { bar_id: barId, action: 'codigos', codigo: selObj.codigo, nome: selObj.nome, cods_ch: chVal, cods_yuzer: yzVal });
+      const r = await api.post('/api/operacional/produtos', { bar_id: barId, action: 'codigos', codigo: selObj.codigo, nome: selObj.nome, cods_ch: chArr, cods_yuzer: yzArr });
       if (!r.success) throw new Error(r.error);
       setEditCods(false); reloadLista();
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
@@ -391,6 +403,16 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
       reloadLista();
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
+  // busca de código ContaHub DENTRO do modal "editar códigos" (mesma fonte da tabela — prds reais do bar)
+  const chOpcoesModal = useMemo(() => {
+    const q = chBusca.trim().toLowerCase();
+    if (!q) return [];
+    return (prdsAll || []).filter((p: any) => !chArr.includes(Number(p.prd)) && (String(p.prd).includes(q) || (p.prd_desc || '').toLowerCase().includes(q))).slice(0, 20);
+  }, [prdsAll, chBusca, chArr]);
+  const labelPrd = useCallback((prd: number) => {
+    const p = (prdsAll || []).find((x: any) => Number(x.prd) === prd);
+    return p?.prd_desc ? `${prd} · ${p.prd_desc}` : String(prd);
+  }, [prdsAll]);
 
   // adicionar componente (modal de criação)
   const [addOpen, setAddOpen] = useState(false);
@@ -813,9 +835,51 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                     <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-sm space-y-3" onClick={e => e.stopPropagation()}>
                       <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Códigos do produto</h4>
                       <p className="text-sm text-gray-500">{selObj?.nome} · {selObj?.codigo}</p>
-                      <div><label className="text-xs text-gray-500">Cód. ContaHub (prd) — separe por vírgula se tiver vários (HH/PP)</label><Input value={chVal} onChange={e => setChVal(e.target.value)} placeholder="ex.: 86, 381" /></div>
-                      <div><label className="text-xs text-gray-500">ID Yuzer — separe por vírgula se tiver vários</label><Input value={yzVal} onChange={e => setYzVal(e.target.value)} placeholder="ex.: 12345" /></div>
-                      <p className="text-[11px] text-gray-400">Deixe vazio pra remover. Liga o produto às vendas do ContaHub/Yuzer (entra no CMV).</p>
+
+                      {/* ContaHub — adiciona buscando o código real (sem digitar à mão = sem erro) */}
+                      <div>
+                        <label className="text-xs text-gray-500">Cód. ContaHub</label>
+                        <div className="flex flex-wrap gap-1 mb-1.5 mt-1">
+                          {chArr.length === 0 && <span className="text-xs text-gray-400">Nenhum código ainda.</span>}
+                          {chArr.map((prd) => (
+                            <span key={prd} className="inline-flex items-center gap-1 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs px-2 py-0.5" title={labelPrd(prd)}>
+                              <span className="font-mono">{prd}</span>
+                              <button onClick={() => rmCh(prd)} className="text-indigo-400 hover:text-red-500" aria-label={`Remover ${prd}`}>×</button>
+                            </span>
+                          ))}
+                        </div>
+                        <Input value={chBusca} onChange={(e) => setChBusca(e.target.value)} placeholder="Buscar código ContaHub por número ou nome…" className="h-8 text-sm" />
+                        {chBusca.trim() && (
+                          <div className="mt-1 max-h-40 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700">
+                            {chOpcoesModal.length === 0 ? <div className="px-2 py-1.5 text-xs text-gray-400">Nada encontrado.</div>
+                              : chOpcoesModal.map((o: any) => (
+                                <button key={o.prd} onClick={() => addCh(Number(o.prd))} className="w-full text-left px-2 py-1 text-sm rounded hover:bg-gray-50 dark:hover:bg-gray-800/60">
+                                  <span className="font-mono text-xs">{o.prd}</span> · {o.prd_desc || '—'}{o.cod_interno && o.cod_interno !== selObj?.codigo && <span className="text-[10px] text-amber-500"> · hoje em {o.cod_interno}</span>}
+                                </button>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Yuzer — adiciona o ID (uma vez cada, vira chip) */}
+                      <div>
+                        <label className="text-xs text-gray-500">ID Yuzer</label>
+                        <div className="flex flex-wrap gap-1 mb-1.5 mt-1">
+                          {yzArr.length === 0 && <span className="text-xs text-gray-400">Nenhum ID ainda.</span>}
+                          {yzArr.map((id) => (
+                            <span key={id} className="inline-flex items-center gap-1 rounded-md bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-xs px-2 py-0.5">
+                              <span className="font-mono">{id}</span>
+                              <button onClick={() => rmYz(id)} className="text-violet-400 hover:text-red-500" aria-label={`Remover ${id}`}>×</button>
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex gap-1.5">
+                          <Input value={yzInput} onChange={(e) => setYzInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addYz(); } }} placeholder="ex.: 12345" inputMode="numeric" className="h-8 text-sm" />
+                          <Button size="sm" variant="outline" onClick={addYz} disabled={!yzInput.trim()}><Plus className="w-4 h-4 mr-1" />adicionar</Button>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-gray-400">Liga o produto às vendas do ContaHub/Yuzer (entra no CMV). Remova pelos ×; salve pra aplicar.</p>
                       <div className="flex justify-end gap-2 pt-1">
                         <Button variant="outline" onClick={() => setEditCods(false)}>Cancelar</Button>
                         <Button onClick={salvarCods}>Salvar</Button>
