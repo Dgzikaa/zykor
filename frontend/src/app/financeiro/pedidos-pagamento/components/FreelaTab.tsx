@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Loader2, Plus, Users, Send, ChevronLeft, ChevronRight, CheckCircle2, Check, Search, Upload } from 'lucide-react';
+import { Loader2, Plus, Users, Send, ChevronLeft, ChevronRight, CheckCircle2, Check, Search, Upload, Pencil, Trash2, X } from 'lucide-react';
 import { NovoFreelaDialog } from './NovoFreelaDialog';
 import { ImportarFreelasDialog } from './ImportarFreelasDialog';
 import { STATUS_LABEL, STATUS_COLOR, type PedidoStatus } from '../types';
@@ -100,9 +100,9 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
   const aAprovar = useMemo(() => loteSemana.filter(p => APROVAVEL.includes(p.status)), [loteSemana]);
 
   // Condensa por pessoa: 1 linha por freela, com as diárias detalhadas e o total somado.
-  const resumoSemana = useMemo(() => {
+  const agrupar = (list: FreelaPedido[]) => {
     const grupos = new Map<string, { nome: string; itens: FreelaPedido[]; total: number; statuses: Set<PedidoStatus> }>();
-    for (const p of loteSemana) {
+    for (const p of list) {
       const key = p.contaazul_pessoa_id || norm(p.beneficiario_nome) || p.id;
       const g = grupos.get(key) || { nome: p.beneficiario_nome || '—', itens: [], total: 0, statuses: new Set<PedidoStatus>() };
       g.itens.push(p); g.total += Number(p.valor || 0); g.statuses.add(p.status);
@@ -112,7 +112,34 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
       g.itens.sort((a, b) => (a.data_competencia || a.data_vencimento).localeCompare(b.data_competencia || b.data_vencimento));
     }
     return Array.from(grupos.entries()).map(([key, g]) => ({ key, ...g }));
-  }, [loteSemana]);
+  };
+  // #18 — separa as etapas: "Solicitado" (espera aprovação) e "Aprovado" (já aprovado/agendado/pago).
+  const gruposSolicitado = useMemo(() => agrupar(loteSemana.filter(p => APROVAVEL.includes(p.status))), [loteSemana]);
+  const gruposAprovado = useMemo(() => agrupar(loteSemana.filter(p => !APROVAVEL.includes(p.status))), [loteSemana]);
+
+  // #17 — editar valor / excluir diária lançada (só enquanto pendente).
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editVal, setEditVal] = useState('');
+  const [salvandoEdit, setSalvandoEdit] = useState(false);
+  const iniciarEdicao = (p: FreelaPedido) => { setEditId(p.id); setEditVal(String(p.valor).replace('.', ',')); };
+  const salvarEdicao = async (p: FreelaPedido) => {
+    const v = parseValor(editVal);
+    if (!(v > 0)) return showToast({ type: 'error', title: 'Valor inválido' });
+    setSalvandoEdit(true);
+    try {
+      await api.put(`/api/financeiro/pedidos-pagamento/${p.id}`, { valor: v });
+      setEditId(null); await carregar(); onLancado();
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao editar', message: e?.message }); }
+    finally { setSalvandoEdit(false); }
+  };
+  const excluirFreela = async (p: FreelaPedido) => {
+    if (!window.confirm(`Excluir a diária de ${p.beneficiario_nome || 'freela'} (${ddmm(p.data_competencia || p.data_vencimento)} · ${fmtBRL(p.valor)})?`)) return;
+    try {
+      await api.post(`/api/financeiro/pedidos-pagamento/${p.id}/cancelar`, {});
+      await carregar(); onLancado();
+      showToast({ type: 'success', title: 'Diária removida' });
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
+  };
 
   const navSemana = (delta: number) => {
     const d = parseISO(dia); d.setDate(d.getDate() + delta * 7); setDia(toISO(d)); setSel({});
@@ -196,6 +223,13 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navSemana(1)}><ChevronRight className="w-4 h-4" /></Button>
         </div>
         <div className="flex items-center gap-1.5">
+          {/* #16 — Lançar na semana também aqui em cima (além do rodapé), pra não precisar rolar. */}
+          {selecionados.length > 0 && (
+            <Button size="sm" onClick={lancar} disabled={lancando}>
+              {lancando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Send className="w-4 h-4 mr-1.5" />}
+              Lançar na semana ({selecionados.length})
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setImportarOpen(true)}><Upload className="w-4 h-4 mr-1.5" />Importar planilha</Button>
           <Button variant="outline" size="sm" onClick={() => setNovoOpen(true)}><Plus className="w-4 h-4 mr-1.5" />Novo freela</Button>
         </div>
@@ -220,23 +254,51 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
                     </Button>
                   )}
                 </div>
-                <div className="space-y-1.5">
-                  {resumoSemana.map((g) => (
-                    <div key={g.key} className="flex items-start gap-2 text-sm">
-                      <Badge className="bg-emerald-500/15 text-emerald-600 text-[10px] shrink-0 mt-0.5">Selecionado p/ pagamento</Badge>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-medium truncate">{g.nome}</span>
-                          {g.itens.length > 1 && <span className="text-muted-foreground text-xs">({g.itens.length} diárias)</span>}
-                          {[...g.statuses].map((st) => (
-                            <Badge key={st} className={`${STATUS_COLOR[st]} text-[10px]`}>{STATUS_LABEL[st]}</Badge>
-                          ))}
-                        </div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          {g.itens.map(p => `${ddmm(p.data_competencia || p.data_vencimento)} · ${fmtBRL(p.valor)}`).join('   ·   ')}
-                        </div>
+                {/* #18 — etapas separadas: Solicitado (edita/exclui) e Aprovado (só leitura) */}
+                <div className="space-y-3">
+                  {[
+                    { titulo: 'Solicitado', grupos: gruposSolicitado, editavel: true },
+                    { titulo: 'Aprovado', grupos: gruposAprovado, editavel: false },
+                  ].filter(s => s.grupos.length > 0).map(({ titulo, grupos, editavel }) => (
+                    <div key={titulo}>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+                        {titulo} · {grupos.reduce((s, g) => s + g.itens.length, 0)} diária(s)
                       </div>
-                      <span className="font-semibold shrink-0 w-24 text-right">{fmtBRL(g.total)}</span>
+                      <div className="space-y-1.5">
+                        {grupos.map((g) => (
+                          <div key={g.key} className="rounded-lg border border-[hsl(var(--border))] p-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium truncate text-sm">{g.nome}{g.itens.length > 1 && <span className="text-muted-foreground text-xs"> · {g.itens.length} diárias</span>}</span>
+                              <span className="font-semibold text-sm shrink-0">{fmtBRL(g.total)}</span>
+                            </div>
+                            <div className="mt-1">
+                              {g.itens.map((p) => (
+                                <div key={p.id} className="flex items-center gap-2 text-xs py-1 border-t border-[hsl(var(--border))]/40 first:border-t-0">
+                                  <span className="text-muted-foreground w-12 shrink-0">{ddmm(p.data_competencia || p.data_vencimento)}</span>
+                                  {editavel && editId === p.id ? (
+                                    <div className="flex items-center gap-1 flex-1">
+                                      <Input value={editVal} onChange={(e) => setEditVal(e.target.value)} inputMode="decimal" className="h-7 w-24 text-right text-xs" />
+                                      <Button size="sm" className="h-7 px-2" onClick={() => salvarEdicao(p)} disabled={salvandoEdit}>{salvandoEdit ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}</Button>
+                                      <button onClick={() => setEditId(null)} className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <span className="flex-1 tabular-nums font-medium">{fmtBRL(p.valor)}</span>
+                                      <Badge className={`${STATUS_COLOR[p.status]} text-[10px] shrink-0`}>{STATUS_LABEL[p.status]}</Badge>
+                                      {editavel && (
+                                        <>
+                                          <button onClick={() => iniciarEdicao(p)} title="Editar valor" className="text-muted-foreground hover:text-indigo-600 shrink-0"><Pencil className="w-3.5 h-3.5" /></button>
+                                          <button onClick={() => excluirFreela(p)} title="Excluir diária" className="text-muted-foreground hover:text-red-600 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+                                        </>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
