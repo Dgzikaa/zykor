@@ -12,6 +12,7 @@ import {
   addDiasIso, fmtDM, isoLocal, desvioRendReais, fmtBRL, fmtNum, rendAmigavel,
   fmtPct, fmtTempo, fmtData, secaoDeCodigo, type Secao,
 } from './_shared';
+import { DetalheExecucaoModal } from './DetalheExecucaoModal';
 
 type Gran = 'dia' | 'semana' | 'mes';
 
@@ -39,6 +40,7 @@ export function AbaAnalise({ secaoAtiva }: { secaoAtiva: Secao }) {
   const [periodoSel, setPeriodoSel] = useState<string>(''); // dia iso / segunda da semana / 'YYYY-MM'
   const [execs, setExecs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [detalhe, setDetalhe] = useState<any | null>(null); // #10 — abrir a produção (igual ao Histórico)
 
   // janela ampla (últimos 180 dias) só p/ montar as opções de período; o filtro é o seletor abaixo
   const carregar = useCallback(async () => {
@@ -195,7 +197,7 @@ export function AbaAnalise({ secaoAtiva }: { secaoAtiva: Secao }) {
                   const rendPct = temR ? Number(e.rendimento_real) / Number(e.rendimento_esperado) * 100 : null;
                   const desvio = (Number(e.custo_real) || 0) - (Number(e.custo_planejado) || 0);
                   return (
-                    <tr key={e.id}>
+                    <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer" onClick={() => setDetalhe(e)} title="Abrir produção">
                       <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{e.producao_nome || `#${e.producao_id}`}{e.producao_codigo && <span className="text-gray-400 font-mono text-xs"> · {e.producao_codigo}</span>}</td>
                       <td className="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{fmtData(e.criado_em)}</td>
                       <td className="px-3 py-2 text-gray-600 dark:text-gray-300">{e.responsavel_nome || '—'}</td>
@@ -222,7 +224,11 @@ export function AbaAnalise({ secaoAtiva }: { secaoAtiva: Secao }) {
       <p className="text-[11px] text-gray-400 leading-relaxed">
         Troque <b>Dia / Semana / Mês</b> e escolha o período no seletor. O <b>resumo de cima</b> consolida o período; a <b>lista</b> mostra as produções dele.
         A <b>Nota</b> é o % de produções com rendimento real dentro de <b>±5%</b> do esperado da ficha.
+        Clique numa produção pra abrir o detalhe (planejado × realizado dos insumos).
       </p>
+
+      {/* #10 — abrir a produção (só leitura): planejado × realizado dos insumos (#9) */}
+      <DetalheExecucaoModal execucao={detalhe} barId={barId} onClose={() => setDetalhe(null)} />
     </div>
   );
 }
