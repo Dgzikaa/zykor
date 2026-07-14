@@ -63,6 +63,10 @@ export function BoletoTab({
   const [rateio, setRateio] = useState<Array<{ catId: string; valor: string }>>([{ catId: '', valor: '' }, { catId: '', valor: '' }]);
   const numBR = (v: string) => Number(String(v).replace(/\./g, '').replace(',', '.')) || 0;
   const rateioSoma = usarRateio ? rateio.reduce((s, r) => s + numBR(r.valor), 0) : 0;
+  // Categoria + fornecedor SUGERIDOS por quem sobe o boleto → já aparecem pré-preenchidos
+  // pro financeiro só conferir na aprovação (pedido do Gonza).
+  const [catId, setCatId] = useState('');
+  const [fornId, setFornId] = useState('');
 
   const ler = async (file: File) => {
     setArquivoNome(file.name);
@@ -127,6 +131,7 @@ export function BoletoTab({
   const reset = () => {
     setD(null); setArquivoNome(''); setAvisos([]); setCompetencia(''); setObservacao(''); setContaId('');
     setUsarRateio(false); setRateio([{ catId: '', valor: '' }, { catId: '', valor: '' }]);
+    setCatId(''); setFornId('');
   };
 
   const criar = async () => {
@@ -157,7 +162,11 @@ export function BoletoTab({
         cpf_cnpj: d.cpf_cnpj || null,
         linha_digitavel: d.linha_digitavel || null,
         conta_financeira_id: contaEfetiva || undefined,
-        observacao: [observacao.trim(), d.banco ? `Banco ${d.banco}` : ''].filter(Boolean).join(' · ') || null,
+        // Sugestões do criador → pré-preenchem na aprovação. No rateio, a categoria vem das linhas.
+        categoria_id: !usarRateio && catId ? catId : undefined,
+        categoria_nome: !usarRateio && catId ? (categorias.find(c => c.value === catId)?.label || undefined) : undefined,
+        contaazul_pessoa_id: fornId || undefined,
+        observacao: observacao.trim() || null,
         // #21: rateio por categoria → cada linha vira 1 lançamento no CA (mesma competência).
         competencias: usarRateio ? rateioLinhas.map(r => ({
           data_competencia: competencia, valor: numBR(r.valor),
@@ -246,9 +255,17 @@ export function BoletoTab({
                 <Label className="mb-1.5 block">CPF/CNPJ</Label>
                 <Input value={d.cpf_cnpj || ''} onChange={(e) => upd('cpf_cnpj', e.target.value)} placeholder="só números" inputMode="numeric" />
               </div>
+              {!usarRateio && (
+                <div>
+                  <Label className="mb-1.5 block">Categoria <span className="text-muted-foreground text-xs">(sugestão p/ o financeiro)</span></Label>
+                  <SearchableSelect value={catId} onValueChange={(v) => setCatId(v || '')}
+                    placeholder="Categoria" searchPlaceholder="Filtrar…" emptyMessage="Nenhuma" options={categorias} />
+                </div>
+              )}
               <div>
-                <Label className="mb-1.5 block">Banco</Label>
-                <Input value={d.banco || ''} onChange={(e) => upd('banco', e.target.value)} />
+                <Label className="mb-1.5 block">Fornecedor <span className="text-muted-foreground text-xs">(sugestão)</span></Label>
+                <SearchableSelect value={fornId} onValueChange={(v) => setFornId(v || '')}
+                  placeholder="Fornecedor no Conta Azul" searchPlaceholder="Buscar…" emptyMessage="Nenhum" options={fornecedores} />
               </div>
             </div>
             <div>

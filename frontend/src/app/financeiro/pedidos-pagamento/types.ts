@@ -57,6 +57,8 @@ export interface Competencia {
   data_competencia: string;
   valor: number;
   descricao?: string | null;
+  categoria_id?: string | null;
+  categoria_nome?: string | null;
   contaazul_lancamento_id?: string | null;
   ordem: number;
 }

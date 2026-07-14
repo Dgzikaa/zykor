@@ -20,6 +20,7 @@ import {
   TIPO_LABEL, STATUS_LABEL, STATUS_COLOR, formatBRL,
   type Pedido, type Comentario, type Anexo, type HistoricoItem, type Competencia,
 } from '../types';
+import { isBoleto } from '../statusTabs';
 
 interface Opcao { value: string; label: string; searchHint?: string }
 
@@ -370,25 +371,30 @@ export function PedidoDetailDialog({
               </div>
             )}
 
-            {/* Competências — 1 PIX, N lançamentos no Conta Azul */}
-            {competencias.length > 0 && (
-              <div className="rounded-md border border-[hsl(var(--border))] p-3">
-                <p className="text-xs font-medium mb-2">
-                  {competencias.length} competências → {competencias.length} lançamentos no Conta Azul
-                </p>
-                <div className="space-y-1">
-                  {competencias.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between text-xs gap-2">
-                      <span className="text-muted-foreground truncate">
-                        {c.data_competencia}{c.descricao ? ` · ${c.descricao}` : ''}
-                        {c.contaazul_lancamento_id && <span className="text-green-600"> · ✓ no CA</span>}
-                      </span>
-                      <span className="font-medium shrink-0">{formatBRL(c.valor)}</span>
-                    </div>
-                  ))}
+            {/* Competências / rateio — N linhas → N lançamentos no Conta Azul. Se as linhas têm
+                categoria própria (divisão em categorias), mostra a categoria de cada uma. */}
+            {competencias.length > 0 && (() => {
+              const temCat = competencias.some((c) => c.categoria_nome);
+              return (
+                <div className="rounded-md border border-[hsl(var(--border))] p-3">
+                  <p className="text-xs font-medium mb-2">
+                    {temCat ? `Dividido em ${competencias.length} categoria(s)` : `${competencias.length} competências`} → {competencias.length} lançamento(s) no Conta Azul
+                  </p>
+                  <div className="space-y-1">
+                    {competencias.map((c) => (
+                      <div key={c.id} className="flex items-center justify-between text-xs gap-2">
+                        <span className="text-muted-foreground truncate">
+                          {c.categoria_nome ? <b className="text-foreground">{c.categoria_nome}</b> : c.data_competencia}
+                          {c.categoria_nome ? ` · ${c.data_competencia}` : ''}{c.descricao ? ` · ${c.descricao}` : ''}
+                          {c.contaazul_lancamento_id && <span className="text-green-600"> · ✓ no CA</span>}
+                        </span>
+                        <span className="font-medium shrink-0">{formatBRL(c.valor)}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Campos do pedido (editáveis) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -408,10 +414,18 @@ export function PedidoDetailDialog({
                 <Label className="mb-1 block text-xs">Competência</Label>
                 <DateInputBR value={String(fld('data_competencia') || '')} disabled={!editavel} onChange={(iso) => setFld('data_competencia', iso)} />
               </div>
-              <div>
-                <Label className="mb-1 block text-xs">Chave PIX</Label>
-                <Input value={fld('chave_pix')} disabled={!editavel} onChange={(e) => setFld('chave_pix', e.target.value)} />
-              </div>
+              {/* Boleto usa linha digitável (não chave PIX) — mostra o campo certo p/ cada tipo. */}
+              {pedido && isBoleto(pedido) ? (
+                <div>
+                  <Label className="mb-1 block text-xs">Linha digitável</Label>
+                  <Input value={fld('linha_digitavel')} disabled={!editavel} onChange={(e) => setFld('linha_digitavel', e.target.value)} inputMode="numeric" />
+                </div>
+              ) : (
+                <div>
+                  <Label className="mb-1 block text-xs">Chave PIX</Label>
+                  <Input value={fld('chave_pix')} disabled={!editavel} onChange={(e) => setFld('chave_pix', e.target.value)} />
+                </div>
+              )}
               <div>
                 <Label className="mb-1 block text-xs">Beneficiário</Label>
                 <Input value={fld('beneficiario_nome')} disabled={!editavel} onChange={(e) => setFld('beneficiario_nome', e.target.value)} />
