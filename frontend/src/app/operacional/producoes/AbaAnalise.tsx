@@ -138,12 +138,12 @@ export function AbaAnalise({ secaoAtiva }: { secaoAtiva: Secao }) {
     return m;
   }, [gran, planoItens, doPeriodo, secaoAtiva]);
 
-  // "Falta produzir": só o que tinha plano e ainda não bateu (planejado>0 e feito<planejado), maior falta 1º
+  // "Não produzidos": foi PLANEJADO mas teve ZERO produção na semana (feito = 0). Maior planejado 1º.
   const planoVsReal = useMemo(() =>
     Array.from(planoRealMap.entries())
       .map(([id, v]) => ({ producao_id: id, ...v }))
-      .filter((r) => r.planejado > 0 && r.realizado < r.planejado)
-      .sort((a, b) => b.falta - a.falta),
+      .filter((r) => r.planejado > 0 && r.realizado === 0)
+      .sort((a, b) => b.planejado - a.planejado),
     [planoRealMap]);
 
   const corNota = (n: number | null) => n == null ? 'text-gray-400' : n >= 90 ? 'text-emerald-600 dark:text-emerald-400' : n >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400';
@@ -286,38 +286,34 @@ export function AbaAnalise({ secaoAtiva }: { secaoAtiva: Secao }) {
         Clique numa produção pra abrir o detalhe (planejado × realizado dos insumos).
       </p>
 
-      {/* #9 — Falta produzir (planejado × realizado) — POR ÚLTIMO, só na visão Semana */}
+      {/* #9 — Não produzidos: planejado na semana mas com ZERO produção — POR ÚLTIMO, só na visão Semana */}
       {gran === 'semana' && (
         <Card className="card-dark">
           <CardContent className="p-3">
             <div className="flex items-center gap-1.5 mb-2 text-sm font-semibold text-violet-700 dark:text-violet-300">
-              <ListChecks className="w-4 h-4" />Falta produzir <span className="text-gray-400 font-normal">(planejado × feito, só o que ainda não fechou)</span>
+              <ListChecks className="w-4 h-4" />Não produzidos <span className="text-gray-400 font-normal">(planejado na semana mas não produzido)</span>
             </div>
             {loadingPlano ? (
               <div className="py-4 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
             ) : planoVsReal.length === 0 ? (
-              <div className="py-4 text-center text-gray-400 text-sm">Tudo do plano da semana já foi produzido para {secaoAtiva} 🎉 (ou sem plano encerrado).</div>
+              <div className="py-4 text-center text-gray-400 text-sm">Tudo que foi planejado teve pelo menos uma produção para {secaoAtiva} 🎉 (ou sem plano encerrado).</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
                     <th className="text-left font-medium px-3 py-1.5">Produção</th>
                     <th className="text-right font-medium px-3 py-1.5">Planejado</th>
-                    <th className="text-right font-medium px-3 py-1.5">Feito</th>
-                    <th className="text-right font-medium px-3 py-1.5">Falta</th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                     {planoVsReal.map((r) => (
                       <tr key={r.producao_id}>
                         <td className="px-3 py-1.5 text-gray-900 dark:text-gray-100">{r.nome}{r.codigo && <span className="text-gray-400 font-mono text-xs"> · {r.codigo}</span>}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{r.planejado}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{r.realizado}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums font-semibold text-amber-600 dark:text-amber-400">{r.falta}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums font-semibold text-red-600 dark:text-red-400">{r.planejado}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                <p className="text-[11px] text-gray-400 mt-1.5 px-1">Lista só o que <b>ainda falta</b> do plano da semana (o que já bateu some). <b>Feito</b> = nº de receitas produzidas = rendimento real ÷ rendimento da ficha (não conta execuções). <b>Falta</b> = planejado − feito.</p>
+                <p className="text-[11px] text-gray-400 mt-1.5 px-1">Receitas que o plano da semana pediu e que <b>não tiveram nenhuma produção</b> (feito = 0). <b>Planejado</b> = nº de receitas do plano.</p>
               </div>
             )}
           </CardContent>
