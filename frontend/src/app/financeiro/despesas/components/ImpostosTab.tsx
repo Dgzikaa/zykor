@@ -10,7 +10,7 @@ import { NfceImportBox } from './NfceImportBox';
 
 type Tributo = { sigla: string; nome: string; valor: number; vencimento: string; periodicidade: 'mensal' | 'trimestral'; ja_lancado: boolean; valor_lancado: number | null; chave?: string };
 type Base = { faturamento_nf: number; faturamento_stone: number; faturamento: number; couvert: number; gorjeta: number; bebidas_frias: number; base_lucro: number; base_monofasica: number };
-type CnpjBlock = { cnpj_indice: number | null; cnpj_label: string; cnpj_documento: string | null; origem_xml: boolean; base: Base; tributos: Tributo[] };
+type CnpjBlock = { cnpj_indice: number | null; cnpj_label: string; cnpj_documento: string | null; origem_xml: boolean; regime?: string; rbt12?: number; base: Base; tributos: Tributo[] };
 type Preview = { bar_id: number; ano: number; mes: number; competencia: string; origem_xml: boolean; por_cnpj: CnpjBlock[]; base: Base; tributos: Tributo[] };
 
 const fmtBRL = (v: any) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v || 0));
@@ -111,8 +111,12 @@ export function ImpostosTab() {
                   <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span className="font-semibold truncate">{c.cnpj_label}</span>
                   {c.cnpj_documento && <span className="text-xs text-muted-foreground font-mono hidden sm:inline">{c.cnpj_documento}</span>}
+                  {c.regime === 'simples' && (
+                    <span className="text-[11px] rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 shrink-0 whitespace-nowrap">Simples · RBT12 {fmtBRL(c.rbt12 || 0)}</span>
+                  )}
                 </div>
-                {temMultiCnpj && (
+                {/* Aviso de bebida fria (XML) não se aplica ao Simples (DAS usa só o faturamento). */}
+                {temMultiCnpj && c.regime !== 'simples' && (
                   c.origem_xml
                     ? <span className="text-[11px] rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5">bebida fria do XML</span>
                     : <span className="text-[11px] rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-2 py-0.5">sem XML · bebida fria 0</span>

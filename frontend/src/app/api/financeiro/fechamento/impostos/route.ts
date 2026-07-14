@@ -32,7 +32,7 @@ const CAT_NOME = ['IMPOSTO', 'Imposto']; // resolvido por nome (case/acento-inse
 const MES_LABEL = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 interface BaseImpostos { faturamento_nf: number; faturamento_stone: number; couvert: number; gorjeta: number; bebidas_frias: number; }
-interface BaseCnpj extends BaseImpostos { cnpj_indice: number | null; cnpj_label: string; cnpj_documento: string | null; origem_xml: boolean; }
+interface BaseCnpj extends BaseImpostos { cnpj_indice: number | null; cnpj_label: string; cnpj_documento: string | null; origem_xml: boolean; regime?: string; rbt12?: number; }
 interface Tributo { sigla: string; nome: string; valor: number; vencimento: string; periodicidade: 'mensal' | 'trimestral'; }
 
 /** Chave do log por tributo. Com CNPJ (Ordinário/Deboche têm 2) fica "SIGLA#indice"; sem, só "SIGLA". */
@@ -71,6 +71,36 @@ export function calcularTributos(base: BaseImpostos, ano: number, mes: number): 
   return { faturamento, baseLucro, baseMonofasica, tributos };
 }
 
+// #12 — Simples Nacional (Anexo I / Comércio), da planilha do dono. Alíquota efetiva varia
+// pelo RBT12 (receita bruta dos 12 meses anteriores): efetiva = (RBT12*nominal − deduzir)/RBT12.
+const SIMPLES_ANEXO_I = [
+  { max: 180000, aliq: 0.04, deduzir: 0 },
+  { max: 360000, aliq: 0.073, deduzir: 5940 },
+  { max: 720000, aliq: 0.095, deduzir: 13860 },
+  { max: 1800000, aliq: 0.107, deduzir: 22500 },
+  { max: 3600000, aliq: 0.143, deduzir: 87300 },
+  { max: 4800000, aliq: 0.19, deduzir: 378000 },
+];
+function aliquotaEfetivaSimples(rbt12: number): number {
+  if (rbt12 <= 0) return SIMPLES_ANEXO_I[0].aliq; // sem histórico → 1ª faixa
+  const f = SIMPLES_ANEXO_I.find((x) => rbt12 <= x.max) ?? SIMPLES_ANEXO_I[SIMPLES_ANEXO_I.length - 1];
+  return Math.max(0, (rbt12 * f.aliq - f.deduzir) / rbt12);
+}
+/** CNPJ no Simples: 1 DAS = alíquota efetiva (por RBT12) × faturamento do mês. */
+export function calcularDAS(base: BaseImpostos, ano: number, mes: number, rbt12: number): { faturamento: number; baseLucro: number; baseMonofasica: number; tributos: Tributo[] } {
+  const faturamento = round2(Math.max(Number(base.faturamento_nf || 0), Number(base.faturamento_stone || 0)));
+  const aliq = aliquotaEfetivaSimples(rbt12);
+  const das = round2(faturamento * aliq);
+  return {
+    faturamento, baseLucro: faturamento, baseMonofasica: faturamento,
+    tributos: [{ sigla: 'DAS', nome: `DAS Simples (${(aliq * 100).toFixed(2)}%)`, valor: das, vencimento: venc20MesSeguinte(ano, mes), periodicidade: 'mensal' }],
+  };
+}
+/** Escolhe o cálculo pelo regime do CNPJ: Simples → DAS; senão os 5 tributos do Presumido. */
+function calcularImpostosCnpj(base: BaseCnpj, ano: number, mes: number) {
+  return base.regime === 'simples' ? calcularDAS(base, ano, mes, Number(base.rbt12 || 0)) : calcularTributos(base, ano, mes);
+}
+
 /**
  * Base POR CNPJ. Bares com CNPJs cadastrados (Ordinário=2, Deboche=2) vêm de
  * fn_impostos_base_mensal_cnpj (faturamento/bebida fria do XML importado; couvert/gorjeta da chave;
@@ -81,11 +111,18 @@ async function getBasesCnpj(barId: number, ano: number, mes: number): Promise<Ba
   const { data } = await (supabase as any).rpc('fn_impostos_base_mensal_cnpj', { p_bar: barId, p_ano: ano, p_mes: mes });
   const rows = (data as any[]) || [];
   if (rows.length > 0) {
+    // #12 — regime por CNPJ (nf_cnpj_labels) + RBT12 (12 meses anteriores) p/ o cálculo do Simples.
+    const { data: regs } = await (supabase.schema('financial' as any) as any).from('nf_cnpj_labels').select('cnpj_indice, regime').eq('bar_id', barId);
+    const regimeDe = new Map<number, string>(((regs as any[]) || []).map((r) => [Number(r.cnpj_indice), String(r.regime || 'presumido')]));
+    const { data: rbt } = await (supabase as any).rpc('fn_impostos_rbt12_cnpj', { p_bar: barId, p_ano: ano, p_mes: mes });
+    const rbt12De = new Map<number, number>(((rbt as any[]) || []).map((r) => [Number(r.cnpj_indice), Number(r.rbt12 || 0)]));
     return rows.map((r) => ({
       cnpj_indice: r.cnpj_indice ?? null, cnpj_label: r.cnpj_label || `CNPJ ${r.cnpj_indice}`, cnpj_documento: r.cnpj_documento ?? null,
       faturamento_nf: Number(r.faturamento_nf || 0), faturamento_stone: Number(r.faturamento_stone || 0),
       couvert: Number(r.couvert || 0), gorjeta: Number(r.gorjeta || 0), bebidas_frias: Number(r.bebidas_frias || 0),
       origem_xml: !!r.origem_xml,
+      regime: r.cnpj_indice != null ? (regimeDe.get(Number(r.cnpj_indice)) || 'presumido') : 'presumido',
+      rbt12: r.cnpj_indice != null ? (rbt12De.get(Number(r.cnpj_indice)) || 0) : 0,
     }));
   }
   // legado (bar sem CNPJ cadastrado): 1 base agregada
@@ -116,7 +153,7 @@ export async function executarImpostos(barId: number, ano: number, mes: number, 
   type Pend = { base: BaseCnpj; t: Tributo; chave: string };
   const pendentes: Pend[] = [];
   for (const base of bases) {
-    const { tributos } = calcularTributos(base, ano, mes);
+    const { tributos } = calcularImpostosCnpj(base, ano, mes);
     for (const t of tributos) {
       const chave = chaveLog(t.sigla, base.cnpj_indice);
       if (t.valor < 0.01 || feitos.has(chave)) continue;
@@ -179,9 +216,10 @@ export async function GET(request: NextRequest) {
 
   // um bloco por CNPJ (base + tributos com status de lançamento)
   const cnpjs = bases.map((base) => {
-    const calc = calcularTributos(base, alvo.ano, alvo.mes);
+    const calc = calcularImpostosCnpj(base, alvo.ano, alvo.mes);
     return {
       cnpj_indice: base.cnpj_indice, cnpj_label: base.cnpj_label, cnpj_documento: base.cnpj_documento, origem_xml: base.origem_xml,
+      regime: base.regime || 'presumido', rbt12: base.rbt12 || 0,
       base: { faturamento_nf: base.faturamento_nf, faturamento_stone: base.faturamento_stone, faturamento: calc.faturamento,
               couvert: base.couvert, gorjeta: base.gorjeta, bebidas_frias: base.bebidas_frias, base_lucro: calc.baseLucro, base_monofasica: calc.baseMonofasica },
       tributos: calc.tributos.map((t) => {
@@ -194,7 +232,9 @@ export async function GET(request: NextRequest) {
   // total agregado (soma dos CNPJs) — resumo/topo da tela
   const somaBase = (k: keyof BaseImpostos | 'faturamento' | 'base_lucro' | 'base_monofasica') =>
     round2(cnpjs.reduce((s, c) => s + Number((c.base as any)[k] || 0), 0));
-  const totalTributos = ['IRPJ', 'CSLL', 'ICMS', 'COFINS', 'PIS'].map((sig) => {
+  // Siglas presentes (inclui DAS dos CNPJs no Simples), preservando a ordem dos tributos.
+  const siglasPresentes = Array.from(new Set(cnpjs.flatMap((c) => c.tributos.map((t) => t.sigla))));
+  const totalTributos = siglasPresentes.map((sig) => {
     const linhas = cnpjs.flatMap((c) => c.tributos.filter((t) => t.sigla === sig));
     const base0 = linhas[0];
     return { sigla: sig, nome: base0?.nome || sig, periodicidade: base0?.periodicidade || 'mensal', vencimento: base0?.vencimento || '',
