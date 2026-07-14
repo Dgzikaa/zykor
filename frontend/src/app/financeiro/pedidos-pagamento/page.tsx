@@ -19,7 +19,6 @@ import { type TabKey, TAB_STATUS, isBoleto } from './statusTabs';
 import { NovoPedidoDialog } from './components/NovoPedidoDialog';
 import { PedidoDetailDialog } from './components/PedidoDetailDialog';
 import { PedidoCard, type Opcao } from './components/PedidoCard';
-import { FreelaTab } from './components/FreelaTab';
 import { BoletoTab } from './components/BoletoTab';
 import TrocasTab from './components/TrocasTab';
 import { FaturaCartaoTab } from './components/FaturaCartaoTab';
@@ -166,19 +165,23 @@ export default function PedidosPagamentoPage() {
     return () => { vivo = false; };
   }, [barId]);
 
-  // Freela é gerido/aprovado na aba própria (semanal) — fora da lista principal.
   // PIX = tudo que NÃO é freela nem boleto (boleto vive na aba própria).
   const pedidosLista = useMemo(() => pedidos.filter(p => p.tipo !== 'freela' && !isBoleto(p)), [pedidos]);
   const boletosLista = useMemo(() => pedidos.filter(isBoleto), [pedidos]);
+  // Freela passa pelo MESMO kanban de status do PIX. A MONTAGEM (rascunho) é da operação
+  // (Operacional › Freelas — Semana); o financeiro só vê a partir de "aguardando_aprovacao"
+  // (rascunho fica escondido) e faz aprovar → agendar por card, igual PIX.
+  const freelasLista = useMemo(() => pedidos.filter(p => p.tipo === 'freela' && p.status !== 'rascunho'), [pedidos]);
+  const listaAtiva = useMemo(() => (modo === 'freela' ? freelasLista : pedidosLista), [modo, freelasLista, pedidosLista]);
   const filtrados = useMemo(
-    () => pedidosLista.filter(p => TAB_STATUS[tab](p.status) && (!soComprovante || p.precisa_comprovante)),
-    [pedidosLista, tab, soComprovante]
+    () => listaAtiva.filter(p => TAB_STATUS[tab](p.status) && (!soComprovante || p.precisa_comprovante)),
+    [listaAtiva, tab, soComprovante]
   );
-  const countSolicitado = useMemo(() => pedidosLista.filter(p => TAB_STATUS.solicitado(p.status)).length, [pedidosLista]);
+  const countSolicitado = useMemo(() => listaAtiva.filter(p => TAB_STATUS.solicitado(p.status)).length, [listaAtiva]);
   // Prontos pra AGENDAR (aprovados ainda não disparados + erros de agendamento p/ retry).
   const agendaveis = useMemo(
-    () => pedidosLista.filter(p => ['aprovado', 'erro_ca', 'erro_inter'].includes(p.status) && !(p.status === 'aprovado' && p.contaazul_lancamento_id)),
-    [pedidosLista]
+    () => listaAtiva.filter(p => ['aprovado', 'erro_ca', 'erro_inter'].includes(p.status) && !(p.status === 'aprovado' && p.contaazul_lancamento_id)),
+    [listaAtiva]
   );
 
   const onSelecao = useCallback((id: string, sel: { catId: string; contaId: string; fornId: string }) => {
@@ -227,7 +230,7 @@ export default function PedidosPagamentoPage() {
     carregar();
   }, [selecoes, opcoes.categorias, showToast, carregar]);
 
-  const pendentesSolicitado = useMemo(() => pedidosLista.filter(p => TAB_STATUS.solicitado(p.status)), [pedidosLista]);
+  const pendentesSolicitado = useMemo(() => listaAtiva.filter(p => TAB_STATUS.solicitado(p.status)), [listaAtiva]);
   const aprovarTodos = useCallback(() => aprovarLote(pendentesSolicitado, 'pedido(s) de uma vez'), [aprovarLote, pendentesSolicitado]);
   const aprovarSelecionados = useCallback(() => aprovarLote(pendentesSolicitado.filter(p => selecionados.has(p.id)), 'selecionado(s)'), [aprovarLote, pendentesSolicitado, selecionados]);
 
@@ -259,7 +262,7 @@ export default function PedidosPagamentoPage() {
               <Receipt className="w-5 h-5" />
               <p className="text-sm text-muted-foreground">
                 {podeAprovar
-                  ? 'Revise, comente e aprove. Aprovar cria a conta no Conta Azul e agenda o PIX no Inter.'
+                  ? 'Revise e aprove; depois agende. O agendamento é que cria a conta no Conta Azul e paga via Inter.'
                   : 'Abra um pedido de pagamento. O financeiro analisa e aprova.'}
               </p>
             </div>
@@ -287,7 +290,11 @@ export default function PedidosPagamentoPage() {
             </Card>
           )}
 
-          {barId && modo === 'freela' && <FreelaTab barId={barId} podeAprovar={podeAprovar} onLancado={carregar} />}
+          {barId && modo === 'freela' && (
+            <p className="text-xs text-muted-foreground mb-3">
+              Os freelas são montados pela operação em <b>Operacional › Freelas (Semana)</b>. Aqui o financeiro aprova e agenda, igual ao PIX.
+            </p>
+          )}
 
           {barId && modo === 'boleto' && (
             <BoletoTab
@@ -307,7 +314,7 @@ export default function PedidosPagamentoPage() {
 
           {barId && modo === 'trocas' && <TrocasTab barId={barId} onLancado={carregar} />}
 
-          {barId && modo === 'pagamentos' && (
+          {barId && (modo === 'pagamentos' || modo === 'freela') && (
             <>
               <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
                 <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
@@ -355,7 +362,7 @@ export default function PedidosPagamentoPage() {
               </div>
 
               {tab === 'consolidado' ? (
-                <ConsolidadoTab pedidos={pedidosLista} onOpenDetalhe={setDetalheId} />
+                <ConsolidadoTab pedidos={listaAtiva} onOpenDetalhe={setDetalheId} />
               ) : loading ? (
                 <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
               ) : filtrados.length === 0 ? (

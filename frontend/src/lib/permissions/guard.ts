@@ -62,6 +62,7 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   { prefix: '/api/operacional/plano-compras', paths: ['/operacional/plano-compras'] },
   { prefix: '/api/operacional/estoque-cadastro', paths: ['/operacional/estoque-historico'] },
   { prefix: '/api/operacional/estoque-historico', paths: ['/operacional/estoque-historico'] },
+  { prefix: '/api/operacional/freelas', paths: ['/operacional/freelas'] },
   // --- RH ---
   { prefix: '/api/rh/funcionarios', paths: ['/rh/funcionarios'] },
   { prefix: '/api/rh/solicitacoes', paths: ['/rh/funcionarios'] },
