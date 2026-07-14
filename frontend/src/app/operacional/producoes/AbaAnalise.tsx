@@ -247,7 +247,7 @@ export function AbaAnalise({ secaoAtiva }: { secaoAtiva: Secao }) {
                     })}
                   </tbody>
                 </table>
-                <p className="text-[11px] text-gray-400 mt-1.5 px-1">Δ verde = fez o planejado · vermelho = fez menos · amarelo = fez a mais. "Feito" = nº de execuções da receita na semana.</p>
+                <p className="text-[11px] text-gray-400 mt-1.5 px-1">Δ verde = fez o planejado · vermelho = fez menos · amarelo = fez a mais. &ldquo;Feito&rdquo; = nº de execuções da receita na semana.</p>
               </div>
             )}
           </CardContent>
