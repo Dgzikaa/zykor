@@ -49,13 +49,18 @@ export async function GET(request: NextRequest) {
     // cód ContaHub (prd) + preço de venda (cardápio) por cod_interno — um produto pode ter vários (HH/PP/variações)
     const chMap: Record<string, number[]> = {};
     const precoVendaMap: Record<string, number> = {};
-    const chRows = await selectAll((from, to) => supabase.from('produto_contahub_map').select('prd, cod_interno, preco_venda').eq('bar_id', barId).range(from, to));
+    // prds_ch = prds do produto COM preço/descrição (pro painel "Códigos ContaHub nesta ficha", 1 linha/prd)
+    const prdsChMap: Record<string, any[]> = {};
+    const chRows = await selectAll((from, to) => supabase.from('produto_contahub_map').select('prd, prd_desc, cod_interno, preco_venda').eq('bar_id', barId).range(from, to));
     chRows.forEach((r: any) => {
       if (!r.cod_interno) return;
       (chMap[r.cod_interno] ??= []).push(r.prd);
+      (prdsChMap[r.cod_interno] ??= []).push({ prd: r.prd, prd_desc: r.prd_desc || null, preco_venda: Number(r.preco_venda) || null });
       const pv = Number(r.preco_venda || 0);
       if (pv > 0) precoVendaMap[r.cod_interno] = Math.max(precoVendaMap[r.cod_interno] || 0, pv);
     });
+    // lista global de prds (p/ a busca do "adicionar código": mostra onde cada prd está mapeado hoje)
+    const prdsAll = chRows.map((r: any) => ({ prd: r.prd, prd_desc: r.prd_desc || null, preco_venda: Number(r.preco_venda) || null, cod_interno: r.cod_interno }));
 
     // ID Yuzer (produto_id real da Yuzer) por cod_interno
     const yzMap: Record<string, string[]> = {};
@@ -76,7 +81,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      produtos: data.map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [], cods_yuzer: yzMap[p.codigo] || [], preco_venda: precoVendaMap[p.codigo] ?? null, preco_yuzer: yzPrecoMap[p.codigo] ?? null })),
+      produtos: data.map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [], prds_ch: prdsChMap[p.codigo] || [], cods_yuzer: yzMap[p.codigo] || [], preco_venda: precoVendaMap[p.codigo] ?? null, preco_yuzer: yzPrecoMap[p.codigo] ?? null })),
+      prds_all: prdsAll,
       vendas_sem_cadastro: vendasSemCadastro,
     });
   } catch (e: any) {
@@ -163,6 +169,25 @@ export async function POST(request: NextRequest) {
     for (const yid of yzArr) if (!curYzSet.has(yid)) await supabase.from('produto_yuzer_map').upsert({ bar_id: barId, cod_yuzer: String(yid), yuzer_produto_id: yid, nome: nomeProd, cod_interno: codInterno }, { onConflict: 'bar_id,cod_yuzer,cod_interno' });
     // refresca o matview de vendas p/ o vínculo refletir na hora (senão só no cron horário);
     // falha do refresh não derruba o salvamento (o cron é backstop)
+    try { await (supabase as any).schema('silver').rpc('fn_refresh_vendas_depara'); } catch { /* backstop: cron horário */ }
+    return NextResponse.json({ success: true });
+  }
+
+  // ----- MAPEAR/DESMAPEAR 1 prd (código ContaHub) num cod_interno — consolidação "1 ficha, N códigos" -----
+  // map_prd: remapeia o prd pro cod_interno alvo (upsert onConflict bar_id,prd → sai de onde estava,
+  // preço preservado). unmap_prd: remove o vínculo (o prd volta a "sem cadastro").
+  if (body.action === 'map_prd' || body.action === 'unmap_prd') {
+    const prd = Number(body.prd);
+    if (!Number.isFinite(prd) || prd <= 0) return NextResponse.json({ success: false, error: 'prd inválido' }, { status: 400 });
+    if (body.action === 'unmap_prd') {
+      const { error } = await supabase.from('produto_contahub_map').delete().eq('bar_id', barId).eq('prd', prd);
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    } else {
+      const codInterno = String(body.cod_interno || '').trim();
+      if (!codInterno) return NextResponse.json({ success: false, error: 'cod_interno obrigatório' }, { status: 400 });
+      const { error } = await supabase.from('produto_contahub_map').upsert({ bar_id: barId, prd, cod_interno: codInterno }, { onConflict: 'bar_id,prd' });
+      if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
     try { await (supabase as any).schema('silver').rpc('fn_refresh_vendas_depara'); } catch { /* backstop: cron horário */ }
     return NextResponse.json({ success: true });
   }

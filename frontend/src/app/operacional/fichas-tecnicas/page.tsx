@@ -45,9 +45,10 @@ interface FichaTabProps {
   preSel?: number | null;
   cmvMedias?: Record<string, number>;
   vendasSemCadastro?: any[];
+  prdsAll?: any[];
 }
 
-function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMedias, vendasSemCadastro }: FichaTabProps) {
+function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMedias, vendasSemCadastro, prdsAll }: FichaTabProps) {
   const { selectedBar } = useBar();
   const { toast } = useToast();
   const barId = selectedBar?.id;
@@ -362,31 +363,31 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     return lista.filter(p => p.codigo !== selObj?.codigo && !p.agrupado_em && (!q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q))).slice(0, 30);
   }, [lista, grupoBusca, selObj]);
 
-  // LADO DO PRINCIPAL: ver e gerenciar os códigos que usam ESTA ficha (agrupado_em = código do selObj).
-  // Mesma receita/custo; cada código com Preço CH e CMV próprios. Adicionar/remover sem abrir o membro.
-  const membrosDoGrupo = useMemo(
-    () => (lista || []).filter((p: any) => selObj?.codigo && p.agrupado_em === selObj.codigo),
-    [lista, selObj],
-  );
+  // "Códigos ContaHub nesta ficha": os prds (produto_contahub_map) deste cod_interno, cada um com seu
+  // Preço CH → CMV próprio (mesmo custo da ficha). 1 ficha, N códigos ContaHub — sem duplicar interno.
+  const prdsDaFicha = useMemo(() => (selObj?.prds_ch || []) as any[], [selObj]);
+  const prdsSet = useMemo(() => new Set(prdsDaFicha.map((p: any) => Number(p.prd))), [prdsDaFicha]);
   const [addCodOpen, setAddCodOpen] = useState(false);
   const [addCodBusca, setAddCodBusca] = useState('');
-  const addCodOpcoes = useMemo(() => {
+  // busca sobre TODOS os prds do bar (mostra onde cada um está hoje) — adicionar remapeia pra cá.
+  const addPrdOpcoes = useMemo(() => {
     const q = addCodBusca.trim().toLowerCase();
-    return (lista || []).filter((p: any) =>
-      p.codigo !== selObj?.codigo && !p.agrupado_em &&
-      (!q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q)),
+    return (prdsAll || []).filter((p: any) =>
+      !prdsSet.has(Number(p.prd)) &&
+      (!q || String(p.prd).includes(q) || (p.prd_desc || '').toLowerCase().includes(q)),
     ).slice(0, 30);
-  }, [lista, addCodBusca, selObj]);
-  const agruparNoPrincipal = async (membroId: number) => {
+  }, [prdsAll, addCodBusca, prdsSet]);
+  const mapearPrd = async (prd: number) => {
     if (!selObj) return;
     try {
-      await api.put('/api/operacional/produtos', { id: membroId, agrupado_em: selObj.codigo });
+      await api.post('/api/operacional/produtos', { bar_id: barId, action: 'map_prd', prd, cod_interno: selObj.codigo });
       setAddCodOpen(false); setAddCodBusca(''); reloadLista();
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
-  const desagruparMembro = async (membroId: number) => {
+  const desmapearPrd = async (prd: number) => {
+    if (!confirm(`Remover o código ContaHub ${prd} desta ficha? Ele volta pra "sem cadastro" até ser mapeado de novo.`)) return;
     try {
-      await api.put('/api/operacional/produtos', { id: membroId, agrupado_em: null });
+      await api.post('/api/operacional/produtos', { bar_id: barId, action: 'unmap_prd', prd });
       reloadLista();
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
@@ -613,37 +614,39 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                 </div>
               </div>
 
-              {/* Códigos nesta ficha (lado do PRINCIPAL): 1 ficha, vários códigos ContaHub, cada um com
-                  Preço CH + CMV próprios. Só aparece em produto que NÃO é agrupado (é um principal em potencial). */}
+              {/* Códigos ContaHub nesta ficha: 1 cod_interno, vários prds ContaHub, cada um com Preço CH +
+                  CMV próprios (mesmo custo da ficha). É a consolidação "1 ficha, N códigos" — sem duplicar interno. */}
               {kind === 'produto' && selObj && !selObj.agrupado_em && (
                 <div className="mb-3 rounded-lg border border-violet-200 dark:border-violet-800/60 bg-violet-50/40 dark:bg-violet-900/10 p-3">
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1.5 text-sm font-semibold text-violet-700 dark:text-violet-300">
-                      <Boxes className="w-4 h-4" />Códigos nesta ficha <span className="text-gray-400 font-normal">({membrosDoGrupo.length + 1})</span>
+                      <Boxes className="w-4 h-4" />Códigos ContaHub nesta ficha <span className="text-gray-400 font-normal">({prdsDaFicha.length})</span>
                     </div>
                     <Button size="sm" variant="outline" onClick={() => { setAddCodOpen(v => !v); setAddCodBusca(''); }}><Plus className="w-4 h-4 mr-1" />adicionar código</Button>
                   </div>
-                  <p className="text-[11px] text-gray-400 mb-2">Mesma receita e custo; cada código com seu <b>Preço CH</b> e <b>CMV</b>. Evita duplicar ficha p/ HH, PP, 50%, promoções.</p>
+                  <p className="text-[11px] text-gray-400 mb-2">Mesma receita e custo; cada código ContaHub com seu <b>Preço CH</b> e <b>CMV</b>. 1 ficha só p/ HH, PP, 50%, promoções — sem duplicar código interno.</p>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="text-xs text-gray-500 dark:text-gray-400 border-b border-violet-200/60 dark:border-violet-800/40"><tr>
-                        <th className="text-left font-medium px-2 py-1">Código</th>
-                        <th className="text-left font-medium px-2 py-1">Nome</th>
+                        <th className="text-left font-medium px-2 py-1">Cód. ContaHub</th>
+                        <th className="text-left font-medium px-2 py-1">Nome (ContaHub)</th>
                         <th className="text-right font-medium px-2 py-1">Preço CH</th>
                         <th className="text-right font-medium px-2 py-1">CMV</th>
                         <th className="px-2 py-1"></th>
                       </tr></thead>
                       <tbody className="divide-y divide-violet-100 dark:divide-violet-900/30">
-                        {[{ ...selObj, _principal: true }, ...membrosDoGrupo].map((m: any) => {
+                        {prdsDaFicha.length === 0 ? (
+                          <tr><td colSpan={5} className="px-2 py-2 text-xs text-gray-400">Nenhum código ContaHub nesta ficha ainda. Use &ldquo;adicionar código&rdquo;.</td></tr>
+                        ) : prdsDaFicha.map((m: any) => {
                           const preco = Number(m.preco_venda) || 0;
                           const cmv = preco > 0 ? (custoAtualTotal / preco) * 100 : null;
                           return (
-                            <tr key={m.id}>
-                              <td className="px-2 py-1 font-mono text-xs whitespace-nowrap">{m.codigo}{m._principal && <span className="ml-1 rounded bg-violet-200 dark:bg-violet-800 px-1 text-[10px] text-violet-700 dark:text-violet-200">principal</span>}</td>
-                              <td className="px-2 py-1 text-gray-800 dark:text-gray-100">{m.nome}</td>
+                            <tr key={m.prd}>
+                              <td className="px-2 py-1 font-mono text-xs whitespace-nowrap">{m.prd}</td>
+                              <td className="px-2 py-1 text-gray-800 dark:text-gray-100">{m.prd_desc || '—'}</td>
                               <td className="px-2 py-1 text-right tabular-nums">{fmtBRL(m.preco_venda)}</td>
                               <td className="px-2 py-1 text-right tabular-nums">{cmv != null ? `${cmv.toFixed(1)}%` : '—'}</td>
-                              <td className="px-2 py-1 text-right">{!m._principal && <button onClick={() => desagruparMembro(m.id)} className="text-gray-400 hover:text-red-500 text-xs underline">remover</button>}</td>
+                              <td className="px-2 py-1 text-right"><button onClick={() => desmapearPrd(Number(m.prd))} className="text-gray-400 hover:text-red-500 text-xs underline">remover</button></td>
                             </tr>
                           );
                         })}
@@ -652,12 +655,12 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                   </div>
                   {addCodOpen && (
                     <div className="mt-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2">
-                      <Input value={addCodBusca} onChange={e => setAddCodBusca(e.target.value)} placeholder="Buscar produto por nome ou código…" className="h-8 text-sm mb-1" />
+                      <Input value={addCodBusca} onChange={e => setAddCodBusca(e.target.value)} placeholder="Buscar código ContaHub por número ou nome…" className="h-8 text-sm mb-1" />
                       <div className="max-h-48 overflow-y-auto">
-                        {addCodOpcoes.length === 0 ? <div className="px-2 py-2 text-xs text-gray-400">Nada encontrado (lista só produtos ainda não agrupados).</div>
-                        : addCodOpcoes.map((o: any) => (
-                          <button key={o.id} onClick={() => agruparNoPrincipal(o.id)} className="w-full text-left px-2 py-1 text-sm rounded hover:bg-gray-50 dark:hover:bg-gray-800/60">
-                            {o.nome}<span className="text-xs text-gray-400 font-mono"> · {o.codigo}</span>{o.preco_venda != null && <span className="text-xs text-blue-500"> · {fmtBRL(o.preco_venda)}</span>}
+                        {addPrdOpcoes.length === 0 ? <div className="px-2 py-2 text-xs text-gray-400">Nada encontrado.</div>
+                        : addPrdOpcoes.map((o: any) => (
+                          <button key={o.prd} onClick={() => mapearPrd(Number(o.prd))} className="w-full text-left px-2 py-1 text-sm rounded hover:bg-gray-50 dark:hover:bg-gray-800/60">
+                            <span className="font-mono text-xs">{o.prd}</span> · {o.prd_desc || '—'}{o.preco_venda != null && <span className="text-xs text-blue-500"> · {fmtBRL(o.preco_venda)}</span>}{o.cod_interno && o.cod_interno !== selObj.codigo && <span className="text-[10px] text-amber-500"> · hoje em {o.cod_interno}</span>}
                           </button>
                         ))}
                       </div>
@@ -970,12 +973,13 @@ function FichasInner() {
   const [producoes, setProducoes] = useState<any[]>([]);
   const [produtos, setProdutos] = useState<any[]>([]);
   const [vendasSemCadastro, setVendasSemCadastro] = useState<any[]>([]);
+  const [prdsAll, setPrdsAll] = useState<any[]>([]);
   const [insumos, setInsumos] = useState<any[]>([]);
   const [cmvMedias, setCmvMedias] = useState<Record<string, number>>({});
   const [importando, setImportando] = useState(false);
 
   const loadProducoes = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/producoes?bar_id=${barId}`); if (r.success) setProducoes(r.producoes || []); }, [barId]);
-  const loadProdutos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/produtos?bar_id=${barId}`); if (r.success) { setProdutos(r.produtos || []); setVendasSemCadastro(r.vendas_sem_cadastro || []); } }, [barId]);
+  const loadProdutos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/produtos?bar_id=${barId}`); if (r.success) { setProdutos(r.produtos || []); setVendasSemCadastro(r.vendas_sem_cadastro || []); setPrdsAll(r.prds_all || []); } }, [barId]);
   const loadInsumos = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/insumos?bar_id=${barId}`); if (r.success) setInsumos(r.insumos || []); }, [barId]);
   const loadCmvMedias = useCallback(async () => { if (!barId) return; const r = await api.get(`/api/operacional/producoes/cmv-categoria?bar_id=${barId}`); if (r.success) setCmvMedias(r.medias || {}); }, [barId]);
   useEffect(() => { loadProducoes(); loadProdutos(); loadInsumos(); loadCmvMedias(); }, [loadProducoes, loadProdutos, loadInsumos, loadCmvMedias]);
@@ -1112,7 +1116,7 @@ function FichasInner() {
       </div>
       {aba === 'producao'
         ? <FichaTab kind="producao" lista={producoes} insumos={insumos} producoes={producoes} reloadLista={loadProducoes} preSel={preSel} />
-        : <FichaTab kind="produto" lista={produtos} insumos={insumos} producoes={producoes} reloadLista={loadProdutos} cmvMedias={cmvMedias} vendasSemCadastro={vendasSemCadastro} />}
+        : <FichaTab kind="produto" lista={produtos} insumos={insumos} producoes={producoes} reloadLista={loadProdutos} cmvMedias={cmvMedias} vendasSemCadastro={vendasSemCadastro} prdsAll={prdsAll} />}
 
       {iuOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 pt-16 overflow-y-auto" onMouseDown={(e) => { if (e.target === e.currentTarget) setIuOpen(false); }}>
