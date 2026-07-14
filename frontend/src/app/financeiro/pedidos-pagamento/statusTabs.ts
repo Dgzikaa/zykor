@@ -8,10 +8,10 @@ export type TabKey = 'solicitado' | 'aprovado' | 'recusado' | 'todos' | 'consoli
 // status: é uma visão diária (renderizada à parte); usa os mesmos status de "aprovado".
 export const TAB_STATUS: Record<TabKey, (s: string) => boolean> = {
   solicitado: (s) => s === 'aguardando_aprovacao',
-  aprovado: (s) => ['aprovado', 'agendado', 'pago', 'erro_ca', 'erro_inter'].includes(s),
+  aprovado: (s) => ['aprovado', 'agendando', 'agendado', 'pago', 'erro_ca', 'erro_inter'].includes(s),
   recusado: (s) => s === 'rejeitado' || s === 'cancelado',
   todos: () => true,
-  consolidado: (s) => ['aprovado', 'agendado', 'pago', 'erro_ca', 'erro_inter'].includes(s),
+  consolidado: (s) => ['aprovado', 'agendando', 'agendado', 'pago', 'erro_ca', 'erro_inter'].includes(s),
 };
 
 // Boleto NÃO tem tipo próprio: é um pedido de fornecedor com linha digitável (ou, quando a

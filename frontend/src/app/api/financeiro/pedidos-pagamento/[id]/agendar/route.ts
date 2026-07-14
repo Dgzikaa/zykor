@@ -149,6 +149,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return d.contaazul_id;
   };
 
+  // ---------- CLAIM ATÔMICO (anti-duplicação) ----------
+  // Bug 14/07: dois cliques/retentativas simultâneos passavam o check de status juntos e cada um
+  // criava um lançamento no Conta Azul → duplicata (a trava anti-dup do CA só enxerga após o sync).
+  // Aqui o pedido é "reivindicado" com um UPDATE condicional: vira 'agendando' e SÓ a requisição
+  // que conseguir o UPDATE segue; as concorrentes tomam 409. Recuperação de crash: um 'agendando'
+  // preso há > 3 min volta a ser agendável antes do claim.
+  const staleISO = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+  await fin(supabase)
+    .from('pedidos_pagamento')
+    .update({ status: 'erro_inter', erro_mensagem: 'Agendamento anterior não concluiu — destravado para nova tentativa.' })
+    .eq('id', id).eq('status', 'agendando').lt('updated_at', staleISO);
+  const { data: claimed } = await fin(supabase)
+    .from('pedidos_pagamento')
+    .update({ status: 'agendando', atualizado_por: user.auth_id, updated_at: new Date().toISOString() })
+    .eq('id', id).in('status', STATUS_AGENDAVEL as unknown as string[]).select('id');
+  if (!claimed?.length) {
+    return NextResponse.json(
+      { success: false, error: 'Este pedido já está sendo agendado (ou já foi). Aguarde alguns segundos e recarregue a lista.' },
+      { status: 409 },
+    );
+  }
+
   // ---------- Etapa 1: BANCO (Inter) primeiro — boleto/PIX ----------
   // REGRA (pedido do Gonza, 10/07): o Conta Azul só é criado DEPOIS que o banco aceitar.
   // Antes a ordem era CA→Inter: quando o boleto falhava no Inter, o lançamento no CA já

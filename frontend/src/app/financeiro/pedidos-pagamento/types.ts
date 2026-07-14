@@ -4,6 +4,7 @@ export type PedidoStatus =
   | 'rascunho'
   | 'aguardando_aprovacao'
   | 'aprovado'
+  | 'agendando'
   | 'agendado'
   | 'pago'
   | 'erro_ca'
@@ -105,6 +106,7 @@ export const STATUS_LABEL: Record<PedidoStatus, string> = {
   rascunho: 'Rascunho',
   aguardando_aprovacao: 'Aguardando aprovação',
   aprovado: 'Aprovado',
+  agendando: 'Agendando…',
   agendado: 'Agendado',
   pago: 'Pago',
   erro_ca: 'Erro Conta Azul',
@@ -117,6 +119,7 @@ export const STATUS_COLOR: Record<PedidoStatus, string> = {
   rascunho: 'bg-gray-500/15 text-gray-600',
   aguardando_aprovacao: 'bg-amber-500/15 text-amber-600',
   aprovado: 'bg-blue-500/15 text-blue-600',
+  agendando: 'bg-indigo-500/15 text-indigo-600 animate-pulse',
   agendado: 'bg-indigo-500/15 text-indigo-600',
   pago: 'bg-green-500/15 text-green-600',
   erro_ca: 'bg-red-500/15 text-red-600',

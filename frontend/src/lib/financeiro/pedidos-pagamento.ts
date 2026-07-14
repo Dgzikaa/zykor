@@ -14,6 +14,7 @@ export type PedidoStatus =
   | 'rascunho'
   | 'aguardando_aprovacao'
   | 'aprovado'
+  | 'agendando'
   | 'agendado'
   | 'pago'
   | 'erro_ca'
