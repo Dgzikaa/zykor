@@ -399,8 +399,8 @@ export default function PedidosPagamentoPage() {
                   </CardContent>
                 </Card>
               ) : modo === 'freela' ? (
-                // Freela: mesmo layout da operação (por dia → pessoas), com aprovar/agendar por pessoa.
-                <FreelaPorDia itens={filtrados} acao={(it) => {
+                // Freela no financeiro: agrupado por PESSOA (cada pessoa → seus dias), com aprovar/agendar.
+                <FreelaPorDia itens={filtrados} agruparPor="pessoa" acao={(it) => {
                   if (!podeAprovar) return null;
                   if (it.status === 'aguardando_aprovacao') return (
                     <Button size="sm" className="h-7 px-2 text-xs" disabled={freelaBusy === it.id} onClick={() => aprovarFreela(it.id)}>

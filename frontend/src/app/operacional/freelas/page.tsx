@@ -74,6 +74,17 @@ export default function FreelasOperacaoPage() {
   // "reabrir" só faz sentido pra quem ainda está aguardando aprovação (o financeiro ainda não mexeu).
   const reabriveis = useMemo(() => enviados.filter(p => p.status === 'aguardando_aprovacao').length, [enviados]);
 
+  // Cargo (função) por pessoa, do cadastro do freela — pra exibir ao lado do nome. Casa por
+  // pessoa do CA (quando há) ou pelo nome normalizado.
+  const funcaoLookup = useMemo(() => {
+    const byId = new Map<string, string>(), byNome = new Map<string, string>();
+    for (const f of roster) if (f.funcao) { if (f.contaazul_pessoa_id) byId.set(f.contaazul_pessoa_id, f.funcao); byNome.set(norm(f.nome), f.funcao); }
+    return { byId, byNome };
+  }, [roster]);
+  const comFuncao = useCallback((list: Pedido[]) => list.map(p => ({
+    ...p, funcao: (p.contaazul_pessoa_id && funcaoLookup.byId.get(p.contaazul_pessoa_id)) || funcaoLookup.byNome.get(norm(p.beneficiario_nome)) || null,
+  })), [funcaoLookup]);
+
   const navSemana = (delta: number) => { const d = parseISO(monISO); d.setDate(d.getDate() + delta * 7); setMonISO(toISO(d)); setSel({}); };
 
   const toggle = (f: Freela) => setSel(p => {
@@ -180,7 +191,7 @@ export default function FreelasOperacaoPage() {
                     </Button>
                   )}
                 </div>
-                <FreelaPorDia itens={enviados} />
+                <FreelaPorDia itens={comFuncao(enviados)} />
               </CardContent>
             </Card>
           )}
@@ -201,7 +212,7 @@ export default function FreelasOperacaoPage() {
                     </Button>
                   )}
                 </div>
-                <FreelaPorDia itens={rascunhos} mostrarStatus={false} acao={(it) => (
+                <FreelaPorDia itens={comFuncao(rascunhos)} mostrarStatus={false} acao={(it) => (
                   editId === it.id ? (
                     <div className="flex items-center gap-1">
                       <Input value={editVal} onChange={e => setEditVal(e.target.value)} inputMode="decimal" className="h-7 w-20 text-right text-xs" />
