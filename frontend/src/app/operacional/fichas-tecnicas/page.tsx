@@ -134,7 +134,8 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   // contadores dos badges respeitam os outros filtros (categoria + ativo/inativo) pra combinarem entre si
   const baseCat = useMemo(() => catFiltro ? lista.filter(p => catDe(p) === catFiltro) : lista, [lista, catFiltro]); // eslint-disable-line react-hooks/exhaustive-deps
   const baseStat = useMemo(() => baseCat.filter(p => kind !== 'produto' || statusFiltro === 'todos' || (statusFiltro === 'ativo' ? !!p.ativo : !p.ativo)), [baseCat, statusFiltro, kind]);
-  const nZero = baseStat.filter(p => (p.qtd_componentes ?? 0) === 0).length;
+  // Agrupado usa a ficha do principal → NÃO conta como "sem ficha" (mesmo critério do "sem cód CH").
+  const nZero = baseStat.filter(p => (p.qtd_componentes ?? 0) === 0 && !p.agrupado_em).length;
   const nItemZero = baseStat.filter(p => zeradoCods.has(p.codigo)).length;
   const nSemMestre = kind === 'producao' ? baseStat.filter(p => (p.qtd_componentes ?? 0) > 0 && !p.tem_mestre).length : 0;
   const nSemCh = kind === 'produto' ? baseStat.filter(p => (p.cods_ch?.length ?? 0) === 0 && !p.agrupado_em).length : 0;
@@ -146,7 +147,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     const q = buscaLista.trim().toLowerCase();
     return lista.filter(p => {
       if (catFiltro && catDe(p) !== catFiltro) return false;
-      if (filtroLista === 'zero' && (p.qtd_componentes ?? 0) !== 0) return false;
+      if (filtroLista === 'zero' && ((p.qtd_componentes ?? 0) !== 0 || p.agrupado_em)) return false;
       if (filtroLista === 'sem_mestre' && !((p.qtd_componentes ?? 0) > 0 && !p.tem_mestre)) return false;
       if (filtroLista === 'sem_ch' && ((p.cods_ch?.length ?? 0) !== 0 || p.agrupado_em)) return false;
       if (filtroLista === 'item_zerado' && !zeradoCods.has(p.codigo)) return false;
