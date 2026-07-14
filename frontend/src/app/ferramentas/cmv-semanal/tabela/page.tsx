@@ -255,7 +255,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         label: '(-) Estoque Final',
         semCollapse: true,
         metricas: [
-          { key: 'estoque_final', label: '(-) Estoque Final', status: 'auto', fonte: 'Contagem (silver)', calculo: 'Automático: contagem de estoque valorizada (silver.estoque_contagem), mesma base do Desvios.', formato: 'moeda', editavel: false },
+          { key: 'estoque_final', label: '(-) Estoque Final', status: 'auto', fonte: 'Contagem (silver)', calculo: 'Automático: contagem valorizada (silver.estoque_contagem), mesma base do Desvios. = Insumos (aba Estoque) − Alimentação (F, vai pro CMA) + Produções (aba Produção). Passe o mouse pra ver a decomposição.', formato: 'moeda', editavel: false },
         ]
       },
       {
@@ -383,6 +383,9 @@ export default function CMVSemanalTabelaPage() {
   }, [setPageTitle]);
 
   const [semanas, setSemanas] = useState<CMVSemanal[]>([]);
+  // Composição do Estoque Final (Insumos − Alimentação + Produções) p/ reconciliar com a tela Estoque.
+  // Chave: `${ano}-${semana}`.
+  const [composicaoEstoque, setComposicaoEstoque] = useState<Record<string, { insumo: number; producao: number; alimentacao: number }>>({});
   const [loading, setLoading] = useState(true);
   const [atualizando, setAtualizando] = useState(false);
   const [etapaAtualizacao, setEtapaAtualizacao] = useState<string>('');
@@ -694,6 +697,40 @@ export default function CMVSemanalTabelaPage() {
       setLoading(false);
     }
   }, [anoFiltro, selectedBar?.id, visao]);
+
+  // Composição do Estoque Final (Insumos − Alimentação + Produções) p/ reconciliar com a tela Estoque.
+  // Só na visão semanal (o Estoque Final vem da contagem da semana).
+  useEffect(() => {
+    if (visao !== 'semanal' || !selectedBar?.id || semanas.length === 0) {
+      setComposicaoEstoque({});
+      return;
+    }
+    let cancelado = false;
+    (async () => {
+      const anos = [...new Set(semanas.map(s => s.ano).filter(Boolean))];
+      try {
+        const resultados = await Promise.all(
+          anos.map(ano =>
+            fetch(`/api/cmv-semanal/estoque-composicao?bar_id=${selectedBar.id}&ano=${ano}`)
+              .then(r => (r.ok ? r.json() : { composicao: [] }))
+              .then(j => ({ ano, comp: j.composicao || [] }))
+              .catch(() => ({ ano, comp: [] as any[] }))
+          )
+        );
+        if (cancelado) return;
+        const mapa: Record<string, { insumo: number; producao: number; alimentacao: number }> = {};
+        for (const { ano, comp } of resultados) {
+          for (const c of comp) {
+            mapa[`${ano}-${c.semana}`] = { insumo: c.insumo || 0, producao: c.producao || 0, alimentacao: c.alimentacao || 0 };
+          }
+        }
+        setComposicaoEstoque(mapa);
+      } catch {
+        /* silencioso — sem composição, o tooltip cai no detalhamento por área */
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [visao, selectedBar?.id, semanas]);
 
   // Carregar fator CMV do banco de regras do bar
   useEffect(() => {
@@ -1073,6 +1110,16 @@ export default function CMVSemanalTabelaPage() {
         return [{ label: 'Total (Planilha)', valor: semana.estoque_inicial || 0 }];
       }
       case 'estoque_final': {
+        // Reconciliação com a tela Estoque: Estoque Final CMV = Insumos (aba Estoque)
+        // − Alimentação (F, vai pro CMA) + Produções (aba Produção). Soma = estoque_final.
+        const comp = composicaoEstoque[`${semana.ano}-${semana.semana}`];
+        if (comp && (comp.insumo > 0 || comp.producao > 0)) {
+          return [
+            { label: 'Insumos (aba Estoque)', valor: comp.insumo },
+            { label: '(−) Alimentação (→ CMA)', valor: -comp.alimentacao },
+            { label: '(+) Produções (aba Produção)', valor: comp.producao },
+          ];
+        }
         const somaDetalhados = (semana.estoque_final_cozinha || 0) + (semana.estoque_final_drinks || 0) + (semana.estoque_final_bebidas || 0);
         if (somaDetalhados > 0) {
           return [
