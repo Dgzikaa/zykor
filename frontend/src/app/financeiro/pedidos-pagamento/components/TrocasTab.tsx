@@ -238,6 +238,7 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                     <th className="text-left font-medium px-3 py-2">Data</th>
                     <th className="text-left font-medium px-3 py-2">De <span className="text-red-500">→</span> Para</th>
                     <th className="text-left font-medium px-3 py-2">Itens</th>
+                    <th className="text-left font-medium px-3 py-2">Categoria</th>
                     <th className="text-right font-medium px-3 py-2">Valor</th>
                     <th className="text-right font-medium px-3 py-2">Conta Azul</th>
                     <th className="w-8" />
@@ -257,6 +258,11 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                           </div>
                         </td>
                         <td className="px-3 py-2 text-gray-500 text-xs">{(t.troca_itens || []).map((i: any) => `${i.nome || i.insumo_codigo}×${fmtQtd(i.quantidade)}`).join(', ')}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-wrap gap-1">
+                            {(t.categorias || []).map((c: string) => <Badge key={c} variant="outline" className="text-[10px]">{c}</Badge>)}
+                          </div>
+                        </td>
                         <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtBRL(t.valor)}</td>
                         <td className="px-3 py-2 text-right">
                           {(() => {

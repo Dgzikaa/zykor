@@ -54,6 +54,41 @@ export async function GET(request: NextRequest) {
     for (const t of trocas) for (const it of (t.troca_itens || [])) it.nome = nomePorBarCod.get(`${t.bar_origem}:${it.insumo_codigo}`) || null;
   }
 
+  // Categoria de custo (CA) por troca: classifica cada item (categoria+tipo_local do insumo,
+  // catálogo do bar de ORIGEM) e expõe as categorias distintas p/ a coluna "Categoria" da lista.
+  // Mesma lógica de gold/trocas/[id]/lancar-ca (classificarCA) — manter em sincronia.
+  if (paresBarCod.size) {
+    const classificarCA = (ins: { codigo?: string | null; categoria?: string | null; tipo_local?: string | null }): string => {
+      const cod = String(ins.codigo || '').toLowerCase();
+      const cat = String(ins.categoria || '').toUpperCase();
+      const tl = String(ins.tipo_local || '').toLowerCase();
+      const has = (arr: string[]) => arr.some((k) => cat.includes(k));
+      if (cod.startsWith('pd')) return 'Drinks';
+      if (cod.startsWith('pc')) return 'Comida';
+      if (/\(F\)/.test(cat)) return 'Outros';
+      if (has(['NÃO-ALCÓOLICOS', 'NAO-ALCOOLICOS']) && tl === 'cozinha') return 'Drinks';
+      if (tl === 'bar') return 'Bebidas';
+      if (has(['RETORNÁVEIS', 'RETORNAVEIS', 'VINHOS', 'LONG NECK', 'LATA', 'ARTESANAL', 'POLPA', 'FRUTA', 'NÃO-ALCÓOLICOS', 'NAO-ALCOOLICOS', 'AMBEV', 'HEINEKEN', 'CERVEJ', 'CHOPP'])) return 'Bebidas';
+      if (has(['DESTILADOS', 'IMPÉRIO', 'IMPERIO', 'POLPAS', 'ARMAZÉM (B)', 'ARMAZEM (B)', 'HORTIFRUTI (B)', 'MERCADO (B)', 'DRINK'])) return 'Drinks';
+      if (has(['COZINHA', 'ARMAZÉM (C)', 'ARMAZEM (C)', 'HORTIFRUTI (C)', 'MERCADO (C)', 'PÃES', 'PAES', 'PEIXE', 'PROTEÍNA', 'PROTEINA', 'TEMPERO', 'FEIJOADA', 'LÍQUIDO', 'LIQUIDO'])) return 'Comida';
+      return 'Outros';
+    };
+    const bares = Array.from(new Set(trocas.map((t: any) => t.bar_origem)));
+    const cods = Array.from(new Set(trocas.flatMap((t: any) => (t.troca_itens || []).map((i: any) => i.insumo_codigo).filter(Boolean))));
+    const { data: ins } = await (sb() as any).schema('operations').from('insumos')
+      .select('bar_id,codigo,categoria,tipo_local').in('bar_id', bares).in('codigo', cods);
+    const insPorBarCod = new Map<string, { categoria?: string | null; tipo_local?: string | null }>();
+    for (const c of (ins || [])) insPorBarCod.set(`${c.bar_id}:${c.codigo}`, c);
+    for (const t of trocas) {
+      const cats = new Set<string>();
+      for (const it of (t.troca_itens || [])) {
+        const meta = insPorBarCod.get(`${t.bar_origem}:${it.insumo_codigo}`) || {};
+        cats.add(classificarCA({ codigo: it.insumo_codigo, categoria: meta.categoria, tipo_local: meta.tipo_local }));
+      }
+      t.categorias = Array.from(cats);
+    }
+  }
+
   // Status REAL do PIX (fonte: financial.pix_enviados, mantido pelo webhook do Inter).
   const refs = trocas.map((t: any) => `troca:${t.id}`);
   if (refs.length) {
