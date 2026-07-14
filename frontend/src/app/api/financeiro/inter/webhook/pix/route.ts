@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     const { data: existing } = await (supabase
       .schema('financial' as any) as any)
       .from('pix_enviados')
-      .select('id, status, inter_status')
+      .select('id, status, inter_status, pagamento_zykor_id')
       .or(`inter_codigo_solicitacao.eq.${codigo},txid.eq.${codigo}`)
       .limit(1)
       .maybeSingle();
@@ -155,6 +155,45 @@ export async function POST(request: NextRequest) {
     } else {
       // Não temos esse PIX local — registra como entrada não correlata
       console.warn('[INTER-WEBHOOK] Codigo desconhecido:', codigo, 'status:', novoStatus);
+    }
+
+    // PROPAGA pro PEDIDO: PIX confirmado no Inter → pedido vira 'pago' AUTOMATICAMENTE (não fica
+    // preso em 'agendado' esperando o clique manual). Liga pelo código do Inter (o pedido guarda
+    // inter_codigo_solicitacao) ou pelo id (pix_enviados.pagamento_zykor_id). Best-effort: qualquer
+    // falha aqui é logada e NÃO derruba o webhook (o Inter espera 200). Copia-e-cola/manual não
+    // passam pelo Inter, então continuam fechando pelo botão "Marcar como pago".
+    if (updates.status === 'pago') {
+      try {
+        const fin2 = (supabase.schema('financial' as any) as any);
+        let ped: any = null;
+        const q1 = await fin2.from('pedidos_pagamento')
+          .select('id, bar_id, status')
+          .eq('inter_codigo_solicitacao', String(codigo))
+          .limit(1).maybeSingle();
+        ped = q1.data;
+        if (!ped && existing?.pagamento_zykor_id) {
+          const q2 = await fin2.from('pedidos_pagamento')
+            .select('id, bar_id, status')
+            .eq('id', existing.pagamento_zykor_id)
+            .limit(1).maybeSingle();
+          ped = q2.data;
+        }
+        if (ped && ['agendado', 'aprovado'].includes(ped.status)) {
+          await fin2.from('pedidos_pagamento')
+            .update({ status: 'pago', pago_em: new Date().toISOString() })
+            .eq('id', ped.id);
+          await fin2.from('pedidos_pagamento_comentarios').insert({
+            pedido_id: ped.id, bar_id: ped.bar_id, autor_id: null, autor_nome: 'Sistema',
+            mensagem: 'Pagamento confirmado automaticamente pelo Inter (webhook PIX).', tipo: 'sistema',
+          });
+          await fin2.from('pedidos_pagamento_historico').insert({
+            pedido_id: ped.id, bar_id: ped.bar_id, autor_id: null, autor_nome: 'Inter (webhook)',
+            campo: 'status', valor_anterior: ped.status, valor_novo: 'pago',
+          });
+        }
+      } catch (e) {
+        console.error('[INTER-WEBHOOK] Falha ao propagar pago pro pedido:', e);
+      }
     }
   }
 
