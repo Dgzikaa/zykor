@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
@@ -31,6 +31,7 @@ const TIPOS = [
 // Utensílio (modelo de quebra) · Produção (pc/pd da ficha, custo real).
 const CLASSES = [
   { key: 'insumo', label: 'Insumo' },
+  { key: 'alimentacao', label: 'Alimentação' },
   { key: 'limpeza', label: 'Limpeza' },
   { key: 'utensilio', label: 'Utensílio' },
   { key: 'producao', label: 'Produção' },
@@ -107,8 +108,14 @@ export default function EstoqueHistoricoPage() {
     if (!barId) return;
     setLoading(true);
     try {
-      const q = `tipo=${t}&classe=${classe}${d ? `&data=${d}` : ''}`;
-      const r = await api.get(`/api/operacional/estoque-historico?${q}`);
+      const fetchOne = (dd?: string | null) =>
+        api.get(`/api/operacional/estoque-historico?tipo=${t}&classe=${classe}${dd ? `&data=${dd}` : ''}`);
+      let r = await fetchOne(d);
+      // Preserva a data ao trocar de aba: se a data pedida não existir nessa classe,
+      // cai pra contagem mais recente (refaz sem data).
+      if (r.success && d && (r.datas || []).length && !(r.datas || []).some((x: any) => x.data === d)) {
+        r = await fetchOne(null);
+      }
       if (r.success) {
         setDatas(r.datas || []);
         setData(r.data || null);
@@ -120,8 +127,19 @@ export default function EstoqueHistoricoPage() {
     } finally { setLoading(false); }
   }, [barId, classe]);
 
-  // ao trocar de tipo/classe, recarrega da data mais recente
-  useEffect(() => { carregar(tipo, null); }, [tipo, classe, carregar]);
+  // Data selecionada num ref pra preservá-la ao trocar de aba (classe) sem re-disparar
+  // o efeito toda vez que a data muda.
+  const dataRef = useRef<string | null>(null);
+  useEffect(() => { dataRef.current = data; }, [data]);
+  const prevTipoRef = useRef(tipo);
+
+  // Ao trocar de TIPO o universo de datas muda (segundas × dia 1 × cada dia) → recarrega da
+  // mais recente. Ao trocar só de ABA/classe (mesmo tipo), preserva a data selecionada.
+  useEffect(() => {
+    const tipoMudou = prevTipoRef.current !== tipo;
+    prevTipoRef.current = tipo;
+    carregar(tipo, tipoMudou ? null : dataRef.current);
+  }, [tipo, classe, carregar]);
 
   // roda o sync da planilha de contagem (aba INSUMOS) pro bar atual e recarrega
   const sincronizar = async () => {
@@ -142,7 +160,7 @@ export default function EstoqueHistoricoPage() {
   // Unidade a exibir na coluna Qtd: insumo/produção usam a unidade de CONTAGEM do cadastro
   // (quando houver — senão só o número); limpeza mantém a unidade-base própria.
   const unidadeCol = (it: any): string | null =>
-    (classe === 'insumo' || classe === 'producao') ? (it.unidade_contagem || null) : (it.unidade_medida || null);
+    (classe === 'insumo' || classe === 'producao' || classe === 'alimentacao') ? (it.unidade_contagem || null) : (it.unidade_medida || null);
 
   // #3 — filtros de coluna estilo Excel (multi-seleção) em Área e Categoria.
   const filterCols = useMemo<FilterCol<any>[]>(() => [
