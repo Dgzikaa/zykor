@@ -80,7 +80,31 @@ export default function ComunicacaoPage() {
             {loading ? (
               <div className="flex h-24 items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">Carregando…</div>
             ) : org?.conectado ? (
-              <HeroRow kpis={kpisOrg} cols={6} />
+              <>
+                <HeroRow kpis={kpisOrg} cols={6} />
+                {(org.feed || org.reels) && (
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {([
+                      { nome: 'Feed', d: org.feed },
+                      { nome: 'Reels', d: org.reels },
+                    ] as const).map(({ nome, d }) => (
+                      <div key={nome} className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-[hsl(var(--foreground))]">{nome}</span>
+                          <span className="text-xs text-[hsl(var(--muted-foreground))]">{num(d?.posts)} posts</span>
+                        </div>
+                        <div className="mt-1 flex gap-6 text-xs text-[hsl(var(--muted-foreground))]">
+                          <span>Alcance <strong className="text-[hsl(var(--foreground))]">{num(d?.alcance)}</strong></span>
+                          <span>Interações <strong className="text-[hsl(var(--foreground))]">{num(d?.engajamento)}</strong></span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                  Alcance orgânico = Feed + Reels. Ferramentas com card &ldquo;postagens do feed&rdquo; podem excluir parte dos reels e mostrar número menor.
+                </p>
+              </>
             ) : (
               <div className="rounded-xl border border-dashed border-[hsl(var(--border))] p-5 text-sm text-[hsl(var(--muted-foreground))]">
                 Sem dados de Instagram no período (conta não conectada ou sync ainda sem cobertura).

@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
   let pq = (supabase as any)
     .schema('integrations')
     .from('instagram_posts')
-    .select('ig_media_id, timestamp_post')
+    .select('ig_media_id, timestamp_post, media_product_type')
     .eq('bar_id', barId)
     .in('media_product_type', ['FEED', 'REELS']);
   if (de) pq = pq.gte('timestamp_post', de);
@@ -95,11 +95,19 @@ export async function GET(request: NextRequest) {
 
   let alcance = 0;
   let engajamento = 0;
+  // Quebra Feed × Reels — o card "postagens do feed" de ferramentas externas (Reportei)
+  // exclui parte dos reels, então expor o split permite conciliar 1:1.
+  const feed = { posts: 0, alcance: 0, engajamento: 0 };
+  const reels = { posts: 0, alcance: 0, engajamento: 0 };
   const mensalMap = new Map<string, { label: string; alcance: number; engajamento: number }>();
   for (const p of posts as any[]) {
     const { reach, engajamento: eng } = postMetric(p);
     alcance += reach;
     engajamento += eng;
+    const bucket = p.media_product_type === 'REELS' ? reels : feed;
+    bucket.posts += 1;
+    bucket.alcance += reach;
+    bucket.engajamento += eng;
     const { key, label } = bucketDe(String(p.timestamp_post), 'mes');
     let m = mensalMap.get(key);
     if (!m) { m = { label, alcance: 0, engajamento: 0 }; mensalMap.set(key, m); }
@@ -119,6 +127,8 @@ export async function GET(request: NextRequest) {
     conectado: true,
     alcance,
     engajamento,
+    feed,   // { posts, alcance, engajamento } — só FEED
+    reels,  // { posts, alcance, engajamento } — só REELS
     visitas_perfil: somaConta('profile_views'),
     seguidores: ultimo?.followers_count ?? null,
     qtd_stories: (stories as any[]).length,
