@@ -452,6 +452,14 @@ export async function POST(request: NextRequest) {
               else if (insumo.tipo_local === 'cozinha' && insumo.categoria === 'Não-alcóolicos') {
                 resultado.estoque_final_drinks += valor;
               }
+              // Fallback robusto (#2): qualquer item que NÃO casou acima é classificado pela
+              // MESMA regra da tela Estoque/Desvios (areaDe) — antes era descartado (~14%).
+              else {
+                const b = areaParaBucketCmv(areaDe(insumo.categoria, codigo));
+                if (b === 'cozinha') resultado.estoque_final_cozinha += valor;
+                else if (b === 'bebidas') resultado.estoque_final_bebidas += valor;
+                else if (b === 'drinks') resultado.estoque_final_drinks += valor;
+              }
             });
           }
         }
@@ -509,6 +517,13 @@ export async function POST(request: NextRequest) {
               resultado.estoque_inicial_cozinha += valor;
             } else if (insumo.tipo_local === 'cozinha' && insumo.categoria === 'Não-alcóolicos') {
               resultado.estoque_inicial_drinks += valor;
+            }
+            // Fallback robusto (#2): itens fora dos buckets hardcoded → regra da tela Estoque (areaDe).
+            else {
+              const b = areaParaBucketCmv(areaDe(insumo.categoria, codigo));
+              if (b === 'cozinha') resultado.estoque_inicial_cozinha += valor;
+              else if (b === 'bebidas') resultado.estoque_inicial_bebidas += valor;
+              else if (b === 'drinks') resultado.estoque_inicial_drinks += valor;
             }
           });
         }
