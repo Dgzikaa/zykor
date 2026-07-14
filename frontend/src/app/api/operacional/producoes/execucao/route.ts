@@ -478,6 +478,9 @@ export async function GET(request: NextRequest) {
       producao_nome: f?.nome ?? null,
       producao_unidade: f?.unidade ?? null,
       producao_secao: f?.secao ?? null,
+      // rendimento base da ficha (por 1 receita) — divisor p/ converter rendimento_real em nº de
+      // receitas no Planejado × Realizado (ex.: 13,6kg ÷ 3,72 = ~4 receitas), no lugar de contar execuções.
+      producao_rendimento: f?.rendimento != null ? Number(f.rendimento) : null,
       tempo_meta_seg: f?.tempo_meta_seg ?? null,
       fc_esperado: fcEspMap.get(e.producao_id) ?? null,
     };
