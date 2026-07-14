@@ -215,6 +215,12 @@ export async function GET(request: NextRequest) {
   // dia); senão o estoque fim dos demais vem furado (sem contagem nova) e vira perda falsa.
   const base = (tipo === 'diaria' || andamento) ? (data || []).filter((r: any) => r.curva_a === true) : (data || []);
 
+  // Composição do estoque (contagem crua × embutido em pré-batches decompor_contagem) p/ o
+  // tooltip de debug das colunas "Estoque inicial" e "Estoque real". Por (bar, ini, fim), por código.
+  const { data: compRows } = await (sb() as any).schema('gold')
+    .rpc('fn_desvios_composicao', { p_bar: user.bar_id, p_ini: ini, p_fim: fim });
+  const compMap = new Map<string, any>((compRows || []).map((c: any) => [String(c.cod).toUpperCase(), c]));
+
   const itens = base.map((r: any) => {
     const estoque_ini = Number(r.estoque_ini || 0);
     const compra = Number(r.compra || 0);
@@ -244,6 +250,8 @@ export async function GET(request: NextRequest) {
       unidade: r.unidade || null,
       area: areaDe(r.categoria, r.insumo_codigo),
       estoque_ini,
+      // composição do estoque ini/fim (contagem × pré-batch) — tooltip de debug
+      composicao: compMap.get(String(r.insumo_codigo).toUpperCase()) || null,
       compra,
       troca: Number(r.troca || 0),
       produzido,

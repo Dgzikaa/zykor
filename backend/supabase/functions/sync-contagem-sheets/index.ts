@@ -222,6 +222,28 @@ function parseUtensilios(rows: unknown[][], fromISO: string, toISODate: string, 
   return [...agg.values()]
 }
 
+/**
+ * Após a contagem ser sincronizada e CONGELADA pelo refresh, recalcula o CMV semanal DESTE
+ * bar (best-effort). A contagem costuma fechar à tarde, depois do cron das 23h ainda pega,
+ * mas o gatilho aqui garante que o "Estoque Final" do CMV nunca fique defasado da contagem.
+ */
+async function dispararCmvSemanal(bar: number): Promise<void> {
+  try {
+    const ano = Number(new Date().toISOString().slice(0, 4))
+    const r = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/cmv-semanal-auto`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ bar_id: bar, todas_semanas: true, ano }),
+    })
+    console.log(`[sync] CMV semanal recalculado p/ bar ${bar}: HTTP ${r.status}`)
+  } catch (e) {
+    console.log(`[sync] falha (best-effort) ao recalcular CMV bar ${bar}: ${String((e as Error)?.message ?? e)}`)
+  }
+}
+
 async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtras: number, only?: string) {
   const sheetId = SHEETS[bar]
   if (!sheetId) throw new Error(`sem planilha para bar ${bar}`)
@@ -304,6 +326,10 @@ async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtr
   const { data: upserted, error: re } = await (sb.schema('operations') as any)
     .rpc('fn_refresh_contagem_estoque', { p_bar: bar, p_dias: diasAtras })
   if (re) throw re
+
+  // Contagem já congelada/valorizada pelo refresh → recalcula o CMV semanal deste bar (best-effort),
+  // pra o Estoque Final do CMV refletir a contagem finalizada na hora (evita o valor defasado).
+  await dispararCmvSemanal(bar)
 
   return { bar, janela: { from, to: today }, bronze: landed, limpeza: recsLimpeza.length, utensilio: recsUtensilio.length, upserted }
 }

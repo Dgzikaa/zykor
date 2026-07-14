@@ -387,8 +387,6 @@ export default function CMVSemanalTabelaPage() {
   // Chave: `${ano}-${semana}`.
   const [composicaoEstoque, setComposicaoEstoque] = useState<Record<string, { insumo: number; producao: number; alimentacao: number }>>({});
   const [loading, setLoading] = useState(true);
-  const [atualizando, setAtualizando] = useState(false);
-  const [etapaAtualizacao, setEtapaAtualizacao] = useState<string>('');
   const [fatorCmv, setFatorCmv] = useState(0.35); // Fator de CMV para consumos (carregado do banco)
   
   // Gerar configuração de seções com fator CMV dinâmico
@@ -751,49 +749,6 @@ export default function CMVSemanalTabelaPage() {
     carregarFatorCmv();
   }, [selectedBar?.id]);
 
-  // Atualização do CMV: Planilha CMV + Recálculo
-  // (sync do Conta Azul é global, ao lado do seletor de bar)
-  const atualizarCompleto = useCallback(async () => {
-    if (!selectedBar?.id || atualizando) return;
-    setAtualizando(true);
-    setEtapaAtualizacao('Sincronizando planilha…');
-    try {
-      const resp = await fetch('/api/cmv-semanal/atualizar-completo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bar_id: selectedBar.id, ano: new Date().getFullYear() }),
-      });
-      const result = await resp.json();
-
-      if (!resp.ok || !result.success) {
-        const onde = result.etapa_falhou
-          ? ({ sync_sheets: 'Planilha CMV', recalcular: 'Recálculo' } as Record<string, string>)[result.etapa_falhou] || result.etapa_falhou
-          : 'desconhecida';
-        toast({
-          title: `❌ Falhou em ${onde}`,
-          description: result.error || 'Erro ao atualizar',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      setEtapaAtualizacao('Recarregando dados…');
-      await carregarDados();
-      toast({
-        title: '✅ CMV atualizado',
-        description: 'Planilha CMV (semanal + mensal) sincronizada e cálculo refeito.',
-      });
-    } catch (e: any) {
-      toast({
-        title: '❌ Erro ao atualizar',
-        description: e?.message || 'Erro desconhecido',
-        variant: 'destructive',
-      });
-    } finally {
-      setAtualizando(false);
-      setEtapaAtualizacao('');
-    }
-  }, [selectedBar?.id, atualizando, toast, carregarDados]);
 
   useEffect(() => {
     if (selectedBar?.id) {
@@ -1342,16 +1297,8 @@ export default function CMVSemanalTabelaPage() {
                   Desfazer ({undoStack.length})
                 </Button>
               )}
-              <Button
-                onClick={atualizarCompleto}
-                disabled={atualizando || !selectedBar?.id}
-                size="sm"
-                className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white"
-                title="Sincroniza a planilha CMV (semanal + mensal) e recalcula tudo na hora"
-              >
-                <RefreshCw className={cn('w-4 h-4 mr-2', atualizando && 'animate-spin')} />
-                {atualizando ? (etapaAtualizacao || 'Atualizando…') : 'Atualizar dados'}
-              </Button>
+              {/* "Atualizar dados" removido: CMV agora é 100% automático (sync da planilha +
+                  recálculo no congelamento da contagem e por cron). Sem ação manual necessária. */}
             </div>
           </div>
         </div>

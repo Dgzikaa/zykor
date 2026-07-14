@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
@@ -27,14 +27,15 @@ const TIPOS = [
   { key: 'mensal', label: 'Mensal', sub: 'Inventário' },
 ];
 
-// Classe = tipo de item. Insumo (atual) · Limpeza (estoque ideal + sug. pedido) ·
-// Utensílio (modelo de quebra) · Produção (pc/pd da ficha, custo real).
+// Classe = tipo de item. Grupo "cmv" (compõem o Estoque Final / CMA): Insumo · Produção ·
+// Alimentação (só (F), vai pro CMA). Grupo "outros" (não entram no CMV): Limpeza (estoque ideal
+// + sug. pedido) · Utensílio (modelo de quebra). Os dois grupos ficam separados por um divisor.
 const CLASSES = [
-  { key: 'insumo', label: 'Insumo' },
-  { key: 'alimentacao', label: 'Alimentação' },
-  { key: 'limpeza', label: 'Limpeza' },
-  { key: 'utensilio', label: 'Utensílio' },
-  { key: 'producao', label: 'Produção' },
+  { key: 'insumo', label: 'Insumo', grupo: 'cmv' },
+  { key: 'producao', label: 'Produção', grupo: 'cmv' },
+  { key: 'alimentacao', label: 'Alimentação', grupo: 'cmv' },
+  { key: 'limpeza', label: 'Limpeza', grupo: 'outros' },
+  { key: 'utensilio', label: 'Utensílio', grupo: 'outros' },
 ];
 
 // Classes cujos itens são cadastrados/editados nesta tela (botão + lápis).
@@ -218,13 +219,18 @@ export default function EstoqueHistoricoPage() {
             onClose={() => setCadOpen(false)} onSaved={() => carregar(tipo, null)} />
         )}
 
-        {/* Classe de item: Insumo · Limpeza · Utensílio */}
-        <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1 gap-1">
-          {CLASSES.map(c => (
-            <button key={c.key} onClick={() => { setClasse(c.key); if (c.key === 'limpeza' || c.key === 'utensilio') setTipo('semanal'); setComparar(false); setComp(null); }}
-              className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${classe === c.key ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
-              {c.label}
-            </button>
+        {/* Classe: [Insumo · Produção · Alimentação] | [Limpeza · Utensílio] (grupos separados) */}
+        <div className="inline-flex items-stretch rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1 gap-1">
+          {CLASSES.map((c, i) => (
+            <Fragment key={c.key}>
+              {i > 0 && CLASSES[i - 1].grupo !== c.grupo && (
+                <span aria-hidden className="mx-1 w-px self-stretch bg-gray-200 dark:bg-gray-700" />
+              )}
+              <button onClick={() => { setClasse(c.key); if (c.key === 'limpeza' || c.key === 'utensilio') setTipo('semanal'); setComparar(false); setComp(null); }}
+                className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${classe === c.key ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                {c.label}
+              </button>
+            </Fragment>
           ))}
         </div>
 

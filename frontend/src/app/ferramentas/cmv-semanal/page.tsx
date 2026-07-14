@@ -816,14 +816,8 @@ export default function CMVSemanalPage() {
                   Dashboard
                 </Button>
               </Link>
-              <Button
-                onClick={processarSemanaAtual}
-                disabled={calculando}
-                variant="outline"
-                leftIcon={calculando ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              >
-                {calculando ? 'Processando...' : 'Processar Semana Atual'}
-              </Button>
+              {/* "Processar Semana Atual" removido: CMV recalcula sozinho (cron 23h + gatilho no
+                  congelamento da contagem). Sem recálculo manual. */}
               <Button
                 onClick={abrirModalAdicionar}
                 variant="outline"

@@ -25,18 +25,22 @@ export async function GET(request: NextRequest) {
   if (!['diaria', 'semanal', 'mensal'].includes(tipo)) {
     return NextResponse.json({ success: false, error: 'tipo inválido' }, { status: 400 });
   }
-  // Classe = tipo de item: insumo (padrão) | limpeza | utensilio | producao.
+  // Classe = tipo de item: insumo (padrão) | limpeza | utensilio | producao | alimentacao.
+  // "alimentacao" é uma VISÃO sobre insumo: só as categorias (F) (o que o CMV tira como CMA).
+  // Na base é classe='insumo' filtrada por categoria; por isso `classeDb` separa o valor lido.
   const classe = spar.get('classe') || 'insumo';
-  if (!['insumo', 'limpeza', 'utensilio', 'producao'].includes(classe)) {
+  if (!['insumo', 'limpeza', 'utensilio', 'producao', 'alimentacao'].includes(classe)) {
     return NextResponse.json({ success: false, error: 'classe inválida' }, { status: 400 });
   }
   const isLimpeza = classe === 'limpeza';
   const isProducao = classe === 'producao';
+  const isAlimentacao = classe === 'alimentacao';
+  const classeDb = isAlimentacao ? 'insumo' : classe;
   const ops = (sb() as any).schema('operations');
   const silver = (sb() as any).schema('silver');
 
   // histórico de datas desse tipo+classe (datas vêm do operations; a silver espelha)
-  const { data: datasRaw, error: e1 } = await ops.rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo, p_classe: classe });
+  const { data: datasRaw, error: e1 } = await ops.rpc('contagem_datas', { p_bar_id: user.bar_id, p_tipo: tipo, p_classe: classeDb });
   if (e1) return NextResponse.json({ success: false, error: e1.message }, { status: 500 });
   const datas = (datasRaw || []).map((d: any) => ({ data: d.data_contagem, itens: Number(d.itens || 0) }));
   const dataSel = spar.get('data') || datas[0]?.data || null;
@@ -87,7 +91,12 @@ export async function GET(request: NextRequest) {
   let qItens = silver
     .from('estoque_contagem')
     .select('insumo_codigo, insumo_nome, tipo_local, categoria, unidade_medida, estoque_final, estoque_ideal, preco_vmarket, preco_fonte, valor, curva_a')
-    .eq('bar_id', user.bar_id).eq('data_contagem', dataSel).eq('classe', classe);
+    .eq('bar_id', user.bar_id).eq('data_contagem', dataSel);
+  // Alimentação = categorias de funcionários (F), de insumo E produção (mesmo recorte do CMA do CMV).
+  // O recorte por (F) é feito em JS (ehF) mais abaixo — no PostgREST o parêntese do ilike '%(f)%' é
+  // caractere reservado e zera a query. Aqui só limita a classe.
+  if (isAlimentacao) qItens = qItens.in('classe', ['insumo', 'producao']);
+  else qItens = qItens.eq('classe', classe);
   if (tipo === 'diaria') qItens = qItens.eq('curva_a', true);
   else qItens = qItens.eq('tipo_contagem', tipo);
   const { data: rows, error: e2 } = await qItens
@@ -97,10 +106,13 @@ export async function GET(request: NextRequest) {
   // Unidade de CONTAGEM (do cadastro) por código — pra exibir a unidade como o bar conta,
   // não a unidade-base (ml/g) que confunde. insumo→operations.insumos, produção→producao_base.
   const unidContagem: Record<string, string> = {};
-  if (classe === 'insumo' || isProducao) {
-    const { data: cad } = await ops.from(isProducao ? 'producao_base' : 'insumos')
-      .select('codigo, unidade_contagem').eq('bar_id', user.bar_id);
-    for (const c of (cad || [])) if (c.codigo) unidContagem[String(c.codigo)] = c.unidade_contagem || '';
+  if (classe === 'insumo' || isProducao || isAlimentacao) {
+    // Alimentação mistura insumo + produção (F) → carrega os dois cadastros; senão, o da classe.
+    const fontes = isAlimentacao ? ['insumos', 'producao_base'] : [isProducao ? 'producao_base' : 'insumos'];
+    for (const fonte of fontes) {
+      const { data: cad } = await ops.from(fonte).select('codigo, unidade_contagem').eq('bar_id', user.bar_id);
+      for (const c of (cad || [])) if (c.codigo && !(String(c.codigo) in unidContagem)) unidContagem[String(c.codigo)] = c.unidade_contagem || '';
+    }
   }
 
   // #6 — baseline p/ sinalizar contagens "fora do costume" (possível preenchimento ou preço
@@ -109,8 +121,10 @@ export async function GET(request: NextRequest) {
   const desde = new Date(new Date(dataSel + 'T00:00:00').getTime() - 120 * 864e5).toISOString().slice(0, 10);
   let qHist = silver.from('estoque_contagem')
     .select('insumo_codigo, data_contagem, estoque_final, valor')
-    .eq('bar_id', user.bar_id).eq('classe', classe)
+    .eq('bar_id', user.bar_id)
     .gte('data_contagem', desde).lt('data_contagem', dataSel);
+  if (isAlimentacao) qHist = qHist.in('classe', ['insumo', 'producao']);
+  else qHist = qHist.eq('classe', classe);
   if (tipo === 'diaria') qHist = qHist.eq('curva_a', true); else qHist = qHist.eq('tipo_contagem', tipo);
   const { data: histRows } = await qHist;
   const histMap: Record<string, { valores: number[]; precos: number[] }> = {};
@@ -143,7 +157,7 @@ export async function GET(request: NextRequest) {
   };
 
   let anomalos_n = 0;
-  const itens = (rows || []).map((r: any) => {
+  const itensRaw = (rows || []).map((r: any) => {
     const estoque_final = Number(r.estoque_final ?? 0);
     const estoque_ideal = r.estoque_ideal == null ? null : Number(r.estoque_ideal);
     const valor = Number(r.valor ?? 0);
@@ -174,6 +188,14 @@ export async function GET(request: NextRequest) {
           : areaDe(r.categoria, r.insumo_codigo),
     };
   });
+
+  // (F) = Alimentação (o CMV tira como CMA). A aba Alimentação mostra SÓ esses itens; Insumo e
+  // Produção mostram SEM eles → abas sem sobreposição e Insumo + Produção = Estoque Final do CMV.
+  const ehF = (it: any) => /\(F\)/.test(String(it.categoria || '').toUpperCase());
+  const itens = isAlimentacao ? itensRaw.filter(ehF)
+    : (classe === 'insumo' || isProducao) ? itensRaw.filter((i: any) => !ehF(i))
+    : itensRaw;
+  anomalos_n = itens.filter((i: any) => i.anomalo).length;
 
   // total em estoque por área (Comidas / Salão / Drinks / Alimentação)
   const areaMap: Record<string, { area: string; itens: number; valor: number }> = {};
