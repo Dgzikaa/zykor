@@ -20,13 +20,16 @@ async function estoqueContagemPorArea(
   barId: number,
   dataContagem: string,
 ): Promise<{ cozinha: number; bebidas: number; drinks: number; funcionarios: number } | null> {
+  // Estoque final = Insumo + Produção, SEM alimentação (a (F) cai no bucket 'funcionarios', que fica
+  // FORA do total cozinha+bebidas+drinks). Antes lia só classe='insumo' → faltava a Produção, e o CMV
+  // Semanal ficava abaixo do Estoque/estoque-histórico (que já somam insumo+producao). 14/07.
   const { data: rows, error } = await supabase
     .schema('silver' as never)
     .from('estoque_contagem')
     .select('insumo_codigo, categoria, valor')
     .eq('bar_id', barId)
     .eq('data_contagem', dataContagem)
-    .eq('classe', 'insumo');
+    .in('classe', ['insumo', 'producao']);
   if (error || !rows || rows.length === 0) return null;
   const acc = { cozinha: 0, bebidas: 0, drinks: 0, funcionarios: 0 };
   for (const r of rows as any[]) {
