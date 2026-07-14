@@ -755,12 +755,27 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
                         ) : (
                           <div className={cn(categoria.cor, "opacity-20")} style={{ height: '44px' }} />
                         )}
-                        {aberta && categoria.subcategorias.map(sub => (
-                          <React.Fragment key={sub.nome}>
-                            {linhaSubValores(sub, mes, idx, isMesAtual, categoria.tipo, false, !!(sub as any).filhos?.length)}
-                            {(sub as any).filhos && subsAbertas[sub.nome] && (sub as any).filhos.map((f: any) => linhaSubValores(f, mes, idx, isMesAtual, categoria.tipo, true))}
-                          </React.Fragment>
-                        ))}
+                        {aberta && (
+                          // #11 — a coluna de rótulos (esquerda) usa as subs do 1º mês; aqui usamos
+                          // a MESMA estrutura canônica (por nome), buscando o valor do mês atual e
+                          // preenchendo com zero onde faltar. Sem isso, um mês com nº de subs diferente
+                          // desalinhava as colunas (o layout "quebrava" em Não Operacionais).
+                          (meses[0]?.categorias.find(c => c.nome === categoria.nome)?.subcategorias ?? categoria.subcategorias).map((subCanon: any) => {
+                            const sub = categoria.subcategorias.find((s: any) => s.nome === subCanon.nome)
+                              ?? { ...subCanon, planejado: 0, projetado: 0, realizado: 0 };
+                            const filhosCanon: any[] = (subCanon.filhos as any[]) || [];
+                            return (
+                              <React.Fragment key={subCanon.nome}>
+                                {linhaSubValores(sub, mes, idx, isMesAtual, categoria.tipo, false, !!filhosCanon.length)}
+                                {filhosCanon.length > 0 && subsAbertas[subCanon.nome] && filhosCanon.map((fCanon: any) => {
+                                  const f = ((sub as any).filhos as any[] | undefined)?.find((x: any) => x.nome === fCanon.nome)
+                                    ?? { ...fCanon, planejado: 0, projetado: 0, realizado: 0 };
+                                  return linhaSubValores(f, mes, idx, isMesAtual, categoria.tipo, true);
+                                })}
+                              </React.Fragment>
+                            );
+                          })
+                        )}
                       </div>
                       );
                     })}
