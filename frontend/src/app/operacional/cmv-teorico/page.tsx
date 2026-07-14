@@ -170,11 +170,21 @@ export default function CmvTeoricoPage() {
   // só entram no "vincular em massa" os exatos sem ambiguidade E cuja sugestão NÃO está mapeada a outro código
   const exatos = useMemo(() => foraDepara.filter(p => p.nivel === 'exato' && !p.ambiguo && p.sugestao_codigo && !p.sugestao_ja_mapeada), [foraDepara]);
 
-  const cats = useMemo(() => Array.from(new Set(produtos.map(p => p.categoria || 'Outros'))).sort(), [produtos]);
+  // Categoria normalizada por PREFIXO do código (b→Bebida, d→Drink, c→Comida, resto→Outros) —
+  // igual o Ordinário. Evita a parede de 30+ categorias cruas do ContaHub (que o Deboche tinha),
+  // deixando a busca em destaque nos dois bares.
+  const catBucket = useCallback((p: any): string => {
+    const c = String(p?.codigo || '').trim().toLowerCase();
+    if (c.startsWith('b')) return 'Bebida';
+    if (c.startsWith('d')) return 'Drink';
+    if (c.startsWith('c')) return 'Comida';
+    return 'Outros';
+  }, []);
+  const cats = useMemo(() => Array.from(new Set(produtos.map(catBucket))).sort(), [produtos, catBucket]);
   const escopo = useMemo(() => {
     const s = busca.trim().toLowerCase();
-    return produtos.filter(p => (!cat || (p.categoria || 'Outros') === cat) && (!s || (p.nome || '').toLowerCase().includes(s) || (p.codigo || '').toLowerCase().includes(s)));
-  }, [produtos, busca, cat]);
+    return produtos.filter(p => (!cat || catBucket(p) === cat) && (!s || (p.nome || '').toLowerCase().includes(s) || (p.codigo || '').toLowerCase().includes(s)));
+  }, [produtos, busca, cat, catBucket]);
   // sem ficha = sem receita cadastrada (itens_ficha=0); ficha s/ preço = tem receita mas insumo sem preço (custo 0)
   const semFichaFn = (p: any) => (p.itens_ficha ?? 0) === 0;
   const fichaSemPrecoFn = (p: any) => (p.itens_ficha ?? 0) > 0 && (!p.custo || Number(p.custo) === 0);
