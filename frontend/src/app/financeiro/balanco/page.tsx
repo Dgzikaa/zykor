@@ -218,7 +218,8 @@ export default function BalancoPage() {
     return arr;
   }, [meses]);
 
-  const anos = Array.from({ length: hoje.getFullYear() - 2023 }, (_, i) => hoje.getFullYear() - i);
+  // O Balanço começa em Out/2025 (abertura) — não há dado confiável antes; selectores travados nesse piso.
+  const anos = Array.from({ length: hoje.getFullYear() - 2024 }, (_, i) => hoje.getFullYear() - i);
   const fmtCell = (id: string, tipo: RowTipo, val: number) =>
     tipo === 'ratio' ? fmtNum(val, 2) : tipo === 'days' ? fmtNum(val, 1) : fmtBRL(val);
 
@@ -231,15 +232,15 @@ export default function BalancoPage() {
             {[3, 6, 8, 12].map(q => <option key={q} value={q}>{q} meses</option>)}
           </select>
           <select value={mes} onChange={e => setMes(Number(e.target.value))} className="h-9 border rounded-md px-2 text-sm bg-white dark:bg-gray-800">
-            {MES_ABBR.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+            {MES_ABBR.map((m, i) => <option key={i} value={i + 1} disabled={ano === 2025 && i + 1 < 10}>{m}</option>)}
           </select>
-          <select value={ano} onChange={e => setAno(Number(e.target.value))} className="h-9 border rounded-md px-2 text-sm bg-white dark:bg-gray-800">
+          <select value={ano} onChange={e => { const a = Number(e.target.value); setAno(a); if (a === 2025 && mes < 10) setMes(10); }} className="h-9 border rounded-md px-2 text-sm bg-white dark:bg-gray-800">
             {anos.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
       </div>
       <p className="text-xs text-gray-500">
-        Foto do último dia de cada mês, lado a lado (mês final = {MES_ABBR[mes - 1]}/{ano}).
+        Foto do último dia de cada mês, lado a lado (mês final = {MES_ABBR[mes - 1]}/{ano}). Começa em Out/2025.
         <span className="text-orange-500"> ●</span> Conta Azul · <span className="text-blue-500">●</span> manual (clique p/ editar) · <span className="text-gray-400">●</span> cálculo.
       </p>
 

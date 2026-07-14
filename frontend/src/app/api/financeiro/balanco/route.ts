@@ -40,12 +40,17 @@ async function snapDe(barId: number, ano: number, mes: number) {
   return data || null;
 }
 
-/** Lista de N meses (ano,mes) terminando em (ano,mes), do mais antigo p/ o mais novo. */
+// Piso do Balanço: não há dado confiável de abertura antes de Out/2025 — o BP não mostra meses
+// anteriores (o restante é calculado ao vivo do CA, que renderiza números para meses antigos).
+export const BP_PISO = { ano: 2025, mes: 10 };
+const antesDoPiso = (a: number, m: number) => a < BP_PISO.ano || (a === BP_PISO.ano && m < BP_PISO.mes);
+
+/** Lista de N meses (ano,mes) terminando em (ano,mes), do mais antigo p/ o mais novo. Nunca antes do piso. */
 function janelaMeses(ano: number, mes: number, n: number) {
   const out: { ano: number; mes: number }[] = [];
   let a = ano, m = mes;
   for (let i = 0; i < n; i++) {
-    out.unshift({ ano: a, mes: m });
+    if (!antesDoPiso(a, m)) out.unshift({ ano: a, mes: m });
     m -= 1; if (m === 0) { m = 12; a -= 1; }
   }
   return out;
