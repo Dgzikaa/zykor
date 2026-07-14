@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
+import { paginate } from '@/lib/supabase/paginate';
 
 export const dynamic = 'force-dynamic';
 
@@ -180,8 +181,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, modo: 'vs_real', meses: meses || [] });
   }
 
-  const { data, error } = await gold.from('produto_cmv').select('*').eq('bar_id', barId).order('cmv_pct', { ascending: false, nullsFirst: false });
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  const data = await paginate<any>(
+    () => gold.from('produto_cmv').select('*').eq('bar_id', barId).order('cmv_pct', { ascending: false, nullsFirst: false }).order('codigo'),
+    { label: 'gold.produto_cmv' },
+  );
 
   // snapshot anterior (data_ref mais recente antes de hoje) p/ comparativo
   const hoje = new Date().toISOString().slice(0, 10);
@@ -193,12 +196,43 @@ export async function GET(request: NextRequest) {
     (prev || []).forEach((p: any) => prevMap.set(p.produto_id, p));
   }
 
-  const produtos = (data || []).map((p: any) => {
+  // ---- Origens do produto: cada código ContaHub (prd/prd_desc) e Yuzer (cod_yuzer/nome) que
+  // aponta pro mesmo cod_interno, com preço e CMV próprios (CH = preço do mapa; Yuzer = preço
+  // efetivo da view gold.produto_preco_yuzer). O custo é o da ficha do produto (único). Assim o
+  // Cardápio expande o produto interno mostrando o NOME CRU de cada origem, sem eleger 1 preço.
+  const [chMaps, yzMaps] = await Promise.all([
+    paginate<any>(() => admin.from('produto_contahub_map').select('cod_interno, prd, prd_desc, preco_venda').eq('bar_id', barId).order('prd'), { label: 'produto_contahub_map' }),
+    paginate<any>(() => admin.from('produto_yuzer_map').select('cod_interno, cod_yuzer, nome').eq('bar_id', barId).order('cod_yuzer'), { label: 'produto_yuzer_map' }),
+  ]);
+  const { data: yzPrecos } = await gold.from('produto_preco_yuzer').select('cod_interno, preco_yuzer').eq('bar_id', barId);
+  const precoYzByCod = new Map<string, number>((yzPrecos || []).map((r: any) => [r.cod_interno, Number(r.preco_yuzer)]));
+  const chByCod = new Map<string, any[]>();
+  for (const m of chMaps) { const a = chByCod.get(m.cod_interno) || []; a.push(m); chByCod.set(m.cod_interno, a); }
+  const yzByCod = new Map<string, any[]>();
+  for (const m of yzMaps) { const a = yzByCod.get(m.cod_interno) || []; a.push(m); yzByCod.set(m.cod_interno, a); }
+  const r2 = (v: number) => Number(v.toFixed(2));
+  const mkOrigem = (tipo: 'ch' | 'yuzer', codigo: any, nome: any, preco: any, custo: any) => {
+    const p = preco != null && Number(preco) > 0 ? Number(preco) : null;
+    const c = custo != null ? Number(custo) : null;
+    return {
+      tipo, codigo: String(codigo ?? ''), nome: nome || null, preco: p,
+      cmv_pct: (p != null && c != null) ? r2(c / p * 100) : null,
+      margem: (p != null && c != null) ? r2(p - c) : null,
+    };
+  };
+
+  const produtos = data.map((p: any) => {
     const prev = prevMap.get(p.produto_id);
+    const ch = (chByCod.get(p.codigo) || []).map((m: any) => mkOrigem('ch', m.prd, m.prd_desc, m.preco_venda, p.custo));
+    const yz = (yzByCod.get(p.codigo) || []).map((m: any) => mkOrigem('yuzer', m.cod_yuzer, m.nome, precoYzByCod.get(p.codigo) ?? null, p.custo));
     return {
       ...p,
       cmv_pct_anterior: prev?.cmv_pct ?? null,
       delta_cmv: (prev?.cmv_pct != null && p.cmv_pct != null) ? Number((p.cmv_pct - prev.cmv_pct).toFixed(2)) : null,
+      origens: [...ch, ...yz],
+      n_ch: ch.length,
+      n_yuzer: yz.length,
+      tem_yuzer: yz.length > 0,
     };
   });
   return NextResponse.json({ success: true, produtos, data_anterior: dataAnterior });
