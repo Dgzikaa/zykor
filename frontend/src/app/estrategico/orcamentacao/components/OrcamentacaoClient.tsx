@@ -168,14 +168,16 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
   const mesAtualRef = useRef<HTMLDivElement>(null);
   const scrollInicialRef = useRef(false);
 
+  // Ano exibido (default = atual). Permite planejar 2027 e revisar anos anteriores.
+  const [anoSel, setAnoSel] = useState<number>(new Date().getFullYear());
+
   // Carregar dados (refresh)
   const carregarDados = useCallback(async () => {
     if (!selectedBar) return;
     setLoading(true);
     try {
-      // Visao anual completa do ano corrente (Jan-Dez, 12 meses).
-      const hoje = new Date();
-      const anoInicio = hoje.getFullYear();
+      // Visao anual completa do ano selecionado (Jan-Dez, 12 meses).
+      const anoInicio = anoSel;
       const mesInicio = 1;
       const quantidade = 12;
 
@@ -197,7 +199,15 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
     } finally {
       setLoading(false);
     }
-  }, [selectedBar, toast]);
+  }, [selectedBar, toast, anoSel]);
+
+  // Recarrega ao trocar o ANO selecionado (o initialData do SSR é só do ano atual).
+  const anoCarregadoRef = useRef<number>(anoSel);
+  useEffect(() => {
+    if (anoCarregadoRef.current === anoSel) return;
+    anoCarregadoRef.current = anoSel;
+    carregarDados();
+  }, [anoSel, carregarDados]);
 
   // Re-busca os dados ao TROCAR DE BAR. O initialData é só do bar inicial do SSR;
   // a troca de bar é client-side (contexto) e não re-renderiza o servidor — sem isto
@@ -504,6 +514,11 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
         <div className="max-w-full mx-auto px-4 py-3">
           <div className="flex items-center justify-end flex-wrap gap-2 mb-3">
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Seletor de ano — libera planejar 2027 e revisar anos anteriores. */}
+              <select value={anoSel} onChange={(e) => setAnoSel(Number(e.target.value))}
+                className="h-8 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm font-semibold text-gray-900 dark:text-white">
+                {(() => { const a = new Date().getFullYear(); return [a - 1, a, a + 1]; })().map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
               <div className="px-4 py-1 bg-gray-100 dark:bg-gray-700 rounded-lg">
                 <span className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base">
                   {meses.length > 0
