@@ -58,6 +58,8 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   const [filtroLista, setFiltroLista] = useState<'zero' | 'sem_mestre' | 'sem_ch' | 'item_zerado' | 'curva_a' | 'sem_unidade' | null>(null);
   const [statusFiltro, setStatusFiltro] = useState<'todos' | 'ativo' | 'inativo'>('todos');
   const [itens, setItens] = useState<any[]>([]);
+  // Produto agrupado: a ficha exibida é a do principal (código). Edição fica bloqueada aqui.
+  const [fichaAgrupadoEm, setFichaAgrupadoEm] = useState<string | null>(null);
   const [loadingItens, setLoadingItens] = useState(false);
   // fichas vinculadas (réplicas) do item selecionado
   const [grupo, setGrupo] = useState<any[]>([]);
@@ -116,7 +118,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     setLoadingItens(true);
     try {
       const r = await api.get(`/api/operacional/producoes/ficha?${parentParam}=${id}&bar_id=${barId}`);
-      if (r.success) setItens(r.itens || []);
+      if (r.success) { setItens(r.itens || []); setFichaAgrupadoEm(r.agrupado_em || null); }
     } finally { setLoadingItens(false); }
     reloadZerados(); // mantém o badge "item R$0" fresco ao abrir/editar uma ficha
   }, [parentParam, barId, reloadZerados]);
@@ -581,9 +583,16 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                 </div>
               </div>
 
-              <div className="flex justify-end mb-2">
-                <Button size="sm" onClick={() => { setAddOpen(true); setAddEscolhido(null); setAddBusca(''); setAddQtd('1'); }}><Plus className="w-4 h-4 mr-1" />Adicionar componente</Button>
-              </div>
+              {fichaAgrupadoEm ? (
+                <div className="mb-2 rounded-md border border-violet-200 dark:border-violet-800 bg-violet-50/60 dark:bg-violet-900/15 px-3 py-2 text-xs text-violet-700 dark:text-violet-300 flex items-center gap-1.5">
+                  <Boxes className="w-3.5 h-3.5 shrink-0" />
+                  Este produto está <b>agrupado</b> — usa a ficha do principal <b className="font-mono">{fichaAgrupadoEm}</b> (mostrada abaixo). Pra mudar a receita, edite o produto <b className="font-mono">{fichaAgrupadoEm}</b>; o custo vale pra todos do grupo.
+                </div>
+              ) : (
+                <div className="flex justify-end mb-2">
+                  <Button size="sm" onClick={() => { setAddOpen(true); setAddEscolhido(null); setAddBusca(''); setAddQtd('1'); }}><Plus className="w-4 h-4 mr-1" />Adicionar componente</Button>
+                </div>
+              )}
 
               {/* Componentes da ficha */}
               <div className="overflow-x-auto">

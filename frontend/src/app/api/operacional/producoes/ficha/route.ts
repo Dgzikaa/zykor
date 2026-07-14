@@ -36,10 +36,24 @@ export async function GET(request: NextRequest) {
   if (!producaoId && !produtoId) return NextResponse.json({ success: false, error: 'producao_id ou produto_id obrigatório' }, { status: 400 });
 
   const supabase = await getAdminClient();
+  // Produto AGRUPADO (agrupado_em): mostra a ficha do PRINCIPAL (o custo/receita vem dele). A tela
+  // exibe read-only e manda editar no principal. Sem isso, a ficha do agrupado (própria, vazia) some.
+  let fichaProdutoId = produtoId ? Number(produtoId) : null;
+  let agrupadoEm: string | null = null;
+  if (produtoId) {
+    const { data: selfProd } = await supabase.from('produto_cardapio')
+      .select('bar_id, agrupado_em').eq('id', Number(produtoId)).maybeSingle();
+    if (selfProd?.agrupado_em) {
+      agrupadoEm = selfProd.agrupado_em;
+      const { data: principal } = await supabase.from('produto_cardapio')
+        .select('id').eq('bar_id', selfProd.bar_id).eq('codigo', selfProd.agrupado_em).maybeSingle();
+      if (principal?.id) fichaProdutoId = principal.id;
+    }
+  }
   let q = supabase.from('producao_ficha_item')
     .select('id,componente_tipo,insumo_codigo,insumo_id_vmarket,producao_ref,nome_componente,quantidade,unidade,is_mestre,custo_planilha,fator_correcao')
     .order('is_mestre', { ascending: false }).order('id', { ascending: true });
-  q = producaoId ? q.eq('producao_id', Number(producaoId)) : q.eq('produto_id', Number(produtoId));
+  q = producaoId ? q.eq('producao_id', Number(producaoId)) : q.eq('produto_id', fichaProdutoId);
   const { data, error } = await q;
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
@@ -158,7 +172,8 @@ export async function GET(request: NextRequest) {
       custo_atual,
     };
   });
-  return NextResponse.json({ success: true, itens });
+  // agrupado_em setado → a ficha exibida é a do principal (read-only na tela).
+  return NextResponse.json({ success: true, itens, agrupado_em: agrupadoEm });
 }
 
 export async function POST(request: NextRequest) {

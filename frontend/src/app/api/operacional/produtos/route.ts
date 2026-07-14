@@ -218,9 +218,9 @@ export async function PUT(request: NextRequest) {
   }
   const { data, error } = await supabase.from('produto_cardapio').update(patch).eq('id', id).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  // mexeu no multiplicador → muda o Custo Total do produto: recalcula o CMV teórico na hora
-  // (a matview cmv_teorico_dia segue no cron diário, igual às edições de ficha).
-  if ('multiplicador' in body) await recalcCmvTeorico(supabase, data?.bar_id);
+  // mexeu no multiplicador OU no agrupamento (agrupado_em) → muda o Custo Total/herança do CMV:
+  // recalcula o CMV teórico na hora (a matview cmv_teorico_dia segue no cron diário, igual às fichas).
+  if ('multiplicador' in body || 'agrupado_em' in body) await recalcCmvTeorico(supabase, data?.bar_id);
   return NextResponse.json({ success: true, produto: data });
 }
 
