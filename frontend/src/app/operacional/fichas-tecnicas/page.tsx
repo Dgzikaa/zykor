@@ -362,6 +362,35 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     return lista.filter(p => p.codigo !== selObj?.codigo && !p.agrupado_em && (!q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q))).slice(0, 30);
   }, [lista, grupoBusca, selObj]);
 
+  // LADO DO PRINCIPAL: ver e gerenciar os códigos que usam ESTA ficha (agrupado_em = código do selObj).
+  // Mesma receita/custo; cada código com Preço CH e CMV próprios. Adicionar/remover sem abrir o membro.
+  const membrosDoGrupo = useMemo(
+    () => (lista || []).filter((p: any) => selObj?.codigo && p.agrupado_em === selObj.codigo),
+    [lista, selObj],
+  );
+  const [addCodOpen, setAddCodOpen] = useState(false);
+  const [addCodBusca, setAddCodBusca] = useState('');
+  const addCodOpcoes = useMemo(() => {
+    const q = addCodBusca.trim().toLowerCase();
+    return (lista || []).filter((p: any) =>
+      p.codigo !== selObj?.codigo && !p.agrupado_em &&
+      (!q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q)),
+    ).slice(0, 30);
+  }, [lista, addCodBusca, selObj]);
+  const agruparNoPrincipal = async (membroId: number) => {
+    if (!selObj) return;
+    try {
+      await api.put('/api/operacional/produtos', { id: membroId, agrupado_em: selObj.codigo });
+      setAddCodOpen(false); setAddCodBusca(''); reloadLista();
+    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+  const desagruparMembro = async (membroId: number) => {
+    try {
+      await api.put('/api/operacional/produtos', { id: membroId, agrupado_em: null });
+      reloadLista();
+    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+  };
+
   // adicionar componente (modal de criação)
   const [addOpen, setAddOpen] = useState(false);
   const [addTipo, setAddTipo] = useState<'insumo' | 'producao'>('insumo');
@@ -583,6 +612,59 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                   )}
                 </div>
               </div>
+
+              {/* Códigos nesta ficha (lado do PRINCIPAL): 1 ficha, vários códigos ContaHub, cada um com
+                  Preço CH + CMV próprios. Só aparece em produto que NÃO é agrupado (é um principal em potencial). */}
+              {kind === 'produto' && selObj && !selObj.agrupado_em && (
+                <div className="mb-3 rounded-lg border border-violet-200 dark:border-violet-800/60 bg-violet-50/40 dark:bg-violet-900/10 p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5 text-sm font-semibold text-violet-700 dark:text-violet-300">
+                      <Boxes className="w-4 h-4" />Códigos nesta ficha <span className="text-gray-400 font-normal">({membrosDoGrupo.length + 1})</span>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => { setAddCodOpen(v => !v); setAddCodBusca(''); }}><Plus className="w-4 h-4 mr-1" />adicionar código</Button>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mb-2">Mesma receita e custo; cada código com seu <b>Preço CH</b> e <b>CMV</b>. Evita duplicar ficha p/ HH, PP, 50%, promoções.</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-xs text-gray-500 dark:text-gray-400 border-b border-violet-200/60 dark:border-violet-800/40"><tr>
+                        <th className="text-left font-medium px-2 py-1">Código</th>
+                        <th className="text-left font-medium px-2 py-1">Nome</th>
+                        <th className="text-right font-medium px-2 py-1">Preço CH</th>
+                        <th className="text-right font-medium px-2 py-1">CMV</th>
+                        <th className="px-2 py-1"></th>
+                      </tr></thead>
+                      <tbody className="divide-y divide-violet-100 dark:divide-violet-900/30">
+                        {[{ ...selObj, _principal: true }, ...membrosDoGrupo].map((m: any) => {
+                          const preco = Number(m.preco_venda) || 0;
+                          const cmv = preco > 0 ? (custoAtualTotal / preco) * 100 : null;
+                          return (
+                            <tr key={m.id}>
+                              <td className="px-2 py-1 font-mono text-xs whitespace-nowrap">{m.codigo}{m._principal && <span className="ml-1 rounded bg-violet-200 dark:bg-violet-800 px-1 text-[10px] text-violet-700 dark:text-violet-200">principal</span>}</td>
+                              <td className="px-2 py-1 text-gray-800 dark:text-gray-100">{m.nome}</td>
+                              <td className="px-2 py-1 text-right tabular-nums">{fmtBRL(m.preco_venda)}</td>
+                              <td className="px-2 py-1 text-right tabular-nums">{cmv != null ? `${cmv.toFixed(1)}%` : '—'}</td>
+                              <td className="px-2 py-1 text-right">{!m._principal && <button onClick={() => desagruparMembro(m.id)} className="text-gray-400 hover:text-red-500 text-xs underline">remover</button>}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {addCodOpen && (
+                    <div className="mt-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2">
+                      <Input value={addCodBusca} onChange={e => setAddCodBusca(e.target.value)} placeholder="Buscar produto por nome ou código…" className="h-8 text-sm mb-1" />
+                      <div className="max-h-48 overflow-y-auto">
+                        {addCodOpcoes.length === 0 ? <div className="px-2 py-2 text-xs text-gray-400">Nada encontrado (lista só produtos ainda não agrupados).</div>
+                        : addCodOpcoes.map((o: any) => (
+                          <button key={o.id} onClick={() => agruparNoPrincipal(o.id)} className="w-full text-left px-2 py-1 text-sm rounded hover:bg-gray-50 dark:hover:bg-gray-800/60">
+                            {o.nome}<span className="text-xs text-gray-400 font-mono"> · {o.codigo}</span>{o.preco_venda != null && <span className="text-xs text-blue-500"> · {fmtBRL(o.preco_venda)}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {fichaAgrupadoEm ? (
                 <div className="mb-2 rounded-md border border-violet-200 dark:border-violet-800 bg-violet-50/60 dark:bg-violet-900/15 px-3 py-2 text-xs text-violet-700 dark:text-violet-300 flex items-center gap-1.5">
