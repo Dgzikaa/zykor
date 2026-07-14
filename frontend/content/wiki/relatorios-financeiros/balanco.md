@@ -37,6 +37,8 @@ No menu lateral: **Financeiro → Balanço Patrimonial** (ícone de camadas). Ro
 2. Selecione o **mês final** e o **ano final** da janela.
 3. A tabela recarrega mostrando os N meses que terminam no mês/ano escolhido (ex.: escolhendo Jul/2026 com 6 meses, aparecem Fev a Jul de 2026).
 
+> **O Balanço começa em Out/2025** (abertura). Não há dado confiável antes disso, então os seletores de mês/ano não deixam escolher meses anteriores, e a janela de comparação nunca mostra colunas antes de Out/2025.
+
 ### 2. Editar um valor manual (azul)
 1. Localize uma linha **azul** (ex.: *Caixa + Investimentos*, *Empréstimos CP a Receber*, *Financiamentos LP*, *Investimentos Aprovados*).
 2. Clique no número da coluna do mês que quer editar.

@@ -70,6 +70,8 @@ A tela sempre trabalha sobre o **bar selecionado** no topo. Se nenhum bar estive
 1. Clique em **Atualizar estoque** (canto superior direito).
 2. O sistema puxa a contagem da **planilha (aba INSUMOS, últimos 14 dias)** — a mesma sincronização da tela de Estoque — e recarrega os desvios sem trocar de tela. Útil logo depois de lançar uma contagem.
 
+> **Contagem lançada com atraso entra normalmente.** Mesmo que a contagem de uma data (ex.: a semanal de segunda) só seja preenchida/sincronizada no dia seguinte, ela é incorporada ao estoque inicial do período — o sync reprocessa a janela inteira. Se algum item (ex.: cervejas Ambev) não estiver aparecendo no estoque inicial, clicar em **Atualizar estoque** resolve.
+
 ### Filtrar e buscar
 1. Use a **busca** para achar um item por nome ou código.
 2. Clique nos **chips** (total, Curva A, por área, sem contagem final, sem ficha) para filtrar rapidamente.

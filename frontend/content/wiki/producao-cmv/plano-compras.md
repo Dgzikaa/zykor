@@ -46,7 +46,7 @@ Se aparecer o aviso âmbar "Produção não encerrada nesta semana", significa q
 
 **4. Filtrar a lista**
 
-Use a busca por nome/código, o seletor de **Seção (VMarket)**, o selo **Só Curva A** e os botões **Todos / Comprar / Não comprar** para focar no que interessa (ver "Filtros e opções").
+Use a busca por nome/código, o seletor de **Seção (VMarket)**, os selos **Só Curva A** e **Só Proteínas (P)** e os botões **Todos / Comprar / Não comprar** para focar no que interessa (ver "Filtros e opções").
 
 **5. Ajustar o nível de serviço de um insumo (opcional)**
 
@@ -87,9 +87,17 @@ Todos os números da tabela são exibidos em **número de embalagens** (unidade 
 | **Custo estimado** | Custo total aproximado da compra sugerida | `Σ (nº de embalagens sugeridas × custo do insumo)` sobre a lista filtrada |
 | **Insumos na lista** | Total de itens exibidos após os filtros | Contagem de linhas filtradas |
 
-### Detalhe expandido (Média 6s)
+### Detalhe expandido (Média 6s) — editar e ignorar semanas
 
-Ao expandir, cada semana aparece como um "chip": data da semana, uso direto em embalagens e o peso (×1 a ×6). Semanas sem uso ficam riscadas. No fim, o chip "= média" repete a Média 6s. Serve só para conferência — não altera nenhum cálculo.
+Ao expandir, cada semana aparece como um "chip": data da semana, uso direto em embalagens e o peso (×1 a ×6). No fim, o chip "= média" repete a Média 6s.
+
+Quando uma semana foi atípica (evento, ruptura, contagem errada) e distorce a média, dá para ajustar direto no chip:
+
+- **Editar o valor na mão** — digite outro número (em embalagens) no campo da semana. Fica **registrado que foi manual** (borda amarela + quem/quando no banco) e a Média/PR/Sugestão recalculam na hora.
+- **Ignorar a semana** (ícone de olho) — tira aquela semana da **média ponderada e do desvio-padrão**. O chip fica riscado.
+- **Resetar** (ícone ↺) — volta ao valor automático.
+
+Cada ajuste é salvo por insumo/semana/bar (`operations.compras_plano_saida_ajuste`) e vale nas próximas aberturas até você resetar.
 
 ## Filtros e opções
 
@@ -97,6 +105,7 @@ Ao expandir, cada semana aparece como um "chip": data da semana, uso direto em e
 - **Busca** — filtra por nome ou código do insumo.
 - **Seção (VMarket)** — filtra pela categoria de compra do VMarket (ex.: bebidas, carnes, hortifruti). "Todas as seções" mostra tudo.
 - **Só Curva A** — mostra apenas os insumos marcados como Curva A no cadastro (os de maior peso no custo).
+- **Só Proteínas (P)** — mostra apenas os insumos de seção VMarket de proteína (ex.: Cozinha - Proteínas), para focar a compra de carnes de uma vez.
 - **Todos / Comprar / Não comprar** — alterna entre ver a lista inteira, só o que precisa comprar ou só o que não precisa.
 
 Os filtros são aplicados no navegador sobre a lista já carregada; trocar filtro é instantâneo. Só a troca de **semana** e o botão **Atualizar** disparam nova consulta ao servidor.

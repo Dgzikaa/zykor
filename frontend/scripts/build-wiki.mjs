@@ -8,7 +8,7 @@
  * Fonte da verdade = os .md (versionados, fáceis de escrever/revisar).
  * generated.ts é DERIVADO — não edite à mão. Rode `npm run wiki:build` e COMMITE
  * o generated.ts junto. NÃO roda no build da Vercel de propósito: o .vercelignore
- * remove scripts/ e **/*.md do deploy, então o runtime usa o generated.ts commitado.
+ * remove scripts/ e **\/*.md do deploy, então o runtime usa o generated.ts commitado.
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { readdirSync, statSync } from 'node:fs';

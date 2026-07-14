@@ -62,6 +62,12 @@ Permissão necessária: módulo **Gestão** (`gestao`). Usuários com acesso som
 
 > Recalcular é o que faz o custo refletir o preço de insumo mais recente. Faça isso depois de precificar insumos ou montar/ajustar fichas.
 
+> **Editou uma ficha e não mudou aqui?** A aba **Cardápio** mostra o custo **ao vivo** (reflete a edição na hora). A aba **Por período** lê uma tabela que só atualiza no processo diário — depois de mexer numa ficha, use a aba **Cardápio** para conferir na hora, ou clique em **Recalcular**.
+
+> **Produtos agrupados (mesma ficha):** um produto agrupado num principal (ex.: `[50%] Caipirinha` → Caipirinha) herda o **custo/receita do principal** mas mantém o **seu preço**, então tem o **seu próprio CMV**. Ele conta normalmente no CMV do período pelo que vendeu em cada código.
+
+As **categorias** (no Cardápio e nos filtros) seguem o **prefixo do código**: `b`→Bebida, `d`→Drink, `c`→Comida, resto→Outros — igual nos dois bares.
+
 ### Resolver produtos "fora do de-para" (modo Por período)
 
 Quando um produto foi vendido no ContaHub mas não tem código interno vinculado, ele aparece num aviso laranja. Clicando nele:

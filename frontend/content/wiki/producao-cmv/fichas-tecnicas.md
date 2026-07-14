@@ -71,7 +71,17 @@ No campo **Porção** (badge âmbar), informe quantas unidades da ficha compõem
 ### 9. Vincular fichas réplica (receita compartilhada)
 Quando dois itens têm a mesma receita (ex.: a mesma bebida em preços diferentes: Happy Hour, Preço Promo, etc.), abra a ficha "mestre", clique em **Vincular fichas réplica**, selecione as outras e confirme. A receita da mestre é copiada para as selecionadas e, a partir daí, **editar uma edita todas**. Use "desvincular esta" para tirar uma do grupo.
 
-### 10. Buscar por insumo e substituir em massa
+### 10. Agrupar em uma ficha só (mesma receita, preços diferentes)
+Quando vários códigos ContaHub têm a **mesma receita** e só mudam o preço (ex.: Caipirinha, Caipirinha HH, [PP] Caipirinha, [50%] Caipirinha):
+1. Abra o produto que vai virar variante (ex.: `[50%] Caipirinha`).
+2. Clique em **agrupar (mesma ficha)** e escolha o **produto principal** (a Caipirinha base, que tem a ficha).
+3. Pronto: o variante passa a **usar a ficha do principal** (mostrada na tela com um aviso roxo, em modo leitura) e o **CMV recalcula na hora** — com o **custo do principal** e o **preço próprio** do variante.
+
+A partir daí você mantém **uma ficha só**: mudou a receita no principal, vale para todos do grupo. Promoção nova? Basta criar o código no ContaHub e **agrupar** no principal — sem copiar ficha. Para desfazer, abra o variante e clique em **desagrupar**.
+
+> **Agrupar (mesma ficha) × Vincular réplica:** *agrupar* mantém **uma ficha só** (a do principal) e é o caminho recomendado. *Vincular réplica* **copia** a receita para cada item (fichas separadas que ficam iguais no momento do vínculo) — modelo mais antigo, ainda disponível.
+
+### 11. Buscar por insumo e substituir em massa
 No topo, clique em **Buscar por insumo**. Digite o nome/código, veja em quais fichas ele aparece e, se quiser, escolha um insumo substituto para **trocá-lo em todas as fichas do bar de uma vez** (as quantidades são mantidas).
 
 ## Abas e seções
@@ -89,7 +99,7 @@ Fichas de itens que a casa produz. Cada produção tem **rendimento** (quanto sa
 Fichas dos itens vendidos. Traz o de-para de vendas e os indicadores de preço/CMV:
 
 - **Cód. CH / ID Yuzer** — ligam o produto às vendas do ContaHub e do Yuzer (sem eles, a venda não entra no CMV).
-- **Agrupar** — aponta o produto como variante de um **produto principal** (ex.: sabores de Red Bull → Red Bull principal que leva o código de venda). Variantes não contam como "sem cód CH" nem duplicam venda.
+- **Agrupar (mesma ficha)** — faz o produto usar a **ficha (receita/custo) de um produto principal**, mas mantendo o **seu próprio preço e o seu próprio CMV**. Ideal para variações que têm a mesma receita e só mudam o preço: Happy Hour, PagPag, PPHH, promoções [50%]. Assim você mantém **uma ficha só** (editada no principal) e vale para todas. **Dose Dupla não** entra (leva o dobro de insumo → é outra receita, tem ficha própria). Produto agrupado não conta como "sem ficha" nem como "sem cód CH".
 - **Porção (multiplicador)** — nº de unidades da ficha por porção vendida.
 - **Status (ContaHub)** — filtro Ativos/Inativos vindo do ContaHub.
 
@@ -130,7 +140,7 @@ Botão vermelho que aparece na aba Finalização quando há itens **vendidos no 
 | Nome + código + nº de itens | Identificação da ficha | `qtd_componentes` = nº de linhas da ficha | `v_produto_ficha_count` / contagem em `producao_ficha_item` |
 | Selo "A" (Produção) | Produção marcada como Curva A | Flag `curva_a` | `producao_base` |
 | "ch: ..." (Finalização) | Códigos ContaHub mapeados | `cods_ch` do de-para | `produto_contahub_map` |
-| Badge "ficha vazia" | Fichas sem nenhum componente | `qtd_componentes = 0` | Calculado |
+| Badge "ficha vazia" | Fichas sem nenhum componente | `qtd_componentes = 0` (produtos **agrupados** são excluídos — usam a ficha do principal) | Calculado |
 | Badge "item R$0" | Fichas com algum insumo sem preço | Códigos vindos da view de itens zerados | `gold.v_ficha_item_zerado` |
 | Badge "sem mestre" (Produção) | Fichas com itens mas sem insumo mestre | `qtd_componentes > 0` e nenhum `is_mestre` | Calculado |
 | Badge "sem cód CH" (Finalização) | Produtos sem código de venda e não agrupados | `cods_ch` vazio e sem `agrupado_em` | Calculado |
@@ -178,6 +188,12 @@ Quantas unidades da ficha compõem a porção vendida. A ficha é por 1 unidade;
 
 **Vinculei duas fichas por engano. Como desfaço?**
 Abra a ficha e clique em "desvincular esta". Ela deixa de sincronizar com as outras; se sobrar só uma no grupo, o grupo é desfeito.
+
+**Agrupei um produto (mesma ficha) e a ficha não apareceu / aparece como "sem ficha". Por quê?**
+O produto agrupado **usa a ficha do principal** — a tela mostra essa ficha (com o aviso roxo "usa a ficha de X"), e ele **não** deve contar como sem ficha. Se estiver aparecendo o valor antigo/vazio, é só **recarregar** a tela: o agrupar recalcula o CMV na hora, mas a aba "Por período" do CMV Teórico lê uma matview que atualiza no cron — use a aba **Cardápio** (ao vivo) ou o botão **Recalcular**.
+
+**Qual a diferença entre "agrupar (mesma ficha)" e "vincular réplica"?**
+*Agrupar* deixa **uma ficha só** (a do principal) e cada código mantém seu preço/CMV — é o recomendado, some a duplicata. *Vincular réplica* **copia** a receita para cada item (fichas separadas, iguais só no momento do vínculo). A Dose Dupla nunca se agrupa (leva o dobro de insumo → é outra receita).
 
 **Um produto vende no ContaHub mas o CMV não aparece. Por quê?**
 Provavelmente falta o **Cód. CH** (de-para) ou a ficha está vazia. Verifique o badge "vendeu sem cadastro" e "sem cód CH" e use "editar códigos".

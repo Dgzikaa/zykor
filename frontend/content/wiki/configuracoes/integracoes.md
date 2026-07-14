@@ -65,6 +65,18 @@ Quem usa: dono, administrador e time técnico, principalmente quando algo "parou
 1. No cartão **Umbler Talk**, clique em **Configurar** para abrir a tela dedicada de configuração do WhatsApp/Umbler.
 2. No cartão **Tangerino (Sólides DP)**, clique em **Configurar token** para abrir a tela de token do ponto.
 
+### Configurar as credenciais do Banco Inter (PIX/pagamentos) — por bar
+
+Cada bar tem a própria conta Inter. Para conectar um bar novo (ou trocar a credencial), **sem depender de dev**:
+
+1. No **Internet Banking PJ** do bar → **Inter API / Integrações**, crie a aplicação com escopo de **Pagamento/PIX** e pegue: **client_id**, **client_secret**, **conta corrente** e baixe o **certificado (.crt)** e a **chave privada (.key)**.
+2. No Zykor, **selecione o bar** no seletor do topo.
+3. Vá em **Integrações → cartão "Banco Inter" → "Configurar credenciais"**.
+4. Preencha client_id, client_secret e conta corrente, e **suba os arquivos .crt e .key**. Clique em **Cadastrar**.
+5. Clique em **testar** na conta cadastrada — ele bate na API real do Inter (OAuth + certificado) **sem pagar nada** e confirma se está tudo certo (verde). Se der vermelho, a mensagem diz se o erro é no client_id/secret ou no certificado/chave.
+
+> **Só admin** cadastra/testa credencial bancária. Os segredos (secret, certificado, chave) são **cifrados no servidor** e **nunca** são exibidos de volta. Dá para cadastrar mais de uma conta por bar e usar **substituir** para reenviar. O teste definitivo antes de operar de verdade é fazer **1 PIX de centavo** para uma chave conhecida.
+
 ### Atualizar os dados
 
 1. Clique em **Atualizar** (ícone de recarregar) no canto superior direito para forçar uma nova leitura do status.
