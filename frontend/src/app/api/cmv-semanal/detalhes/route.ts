@@ -63,6 +63,11 @@ export async function GET(request: NextRequest) {
         detalhes = await buscarDetalhesCompras(barId, dataInicio, dataFim, campo);
         break;
 
+      // ========== CMA — COMPRAS DE ALIMENTAÇÃO (funcionários) ==========
+      case 'compras_alimentacao':
+        detalhes = await buscarDetalhesComprasAlimentacao(barId, dataInicio, dataFim);
+        break;
+
       // ========== ESTOQUE INICIAL ==========
       case 'estoque_inicial':
       case 'estoque_inicial_cozinha':
@@ -243,6 +248,68 @@ async function buscarDetalhesCompras(barId: number, dataInicio: string, dataFim:
   // Ordenar por valor decrescente (em modulo, pra devolucao aparecer junto)
   detalhes.sort((a, b) => Math.abs(b.valor) - Math.abs(a.valor));
 
+  return detalhes;
+}
+
+/**
+ * Drill down do CMA — "(+) Compras" de Alimentação de Funcionários.
+ *
+ * Espelha EXATAMENTE o edge cmv-semanal-auto (index.ts ~L372-412) que grava
+ * financial.cmv_semanal.compras_alimentacao, pra o total do popup bater com a
+ * célula:
+ *   - fonte: bronze_contaazul_lancamentos (bar/data_competencia/excluido_em)
+ *   - categoria_nome ILIKE 'alimenta%' (prefixo — "ALIMENTAÇÃO"/"Alimentação")
+ *   - valorEfetivo = valor_pago>0 ? valor_pago : valor_bruto
+ *   - RECEITA (crédito/devolução) subtrai; DESPESA soma
+ */
+async function buscarDetalhesComprasAlimentacao(barId: number, dataInicio: string, dataFim: string) {
+  const { data, error } = await (supabase as any)
+    .schema('bronze')
+    .from('bronze_contaazul_lancamentos')
+    .select('valor_bruto, valor_pago, categoria_nome, tipo, data_competencia, descricao, pessoa_nome, status_traduzido, numero_documento')
+    .eq('bar_id', barId)
+    .in('tipo', ['DESPESA', 'RECEITA'])
+    .is('excluido_em', null)
+    .ilike('categoria_nome', 'alimenta%')
+    .gte('data_competencia', dataInicio)
+    .lte('data_competencia', dataFim)
+    .order('data_competencia', { ascending: true });
+
+  if (error) {
+    console.error('[cmv-semanal/detalhes] Erro ao buscar compras de alimentação:', error);
+    return [];
+  }
+  if (!data || data.length === 0) return [];
+
+  const detalhes: any[] = [];
+  for (const r of data as any[]) {
+    const valorBruto = parseFloat(String(r.valor_bruto || 0)) || 0;
+    const valorPago = parseFloat(String(r.valor_pago || 0)) || 0;
+    const valorEfetivo = valorPago > 0 ? valorPago : valorBruto;
+    const tipo = String(r.tipo || '').toUpperCase();
+    const sinal = tipo === 'RECEITA' ? -1 : 1;
+    const valor = valorEfetivo * sinal;
+
+    const categoria = String(r.categoria_nome || '');
+    const fornecedor = r.pessoa_nome || 'Fornecedor não especificado';
+    const descricao = r.descricao || categoria;
+
+    detalhes.push({
+      tipo: 'compra',
+      descricao,
+      fornecedor,
+      data: r.data_competencia,
+      categoria,
+      documento: r.numero_documento || '-',
+      status: r.status_traduzido || (tipo === 'RECEITA' ? 'Receita' : 'Despesa'),
+      valor,
+      valor_bruto: valorBruto,
+      valor_pago: valorPago,
+      detalhes: `${fornecedor} - ${categoria}${tipo === 'RECEITA' ? ' (Devolução)' : ''}`,
+    });
+  }
+
+  detalhes.sort((a, b) => Math.abs(b.valor) - Math.abs(a.valor));
   return detalhes;
 }
 
@@ -519,29 +586,42 @@ async function buscarDetalhesConsumoRH(barId: number, dataInicio: string, dataFi
 
 /**
  * Detalhe das 9 categorias padronizadas de consumação (c9_*) + 'outros'.
- * Espelha get_consumos_9_semana (mesma classificação por mesa+motivo+data via
- * classificar_consumo_padrao, com corte 12/06). valor = desconto bruto × fator
- * pra o total do popup bater com a célula (consumacoes_9 é gravada ×fator).
+ *
+ * valor = CUSTO REAL da ficha técnica (produto com FT → custo real proporcional
+ * ao desconto; sem FT → desconto × fator). É a MESMA fonte que grava a célula:
+ *   edge cmv-semanal-auto → get_consumos_9_custo_semana → consumacoes_9[cat]
+ *   = round(sum(custo_real)). O detalhe usa get_consumos_9_detalhes_custo_semana
+ *   (a agregada só faz group by dela), então o total do popup bate EXATO com a
+ *   célula E com a tela /operacional/consumacao (todas custo real).
+ *
+ * Antes usava get_consumos_9_detalhes_semana (desconto bruto × fator) — divergia
+ * da célula quando o custo real da ficha ≠ desconto × 0,35 (ex.: s28 bar 3
+ * Funcionário Operação: bruto 1647,83 ×0,35 = 576,74 no popup, mas custo real =
+ * 439,95 na célula). Mantém o corte 12/06 embutido na função.
  * 'outros' = motivos não mapeados nas 9 + lançamentos pré-corte.
  */
 async function buscarDetalhesConsumo9(
   barId: number, dataInicio: string, dataFim: string, categoria: string, fatorCmv: number,
 ) {
-  const { data, error } = await (supabase as any).rpc('get_consumos_9_detalhes_semana', {
+  const { data, error } = await (supabase as any).rpc('get_consumos_9_detalhes_custo_semana', {
     input_bar_id: barId,
     input_data_inicio: dataInicio,
     input_data_fim: dataFim,
     input_categoria: categoria,
+    p_fator: fatorCmv,
+    p_limit: null,
+    p_offset: 0,
   });
   if (error) {
-    console.error('[cmv-semanal/detalhes] erro RPC get_consumos_9_detalhes_semana:', error);
+    console.error('[cmv-semanal/detalhes] erro RPC get_consumos_9_detalhes_custo_semana:', error);
     return [];
   }
   if (!data) return [];
 
   return (data as any[]).map((r) => {
     const bruto = parseFloat(String(r.valor_desconto || 0)) || 0;
-    const valor = Math.round(bruto * fatorCmv * 100) / 100;
+    const custoReal = Math.round((parseFloat(String(r.custo_real || 0)) || 0) * 100) / 100;
+    const temFicha = r.tem_ficha === true;
     return {
       tipo: `consumo9_${categoria}`,
       descricao: r.prd_desc || r.motivo || categoria,
@@ -549,9 +629,10 @@ async function buscarDetalhesConsumo9(
       mesa: r.mesa || '-',
       motivo: r.motivo || '-',
       quantidade: parseFloat(String(r.qtd || 0)) || 0,
-      valor,                 // ×fator (bate com a célula)
+      valor: custoReal,      // custo real da ficha (bate com a célula e a consumação)
       valor_bruto: bruto,    // desconto bruto (debug)
-      detalhes: `${r.motivo || '-'} — Mesa ${r.mesa ?? '-'}${r.prd_desc ? ' — ' + r.prd_desc : ''} — Bruto R$ ${bruto.toFixed(2)} (×${fatorCmv.toFixed(2)} = R$ ${valor.toFixed(2)})`,
+      tem_ficha: temFicha,
+      detalhes: `${r.motivo || '-'} — Mesa ${r.mesa ?? '-'}${r.prd_desc ? ' — ' + r.prd_desc : ''} — Bruto R$ ${bruto.toFixed(2)} → Custo real R$ ${custoReal.toFixed(2)}${temFicha ? ' (ficha)' : ` (sem ficha, ×${fatorCmv.toFixed(2)})`}`,
     };
   });
 }
