@@ -5,8 +5,10 @@ export type PedidoStatus =
   | 'aguardando_aprovacao'
   | 'aprovado'
   | 'agendando'
+  | 'aguardando_socio'
   | 'agendado'
   | 'pago'
+  | 'reprovado'
   | 'erro_ca'
   | 'erro_inter'
   | 'rejeitado'
@@ -107,8 +109,10 @@ export const STATUS_LABEL: Record<PedidoStatus, string> = {
   aguardando_aprovacao: 'Aguardando aprovação',
   aprovado: 'Aprovado',
   agendando: 'Agendando…',
+  aguardando_socio: 'Aguardando aprovação sócio',
   agendado: 'Agendado',
   pago: 'Pago',
+  reprovado: 'Recusado pelo sócio',
   erro_ca: 'Erro Conta Azul',
   erro_inter: 'Erro Inter',
   rejeitado: 'Rejeitado',
@@ -120,8 +124,11 @@ export const STATUS_COLOR: Record<PedidoStatus, string> = {
   aguardando_aprovacao: 'bg-amber-500/15 text-amber-600',
   aprovado: 'bg-blue-500/15 text-blue-600',
   agendando: 'bg-indigo-500/15 text-indigo-600 animate-pulse',
+  // Subido ao Inter, esperando o OK do sócio no app — LARANJA (diferencia do resto).
+  aguardando_socio: 'bg-orange-500/15 text-orange-600',
   agendado: 'bg-indigo-500/15 text-indigo-600',
   pago: 'bg-green-500/15 text-green-600',
+  reprovado: 'bg-red-500/15 text-red-600',
   erro_ca: 'bg-red-500/15 text-red-600',
   erro_inter: 'bg-red-500/15 text-red-600',
   rejeitado: 'bg-red-500/15 text-red-600',
@@ -129,10 +136,11 @@ export const STATUS_COLOR: Record<PedidoStatus, string> = {
 };
 
 /**
- * Label do status, DINÂMICO pra 'agendado' (PIX/boleto já enviado ao Inter): mostra
- * "Agendado p/ DD/MM" quando o vencimento é FUTURO; "Aguardando aprovação" (do sócio no app do
- * Inter) quando é pra pagar já. O webhook do Inter fecha em 'pago' sozinho quando executa. Os demais
- * status seguem o STATUS_LABEL fixo.
+ * Label do status, DINÂMICO pra 'agendado' (sócio já aprovou no Inter, aguarda a data):
+ * mostra "Agendado p/ DD/MM" quando o vencimento é FUTURO; "Agendado" caso contrário. O
+ * estado ANTERIOR (subido, esperando o sócio) é o status próprio `aguardando_socio` (laranja).
+ * O webhook do Inter promove aguardando_socio → agendado (sócio ok) → pago (efetivado) sozinho.
+ * Os demais status seguem o STATUS_LABEL fixo.
  */
 export function statusLabel(p: { status: string; data_vencimento?: string | null }): string {
   if (p.status === 'agendado') {
@@ -142,7 +150,7 @@ export function statusLabel(p: { status: string; data_vencimento?: string | null
       const [, m, d] = venc.split('-');
       return `Agendado p/ ${d}/${m}`;
     }
-    return 'Aguardando aprovação';
+    return 'Agendado';
   }
   return STATUS_LABEL[p.status as PedidoStatus] ?? p.status;
 }

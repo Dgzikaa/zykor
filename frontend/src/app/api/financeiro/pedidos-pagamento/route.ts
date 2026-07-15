@@ -10,6 +10,7 @@ import {
   TIPOS_VALIDOS,
   type PedidoTipo,
 } from '@/lib/financeiro/pedidos-pagamento';
+import { paginate } from '@/lib/supabase/paginate';
 import { broadcastPedidoChange } from '@/lib/realtime/broadcastPedidos';
 
 export const dynamic = 'force-dynamic';
@@ -31,30 +32,39 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status');
   const tipo = searchParams.get('tipo');
   const escopoParam = searchParams.get('escopo');
-  const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500);
+  // Se o cliente pedir limit explícito, respeita (cap 1000); senão pagina TUDO.
+  // Bug 14/07: default 100 ordenado por created_at cortava pedidos válidos (ex.: PIX
+  // "Terça na Roda" agendado) quando havia >100 pedidos mais recentes — a aba Aprovado
+  // ficava sem eles, mas o solicitante (escopo=meus, lista curta) ainda os via. Mesmo
+  // limite-100 que já tinha derrubado os freelas. Agora pagina por-bar (tabela pequena).
+  const limitParam = searchParams.get('limit');
+  const limitExplicito = limitParam ? Math.min(parseInt(limitParam), 1000) : null;
 
   // Quem não pode aprovar só enxerga os próprios pedidos, mesmo pedindo "todos".
   const escopo = podeAprovar(user) && escopoParam !== 'meus' ? 'todos' : 'meus';
 
   const supabase = await getAdminClient();
-  let query = fin(supabase)
-    .from('pedidos_pagamento')
-    .select('*')
-    .eq('bar_id', user.bar_id)
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  const buildQuery = () => {
+    let q = fin(supabase)
+      .from('pedidos_pagamento')
+      .select('*')
+      .eq('bar_id', user.bar_id)
+      .order('created_at', { ascending: false });
+    if (status) q = q.eq('status', status);
+    if (tipo) q = q.eq('tipo', tipo);
+    if (escopo === 'meus') q = q.eq('solicitante_id', user.auth_id);
+    return q;
+  };
 
-  if (status) query = query.eq('status', status);
-  if (tipo) query = query.eq('tipo', tipo);
-  if (escopo === 'meus') query = query.eq('solicitante_id', user.auth_id);
-
-  const { data, error } = await query;
-  if (error) {
+  let pedidos: any[];
+  try {
+    pedidos = limitExplicito != null
+      ? ((await buildQuery().limit(limitExplicito)).data || [])
+      : await paginate<any>(buildQuery, { label: 'financial.pedidos_pagamento' });
+  } catch (error: any) {
     console.error('[PEDIDOS-PAG][GET]', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: error?.message || 'erro ao listar' }, { status: 500 });
   }
-
-  const pedidos = data || [];
 
   // Sugestão de categoria (Zykor sugere) — só p/ quem aprova e p/ pendentes sem categoria.
   // Fonte: categoria do último pedido APROVADO do mesmo fornecedor (por pessoa do CA,

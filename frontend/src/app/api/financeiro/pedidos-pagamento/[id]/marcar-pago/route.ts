@@ -34,7 +34,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!pedido || pedido.bar_id !== user.bar_id) {
     return NextResponse.json({ success: false, error: 'Pedido não encontrado' }, { status: 404 });
   }
-  if (!['aprovado', 'agendado'].includes(pedido.status)) {
+  // Fecha manualmente qualquer pedido já em andamento pós-aprovação (inclui os subidos ao Inter
+  // aguardando o sócio e os agendados) — cobre copia-e-cola/boleto pagos fora do webhook.
+  if (!['aprovado', 'aguardando_socio', 'agendado'].includes(pedido.status)) {
     return NextResponse.json(
       { success: false, error: `Só dá pra marcar como pago um pedido aprovado/agendado (status atual: ${pedido.status})` },
       { status: 409 }

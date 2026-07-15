@@ -15,8 +15,10 @@ export type PedidoStatus =
   | 'aguardando_aprovacao'
   | 'aprovado'
   | 'agendando'
+  | 'aguardando_socio'
   | 'agendado'
   | 'pago'
+  | 'reprovado'
   | 'erro_ca'
   | 'erro_inter'
   | 'rejeitado'
@@ -35,6 +37,17 @@ export const STATUS_EDITAVEL_SOLICITANTE: PedidoStatus[] = ['rascunho', 'aguarda
  */
 export const STATUS_APROVAVEL: PedidoStatus[] = ['aguardando_aprovacao'];
 export const STATUS_AGENDAVEL: PedidoStatus[] = ['aprovado', 'erro_ca', 'erro_inter'];
+
+/**
+ * Status em que o FINANCEIRO ainda pode cancelar/excluir um pedido (ex.: freela).
+ * Inclui os já SUBIDOS ao Inter (aguardando_socio/agendado) — nesse caso o cancelamento
+ * também tenta desfazer o agendamento no Inter. `pago` NÃO entra (dinheiro já saiu).
+ */
+export const STATUS_CANCELAVEL_FINANCEIRO: PedidoStatus[] = [
+  'aguardando_aprovacao', 'aprovado', 'aguardando_socio', 'agendado', 'erro_ca', 'erro_inter',
+];
+/** Status já SUBIDOS ao Inter — cancelar exige desfazer o agendamento no banco. */
+export const STATUS_SUBIDO_INTER: PedidoStatus[] = ['aguardando_socio', 'agendado'];
 
 export interface PedidoPagamento {
   id: string;

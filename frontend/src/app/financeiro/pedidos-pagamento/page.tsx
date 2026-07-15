@@ -23,7 +23,7 @@ import { BoletoTab } from './components/BoletoTab';
 import TrocasTab from './components/TrocasTab';
 import { FaturaCartaoTab } from './components/FaturaCartaoTab';
 import { ConsolidadoTab } from './components/ConsolidadoTab';
-import { FreelaPorDia } from '@/components/freelas/FreelaPorDia';
+import { FreelaFinanceiro, type FreelaVinculo } from './components/FreelaFinanceiro';
 
 type ModoPagamento = 'pagamentos' | 'freela' | 'boleto' | 'fatura' | 'trocas';
 
@@ -102,14 +102,41 @@ export default function PedidosPagamentoPage() {
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  // Freela (aba própria, layout por dia): aprovar/agendar 1 pessoa. Freela já traz categoria +
-  // fornecedor do cadastro do beneficiário → aprovar/agendar com corpo vazio (a rota usa os do pedido).
+  // Freela no financeiro (por pessoa): aprovar em lote as diárias pendentes da pessoa com o
+  // vínculo CA (categoria + fornecedor) que o financeiro escolhe — cobre o freela cujo cadastro
+  // não trouxe fornecedor/categoria (aprovar/agendar exigem os dois).
   const [freelaBusy, setFreelaBusy] = useState<string | null>(null);
-  const aprovarFreela = useCallback(async (id: string) => {
-    setFreelaBusy(id);
-    try { await api.post(`/api/financeiro/pedidos-pagamento/${id}/aprovar`, {}); await carregar(); }
-    catch (e: any) { showToast({ type: 'error', title: 'Erro ao aprovar', message: e?.message }); }
-    finally { setFreelaBusy(null); }
+  const aprovarFreela = useCallback(async (ids: string[], v: FreelaVinculo) => {
+    if (!ids.length) return;
+    setFreelaBusy(ids[0]);
+    let ok = 0, err = 0;
+    for (const id of ids) {
+      try {
+        await api.post(`/api/financeiro/pedidos-pagamento/${id}/aprovar`, {
+          categoria_id: v.categoria_id,
+          categoria_nome: opcoes.categorias.find(c => c.value === v.categoria_id)?.label,
+          contaazul_pessoa_id: v.contaazul_pessoa_id,
+        });
+        ok++;
+      } catch { err++; }
+    }
+    setFreelaBusy(null);
+    showToast({ type: err ? 'warning' : 'success', title: `${ok} diária(s) aprovada(s)`, message: err ? `${err} com erro` : undefined });
+    await carregar();
+  }, [carregar, showToast, opcoes.categorias]);
+  const reprovarFreela = useCallback(async (ids: string[]) => {
+    if (!ids.length) return;
+    const motivo = window.prompt('Motivo da recusa (vale pras diárias pendentes desta pessoa):')?.trim();
+    if (!motivo) return;
+    setFreelaBusy(ids[0]);
+    let ok = 0, err = 0;
+    for (const id of ids) {
+      try { await api.post(`/api/financeiro/pedidos-pagamento/${id}/rejeitar`, { motivo }); ok++; }
+      catch { err++; }
+    }
+    setFreelaBusy(null);
+    showToast({ type: err ? 'warning' : 'success', title: `${ok} diária(s) recusada(s)`, message: err ? `${err} com erro` : undefined });
+    await carregar();
   }, [carregar, showToast]);
   const agendarFreela = useCallback(async (id: string) => {
     setFreelaBusy(id);
@@ -117,6 +144,22 @@ export default function PedidosPagamentoPage() {
     catch (e: any) { showToast({ type: 'error', title: 'Erro ao agendar', message: e?.message }); }
     finally { setFreelaBusy(null); }
   }, [carregar, showToast]);
+  const excluirFreela = useCallback(async (id: string) => {
+    const alvo = pedidos.find(p => p.id === id);
+    const subido = alvo && ['aguardando_socio', 'agendado'].includes(alvo.status);
+    const msg = subido
+      ? 'Esta diária JÁ foi enviada ao Inter. Excluir vai tentar cancelar o agendamento no banco. Se já houver lançamento no Conta Azul, ele precisa ser removido à mão (o CA não tem API de exclusão). Continuar?'
+      : 'Excluir/cancelar esta diária de freela?';
+    if (!window.confirm(msg)) return;
+    setFreelaBusy(id);
+    try {
+      await api.post(`/api/financeiro/pedidos-pagamento/${id}/cancelar`, {});
+      showToast({ type: 'success', title: 'Diária excluída' });
+      await carregar();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Não deu pra excluir', message: e?.message });
+    } finally { setFreelaBusy(null); }
+  }, [pedidos, carregar, showToast]);
 
   // REAL-TIME (push): o servidor emite um "ping" por Broadcast a cada escrita
   // (criar/aprovar/rejeitar/pagar/editar) → a lista atualiza no mesmo segundo, sem
@@ -349,6 +392,7 @@ export default function PedidosPagamentoPage() {
                       Solicitado {countSolicitado > 0 && <Badge variant="secondary" className="ml-1.5">{countSolicitado}</Badge>}
                     </TabsTrigger>
                     <TabsTrigger value="aprovado">Aprovado</TabsTrigger>
+                    <TabsTrigger value="finalizado">Finalizado</TabsTrigger>
                     <TabsTrigger value="recusado">Recusado</TabsTrigger>
                     <TabsTrigger value="todos">Todos</TabsTrigger>
                     <TabsTrigger value="consolidado">Consolidado</TabsTrigger>
@@ -399,21 +443,19 @@ export default function PedidosPagamentoPage() {
                   </CardContent>
                 </Card>
               ) : modo === 'freela' ? (
-                // Freela no financeiro: agrupado por PESSOA (cada pessoa → seus dias), com aprovar/agendar.
-                <FreelaPorDia itens={filtrados} agruparPor="pessoa" acao={(it) => {
-                  if (!podeAprovar) return null;
-                  if (it.status === 'aguardando_aprovacao') return (
-                    <Button size="sm" className="h-7 px-2 text-xs" disabled={freelaBusy === it.id} onClick={() => aprovarFreela(it.id)}>
-                      {freelaBusy === it.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Aprovar'}
-                    </Button>
-                  );
-                  if (['aprovado', 'erro_ca', 'erro_inter'].includes(it.status)) return (
-                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={freelaBusy === it.id} onClick={() => agendarFreela(it.id)}>
-                      {freelaBusy === it.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Agendar'}
-                    </Button>
-                  );
-                  return null;
-                }} />
+                // Freela no financeiro: por PESSOA, com vínculo CA (categoria/fornecedor) + aprovar/
+                // recusar/subir/excluir. O vínculo cobre freela cujo cadastro não trouxe fornecedor.
+                <FreelaFinanceiro
+                  itens={filtrados}
+                  podeAprovar={podeAprovar}
+                  categorias={opcoes.categorias}
+                  fornecedores={opcoes.fornecedores}
+                  busyId={freelaBusy}
+                  onAprovar={aprovarFreela}
+                  onReprovar={reprovarFreela}
+                  onAgendar={agendarFreela}
+                  onExcluir={excluirFreela}
+                />
               ) : (
                 <div className="space-y-2">
                   {filtrados.map((p) => (

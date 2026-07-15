@@ -35,6 +35,64 @@ function isFutureScheduleDate(dataPagamento: string | undefined): boolean {
   return dataPagamento > hojeIso;
 }
 
+/**
+ * Cancela um agendamento PIX no Inter (só funciona enquanto NÃO efetivou — ex.: aguardando o
+ * sócio ou agendado pra frente). Banking v2: DELETE /banking/v2/pix/{codigoSolicitacao} com mTLS.
+ * Retorna success=true no 200/204; erros do banco (ex.: já pago/inexistente) vêm em `error`.
+ */
+export async function cancelarAgendamentoPixInter(params: {
+  token: string;
+  contaCorrente: string;
+  codigoSolicitacao: string;
+  mtlsCredentials?: { cert: Buffer; key: Buffer };
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { token, contaCorrente, codigoSolicitacao, mtlsCredentials } = params;
+    const { cert, key } = mtlsCredentials || getInterCertificates();
+
+    const options = {
+      hostname: 'cdpj.partners.bancointer.com.br',
+      port: 443,
+      path: `/banking/v2/pix/${encodeURIComponent(codigoSolicitacao)}`,
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token.trim()}`,
+        'Content-Type': 'application/json',
+        'x-conta-corrente': contaCorrente,
+      },
+      cert,
+      key,
+    };
+
+    const response = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
+      const req = https.request(options, (res) => {
+        let body = '';
+        res.on('data', (c) => (body += c));
+        res.on('end', () => resolve({ statusCode: res.statusCode || 500, body }));
+      });
+      req.on('error', reject);
+      req.end();
+    });
+
+    if (response.statusCode === 200 || response.statusCode === 204) {
+      return { success: true };
+    }
+    let errorMessage = `Erro ${response.statusCode}`;
+    if (response.body && response.body.trim()) {
+      try {
+        const d = JSON.parse(response.body);
+        const title = d.title || `Erro ${response.statusCode}`;
+        errorMessage = d.detail ? `${title}: ${d.detail}` : title;
+      } catch {
+        errorMessage = `Erro ${response.statusCode}: ${response.body}`;
+      }
+    }
+    return { success: false, error: errorMessage };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Erro na comunicação com o banco' };
+  }
+}
+
 export async function realizarPagamentoPixInter(
   params: PixPaymentParams
 ): Promise<{ success: boolean; data?: any; error?: string }> {

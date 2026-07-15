@@ -1,0 +1,258 @@
+'use client';
+
+/**
+ * Programa de Fidelidade (Receitas) — espelha, dentro do Zykor, os dados que o parceiro
+ * (Go!Bar) devolve pela API dele a partir do que enviamos. Fonte: /api/receitas/fidelidade
+ * (agrega no servidor a view vw_ordi_clientes do parceiro). Só o Ordinário (bar_id=3) tem
+ * programa hoje; outros bares mostram o aviso de indisponível.
+ */
+
+import { useEffect, useMemo, useState } from 'react';
+import { Loader2, Gift, Search } from 'lucide-react';
+import { usePageTitle } from '@/contexts/PageTitleContext';
+import { useBar } from '@/contexts/BarContext';
+import { api } from '@/lib/api-client';
+import { PageShell } from '@/components/layout/PageShell';
+import { ChartCard, GraficoDonut, GraficoBarraH } from '@/components/graficos/Charts';
+
+const num = (v: number) => Math.round(v || 0).toLocaleString('pt-BR');
+const moeda = (v: number) =>
+  (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+const pct = (v: number) => `${(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+
+interface Cliente {
+  cliente_id: string;
+  nome: string | null;
+  telefone_norm: string | null;
+  quantidade_visitas: number;
+  total_consumido: number;
+  saldo_pontos: number;
+  pontos_gerados: number;
+  pontos_utilizados: number;
+  total_resgates: number;
+  status_cliente: string | null;
+  ultima_visita: string | null;
+}
+
+interface Resumo {
+  totalClientes: number;
+  comCadastro: number;
+  comPontos: number;
+  comResgate: number;
+  comCarteira: number;
+  saldoPontosTotal: number;
+  pontosGerados: number;
+  pontosUtilizados: number;
+  totalResgates: number;
+  totalConsumido: number;
+  itensCarteira: number;
+  ticketMedio: number;
+  taxaResgate: number;
+}
+
+interface Resposta {
+  success: boolean;
+  disponivel: boolean;
+  resumo: Resumo | null;
+  porStatus: { status: string; clientes: number; saldoPontos: number }[];
+  clientes: Cliente[];
+}
+
+// Paleta por status na ordem típica do funil de fidelidade.
+const CORES_STATUS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#a855f7', '#94a3b8'];
+
+function Kpi({ label, valor, sub }: { label: string; valor: string; sub?: string }) {
+  return (
+    <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+      <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">{label}</div>
+      <div className="mt-1 text-2xl font-bold text-[hsl(var(--foreground))]">{valor}</div>
+      {sub && <div className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">{sub}</div>}
+    </div>
+  );
+}
+
+export default function FidelidadePage() {
+  const { selectedBar } = useBar();
+  const { setPageTitle } = usePageTitle();
+  const [resp, setResp] = useState<Resposta | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
+
+  useEffect(() => {
+    setPageTitle('🎁 Programa de Fidelidade');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
+
+  const barId = selectedBar?.id;
+
+  useEffect(() => {
+    if (!barId) return;
+    setLoading(true);
+    setErro(null);
+    api
+      .get(`/api/receitas/fidelidade?bar_id=${barId}`)
+      .then((r: any) => {
+        if (r?.success) setResp(r as Resposta);
+        else setErro(r?.error || 'Falha ao carregar');
+      })
+      .catch((e: any) => setErro(e?.message || 'Falha ao carregar'))
+      .finally(() => setLoading(false));
+  }, [barId]);
+
+  const resumo = resp?.resumo;
+
+  const topPontos = useMemo(
+    () =>
+      [...(resp?.clientes ?? [])]
+        .filter((c) => c.saldo_pontos > 0)
+        .sort((a, b) => b.saldo_pontos - a.saldo_pontos)
+        .slice(0, 14)
+        .map((c) => ({ nome: c.nome || 'Sem nome', saldo: Math.round(c.saldo_pontos) })),
+    [resp],
+  );
+
+  const clientesFiltrados = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    const base = resp?.clientes ?? [];
+    const arr = q
+      ? base.filter(
+          (c) =>
+            (c.nome || '').toLowerCase().includes(q) || (c.telefone_norm || '').includes(q),
+        )
+      : base;
+    return arr.slice(0, 200);
+  }, [resp, busca]);
+
+  return (
+    <PageShell width="wide">
+      <div className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
+        <Gift className="h-4 w-4" />
+        Programa de fidelidade de {selectedBar?.nome ?? 'o bar selecionado'} — dados do parceiro.
+      </div>
+
+      {!barId ? (
+        <div className="flex h-64 items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">
+          Selecione um bar.
+        </div>
+      ) : loading ? (
+        <div className="flex h-64 items-center justify-center text-[hsl(var(--muted-foreground))]">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </div>
+      ) : erro ? (
+        <div className="flex h-64 items-center justify-center text-sm text-[hsl(var(--destructive))]">
+          {erro}
+        </div>
+      ) : !resp?.disponivel ? (
+        <div className="flex h-64 flex-col items-center justify-center gap-2 text-center text-sm text-[hsl(var(--muted-foreground))]">
+          <Gift className="h-8 w-8 opacity-50" />
+          <span>Este bar ainda não tem programa de fidelidade integrado.</span>
+        </div>
+      ) : (
+        <>
+          {/* KPIs */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+            <Kpi
+              label="Clientes na base"
+              valor={num(resumo!.totalClientes)}
+              sub={`${num(resumo!.comCadastro)} com cadastro`}
+            />
+            <Kpi
+              label="Com pontos"
+              valor={num(resumo!.comPontos)}
+              sub={`${pct((resumo!.comPontos / Math.max(1, resumo!.totalClientes)) * 100)} da base`}
+            />
+            <Kpi
+              label="Saldo de pontos"
+              valor={num(resumo!.saldoPontosTotal)}
+              sub={`${num(resumo!.pontosGerados)} gerados · ${num(resumo!.pontosUtilizados)} usados`}
+            />
+            <Kpi
+              label="Resgates"
+              valor={num(resumo!.totalResgates)}
+              sub={`${num(resumo!.comResgate)} clientes · taxa ${pct(resumo!.taxaResgate)}`}
+            />
+            <Kpi label="Consumo total" valor={moeda(resumo!.totalConsumido)} />
+            <Kpi label="Ticket médio" valor={moeda(resumo!.ticketMedio)} />
+            <Kpi label="Itens na carteira" valor={num(resumo!.itensCarteira)} sub={`${num(resumo!.comCarteira)} clientes`} />
+            <Kpi
+              label="Pontos utilizados"
+              valor={pct((resumo!.pontosUtilizados / Math.max(1, resumo!.pontosGerados)) * 100)}
+              sub="do total gerado"
+            />
+          </div>
+
+          {/* Gráficos */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <ChartCard titulo="Clientes por status" subtitulo="composição da base de fidelidade">
+              <GraficoDonut
+                data={resp.porStatus}
+                nameKey="status"
+                valueKey="clientes"
+                cores={CORES_STATUS}
+                formatV={num}
+                centro={num(resumo!.totalClientes)}
+                height={300}
+              />
+            </ChartCard>
+
+            <ChartCard titulo="Top clientes por saldo de pontos" subtitulo="maiores saldos acumulados">
+              <GraficoBarraH data={topPontos} xKey="nome" valueKey="saldo" formatV={num} height={300} />
+            </ChartCard>
+          </div>
+
+          {/* Tabela */}
+          <ChartCard titulo="Clientes" subtitulo={`${num(resp.clientes.length)} no total — busca por nome ou telefone`}>
+            <div className="mb-3 flex items-center gap-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2">
+              <Search className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+              <input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar cliente..."
+                className="w-full bg-transparent text-sm text-[hsl(var(--foreground))] outline-none placeholder:text-[hsl(var(--muted-foreground))]"
+              />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[hsl(var(--border))] text-left text-xs text-[hsl(var(--muted-foreground))]">
+                    <th className="py-2 pr-3 font-medium">Cliente</th>
+                    <th className="py-2 pr-3 font-medium">Telefone</th>
+                    <th className="py-2 pr-3 text-right font-medium">Visitas</th>
+                    <th className="py-2 pr-3 text-right font-medium">Consumo</th>
+                    <th className="py-2 pr-3 text-right font-medium">Saldo pts</th>
+                    <th className="py-2 pr-3 text-right font-medium">Resgates</th>
+                    <th className="py-2 pr-3 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clientesFiltrados.map((c) => (
+                    <tr key={c.cliente_id} className="border-b border-[hsl(var(--border))]/50">
+                      <td className="py-2 pr-3 text-[hsl(var(--foreground))]">{c.nome || '—'}</td>
+                      <td className="py-2 pr-3 text-[hsl(var(--muted-foreground))]">{c.telefone_norm || '—'}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{num(c.quantidade_visitas)}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{moeda(c.total_consumido)}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{num(c.saldo_pontos)}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{num(c.total_resgates)}</td>
+                      <td className="py-2 pr-3 text-[hsl(var(--muted-foreground))]">{c.status_cliente || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {clientesFiltrados.length === 0 && (
+                <div className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                  Nenhum cliente encontrado.
+                </div>
+              )}
+              {!busca && resp.clientes.length > 200 && (
+                <div className="pt-3 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                  Mostrando os 200 maiores consumidores — use a busca para achar um cliente específico.
+                </div>
+              )}
+            </div>
+          </ChartCard>
+        </>
+      )}
+    </PageShell>
+  );
+}

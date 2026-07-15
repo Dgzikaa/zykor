@@ -248,8 +248,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   }
 
-  // Copia e cola continua 'aprovado' (pagamento manual); os demais viram 'agendado'.
-  const statusFinal = ehCopiaCola ? 'aprovado' : 'agendado';
+  // Copia e cola continua 'aprovado' (pagamento MANUAL — sem Inter; fecha pelo "Marcar como pago").
+  // Os demais foram enviados ao Inter e agora aguardam o OK do SÓCIO no app → 'aguardando_socio'
+  // (laranja, fica na aba Aprovado). O webhook do Inter promove sozinho: sócio aprova → 'agendado'
+  // (aba Finalizado, aguarda a data) → efetiva → 'pago'; sócio recusa → 'reprovado'.
+  const statusFinal = ehCopiaCola ? 'aprovado' : 'aguardando_socio';
   const { data: atualizado } = await fin(supabase)
     .from('pedidos_pagamento')
     .update({

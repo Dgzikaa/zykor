@@ -56,6 +56,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'BarChart3', label: 'Dashboard de Receitas', href: '/receitas', permission: 'relatorios' },
       { icon: 'Sparkles', label: 'Análise (IA)', href: '/receitas/analise', permission: 'relatorios' },
       { icon: 'Megaphone', label: 'Comunicação', href: '/receitas/comunicacao', permission: 'relatorios' },
+      { icon: 'Gift', label: 'Fidelidade', href: '/receitas/fidelidade', permission: 'relatorios' },
       { icon: 'Users', label: 'Clientes', href: '/analitico/clientes', permission: 'relatorios' },
       { icon: 'BarChart3', label: 'Eventos', href: '/analitico/eventos', permission: 'relatorios' },
       { icon: 'Music', label: 'Visão do Artista', href: '/analitico/atracoes', permission: 'relatorios' },

@@ -55,6 +55,10 @@ export default function FreelasOperacaoPage() {
   const [encerrando, setEncerrando] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editVal, setEditVal] = useState('');
+  // Cadastro de freela novo (entra no roster de financial.beneficiarios).
+  const [novoOpen, setNovoOpen] = useState(false);
+  const [novo, setNovo] = useState({ nome: '', funcao: '', valor: '', pix: '' });
+  const [salvandoNovo, setSalvandoNovo] = useState(false);
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -128,6 +132,27 @@ export default function FreelasOperacaoPage() {
     if (!window.confirm(`Remover a diária de ${p.beneficiario_nome || 'freela'} (${ddmm(p.data_competencia || p.data_vencimento)} · ${fmtBRL(p.valor)})?`)) return;
     try { await api.delete(`/api/operacional/freelas?id=${p.id}`); await carregar(); }
     catch (e: any) { toast({ title: 'Erro ao remover', description: e?.message, variant: 'destructive' }); }
+  };
+
+  const cadastrarFreela = async () => {
+    const nome = novo.nome.trim();
+    if (!nome) return toast({ title: 'Informe o nome do freela', variant: 'destructive' });
+    setSalvandoNovo(true);
+    try {
+      await api.post('/api/operacional/freelas', {
+        action: 'cadastrar_freela',
+        nome,
+        funcao: novo.funcao.trim() || undefined,
+        valor_padrao: novo.valor ? parseValor(novo.valor) : undefined,
+        chave_pix: novo.pix.trim() || undefined,
+      });
+      toast({ title: 'Freela cadastrado', description: nome });
+      setNovo({ nome: '', funcao: '', valor: '', pix: '' });
+      setNovoOpen(false);
+      await carregar();
+    } catch (e: any) {
+      toast({ title: 'Erro ao cadastrar', description: e?.message, variant: 'destructive' });
+    } finally { setSalvandoNovo(false); }
   };
 
   const encerrarSemana = async () => {
@@ -237,10 +262,36 @@ export default function FreelasOperacaoPage() {
                 <span className="text-sm text-muted-foreground">Dia trabalhado:</span>
                 <Input type="date" value={dia} min={semana.monISO} max={semana.sunISO} onChange={e => setDia(e.target.value)} className="h-8 w-40" />
               </div>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar freela por nome ou função..." className="h-9 pl-8" />
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar freela por nome ou função..." className="h-9 pl-8" />
+                </div>
+                <Button variant={novoOpen ? 'secondary' : 'outline'} size="sm" className="h-9 shrink-0" onClick={() => setNovoOpen(o => !o)}>
+                  <Plus className="w-4 h-4 mr-1.5" />Novo freela
+                </Button>
               </div>
+
+              {novoOpen && (
+                <Card className="border-emerald-400/60">
+                  <CardContent className="py-3 space-y-2">
+                    <div className="text-sm font-medium">Cadastrar freela no roster</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Input value={novo.nome} onChange={e => setNovo(n => ({ ...n, nome: e.target.value }))} placeholder="Nome *" className="h-9" />
+                      <Input value={novo.funcao} onChange={e => setNovo(n => ({ ...n, funcao: e.target.value }))} placeholder="Função (ex.: Atendimento)" className="h-9" />
+                      <Input value={novo.valor} onChange={e => setNovo(n => ({ ...n, valor: e.target.value }))} inputMode="decimal" placeholder="Valor padrão da diária" className="h-9" />
+                      <Input value={novo.pix} onChange={e => setNovo(n => ({ ...n, pix: e.target.value }))} placeholder="Chave PIX" className="h-9" />
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => { setNovoOpen(false); setNovo({ nome: '', funcao: '', valor: '', pix: '' }); }}>Cancelar</Button>
+                      <Button size="sm" onClick={cadastrarFreela} disabled={salvandoNovo || !novo.nome.trim()}>
+                        {salvandoNovo ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Salvando...</> : <><Check className="w-4 h-4 mr-1.5" />Cadastrar</>}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">O vínculo com o Conta Azul (fornecedor/categoria) é feito pelo financeiro na hora de aprovar.</p>
+                  </CardContent>
+                </Card>
+              )}
               <div className="space-y-1.5">
                 {rosterVisivel.length === 0 ? (
                   <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">Nenhum freela {busca ? `para "${busca}"` : 'cadastrado'}.</CardContent></Card>

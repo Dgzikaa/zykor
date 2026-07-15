@@ -132,15 +132,17 @@ export async function POST(request: NextRequest) {
       last_webhook_payload: ev,
     };
 
-    // Mapeia status Inter → status local do pix_enviados
+    // Mapeia status Inter → status local do pix_enviados.
+    // ATENÇÃO: o Inter manda EFETIVADO (não "EXECUTADO"/"PAGO") quando o pagamento sai —
+    // faltava na lista e a virada pra 'pago' não disparava. REPROVADO = sócio recusou no app.
     const statusUpper = String(novoStatus || '').toUpperCase();
-    if (['EXECUTADO', 'CONCLUIDO', 'PAGO', 'COMPLETED'].includes(statusUpper)) {
+    if (['EFETIVADO', 'EXECUTADO', 'CONCLUIDO', 'PAGO', 'COMPLETED'].includes(statusUpper)) {
       updates.status = 'pago';
-    } else if (['FALHOU', 'ERRO', 'FAILED', 'REJEITADO'].includes(statusUpper)) {
+    } else if (['FALHOU', 'ERRO', 'FAILED', 'REPROVADO', 'REJEITADO'].includes(statusUpper)) {
       updates.status = 'erro';
     } else if (['CANCELADO', 'CANCELLED'].includes(statusUpper)) {
       updates.status = 'cancelado';
-    } else if (['AGENDADO', 'SCHEDULED', 'AGUARDANDO_APROVACAO', 'PENDING'].includes(statusUpper)) {
+    } else if (['AGENDADO', 'SCHEDULED', 'ENVIADO', 'AGUARDANDO_APROVACAO', 'PENDING'].includes(statusUpper)) {
       updates.status = 'agendado';
     }
 
@@ -157,12 +159,24 @@ export async function POST(request: NextRequest) {
       console.warn('[INTER-WEBHOOK] Codigo desconhecido:', codigo, 'status:', novoStatus);
     }
 
-    // PROPAGA pro PEDIDO: PIX confirmado no Inter → pedido vira 'pago' AUTOMATICAMENTE (não fica
-    // preso em 'agendado' esperando o clique manual). Liga pelo código do Inter (o pedido guarda
-    // inter_codigo_solicitacao) ou pelo id (pix_enviados.pagamento_zykor_id). Best-effort: qualquer
-    // falha aqui é logada e NÃO derruba o webhook (o Inter espera 200). Copia-e-cola/manual não
-    // passam pelo Inter, então continuam fechando pelo botão "Marcar como pago".
-    if (updates.status === 'pago') {
+    // PROPAGA pro PEDIDO o CICLO REAL do Inter (não só "pago"). O pedido acompanha o estado do
+    // sócio no app do Inter, movendo AUTOMÁTICO entre as abas:
+    //   ENVIADO/aguardando → 'aguardando_socio' (aba Aprovado, laranja) — subido, espera o sócio
+    //   AGENDADO           → 'agendado'         (aba Finalizado) — sócio aprovou, aguarda a data
+    //   EFETIVADO/pago     → 'pago'             (aba Finalizado) — efetivou
+    //   REPROVADO          → 'reprovado'        (aba Finalizado) — sócio recusou (registro)
+    // Liga pelo código do Inter (o pedido guarda inter_codigo_solicitacao) ou pelo id
+    // (pix_enviados.pagamento_zykor_id). Só avança o fluxo — nunca regride nem toca em terminais
+    // (pago/rejeitado/cancelado). Best-effort: falha aqui é logada e NÃO derruba o webhook (o Inter
+    // espera 200). Copia-e-cola/manual não passa pelo Inter → fecha pelo botão "Marcar como pago".
+    const alvoPedido =
+      updates.status === 'pago' ? 'pago'
+      : statusUpper === 'REPROVADO' ? 'reprovado'
+      : ['AGENDADO', 'SCHEDULED'].includes(statusUpper) ? 'agendado'
+      : ['ENVIADO', 'AGUARDANDO_APROVACAO', 'PENDING'].includes(statusUpper) ? 'aguardando_socio'
+      : ['FALHOU', 'ERRO', 'FAILED'].includes(statusUpper) ? 'erro_inter'
+      : null;
+    if (alvoPedido) {
       try {
         const fin2 = (supabase.schema('financial' as any) as any);
         let ped: any = null;
@@ -178,21 +192,35 @@ export async function POST(request: NextRequest) {
             .limit(1).maybeSingle();
           ped = q2.data;
         }
-        if (ped && ['agendado', 'aprovado'].includes(ped.status)) {
+        // Não mexe em quem já está no estado-alvo nem em terminais (pago sempre pode fechar).
+        const TERMINAIS = ['pago', 'rejeitado', 'cancelado'];
+        const podeAtualizar = ped && ped.status !== alvoPedido &&
+          (alvoPedido === 'pago' ? ped.status !== 'pago' : !TERMINAIS.includes(ped.status));
+        if (podeAtualizar) {
           await fin2.from('pedidos_pagamento')
-            .update({ status: 'pago', pago_em: new Date().toISOString() })
+            .update({
+              status: alvoPedido,
+              ...(alvoPedido === 'pago' ? { pago_em: new Date().toISOString() } : {}),
+            })
             .eq('id', ped.id);
+          const MSG: Record<string, string> = {
+            pago: 'Pagamento confirmado automaticamente pelo Inter (webhook PIX).',
+            agendado: 'Aprovado pelo sócio no Inter — agendado, aguardando a data (webhook PIX).',
+            aguardando_socio: 'Enviado ao Inter — aguardando a aprovação do sócio no app (webhook PIX).',
+            reprovado: 'Recusado pelo sócio no app do Inter (webhook PIX).',
+            erro_inter: 'Falha reportada pelo Inter no pagamento (webhook PIX).',
+          };
           await fin2.from('pedidos_pagamento_comentarios').insert({
             pedido_id: ped.id, bar_id: ped.bar_id, autor_id: null, autor_nome: 'Sistema',
-            mensagem: 'Pagamento confirmado automaticamente pelo Inter (webhook PIX).', tipo: 'sistema',
+            mensagem: MSG[alvoPedido] || `Status atualizado pelo Inter: ${alvoPedido}.`, tipo: 'sistema',
           });
           await fin2.from('pedidos_pagamento_historico').insert({
             pedido_id: ped.id, bar_id: ped.bar_id, autor_id: null, autor_nome: 'Inter (webhook)',
-            campo: 'status', valor_anterior: ped.status, valor_novo: 'pago',
+            campo: 'status', valor_anterior: ped.status, valor_novo: alvoPedido,
           });
         }
       } catch (e) {
-        console.error('[INTER-WEBHOOK] Falha ao propagar pago pro pedido:', e);
+        console.error('[INTER-WEBHOOK] Falha ao propagar status pro pedido:', e);
       }
     }
   }
