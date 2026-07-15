@@ -200,6 +200,9 @@ O agrupamento por mesa (ligado por padrão) consolida a mesma pessoa no período
 **A aba Análises considera meus filtros?**
 Sim. Ela usa exatamente o conjunto já filtrado na aba Lançamentos.
 
+**Por que a consumação daqui não bate com a coluna mensal do CMV Semanal?**
+Porque são **fontes diferentes**. Esta tela (e o CMV **semanal**) lê o **ContaHub** — o desconto que saiu no PDV, classificado automático pelo motivo. Já a **coluna mensal** do CMV (e a DRE) lê o **Conta Azul** — as categorias `[Consumação]` lançadas **à mão** pelo financeiro, que é a base contábil. Quando o lançamento manual no CA fica incompleto num mês, a consumação do mensal aparece menor que a daqui. Unificar as duas numa fonte só é uma decisão em aberto (contábil).
+
 ## Fonte dos dados
 
 Origem: **ContaHub** (vendas/descontos), enriquecido com fichas técnicas e cadastros internos.
