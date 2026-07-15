@@ -20,32 +20,54 @@ export async function POST(request: NextRequest) {
 
   let file: File | null = null;
   let faturaId = '';
+  let cartaoId = '';
   try {
     const form = await request.formData();
     file = form.get('file') as File | null;
     faturaId = String(form.get('fatura_id') || '');
+    cartaoId = String(form.get('cartao_id') || '');
   } catch {
     return NextResponse.json({ success: false, error: 'Envie o arquivo em multipart/form-data' }, { status: 400 });
   }
   if (!file) return NextResponse.json({ success: false, error: 'Arquivo não enviado' }, { status: 400 });
-  if (!faturaId) return NextResponse.json({ success: false, error: 'Selecione a fatura antes de importar' }, { status: 400 });
+  if (!faturaId && !cartaoId) return NextResponse.json({ success: false, error: 'Selecione a fatura ou o cartão antes de importar' }, { status: 400 });
 
-  // Fatura precisa existir, ser do bar do usuário e estar ABERTA.
-  const supabaseFat = await getAdminClient();
-  const { data: fatura } = await fin(supabaseFat).from('cartao_faturas').select('id, bar_id, status').eq('id', faturaId).maybeSingle();
-  if (!fatura || fatura.bar_id !== user.bar_id) {
-    return NextResponse.json({ success: false, error: 'Fatura não encontrada' }, { status: 404 });
-  }
-  if (fatura.status !== 'aberta') {
-    return NextResponse.json({ success: false, error: 'Fatura encerrada — reabra pra importar de novo' }, { status: 409 });
-  }
-
+  // Lê o arquivo primeiro (o vencimento do cabeçalho define a fatura quando importando por cartão).
   const buffer = Buffer.from(await file.arrayBuffer());
   let parsed;
   try {
     parsed = parseFaturaCartao(buffer, file.name);
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'Falha ao ler o arquivo' }, { status: 400 });
+  }
+
+  const supabaseFat = await getAdminClient();
+  let faturaCriada = false;
+  if (faturaId) {
+    // Fatura precisa existir, ser do bar do usuário e estar ABERTA.
+    const { data: fatura } = await fin(supabaseFat).from('cartao_faturas').select('id, bar_id, status').eq('id', faturaId).maybeSingle();
+    if (!fatura || fatura.bar_id !== user.bar_id) return NextResponse.json({ success: false, error: 'Fatura não encontrada' }, { status: 404 });
+    if (fatura.status !== 'aberta') return NextResponse.json({ success: false, error: 'Fatura encerrada — reabra pra importar de novo' }, { status: 409 });
+  } else {
+    // MODO NOVO: cria a fatura pra este cartão (conta) com o vencimento do arquivo. Reusa a
+    // fatura aberta do mesmo cartão+vencimento se já existir (reimportar não duplica).
+    if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
+    const { data: cad } = await fin(supabaseFat).from('cartao_cadastro').select('id, bar_id').eq('id', cartaoId).maybeSingle();
+    if (!cad || cad.bar_id !== user.bar_id) return NextResponse.json({ success: false, error: 'Cartão não encontrado' }, { status: 404 });
+    const venc = parsed.vencimento || null;
+    if (!venc) return NextResponse.json({ success: false, error: 'Não achei o vencimento no arquivo — não dá pra criar a fatura automática. Use um extrato do Itaú (traz o vencimento).' }, { status: 400 });
+    const { data: existente } = await fin(supabaseFat).from('cartao_faturas').select('id')
+      .eq('bar_id', user.bar_id).eq('cartao_id', cartaoId).eq('vencimento', venc).eq('status', 'aberta').maybeSingle();
+    if (existente?.id) {
+      faturaId = existente.id;
+    } else {
+      const { data: nova, error: eNova } = await fin(supabaseFat).from('cartao_faturas').insert({
+        bar_id: user.bar_id, cartao_id: cartaoId, vencimento: venc,
+        valor_informado: parsed.valor_total != null ? parsed.valor_total : null, criado_por: user.auth_id,
+      }).select('id').single();
+      if (eNova) return NextResponse.json({ success: false, error: eNova.message }, { status: 500 });
+      faturaId = nova.id; faturaCriada = true;
+    }
   }
 
   const linhas = parsed.linhas;
@@ -79,7 +101,7 @@ export async function POST(request: NextRequest) {
     if (novos.length) {
       const rows = novos.map(l => ({
         fatura_id: faturaId,
-        bar_id: fatura.bar_id,
+        bar_id: user.bar_id,
         dedupe_hash: l.dedupe_hash,
         banco: l.banco,
         origem_formato: l.origem_formato,
@@ -124,6 +146,8 @@ export async function POST(request: NextRequest) {
       ja_vistos: linhas.length - novos.length,
       vencimento_arquivo: parsed.vencimento ?? null,
       valor_arquivo: parsed.valor_total ?? null,
+      fatura_id: faturaId,
+      fatura_criada: faturaCriada,
       linhas: todas,
     });
   } catch (e: any) {

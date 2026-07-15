@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { DateInputBR } from '@/components/ui/date-input-br';
 import { ColumnFilterHeader, useColumnFilters, type FilterCol } from '@/components/ui/column-filter-header';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
@@ -317,14 +316,6 @@ export function FaturaCartaoTab() {
   const norm = (s: string) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
   const barFatura = faturaSel?.bar_id ?? selectedBar?.id ?? null;
   type CartaoResumo = { cartao_final: string; titular_nome: string | null; banco: string | null };
-  const cartoesDaFatura = useMemo(() => {
-    const m = new Map<string, CartaoResumo>();
-    for (const l of linhas) {
-      if (l.tipo !== 'compra' || !l.cartao_final) continue;
-      if (!m.has(l.cartao_final)) m.set(l.cartao_final, { cartao_final: l.cartao_final, titular_nome: l.titular_nome, banco: l.banco });
-    }
-    return Array.from(m.values()).sort((a, b) => a.cartao_final.localeCompare(b.cartao_final));
-  }, [linhas]);
 
   // acha o mesmo titular no CA de um bar por nome (1º + último token) — p/ propagar o vínculo
   const acharFornecedor = useCallback((bar: number, nome: string | null) => {
@@ -335,20 +326,9 @@ export function FaturaCartaoTab() {
     const first = toks[0], last = toks[toks.length - 1];
     return fos.find(f => { const n = norm(f.label); return n.includes(first) && n.includes(last); }) || null;
   }, [opcoesBar]);
-  // sugestão pelo nome (truncado) do titular no bar da fatura — só em MATCH FORTE (todos os tokens)
-  const sugestaoFornecedor = useCallback((titular: string | null) => {
-    if (!titular || !barFatura) return null;
-    const fos = opcoesBar[barFatura]?.fornecedores || [];
-    const toks = norm(titular).split(/\s+/).filter(t => t.length >= 3);
-    if (toks.length < 2) return null;
-    return fos.find(f => { const n = norm(f.label); return toks.every(t => n.includes(t)); }) || null;
-  }, [opcoesBar, barFatura]);
-
-  const [salvandoVinc, setSalvandoVinc] = useState<string | null>(null);
   // vincula o cartão ao titular e PROPAGA pra todos os bares (match por nome; cria no CA se faltar)
   const vincularCartao = async (card: CartaoResumo, pessoaId: string, nome: string | null) => {
     if (!pessoaId || !barFatura) return;
-    setSalvandoVinc(card.cartao_final);
     try {
       let criados = 0;
       for (const b of availableBars) {
@@ -370,30 +350,23 @@ export function FaturaCartaoTab() {
       }
       showToast({ type: 'success', title: 'Cartão vinculado ao titular', message: criados ? `titular criado no CA de ${criados} bar(es)` : `vale p/ os ${availableBars.length} bares` });
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao vincular', message: e?.message }); }
-    finally { setSalvandoVinc(null); }
   };
 
-  // cadastrar o titular no CA (bar da fatura) e vincular (propaga aos demais bares)
-  const [cadOpen, setCadOpen] = useState<string | null>(null); // cartao_final com o form aberto
-  const [cadNome, setCadNome] = useState('');
-  const [cadDoc, setCadDoc] = useState('');
-  const [cadTipo, setCadTipo] = useState<'Física' | 'Jurídica'>('Física');
-  const [cadBusy, setCadBusy] = useState(false);
-  const cadastrarFornecedor = async (card: CartaoResumo) => {
-    if (!barFatura || !cadNome.trim()) return;
-    setCadBusy(true);
-    try {
-      const r = await api.post('/api/financeiro/contaazul/pessoas/cadastrar', {
-        bar_id: barFatura, nome: cadNome.trim(), documento: cadDoc.replace(/\D/g, '') || undefined,
-        tipo_perfil: 'Fornecedor', tipo_pessoa: cadTipo,
-      });
-      const pid = r.contaazul_id; const nome = r.nome || cadNome.trim();
-      if (!pid) throw new Error('CA não retornou o id do fornecedor');
-      setOpcoesBar(prev => { const b = prev[barFatura]; if (!b) return prev; return { ...prev, [barFatura]: { ...b, fornecedores: [{ value: pid, label: nome }, ...b.fornecedores] } }; });
-      await vincularCartao(card, pid, nome);
-      setCadOpen(null); setCadNome(''); setCadDoc('');
-    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao cadastrar', message: e?.message }); }
-    finally { setCadBusy(false); }
+  // usados pela tela de Cartões (Final → Fornecedor): cadastrar+vincular e desvincular.
+  const cadastrarEVincular = async (final: string, nome: string, tipo: 'Física' | 'Jurídica', doc?: string) => {
+    if (!barFatura) throw new Error('Nenhum bar selecionado');
+    const r = await api.post('/api/financeiro/contaazul/pessoas/cadastrar', {
+      bar_id: barFatura, nome, documento: doc?.replace(/\D/g, '') || undefined, tipo_perfil: 'Fornecedor', tipo_pessoa: tipo,
+    });
+    const pid = r.contaazul_id; if (!pid) throw new Error('CA não retornou o id do fornecedor');
+    setOpcoesBar(prev => { const b = prev[barFatura]; if (!b) return prev; return { ...prev, [barFatura]: { ...b, fornecedores: [{ value: pid, label: r.nome || nome }, ...b.fornecedores] } }; });
+    await vincularCartao({ cartao_final: final, titular_nome: null, banco: null }, pid, r.nome || nome);
+  };
+  const desvincularCartao = async (final: string) => {
+    for (const b of availableBars) {
+      try { await api.delete(`/api/financeiro/cartao-fatura/fornecedor-cartao?bar_id=${b.id}&cartao_final=${encodeURIComponent(final)}`); } catch { /* ok */ }
+      setMapaCartao(prev => { const bb = { ...(prev[b.id] || {}) }; delete bb[final]; return { ...prev, [b.id]: bb }; });
+    }
   };
 
   // Hierarquia Cartão → Faturas: agrupa as faturas abertas por cartão.
@@ -426,7 +399,7 @@ export function FaturaCartaoTab() {
           );
         })}
         <Button size="sm" onClick={() => setNovaOpen(true)}>
-          <Plus className="w-4 h-4 mr-1" />Nova fatura
+          <Upload className="w-4 h-4 mr-1" />Importar fatura
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setCartoesOpen(true)}><CreditCard className="w-4 h-4 mr-1" />Cartões</Button>
         <Button size="sm" variant={verEncerradas ? 'default' : 'ghost'} onClick={() => setVerEncerradas(v => !v)}><Archive className="w-4 h-4 mr-1" />Encerradas</Button>
@@ -509,54 +482,7 @@ export function FaturaCartaoTab() {
             )}
           </CardContent></Card>
 
-          {/* Fornecedor por cartão = TITULAR (vincula 1x; vale p/ os 2 bares e todas as compras) */}
-          {editavelFatura && cartoesDaFatura.length > 0 && (
-            <Card><CardContent className="py-3 space-y-2">
-              <div className="text-sm font-semibold flex items-center gap-1.5">
-                <CreditCard className="w-4 h-4" />Fornecedor por cartão
-                <span className="text-xs text-muted-foreground font-normal">— o fornecedor é o titular do cartão (fixo, vale p/ os 2 bares); o bar da linha é só onde vai lançar. A descrição do lançamento é o estabelecimento.</span>
-              </div>
-              <div className="space-y-1.5">
-                {cartoesDaFatura.map(card => {
-                  const chave = card.cartao_final;
-                  const atual = barFatura ? mapaCartao[barFatura]?.[card.cartao_final] : undefined;
-                  const fos = barFatura ? (opcoesBar[barFatura]?.fornecedores || []) : [];
-                  const sug = !atual ? sugestaoFornecedor(card.titular_nome) : null;
-                  return (
-                    <div key={chave} className="flex items-center gap-2 flex-wrap text-sm">
-                      <span className="font-mono text-xs text-muted-foreground w-14 shrink-0">••{card.cartao_final}</span>
-                      <span className="text-xs w-40 truncate shrink-0" title={card.titular_nome || ''}>{card.titular_nome || '— sem titular —'}</span>
-                      {atual
-                        ? <span className="inline-flex items-center gap-1 text-emerald-600 text-xs shrink-0"><CheckCircle2 className="w-3.5 h-3.5" />{atual.nome || 'vinculado'}</span>
-                        : <span className="text-amber-600 text-xs shrink-0">sem fornecedor</span>}
-                      <div className="flex items-center gap-1.5 ml-auto flex-wrap justify-end">
-                        <SearchableSelect className="w-64" options={fos} value={atual?.contaazul_pessoa_id || ''}
-                          placeholder={salvandoVinc === chave ? 'salvando…' : 'vincular titular…'} searchPlaceholder="buscar fornecedor…"
-                          disabled={salvandoVinc === chave}
-                          onValueChange={(v) => { const f = fos.find(x => x.value === v); if (f) vincularCartao(card, v, f.label); }} />
-                        {sug && <button onClick={() => vincularCartao(card, sug.value, sug.label)} className="text-xs text-blue-600 hover:underline whitespace-nowrap" title="sugestão pelo nome do titular">usar “{sug.label}”</button>}
-                        <button onClick={() => { setCadOpen(cadOpen === chave ? null : chave); setCadNome(card.titular_nome || ''); setCadDoc(''); }}
-                          className="text-xs text-emerald-600 hover:underline whitespace-nowrap">＋ cadastrar</button>
-                      </div>
-                      {cadOpen === chave && (
-                        <div className="w-full flex items-center gap-1.5 flex-wrap pl-14 pt-1">
-                          <Input value={cadNome} onChange={e => setCadNome(e.target.value)} placeholder="Nome do fornecedor (titular)" className="h-7 w-56 text-xs" />
-                          <select value={cadTipo} onChange={e => setCadTipo(e.target.value as 'Física' | 'Jurídica')} className="h-7 text-xs border rounded px-1 bg-background">
-                            <option value="Física">Física</option><option value="Jurídica">Jurídica</option>
-                          </select>
-                          <Input value={cadDoc} onChange={e => setCadDoc(e.target.value)} placeholder="CPF/CNPJ (opcional)" className="h-7 w-40 text-xs" />
-                          <Button size="sm" disabled={cadBusy || !cadNome.trim()} onClick={() => cadastrarFornecedor(card)}>
-                            {cadBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Criar e vincular'}
-                          </Button>
-                          <button onClick={() => setCadOpen(null)} className="text-xs text-muted-foreground hover:text-foreground">cancelar</button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent></Card>
-          )}
+          {/* (Vínculo Final → Fornecedor foi pro modal "Cartões".) */}
 
           {/* Filtros dentro da fatura (cartão/titular/categoria agora filtram no cabeçalho da tabela) */}
           <div className="flex items-center gap-2 flex-wrap text-sm">
@@ -689,47 +615,54 @@ export function FaturaCartaoTab() {
         </>
       )}
 
-      <NovaFaturaDialog open={novaOpen} onOpenChange={setNovaOpen} cartoes={cartoes}
+      <ImportarFaturaDialog open={novaOpen} onOpenChange={setNovaOpen} cartoes={cartoes}
         onAbrirCartoes={() => { setNovaOpen(false); setCartoesOpen(true); }}
-        onCriada={(f) => { setNovaOpen(false); carregarBase().then(() => setFaturaSelId(f.id)); }} />
-      <CartoesDialog open={cartoesOpen} onOpenChange={setCartoesOpen} cartoes={cartoes} onMudou={carregarBase} />
+        onImportada={(fid) => { setNovaOpen(false); carregarBase().then(() => setFaturaSelId(fid)); if (faturaSelId === fid) carregarLinhas(fid); }} />
+      <CartoesDialog open={cartoesOpen} onOpenChange={setCartoesOpen} cartoes={cartoes} onMudou={carregarBase}
+        barId={barFatura} fornecedores={barFatura ? (opcoesBar[barFatura]?.fornecedores || []) : []}
+        onVincular={(final, pid, nome) => vincularCartao({ cartao_final: final, titular_nome: null, banco: null }, pid, nome)}
+        onCadastrarEVincular={cadastrarEVincular} onDesvincular={desvincularCartao} />
     </div>
   );
 }
 
-// ---------- Modal: nova fatura ----------
-function NovaFaturaDialog({ open, onOpenChange, cartoes, onCriada, onAbrirCartoes }: {
+// ---------- Modal: importar fatura (cria a fatura pelo arquivo) ----------
+function ImportarFaturaDialog({ open, onOpenChange, cartoes, onImportada, onAbrirCartoes }: {
   open: boolean; onOpenChange: (v: boolean) => void; cartoes: Cartao[];
-  onCriada: (f: Fatura) => void; onAbrirCartoes: () => void;
+  onImportada: (faturaId: string) => void; onAbrirCartoes: () => void;
 }) {
   const { showToast } = useToast();
   const [cartaoId, setCartaoId] = useState('');
-  const [venc, setVenc] = useState('');
-  const [valor, setValor] = useState('');
-  const [salvando, setSalvando] = useState(false);
+  const [lendo, setLendo] = useState(false);
 
-  const criar = async () => {
-    if (!cartaoId) return showToast({ type: 'error', title: 'Selecione o cartão' });
-    if (!venc) return showToast({ type: 'error', title: 'Informe o vencimento' });
-    setSalvando(true);
+  const importar = async (file?: File) => {
+    if (!file) return;
+    if (!cartaoId) return showToast({ type: 'error', title: 'Selecione o cartão primeiro' });
+    setLendo(true);
     try {
-      const res = await api.post('/api/financeiro/cartao-fatura/faturas', {
-        cartao_id: cartaoId, vencimento: venc,
-        valor_informado: valor ? Number(valor.replace(/\./g, '').replace(',', '.')) : undefined,
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('cartao_id', cartaoId);
+      const barId = getSelectedBarId();
+      const res = await fetch('/api/financeiro/cartao-fatura/importar', { method: 'POST', headers: barId ? { 'x-selected-bar-id': barId } : {}, body: fd });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'falha ao importar');
+      showToast({
+        type: 'success', title: `Fatura ${json.fatura_criada ? 'criada' : 'atualizada'}`,
+        message: `${json.novos} novas · ${json.ja_vistos} já vistas${json.vencimento_arquivo ? ` · vence ${fmtDataBR(json.vencimento_arquivo)}` : ''}`,
       });
-      showToast({ type: 'success', title: 'Fatura criada' });
-      setCartaoId(''); setVenc(''); setValor('');
-      onCriada(res.fatura);
+      setCartaoId('');
+      if (json.fatura_id) onImportada(json.fatura_id);
     } catch (e: any) {
-      showToast({ type: 'error', title: 'Erro ao criar', message: e?.message });
-    } finally { setSalvando(false); }
+      showToast({ type: 'error', title: 'Erro ao importar', message: e?.message });
+    } finally { setLendo(false); }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Nova fatura</DialogTitle>
-          <DialogDescription>Uma fatura = cartão + vencimento. Depois você sobe os Excels dela.</DialogDescription>
+        <DialogHeader><DialogTitle>Importar fatura</DialogTitle>
+          <DialogDescription>Escolha o cartão e suba o Excel/OFX/CSV da fatura. A fatura é criada com o vencimento do arquivo (Itaú). Se já existir a do mesmo vencimento, ela é atualizada.</DialogDescription>
         </DialogHeader>
         <div className="px-6 space-y-3">
           <div>
@@ -741,29 +674,27 @@ function NovaFaturaDialog({ open, onOpenChange, cartoes, onCriada, onAbrirCartoe
                 searchPlaceholder="Buscar..." emptyMessage="Nenhum" options={cartoes.map(c => ({ value: c.id, label: cartaoNome(c) }))} />
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="mb-1.5 block">Vencimento <span className="text-muted-foreground text-xs">(Itaú: puxo do arquivo)</span></Label>
-              <DateInputBR value={venc} onChange={setVenc} />
-            </div>
-            <div>
-              <Label className="mb-1.5 block">Valor da fatura <span className="text-muted-foreground text-xs">(opcional · Itaú puxa do arquivo)</span></Label>
-              <Input value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" inputMode="decimal" />
-            </div>
-          </div>
+          <label className={`flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[hsl(var(--border))] py-4 text-sm ${cartaoId ? 'cursor-pointer hover:bg-muted/40' : 'opacity-50 cursor-not-allowed'}`}>
+            {lendo ? <><Loader2 className="w-4 h-4 animate-spin text-blue-500" />Importando…</> : <><Upload className="w-4 h-4 text-muted-foreground" />Escolher arquivo (Excel/OFX/CSV)</>}
+            <input type="file" accept=".xls,.xlsx,.csv,.ofx" className="hidden" disabled={lendo || !cartaoId}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) importar(f); e.currentTarget.value = ''; }} />
+          </label>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={salvando}>Cancelar</Button>
-          <Button onClick={criar} disabled={salvando || cartoes.length === 0}>{salvando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}Criar fatura</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={lendo}>Fechar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-// ---------- Modal: cadastro de cartões ----------
-function CartoesDialog({ open, onOpenChange, cartoes, onMudou }: {
+// ---------- Modal: cartões (contas + finais → fornecedor) ----------
+function CartoesDialog({ open, onOpenChange, cartoes, onMudou, barId, fornecedores, onVincular, onCadastrarEVincular, onDesvincular }: {
   open: boolean; onOpenChange: (v: boolean) => void; cartoes: Cartao[]; onMudou: () => void;
+  barId: number | null; fornecedores: Opcao[];
+  onVincular: (final: string, pessoaId: string, nome: string) => Promise<void>;
+  onCadastrarEVincular: (final: string, nome: string, tipo: 'Física' | 'Jurídica', doc?: string) => Promise<void>;
+  onDesvincular: (final: string) => Promise<void>;
 }) {
   const { showToast } = useToast();
   const [banco, setBanco] = useState('itau');
@@ -777,7 +708,7 @@ function CartoesDialog({ open, onOpenChange, cartoes, onMudou }: {
     try {
       await api.post('/api/financeiro/cartao-fatura/cartoes', { banco, tipo: tipo.trim(), dono: dono.trim() });
       setTipo(''); setDono('');
-      showToast({ type: 'success', title: 'Cartão cadastrado' });
+      showToast({ type: 'success', title: 'Conta de cartão cadastrada' });
       onMudou();
     } catch (e: any) {
       showToast({ type: 'error', title: 'Erro ao cadastrar', message: e?.message });
@@ -786,48 +717,142 @@ function CartoesDialog({ open, onOpenChange, cartoes, onMudou }: {
 
   const [excluindo, setExcluindo] = useState<string | null>(null);
   const excluir = async (c: Cartao) => {
-    if (!window.confirm(`Excluir o cartão "${cartaoNome(c)}"? As faturas/lançamentos já feitos não são afetados.`)) return;
+    if (!window.confirm(`Excluir a conta "${cartaoNome(c)}"? As faturas/lançamentos já feitos não são afetados.`)) return;
     setExcluindo(c.id);
     try {
       await api.delete(`/api/financeiro/cartao-fatura/cartoes?id=${c.id}`);
-      showToast({ type: 'success', title: 'Cartão excluído' });
+      showToast({ type: 'success', title: 'Conta excluída' });
       onMudou();
     } catch (e: any) {
       showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message });
     } finally { setExcluindo(null); }
   };
 
+  // ---- Finais → Fornecedor ----
+  const [finais, setFinais] = useState<{ cartao_final: string; titular_nome: string | null }[]>([]);
+  const [mapa, setMapa] = useState<Record<string, { contaazul_pessoa_id: string; nome: string | null }>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [novoFinal, setNovoFinal] = useState('');
+  const [cadOpen, setCadOpen] = useState<string | null>(null);
+  const [cadNome, setCadNome] = useState('');
+  const [cadDoc, setCadDoc] = useState('');
+  const [cadTipo, setCadTipo] = useState<'Física' | 'Jurídica'>('Física');
+
+  const carregar = useCallback(async () => {
+    if (!barId) return;
+    try {
+      const r = await api.get(`/api/financeiro/cartao-fatura/fornecedor-cartao?bar_id=${barId}`);
+      const m: Record<string, { contaazul_pessoa_id: string; nome: string | null }> = {};
+      (r.mapa || []).forEach((x: any) => { if (x.cartao_final) m[x.cartao_final] = { contaazul_pessoa_id: x.contaazul_pessoa_id, nome: x.nome }; });
+      setMapa(m);
+      setFinais(r.finais || []);
+    } catch { /* ok */ }
+  }, [barId]);
+  useEffect(() => { if (open) carregar(); }, [open, carregar]);
+
+  // lista de finais = os conhecidos (das faturas) + os que já têm vínculo (mesmo sem linha)
+  const listaFinais = useMemo(() => {
+    const set = new Map<string, string | null>();
+    for (const f of finais) set.set(f.cartao_final, f.titular_nome);
+    for (const k of Object.keys(mapa)) if (!set.has(k)) set.set(k, null);
+    return Array.from(set.entries()).map(([cartao_final, titular_nome]) => ({ cartao_final, titular_nome })).sort((a, b) => a.cartao_final.localeCompare(b.cartao_final));
+  }, [finais, mapa]);
+
+  const vincular = async (final: string, pessoaId: string, nome: string) => {
+    setBusy(final);
+    try { await onVincular(final, pessoaId, nome); await carregar(); }
+    finally { setBusy(null); }
+  };
+  const cadastrar = async (final: string) => {
+    if (!cadNome.trim()) return;
+    setBusy(final);
+    try { await onCadastrarEVincular(final, cadNome.trim(), cadTipo, cadDoc); setCadOpen(null); setCadNome(''); setCadDoc(''); await carregar(); }
+    catch (e: any) { showToast({ type: 'error', title: 'Erro ao cadastrar', message: e?.message }); }
+    finally { setBusy(null); }
+  };
+  const desvincular = async (final: string) => {
+    setBusy(final);
+    try { await onDesvincular(final); await carregar(); }
+    finally { setBusy(null); }
+  };
+  const addFinal = () => {
+    const f = novoFinal.replace(/\D/g, '').slice(-4);
+    if (!f) return showToast({ type: 'error', title: 'Digite o final (4 dígitos)' });
+    if (!listaFinais.some(x => x.cartao_final === f)) setFinais(prev => [...prev, { cartao_final: f, titular_nome: null }]);
+    setNovoFinal(''); setCadOpen(f);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-2xl">
         <DialogHeader><DialogTitle>Cartões</DialogTitle>
-          <DialogDescription>Cadastre os cartões (banco + tipo + dono) pra usar nas faturas.</DialogDescription>
+          <DialogDescription>Vincule cada <b>final de cartão</b> ao seu <b>fornecedor (titular)</b> — vale nos 2 bares e em todas as faturas.</DialogDescription>
         </DialogHeader>
-        <div className="px-6 space-y-3">
-          <div className="grid grid-cols-[auto_1fr_1fr_auto] gap-2 items-end">
-            <div>
-              <Label className="mb-1 block text-xs">Banco</Label>
-              <select value={banco} onChange={(e) => setBanco(e.target.value)} className="h-10 text-sm border rounded px-2 bg-background">
-                <option value="itau">Itaú</option>
-                <option value="nubank">Nubank</option>
-              </select>
+        <div className="px-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          {/* Finais → Fornecedor */}
+          <div className="space-y-2">
+            <div className="text-sm font-semibold">Finais → Fornecedor (titular)</div>
+            <div className="flex items-end gap-2">
+              <div><Label className="mb-1 block text-xs">Adicionar final</Label><Input value={novoFinal} onChange={e => setNovoFinal(e.target.value)} placeholder="ex.: 8939" inputMode="numeric" className="h-9 w-28" /></div>
+              <Button onClick={addFinal} className="h-9"><Plus className="w-4 h-4 mr-1" />Adicionar</Button>
             </div>
-            <div><Label className="mb-1 block text-xs">Tipo</Label><Input value={tipo} onChange={(e) => setTipo(e.target.value)} placeholder="Azul, Latam…" /></div>
-            <div><Label className="mb-1 block text-xs">Dono</Label><Input value={dono} onChange={(e) => setDono(e.target.value)} placeholder="Gonza, Cadu…" /></div>
-            <Button onClick={add} disabled={salvando} className="h-10">{salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}</Button>
+            <div className="space-y-1 rounded-lg border border-[hsl(var(--border))] p-2">
+              {listaFinais.length === 0 ? <p className="text-xs text-muted-foreground px-1 py-2">Nenhum final ainda. Adicione acima ou importe uma fatura.</p> :
+                listaFinais.map(({ cartao_final, titular_nome }) => {
+                  const atual = mapa[cartao_final];
+                  return (
+                    <div key={cartao_final} className="flex items-center gap-2 flex-wrap text-sm border-b last:border-0 border-[hsl(var(--border))]/60 pb-1.5 last:pb-0">
+                      <span className="font-mono text-xs text-muted-foreground w-14 shrink-0">••{cartao_final}</span>
+                      {titular_nome && <span className="text-[11px] text-muted-foreground w-32 truncate shrink-0" title={`no extrato: ${titular_nome}`}>{titular_nome}</span>}
+                      {atual
+                        ? <span className="inline-flex items-center gap-1 text-emerald-600 text-xs min-w-40"><CheckCircle2 className="w-3.5 h-3.5" />{atual.nome || 'vinculado'}</span>
+                        : <span className="text-amber-600 text-xs min-w-40">sem fornecedor</span>}
+                      <div className="flex items-center gap-1.5 ml-auto flex-wrap justify-end">
+                        <SearchableSelect className="w-60" options={fornecedores} value={atual?.contaazul_pessoa_id || ''}
+                          placeholder={busy === cartao_final ? 'salvando…' : 'vincular fornecedor…'} searchPlaceholder="buscar…" disabled={busy === cartao_final || !barId}
+                          onValueChange={(v) => { const f = fornecedores.find(x => x.value === v); if (f) vincular(cartao_final, v, f.label); }} />
+                        <button onClick={() => { setCadOpen(cadOpen === cartao_final ? null : cartao_final); setCadNome(titular_nome || ''); setCadDoc(''); }} className="text-xs text-emerald-600 hover:underline whitespace-nowrap">＋ novo</button>
+                        {atual && <button onClick={() => desvincular(cartao_final)} disabled={busy === cartao_final} className="text-xs text-muted-foreground hover:text-red-500">x</button>}
+                      </div>
+                      {cadOpen === cartao_final && (
+                        <div className="w-full flex items-center gap-1.5 flex-wrap pl-14 pt-1">
+                          <Input value={cadNome} onChange={e => setCadNome(e.target.value)} placeholder="Nome do fornecedor (titular)" className="h-7 w-56 text-xs" />
+                          <select value={cadTipo} onChange={e => setCadTipo(e.target.value as 'Física' | 'Jurídica')} className="h-7 text-xs border rounded px-1 bg-background"><option value="Física">Física</option><option value="Jurídica">Jurídica</option></select>
+                          <Input value={cadDoc} onChange={e => setCadDoc(e.target.value)} placeholder="CPF/CNPJ (opcional)" className="h-7 w-40 text-xs" />
+                          <Button size="sm" disabled={busy === cartao_final || !cadNome.trim()} onClick={() => cadastrar(cartao_final)}>{busy === cartao_final ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Criar e vincular'}</Button>
+                          <button onClick={() => setCadOpen(null)} className="text-xs text-muted-foreground hover:text-foreground">cancelar</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
           </div>
-          <div className="space-y-1 max-h-52 overflow-y-auto">
-            {cartoes.length === 0 ? <p className="text-xs text-muted-foreground">Nenhum cartão ainda.</p> :
-              cartoes.map(c => (
-                <div key={c.id} className="text-sm flex items-center gap-1.5 py-0.5">
-                  <CreditCard className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="flex-1">{cartaoNome(c)}</span>
-                  <button onClick={() => excluir(c)} disabled={excluindo === c.id}
-                    className="text-xs text-muted-foreground hover:text-red-500 disabled:opacity-50" title="Excluir cartão">
-                    {excluindo === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'excluir'}
-                  </button>
-                </div>
-              ))}
+
+          {/* Contas de cartão (p/ agrupar as faturas) */}
+          <div className="space-y-2 pt-1 border-t border-[hsl(var(--border))]">
+            <div className="text-sm font-semibold">Contas de cartão <span className="text-xs text-muted-foreground font-normal">(agrupam as faturas — ex.: Itaú Azul Gonza)</span></div>
+            <div className="grid grid-cols-[auto_1fr_1fr_auto] gap-2 items-end">
+              <div>
+                <Label className="mb-1 block text-xs">Banco</Label>
+                <select value={banco} onChange={(e) => setBanco(e.target.value)} className="h-10 text-sm border rounded px-2 bg-background"><option value="itau">Itaú</option><option value="nubank">Nubank</option></select>
+              </div>
+              <div><Label className="mb-1 block text-xs">Tipo</Label><Input value={tipo} onChange={(e) => setTipo(e.target.value)} placeholder="Azul, Latam…" /></div>
+              <div><Label className="mb-1 block text-xs">Dono</Label><Input value={dono} onChange={(e) => setDono(e.target.value)} placeholder="Gonza, Cadu…" /></div>
+              <Button onClick={add} disabled={salvando} className="h-10">{salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}</Button>
+            </div>
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {cartoes.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma conta ainda.</p> :
+                cartoes.map(c => (
+                  <div key={c.id} className="text-sm flex items-center gap-1.5 py-0.5">
+                    <CreditCard className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="flex-1">{cartaoNome(c)}</span>
+                    <button onClick={() => excluir(c)} disabled={excluindo === c.id} className="text-xs text-muted-foreground hover:text-red-500 disabled:opacity-50" title="Excluir conta">
+                      {excluindo === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'excluir'}
+                    </button>
+                  </div>
+                ))}
+            </div>
           </div>
         </div>
         <DialogFooter><Button onClick={() => onOpenChange(false)}>Fechar</Button></DialogFooter>
