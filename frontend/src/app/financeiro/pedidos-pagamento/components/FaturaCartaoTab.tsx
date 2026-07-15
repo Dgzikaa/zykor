@@ -63,6 +63,9 @@ export function FaturaCartaoTab() {
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
   const [lancandoLote, setLancandoLote] = useState(false);
   const toggleSel = (id: string) => setSelecionadas(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  // #— Fornecedor escolhido por linha ao lançar (pedido do Gonza). Default = titular do cartão;
+  // aqui dá pra trocar pontualmente sem mexer no vínculo do cartão. Vazio = usa o titular (mapa).
+  const [fornOverride, setFornOverride] = useState<Record<string, string>>({});
 
   const [opcoesBar, setOpcoesBar] = useState<Record<number, OpcoesBar>>({});
   const [config, setConfig] = useState<Record<number, { fornecedorId: string; contaId: string }>>({});
@@ -189,6 +192,7 @@ export function FaturaCartaoTab() {
       const res = await api.post(`/api/financeiro/cartao-fatura/${l.id}/lancar`, {
         bar_id: bar, categoria_id: l.categoria_id, categoria_nome: l.categoria_nome,
         conta_financeira_id: cfg?.contaId || undefined,
+        pessoa_id: fornOverride[l.id] || undefined, // vazio → backend usa o titular do cartão
         data_vencimento: faturaSel?.vencimento || undefined,
       });
       setLinhas(prev => prev.map(x => (x.id === l.id ? res.linha : x)));
@@ -217,6 +221,7 @@ export function FaturaCartaoTab() {
         const res = await api.post(`/api/financeiro/cartao-fatura/${l.id}/lancar`, {
           bar_id: bar, categoria_id: l.categoria_id, categoria_nome: l.categoria_nome,
           conta_financeira_id: cfg?.contaId || undefined,
+          pessoa_id: fornOverride[l.id] || undefined, // vazio → backend usa o titular do cartão
           data_vencimento: faturaSel?.vencimento || undefined,
         });
         setLinhas(prev => prev.map(x => (x.id === l.id ? res.linha : x)));
@@ -306,7 +311,7 @@ export function FaturaCartaoTab() {
     if (lancaveis.every(l => prev.has(l.id))) { const n = new Set(prev); lancaveis.forEach(l => n.delete(l.id)); return n; }
     const n = new Set(prev); lancaveis.forEach(l => n.add(l.id)); return n;
   });
-  useEffect(() => { setSelecionadas(new Set()); }, [faturaSelId]);
+  useEffect(() => { setSelecionadas(new Set()); setFornOverride({}); }, [faturaSelId]);
 
   // ===== Fornecedor por cartão (titular) =====
   // O cartão tem UM titular (fornecedor), fixo — independe do bar. O bar da linha é só ONDE vai
@@ -537,6 +542,12 @@ export function FaturaCartaoTab() {
                         ?? Object.values(mapaCartao).map(mb => mb?.[l.cartao_final as string]?.nome).find(Boolean)
                         ?? null)
                       : null;
+                    // Fornecedor default = titular do cartão (mapa do bar da linha), se estiver na
+                    // lista de fornecedores do CA. O override por linha vence o default.
+                    const fornPadraoId = (l.cartao_final && barEfetivo)
+                      ? (mapaCartao[barEfetivo]?.[l.cartao_final]?.contaazul_pessoa_id ?? null) : null;
+                    const fornPadraoNaLista = !!fornPadraoId && (ops?.fornecedores || []).some(f => f.value === fornPadraoId);
+                    const fornSelId = fornOverride[l.id] ?? (fornPadraoNaLista ? (fornPadraoId as string) : '');
                     const lancado = l.status === 'lancado';
                     const ignorado = l.status === 'ignorado';
                     return (
@@ -564,10 +575,19 @@ export function FaturaCartaoTab() {
                         </td>
                         <td className="px-2 text-xs whitespace-nowrap">{l.titular_nome || '—'}</td>
                         <td className="px-2 text-xs text-muted-foreground whitespace-nowrap">{l.cartao_final ? `••${l.cartao_final}` : '—'}</td>
-                        <td className="px-2 text-xs whitespace-nowrap max-w-[180px] truncate" title={fornecedorLinha || ''}>
-                          {fornecedorLinha
-                            ? fornecedorLinha
-                            : <span className="text-amber-600">{l.cartao_final ? 'vincular' : '—'}</span>}
+                        <td className="px-2 text-xs whitespace-nowrap" title={fornecedorLinha || ''}>
+                          {editavelFatura && !lancado && !ignorado ? (
+                            <select value={fornSelId} disabled={!barEfetivo}
+                              onChange={(e) => setFornOverride(prev => ({ ...prev, [l.id]: e.target.value }))}
+                              className="h-8 w-full max-w-[180px] text-xs border rounded px-1 bg-background disabled:opacity-60">
+                              <option value="">{barEfetivo ? (fornecedorLinha ? `titular: ${fornecedorLinha}` : '— fornecedor —') : 'escolha o bar'}</option>
+                              {(ops?.fornecedores || []).map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                            </select>
+                          ) : (
+                            <span className="inline-block max-w-[180px] truncate align-middle">
+                              {fornecedorLinha || <span className="text-amber-600">{l.cartao_final ? 'vincular' : '—'}</span>}
+                            </span>
+                          )}
                         </td>
                         <td className="px-2 text-right whitespace-nowrap font-medium">{fmtBRL(l.valor)}</td>
                         <td className="px-2">

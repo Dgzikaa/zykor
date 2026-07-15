@@ -194,9 +194,27 @@ export function BoletoTab({
     }
   };
 
-  // Lista de boletos (mesmo esquema da aba PIX): 4 filtros por status.
+  // Lista de boletos (mesmo esquema da aba PIX): filtros por status.
   const boletosFiltrados = useMemo(() => pedidos.filter(p => TAB_STATUS[tab](p.status)), [pedidos, tab]);
   const countSolicitado = useMemo(() => pedidos.filter(p => TAB_STATUS.solicitado(p.status)).length, [pedidos]);
+
+  // Excluir/cancelar um boleto (pedido do Gonza: dá pra tirar da aba Aprovado). Reusa o
+  // endpoint de cancelar do financeiro — se já subiu ao Inter, tenta desfazer o agendamento.
+  const cancelar = async (id: string) => {
+    const alvo = pedidos.find(p => p.id === id);
+    const subido = !!alvo && ['aguardando_socio', 'agendado'].includes(alvo.status);
+    const msg = subido
+      ? 'Este boleto JÁ foi enviado ao Inter. Excluir vai tentar cancelar o agendamento no banco. Se já houver lançamento no Conta Azul, remova à mão (o CA não tem API de exclusão). Continuar?'
+      : 'Excluir/cancelar este boleto?';
+    if (!window.confirm(msg)) return;
+    try {
+      await api.post(`/api/financeiro/pedidos-pagamento/${id}/cancelar`, {});
+      showToast({ type: 'success', title: 'Boleto excluído' });
+      onCriado();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message });
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -348,6 +366,7 @@ export function BoletoTab({
               Solicitado {countSolicitado > 0 && <Badge variant="secondary" className="ml-1.5">{countSolicitado}</Badge>}
             </TabsTrigger>
             <TabsTrigger value="aprovado">Aprovado</TabsTrigger>
+            <TabsTrigger value="finalizado">Finalizado</TabsTrigger>
             <TabsTrigger value="recusado">Recusado</TabsTrigger>
             <TabsTrigger value="todos">Todos</TabsTrigger>
           </TabsList>
@@ -372,6 +391,7 @@ export function BoletoTab({
                 onOpen={onOpenDetalhe}
                 onChange={onCriado}
                 onSelecao={onSelecao}
+                onCancelar={podeAprovar ? cancelar : undefined}
               />
             ))}
           </div>

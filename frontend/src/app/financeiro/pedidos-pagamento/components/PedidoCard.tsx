@@ -7,7 +7,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { useBar } from '@/contexts/BarContext';
-import { Check, X, Loader2, Sparkles, Paperclip, CalendarClock } from 'lucide-react';
+import { Check, X, Loader2, Sparkles, Paperclip, CalendarClock, Trash2 } from 'lucide-react';
 import { isoToBr } from '@/components/ui/date-input-br';
 import {
   TIPO_LABEL, STATUS_COLOR, statusLabel, formatBRL, type Pedido,
@@ -18,6 +18,8 @@ export interface Opcao { value: string; label: string; searchHint?: string }
 // Fluxo em 2 etapas: APROVAR (decisão) → AGENDAR (dispara CA + Inter).
 const APROVAVEL = ['aguardando_aprovacao'];
 const AGENDAVEL = ['aprovado', 'erro_ca', 'erro_inter'];
+// Status em que o financeiro ainda consegue excluir/cancelar (o servidor revalida).
+const CANCELAVEL = ['aguardando_aprovacao', 'aprovado', 'agendando', 'aguardando_socio', 'agendado', 'erro_ca', 'erro_inter'];
 
 /**
  * Card da lista de pedidos. Para quem aprova (financeiro), traz os controles inline
@@ -26,7 +28,7 @@ const AGENDAVEL = ['aprovado', 'erro_ca', 'erro_inter'];
  */
 export function PedidoCard({
   pedido, podeAprovar, categorias, contas, contaPadrao, fornecedores, onOpen, onChange, onSelecao,
-  selecionavel, selecionado, onToggleSelecionado,
+  selecionavel, selecionado, onToggleSelecionado, onCancelar,
 }: {
   pedido: Pedido;
   podeAprovar: boolean;
@@ -42,6 +44,8 @@ export function PedidoCard({
   selecionavel?: boolean;
   selecionado?: boolean;
   onToggleSelecionado?: (id: string) => void;
+  // Quando fornecido (ex.: boletos), mostra o botão de excluir/cancelar; o pai faz confirm + API.
+  onCancelar?: (id: string) => void;
 }) {
   const { showToast } = useToast();
   const { availableBars } = useBar();
@@ -49,6 +53,7 @@ export function PedidoCard({
   // Esconde "Agendar" de copia-e-cola já lançado no CA (status fica 'aprovado' pós-lançamento).
   const podeAgendar = podeAprovar && AGENDAVEL.includes(pedido.status)
     && !(pedido.status === 'aprovado' && !!pedido.contaazul_lancamento_id);
+  const podeCancelar = podeAprovar && !!onCancelar && CANCELAVEL.includes(pedido.status);
 
   // Sugestão do Zykor entra como default quando o pedido ainda não tem categoria.
   const catSugerida = !pedido.categoria_id && pedido.categoria_sugerida_id;
@@ -196,6 +201,12 @@ export function PedidoCard({
           <Button size="sm" className="h-7 px-2 shrink-0" onClick={agendar} disabled={!!acao}
             title={pedido.status === 'erro_ca' || pedido.status === 'erro_inter' ? 'Tentar agendar de novo' : 'Criar no CA e agendar o PIX no Inter'}>
             {acao === 'agendar' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><CalendarClock className="w-3.5 h-3.5 mr-1" />{pedido.status === 'aprovado' ? 'Agendar' : 'Reagendar'}</>}
+          </Button>
+        )}
+        {podeCancelar && (
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-red-600"
+            title="Excluir/cancelar este boleto" onClick={() => onCancelar?.(pedido.id)}>
+            <Trash2 className="w-3.5 h-3.5" />
           </Button>
         )}
       </div>
