@@ -36,7 +36,7 @@ A tela é essencialmente de **leitura**. As ações de escrita (cadastrar item d
 ### Consultar o estoque de uma contagem
 1. Escolha a **classe de item** nos botões do topo: Insumo, Limpeza, Utensílio ou Produção.
 2. Escolha o **tipo de contagem**: Diária (Curva A), Semanal (Completa) ou Mensal (Inventário).
-3. No seletor de **data**, escolha a contagem que quer ver (o sistema já abre na mais recente daquele tipo). Cada opção mostra a data e o número de itens contados.
+3. No seletor de **data**, escolha a contagem que quer ver (o sistema já abre na mais recente daquele tipo). Cada opção mostra a data e o número de itens contados. Ao **trocar de aba/classe** (ex.: Insumo → Produção), a **data escolhida é mantida** — só volta para a mais recente quando você troca o **tipo** (Diária/Semanal/Mensal), porque cada tipo tem datas diferentes. Se a data não existir naquela classe, cai na mais recente disponível.
 4. A tabela lista os itens com quantidade contada, preço e valor. Os cards no topo mostram o total geral e o total por área.
 
 ### Buscar um item
