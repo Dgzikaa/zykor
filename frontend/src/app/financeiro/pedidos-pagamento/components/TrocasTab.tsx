@@ -18,6 +18,8 @@ const fmtBRL = (v: any) => Number(v || 0).toLocaleString('pt-BR', { style: 'curr
 const fmtQtd = (v: any) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 const fmtData = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
 const hojeISO = () => new Date().toISOString().slice(0, 10);
+// data local YYYY-MM-DD (sem o off-by-one de fuso do toISOString) — usada nos filtros de período
+const isoLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const parseNum = (s: string) => { const n = Number(String(s).replace(',', '.')); return Number.isFinite(n) ? n : 0; };
 
 // Aba Trocas (item 2): quem ENVIA registra. Escolhe pra quem enviou (outro bar) + os insumos e qtd
@@ -36,6 +38,10 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
   const [descricao, setDescricao] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [trocas, setTrocas] = useState<any[]>([]);
+  // filtro de período do histórico (pedido do Isaías): dia / semana / mês / tudo + range personalizado
+  const [periodo, setPeriodo] = useState<'dia' | 'semana' | 'mes' | 'tudo'>('semana');
+  const [de, setDe] = useState('');
+  const [ate, setAte] = useState('');
   const [caPreview, setCaPreview] = useState<{ id: string; competencia: string; plano: any[]; pix?: any } | null>(null);
   const [caLoading, setCaLoading] = useState<string | null>(null);
   const [caLancando, setCaLancando] = useState(false);
@@ -97,6 +103,33 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
   const setQtd = (cod: string, q: number) => setItens((prev) => prev.map((x) => x.codigo === cod ? { ...x, quantidade: q } : x));
   const rmItem = (cod: string) => setItens((prev) => prev.filter((x) => x.codigo !== cod));
   const valor = useMemo(() => itens.reduce((s, i) => s + (i.quantidade || 0) * (i.custo_unitario || 0), 0), [itens]);
+
+  // Histórico filtrado por período (dia/semana/mês/tudo) ou range personalizado (De/Até tem prioridade).
+  // Semana = seg→dom da data atual. Filtra por data_competencia (client-side, a lista já vem carregada).
+  const trocasFiltradas = useMemo(() => {
+    let ini = '', fim = '';
+    if (de || ate) { ini = de; fim = ate; }
+    else if (periodo !== 'tudo') {
+      const hoje = new Date();
+      if (periodo === 'dia') { ini = fim = isoLocal(hoje); }
+      else if (periodo === 'semana') {
+        const dow = (hoje.getDay() + 6) % 7; // 0 = segunda
+        const seg = new Date(hoje); seg.setDate(hoje.getDate() - dow);
+        const dom = new Date(seg); dom.setDate(seg.getDate() + 6);
+        ini = isoLocal(seg); fim = isoLocal(dom);
+      } else { // mês
+        ini = isoLocal(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
+        fim = isoLocal(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0));
+      }
+    }
+    return trocas.filter((t) => {
+      const d = String(t.data_competencia || '').slice(0, 10);
+      if (ini && d < ini) return false;
+      if (fim && d > fim) return false;
+      return true;
+    });
+  }, [trocas, periodo, de, ate]);
+  const totalFiltrado = useMemo(() => trocasFiltradas.reduce((s, t) => s + Number(t.valor || 0), 0), [trocasFiltradas]);
 
   const salvar = async () => {
     if (!barDestino) { toast({ title: 'Escolha pra quem foi a troca', variant: 'destructive' }); return; }
@@ -227,9 +260,30 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
       {/* Histórico de trocas do bar */}
       <Card>
         <CardContent className="p-0">
-          <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 text-sm font-semibold flex items-center gap-2"><ArrowRightLeft className="w-4 h-4 text-indigo-500" />Trocas do bar</div>
-          {trocas.length === 0 ? (
-            <div className="px-4 py-6 text-center text-sm text-gray-400">Nenhuma troca registrada ainda.</div>
+          <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="text-sm font-semibold flex items-center gap-2">
+                <ArrowRightLeft className="w-4 h-4 text-indigo-500" />Trocas do bar
+                <span className="text-xs font-normal text-gray-400">({trocasFiltradas.length}{trocasFiltradas.length ? ` · ${fmtBRL(totalFiltrado)}` : ''})</span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {([['dia', 'Hoje'], ['semana', 'Semana'], ['mes', 'Mês'], ['tudo', 'Tudo']] as const).map(([k, label]) => (
+                  <button key={k} onClick={() => { setPeriodo(k); setDe(''); setAte(''); }}
+                    className={`text-xs px-2.5 py-1 rounded-md border transition ${periodo === k && !de && !ate ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/60'}`}>
+                    {label}
+                  </button>
+                ))}
+                <div className="flex items-center gap-1 ml-1">
+                  <div className="w-32"><DateInputBR value={de} onChange={setDe} placeholder="De" calendar /></div>
+                  <span className="text-gray-400 text-xs">→</span>
+                  <div className="w-32"><DateInputBR value={ate} onChange={setAte} placeholder="Até" calendar /></div>
+                  {(de || ate) && <button onClick={() => { setDe(''); setAte(''); }} className="text-xs text-gray-400 hover:text-gray-600 underline">limpar</button>}
+                </div>
+              </div>
+            </div>
+          </div>
+          {trocasFiltradas.length === 0 ? (
+            <div className="px-4 py-6 text-center text-sm text-gray-400">{trocas.length === 0 ? 'Nenhuma troca registrada ainda.' : 'Nenhuma troca no período selecionado.'}</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -245,7 +299,7 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {trocas.map((t) => {
+                  {trocasFiltradas.map((t) => {
                     return (
                       <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                         <td className="px-3 py-2 whitespace-nowrap">{fmtData(t.data_competencia)}</td>
