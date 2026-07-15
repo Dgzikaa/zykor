@@ -18,6 +18,29 @@ const categoriaPorCodigo = (cod: string): string | null => {
   return c === 'b' ? 'Bebida' : c === 'd' ? 'Drink' : c === 'c' ? 'Comida' : null;
 };
 
+// Nome do produto no ContaHub (bronze) por prd — pra gravar em produto_contahub_map.prd_desc
+// ao mapear, senão o painel "Códigos ContaHub nesta ficha" mostra "—". Prefere o nome LIMPO
+// (sem colchete de promoção [HH]/[PP]/[DD]…). prds sem venda registrada não têm nome (fica sem).
+async function fetchPrdDescs(supabase: any, barId: number, prds: number[]): Promise<Record<number, string>> {
+  const uniq = Array.from(new Set(prds.filter((p) => Number.isFinite(p) && p > 0)));
+  if (!uniq.length) return {};
+  const { data } = await (supabase as any).schema('bronze')
+    .from('bronze_contahub_avendas_porproduto_analitico')
+    .select('prd, prd_desc')
+    .eq('bar_id', barId)
+    .in('prd', uniq.map(String))
+    .not('prd_desc', 'is', null)
+    .limit(3000);
+  const out: Record<number, string> = {};
+  for (const r of (data || [])) {
+    const p = Number(r.prd); const d = String(r.prd_desc || '').trim();
+    if (!d) continue;
+    const cur = out[p];
+    if (!cur || (cur.startsWith('[') && !d.startsWith('['))) out[p] = d; // troca só bracket→limpo
+  }
+  return out;
+}
+
 async function fetchSheet(range: string, key: string): Promise<string[][]> {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET}/values/${encodeURIComponent(range)}?key=${key}`;
   const r = await fetch(url);
@@ -166,7 +189,13 @@ export async function POST(request: NextRequest) {
     const curChSet = new Set((curCh || []).map((r: any) => Number(r.prd)));
     const chRemove = [...curChSet].filter(p => !chArr.includes(p));
     if (chRemove.length) await supabase.from('produto_contahub_map').delete().eq('bar_id', barId).eq('cod_interno', codInterno).in('prd', chRemove);
-    for (const prd of chArr) if (!curChSet.has(prd)) await supabase.from('produto_contahub_map').upsert({ bar_id: barId, prd, cod_interno: codInterno }, { onConflict: 'bar_id,prd' });
+    const chAdd = chArr.filter(prd => !curChSet.has(prd));
+    const chDescs = chAdd.length ? await fetchPrdDescs(supabase, barId, chAdd) : {};
+    for (const prd of chAdd) {
+      const row: any = { bar_id: barId, prd, cod_interno: codInterno };
+      if (chDescs[prd]) row.prd_desc = chDescs[prd]; // grava o nome do ContaHub (evita "—")
+      await supabase.from('produto_contahub_map').upsert(row, { onConflict: 'bar_id,prd' });
+    }
     // Yuzer
     const { data: curYz } = await supabase.from('produto_yuzer_map').select('yuzer_produto_id').eq('bar_id', barId).eq('cod_interno', codInterno);
     const curYzSet = new Set((curYz || []).map((r: any) => Number(r.yuzer_produto_id)));
@@ -191,7 +220,10 @@ export async function POST(request: NextRequest) {
     } else {
       const codInterno = String(body.cod_interno || '').trim();
       if (!codInterno) return NextResponse.json({ success: false, error: 'cod_interno obrigatório' }, { status: 400 });
-      const { error } = await supabase.from('produto_contahub_map').upsert({ bar_id: barId, prd, cod_interno: codInterno }, { onConflict: 'bar_id,prd' });
+      const descs = await fetchPrdDescs(supabase, barId, [prd]);
+      const row: any = { bar_id: barId, prd, cod_interno: codInterno };
+      if (descs[prd]) row.prd_desc = descs[prd]; // grava o nome do ContaHub (evita "—")
+      const { error } = await supabase.from('produto_contahub_map').upsert(row, { onConflict: 'bar_id,prd' });
       if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
     try { await (supabase as any).schema('silver').rpc('fn_refresh_vendas_depara'); } catch { /* backstop: cron horário */ }

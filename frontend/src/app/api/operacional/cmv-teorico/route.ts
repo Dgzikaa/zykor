@@ -335,6 +335,15 @@ export async function POST(request: NextRequest) {
 
   const { error } = await gold.rpc('fn_cmv_teorico', { p_bar_id: barId });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+
+  // Recalcular também REFRESCA a matview de vendas (de-para prd→cod_interno). Sem isso, mudanças
+  // de vínculo na ficha (remover/trocar código ContaHub) não refletem no CMV do PERÍODO por mais
+  // que se recalcule o custo — o período lê silver.vendas_produto_dia, não gold.produto_cmv.
+  // Best-effort: se estourar o timeout, não derruba o recálculo (o cron horário é backstop).
+  let refreshOk = true;
+  try { const { error: rErr } = await (admin as any).schema('silver').rpc('fn_refresh_vendas_depara'); refreshOk = !rErr; }
+  catch { refreshOk = false; }
+
   // snapshot do dia (atualiza se já existir)
   const hoje = new Date().toISOString().slice(0, 10);
   const { data: atual } = await gold.from('produto_cmv').select('produto_id, codigo, nome, custo, preco_venda, cmv_pct').eq('bar_id', barId);
@@ -344,5 +353,5 @@ export async function POST(request: NextRequest) {
       { onConflict: 'bar_id,produto_id,data_ref' },
     );
   }
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, refresh_ok: refreshOk, ...(refreshOk ? {} : { warning: 'Custo recalculado. A atualização das vendas por código estourou o tempo — reflete no próximo cron (horário).' }) });
 }
