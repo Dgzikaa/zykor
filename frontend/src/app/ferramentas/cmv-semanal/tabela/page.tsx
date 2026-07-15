@@ -255,7 +255,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         label: '(-) Estoque Final',
         semCollapse: true,
         metricas: [
-          { key: 'estoque_final', label: '(-) Estoque Final', status: 'auto', fonte: 'Contagem (silver)', calculo: 'Automático: contagem valorizada (silver.estoque_contagem), mesma base do Desvios. = Insumos (aba Estoque) − Alimentação (F, vai pro CMA) + Produções (aba Produção). Passe o mouse pra ver a decomposição.', formato: 'moeda', editavel: false },
+          { key: 'estoque_final', label: '(-) Estoque Final', status: 'auto', fonte: 'Contagem (silver)', calculo: 'Automático: contagem valorizada (silver.estoque_contagem), mesma base do Desvios. = Insumos (aba Estoque) + Produções (aba Produção) — a alimentação (F) já sai na própria aba Insumo. Passe o mouse pra ver a decomposição.', formato: 'moeda', editavel: false },
         ]
       },
       {
@@ -275,7 +275,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
           { key: 'c9_artistas', label: `Artistas`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Artistas (custo real da ficha)`, formato: 'moeda', drilldown: true },
           { key: 'c9_socios', label: `Sócios`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Sócios (custo real da ficha)`, formato: 'moeda', drilldown: true },
           { key: 'c9_relacionamento', label: `Relacionamento`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Relacionamento (custo real da ficha)`, formato: 'moeda', drilldown: true },
-          { key: 'c9_outros', label: `Outros`, status: 'auto', fonte: 'ContaHub', calculo: `Residual: TOTAL − as 9 categorias (inclui o histórico pré-12/06 e a semana em andamento ainda não detalhada)`, formato: 'moeda', drilldown: true },
+          { key: 'c9_outros', label: `Outros`, status: 'auto', fonte: 'ContaHub', calculo: `Custo real dos motivos não mapeados nas 9 categorias + lançamentos pré-corte 12/06 (mesma base da tela de Consumação). Semanas antigas sem detalhamento: residual TOTAL − as 9.`, formato: 'moeda', drilldown: true },
         ]
       },
       {
@@ -382,7 +382,7 @@ export default function CMVSemanalTabelaPage() {
   }, [setPageTitle]);
 
   const [semanas, setSemanas] = useState<CMVSemanal[]>([]);
-  // Composição do Estoque Final (Insumos − Alimentação + Produções) p/ reconciliar com a tela Estoque.
+  // Composição do Estoque Final (Insumos + Produções, ambos já sem a alimentação F) p/ reconciliar com a tela Estoque.
   // Chave: `${ano}-${semana}`.
   const [composicaoEstoque, setComposicaoEstoque] = useState<Record<string, { insumo: number; producao: number; alimentacao: number }>>({});
   const [loading, setLoading] = useState(true);
@@ -695,7 +695,7 @@ export default function CMVSemanalTabelaPage() {
     }
   }, [anoFiltro, selectedBar?.id, visao]);
 
-  // Composição do Estoque Final (Insumos − Alimentação + Produções) p/ reconciliar com a tela Estoque.
+  // Composição do Estoque Final (Insumos + Produções, ambos já sem a alimentação F) p/ reconciliar com a tela Estoque.
   // Só na visão semanal (o Estoque Final vem da contagem da semana).
   useEffect(() => {
     if (visao !== 'semanal' || !selectedBar?.id || semanas.length === 0) {
@@ -952,6 +952,17 @@ export default function CMVSemanalTabelaPage() {
     // Consumações = CUSTO REAL da ficha (consumo_* gravados pela edge desde jul/2026).
     // Fallback ×fator sobre os brutos p/ semanas antigas (2025) ainda não reprocessadas.
     if (key === 'total_consumos') {
+      // Custo real das 10 categorias (JSONB consumacoes_9) — MESMA fonte da tela
+      // /operacional/consumacao (total_custo). Inclui "Outros", então as linhas c9
+      // (incl. Outros) fecham EXATO com este TOTAL. Ex s28 bar 3 = 6.150,86.
+      // Antes somava só 4 colunas reais (socios/beneficios/artista/rh) e OMITIA o
+      // bucket Outros → TOTAL subestimado e residual do Outros clampava em 0.
+      const c9tot = (semana as unknown as { consumacoes_9?: Record<string, number> | null }).consumacoes_9;
+      if (c9tot && typeof c9tot === 'object') {
+        const soma = Object.values(c9tot).reduce((acc: number, v) => acc + (Number(v) || 0), 0);
+        if (soma > 0) return Math.round(soma * 100) / 100;
+      }
+      // Fallback semanas antigas (sem consumacoes_9): colunas reais, senão ×fator sobre brutos
       const s = semana as unknown as { consumo_socios?: number; consumo_beneficios?: number; consumo_artista?: number; consumo_rh?: number };
       const real = (s.consumo_socios || 0) + (s.consumo_beneficios || 0) + (s.consumo_artista || 0) + (s.consumo_rh || 0);
       if (real > 0) return real;
@@ -970,11 +981,14 @@ export default function CMVSemanalTabelaPage() {
       const c9 = (semana as unknown as { consumacoes_9?: Record<string, number> | null }).consumacoes_9;
       const get9 = (k: string) => (c9 && typeof c9 === 'object' ? (c9[k] || 0) : 0);
       if (cat === 'outros') {
+        // "Outros" é bucket PRÓPRIO no consumacoes_9 (custo real), igual à tela
+        // /operacional/consumacao. Ex s28 bar 3 = 154,70. Antes era residual
+        // (TOTAL − 9) e clampava em 0 desde ~s25 (o TOTAL vinha das colunas reais,
+        // que não incluíam o outros). Fallback residual só p/ semanas antigas sem a chave.
+        if (c9 && typeof c9 === 'object' && c9['outros'] != null) return get9('outros');
         const NOVE = ['funcionarios_operacao', 'funcionarios_escritorio', 'aniversario', 'programa_pontos', 'beneficio_cliente', 'influencer', 'artistas', 'socios', 'relacionamento'];
         const soma9 = NOVE.reduce((s, k) => s + get9(k), 0);
         const total = getValorMetrica(semana, 'total_consumos') || 0;
-        // Outros = residual (TOTAL − as 9 categorias). A Chegadeira foi removida da
-        // exibição e, quando houver, fica embutida aqui pra as linhas fecharem com o TOTAL.
         return Math.max(0, total - soma9);
       }
       return get9(cat);
@@ -1064,13 +1078,13 @@ export default function CMVSemanalTabelaPage() {
         return [{ label: 'Total (Planilha)', valor: semana.estoque_inicial || 0 }];
       }
       case 'estoque_final': {
-        // Reconciliação com a tela Estoque: Estoque Final CMV = Insumos (aba Estoque)
-        // − Alimentação (F, vai pro CMA) + Produções (aba Produção). Soma = estoque_final.
+        // Reconciliação com a tela Estoque: Estoque Final CMV = Insumos (aba Estoque, JÁ sem a
+        // alimentação (F)) + Produções (aba Produção). Soma = estoque_final. A aba Insumo do
+        // estoque-historico já exclui o (F) → insumo + produção bate 1:1 com a tela Estoque.
         const comp = composicaoEstoque[`${semana.ano}-${semana.semana}`];
         if (comp && (comp.insumo > 0 || comp.producao > 0)) {
           return [
             { label: 'Insumos (aba Estoque)', valor: comp.insumo },
-            { label: '(−) Alimentação (→ CMA)', valor: -comp.alimentacao },
             { label: '(+) Produções (aba Produção)', valor: comp.producao },
           ];
         }
