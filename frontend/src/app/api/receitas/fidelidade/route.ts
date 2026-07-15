@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   estabelecimentoDoBar,
   fetchClientesFidelidade,
+  fetchResgatesFidelidade,
+  fetchPontosFidelidade,
   type ClienteFidelidade,
 } from '@/lib/receitas/fidelidade-parceiro';
 
@@ -108,5 +110,63 @@ export async function GET(request: NextRequest) {
     .map(([status, v]) => ({ status, clientes: v.clientes, saldoPontos: Math.round(v.saldoPontos) }))
     .sort((a, b) => b.clientes - a.clientes);
 
-  return NextResponse.json({ success: true, disponivel: true, resumo, porStatus, clientes });
+  // Resgates + evolução de pontos — best-effort: se o parceiro bloquear/derrubar essas views,
+  // a página segue mostrando os clientes (não quebra tudo por causa de um extra).
+  let topProdutosResgatados: { produto: string; resgates: number; valor: number }[] = [];
+  let valorBeneficios = 0;
+  let qtdResgates = 0;
+  let evolucaoMensal: { mes: string; gerados: number; utilizados: number }[] = [];
+  let extrasErro: string | null = null;
+
+  const [resgatesR, pontosR] = await Promise.allSettled([
+    fetchResgatesFidelidade(estabelecimentoId),
+    fetchPontosFidelidade(estabelecimentoId),
+  ]);
+
+  if (resgatesR.status === 'fulfilled') {
+    const prodAcc = new Map<string, { resgates: number; valor: number }>();
+    for (const r of resgatesR.value) {
+      qtdResgates++;
+      valorBeneficios += n(r.valor_estimado_beneficio);
+      const prod = (r.produto_nome || r.item_nome || 'Sem produto').trim() || 'Sem produto';
+      const a = prodAcc.get(prod) || { resgates: 0, valor: 0 };
+      a.resgates++;
+      a.valor += n(r.valor_estimado_beneficio);
+      prodAcc.set(prod, a);
+    }
+    topProdutosResgatados = [...prodAcc.entries()]
+      .map(([produto, v]) => ({ produto, resgates: v.resgates, valor: Math.round(v.valor) }))
+      .sort((a, b) => b.resgates - a.resgates)
+      .slice(0, 14);
+  } else {
+    extrasErro = resgatesR.reason instanceof Error ? resgatesR.reason.message : 'falha nos resgates';
+  }
+
+  if (pontosR.status === 'fulfilled') {
+    const mesAcc = new Map<string, { gerados: number; utilizados: number }>();
+    for (const p of pontosR.value) {
+      const mes = p.agrupamento_mes ? String(p.agrupamento_mes).slice(0, 7) : null; // YYYY-MM
+      if (!mes) continue;
+      const a = mesAcc.get(mes) || { gerados: 0, utilizados: 0 };
+      a.gerados += n(p.pontos_gerados);
+      a.utilizados += n(p.pontos_utilizados);
+      mesAcc.set(mes, a);
+    }
+    evolucaoMensal = [...mesAcc.entries()]
+      .map(([mes, v]) => ({ mes, gerados: Math.round(v.gerados), utilizados: Math.round(v.utilizados) }))
+      .sort((a, b) => a.mes.localeCompare(b.mes));
+  } else if (!extrasErro) {
+    extrasErro = pontosR.reason instanceof Error ? pontosR.reason.message : 'falha nos pontos';
+  }
+
+  return NextResponse.json({
+    success: true,
+    disponivel: true,
+    resumo: { ...resumo, valorBeneficios: Math.round(valorBeneficios), qtdResgates },
+    porStatus,
+    topProdutosResgatados,
+    evolucaoMensal,
+    extrasErro,
+    clientes,
+  });
 }

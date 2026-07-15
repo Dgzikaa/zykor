@@ -13,7 +13,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { PageShell } from '@/components/layout/PageShell';
-import { ChartCard, GraficoDonut, GraficoBarraH } from '@/components/graficos/Charts';
+import { ChartCard, GraficoDonut, GraficoBarraH, GraficoLinha } from '@/components/graficos/Charts';
 
 const num = (v: number) => Math.round(v || 0).toLocaleString('pt-BR');
 const moeda = (v: number) =>
@@ -48,6 +48,8 @@ interface Resumo {
   itensCarteira: number;
   ticketMedio: number;
   taxaResgate: number;
+  valorBeneficios: number;
+  qtdResgates: number;
 }
 
 interface Resposta {
@@ -55,6 +57,9 @@ interface Resposta {
   disponivel: boolean;
   resumo: Resumo | null;
   porStatus: { status: string; clientes: number; saldoPontos: number }[];
+  topProdutosResgatados: { produto: string; resgates: number; valor: number }[];
+  evolucaoMensal: { mes: string; gerados: number; utilizados: number }[];
+  extrasErro: string | null;
   clientes: Cliente[];
 }
 
@@ -174,7 +179,11 @@ export default function FidelidadePage() {
             />
             <Kpi label="Consumo total" valor={moeda(resumo!.totalConsumido)} />
             <Kpi label="Ticket médio" valor={moeda(resumo!.ticketMedio)} />
-            <Kpi label="Itens na carteira" valor={num(resumo!.itensCarteira)} sub={`${num(resumo!.comCarteira)} clientes`} />
+            <Kpi
+              label="Valor em benefícios"
+              valor={moeda(resumo!.valorBeneficios)}
+              sub={`${num(resumo!.qtdResgates)} resgates`}
+            />
             <Kpi
               label="Pontos utilizados"
               valor={pct((resumo!.pontosUtilizados / Math.max(1, resumo!.pontosGerados)) * 100)}
@@ -199,7 +208,35 @@ export default function FidelidadePage() {
             <ChartCard titulo="Top clientes por saldo de pontos" subtitulo="maiores saldos acumulados">
               <GraficoBarraH data={topPontos} xKey="nome" valueKey="saldo" formatV={num} height={300} />
             </ChartCard>
+
+            {resp.evolucaoMensal.length > 0 && (
+              <ChartCard titulo="Pontos por mês" subtitulo="gerados × utilizados ao longo do tempo">
+                <GraficoLinha
+                  data={resp.evolucaoMensal}
+                  xKey="mes"
+                  series={[
+                    { key: 'gerados', nome: 'Gerados', cor: '#22c55e' },
+                    { key: 'utilizados', nome: 'Utilizados', cor: '#f59e0b' },
+                  ]}
+                  formatV={num}
+                  area
+                  height={300}
+                />
+              </ChartCard>
+            )}
+
+            {resp.topProdutosResgatados.length > 0 && (
+              <ChartCard titulo="Produtos mais resgatados" subtitulo="por quantidade de resgates">
+                <GraficoBarraH data={resp.topProdutosResgatados} xKey="produto" valueKey="resgates" formatV={num} height={300} />
+              </ChartCard>
+            )}
           </div>
+
+          {resp.extrasErro && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              Resgates/pontos detalhados indisponíveis no momento ({resp.extrasErro}). Os indicadores por cliente seguem atualizados.
+            </div>
+          )}
 
           {/* Tabela */}
           <ChartCard titulo="Clientes" subtitulo={`${num(resp.clientes.length)} no total — busca por nome ou telefone`}>
