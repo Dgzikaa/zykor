@@ -53,6 +53,7 @@ Na aba Produção, clique na **estrela** da linha para marcar o **insumo mestre*
 ### 5. Editar dados do item (produção ou produto)
 - **Produção**: clique no lápis ao lado do nome para editar **nome, código, rendimento, unidade, unidade de contagem e conversor de contagem**.
 - **Produto (finalização)**: clique no lápis para editar **nome e código**; use **editar códigos** para o de-para ContaHub (prd) e Yuzer. A edição é por **chip** (adicionar/remover), sem digitar vírgula: em **Cód. ContaHub** você **busca o código real** (por número ou nome) e clica para virar um chip — assim não tem erro de digitação; em **ID Yuzer** você digita o ID e clica em **adicionar**. O `×` de cada chip remove.
+- O painel **"Códigos ContaHub + Yuzer nesta ficha"** lista, além dos códigos ContaHub (com **Preço CH** e **CMV** de cada um), também os **códigos Yuzer** vinculados ao mesmo produto (com o **preço Yuzer** e o CMV correspondente) — assim você vê todos os vínculos do produto num lugar só.
 
 ### 6. Definir o multiplicador da porção (só Finalização)
 No campo **Porção** (badge âmbar), informe quantas unidades da ficha compõem a porção vendida. Ex.: a ficha da "Mega Coxinha" tem 1 coxinha, mas a porção vendida tem 5 → multiplicador `5`. O **Custo Total** (base do CMV teórico) passa a ser `custo unitário × 5`.

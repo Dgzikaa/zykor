@@ -54,12 +54,12 @@ A tela sempre trabalha sobre o **bar selecionado** no topo. Sem bar selecionado,
 3. Faltando categoria, fornecedor, conta pagadora ou credencial Inter, a aprovação é barrada com uma mensagem dizendo o que completar.
 4. **Aprovar todos:** com pedidos prontos (categoria + fornecedor), o botão **Aprovar todos (N)** despacha o lote em sequência; os que estiverem incompletos ficam de fora e são reportados.
 
-### 3. Agendar (disparar o pagamento)
+### 3. Agendar / Subir (disparar o pagamento)
 
 1. Vá à sub-aba **Aprovado**.
-2. Em cada card aprovado, clique em **Agendar**. Isso cria a conta a pagar no Conta Azul e dispara o PIX/boleto no Inter. O status vira **Agendado**.
+2. Em cada card aprovado, clique em **Agendar** (nos freelas, **Subir**). Isso cria a conta a pagar no Conta Azul e dispara o PIX/boleto no Inter. O status vira **Aguardando aprovação sócio** (laranja) — ainda na aba Aprovado.
 3. **Agendar todos (N)** faz o lote de uma vez.
-4. Ainda falta o **OK final do sócio no app do Inter** — o Zykor apenas agenda; a liberação do dinheiro é confirmada no aplicativo do banco.
+4. Falta o **OK final do sócio no app do Inter**. Quando ele aprova, o pedido vai **sozinho** para a aba **Finalizado** (como *Agendado p/ a data* ou *Pago*); se recusa, aparece em Finalizado como *Recusado pelo sócio*. O Zykor acompanha o banco pelo webhook — não precisa reabrir nem reclicar.
 
 ### 4. Recusar um pedido
 
@@ -85,21 +85,36 @@ A tela tem **cinco abas por tipo de pagamento** no topo:
 | **Cartão de Crédito** | (Só financeiro) Conferência de faturas de cartão importadas de Excel/OFX/CSV, linha a linha. |
 | **Trocas** | Registro de insumos emprestados/enviados a outro bar, corrigindo o estoque (desvio) dos dois. |
 
-Dentro da aba **PIX** (e da lista da aba **Boleto**) há sub-abas por status: **Solicitado**, **Aprovado**, **Recusado**, **Todos** e **Consolidado**.
+Dentro da aba **PIX** (e da lista da aba **Boleto**/**Freela**) há sub-abas por status: **Solicitado**, **Aprovado**, **Finalizado**, **Recusado**, **Todos** e **Consolidado**. Elas seguem o **ciclo real do Banco Inter**:
 
-- **Solicitado** = só o que aguarda aprovação.
-- **Aprovado** = agrupa *aprovado*, *agendado*, *pago* e os erros de agendamento (*erro Conta Azul* / *erro Inter*, que pedem novo "Agendar").
-- **Recusado** = *rejeitado* + *cancelado*.
+- **Solicitado** = só o que aguarda a aprovação do financeiro.
+- **Aprovado** = o que ainda depende de alguém agir: *aprovado* (o financeiro ainda vai **Subir**), *aguardando aprovação do sócio* (já foi subido ao Inter, em **laranja**, esperando o OK do sócio no app) e os erros de agendamento (*erro Conta Azul* / *erro Inter*, que pedem novo "Agendar").
+- **Finalizado** = o sócio já aprovou no Inter, saiu da alçada do financeiro: *agendado* ("Agendado p/ DD/MM", aguardando a data), *pago* (efetivado) e *recusado pelo sócio* (registro).
+- **Recusado** = *rejeitado* (pelo financeiro) + *cancelado*.
 - **Todos** = tudo.
 - **Consolidado** = visão diária dos pagamentos já decididos (ver abaixo).
 
+> **Como o pagamento anda sozinho:** ao subir um PIX/boleto, ele vira **Aguardando aprovação sócio** (laranja) e fica na aba Aprovado. O **webhook do Inter** promove automaticamente: quando o sócio aprova no app, vira **Agendado** (ou **Pago**, se foi na hora) e pula para **Finalizado**; se o sócio recusa, vira **Recusado pelo sócio**. Ninguém precisa clicar de novo.
+
 ### Aba Freela
 
-Navega semana a semana (segunda a domingo). As diárias da semana vencem **na terça-feira seguinte**. Você marca os freelas do roster, informa o valor de cada um e o **dia trabalhado (competência)**, e clica em **Lançar na semana** — cada freela vira um pedido `tipo=freela` puxando os dados salvos do beneficiário (PIX, CPF, categoria, fornecedor CA). O financeiro aprova a semana toda de uma vez com **Aprovar pagamento da semana**.
+O fluxo de freela é **separado em dois papéis**:
+
+**1. Operação** (`/operacional/freelas`, menu Operacional › **Freelas (Semana)**, permissão `gestao`): quem toca a operação (ex.: Junin) monta a semana. Navega semana a semana (seg→dom, diárias vencem **na terça seguinte**), marca os freelas do roster, informa valor e **dia trabalhado (competência)** e clica em **Adicionar ao rascunho** — as diárias ficam como **rascunho** (edita/remove à vontade), **invisíveis pro financeiro**. Ao fim, **Encerrar semana** envia tudo ao financeiro. Um botão **Novo freela** cadastra alguém no roster na hora (nome, função, valor padrão, PIX); o vínculo com o Conta Azul (fornecedor/categoria) fica pro financeiro.
+
+**2. Financeiro** (esta aba **Freela**, em Pedidos de Pagamento): as diárias chegam **por pessoa** (cada pessoa → seus dias). Para cada pessoa o financeiro escolhe **categoria + fornecedor CA** uma vez (vale para todas as diárias dela — cobre o freela cujo cadastro não trouxe esses dados) e clica **Aprovar** (ou **Recusar**) o lote da pessoa. Depois, **Subir** cada diária dispara o CA + o PIX no Inter (mesmo ciclo do PIX: aguardando sócio → Finalizado). Há uma **lixeira** para **excluir** uma diária — inclusive depois de subida (nesse caso o Zykor **cancela o agendamento no Inter**; se já houver lançamento no Conta Azul, ele avisa para removê-lo à mão, pois o CA não tem exclusão via API).
 
 ### Aba Cartão de Crédito
 
-Cada **fatura** = um cartão + um vencimento. Você importa o extrato (Excel/OFX/CSV) e classifica cada linha (bar + categoria) para lançar no Conta Azul. Compara o total das compras com o valor informado pelo banco para checar se "bate". Faturas podem ser **encerradas** e **reabertas**.
+Conferência das faturas de cartão, linha a linha, com lançamento no Conta Azul. O topo lista **os cartões cadastrados** (ex.: Itaú Azul Gonza, Itaú Latam Cadu); ao clicar num cartão, aparecem **as faturas dele** (uma por vencimento) para você escolher. Você compara o total das compras com o valor informado pelo banco para checar se "bate". Faturas podem ser **encerradas**, **reabertas** e **excluídas**.
+
+**Fornecedor = titular do cartão.** No lançamento de cada compra no Conta Azul, o *fornecedor* é o **dono do cartão** (o titular), não um contato genérico nem o estabelecimento — o **estabelecimento vira a descrição** do lançamento. O bar escolhido em cada linha é só **onde** ela é lançada (Conta Azul/Inter daquele bar).
+
+**Vincular o titular (uma vez, no botão "Cartões"):** abra **Cartões** e, na seção **Finais → Fornecedor**, para cada final de cartão (ex.: ••8939) selecione o fornecedor titular no Conta Azul (ou clique **＋ novo** para cadastrá-lo na hora). O vínculo vale **para os dois bares** e para **todas as faturas** — o Zykor acha o mesmo titular no Conta Azul de cada bar (ou cria) automaticamente. A tabela da fatura mostra o titular na coluna **Fornecedor**; se algum final ainda não estiver vinculado, o lançamento avisa "vincule o titular na seção Fornecedor por cartão".
+
+**Importar:** dentro da fatura selecionada, use **Importar Excel/OFX/CSV nesta fatura**. O arquivo do Itaú traz o vencimento e o valor no cabeçalho (o Zykor puxa sozinho) e o sistema **deduplica** as linhas (reimportar a mesma fatura atualiza, não duplica).
+
+**Cadastro de cartões:** o botão **Cartões** também tem a seção **Contas de cartão** (banco + tipo + dono), que são as contas que **agrupam as faturas** no topo.
 
 ### Aba Trocas
 
@@ -119,7 +134,7 @@ Quem **envia** o insumo registra: escolhe o bar de destino, os insumos e as quan
 | Vence | Data de vencimento | `data_vencimento` (formatado dd/mm/aaaa) | `financial.pedidos_pagamento` |
 | Comp. | Competência | `data_competencia` | `financial.pedidos_pagamento` |
 | Valor | Valor do pedido em R$ | `valor`; com múltiplas competências é a **soma** das linhas | `pedidos_pagamento` / `pedidos_pagamento_competencias` |
-| Status | Situação atual | `status` (aguardando aprovação, aprovado, agendado, pago, erro CA, erro Inter, rejeitado, cancelado) | `financial.pedidos_pagamento` |
+| Status | Situação atual | `status` (aguardando aprovação, aprovado, **aguardando aprovação sócio** [laranja], agendado, pago, **recusado pelo sócio**, erro CA, erro Inter, rejeitado, cancelado) | `financial.pedidos_pagamento` |
 | Categoria (sugerida) | Categoria de despesa do CA + sugestão automática | Sugestão = categoria do **último pedido aprovado do mesmo fornecedor** (por pessoa do CA, senão por nome do beneficiário) | histórico de `pedidos_pagamento` |
 | Conta pagadora | Conta do CA de onde sai o PIX | Escolha manual ou **conta pagadora padrão do bar**; define a credencial Inter usada | `bronze_contaazul_contas_financeiras` |
 | Fornecedor CA | Contato/fornecedor vinculado no Conta Azul | Vínculo por documento (CPF/CNPJ) ou, na falta, por nome | `bronze_contaazul_pessoas` |
@@ -152,8 +167,9 @@ Quem **envia** o insumo registra: escolhe o bar de destino, os insumos e as quan
 | Total / lançado | Total de compras e quanto já foi ao CA | Σ `valor` de linhas tipo *compra*; lançado = as com status *lançado* | tabelas de fatura de cartão |
 | "bate / dif" | Conferência com o valor do banco | Compara total das compras com `valor_informado`; ✓ se diferença < R$ 0,01 | fatura de cartão |
 | Data / Estabelecimento / Titular / Cartão / Valor | Dados da transação | Extraídos do extrato importado (Excel/OFX/CSV) | linhas da fatura |
-| Bar / Categoria | Rateio da linha | Escolha manual; categoria depende do bar escolhido | Conta Azul (categorias de despesa) |
-| Ação | Lançar / Ignorar / Lançado | Botão dispara o lançamento no CA; linhas podem ser ignoradas | fatura de cartão |
+| **Fornecedor** | Titular do cartão daquela linha | Vínculo Final→Fornecedor definido no botão **Cartões** (por `cartao_final`) | `financial.cartao_fornecedor_map` |
+| Bar / Categoria | Rateio da linha | Escolha manual; categoria depende do bar escolhido; o bar define **onde** lança | Conta Azul (categorias de despesa) |
+| Ação | Lançar / Ignorar / Lançado | Botão dispara o lançamento no CA (descrição = estabelecimento, fornecedor = titular); linhas podem ser ignoradas | fatura de cartão |
 
 ### Aba Trocas
 
@@ -185,7 +201,8 @@ Quem **envia** o insumo registra: escolhe o bar de destino, os insumos e as quan
 - **Validação da linha digitável:** a linha é conferida pelos **dígitos verificadores** (44/47/48 dígitos). Se a leitura por IA vier truncada ou com dígito trocado (ex.: 46 dígitos), o sistema **relê o boleto automaticamente** uma vez; se ainda ficar inválida, o campo fica **vermelho com aviso** e a criação pede confirmação — evitando que um boleto quebrado só falhe lá na hora de pagar no Inter. Nesse caso, confira e cole a linha correta antes de criar.
 - **Sugestão de categoria:** só aparece para quem aprova e para pedidos pendentes sem categoria; é apenas um pré-preenchimento a confirmar.
 - **Freela:** semana seg→dom paga na terça seguinte; cada diária puxa os dados salvos do beneficiário; freela sem fornecedor no CA é vinculado pelo financeiro na aprovação.
-- **Exclusão vs cancelamento:** só admin pode **excluir** definitivamente (pedidos de teste/duplicados). Pedidos que já geraram conta no CA ou PIX no Inter **não podem ser excluídos** — devem ser cancelados.
+- **Ciclo do sócio (webhook Inter):** depois de subido, o pedido fica **Aguardando aprovação sócio** (laranja, aba Aprovado). O webhook do Inter promove sozinho: sócio aprova → **Agendado** (Finalizado) → na data → **Pago**; sócio recusa → **Recusado pelo sócio** (Finalizado). Pagamento efetivado no mesmo dia pula direto para **Pago**.
+- **Exclusão vs cancelamento:** só admin pode **excluir** definitivamente (pedidos de teste/duplicados). Nos **freelas**, o financeiro pode **excluir/cancelar** uma diária mesmo depois de aprovada ou subida — se já foi ao Inter, o Zykor cancela o agendamento no banco antes; se já há lançamento no Conta Azul, ele **não** apaga (o CA não tem exclusão via API) e avisa para removê-lo à mão.
 - **Tempo real:** a lista atualiza sozinha via broadcast quando alguém cria/aprova/paga, com poll silencioso de reserva a cada 12 s na aba PIX.
 - **Auditoria:** cada mudança de campo/status gera linha de **histórico**, e transições importantes viram **comentário do sistema** na thread do pedido.
 - **Arredondamento:** valores de competência são arredondados para 2 casas; o total é a soma dessas linhas.
@@ -220,6 +237,9 @@ Não. Quem não tem permissão de aprovação só vê e cria os próprios. O fin
 - `beneficiarios` — cadastro de freelas/beneficiários (PIX, CPF, categoria, fornecedor CA).
 - `pagamento_config_bar` — memoriza a conta pagadora + credencial Inter padrão do bar.
 - `trocas` (+ itens) — trocas de insumo entre bares.
+- `cartao_cadastro` — contas de cartão (banco + tipo + dono) que agrupam as faturas.
+- `cartao_faturas` (+ `cartao_fatura_linhas`) — faturas de cartão e suas transações.
+- `cartao_fornecedor_map` — de-para **final do cartão → fornecedor (titular)** no Conta Azul, por bar.
 
 **Schema `bronze` (espelho do Conta Azul):**
 - `bronze_contaazul_pessoas` — fornecedores/contatos.

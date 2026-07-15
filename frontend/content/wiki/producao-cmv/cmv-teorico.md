@@ -38,7 +38,8 @@ Permissão necessária: módulo **Gestão** (`gestao`). Usuários com acesso som
 3. Selecione a data de referência: em **Dia** use o seletor de data; em **Semana**/**Mês** use a lista suspensa (últimas 16 semanas / 12 meses).
 4. Leia os cartões de topo (CMV teórico, Faturamento, Custo teórico, Margem) e a faixa que compara com o período anterior.
 5. Desça para a tabela **por categoria** e clique numa categoria para filtrar a tabela de produtos abaixo.
-6. Use a busca para achar um produto específico e o botão **Exportar CSV** para levar a lista para uma planilha.
+6. Na tabela **por produto**, cada produto aparece em **uma linha** com os totais do período. Quando o produto tem **mais de um código**, a linha fica clicável: **clique nela** (ou em **Expandir todos**) para abrir as sub-linhas — a **saída do período por cada código ContaHub e Yuzer** (qtd, preço efetivo, custo, faturamento e CMV próprios). Serve para ver quanto cada canal (ContaHub × Yuzer) e cada variação vendeu no período.
+7. Use a busca para achar um produto específico e o botão **Exportar CSV** para levar a lista para uma planilha (inclui as linhas por código quando o produto tem vários).
 
 ### Revisar a precificação do cardápio inteiro
 

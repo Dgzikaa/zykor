@@ -71,7 +71,7 @@ Dentro do Cálculo CMV, os grupos **Compras** e **Consumações** são expansív
 
 ## Colunas e cálculos
 
-> Legenda de status usada na tela: **verde** = automático ou calculado (dado verificado); **azul** = manual (inserido à mão). O fator de consumo (`fatorCmv`, padrão **0,35**) vem das regras do bar e multiplica as consumações internas.
+> Legenda de status usada na tela: **verde** = automático ou calculado (dado verificado); **azul** = manual (inserido à mão). As **consumações internas usam o CUSTO REAL da ficha** (o quanto o insumo daquele consumo custou de fato). O fator antigo (`fatorCmv`, padrão **0,35**) só é usado como **fallback** para semanas antigas ainda não reprocessadas.
 
 ### Seção VENDAS
 
@@ -90,17 +90,17 @@ Dentro do Cálculo CMV, os grupos **Compras** e **Consumações** são expansív
 | Custo Drinks | Compras de drinks | Lançamentos com `categoria_nome = CUSTO DRINKS` | Conta Azul |
 | Custo Bebidas | Compras de bebidas | `CUSTO BEBIDAS` **+ Custo Outros** (agrupados juntos) | Conta Azul |
 | (-) Estoque Final | Estoque no fim do período (abate o CMV) | Automático: contagem de estoque valorizada (mesma base do Desvios). Editável para ajuste manual | `silver.estoque_contagem` / `operations.contagem_estoque_insumos` |
-| Consumações — TOTAL (×fator) | Consumo interno que sai do CMV | Custo real da ficha (`consumo_socios + consumo_beneficios + consumo_artista + consumo_rh`) quando disponível; senão soma dos brutos × fator (fallback histórico) | Calculado (edge `cmv-semanal-auto`) |
-| Funcionário Operação (×fator) | Consumação da operação | `motivo = Funcionário Operação` × fator | ContaHub (JSONB `consumacoes_9`) |
-| Funcionário Escritório (×fator) | Consumação do escritório | `motivo = Funcionário Escritório` × fator | ContaHub |
-| Aniversário (×fator) | Cortesias de aniversário | `motivo = Aniversário` × fator | ContaHub |
-| Programa de Pontos (×fator) | Resgates de pontos | `motivo = Programa de Pontos` × fator | ContaHub |
-| Benefício Cliente (×fator) | Benefícios a clientes | `motivo = Benefício Cliente` × fator | ContaHub |
-| Influencer (×fator) | Cortesias a influencers | `motivo = Influencer` × fator | ContaHub |
-| Artistas (×fator) | Consumo de artistas/banda | `motivo = Artistas` × fator | ContaHub |
-| Sócios (×fator) | Consumo dos sócios | `motivo = Sócios` × fator | ContaHub |
-| Relacionamento (×fator) | Cortesias de relacionamento | `motivo = Relacionamento` × fator | ContaHub |
-| Outros (×fator) | Resíduo das consumações | **Residual**: TOTAL − as 9 categorias. Inclui histórico pré-12/06 e a semana em andamento ainda não detalhada | Calculado |
+| Consumações — TOTAL (custo real) | Consumo interno que sai do CMV | Custo real da ficha (`consumo_socios + consumo_beneficios + consumo_artista + consumo_rh`); senão soma dos brutos × fator (fallback histórico). O tooltip do CMV R$ usa **esse mesmo valor** (fecha com o CMV exibido) | Calculado (edge `cmv-semanal-auto`) |
+| Funcionário Operação | Consumação da operação | `motivo = Funcionário Operação` (custo real da ficha) | ContaHub (JSONB `consumacoes_9`) |
+| Funcionário Escritório | Consumação do escritório | `motivo = Funcionário Escritório` (custo real da ficha) | ContaHub |
+| Aniversário | Cortesias de aniversário | `motivo = Aniversário` (custo real da ficha) | ContaHub |
+| Programa de Pontos | Resgates de pontos | `motivo = Programa de Pontos` (custo real da ficha) | ContaHub |
+| Benefício Cliente | Benefícios a clientes | `motivo = Benefício Cliente` (custo real da ficha) | ContaHub |
+| Influencer | Cortesias a influencers | `motivo = Influencer` (custo real da ficha) | ContaHub |
+| Artistas | Consumo de artistas/banda | `motivo = Artistas` (custo real da ficha) | ContaHub |
+| Sócios | Consumo dos sócios | `motivo = Sócios` (custo real da ficha) | ContaHub |
+| Relacionamento | Cortesias de relacionamento | `motivo = Relacionamento` (custo real da ficha) | ContaHub |
+| Outros | Resíduo das consumações | **Residual**: TOTAL − as 9 categorias. Inclui histórico pré-12/06 e a semana em andamento ainda não detalhada | Calculado |
 | (+) Bonificações | Bonificações de fornecedores | Valor inserido manualmente (campo único `bonificacoes`; para legados, soma de Contrato Anual + Cashback Mensal) | Manual |
 
 ### Seção RESULTADOS
