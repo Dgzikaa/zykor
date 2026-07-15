@@ -73,7 +73,6 @@ export function FaturaCartaoTab() {
   const [esconderLancados, setEsconderLancados] = useState(false);
 
   // Modais
-  const [novaOpen, setNovaOpen] = useState(false);
   const [cartoesOpen, setCartoesOpen] = useState(false);
 
   const faturaSel = useMemo(() => [...faturas, ...encerradas].find(f => f.id === faturaSelId) || null, [faturas, encerradas, faturaSelId]);
@@ -398,9 +397,6 @@ export function FaturaCartaoTab() {
             </button>
           );
         })}
-        <Button size="sm" onClick={() => setNovaOpen(true)}>
-          <Upload className="w-4 h-4 mr-1" />Importar fatura
-        </Button>
         <Button size="sm" variant="ghost" onClick={() => setCartoesOpen(true)}><CreditCard className="w-4 h-4 mr-1" />Cartões</Button>
         <Button size="sm" variant={verEncerradas ? 'default' : 'ghost'} onClick={() => setVerEncerradas(v => !v)}><Archive className="w-4 h-4 mr-1" />Encerradas</Button>
       </div>
@@ -441,7 +437,7 @@ export function FaturaCartaoTab() {
 
       {!faturaSel ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground text-sm">
-          {faturas.length === 0 ? 'Crie uma fatura pra começar (+ Nova fatura).' : 'Selecione uma fatura acima.'}
+          {faturas.length === 0 ? 'Nenhuma fatura aberta. Selecione um cartão e importe o Excel/OFX dentro da fatura.' : 'Selecione um cartão acima.'}
         </CardContent></Card>
       ) : (
         <>
@@ -615,76 +611,11 @@ export function FaturaCartaoTab() {
         </>
       )}
 
-      <ImportarFaturaDialog open={novaOpen} onOpenChange={setNovaOpen} cartoes={cartoes}
-        onAbrirCartoes={() => { setNovaOpen(false); setCartoesOpen(true); }}
-        onImportada={(fid) => { setNovaOpen(false); carregarBase().then(() => setFaturaSelId(fid)); if (faturaSelId === fid) carregarLinhas(fid); }} />
       <CartoesDialog open={cartoesOpen} onOpenChange={setCartoesOpen} cartoes={cartoes} onMudou={carregarBase}
         barId={barFatura} fornecedores={barFatura ? (opcoesBar[barFatura]?.fornecedores || []) : []}
         onVincular={(final, pid, nome) => vincularCartao({ cartao_final: final, titular_nome: null, banco: null }, pid, nome)}
         onCadastrarEVincular={cadastrarEVincular} onDesvincular={desvincularCartao} />
     </div>
-  );
-}
-
-// ---------- Modal: importar fatura (cria a fatura pelo arquivo) ----------
-function ImportarFaturaDialog({ open, onOpenChange, cartoes, onImportada, onAbrirCartoes }: {
-  open: boolean; onOpenChange: (v: boolean) => void; cartoes: Cartao[];
-  onImportada: (faturaId: string) => void; onAbrirCartoes: () => void;
-}) {
-  const { showToast } = useToast();
-  const [cartaoId, setCartaoId] = useState('');
-  const [lendo, setLendo] = useState(false);
-
-  const importar = async (file?: File) => {
-    if (!file) return;
-    if (!cartaoId) return showToast({ type: 'error', title: 'Selecione o cartão primeiro' });
-    setLendo(true);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('cartao_id', cartaoId);
-      const barId = getSelectedBarId();
-      const res = await fetch('/api/financeiro/cartao-fatura/importar', { method: 'POST', headers: barId ? { 'x-selected-bar-id': barId } : {}, body: fd });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || 'falha ao importar');
-      showToast({
-        type: 'success', title: `Fatura ${json.fatura_criada ? 'criada' : 'atualizada'}`,
-        message: `${json.novos} novas · ${json.ja_vistos} já vistas${json.vencimento_arquivo ? ` · vence ${fmtDataBR(json.vencimento_arquivo)}` : ''}`,
-      });
-      setCartaoId('');
-      if (json.fatura_id) onImportada(json.fatura_id);
-    } catch (e: any) {
-      showToast({ type: 'error', title: 'Erro ao importar', message: e?.message });
-    } finally { setLendo(false); }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Importar fatura</DialogTitle>
-          <DialogDescription>Escolha o cartão e suba o Excel/OFX/CSV da fatura. A fatura é criada com o vencimento do arquivo (Itaú). Se já existir a do mesmo vencimento, ela é atualizada.</DialogDescription>
-        </DialogHeader>
-        <div className="px-6 space-y-3">
-          <div>
-            <Label className="mb-1.5 block">Cartão</Label>
-            {cartoes.length === 0 ? (
-              <div className="text-sm text-muted-foreground">Nenhum cartão cadastrado. <button className="text-blue-600 hover:underline" onClick={onAbrirCartoes}>Cadastrar cartão</button></div>
-            ) : (
-              <SearchableSelect value={cartaoId} onValueChange={(v) => setCartaoId(v || '')} placeholder="Selecione o cartão"
-                searchPlaceholder="Buscar..." emptyMessage="Nenhum" options={cartoes.map(c => ({ value: c.id, label: cartaoNome(c) }))} />
-            )}
-          </div>
-          <label className={`flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[hsl(var(--border))] py-4 text-sm ${cartaoId ? 'cursor-pointer hover:bg-muted/40' : 'opacity-50 cursor-not-allowed'}`}>
-            {lendo ? <><Loader2 className="w-4 h-4 animate-spin text-blue-500" />Importando…</> : <><Upload className="w-4 h-4 text-muted-foreground" />Escolher arquivo (Excel/OFX/CSV)</>}
-            <input type="file" accept=".xls,.xlsx,.csv,.ofx" className="hidden" disabled={lendo || !cartaoId}
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) importar(f); e.currentTarget.value = ''; }} />
-          </label>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={lendo}>Fechar</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
