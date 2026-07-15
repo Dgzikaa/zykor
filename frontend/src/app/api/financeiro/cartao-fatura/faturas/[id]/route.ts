@@ -54,3 +54,31 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, fatura: data });
 }
+
+// DELETE — exclui a fatura e suas linhas. Bloqueia se houver linhas já LANÇADAS no Conta Azul
+// (excluir aqui NÃO remove do CA) — a menos que ?force=1.
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.pedidos, 'excluir')) return permissionErrorResponse('Sem permissão');
+  const { id } = await params;
+  const force = new URL(request.url).searchParams.get('force') === '1';
+  const supabase = await getAdminClient();
+
+  const { data: fatura } = await fin(supabase).from('cartao_faturas').select('id').eq('id', id).maybeSingle();
+  if (!fatura) return NextResponse.json({ success: false, error: 'Fatura não encontrada' }, { status: 404 });
+
+  const { count } = await fin(supabase).from('cartao_fatura_linhas')
+    .select('id', { count: 'exact', head: true }).eq('fatura_id', id).eq('status', 'lancado');
+  if ((count || 0) > 0 && !force) {
+    return NextResponse.json({
+      success: false, requer_force: true, lancadas: count,
+      error: `${count} linha(s) já lançadas no Conta Azul. Excluir a fatura NÃO remove do CA — confirme para excluir mesmo assim.`,
+    }, { status: 409 });
+  }
+
+  await fin(supabase).from('cartao_fatura_linhas').delete().eq('fatura_id', id);
+  const { error } = await fin(supabase).from('cartao_faturas').delete().eq('id', id);
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
+}

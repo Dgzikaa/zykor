@@ -15,7 +15,7 @@ import { ColumnFilterHeader, useColumnFilters, type FilterCol } from '@/componen
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { getSelectedBarId } from '@/lib/selected-bar';
-import { Loader2, Upload, Send, EyeOff, RotateCcw, CheckCircle2, Plus, CreditCard, Lock, Archive } from 'lucide-react';
+import { Loader2, Upload, Send, EyeOff, RotateCcw, CheckCircle2, Plus, CreditCard, Lock, Archive, Trash2 } from 'lucide-react';
 
 interface Cartao { id: string; banco: string; tipo: string; dono: string }
 interface Fatura {
@@ -252,6 +252,34 @@ export function FaturaCartaoTab() {
     }
   };
 
+  const [excluindoFatura, setExcluindoFatura] = useState(false);
+  const excluirFatura = async (f: Fatura) => {
+    const mesma = f.id === faturaSel?.id;
+    const lancadas = (mesma ? linhas : []).filter(l => l.status === 'lancado').length;
+    const nLinhas = mesma ? linhas.length : undefined;
+    const base = `Excluir a fatura de ${cartaoNome(f.cartao)} (vence ${fmtDataBR(f.vencimento)})${nLinhas != null ? ` e suas ${nLinhas} linhas` : ' e todas as linhas dela'}? Não dá pra desfazer.`;
+    const alerta = lancadas > 0 ? `\n\n⚠ ${lancadas} linha(s) já foram LANÇADAS no Conta Azul. Excluir aqui NÃO remove do CA.` : '';
+    if (!window.confirm(base + alerta)) return;
+    setExcluindoFatura(true);
+    try {
+      await api.delete(`/api/financeiro/cartao-fatura/faturas/${f.id}${lancadas > 0 ? '?force=1' : ''}`);
+      showToast({ type: 'success', title: 'Fatura excluída' });
+      if (faturaSelId === f.id) setFaturaSelId(null);
+      await carregarBase();
+      if (verEncerradas) carregarEncerradas();
+    } catch (e: any) {
+      // 409 = tem lançadas e não veio force → repergunta com force
+      if (String(e?.message || '').includes('já lançadas') || e?.status === 409) {
+        if (window.confirm('Há linhas já lançadas no Conta Azul. Excluir mesmo assim (não remove do CA)?')) {
+          try { await api.delete(`/api/financeiro/cartao-fatura/faturas/${f.id}?force=1`); showToast({ type: 'success', title: 'Fatura excluída' }); if (faturaSelId === f.id) setFaturaSelId(null); await carregarBase(); }
+          catch (e2: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e2?.message }); }
+        }
+      } else {
+        showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message });
+      }
+    } finally { setExcluindoFatura(false); }
+  };
+
   const reabrir = async (f: Fatura) => {
     try {
       await api.patch(`/api/financeiro/cartao-fatura/faturas/${f.id}`, { status: 'aberta' });
@@ -368,23 +396,54 @@ export function FaturaCartaoTab() {
     finally { setCadBusy(false); }
   };
 
+  // Hierarquia Cartão → Faturas: agrupa as faturas abertas por cartão.
+  const faturasPorCartao = useMemo(() => {
+    const m = new Map<string, { key: string; cartao?: Cartao; faturas: Fatura[] }>();
+    for (const f of faturas) {
+      const key = f.cartao?.id || `sem-${f.id}`;
+      const e = m.get(key) || { key, cartao: f.cartao, faturas: [] };
+      e.faturas.push(f);
+      m.set(key, e);
+    }
+    return Array.from(m.values());
+  }, [faturas]);
+  const cartaoAtivo = faturaSel?.cartao?.id ?? faturasPorCartao[0]?.key ?? null;
+  const faturasDoCartao = useMemo(() => faturasPorCartao.find(g => g.key === cartaoAtivo)?.faturas || [], [faturasPorCartao, cartaoAtivo]);
+
   return (
     <div className="space-y-3">
-      {/* Abas de faturas abertas + ações */}
+      {/* Cartões (agrupa as faturas abertas por cartão) + ações */}
       <div className="flex items-center gap-2 flex-wrap">
-        {faturas.map(f => (
-          <button key={f.id} onClick={() => setFaturaSelId(f.id)}
-            className={`rounded-lg border px-3 py-1.5 text-left text-xs transition ${faturaSelId === f.id ? 'border-blue-500 bg-blue-500/10' : 'border-[hsl(var(--border))] hover:bg-muted/40'}`}>
-            <div className="font-medium flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5" />{cartaoNome(f.cartao)}</div>
-            <div className="text-muted-foreground">vence {fmtDataBR(f.vencimento)} · {fmtBRL(f.totais?.total || 0)}{f.totais?.novos ? ` · ${f.totais.novos} a lançar` : ''}</div>
-          </button>
-        ))}
+        {faturasPorCartao.map(g => {
+          const ativo = g.key === cartaoAtivo;
+          const novos = g.faturas.reduce((s, f) => s + (f.totais?.novos || 0), 0);
+          return (
+            <button key={g.key} onClick={() => setFaturaSelId(g.faturas[0]?.id ?? null)}
+              className={`rounded-lg border px-3 py-1.5 text-left text-xs transition ${ativo ? 'border-blue-500 bg-blue-500/10' : 'border-[hsl(var(--border))] hover:bg-muted/40'}`}>
+              <div className="font-medium flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5" />{cartaoNome(g.cartao)}</div>
+              <div className="text-muted-foreground">{g.faturas.length} fatura{g.faturas.length > 1 ? 's' : ''}{novos ? ` · ${novos} a lançar` : ''}</div>
+            </button>
+          );
+        })}
         <Button size="sm" onClick={() => setNovaOpen(true)}>
           <Plus className="w-4 h-4 mr-1" />Nova fatura
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setCartoesOpen(true)}><CreditCard className="w-4 h-4 mr-1" />Cartões</Button>
         <Button size="sm" variant={verEncerradas ? 'default' : 'ghost'} onClick={() => setVerEncerradas(v => !v)}><Archive className="w-4 h-4 mr-1" />Encerradas</Button>
       </div>
+
+      {/* Faturas do cartão selecionado */}
+      {faturasDoCartao.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs text-muted-foreground mr-1">Faturas:</span>
+          {faturasDoCartao.map(f => (
+            <button key={f.id} onClick={() => setFaturaSelId(f.id)}
+              className={`rounded-md border px-2.5 py-1 text-xs transition ${faturaSelId === f.id ? 'border-blue-500 bg-blue-500/10 font-medium' : 'border-[hsl(var(--border))] hover:bg-muted/40'}`}>
+              vence {fmtDataBR(f.vencimento)} · {fmtBRL(f.totais?.total || 0)}{f.totais?.novos ? ` · ${f.totais.novos} a lançar` : ''}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Faturas encerradas */}
       {verEncerradas && (
@@ -395,9 +454,10 @@ export function FaturaCartaoTab() {
               {encerradas.map(f => (
                 <div key={f.id} className="flex items-center justify-between text-xs gap-2">
                   <span className="truncate">{cartaoNome(f.cartao)} · vence {fmtDataBR(f.vencimento)} · {fmtBRL(f.totais?.total || 0)}</span>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button className="text-blue-600 hover:underline" onClick={() => { setFaturaSelId(f.id); }}>ver</button>
                     <button className="text-muted-foreground hover:underline" onClick={() => reabrir(f)}>reabrir</button>
+                    <button className="text-muted-foreground hover:text-red-500 hover:underline" onClick={() => excluirFatura(f)} disabled={excluindoFatura}>excluir</button>
                   </div>
                 </div>
               ))}
@@ -432,7 +492,7 @@ export function FaturaCartaoTab() {
               </div>
             </div>
             {editavelFatura && (
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-stretch">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2 items-stretch">
                 <label className="flex items-center justify-center gap-2 cursor-pointer rounded-lg border-2 border-dashed border-[hsl(var(--border))] py-3 hover:bg-muted/40 text-sm">
                   {lendo ? <><Loader2 className="w-4 h-4 animate-spin text-blue-500" />Lendo…</> : <><Upload className="w-4 h-4 text-muted-foreground" />Importar Excel/OFX/CSV nesta fatura</>}
                   <input type="file" accept=".xls,.xlsx,.csv,.ofx" className="hidden" disabled={lendo}
@@ -440,6 +500,10 @@ export function FaturaCartaoTab() {
                 </label>
                 <Button variant="outline" onClick={encerrarFatura} disabled={encerrando}>
                   {encerrando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lock className="w-4 h-4 mr-2" />}Encerrar fatura
+                </Button>
+                <Button variant="outline" onClick={() => excluirFatura(faturaSel)} disabled={excluindoFatura}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 border-red-200 dark:border-red-800">
+                  {excluindoFatura ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}Excluir fatura
                 </Button>
               </div>
             )}
@@ -543,7 +607,14 @@ export function FaturaCartaoTab() {
                   {filtradas.map(l => {
                     const barEfetivo = l.bar_id ?? faturaSel.bar_id ?? selectedBar?.id ?? null;
                     const ops = barEfetivo ? opcoesBar[barEfetivo] : undefined;
-                    const fornecedorLinha = (barEfetivo && l.cartao_final) ? (mapaCartao[barEfetivo]?.[l.cartao_final]?.nome ?? null) : null;
+                    // Fornecedor da linha = titular vinculado ao cartão. Automático: usa o vínculo
+                    // do bar da linha; se ainda não carregou nesse bar, cai no vínculo de qualquer
+                    // bar (o titular é a mesma pessoa) — assim nunca fica "vincular" à toa.
+                    const fornecedorLinha = l.cartao_final
+                      ? ((barEfetivo ? mapaCartao[barEfetivo]?.[l.cartao_final]?.nome : null)
+                        ?? Object.values(mapaCartao).map(mb => mb?.[l.cartao_final as string]?.nome).find(Boolean)
+                        ?? null)
+                      : null;
                     const lancado = l.status === 'lancado';
                     const ignorado = l.status === 'ignorado';
                     return (
