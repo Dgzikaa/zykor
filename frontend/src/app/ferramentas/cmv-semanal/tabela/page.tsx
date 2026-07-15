@@ -260,23 +260,22 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
       },
       {
         id: 'consumos',
-        label: `(-) Consumações × ${fatorCmv}`,
+        label: `(-) Consumações (custo real)`,
         metricas: [
-          { key: 'total_consumos', label: `TOTAL (×${fatorCmv})`, status: 'calculado', fonte: 'Calculado', calculo: `Soma de todas as consumações × ${fatorCmv} (CMV)`, formato: 'moeda' },
-          // 9 categorias padronizadas no ContaHub (motivo do desconto), a partir de
-          // 12/06. Valores ja ×fator (vem do JSONB consumacoes_9). Passado cai em
-          // "Outros" p/ nao zerar o historico. "Outros" e' residual (TOTAL − os 9 −
-          // Chegadeira), entao as linhas sempre fecham com o TOTAL.
-          { key: 'c9_funcionarios_operacao', label: `Funcionário Operação (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Funcionário Operação × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'c9_funcionarios_escritorio', label: `Funcionário Escritório (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Funcionário Escritório × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'c9_aniversario', label: `Aniversário (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Aniversário × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'c9_programa_pontos', label: `Programa de Pontos (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Programa de Pontos × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'c9_beneficio_cliente', label: `Benefício Cliente (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Benefício Cliente × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'c9_influencer', label: `Influencer (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Influencer × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'c9_artistas', label: `Artistas (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Artistas × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'c9_socios', label: `Sócios (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Sócios × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'c9_relacionamento', label: `Relacionamento (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Relacionamento × ${fatorCmv}`, formato: 'moeda', drilldown: true },
-          { key: 'c9_outros', label: `Outros (×${fatorCmv})`, status: 'auto', fonte: 'ContaHub', calculo: `Residual: TOTAL − as 9 categorias (inclui o histórico pré-12/06 e a semana em andamento ainda não detalhada)`, formato: 'moeda', drilldown: true },
+          { key: 'total_consumos', label: `TOTAL (custo real)`, status: 'calculado', fonte: 'Calculado', calculo: `Custo real da ficha das consumações (fallback ×${fatorCmv} sobre o bruto p/ semanas antigas ainda não reprocessadas)`, formato: 'moeda' },
+          // 9 categorias padronizadas no ContaHub (motivo do desconto), a partir de 12/06.
+          // Valores = CUSTO REAL da ficha (JSONB consumacoes_9). Passado cai em "Outros" p/ nao
+          // zerar o historico. "Outros" e' residual (TOTAL − os 9), entao as linhas fecham com o TOTAL.
+          { key: 'c9_funcionarios_operacao', label: `Funcionário Operação`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Funcionário Operação (custo real da ficha)`, formato: 'moeda', drilldown: true },
+          { key: 'c9_funcionarios_escritorio', label: `Funcionário Escritório`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Funcionário Escritório (custo real da ficha)`, formato: 'moeda', drilldown: true },
+          { key: 'c9_aniversario', label: `Aniversário`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Aniversário (custo real da ficha)`, formato: 'moeda', drilldown: true },
+          { key: 'c9_programa_pontos', label: `Programa de Pontos`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Programa de Pontos (custo real da ficha)`, formato: 'moeda', drilldown: true },
+          { key: 'c9_beneficio_cliente', label: `Benefício Cliente`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Benefício Cliente (custo real da ficha)`, formato: 'moeda', drilldown: true },
+          { key: 'c9_influencer', label: `Influencer`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Influencer (custo real da ficha)`, formato: 'moeda', drilldown: true },
+          { key: 'c9_artistas', label: `Artistas`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Artistas (custo real da ficha)`, formato: 'moeda', drilldown: true },
+          { key: 'c9_socios', label: `Sócios`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Sócios (custo real da ficha)`, formato: 'moeda', drilldown: true },
+          { key: 'c9_relacionamento', label: `Relacionamento`, status: 'auto', fonte: 'ContaHub', calculo: `motivo = Relacionamento (custo real da ficha)`, formato: 'moeda', drilldown: true },
+          { key: 'c9_outros', label: `Outros`, status: 'auto', fonte: 'ContaHub', calculo: `Residual: TOTAL − as 9 categorias (inclui o histórico pré-12/06 e a semana em andamento ainda não detalhada)`, formato: 'moeda', drilldown: true },
         ]
       },
       {
@@ -1122,8 +1121,17 @@ export default function CMVSemanalTabelaPage() {
         }
         return null;
       }
-      case 'total_consumos':
-        // 6 categorias: Sócios, Funcionários, Clientes, Artistas, RH, Chegadeira
+      case 'total_consumos': {
+        // Modelo novo: CUSTO REAL da ficha (consumo_* gravados pela edge). Fallback ×fator sobre
+        // os brutos só p/ semanas antigas ainda não reprocessadas (espelha getValorMetrica).
+        const sc = semana as unknown as { consumo_socios?: number; consumo_beneficios?: number; consumo_artista?: number; consumo_rh?: number };
+        const real = (sc.consumo_socios || 0) + (sc.consumo_beneficios || 0) + (sc.consumo_artista || 0) + (sc.consumo_rh || 0);
+        if (real > 0) return [
+          { label: 'Sócios (custo real)', valor: sc.consumo_socios || 0 },
+          { label: 'Benefícios/Clientes (custo real)', valor: sc.consumo_beneficios || 0 },
+          { label: 'Artistas (custo real)', valor: sc.consumo_artista || 0 },
+          { label: 'RH (custo real)', valor: sc.consumo_rh || 0 },
+        ];
         return [
           { label: `Sócios × ${fatorCmv}`, valor: (semana.total_consumo_socios || 0) * fatorCmv },
           { label: `Funcionários × ${fatorCmv}`, valor: (semana.mesa_adm_casa || 0) * fatorCmv },
@@ -1132,6 +1140,7 @@ export default function CMVSemanalTabelaPage() {
           { label: `RH × ${fatorCmv}`, valor: (semana.mesa_rh || 0) * fatorCmv },
           { label: `Chegadeira × ${fatorCmv}`, valor: (semana.chegadeira || 0) * fatorCmv },
         ];
+      }
       case 'ajuste_bonificacoes':
         return [
           { label: 'Contrato Anual', valor: semana.bonificacao_contrato_anual || 0 },
@@ -1146,8 +1155,11 @@ export default function CMVSemanalTabelaPage() {
         const compras = comprasDetalhado > 0 ? comprasDetalhado : (semana.compras_periodo || 0);
 
         const estoqueFinal = semana.estoque_final || 0;
-        // 6 categorias: Sócios, Funcionários, Clientes, Artistas, RH, Chegadeira
-        const consumosTotal = ((semana.total_consumo_socios || 0) * fatorCmv) + ((semana.mesa_adm_casa || 0) * fatorCmv) + ((semana.mesa_beneficios_cliente || 0) * fatorCmv) + ((semana.mesa_banda_dj || 0) * fatorCmv) + ((semana.mesa_rh || 0) * fatorCmv) + ((semana.chegadeira || 0) * fatorCmv);
+        // Consumações = MESMO valor da linha (custo real da ficha, com fallback ×fator p/ semanas
+        // antigas) — garante que o tooltip do CMV R$ feche exatamente com o CMV R$ exibido.
+        const consumosTotal = getValorMetrica(semana, 'total_consumos') || 0;
+        const scr = semana as unknown as { consumo_socios?: number; consumo_beneficios?: number; consumo_artista?: number; consumo_rh?: number };
+        const consumoReal = (scr.consumo_socios || 0) + (scr.consumo_beneficios || 0) + (scr.consumo_artista || 0) + (scr.consumo_rh || 0);
         const bonifVal = (semana as unknown as Record<string, unknown>).bonificacoes;
         const bonificacoes = bonifVal !== undefined && bonifVal !== null
           ? parseFloat(String(bonifVal))
@@ -1156,7 +1168,7 @@ export default function CMVSemanalTabelaPage() {
           { label: 'Estoque Inicial', valor: estoqueInicial },
           { label: '(+) Compras', valor: compras },
           { label: '(-) Estoque Final', valor: -estoqueFinal },
-          { label: `(-) Consumações × ${fatorCmv}`, valor: -consumosTotal },
+          { label: consumoReal > 0 ? '(-) Consumações (custo real)' : `(-) Consumações × ${fatorCmv}`, valor: -consumosTotal },
           { label: '(+) Bonificações', valor: bonificacoes },
         ];
       }

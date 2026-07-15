@@ -62,10 +62,16 @@ export async function GET(request: NextRequest) {
     // lista global de prds (p/ a busca do "adicionar código": mostra onde cada prd está mapeado hoje)
     const prdsAll = chRows.map((r: any) => ({ prd: r.prd, prd_desc: r.prd_desc || null, preco_venda: Number(r.preco_venda) || null, cod_interno: r.cod_interno }));
 
-    // ID Yuzer (produto_id real da Yuzer) por cod_interno
+    // Códigos Yuzer por cod_interno — IDs (cods_yuzer) + detalhe p/ o painel de códigos (cods_yuzer_det)
     const yzMap: Record<string, string[]> = {};
-    const yzRows = await selectAll((from, to) => supabase.from('produto_yuzer_map').select('yuzer_produto_id, cod_interno').eq('bar_id', barId).not('yuzer_produto_id', 'is', null).range(from, to));
-    yzRows.forEach((r: any) => { if (r.cod_interno) (yzMap[r.cod_interno] ??= []).push(String(r.yuzer_produto_id)); });
+    // cods_yuzer_det = códigos Yuzer do produto COM cod_yuzer/nome/id (pro painel "Códigos ContaHub + Yuzer nesta ficha")
+    const yzDetMap: Record<string, any[]> = {};
+    const yzRows = await selectAll((from, to) => supabase.from('produto_yuzer_map').select('yuzer_produto_id, cod_yuzer, nome, cod_interno').eq('bar_id', barId).range(from, to));
+    yzRows.forEach((r: any) => {
+      if (!r.cod_interno) return;
+      if (r.yuzer_produto_id != null) (yzMap[r.cod_interno] ??= []).push(String(r.yuzer_produto_id));
+      (yzDetMap[r.cod_interno] ??= []).push({ cod_yuzer: r.cod_yuzer || null, nome: r.nome || null, yuzer_produto_id: r.yuzer_produto_id != null ? String(r.yuzer_produto_id) : null });
+    });
 
     // Preço de venda no Yuzer (último, automático) por cod_interno
     const yzPrecoMap: Record<string, number> = {};
@@ -81,7 +87,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      produtos: data.map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [], prds_ch: prdsChMap[p.codigo] || [], cods_yuzer: yzMap[p.codigo] || [], preco_venda: precoVendaMap[p.codigo] ?? null, preco_yuzer: yzPrecoMap[p.codigo] ?? null })),
+      produtos: data.map((p: any) => ({ ...p, qtd_componentes: contagem[p.id] || 0, cods_ch: chMap[p.codigo] || [], prds_ch: prdsChMap[p.codigo] || [], cods_yuzer: yzMap[p.codigo] || [], cods_yuzer_det: yzDetMap[p.codigo] || [], preco_venda: precoVendaMap[p.codigo] ?? null, preco_yuzer: yzPrecoMap[p.codigo] ?? null })),
       prds_all: prdsAll,
       vendas_sem_cadastro: vendasSemCadastro,
     });

@@ -170,7 +170,24 @@ export async function GET(request: NextRequest) {
     const { data: cmp } = await gold.rpc('fn_cmv_teorico_comparativo', { p_bar: barId, p_ini: ini, p_fim: fim, p_ini_ant: isoD(pIni), p_fim_ant: isoD(pFim) });
     if (cmp && cmp[0]) (headline as any).comparativo = { ...cmp[0], gran, ini_ant: isoD(pIni), fim_ant: isoD(pFim) };
 
-    return NextResponse.json({ success: true, modo: 'periodo', headline, categorias, produtos: lista, fora_depara: foraLista });
+    // ORIGENS por produto: a saída do período quebrada por CÓDIGO de origem (ContaHub prd +
+    // Yuzer cod_yuzer). Reconcilia com `lista` por (codigo, fonte). Permite expandir o produto
+    // na tabela e ver qtd/preço/custo/CMV de cada código separadamente (igual à aba Cardápio).
+    const { data: origemRows } = await gold.rpc('fn_cmv_teorico_periodo_origem', { p_bar_id: barId, p_ini: ini, p_fim: fim });
+    const origens = ((origemRows || []) as any[]).map((o: any) => {
+      const qtd = num(o.qtd), valor = num(o.valor), cu = o.custo_unit == null ? null : num(o.custo_unit);
+      const custoTotal = cu == null ? null : Number((qtd * cu).toFixed(2));
+      return {
+        codigo: o.codigo, fonte: o.fonte, cod_origem: o.cod_origem, nome_origem: o.nome_origem,
+        qtd, faturamento: Number(valor.toFixed(2)), custo_unit: cu,
+        preco_efetivo: qtd > 0 ? Number((valor / qtd).toFixed(2)) : null,
+        custo_total: custoTotal,
+        margem: custoTotal == null ? null : Number((valor - custoTotal).toFixed(2)),
+        cmv_pct: (custoTotal != null && valor > 0) ? Number((custoTotal / valor * 100).toFixed(2)) : null,
+      };
+    }).sort((a, b) => b.faturamento - a.faturamento);
+
+    return NextResponse.json({ success: true, modo: 'periodo', headline, categorias, produtos: lista, origens, fora_depara: foraLista });
   }
 
   // MODO TEÓRICO × REAL: ?vs_real=ano → compara nosso CMV teórico (fichas×vendas) com o CMV real (financial.cmv_mensal)

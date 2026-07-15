@@ -185,45 +185,31 @@ export default function CMVSemanalPage() {
     setFormData(prev => {
       const dados = { ...prev };
       
-      // 1. Calcular consumos baseados nas contas especiais
-      // Consumo Sócios = Total Consumo Sócios * fatorCmv
-      dados.consumo_socios = (dados.total_consumo_socios || 0) * fatorCmv;
-      
-      // Consumo Benefícios = (Mesa Benefícios Cliente + Chegadeira) * 0.33
-      dados.consumo_beneficios = ((dados.mesa_beneficios_cliente || 0) + (dados.chegadeira || 0)) * 0.33;
-      
-      // Consumo ADM = Mesa ADM/Casa * fatorCmv
-      dados.consumo_adm = (dados.mesa_adm_casa || 0) * fatorCmv;
-      
-      // Consumo Artista = Mesa da Banda/DJ * fatorCmv
-      dados.consumo_artista = (dados.mesa_banda_dj || 0) * fatorCmv;
-      
+      // 1. Consumações = CUSTO REAL da ficha (consumo_* vindos da edge/consumação). NÃO
+      //    sobrescrever com ×fator — o modelo novo usa o custo real. Fallback ×fator sobre os
+      //    brutos só quando não há custo real (semanas antigas), igual à linha da tabela.
       // 2. Calcular estoque final total
-      dados.estoque_final = (dados.estoque_final_cozinha || 0) + 
-                            (dados.estoque_final_bebidas || 0) + 
+      dados.estoque_final = (dados.estoque_final_cozinha || 0) +
+                            (dados.estoque_final_bebidas || 0) +
                             (dados.estoque_final_drinks || 0);
-      
+
       // 3. Calcular compras do período total
       // (Custo Outros foi agregado em Custo Bebidas no backend)
       dados.compras_periodo = (dados.compras_custo_comida || 0) +
                               (dados.compras_custo_bebidas || 0) +
                               (dados.compras_custo_drinks || 0);
-      
+
       // 4. Calcular CMV Real
-      // CMV Real = (Estoque Inicial + Compras - Estoque Final) - 
-      //            (Consumo Sócios + Consumo Benefícios + Consumo ADM + Consumo RH + Consumo Artista + Outros Ajustes) +
-      //            Ajuste Bonificações (bonificações aumentam o CMV - descontos recebidos)
-      const cmvBruto = (dados.estoque_inicial || 0) + 
-                       (dados.compras_periodo || 0) - 
+      // CMV Real = (Estoque Inicial + Compras - Estoque Final) − Consumações (custo real da ficha,
+      //            ou ×fator no fallback) + Ajuste Bonificações
+      const cmvBruto = (dados.estoque_inicial || 0) +
+                       (dados.compras_periodo || 0) -
                        (dados.estoque_final || 0);
-      
-      const totalConsumos = (dados.consumo_socios || 0) + 
-                            (dados.consumo_beneficios || 0) + 
-                            (dados.consumo_adm || 0) + 
-                            (dados.consumo_rh || 0) + 
-                            (dados.consumo_artista || 0) + 
-                            (dados.outros_ajustes || 0);
-      
+
+      const consumoReal = (dados.consumo_socios || 0) + (dados.consumo_beneficios || 0) + (dados.consumo_artista || 0) + (dados.consumo_rh || 0);
+      const consumoFallback = ((dados.total_consumo_socios || 0) + (dados.mesa_adm_casa || 0) + (dados.mesa_beneficios_cliente || 0) + (dados.mesa_banda_dj || 0) + (dados.mesa_rh || 0) + (dados.chegadeira || 0)) * fatorCmv;
+      const totalConsumos = (consumoReal > 0 ? consumoReal : consumoFallback) + (dados.outros_ajustes || 0);
+
       dados.cmv_real = cmvBruto - totalConsumos + (dados.ajuste_bonificacoes || 0);
       
       // 5. Calcular CMV Limpo (%) e CMV Real (%)
@@ -587,35 +573,28 @@ export default function CMVSemanalPage() {
       // Calcular valores finais antes de salvar
       const dadosCalculados = { ...formData };
       
-      // 1. Calcular consumos baseados nas contas especiais
-      dadosCalculados.consumo_socios = (dadosCalculados.total_consumo_socios || 0) * fatorCmv;
-      dadosCalculados.consumo_beneficios = ((dadosCalculados.mesa_beneficios_cliente || 0) + (dadosCalculados.chegadeira || 0)) * 0.33;
-      dadosCalculados.consumo_adm = (dadosCalculados.mesa_adm_casa || 0) * fatorCmv;
-      dadosCalculados.consumo_artista = (dadosCalculados.mesa_banda_dj || 0) * fatorCmv;
-      
+      // 1. Consumações = CUSTO REAL da ficha (consumo_* já carregados). NÃO sobrescrever com
+      //    ×fator — modelo novo usa custo real. Fallback ×fator só quando não há custo real.
       // 2. Calcular estoque final total
-      dadosCalculados.estoque_final = (dadosCalculados.estoque_final_cozinha || 0) + 
-                                      (dadosCalculados.estoque_final_bebidas || 0) + 
+      dadosCalculados.estoque_final = (dadosCalculados.estoque_final_cozinha || 0) +
+                                      (dadosCalculados.estoque_final_bebidas || 0) +
                                       (dadosCalculados.estoque_final_drinks || 0);
-      
+
       // 3. Calcular compras do período total
       // (Custo Outros foi agregado em Custo Bebidas no backend)
       dadosCalculados.compras_periodo = (dadosCalculados.compras_custo_comida || 0) +
                                         (dadosCalculados.compras_custo_bebidas || 0) +
                                         (dadosCalculados.compras_custo_drinks || 0);
-      
-      // 4. Calcular CMV Real
-      const cmvBruto = (dadosCalculados.estoque_inicial || 0) + 
-                       (dadosCalculados.compras_periodo || 0) - 
+
+      // 4. Calcular CMV Real (consumações = custo real da ficha, ou ×fator no fallback)
+      const cmvBruto = (dadosCalculados.estoque_inicial || 0) +
+                       (dadosCalculados.compras_periodo || 0) -
                        (dadosCalculados.estoque_final || 0);
-      
-      const totalConsumos = (dadosCalculados.consumo_socios || 0) + 
-                            (dadosCalculados.consumo_beneficios || 0) + 
-                            (dadosCalculados.consumo_adm || 0) + 
-                            (dadosCalculados.consumo_rh || 0) + 
-                            (dadosCalculados.consumo_artista || 0) + 
-                            (dadosCalculados.outros_ajustes || 0);
-      
+
+      const consumoRealSave = (dadosCalculados.consumo_socios || 0) + (dadosCalculados.consumo_beneficios || 0) + (dadosCalculados.consumo_artista || 0) + (dadosCalculados.consumo_rh || 0);
+      const consumoFallbackSave = ((dadosCalculados.total_consumo_socios || 0) + (dadosCalculados.mesa_adm_casa || 0) + (dadosCalculados.mesa_beneficios_cliente || 0) + (dadosCalculados.mesa_banda_dj || 0) + (dadosCalculados.mesa_rh || 0) + (dadosCalculados.chegadeira || 0)) * fatorCmv;
+      const totalConsumos = (consumoRealSave > 0 ? consumoRealSave : consumoFallbackSave) + (dadosCalculados.outros_ajustes || 0);
+
       dadosCalculados.cmv_real = cmvBruto - totalConsumos + (dadosCalculados.ajuste_bonificacoes || 0);
       
       // 5. Calcular CMV Limpo (%) e CMV Real (%)
@@ -1214,12 +1193,12 @@ export default function CMVSemanalPage() {
           </ModalSection>
 
           {/* Seção 4: Contas Especiais para Consumos */}
-          <ModalSection 
-            title="👥 Contas Especiais (Consumos Internos)" 
-            description="Valores das mesas/contas que entram no cálculo de consumo"
+          <ModalSection
+            title="👥 Contas Especiais (Consumos Internos)"
+            description="Valores BRUTOS das mesas/contas — usados só como fallback (×fator) p/ semanas antigas sem custo real"
           >
             <ModalFormGrid columns={3}>
-              <ModalField label="Total Consumo Sócios" description={`x-corbal, etc. × ${fatorCmv}`}>
+              <ModalField label="Total Consumo Sócios" description={`Bruto (fallback ×${fatorCmv})`}>
                 <Input
                   type="number"
                   step="0.01"
@@ -1228,7 +1207,7 @@ export default function CMVSemanalPage() {
                   className="input-dark"
                 />
               </ModalField>
-              <ModalField label="Mesa Benefícios Cliente" description="Parte do cálculo × 0.33 (benefícios)">
+              <ModalField label="Mesa Benefícios Cliente" description="Bruto (fallback p/ semanas antigas)">
                 <Input
                   type="number"
                   step="0.01"
@@ -1237,7 +1216,7 @@ export default function CMVSemanalPage() {
                   className="input-dark"
                 />
               </ModalField>
-              <ModalField label="Mesa Banda/DJ" description={`× ${fatorCmv}`}>
+              <ModalField label="Mesa Banda/DJ" description={`Bruto (fallback ×${fatorCmv})`}>
                 <Input
                   type="number"
                   step="0.01"
@@ -1246,7 +1225,7 @@ export default function CMVSemanalPage() {
                   className="input-dark"
                 />
               </ModalField>
-              <ModalField label="Chegadeira" description="Parte do cálculo × 0.33">
+              <ModalField label="Chegadeira" description="Bruto (fallback p/ semanas antigas)">
                 <Input
                   type="number"
                   step="0.01"
@@ -1255,7 +1234,7 @@ export default function CMVSemanalPage() {
                   className="input-dark"
                 />
               </ModalField>
-              <ModalField label="Mesa ADM/Casa" description={`× ${fatorCmv}`}>
+              <ModalField label="Mesa ADM/Casa" description={`Bruto (fallback ×${fatorCmv})`}>
                 <Input
                   type="number"
                   step="0.01"
@@ -1277,9 +1256,9 @@ export default function CMVSemanalPage() {
           </ModalSection>
 
           {/* Seção 5: Consumos Calculados */}
-          <ModalSection 
-            title="🍽️ Consumos Calculados" 
-            description="Valores calculados automaticamente baseados nas contas especiais"
+          <ModalSection
+            title="🍽️ Consumos Calculados"
+            description="Custo real da ficha das consumações (modelo novo). Fallback ×fator sobre o bruto só p/ semanas antigas."
             collapsible
             defaultOpen={false}
           >

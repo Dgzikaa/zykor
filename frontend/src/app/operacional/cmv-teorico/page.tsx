@@ -208,20 +208,63 @@ export default function CmvTeoricoPage() {
   const todosAbertos = codigosComOrigem.length > 0 && codigosComOrigem.every((c: string) => expandido.has(c));
   const toggleTodos = () => setExpandido(todosAbertos ? new Set() : new Set(codigosComOrigem));
 
-  // produtos do período filtrados
+  // origens (saída por código CH/Yuzer) agrupadas por produto interno
+  const origensByCod = useMemo(() => {
+    const m = new Map<string, any[]>();
+    for (const o of (periodo?.origens || []) as any[]) { const a = m.get(o.codigo) || []; a.push(o); m.set(o.codigo, a); }
+    return m;
+  }, [periodo]);
+
+  // produtos do período: agrupa a lista (por codigo+fonte) em UM produto interno, somando as
+  // fontes, e anexa as origens (cada código CH/Yuzer com preço/custo/CMV próprio p/ expandir).
   const perProdView = useMemo(() => {
     const lista: any[] = periodo?.produtos || [];
+    const m = new Map<string, any>();
+    for (const p of lista) {
+      const e = m.get(p.codigo) || { codigo: p.codigo, nome: p.nome, categoria: p.categoria, qtd: 0, faturamento: 0, custo_total: 0, custo_unit: null as number | null, itens_ficha: 0, tem_yuzer: false };
+      e.qtd += Number(p.qtd || 0);
+      e.faturamento += Number(p.faturamento || 0);
+      e.custo_total += Number(p.custo_total || 0);
+      if (p.custo_unit != null) e.custo_unit = Number(p.custo_unit);
+      e.itens_ficha = Math.max(e.itens_ficha, Number(p.itens_ficha || 0));
+      if (p.fonte === 'yuzer') e.tem_yuzer = true;
+      m.set(p.codigo, e);
+    }
+    let arr = Array.from(m.values()).map((e: any) => ({
+      ...e,
+      preco_venda: e.qtd > 0 ? e.faturamento / e.qtd : null,
+      margem: e.faturamento - e.custo_total,
+      cmv_pct: e.faturamento > 0 ? e.custo_total / e.faturamento * 100 : null,
+      origens: origensByCod.get(e.codigo) || [],
+    }));
     const s = buscaPer.trim().toLowerCase();
-    return lista.filter(p => (!catPer || p.categoria === catPer)
+    arr = arr.filter((p: any) => (!catPer || p.categoria === catPer)
       && (!soSemFicha || !p.custo_unit || Number(p.custo_unit) === 0)
-      && (!s || (p.nome || '').toLowerCase().includes(s) || (p.codigo || '').toLowerCase().includes(s)));
-  }, [periodo, buscaPer, catPer, soSemFicha]);
+      && (!s || (p.nome || '').toLowerCase().includes(s) || (p.codigo || '').toLowerCase().includes(s)
+        || (p.origens || []).some((o: any) => (o.nome_origem || '').toLowerCase().includes(s) || (o.cod_origem || '').toLowerCase().includes(s))));
+    arr.sort((a: any, b: any) => b.faturamento - a.faturamento);
+    return arr;
+  }, [periodo, buscaPer, catPer, soSemFicha, origensByCod]);
+
+  // expandir/recolher produto no período (mostra as origens CH/Yuzer)
+  const [expPer, setExpPer] = useState<Set<string>>(new Set());
+  const toggleExpPer = (cod: string) => setExpPer(s => { const n = new Set(s); n.has(cod) ? n.delete(cod) : n.add(cod); return n; });
+  const perComOrigem = useMemo(() => perProdView.filter((p: any) => (p.origens || []).length > 1).map((p: any) => p.codigo), [perProdView]);
+  const perTodosAbertos = perComOrigem.length > 0 && perComOrigem.every((c: string) => expPer.has(c));
+  const togglePerTodos = () => setExpPer(perTodosAbertos ? new Set() : new Set(perComOrigem));
 
   const exportarCSV = () => {
     if (!perProdView.length) return;
-    const head = ['Codigo', 'Produto', 'Categoria', 'Fonte', 'Qtd', 'Preco venda', 'Custo unit', 'Faturamento', 'Custo total', 'Margem', 'CMV %'];
-    const linhas = perProdView.map((p: any) => [p.codigo, p.nome, p.categoria || '', p.fonte || 'contahub', p.qtd, p.preco_venda ?? '', p.custo_unit ?? '', p.faturamento ?? '', p.custo_total ?? '', p.margem ?? '', p.cmv_pct ?? '']
-      .map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';'));
+    // exporta o produto + uma linha por origem (código CH/Yuzer) quando houver mais de uma
+    const head = ['Codigo', 'Produto', 'Categoria', 'Origem', 'Cod origem', 'Nome origem', 'Qtd', 'Preco venda', 'Custo unit', 'Faturamento', 'Custo total', 'Margem', 'CMV %'];
+    const linhas: string[] = [];
+    const push = (cols: any[]) => linhas.push(cols.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';'));
+    for (const p of perProdView as any[]) {
+      push([p.codigo, p.nome, p.categoria || '', '', '', '', p.qtd, p.preco_venda ?? '', p.custo_unit ?? '', p.faturamento ?? '', p.custo_total ?? '', p.margem ?? '', p.cmv_pct ?? '']);
+      if ((p.origens || []).length > 1)
+        for (const o of p.origens as any[])
+          push([p.codigo, p.nome, p.categoria || '', o.fonte === 'yuzer' ? 'Yuzer' : 'ContaHub', o.cod_origem, o.nome_origem || '', o.qtd, o.preco_efetivo ?? '', o.custo_unit ?? '', o.faturamento ?? '', o.custo_total ?? '', o.margem ?? '', o.cmv_pct ?? '']);
+    }
     const csv = '﻿' + [head.join(';'), ...linhas].join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
     const a = document.createElement('a'); a.href = url; a.download = `cmv-teorico_${range.ini}_${range.fim}.csv`; a.click(); URL.revokeObjectURL(url);
@@ -542,6 +585,10 @@ export default function CmvTeoricoPage() {
               {catPer && <button onClick={() => setCatPer(null)} className="text-xs text-amber-600 underline">limpar categoria: {catPer}</button>}
               <Button variant="outline" size="sm" onClick={exportarCSV}><Download className="w-4 h-4 mr-1.5" />Exportar CSV</Button>
             </div>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">{perProdView.length} produtos · clique na linha pra ver a saída por código <b>ContaHub</b> e <b>Yuzer</b> (cada um com qtd/preço/CMV próprio)</p>
+              {perComOrigem.length > 0 && <button onClick={togglePerTodos} className="text-xs text-amber-600 hover:underline">{perTodosAbertos ? 'Recolher todos' : 'Expandir todos'}</button>}
+            </div>
             <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
@@ -557,20 +604,57 @@ export default function CmvTeoricoPage() {
                   <th className="text-right font-medium px-3 py-2">CMV %</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {perProdView.map((p: any) => (
-                    <tr key={`${p.codigo}-${p.fonte || 'ch'}`} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                      <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.codigo}</td>
-                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.nome}{p.fonte === 'yuzer' && <Badge variant="outline" className="ml-1.5 text-[10px] text-violet-600 border-violet-300">🎟️ Yuzer</Badge>}</td>
-                      <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.categoria || 'Outros'}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{fmtNum(p.qtd)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(p.preco_venda)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{p.custo_unit ? fmtBRL(p.custo_unit) : <span className="text-amber-500" title="Sem ficha/custo">—</span>}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{fmtBRL(p.faturamento)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{fmtBRL(p.custo_total)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{fmtBRL(p.margem)}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums font-bold ${corCmv(p.cmv_pct)}`}>{fmtPct(p.cmv_pct)}</td>
-                    </tr>
-                  ))}
+                  {perProdView.map((p: any) => {
+                    const origens = (p.origens || []) as any[];
+                    const expandivel = origens.length > 1;
+                    const aberto = expPer.has(p.codigo);
+                    return (
+                    <Fragment key={p.codigo}>
+                      <tr onClick={() => expandivel && toggleExpPer(p.codigo)} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${expandivel ? 'cursor-pointer' : ''} ${aberto ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}`}>
+                        <td className="px-3 py-2 font-mono text-xs text-gray-500">
+                          <span className="inline-flex items-center gap-1">
+                            {expandivel ? (aberto ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />) : <span className="w-3.5 inline-block" />}
+                            {p.codigo}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
+                          {p.nome}
+                          {expandivel && <span className="ml-2 text-[10px] rounded px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 align-middle">{origens.length} códigos</span>}
+                          {p.tem_yuzer && <span className="ml-1 text-[10px] rounded px-1.5 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 align-middle">🎟️ Yuzer</span>}
+                        </td>
+                        <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.categoria || 'Outros'}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmtNum(p.qtd)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(p.preco_venda)}{expandivel && <span className="text-gray-400 text-[10px]" title="preço médio ponderado (varia por código — expanda)"> méd</span>}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{p.custo_unit ? fmtBRL(p.custo_unit) : <span className="text-amber-500" title="Sem ficha/custo">—</span>}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmtBRL(p.faturamento)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmtBRL(p.custo_total)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmtBRL(p.margem)}</td>
+                        <td className={`px-3 py-2 text-right tabular-nums font-bold ${corCmv(p.cmv_pct)}`}>{fmtPct(p.cmv_pct)}</td>
+                      </tr>
+                      {expandivel && aberto && origens.map((o: any, i: number) => (
+                        <tr key={`${p.codigo}-${o.fonte}-${o.cod_origem}-${i}`} className="bg-gray-50/60 dark:bg-gray-800/20 text-xs">
+                          <td className="px-3 py-1.5 font-mono text-gray-500">
+                            <span className="inline-flex items-center gap-1.5 pl-5">
+                              {o.fonte === 'yuzer'
+                                ? <span className="text-[10px] rounded px-1.5 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">🎟️ Yz</span>
+                                : <span className="text-[10px] rounded px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300">CH</span>}
+                              {o.cod_origem}
+                            </span>
+                          </td>
+                          <td className="px-3 py-1.5 text-gray-600 dark:text-gray-300">{o.nome_origem || '—'}</td>
+                          <td className="px-3 py-1.5" />
+                          <td className="px-3 py-1.5 text-right tabular-nums">{fmtNum(o.qtd)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(o.preco_efetivo)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{o.custo_unit ? fmtBRL(o.custo_unit) : '—'}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{fmtBRL(o.faturamento)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{fmtBRL(o.custo_total)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{fmtBRL(o.margem)}</td>
+                          <td className={`px-3 py-1.5 text-right tabular-nums font-bold ${corCmv(o.cmv_pct)}`}>{fmtPct(o.cmv_pct)}</td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div></CardContent></Card>

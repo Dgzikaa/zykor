@@ -379,6 +379,8 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   // Preço CH → CMV próprio (mesmo custo da ficha). 1 ficha, N códigos ContaHub — sem duplicar interno.
   const prdsDaFicha = useMemo(() => (selObj?.prds_ch || []) as any[], [selObj]);
   const prdsSet = useMemo(() => new Set(prdsDaFicha.map((p: any) => Number(p.prd))), [prdsDaFicha]);
+  // Códigos Yuzer vinculados ao mesmo cod_interno (produto_yuzer_map) — mostrados junto dos ContaHub.
+  const yuzersDaFicha = useMemo(() => (selObj?.cods_yuzer_det || []) as any[], [selObj]);
   const [addCodOpen, setAddCodOpen] = useState(false);
   const [addCodBusca, setAddCodBusca] = useState('');
   // busca sobre TODOS os prds do bar (mostra onde cada um está hoje) — adicionar remapeia pra cá.
@@ -642,7 +644,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                 <div className="mb-3 rounded-lg border border-violet-200 dark:border-violet-800/60 bg-violet-50/40 dark:bg-violet-900/10 p-3">
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1.5 text-sm font-semibold text-violet-700 dark:text-violet-300">
-                      <Boxes className="w-4 h-4" />Códigos ContaHub nesta ficha <span className="text-gray-400 font-normal">({prdsDaFicha.length})</span>
+                      <Boxes className="w-4 h-4" />Códigos ContaHub + Yuzer nesta ficha <span className="text-gray-400 font-normal">({prdsDaFicha.length + yuzersDaFicha.length})</span>
                     </div>
                     <Button size="sm" variant="outline" onClick={() => { setAddCodOpen(v => !v); setAddCodBusca(''); }}><Plus className="w-4 h-4 mr-1" />adicionar código</Button>
                   </div>
@@ -675,6 +677,35 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                       </tbody>
                     </table>
                   </div>
+                  {/* Códigos Yuzer vinculados ao mesmo produto interno (mesma receita/custo; preço Yuzer efetivo) */}
+                  {yuzersDaFicha.length > 0 && (() => {
+                    const precoYz = Number(selObj.preco_yuzer) || 0;
+                    const cmvYz = precoYz > 0 ? (custoAtualTotal / precoYz) * 100 : null;
+                    return (
+                      <div className="mt-2 overflow-x-auto">
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-600 dark:text-violet-400 mb-1">🎟️ Yuzer <span className="text-gray-400 font-normal">({yuzersDaFicha.length})</span></div>
+                        <table className="w-full text-sm">
+                          <thead className="text-xs text-gray-500 dark:text-gray-400 border-b border-violet-200/60 dark:border-violet-800/40"><tr>
+                            <th className="text-left font-medium px-2 py-1">Cód. Yuzer</th>
+                            <th className="text-left font-medium px-2 py-1">Nome (Yuzer)</th>
+                            <th className="text-right font-medium px-2 py-1">Preço Yuzer</th>
+                            <th className="text-right font-medium px-2 py-1">CMV</th>
+                          </tr></thead>
+                          <tbody className="divide-y divide-violet-100 dark:divide-violet-900/30">
+                            {yuzersDaFicha.map((m: any, i: number) => (
+                              <tr key={`${m.cod_yuzer || m.yuzer_produto_id || i}`}>
+                                <td className="px-2 py-1 font-mono text-xs whitespace-nowrap">{m.cod_yuzer || m.yuzer_produto_id || '—'}</td>
+                                <td className="px-2 py-1 text-gray-800 dark:text-gray-100">{m.nome || '—'}</td>
+                                <td className="px-2 py-1 text-right tabular-nums">{precoYz > 0 ? fmtBRL(precoYz) : '—'}</td>
+                                <td className="px-2 py-1 text-right tabular-nums">{cmvYz != null ? `${cmvYz.toFixed(1)}%` : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <p className="text-[10px] text-gray-400 mt-1">Preço Yuzer é o efetivo do último evento (por produto interno) — vale p/ todos os códigos Yuzer acima.</p>
+                      </div>
+                    );
+                  })()}
                   {addCodOpen && (
                     <div className="mt-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2">
                       <Input value={addCodBusca} onChange={e => setAddCodBusca(e.target.value)} placeholder="Buscar código ContaHub por número ou nome…" className="h-8 text-sm mb-1" />
