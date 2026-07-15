@@ -713,6 +713,19 @@ function CartoesDialog({ open, onOpenChange, cartoes, onMudou }: {
     } finally { setSalvando(false); }
   };
 
+  const [excluindo, setExcluindo] = useState<string | null>(null);
+  const excluir = async (c: Cartao) => {
+    if (!window.confirm(`Excluir o cartão "${cartaoNome(c)}"? As faturas/lançamentos já feitos não são afetados.`)) return;
+    setExcluindo(c.id);
+    try {
+      await api.delete(`/api/financeiro/cartao-fatura/cartoes?id=${c.id}`);
+      showToast({ type: 'success', title: 'Cartão excluído' });
+      onMudou();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message });
+    } finally { setExcluindo(null); }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -734,7 +747,16 @@ function CartoesDialog({ open, onOpenChange, cartoes, onMudou }: {
           </div>
           <div className="space-y-1 max-h-52 overflow-y-auto">
             {cartoes.length === 0 ? <p className="text-xs text-muted-foreground">Nenhum cartão ainda.</p> :
-              cartoes.map(c => <div key={c.id} className="text-sm flex items-center gap-1.5 py-0.5"><CreditCard className="w-3.5 h-3.5 text-muted-foreground" />{cartaoNome(c)}</div>)}
+              cartoes.map(c => (
+                <div key={c.id} className="text-sm flex items-center gap-1.5 py-0.5">
+                  <CreditCard className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="flex-1">{cartaoNome(c)}</span>
+                  <button onClick={() => excluir(c)} disabled={excluindo === c.id}
+                    className="text-xs text-muted-foreground hover:text-red-500 disabled:opacity-50" title="Excluir cartão">
+                    {excluindo === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'excluir'}
+                  </button>
+                </div>
+              ))}
           </div>
         </div>
         <DialogFooter><Button onClick={() => onOpenChange(false)}>Fechar</Button></DialogFooter>
