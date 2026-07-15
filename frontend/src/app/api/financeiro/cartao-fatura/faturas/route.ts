@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const supabase = await getAdminClient();
   const { data: faturas, error } = await fin(supabase)
     .from('cartao_faturas')
-    .select('*, cartao:cartao_cadastro(banco,tipo,dono)')
+    .select('*, cartao:cartao_cadastro(id,banco,tipo,dono)')
     .eq('bar_id', user.bar_id).eq('status', status)
     .order('vencimento', { ascending: true });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     bar_id: user.bar_id, cartao_id, vencimento,
     valor_informado: Number.isFinite(valor_informado) && valor_informado > 0 ? valor_informado : null,
     criado_por: user.auth_id,
-  }).select('*, cartao:cartao_cadastro(banco,tipo,dono)').single();
+  }).select('*, cartao:cartao_cadastro(id,banco,tipo,dono)').single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, fatura: data });
 }

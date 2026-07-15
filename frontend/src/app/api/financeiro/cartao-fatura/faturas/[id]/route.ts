@@ -15,7 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const supabase = await getAdminClient();
   const { data: fatura } = await fin(supabase)
-    .from('cartao_faturas').select('*, cartao:cartao_cadastro(banco,tipo,dono)').eq('id', id).maybeSingle();
+    .from('cartao_faturas').select('*, cartao:cartao_cadastro(id,banco,tipo,dono)').eq('id', id).maybeSingle();
   if (!fatura || fatura.bar_id !== user.bar_id) {
     return NextResponse.json({ success: false, error: 'Fatura não encontrada' }, { status: 404 });
   }
@@ -50,7 +50,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const { data, error } = await fin(supabase).from('cartao_faturas').update(updates).eq('id', id)
-    .select('*, cartao:cartao_cadastro(banco,tipo,dono)').single();
+    .select('*, cartao:cartao_cadastro(id,banco,tipo,dono)').single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, fatura: data });
 }
