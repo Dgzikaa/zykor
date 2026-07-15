@@ -295,6 +295,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   // sem digitar vírgula: CH busca nos códigos reais do ContaHub (à prova de erro de digitação);
   // Yuzer adiciona o ID. Salva como arrays (a API faz o diff add/remove).
   const [editCods, setEditCods] = useState(false);
+  const [salvandoCods, setSalvandoCods] = useState(false);
   const [chArr, setChArr] = useState<number[]>([]);
   const [yzArr, setYzArr] = useState<number[]>([]);
   const [chBusca, setChBusca] = useState('');
@@ -309,12 +310,18 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   const addYz = () => { const n = Number(String(yzInput).trim()); if (Number.isFinite(n) && n > 0) { setYzArr((a) => a.includes(n) ? a : [...a, n]); setYzInput(''); } };
   const rmYz = (id: number) => setYzArr((a) => a.filter((p) => p !== id));
   const salvarCods = async () => {
-    if (!selObj) return;
+    if (!selObj || salvandoCods) return;
+    setSalvandoCods(true);
+    setEditCods(false); // fecha o modal na hora (otimista) — a ficha continua selecionada
     try {
       const r = await api.post('/api/operacional/produtos', { bar_id: barId, action: 'codigos', codigo: selObj.codigo, nome: selObj.nome, cods_ch: chArr, cods_yuzer: yzArr });
       if (!r.success) throw new Error(r.error);
-      setEditCods(false); reloadLista();
-    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+      await reloadLista(); // atualiza a própria ficha em tela — sem refresh de página, sem re-buscar
+      toast({ title: 'Códigos atualizados' });
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e?.message, variant: 'destructive' });
+      setEditCods(true); // reabre com os chips preservados p/ tentar de novo
+    } finally { setSalvandoCods(false); }
   };
 
   // excluir da base do Zykor (manual) — produção ou produto
@@ -382,6 +389,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
   // Códigos Yuzer vinculados ao mesmo cod_interno (produto_yuzer_map) — mostrados junto dos ContaHub.
   const yuzersDaFicha = useMemo(() => (selObj?.cods_yuzer_det || []) as any[], [selObj]);
   const [addCodOpen, setAddCodOpen] = useState(false);
+  const [addBusy, setAddBusy] = useState(false);
   const [addCodBusca, setAddCodBusca] = useState('');
   // busca sobre TODOS os prds do bar (mostra onde cada um está hoje) — adicionar remapeia pra cá.
   const addPrdOpcoes = useMemo(() => {
@@ -392,17 +400,24 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     ).slice(0, 30);
   }, [prdsAll, addCodBusca, prdsSet]);
   const mapearPrd = async (prd: number) => {
-    if (!selObj) return;
+    if (!selObj || addBusy) return;
+    setAddBusy(true);
+    setAddCodOpen(false); setAddCodBusca(''); // fecha o painel na hora (otimista)
     try {
-      await api.post('/api/operacional/produtos', { bar_id: barId, action: 'map_prd', prd, cod_interno: selObj.codigo });
-      setAddCodOpen(false); setAddCodBusca(''); reloadLista();
-    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+      const r = await api.post('/api/operacional/produtos', { bar_id: barId, action: 'map_prd', prd, cod_interno: selObj.codigo });
+      if (!r.success) throw new Error(r.error);
+      await reloadLista(); // atualiza a ficha em tela, mantendo-a selecionada
+      toast({ title: 'Código adicionado à ficha' });
+    } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); reloadLista(); }
+    finally { setAddBusy(false); }
   };
   const desmapearPrd = async (prd: number) => {
     if (!confirm(`Remover o código ContaHub ${prd} desta ficha? Ele volta pra "sem cadastro" até ser mapeado de novo.`)) return;
     try {
-      await api.post('/api/operacional/produtos', { bar_id: barId, action: 'unmap_prd', prd });
-      reloadLista();
+      const r = await api.post('/api/operacional/produtos', { bar_id: barId, action: 'unmap_prd', prd });
+      if (!r.success) throw new Error(r.error);
+      await reloadLista();
+      toast({ title: 'Código removido da ficha' });
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
   };
   // busca de código ContaHub DENTRO do modal "editar códigos" (mesma fonte da tabela — prds reais do bar)
@@ -912,8 +927,8 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
 
                       <p className="text-[11px] text-gray-400">Liga o produto às vendas do ContaHub/Yuzer (entra no CMV). Remova pelos ×; salve pra aplicar.</p>
                       <div className="flex justify-end gap-2 pt-1">
-                        <Button variant="outline" onClick={() => setEditCods(false)}>Cancelar</Button>
-                        <Button onClick={salvarCods}>Salvar</Button>
+                        <Button variant="outline" onClick={() => setEditCods(false)} disabled={salvandoCods}>Cancelar</Button>
+                        <Button onClick={salvarCods} disabled={salvandoCods}>{salvandoCods ? 'Salvando…' : 'Salvar'}</Button>
                       </div>
                     </div>
                   </div>
