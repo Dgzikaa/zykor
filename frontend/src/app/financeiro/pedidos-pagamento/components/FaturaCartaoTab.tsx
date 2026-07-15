@@ -294,15 +294,15 @@ export function FaturaCartaoTab() {
     }
     return Array.from(m.values());
   }, [linhas]);
-  // sugestão de fornecedor pelo nome (truncado) do titular
+  // sugestão de fornecedor pelo nome (truncado) do titular — só sugere em MATCH FORTE:
+  // TODOS os tokens do titular (≥3 letras) precisam aparecer no nome do fornecedor. Evita
+  // falso-positivo por sobrenome em comum (ex.: "Carlos Macedo" casar com "Pedro … Macedo").
   const sugestaoFornecedor = useCallback((titular: string | null) => {
     if (!titular || !barFatura) return null;
     const fos = opcoesBar[barFatura]?.fornecedores || [];
     const toks = norm(titular).split(/\s+/).filter(t => t.length >= 3);
-    if (!toks.length) return null;
-    const first = toks[0], last = toks[toks.length - 1];
-    return fos.find(f => { const n = norm(f.label); return n.includes(first) && n.includes(last); })
-        || fos.find(f => norm(f.label).includes(first)) || null;
+    if (toks.length < 2) return null; // precisa de nome + sobrenome p/ ter confiança
+    return fos.find(f => { const n = norm(f.label); return toks.every(t => n.includes(t)); }) || null;
   }, [opcoesBar, barFatura]);
 
   const [salvandoVinc, setSalvandoVinc] = useState<string | null>(null);
