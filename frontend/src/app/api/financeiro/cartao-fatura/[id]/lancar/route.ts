@@ -54,20 +54,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .select('contaazul_id').eq('bar_id', barId).eq('pagadora_padrao', true).maybeSingle();
     if (cp?.contaazul_id) conta_financeira_id = cp.contaazul_id;
   }
-  // Fornecedor "cartão": se não veio, tenta casar por nome (cartão/crédito) no bar.
-  if (!pessoa_id && Number.isFinite(barId)) {
-    const { data: forn } = await (supabase.schema('bronze' as any) as any)
-      .from('bronze_contaazul_pessoas')
-      .select('contaazul_id, nome').eq('bar_id', barId).eq('perfil', 'FORNECEDOR').neq('ativo', false)
-      .or('nome.ilike.%cartao%,nome.ilike.%cartão%,nome.ilike.%credito%,nome.ilike.%crédito%')
-      .limit(1).maybeSingle();
-    if (forn?.contaazul_id) pessoa_id = forn.contaazul_id;
+  // Fornecedor = TITULAR do cartão (de-para por cartao_final). Se não veio no body, resolve pelo mapa.
+  if (!pessoa_id && Number.isFinite(barId) && linha.cartao_final) {
+    const { data: map } = await fin(supabase)
+      .from('cartao_fornecedor_map')
+      .select('contaazul_pessoa_id').eq('bar_id', barId).eq('cartao_final', linha.cartao_final).maybeSingle();
+    if (map?.contaazul_pessoa_id) pessoa_id = map.contaazul_pessoa_id;
   }
 
   const faltando: string[] = [];
   if (!Number.isFinite(barId)) faltando.push('bar');
   if (!categoria_id) faltando.push('categoria');
-  if (!pessoa_id) faltando.push('fornecedor cartão (cadastre um contato "Cartão" no CA ou selecione no topo)');
+  if (!pessoa_id) faltando.push(`fornecedor (titular) do cartão${linha.cartao_final ? ` ••${linha.cartao_final}` : ''} — vincule o titular na seção "Fornecedor por cartão"`);
   if (!conta_financeira_id) faltando.push('conta pagadora');
   if (!data_vencimento || !/^\d{4}-\d{2}-\d{2}$/.test(String(data_vencimento))) faltando.push('vencimento da fatura');
   if (faltando.length) {

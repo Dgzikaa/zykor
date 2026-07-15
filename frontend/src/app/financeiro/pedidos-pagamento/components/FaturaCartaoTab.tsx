@@ -130,16 +130,25 @@ export function FaturaCartaoTab() {
       },
     }));
     const padrao = contasRaw.find((c: any) => c.pagadora_padrao);
-    const norm = (s: string) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    const fornAuto = fornecedoresRaw.find((p: any) => /cartao|credito/.test(norm(p.nome)))?.contaazul_id || '';
     setConfig(prev => {
       const cur = prev[barId] || { fornecedorId: '', contaId: '' };
-      return { ...prev, [barId]: { fornecedorId: cur.fornecedorId || fornAuto, contaId: cur.contaId || (padrao ? String(padrao.contaazul_id) : '') } };
+      return { ...prev, [barId]: { fornecedorId: cur.fornecedorId, contaId: cur.contaId || (padrao ? String(padrao.contaazul_id) : '') } };
     });
   }, []);
 
+  // De-para "Fornecedor por cartão" (cartao_final → titular no CA). Carregado por bar.
+  const [mapaCartao, setMapaCartao] = useState<Record<number, Record<string, { contaazul_pessoa_id: string; nome: string | null }>>>({});
+  const carregarMapaCartao = useCallback(async (barId: number) => {
+    try {
+      const r = await api.get(`/api/financeiro/cartao-fatura/fornecedor-cartao?bar_id=${barId}`);
+      const m: Record<string, { contaazul_pessoa_id: string; nome: string | null }> = {};
+      (r.mapa || []).forEach((x: any) => { if (x.cartao_final) m[x.cartao_final] = { contaazul_pessoa_id: x.contaazul_pessoa_id, nome: x.nome }; });
+      setMapaCartao(prev => ({ ...prev, [barId]: m }));
+    } catch { /* ok */ }
+  }, []);
+
   useEffect(() => { carregarBase(); }, [carregarBase]);
-  useEffect(() => { availableBars.forEach(b => carregarOpcoesBar(b.id)); }, [availableBars, carregarOpcoesBar]);
+  useEffect(() => { availableBars.forEach(b => { carregarOpcoesBar(b.id); carregarMapaCartao(b.id); }); }, [availableBars, carregarOpcoesBar, carregarMapaCartao]);
   useEffect(() => { if (faturaSelId) carregarLinhas(faturaSelId); else setLinhas([]); }, [faturaSelId, carregarLinhas]);
   useEffect(() => { if (verEncerradas) carregarEncerradas(); }, [verEncerradas, carregarEncerradas]);
 
@@ -181,7 +190,7 @@ export function FaturaCartaoTab() {
     try {
       const res = await api.post(`/api/financeiro/cartao-fatura/${l.id}/lancar`, {
         bar_id: bar, categoria_id: l.categoria_id, categoria_nome: l.categoria_nome,
-        pessoa_id: cfg?.fornecedorId || undefined, conta_financeira_id: cfg?.contaId || undefined,
+        conta_financeira_id: cfg?.contaId || undefined,
         data_vencimento: faturaSel?.vencimento || undefined,
       });
       setLinhas(prev => prev.map(x => (x.id === l.id ? res.linha : x)));
@@ -209,7 +218,7 @@ export function FaturaCartaoTab() {
       try {
         const res = await api.post(`/api/financeiro/cartao-fatura/${l.id}/lancar`, {
           bar_id: bar, categoria_id: l.categoria_id, categoria_nome: l.categoria_nome,
-          pessoa_id: cfg?.fornecedorId || undefined, conta_financeira_id: cfg?.contaId || undefined,
+          conta_financeira_id: cfg?.contaId || undefined,
           data_vencimento: faturaSel?.vencimento || undefined,
         });
         setLinhas(prev => prev.map(x => (x.id === l.id ? res.linha : x)));
@@ -272,6 +281,67 @@ export function FaturaCartaoTab() {
     const n = new Set(prev); lancaveis.forEach(l => n.add(l.id)); return n;
   });
   useEffect(() => { setSelecionadas(new Set()); }, [faturaSelId]);
+
+  // ===== Fornecedor por cartão (titular) =====
+  const norm = (s: string) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  const barFatura = faturaSel?.bar_id ?? selectedBar?.id ?? null;
+  // cartões presentes na fatura (distintos por final), com titular/banco representativo
+  const cartoesDaFatura = useMemo(() => {
+    const m = new Map<string, { cartao_final: string; titular_nome: string | null; banco: string | null }>();
+    for (const l of linhas) {
+      if (l.tipo !== 'compra' || !l.cartao_final) continue;
+      if (!m.has(l.cartao_final)) m.set(l.cartao_final, { cartao_final: l.cartao_final, titular_nome: l.titular_nome, banco: l.banco });
+    }
+    return Array.from(m.values());
+  }, [linhas]);
+  // sugestão de fornecedor pelo nome (truncado) do titular
+  const sugestaoFornecedor = useCallback((titular: string | null) => {
+    if (!titular || !barFatura) return null;
+    const fos = opcoesBar[barFatura]?.fornecedores || [];
+    const toks = norm(titular).split(/\s+/).filter(t => t.length >= 3);
+    if (!toks.length) return null;
+    const first = toks[0], last = toks[toks.length - 1];
+    return fos.find(f => { const n = norm(f.label); return n.includes(first) && n.includes(last); })
+        || fos.find(f => norm(f.label).includes(first)) || null;
+  }, [opcoesBar, barFatura]);
+
+  const [salvandoVinc, setSalvandoVinc] = useState<string | null>(null);
+  const vincularCartao = async (card: { cartao_final: string; titular_nome: string | null; banco: string | null }, pessoaId: string, nome: string | null) => {
+    if (!barFatura || !pessoaId) return;
+    setSalvandoVinc(card.cartao_final);
+    try {
+      await api.post('/api/financeiro/cartao-fatura/fornecedor-cartao', {
+        bar_id: barFatura, cartao_final: card.cartao_final, banco: card.banco, titular_nome: card.titular_nome,
+        contaazul_pessoa_id: pessoaId, nome,
+      });
+      setMapaCartao(prev => ({ ...prev, [barFatura]: { ...(prev[barFatura] || {}), [card.cartao_final]: { contaazul_pessoa_id: pessoaId, nome } } }));
+      showToast({ type: 'success', title: 'Cartão vinculado ao titular' });
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao vincular', message: e?.message }); }
+    finally { setSalvandoVinc(null); }
+  };
+
+  // cadastrar fornecedor (titular) no CA e já vincular ao cartão
+  const [cadOpen, setCadOpen] = useState<string | null>(null); // cartao_final com o form aberto
+  const [cadNome, setCadNome] = useState('');
+  const [cadDoc, setCadDoc] = useState('');
+  const [cadTipo, setCadTipo] = useState<'Física' | 'Jurídica'>('Física');
+  const [cadBusy, setCadBusy] = useState(false);
+  const cadastrarFornecedor = async (card: { cartao_final: string; titular_nome: string | null; banco: string | null }) => {
+    if (!barFatura || !cadNome.trim()) return;
+    setCadBusy(true);
+    try {
+      const r = await api.post('/api/financeiro/contaazul/pessoas/cadastrar', {
+        bar_id: barFatura, nome: cadNome.trim(), documento: cadDoc.replace(/\D/g, '') || undefined,
+        tipo_perfil: 'Fornecedor', tipo_pessoa: cadTipo,
+      });
+      const pid = r.contaazul_id; const nome = r.nome || cadNome.trim();
+      if (!pid) throw new Error('CA não retornou o id do fornecedor');
+      setOpcoesBar(prev => { const b = prev[barFatura]; if (!b) return prev; return { ...prev, [barFatura]: { ...b, fornecedores: [{ value: pid, label: nome }, ...b.fornecedores] } }; });
+      await vincularCartao(card, pid, nome);
+      setCadOpen(null); setCadNome(''); setCadDoc('');
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao cadastrar', message: e?.message }); }
+    finally { setCadBusy(false); }
+  };
 
   return (
     <div className="space-y-3">
@@ -349,6 +419,54 @@ export function FaturaCartaoTab() {
               </div>
             )}
           </CardContent></Card>
+
+          {/* Fornecedor por cartão = TITULAR (vincula 1x por cartão; vale p/ todas as compras dele) */}
+          {editavelFatura && barFatura && cartoesDaFatura.length > 0 && (
+            <Card><CardContent className="py-3 space-y-2">
+              <div className="text-sm font-semibold flex items-center gap-1.5">
+                <CreditCard className="w-4 h-4" />Fornecedor por cartão
+                <span className="text-xs text-muted-foreground font-normal">— o fornecedor é o titular do cartão; vincule uma vez e vale p/ todas as compras (a descrição do lançamento é o estabelecimento)</span>
+              </div>
+              <div className="space-y-1.5">
+                {cartoesDaFatura.map(card => {
+                  const atual = mapaCartao[barFatura]?.[card.cartao_final];
+                  const fos = opcoesBar[barFatura]?.fornecedores || [];
+                  const sug = !atual ? sugestaoFornecedor(card.titular_nome) : null;
+                  return (
+                    <div key={card.cartao_final} className="flex items-center gap-2 flex-wrap text-sm">
+                      <span className="font-mono text-xs text-muted-foreground w-14 shrink-0">••{card.cartao_final}</span>
+                      <span className="text-xs w-40 truncate shrink-0" title={card.titular_nome || ''}>{card.titular_nome || '— sem titular —'}</span>
+                      {atual
+                        ? <span className="inline-flex items-center gap-1 text-emerald-600 text-xs shrink-0"><CheckCircle2 className="w-3.5 h-3.5" />{atual.nome || 'vinculado'}</span>
+                        : <span className="text-amber-600 text-xs shrink-0">sem fornecedor</span>}
+                      <div className="flex items-center gap-1.5 ml-auto flex-wrap justify-end">
+                        <SearchableSelect className="w-64" options={fos} value={atual?.contaazul_pessoa_id || ''}
+                          placeholder={salvandoVinc === card.cartao_final ? 'salvando…' : 'vincular titular…'} searchPlaceholder="buscar fornecedor…"
+                          disabled={salvandoVinc === card.cartao_final}
+                          onValueChange={(v) => { const f = fos.find(x => x.value === v); if (f) vincularCartao(card, v, f.label); }} />
+                        {sug && <button onClick={() => vincularCartao(card, sug.value, sug.label)} className="text-xs text-blue-600 hover:underline whitespace-nowrap" title="sugestão pelo nome do titular">usar “{sug.label}”</button>}
+                        <button onClick={() => { setCadOpen(cadOpen === card.cartao_final ? null : card.cartao_final); setCadNome(card.titular_nome || ''); setCadDoc(''); }}
+                          className="text-xs text-emerald-600 hover:underline whitespace-nowrap">＋ cadastrar</button>
+                      </div>
+                      {cadOpen === card.cartao_final && (
+                        <div className="w-full flex items-center gap-1.5 flex-wrap pl-14 pt-1">
+                          <Input value={cadNome} onChange={e => setCadNome(e.target.value)} placeholder="Nome do fornecedor (titular)" className="h-7 w-56 text-xs" />
+                          <select value={cadTipo} onChange={e => setCadTipo(e.target.value as 'Física' | 'Jurídica')} className="h-7 text-xs border rounded px-1 bg-background">
+                            <option value="Física">Física</option><option value="Jurídica">Jurídica</option>
+                          </select>
+                          <Input value={cadDoc} onChange={e => setCadDoc(e.target.value)} placeholder="CPF/CNPJ (opcional)" className="h-7 w-40 text-xs" />
+                          <Button size="sm" disabled={cadBusy || !cadNome.trim()} onClick={() => cadastrarFornecedor(card)}>
+                            {cadBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Criar e vincular'}
+                          </Button>
+                          <button onClick={() => setCadOpen(null)} className="text-xs text-muted-foreground hover:text-foreground">cancelar</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent></Card>
+          )}
 
           {/* Filtros dentro da fatura (cartão/titular/categoria agora filtram no cabeçalho da tabela) */}
           <div className="flex items-center gap-2 flex-wrap text-sm">
