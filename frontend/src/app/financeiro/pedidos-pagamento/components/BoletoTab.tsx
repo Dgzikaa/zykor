@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DateInputBR } from '@/components/ui/date-input-br';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Loader2, FileScan, Sparkles, Send, AlertTriangle, PencilLine, ScanLine, Receipt, X, Plus } from 'lucide-react';
+import { Loader2, FileScan, Sparkles, Send, AlertTriangle, PencilLine, ScanLine, Receipt, X, Plus, RefreshCw } from 'lucide-react';
 import { BoletoScanner } from './BoletoScanner';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { PedidoCard, type Opcao } from './PedidoCard';
@@ -198,6 +198,29 @@ export function BoletoTab({
   const boletosFiltrados = useMemo(() => pedidos.filter(p => TAB_STATUS[tab](p.status)), [pedidos, tab]);
   const countSolicitado = useMemo(() => pedidos.filter(p => TAB_STATUS.solicitado(p.status)).length, [pedidos]);
 
+  // Reconcilia os boletos com o Inter na hora (consulta GET /banking/v2/pagamento) — vira agendado
+  // → pago/cancelado. O cron já faz isso 2×/dia; este botão é pra conferir na hora, se quiser.
+  const [reconciliando, setReconciliando] = useState(false);
+  const reconciliarBoletos = async () => {
+    setReconciliando(true);
+    try {
+      const barId = getSelectedBarId();
+      const r = await api.get(`/api/financeiro/inter/boleto/reconciliar${barId ? `?bar_id=${barId}` : ''}`);
+      const res = (r?.resultados || [])[0] || {};
+      const pagos = res.pagos || 0, cancelados = res.cancelados || 0;
+      if (res.erro) {
+        showToast({ type: 'error', title: 'Falha ao consultar o Inter', message: String(res.erro) });
+      } else if (pagos || cancelados) {
+        showToast({ type: 'success', title: 'Boletos reconciliados', message: `${pagos} pago(s)${cancelados ? `, ${cancelados} cancelado(s)` : ''} confirmados pelo Inter.` });
+      } else {
+        showToast({ type: 'warning', title: 'Nada novo', message: 'Nenhum boleto novo confirmado pelo Inter agora.' });
+      }
+      onCriado();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Erro ao reconciliar', message: e?.message });
+    } finally { setReconciliando(false); }
+  };
+
   // Excluir/cancelar um boleto (pedido do Gonza: dá pra tirar da aba Aprovado). Reusa o
   // endpoint de cancelar do financeiro — se já subiu ao Inter, tenta desfazer o agendamento.
   const cancelar = async (id: string) => {
@@ -360,6 +383,15 @@ export function BoletoTab({
 
       {/* Lista de boletos — mesmo esquema da aba PIX (Solicitado/Aprovado/Recusado/Todos) */}
       <div className="border-t border-[hsl(var(--border))] pt-3">
+        {podeAprovar && (
+          <div className="flex justify-end mb-2">
+            <Button variant="outline" size="sm" onClick={reconciliarBoletos} disabled={reconciliando}
+              title="Consulta o Inter e atualiza os boletos agendados que já foram pagos/cancelados">
+              {reconciliando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+              Reconciliar boletos
+            </Button>
+          </div>
+        )}
         <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="mb-3">
           <TabsList>
             <TabsTrigger value="solicitado">
