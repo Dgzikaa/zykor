@@ -67,6 +67,26 @@ export async function consultarPagamentosBoletoInter(
   }
 }
 
+// Varre o objeto (recursivo) e acha o 1º valor que, só com dígitos, tem 44/47/48 chars = a
+// linha digitável / código de barras — seja qual for o nome do campo na resposta do Inter.
+function acharCodBarra(obj: any): string | null {
+  const seen = new Set<any>();
+  const stack = [obj];
+  while (stack.length) {
+    const cur = stack.pop();
+    if (!cur || typeof cur !== 'object' || seen.has(cur)) continue;
+    seen.add(cur);
+    for (const k of Object.keys(cur)) {
+      const v = (cur as any)[k];
+      if (typeof v === 'string' || typeof v === 'number') {
+        const d = String(v).replace(/\D/g, '');
+        if ([44, 47, 48].includes(d.length)) return d;
+      } else if (v && typeof v === 'object') stack.push(v);
+    }
+  }
+  return null;
+}
+
 /**
  * Extrai a lista de pagamentos da resposta do Inter, defensivamente (pode vir como array direto
  * ou dentro de `pagamentos`/`content`/`transacoes`). Normaliza os campos que a reconciliação usa.
@@ -82,17 +102,23 @@ export function normalizarPagamentosInter(data: any): Array<{
   const lista: any[] = Array.isArray(data)
     ? data
     : (data?.pagamentos || data?.content || data?.transacoes || data?.itens || []);
-  return (Array.isArray(lista) ? lista : []).map((p: any) => ({
-    codigoTransacao: p?.codigoTransacao || p?.codigoSolicitacao || p?.codigo || null,
-    status: String(p?.statusPagamento || p?.status || '').toUpperCase().trim(),
-    valor: p?.valorPagamento != null ? Number(p.valorPagamento)
-      : p?.valor != null ? Number(p.valor) : null,
-    linhaDigitavel: (p?.codBarra || p?.codBarraLinhaDigitavel || p?.codigoBarra || p?.linhaDigitavel || '')
+  return (Array.isArray(lista) ? lista : []).map((p: any) => {
+    const nomeada = (p?.codBarra || p?.codBarraLinhaDigitavel || p?.codigoBarra || p?.linhaDigitavel)
       ? String(p.codBarra || p.codBarraLinhaDigitavel || p.codigoBarra || p.linhaDigitavel).replace(/\D/g, '')
-      : null,
-    dataPagamento: p?.dataPagamento || p?.dataVencimento || p?.dataAgendamento || null,
-    raw: p,
-  }));
+      : null;
+    return {
+      codigoTransacao: p?.codigoTransacao || p?.codigoSolicitacao || p?.codigo || null,
+      status: String(p?.statusPagamento || p?.status || '').toUpperCase().trim(),
+      valor: p?.valorPago != null ? Number(p.valorPago)
+        : p?.valorPagamento != null ? Number(p.valorPagamento)
+        : p?.valorTitulo != null ? Number(p.valorTitulo)
+        : p?.valor != null ? Number(p.valor) : null,
+      // nome conhecido → senão varre o objeto atrás do código de 44/47/48 dígitos
+      linhaDigitavel: nomeada || acharCodBarra(p),
+      dataPagamento: p?.dataPagamento || p?.dataVencimento || p?.dataAgendamento || null,
+      raw: p,
+    };
+  });
 }
 
 // Status do Inter (módulo Pagamento) → estado local. Conservador: só marca PAGO no que é
@@ -100,7 +126,7 @@ export function normalizarPagamentosInter(data: any): Array<{
 export function mapStatusPagamentoInter(status: string): 'pago' | 'cancelado' | 'pendente' | 'desconhecido' {
   const s = String(status || '').toUpperCase().replace(/\s+/g, '_');
   if (['PAGO', 'TITULO_PAGO', 'DEBITADO', 'LIQUIDADO', 'EFETIVADO', 'PAGAMENTO_EFETUADO', 'REALIZADO'].includes(s)) return 'pago';
-  if (['CANCELADO', 'TITULO_CANCELADO', 'EXPIRADO', 'FALHA', 'ERRO', 'REJEITADO', 'NAO_PAGO', 'DEVOLVIDO'].includes(s)) return 'cancelado';
+  if (['CANCELADO', 'TITULO_CANCELADO', 'AGENDADO_CANCELADO', 'EXPIRADO', 'FALHA', 'ERRO', 'REJEITADO', 'NAO_PAGO', 'DEVOLVIDO'].includes(s)) return 'cancelado';
   if (['AGENDADO', 'TITULO_AGENDADO', 'AGUARDANDO_APROVACAO', 'PENDENTE', 'PROCESSANDO', 'EM_PROCESSAMENTO', 'PROCESSADO'].includes(s)) return 'pendente';
   return 'desconhecido';
 }

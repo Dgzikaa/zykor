@@ -42,7 +42,10 @@ export async function GET(request: NextRequest) {
     if (!user || !podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.agendamentos, 'inserir')) {
       return permissionErrorResponse('Sem permissão');
     }
-    if (user.bar_id) baresAlvo = [user.bar_id];
+    // financeiro pode disparar manual e escolher o bar (?bar_id); senão usa o próprio.
+    const barParam = Number(new URL(request.url).searchParams.get('bar_id'));
+    if (Number.isFinite(barParam) && barParam > 0) baresAlvo = [barParam];
+    else if (user.bar_id) baresAlvo = [user.bar_id];
   }
   if (!baresAlvo.length) return NextResponse.json({ success: true, aviso: 'Nenhum bar com Inter ativo', resultados: [] });
 
@@ -76,7 +79,7 @@ export async function GET(request: NextRequest) {
       // Boletos locais ainda em aberto (pix_enviados) → mapas de match por código real e por linha digitável.
       // (filtro de tipo=BOLETO feito em JS pra não depender do operador jsonb no PostgREST)
       const { data: rowsRaw } = await fin().from('pix_enviados')
-        .select('id, inter_codigo_solicitacao, txid, valor, status, beneficiario, pagamento_zykor_id')
+        .select('id, inter_codigo_solicitacao, txid, valor, status, beneficiario, pagamento_zykor_id, data_pagamento')
         .eq('bar_id', barId)
         .not('status', 'in', '(pago,cancelado)')
         .limit(3000);
@@ -86,20 +89,29 @@ export async function GET(request: NextRequest) {
         || !!r.beneficiario?.linha_digitavel);
       const porCodigo = new Map<string, any>();
       const porLinha = new Map<string, any[]>();
+      const porValorData = new Map<string, any[]>(); // fallback: valor+data (só usa se for único)
       for (const r of (rows || [])) {
         if (r.inter_codigo_solicitacao && !String(r.inter_codigo_solicitacao).startsWith('BOL_')) porCodigo.set(String(r.inter_codigo_solicitacao), r);
         const linha = String(r.beneficiario?.linha_digitavel || '').replace(/\D/g, '');
         if (linha) { const a = porLinha.get(linha) || []; a.push(r); porLinha.set(linha, a); }
+        if (r.valor != null && r.data_pagamento) {
+          const key = `${Number(r.valor).toFixed(2)}|${String(r.data_pagamento).slice(0, 10)}`;
+          const a = porValorData.get(key) || []; a.push(r); porValorData.set(key, a);
+        }
       }
 
       for (const p of pagamentos) {
         const estado = mapStatusPagamentoInter(p.status);
         if (estado !== 'pago' && estado !== 'cancelado') continue; // só age no que fechou
-        // acha o boleto local: 1º pelo código real; senão pela linha digitável (+ valor de desempate)
+        // acha o boleto local: 1º pelo código real; 2º pela linha digitável (+ valor); 3º valor+data (só se único)
         let row = p.codigoTransacao ? porCodigo.get(String(p.codigoTransacao)) : null;
         if (!row && p.linhaDigitavel) {
           const cand = porLinha.get(p.linhaDigitavel) || [];
           row = cand.find((c: any) => p.valor == null || Math.abs(Number(c.valor) - p.valor) < 0.01) || cand[0] || null;
+        }
+        if (!row && p.valor != null && p.dataPagamento) {
+          const cand = porValorData.get(`${p.valor.toFixed(2)}|${String(p.dataPagamento).slice(0, 10)}`) || [];
+          if (cand.length === 1) row = cand[0]; // só casa quando não há ambiguidade
         }
         if (!row) { res.sem_match++; continue; }
 
