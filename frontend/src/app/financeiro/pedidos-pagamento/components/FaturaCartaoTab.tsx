@@ -283,50 +283,75 @@ export function FaturaCartaoTab() {
   useEffect(() => { setSelecionadas(new Set()); }, [faturaSelId]);
 
   // ===== Fornecedor por cartão (titular) =====
+  // O cartão tem UM titular (fornecedor), fixo — independe do bar. O bar da linha é só ONDE vai
+  // ser lançado (CA/Inter). Como cada bar é uma empresa no CA (contatos próprios), ao vincular
+  // propagamos o mesmo titular pra TODOS os bares (acha por nome no CA de cada um, ou cria).
   const norm = (s: string) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
   const barFatura = faturaSel?.bar_id ?? selectedBar?.id ?? null;
-  // cartões presentes na fatura (distintos por final), com titular/banco representativo
+  type CartaoResumo = { cartao_final: string; titular_nome: string | null; banco: string | null };
   const cartoesDaFatura = useMemo(() => {
-    const m = new Map<string, { cartao_final: string; titular_nome: string | null; banco: string | null }>();
+    const m = new Map<string, CartaoResumo>();
     for (const l of linhas) {
       if (l.tipo !== 'compra' || !l.cartao_final) continue;
       if (!m.has(l.cartao_final)) m.set(l.cartao_final, { cartao_final: l.cartao_final, titular_nome: l.titular_nome, banco: l.banco });
     }
-    return Array.from(m.values());
+    return Array.from(m.values()).sort((a, b) => a.cartao_final.localeCompare(b.cartao_final));
   }, [linhas]);
-  // sugestão de fornecedor pelo nome (truncado) do titular — só sugere em MATCH FORTE:
-  // TODOS os tokens do titular (≥3 letras) precisam aparecer no nome do fornecedor. Evita
-  // falso-positivo por sobrenome em comum (ex.: "Carlos Macedo" casar com "Pedro … Macedo").
+
+  // acha o mesmo titular no CA de um bar por nome (1º + último token) — p/ propagar o vínculo
+  const acharFornecedor = useCallback((bar: number, nome: string | null) => {
+    if (!nome) return null;
+    const fos = opcoesBar[bar]?.fornecedores || [];
+    const toks = norm(nome).split(/\s+/).filter(t => t.length >= 3);
+    if (!toks.length) return null;
+    const first = toks[0], last = toks[toks.length - 1];
+    return fos.find(f => { const n = norm(f.label); return n.includes(first) && n.includes(last); }) || null;
+  }, [opcoesBar]);
+  // sugestão pelo nome (truncado) do titular no bar da fatura — só em MATCH FORTE (todos os tokens)
   const sugestaoFornecedor = useCallback((titular: string | null) => {
     if (!titular || !barFatura) return null;
     const fos = opcoesBar[barFatura]?.fornecedores || [];
     const toks = norm(titular).split(/\s+/).filter(t => t.length >= 3);
-    if (toks.length < 2) return null; // precisa de nome + sobrenome p/ ter confiança
+    if (toks.length < 2) return null;
     return fos.find(f => { const n = norm(f.label); return toks.every(t => n.includes(t)); }) || null;
   }, [opcoesBar, barFatura]);
 
   const [salvandoVinc, setSalvandoVinc] = useState<string | null>(null);
-  const vincularCartao = async (card: { cartao_final: string; titular_nome: string | null; banco: string | null }, pessoaId: string, nome: string | null) => {
-    if (!barFatura || !pessoaId) return;
+  // vincula o cartão ao titular e PROPAGA pra todos os bares (match por nome; cria no CA se faltar)
+  const vincularCartao = async (card: CartaoResumo, pessoaId: string, nome: string | null) => {
+    if (!pessoaId || !barFatura) return;
     setSalvandoVinc(card.cartao_final);
     try {
-      await api.post('/api/financeiro/cartao-fatura/fornecedor-cartao', {
-        bar_id: barFatura, cartao_final: card.cartao_final, banco: card.banco, titular_nome: card.titular_nome,
-        contaazul_pessoa_id: pessoaId, nome,
-      });
-      setMapaCartao(prev => ({ ...prev, [barFatura]: { ...(prev[barFatura] || {}), [card.cartao_final]: { contaazul_pessoa_id: pessoaId, nome } } }));
-      showToast({ type: 'success', title: 'Cartão vinculado ao titular' });
+      let criados = 0;
+      for (const b of availableBars) {
+        const bar = b.id;
+        let pid: string | null = pessoaId, pnome = nome;
+        if (bar !== barFatura) {
+          const achado = acharFornecedor(bar, nome);
+          if (achado) { pid = achado.value; pnome = achado.label; }
+          else {
+            const r = await api.post('/api/financeiro/contaazul/pessoas/cadastrar', { bar_id: bar, nome: nome || '', tipo_perfil: 'Fornecedor', tipo_pessoa: 'Física' });
+            pid = r.contaazul_id || null; pnome = r.nome || nome; if (pid) criados++;
+            if (pid) setOpcoesBar(prev => { const bb = prev[bar]; if (!bb) return prev; return { ...prev, [bar]: { ...bb, fornecedores: [{ value: pid as string, label: pnome || '' }, ...bb.fornecedores] } }; });
+          }
+        }
+        if (!pid) continue;
+        await api.post('/api/financeiro/cartao-fatura/fornecedor-cartao', { bar_id: bar, cartao_final: card.cartao_final, banco: card.banco, titular_nome: card.titular_nome, contaazul_pessoa_id: pid, nome: pnome });
+        const pidFinal = pid, pnomeFinal = pnome ?? null;
+        setMapaCartao(prev => ({ ...prev, [bar]: { ...(prev[bar] || {}), [card.cartao_final]: { contaazul_pessoa_id: pidFinal, nome: pnomeFinal } } }));
+      }
+      showToast({ type: 'success', title: 'Cartão vinculado ao titular', message: criados ? `titular criado no CA de ${criados} bar(es)` : `vale p/ os ${availableBars.length} bares` });
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao vincular', message: e?.message }); }
     finally { setSalvandoVinc(null); }
   };
 
-  // cadastrar fornecedor (titular) no CA e já vincular ao cartão
+  // cadastrar o titular no CA (bar da fatura) e vincular (propaga aos demais bares)
   const [cadOpen, setCadOpen] = useState<string | null>(null); // cartao_final com o form aberto
   const [cadNome, setCadNome] = useState('');
   const [cadDoc, setCadDoc] = useState('');
   const [cadTipo, setCadTipo] = useState<'Física' | 'Jurídica'>('Física');
   const [cadBusy, setCadBusy] = useState(false);
-  const cadastrarFornecedor = async (card: { cartao_final: string; titular_nome: string | null; banco: string | null }) => {
+  const cadastrarFornecedor = async (card: CartaoResumo) => {
     if (!barFatura || !cadNome.trim()) return;
     setCadBusy(true);
     try {
@@ -420,20 +445,21 @@ export function FaturaCartaoTab() {
             )}
           </CardContent></Card>
 
-          {/* Fornecedor por cartão = TITULAR (vincula 1x por cartão; vale p/ todas as compras dele) */}
-          {editavelFatura && barFatura && cartoesDaFatura.length > 0 && (
+          {/* Fornecedor por cartão = TITULAR (vincula 1x; vale p/ os 2 bares e todas as compras) */}
+          {editavelFatura && cartoesDaFatura.length > 0 && (
             <Card><CardContent className="py-3 space-y-2">
               <div className="text-sm font-semibold flex items-center gap-1.5">
                 <CreditCard className="w-4 h-4" />Fornecedor por cartão
-                <span className="text-xs text-muted-foreground font-normal">— o fornecedor é o titular do cartão; vincule uma vez e vale p/ todas as compras (a descrição do lançamento é o estabelecimento)</span>
+                <span className="text-xs text-muted-foreground font-normal">— o fornecedor é o titular do cartão (fixo, vale p/ os 2 bares); o bar da linha é só onde vai lançar. A descrição do lançamento é o estabelecimento.</span>
               </div>
               <div className="space-y-1.5">
                 {cartoesDaFatura.map(card => {
-                  const atual = mapaCartao[barFatura]?.[card.cartao_final];
-                  const fos = opcoesBar[barFatura]?.fornecedores || [];
+                  const chave = card.cartao_final;
+                  const atual = barFatura ? mapaCartao[barFatura]?.[card.cartao_final] : undefined;
+                  const fos = barFatura ? (opcoesBar[barFatura]?.fornecedores || []) : [];
                   const sug = !atual ? sugestaoFornecedor(card.titular_nome) : null;
                   return (
-                    <div key={card.cartao_final} className="flex items-center gap-2 flex-wrap text-sm">
+                    <div key={chave} className="flex items-center gap-2 flex-wrap text-sm">
                       <span className="font-mono text-xs text-muted-foreground w-14 shrink-0">••{card.cartao_final}</span>
                       <span className="text-xs w-40 truncate shrink-0" title={card.titular_nome || ''}>{card.titular_nome || '— sem titular —'}</span>
                       {atual
@@ -441,14 +467,14 @@ export function FaturaCartaoTab() {
                         : <span className="text-amber-600 text-xs shrink-0">sem fornecedor</span>}
                       <div className="flex items-center gap-1.5 ml-auto flex-wrap justify-end">
                         <SearchableSelect className="w-64" options={fos} value={atual?.contaazul_pessoa_id || ''}
-                          placeholder={salvandoVinc === card.cartao_final ? 'salvando…' : 'vincular titular…'} searchPlaceholder="buscar fornecedor…"
-                          disabled={salvandoVinc === card.cartao_final}
+                          placeholder={salvandoVinc === chave ? 'salvando…' : 'vincular titular…'} searchPlaceholder="buscar fornecedor…"
+                          disabled={salvandoVinc === chave}
                           onValueChange={(v) => { const f = fos.find(x => x.value === v); if (f) vincularCartao(card, v, f.label); }} />
                         {sug && <button onClick={() => vincularCartao(card, sug.value, sug.label)} className="text-xs text-blue-600 hover:underline whitespace-nowrap" title="sugestão pelo nome do titular">usar “{sug.label}”</button>}
-                        <button onClick={() => { setCadOpen(cadOpen === card.cartao_final ? null : card.cartao_final); setCadNome(card.titular_nome || ''); setCadDoc(''); }}
+                        <button onClick={() => { setCadOpen(cadOpen === chave ? null : chave); setCadNome(card.titular_nome || ''); setCadDoc(''); }}
                           className="text-xs text-emerald-600 hover:underline whitespace-nowrap">＋ cadastrar</button>
                       </div>
-                      {cadOpen === card.cartao_final && (
+                      {cadOpen === chave && (
                         <div className="w-full flex items-center gap-1.5 flex-wrap pl-14 pt-1">
                           <Input value={cadNome} onChange={e => setCadNome(e.target.value)} placeholder="Nome do fornecedor (titular)" className="h-7 w-56 text-xs" />
                           <select value={cadTipo} onChange={e => setCadTipo(e.target.value as 'Física' | 'Jurídica')} className="h-7 text-xs border rounded px-1 bg-background">
@@ -505,6 +531,7 @@ export function FaturaCartaoTab() {
                       selected={colFilter.titular_nome || new Set()} onChange={(n) => setCol('titular_nome', n)} />
                     <ColumnFilterHeader label="Cartão" options={optionsByCol.cartao_final || []}
                       selected={colFilter.cartao_final || new Set()} onChange={(n) => setCol('cartao_final', n)} />
+                    <th className="text-left px-2">Fornecedor</th>
                     <th className="text-right px-2">Valor</th>
                     <th className="text-left px-2 w-32">Bar</th>
                     <ColumnFilterHeader label="Categoria" className="w-48" options={optionsByCol.categoria_nome || []}
@@ -516,6 +543,7 @@ export function FaturaCartaoTab() {
                   {filtradas.map(l => {
                     const barEfetivo = l.bar_id ?? faturaSel.bar_id ?? selectedBar?.id ?? null;
                     const ops = barEfetivo ? opcoesBar[barEfetivo] : undefined;
+                    const fornecedorLinha = (barEfetivo && l.cartao_final) ? (mapaCartao[barEfetivo]?.[l.cartao_final]?.nome ?? null) : null;
                     const lancado = l.status === 'lancado';
                     const ignorado = l.status === 'ignorado';
                     return (
@@ -543,6 +571,11 @@ export function FaturaCartaoTab() {
                         </td>
                         <td className="px-2 text-xs whitespace-nowrap">{l.titular_nome || '—'}</td>
                         <td className="px-2 text-xs text-muted-foreground whitespace-nowrap">{l.cartao_final ? `••${l.cartao_final}` : '—'}</td>
+                        <td className="px-2 text-xs whitespace-nowrap max-w-[180px] truncate" title={fornecedorLinha || ''}>
+                          {fornecedorLinha
+                            ? fornecedorLinha
+                            : <span className="text-amber-600">{l.cartao_final ? 'vincular' : '—'}</span>}
+                        </td>
                         <td className="px-2 text-right whitespace-nowrap font-medium">{fmtBRL(l.valor)}</td>
                         <td className="px-2">
                           <select value={barEfetivo ?? ''} disabled={lancado || !editavelFatura}
