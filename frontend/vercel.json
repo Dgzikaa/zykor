@@ -47,6 +47,10 @@
     {
       "path": "/api/cron/briefing-diario",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/financeiro/inter/boleto/reconciliar",
+      "schedule": "0 15,21 * * *"
     }
   ],
   "functions": {
@@ -112,6 +116,9 @@
     },
     "src/app/api/financeiro/fechamento/bonificacoes/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/financeiro/inter/boleto/reconciliar/route.ts": {
+      "maxDuration": 120
     }
   },
   "git": {

@@ -84,7 +84,11 @@ export async function POST(request: NextRequest) {
     if (!resultado.success) {
       return NextResponse.json({ success: false, error: resultado.error }, { status: 400 });
     }
-    const codigoSolicitacao = resultado.data?.codigoSolicitacao || `BOL_${Date.now()}`;
+    // O Inter (POST /banking/v2/pagamento) devolve o id em `codigoTransacao`. Guardamos o REAL
+    // pra reconciliação de status conseguir consultar depois (GET /banking/v2/pagamento). Só cai
+    // no fallback BOL_ se o Inter não devolver nenhum código.
+    const codigoInter = resultado.data?.codigoTransacao || resultado.data?.codigoSolicitacao || resultado.data?.codigoSolicitacaoPagamento || null;
+    const codigoSolicitacao = codigoInter || `BOL_${Date.now()}`;
 
     // Registro em financial.pix_enviados (mesma trilha de rastreio dos pagamentos Inter)
     await (supabase.schema('financial' as any) as any).from('pix_enviados').insert({
