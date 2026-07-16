@@ -179,7 +179,7 @@ export async function baixarEventoCA(input: {
   const valorRound = round2(input.valor);
   const { data: candidatos } = await (supabase.schema('bronze' as any) as any)
     .from('bronze_contaazul_lancamentos')
-    .select('contaazul_id, descricao, valor_bruto, data_competencia, tipo')
+    .select('contaazul_id, descricao, valor_bruto, data_competencia, tipo, valor_pago, status')
     .eq('bar_id', input.barId).eq('data_competencia', input.competencia)
     .is('excluido_em', null).limit(100);
   const descNorm = normalizarDesc(input.descricao);
@@ -190,20 +190,25 @@ export async function baixarEventoCA(input: {
     (querReceita ? String(l.tipo || '').toUpperCase() === 'RECEITA' : String(l.tipo || '').toUpperCase() !== 'RECEITA'));
   if (matches.length === 0) return { ok: false, nao_sincronizado: true, erro: 'evento ainda não sincronizado no CA' };
   if (matches.length > 1) return { ok: false, erro: 'mais de um evento bate (ambíguo) — baixa manual por segurança' };
-  const idEvento = matches[0].contaazul_id;
+  // IMPORTANTE: bronze.contaazul_id é o id da PARCELA (não do evento). A baixa é DIRETO na
+  // parcela: /eventos-financeiros/parcelas/{id}/baixa (igual à edge contaazul-baixas). Não existe
+  // GET /eventos-financeiros/{id}/parcelas p/ esses lançamentos (volta []).
+  const idParcela = matches[0].contaazul_id;
+  // Idempotência barata: se a bronze já mostra valor_pago, está quitado (não re-baixa).
+  if (Number(matches[0].valor_pago || 0) >= valorRound - 0.01) return { ok: true, ja_baixada: true };
 
-  const parcelasResp = await fetch(`${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/${idEvento}/parcelas`, { headers: { Authorization: `Bearer ${input.token}` } });
-  if (!parcelasResp.ok) { const t = await parcelasResp.text(); return { ok: false, erro: `CA parcelas HTTP ${parcelasResp.status}: ${String(t).slice(0, 200)}` }; }
-  const parcelasBody = await parcelasResp.json();
-  // A resposta pode vir como array puro OU embrulhada (itens/parcelas/content/data).
-  const lista = Array.isArray(parcelasBody) ? parcelasBody
-    : (parcelasBody?.itens || parcelasBody?.parcelas || parcelasBody?.content || parcelasBody?.data || parcelasBody?.results || []);
-  const parcela = (Array.isArray(lista) ? lista : [])[0];
-  if (!parcela?.id) return { ok: false, erro: `parcela não encontrada (evento ${idEvento}) — resp: ${JSON.stringify(parcelasBody).slice(0, 300)}` };
-  const jaQuitada = String(parcela.status || '').toUpperCase() === 'QUITADO' || (Array.isArray(parcela.baixas) && parcela.baixas.length > 0);
-  if (jaQuitada) return { ok: true, ja_baixada: true };
+  const baixaUrl = `${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/parcelas/${idParcela}/baixa`;
+  // Idempotência forte: já existe baixa nessa parcela? (GET; 404 = sem baixa → cria)
+  try {
+    const chk = await fetch(baixaUrl, { headers: { Authorization: `Bearer ${input.token}` } });
+    if (chk.status === 200) {
+      const b = await chk.json().catch(() => null);
+      const tem = Array.isArray(b) ? b.length > 0 : !!(b && (b.id || b.data_pagamento || b.itens?.length || b.baixas?.length || b.data?.length));
+      if (tem) return { ok: true, ja_baixada: true };
+    }
+  } catch { /* segue pro POST */ }
 
-  const baixaResp = await fetch(`${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/parcelas/${parcela.id}/baixa`, {
+  const baixaResp = await fetch(baixaUrl, {
     method: 'POST', headers: { Authorization: `Bearer ${input.token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       data_pagamento: input.dataPagamento || input.competencia,
