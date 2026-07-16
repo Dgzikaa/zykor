@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
 import Analises from './Analises';
-import { RefreshCw, Download, Search, X, SlidersHorizontal, Users, ChevronRight, ChevronDown, Layers, Filter, Check, Tag, Pencil } from 'lucide-react';
+import { RefreshCw, Download, Search, X, SlidersHorizontal, Users, ChevronRight, ChevronDown, Layers, Filter, Check, Tag, Pencil, AlertTriangle } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
@@ -842,6 +842,9 @@ export default function ControleConsumacaoPage() {
             <span className="inline-flex items-center gap-1.5">
               <span className={`inline-block w-2 h-2 rounded-full ${catMix ? 'bg-gray-400' : COR[g.categoria] || 'bg-gray-400'}`} />
               <span className="text-gray-700 dark:text-gray-200">{catMix ? 'Vários' : LABEL[g.categoria] || g.categoria}</span>
+              {!catMix && g.categoria === 'outros' && (
+                <span className="rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide">reclassificar</span>
+              )}
               {isAdmin && !catMix && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setEditandoCategoria({ mesaLabel: g.mesaLabel, mesaNorm: g.key }); }}
@@ -1186,7 +1189,9 @@ export default function ControleConsumacaoPage() {
               className={`text-left rounded-lg border p-2.5 transition-colors ${
                 ativo
                   ? 'border-blue-500 ring-1 ring-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                  : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
+                  : c.key === 'outros' && (r?.custo || 0) > 0
+                    ? 'border-amber-400 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-900/15 hover:border-amber-500'
+                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
               }`}
             >
               <div className="flex items-center gap-1.5">
@@ -1203,6 +1208,31 @@ export default function ControleConsumacaoPage() {
           );
         })}
       </div>
+
+      {/* ===== Alerta: Outros não entra no CMV ===== */}
+      {(() => {
+        const o = resumoMap.get('outros');
+        if (!o || (o.custo || 0) <= 0) return null;
+        return (
+          <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                {moeda(o.custo)} em &ldquo;Outros&rdquo; ({(o.linhas || 0).toLocaleString('pt-BR')} lançamento{(o.linhas || 0) === 1 ? '' : 's'}) — <span className="underline">não entra no CMV</span>.
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                Reclassifique cada mesa na categoria correta (lápis <Pencil className="inline w-3 h-3" /> na coluna Categoria){isAdmin ? '' : ' — só admin'}. Enquanto ficar em Outros, é a diferença que aparece no CMV.
+              </p>
+            </div>
+            <button
+              onClick={() => setCatFiltro(new Set(['outros']))}
+              className="shrink-0 self-center rounded-md border border-amber-400 dark:border-amber-700 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+            >
+              Ver só Outros
+            </button>
+          </div>
+        );
+      })()}
 
       {/* ===== Totais ===== */}
       <div className="flex flex-wrap gap-3">
@@ -1338,6 +1368,9 @@ export default function ControleConsumacaoPage() {
                       <span className="inline-flex items-center gap-1.5">
                         <span className={`inline-block w-2 h-2 rounded-full ${COR[l.categoria] || 'bg-gray-400'}`} />
                         <span className="text-gray-700 dark:text-gray-200">{LABEL[l.categoria] || l.categoria}</span>
+                        {l.categoria === 'outros' && (
+                          <span className="rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide">reclassificar</span>
+                        )}
                         {isAdmin && l.mesa && (
                           <button
                             onClick={() => setEditandoCategoria({ mesaLabel: l.mesa as string, mesaNorm: normMesa(l.mesa) })}
