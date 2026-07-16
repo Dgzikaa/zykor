@@ -12,7 +12,9 @@ import { DateInputBR } from '@/components/ui/date-input-br';
 import { ArrowRightLeft, ArrowRight, Search, Trash2, Loader2, Plus } from 'lucide-react';
 
 type Insumo = { id: number; codigo: string; nome: string; categoria?: string | null; preco_atual: number | null };
-type Item = { codigo: string; nome: string; quantidade: number; custo_unitario: number };
+// codigoDestino: código do MESMO insumo no catálogo do bar que recebe.
+// undefined = ainda não sugerido | null = sem equivalente lá (não lança a entrada) | string = escolhido.
+type Item = { codigo: string; nome: string; quantidade: number; custo_unitario: number; codigoDestino?: string | null };
 
 const fmtBRL = (v: any) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtQtd = (v: any) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
@@ -21,6 +23,39 @@ const hojeISO = () => new Date().toISOString().slice(0, 10);
 // data local YYYY-MM-DD (sem o off-by-one de fuso do toISOString) — usada nos filtros de período
 const isoLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const parseNum = (s: string) => { const n = Number(String(s).replace(',', '.')); return Number.isFinite(n) ? n : 0; };
+
+// Casamento de insumo entre bares. O código i0XXX NÃO é o mesmo insumo nos dois bares
+// (i0279 = "Pão Smash" no Deboche e "Espumante" no Ordinário) → o de-para é pelo NOME, e quem
+// registra confirma. Normaliza acento/embalagem/unidade pra "Pão Smash classic (unidade)" casar
+// com "Pão Smash und".
+const normNome = (s: string) => (s || '')
+  .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/\(.*?\)/g, ' ')
+  .replace(/[^a-z0-9]+/g, ' ')
+  .replace(/\b(und|unid|unidade|kg|g|ml|l|lt|pct|cx|un)\b/g, ' ')
+  .replace(/\s+/g, ' ').trim();
+
+// melhor equivalente por sobreposição de palavras (exato > parcial); null = nada convincente
+const sugerirEquivalente = (nomeOrigem: string, candidatos: Insumo[]): string | null => {
+  const a = normNome(nomeOrigem);
+  if (!a) return null;
+  const ta = new Set(a.split(' ').filter(Boolean));
+  let melhor: { cod: string; score: number } | null = null;
+  for (const c of candidatos) {
+    const b = normNome(c.nome);
+    if (!b) continue;
+    let score: number;
+    if (a === b) score = 1;
+    else {
+      const tb = new Set(b.split(' ').filter(Boolean));
+      const inter = [...ta].filter((w) => tb.has(w)).length;
+      score = inter / new Set([...ta, ...tb]).size; // Jaccard
+    }
+    if (!melhor || score > melhor.score) melhor = { cod: c.codigo, score };
+  }
+  // < 0.5 = chute — melhor deixar em branco e o usuário escolher do que sugerir errado
+  return melhor && melhor.score >= 0.5 ? melhor.cod : null;
+};
 
 // Aba Trocas (item 2): quem ENVIA registra. Escolhe pra quem enviou (outro bar) + os insumos e qtd
 // (custo puxa do preço do insumo → valor = Σ). Ao registrar, o Desvio dos dois bares corrige na hora
@@ -31,7 +66,11 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
   const outrosBares = useMemo(() => availableBars.filter((b) => b.id !== barId), [availableBars, barId]);
 
   const [insumos, setInsumos] = useState<Insumo[]>([]);
+  const [insumosDestino, setInsumosDestino] = useState<Insumo[]>([]);
   const [busca, setBusca] = useState('');
+  // seletor do equivalente no bar destino: qual item está escolhendo + o texto da busca
+  const [destPickerFor, setDestPickerFor] = useState<string | null>(null);
+  const [destBusca, setDestBusca] = useState('');
   const [itens, setItens] = useState<Item[]>([]);
   const [barDestino, setBarDestino] = useState<number | null>(null);
   const [dataComp, setDataComp] = useState(hojeISO());
@@ -84,6 +123,20 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
     api.get(`/api/operacional/insumos?bar_id=${barId}`).then((r) => { if (r.success) setInsumos(r.insumos || []); }).catch(() => {});
   }, [barId]);
 
+  // catálogo do bar que RECEBE — é nele que a entrada do desvio é lançada, então o de-para
+  // sai daqui (os códigos dos dois bares não conversam).
+  useEffect(() => {
+    if (!barDestino) { setInsumosDestino([]); return; }
+    api.get(`/api/operacional/insumos?bar_id=${barDestino}`).then((r) => { if (r.success) setInsumosDestino(r.insumos || []); }).catch(() => {});
+  }, [barDestino]);
+
+  // sugere o equivalente só onde ninguém escolheu ainda (undefined); null = "sem equivalente" do usuário
+  useEffect(() => {
+    if (insumosDestino.length === 0) return;
+    setItens((prev) => prev.map((it) => it.codigoDestino === undefined
+      ? { ...it, codigoDestino: sugerirEquivalente(it.nome, insumosDestino) } : it));
+  }, [insumosDestino]);
+
   const carregarTrocas = useCallback(() => {
     api.get('/api/financeiro/trocas').then((r) => { if (r.success) setTrocas(r.trocas || []); }).catch(() => {});
   }, []);
@@ -97,11 +150,26 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
 
   const addItem = (i: Insumo) => {
     setItens((prev) => prev.some((x) => x.codigo === i.codigo) ? prev
-      : [...prev, { codigo: i.codigo, nome: i.nome, quantidade: 1, custo_unitario: Number(i.preco_atual) || 0 }]);
+      : [...prev, { codigo: i.codigo, nome: i.nome, quantidade: 1, custo_unitario: Number(i.preco_atual) || 0,
+                    codigoDestino: insumosDestino.length ? sugerirEquivalente(i.nome, insumosDestino) : undefined }]);
     setBusca('');
   };
   const setQtd = (cod: string, q: number) => setItens((prev) => prev.map((x) => x.codigo === cod ? { ...x, quantidade: q } : x));
+  const setDestino = (cod: string, dest: string | null) => {
+    setItens((prev) => prev.map((x) => x.codigo === cod ? { ...x, codigoDestino: dest || null } : x));
+    setDestPickerFor(null); setDestBusca('');
+  };
+  const insumoDestinoPorCod = useMemo(() => new Map(insumosDestino.map((i) => [i.codigo, i])), [insumosDestino]);
+  // lista do seletor: busca por nome OU código; sem busca, mostra o topo do catálogo do bar destino
+  const destFiltrados = useMemo(() => {
+    const s = destBusca.trim().toLowerCase();
+    const base = s
+      ? insumosDestino.filter((i) => (i.nome || '').toLowerCase().includes(s) || (i.codigo || '').toLowerCase().includes(s))
+      : insumosDestino;
+    return base.slice(0, 50);
+  }, [insumosDestino, destBusca]);
   const rmItem = (cod: string) => setItens((prev) => prev.filter((x) => x.codigo !== cod));
+  const semEquivalente = useMemo(() => itens.filter((i) => i.codigoDestino === null || i.codigoDestino === undefined), [itens]);
   const valor = useMemo(() => itens.reduce((s, i) => s + (i.quantidade || 0) * (i.custo_unitario || 0), 0), [itens]);
 
   // Histórico filtrado por período (dia/semana/mês/tudo) ou range personalizado (De/Até tem prioridade).
@@ -138,10 +206,15 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
     try {
       const r = await api.post('/api/financeiro/trocas', {
         bar_destino: barDestino, data_competencia: dataComp, descricao,
-        itens: itens.map((i) => ({ insumo_codigo: i.codigo, quantidade: i.quantidade, custo_unitario: i.custo_unitario })),
+        itens: itens.map((i) => ({ insumo_codigo: i.codigo, insumo_codigo_destino: i.codigoDestino || null, quantidade: i.quantidade, custo_unitario: i.custo_unitario })),
       });
       if (!r.success) throw new Error(r.error);
-      toast({ title: 'Troca registrada', description: `${fmtBRL(r.valor)} · o desvio dos dois bares já foi corrigido` });
+      toast({
+        title: 'Troca registrada',
+        description: semEquivalente.length
+          ? `${fmtBRL(r.valor)} · saída lançada. ${semEquivalente.length} item(ns) sem equivalente não entraram no estoque do bar que recebeu.`
+          : `${fmtBRL(r.valor)} · o desvio dos dois bares já foi corrigido`,
+      });
       setItens([]); setDescricao(''); setBarDestino(null);
       carregarTrocas(); onLancado?.();
     } catch (e: any) {
@@ -183,7 +256,8 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs text-gray-500">Enviou pra qual bar?</label>
-                  <select value={barDestino ?? ''} onChange={(e) => setBarDestino(e.target.value ? Number(e.target.value) : null)}
+                  {/* trocar o destino invalida o de-para (outro catálogo) → volta a sugerir do zero */}
+                  <select value={barDestino ?? ''} onChange={(e) => { setBarDestino(e.target.value ? Number(e.target.value) : null); setItens((prev) => prev.map((it) => ({ ...it, codigoDestino: undefined }))); }}
                     className="w-full h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 text-sm mt-1">
                     <option value="">Selecione…</option>
                     {outrosBares.map((b) => <option key={b.id} value={b.id}>{b.nome}</option>)}
@@ -221,7 +295,10 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 text-xs uppercase">
                       <tr>
-                        <th className="text-left font-medium px-3 py-2">Insumo</th>
+                        <th className="text-left font-medium px-3 py-2">Insumo (aqui)</th>
+                        <th className="text-left font-medium px-3 py-2">
+                          Equivale a qual insumo {barDestino ? `no ${nomeBar(barDestino)}` : 'no bar destino'}?
+                        </th>
                         <th className="text-right font-medium px-3 py-2 w-28">Qtd</th>
                         <th className="text-right font-medium px-3 py-2">Custo un.</th>
                         <th className="text-right font-medium px-3 py-2">Subtotal</th>
@@ -232,6 +309,43 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                       {itens.map((it) => (
                         <tr key={it.codigo}>
                           <td className="px-3 py-2">{it.nome} <span className="text-xs text-gray-400 font-mono">{it.codigo}</span></td>
+                          {/* Combo digitável: o código NÃO é o mesmo insumo nos dois bares — sem esse
+                              de-para a entrada cai num insumo aleatório lá (bug 16/07: 60 pães → espumante).
+                              Sugere ao adicionar, mas quem registra confirma vendo nome + código dos dois lados. */}
+                          <td className="px-3 py-2">
+                            {(() => {
+                              const aberto = destPickerFor === it.codigo;
+                              const escolhido = it.codigoDestino ? insumoDestinoPorCod.get(it.codigoDestino) : null;
+                              return (
+                                <div className="relative">
+                                  <Input
+                                    value={aberto ? destBusca : (escolhido ? `${escolhido.nome} · ${escolhido.codigo}` : '')}
+                                    placeholder={!barDestino ? 'escolha o bar destino primeiro' : 'digite pra buscar…'}
+                                    disabled={!barDestino || insumosDestino.length === 0}
+                                    onFocus={() => { setDestPickerFor(it.codigo); setDestBusca(''); }}
+                                    onChange={(e) => { setDestPickerFor(it.codigo); setDestBusca(e.target.value); }}
+                                    onBlur={() => setTimeout(() => setDestPickerFor((cur) => cur === it.codigo ? null : cur), 150)}
+                                    className={`h-8 text-sm ${it.codigoDestino ? '' : 'border-amber-400 dark:border-amber-600'}`}
+                                  />
+                                  {aberto && (
+                                    <div className="absolute z-30 mt-1 w-full min-w-[260px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl max-h-56 overflow-y-auto">
+                                      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setDestino(it.codigo, null)}
+                                        className="w-full text-left px-3 py-2 text-xs text-amber-700 dark:text-amber-400 hover:bg-gray-50 dark:hover:bg-gray-800/60 border-b border-gray-100 dark:border-gray-800">
+                                        — sem equivalente (não entra no estoque de lá) —
+                                      </button>
+                                      {destFiltrados.length === 0 && <div className="px-3 py-2 text-xs text-gray-400">Nenhum insumo encontrado.</div>}
+                                      {destFiltrados.map((d) => (
+                                        <button key={d.codigo} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setDestino(it.codigo, d.codigo)}
+                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/60 ${d.codigo === it.codigoDestino ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>
+                                          <span className="truncate">{d.nome}</span> <span className="text-xs text-gray-400 font-mono">{d.codigo}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
                           <td className="px-3 py-2 text-right">
                             <Input value={String(it.quantidade)} inputMode="decimal" onChange={(e) => setQtd(it.codigo, parseNum(e.target.value))}
                               className="h-8 w-24 text-right tabular-nums ml-auto" />
@@ -243,6 +357,14 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {itens.length > 0 && semEquivalente.length > 0 && barDestino && (
+                <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                  <b>{semEquivalente.length} item(ns) sem equivalente no {nomeBar(barDestino)}</b> ({semEquivalente.map((i) => i.nome).join(', ')}).
+                  A saída daqui é registrada, mas a entrada lá não — o estoque do {nomeBar(barDestino)} vai acusar essa falta.
+                  Se o insumo existe lá com outro nome, escolha na lista; se não existe, cadastre antes.
                 </div>
               )}
 
@@ -311,7 +433,20 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                             <span className="text-emerald-600 dark:text-emerald-400 font-medium" title="Para onde foi">{nomeBar(t.bar_destino)}</span>
                           </div>
                         </td>
-                        <td className="px-3 py-2 text-gray-500 text-xs">{(t.troca_itens || []).map((i: any) => `${i.nome || i.insumo_codigo}×${fmtQtd(i.quantidade)}`).join(', ')}</td>
+                        {/* mostra o de-para: o que saiu daqui → o insumo que recebeu lá (códigos não batem) */}
+                        <td className="px-3 py-2 text-gray-500 text-xs">
+                          <div className="space-y-0.5">
+                            {(t.troca_itens || []).map((i: any, ix: number) => (
+                              <div key={ix} className="flex items-center gap-1 flex-wrap">
+                                <span>{i.nome || i.insumo_codigo}×{fmtQtd(i.quantidade)}</span>
+                                <ArrowRight className="w-3 h-3 text-gray-400 shrink-0" />
+                                {i.insumo_codigo_destino
+                                  ? <span className="text-emerald-600 dark:text-emerald-400">{i.nome_destino || i.insumo_codigo_destino}</span>
+                                  : <span className="text-amber-600 dark:text-amber-400" title="Sem equivalente no bar destino — a entrada não foi lançada no estoque de lá">sem equivalente</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </td>
                         <td className="px-3 py-2">
                           <div className="flex flex-wrap gap-1">
                             {(t.categorias || []).map((c: string) => <Badge key={c} variant="outline" className="text-[10px]">{c}</Badge>)}

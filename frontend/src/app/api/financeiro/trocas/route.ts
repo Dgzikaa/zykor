@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   const fin = (sb() as any).schema('financial');
 
   let q = fin.from('trocas')
-    .select('id,bar_origem,bar_destino,data_competencia,descricao,valor,status,inter_codigo_solicitacao,inter_pix_erro,criado_por,created_at,troca_itens(insumo_codigo,quantidade,custo_unitario,subtotal)')
+    .select('id,bar_origem,bar_destino,data_competencia,descricao,valor,status,inter_codigo_solicitacao,inter_pix_erro,criado_por,created_at,troca_itens(insumo_codigo,insumo_codigo_destino,quantidade,custo_unitario,subtotal)')
     .or(`bar_origem.eq.${user.bar_id},bar_destino.eq.${user.bar_id}`)
     .order('data_competencia', { ascending: false }).order('created_at', { ascending: false }).limit(200);
   if (de) q = q.gte('data_competencia', de);
@@ -40,24 +40,32 @@ export async function GET(request: NextRequest) {
     sentido: t.bar_origem === user.bar_id ? 'enviou' : 'recebeu',
   }));
 
-  // Resolve o NOME do insumo pra mostrar na coluna "Itens" (a tabela só guarda o código).
-  // Código i0XXX é reusado entre bares → resolve pelo catálogo do bar de ORIGEM (quem enviou).
-  const paresBarCod = new Set<string>();
-  for (const t of trocas) for (const it of (t.troca_itens || [])) if (it.insumo_codigo) paresBarCod.add(`${t.bar_origem}:${it.insumo_codigo}`);
-  if (paresBarCod.size) {
-    const bares = Array.from(new Set(trocas.map((t: any) => t.bar_origem)));
-    const cods = Array.from(new Set(trocas.flatMap((t: any) => (t.troca_itens || []).map((i: any) => i.insumo_codigo).filter(Boolean))));
+  // Resolve o NOME do insumo pra mostrar na coluna "Itens" (a tabela só guarda os códigos).
+  // O código i0XXX é INDEPENDENTE por bar (o mesmo i0279 é "Pão Smash" no Deboche e "Espumante"
+  // no Ordinário) → cada perna resolve no catálogo do SEU bar: origem por insumo_codigo,
+  // destino por insumo_codigo_destino. Item sem destino = sem equivalente cadastrado lá.
+  const temItens = trocas.some((t: any) => (t.troca_itens || []).length > 0);
+  if (temItens) {
+    const bares = Array.from(new Set(trocas.flatMap((t: any) => [t.bar_origem, t.bar_destino])));
+    const cods = Array.from(new Set(trocas.flatMap((t: any) => (t.troca_itens || [])
+      .flatMap((i: any) => [i.insumo_codigo, i.insumo_codigo_destino]).filter(Boolean))));
     const { data: cat } = await (sb() as any).schema('silver').from('insumo_catalogo')
       .select('bar_id,codigo,nome').in('bar_id', bares).in('codigo', cods);
     const nomePorBarCod = new Map<string, string>();
     for (const c of (cat || [])) nomePorBarCod.set(`${c.bar_id}:${c.codigo}`, c.nome);
-    for (const t of trocas) for (const it of (t.troca_itens || [])) it.nome = nomePorBarCod.get(`${t.bar_origem}:${it.insumo_codigo}`) || null;
+    for (const t of trocas) for (const it of (t.troca_itens || [])) {
+      it.nome = nomePorBarCod.get(`${t.bar_origem}:${it.insumo_codigo}`) || null;
+      it.nome_destino = it.insumo_codigo_destino ? (nomePorBarCod.get(`${t.bar_destino}:${it.insumo_codigo_destino}`) || null) : null;
+      it.sem_equivalente = !it.insumo_codigo_destino;
+    }
+    // troca com algum item sem equivalente → a entrada NÃO foi lançada no bar recebedor (avisa na lista)
+    for (const t of trocas) t.sem_equivalente = (t.troca_itens || []).some((i: any) => i.sem_equivalente);
   }
 
   // Categoria de custo (CA) por troca: classifica cada item (categoria+tipo_local do insumo,
   // catálogo do bar de ORIGEM) e expõe as categorias distintas p/ a coluna "Categoria" da lista.
   // Mesma lógica de gold/trocas/[id]/lancar-ca (classificarCA) — manter em sincronia.
-  if (paresBarCod.size) {
+  if (temItens) {
     const classificarCA = (ins: { codigo?: string | null; categoria?: string | null; tipo_local?: string | null }): string => {
       const cod = String(ins.codigo || '').toLowerCase();
       const cat = String(ins.categoria || '').toUpperCase();
@@ -122,16 +130,33 @@ export async function POST(request: NextRequest) {
   if (barDestino === user.bar_id) return NextResponse.json({ success: false, error: 'O bar de destino deve ser diferente do seu' }, { status: 400 });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dataComp)) return NextResponse.json({ success: false, error: 'data_competencia (YYYY-MM-DD) obrigatória' }, { status: 400 });
 
-  // normaliza/valida itens
+  // normaliza/valida itens. insumo_codigo = código no catálogo de quem ENVIA;
+  // insumo_codigo_destino = o equivalente no catálogo de quem RECEBE (os códigos NÃO batem
+  // entre bares — ver comentário do GET). Vazio = "sem equivalente": a saída é registrada e a
+  // entrada no destino não, em vez de creditar um insumo aleatório lá.
   const norm = itens
     .map((i: any) => {
       const cod = String(i.insumo_codigo || '').trim();
+      const codDest = String(i.insumo_codigo_destino || '').trim();
       const qtd = Number(i.quantidade);
       const custo = Number(i.custo_unitario) || 0;
-      return { insumo_codigo: cod, quantidade: qtd, custo_unitario: custo, subtotal: Math.round(qtd * custo * 100) / 100 };
+      return { insumo_codigo: cod, insumo_codigo_destino: codDest || null, quantidade: qtd, custo_unitario: custo, subtotal: Math.round(qtd * custo * 100) / 100 };
     })
     .filter((i: any) => i.insumo_codigo && Number.isFinite(i.quantidade) && i.quantidade > 0);
   if (norm.length === 0) return NextResponse.json({ success: false, error: 'Inclua ao menos um insumo com quantidade > 0' }, { status: 400 });
+
+  // Guarda: o código de destino tem que EXISTIR no catálogo do bar destino. Sem isso, um código
+  // digitado/estale volta a lançar a entrada no insumo errado — que é exatamente o bug de 16/07.
+  const codsDest = Array.from(new Set(norm.map((i: any) => i.insumo_codigo_destino).filter(Boolean))) as string[];
+  if (codsDest.length) {
+    const { data: okDest } = await (sb() as any).schema('operations').from('insumos')
+      .select('codigo').eq('bar_id', barDestino).in('codigo', codsDest);
+    const existe = new Set((okDest || []).map((r: any) => String(r.codigo).toLowerCase()));
+    const faltando = codsDest.filter((c) => !existe.has(c.toLowerCase()));
+    if (faltando.length) {
+      return NextResponse.json({ success: false, error: `Código não existe no bar de destino: ${faltando.join(', ')}` }, { status: 400 });
+    }
+  }
 
   const valor = Math.round(norm.reduce((s: number, i: any) => s + i.subtotal, 0) * 100) / 100;
   const fin = (sb() as any).schema('financial');
