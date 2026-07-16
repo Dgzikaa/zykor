@@ -48,21 +48,41 @@ const KEY_LABEL: Record<string, string> = {
 
 interface ItemConsumacao { chave: string; label: string; categoria: string; sinal: SinalLanc; valor: number; }
 
-/** Monta os itens (despesas + Ajuste CMV receita) de um dia. Fonte: get_consumos_9_custo_semana (custo da ficha). */
+/**
+ * Monta os itens (despesas + Ajuste CMV receita) de um dia, ESPELHANDO a tela
+ * /operacional/consumacao: custo real da ficha (get_consumos_9_detalhes_custo_semana_agg)
+ * + vínculos de mesa aplicados na MESMA ordem da tela (categoria_override → tipo → categoria
+ * crua). Assim o que entra no Conta Azul (e portanto DRE + CMV mensal, que leem o CA) bate
+ * 100% com o Controle de Consumação. 'outros' fica de fora (vai pro CMA — pedido do dono).
+ */
 export async function montarConsumacaoDia(barId: number, dia: string, fatorPre?: number): Promise<{ itens: ItemConsumacao[]; ignorado: number; totalDespesas: number }> {
   const supabase = getLancadorAdmin();
   const fator = fatorPre ?? await getFatorCmv(supabase, barId).catch(() => 0.35);
-  const { data } = await (supabase as any).rpc('get_consumos_9_custo_semana', {
-    input_bar_id: barId, input_data_inicio: dia, input_data_fim: dia, p_fator: fator,
+  // Detalhe por lançamento — MESMA função da tela de Consumação (custo real da ficha).
+  const { data } = await (supabase as any).rpc('get_consumos_9_detalhes_custo_semana_agg', {
+    input_bar_id: barId, input_data_inicio: dia, input_data_fim: dia, input_categoria: null, p_fator: fator,
   });
   const rows: any[] = (data as any[]) || [];
+
+  // Vínculos de mesa (override manual feito na tela). Regra IDÊNTICA à /operacional/consumacao:
+  // categoria efetiva = override explícito > categoria implícita do tipo > categoria crua do ContaHub.
+  const normMesa = (m: string | null) => (m || '').toUpperCase().replace(/[^A-Z0-9]/g, '') || '—';
+  const TIPO_CAT: Record<string, string> = { artista: 'artistas', socio: 'socios', funcionario: 'funcionarios_operacao' };
+  const { data: vincRows } = await (supabase.schema('financial' as any) as any)
+    .from('consumo_mesa_vinculo').select('mesa_norm, tipo, categoria_override').eq('bar_id', barId);
+  const vincMap = new Map<string, any>(((vincRows as any[]) || []).map((v: any) => [v.mesa_norm, v]));
+
   const custoPorKey: Record<string, number> = {};
-  for (const r of rows) custoPorKey[String(r.categoria)] = round2(Number(r.custo_real || 0));
+  for (const r of rows) {
+    const v = vincMap.get(normMesa(r.mesa));
+    const cat = v ? (v.categoria_override || TIPO_CAT[v.tipo] || String(r.categoria)) : String(r.categoria);
+    custoPorKey[cat] = (custoPorKey[cat] || 0) + Number(r.custo_real || 0);
+  }
 
   const itens: ItemConsumacao[] = [];
   let totalDespesas = 0;
   for (const key of Object.keys(KEY_CAT)) {
-    const valor = custoPorKey[key] || 0;
+    const valor = round2(custoPorKey[key] || 0);
     if (valor >= 0.01) {
       itens.push({ chave: key, label: KEY_LABEL[key], categoria: KEY_CAT[key], sinal: 'DESPESA', valor });
       totalDespesas = round2(totalDespesas + valor);
