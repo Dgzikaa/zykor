@@ -394,6 +394,8 @@ export default function CMVSemanalTabelaPage() {
   const [anoFiltro, setAnoFiltro] = useState<string>('todos');
   // Visão: 'semanal' ou 'mensal'
   const [visao, setVisao] = useState<'semanal' | 'mensal'>('semanal');
+  // Força sync CA→bronze + re-agrega o mês atual (pra ver na hora, sem esperar o cron)
+  const [forcandoSync, setForcandoSync] = useState(false);
   const [secoesAbertas, setSecoesAbertas] = useState<Record<string, boolean>>({
     vendas: true,
     cmv: true,
@@ -694,6 +696,32 @@ export default function CMVSemanalTabelaPage() {
       setLoading(false);
     }
   }, [anoFiltro, selectedBar?.id, visao]);
+
+  // Força a cadeia CA→bronze→cmv_mensal AGORA (sync custom do mês atual, que faz upsert + soft-delete
+  // das exclusões, e re-agrega) — pra ver o número novo na hora sem esperar o cron. Só mês corrente.
+  const forcarSyncMensal = useCallback(async () => {
+    if (!selectedBar?.id || forcandoSync) return;
+    const ano = new Date().getFullYear();
+    const mes = new Date().getMonth() + 1;
+    setForcandoSync(true);
+    try {
+      const r = await fetch('/api/cmv-semanal/forcar-sync-mensal', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: selectedBar.id, ano, mes }),
+      });
+      const j = await r.json().catch(() => ({} as any));
+      if (!r.ok || !j?.success) throw new Error(j?.error || j?.agregar_erro || 'Falha ao atualizar');
+      toast({
+        title: 'Atualizado',
+        description: `Conta Azul sincronizado (${String(mes).padStart(2, '0')}/${ano})${j?.sync_ok === false ? ' — sync parcial' : ''} e mês re-agregado.`,
+      });
+      await carregarDados();
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e?.message || 'Falha ao forçar atualização', variant: 'destructive' });
+    } finally {
+      setForcandoSync(false);
+    }
+  }, [selectedBar?.id, forcandoSync, carregarDados]);
 
   // Composição do Estoque Final (Insumos + Produções, ambos já sem a alimentação F) p/ reconciliar com a tela Estoque.
   // Só na visão semanal (o Estoque Final vem da contagem da semana).
@@ -1287,6 +1315,19 @@ export default function CMVSemanalTabelaPage() {
                   </span>
                 )}
               </div>
+
+              {/* Forçar atualização do mês corrente (sync CA + soft-delete + re-agrega) — só na visão mensal */}
+              {visao === 'mensal' && (
+                <button
+                  onClick={forcarSyncMensal}
+                  disabled={forcandoSync}
+                  title="Sincroniza o Conta Azul do mês atual (pega inclusões e exclusões) e re-agrega o CMV mensal na hora"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-3 h-9 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${forcandoSync ? 'animate-spin' : ''}`} />
+                  {forcandoSync ? 'Atualizando…' : 'Forçar atualização (mês atual)'}
+                </button>
+              )}
             </div>
             
             {/* Legenda + Atualizar */}
