@@ -163,7 +163,7 @@ export async function executarConsumacaoDia(barId: number, dia: string, criadoPo
  * não têm baixa (dos DOIS lados — despesa E receita — mantendo o caixa neutro). Idempotente.
  * Roda pelo cron; os que ainda não sincronizaram (nao_sincronizado) ficam pro próximo passo.
  */
-export async function reconciliarBaixasConsumacao(barId: number, de: string, ate: string): Promise<{ baixados: number; pendentes: number; erros: number }> {
+export async function reconciliarBaixasConsumacao(barId: number, de: string, ate: string): Promise<{ baixados: number; pendentes: number; erros: number; amostra_erros: string[] }> {
   const supabase = getLancadorAdmin();
   const log = () => (supabase.schema('financial' as any) as any).from('lancamento_manual_ca_log');
   const { data: logs } = await log()
@@ -171,14 +171,15 @@ export async function reconciliarBaixasConsumacao(barId: number, de: string, ate
     .eq('bar_id', barId).eq('tipo', TIPO).eq('baixado', false)
     .gte('competencia', de).lte('competencia', ate);
   const rows = (logs as any[]) || [];
-  if (!rows.length) return { baixados: 0, pendentes: 0, erros: 0 };
+  if (!rows.length) return { baixados: 0, pendentes: 0, erros: 0, amostra_erros: [] };
 
   const tokenResult = await getCAToken(barId);
-  if ('error' in tokenResult) return { baixados: 0, pendentes: rows.length, erros: 0 };
+  if ('error' in tokenResult) return { baixados: 0, pendentes: rows.length, erros: 0, amostra_erros: [`token: ${tokenResult.error}`] };
   const conta = await resolveContaPadrao(barId);
-  if (!conta) return { baixados: 0, pendentes: rows.length, erros: 0 };
+  if (!conta) return { baixados: 0, pendentes: rows.length, erros: 0, amostra_erros: ['sem conta financeira padrão'] };
 
   let baixados = 0, pendentes = 0, erros = 0;
+  const amostra_erros: string[] = [];
   for (const r of rows) {
     const competencia = String(r.competencia).slice(0, 10);
     const res = await baixarEventoCA({
@@ -187,9 +188,9 @@ export async function reconciliarBaixasConsumacao(barId: number, de: string, ate
     });
     if (res.ok) { await log().update({ baixado: true }).eq('id', r.id); baixados++; }
     else if (res.nao_sincronizado) pendentes++;
-    else erros++;
+    else { erros++; if (amostra_erros.length < 5) amostra_erros.push(`${competencia} ${r.sinal} ${r.valor}: ${res.erro}`); }
   }
-  return { baixados, pendentes, erros };
+  return { baixados, pendentes, erros, amostra_erros };
 }
 
 function enumerarDias(de: string, ate: string): string[] {
