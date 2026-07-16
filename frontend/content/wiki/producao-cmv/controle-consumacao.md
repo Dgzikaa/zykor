@@ -58,6 +58,18 @@ Serve para consertar classificações erradas na origem (ex.: uma mesa que veio 
 4. Opcionalmente, force a **Categoria** (deixe "Automática" para usar o tipo/motivo).
 5. Clique em **Salvar**. Para desfazer, reabra e use **Remover vínculo** (a mesa volta a ser classificada pelo motivo original).
 
+> O botão de **etiqueta** é só para o **vínculo de pessoa** (artista/sócio/funcionário). Para trocar **só a categoria**, use o lápis na coluna Categoria (abaixo).
+
+### Reclassificar a categoria — tirar do "Outros" (somente admin)
+A categoria **"Outros"** é justamente o balde do que o sistema não conseguiu classificar sozinho — e **"Outros" NÃO entra no CMV** (o fechamento não lança essa categoria). Então tudo que ficar em Outros vira a **diferença** que some do CMV. Por isso o ideal é zerar o Outros reclassificando cada mesa na categoria correta.
+
+1. Quando há valor em Outros, aparece um **aviso âmbar no topo** ("R$ X em 'Outros' — não entra no CMV") com um botão **"Ver só Outros"** que filtra a tabela.
+2. Cada mesa/linha em Outros mostra uma etiqueta **RECLASSIFICAR**.
+3. **Admin:** clique no **lápis** ao lado da categoria (na coluna Categoria, tanto na visão agrupada quanto na lista) → escolha a categoria correta no modal → salva na hora.
+4. Isso grava um **override de categoria** da mesa (preservando o vínculo de pessoa, se houver) e **reflete no painel e no fechamento/CMV**. Use "Voltar ao automático" no modal para limpar.
+
+> Só **admin** vê o lápis e pode alterar a categoria; o servidor também bloqueia a mudança de categoria por quem não é admin. Quem não é admin ainda consegue editar o vínculo de pessoa (etiqueta).
+
 ### Vincular consumação de artista ao cadastro (tela dedicada)
 1. Clique em **Por artista** (canto superior direito) para ir a `/operacional/consumacao/artistas`.
 2. Cada comanda de artista aparece com um seletor. O sistema já resolve sozinho pelo **nome** ou pelo **show da noite**; ajuste manualmente quando necessário (ex.: noite com mais de uma banda).
@@ -193,6 +205,12 @@ Bruto é o valor da cortesia (quanto valeria vendido). Custo é quanto o bar rea
 
 **Corrigi a categoria de uma mesa; isso muda o histórico do CMV?**
 O vínculo é resolvido na hora da exibição desta tela (override › tipo › motivo). Ele conserta como a mesa aparece aqui sem reprocessar o classificador pesado.
+
+**Por que preciso zerar o "Outros"?**
+Porque **"Outros" não entra no CMV** — o fechamento não lança essa categoria no Conta Azul. Tudo que ficar em Outros é custo de consumação que **desaparece do CMV**. O aviso âmbar e a etiqueta "RECLASSIFICAR" existem para lembrar o admin de reclassificar cada mesa na categoria certa (lápis na coluna Categoria). Feito isso, o valor passa a entrar no fechamento.
+
+**Quem pode reclassificar a categoria?**
+Só **admin**. O lápis na coluna Categoria só aparece para admin, e o servidor bloqueia a mudança por não-admin. O vínculo de pessoa (etiqueta) continua disponível para os demais.
 
 **Por que várias comandas da mesma pessoa viram uma linha só?**
 O agrupamento por mesa (ligado por padrão) consolida a mesma pessoa no período. Clique na linha para ver os itens; desligue "Agrupado por mesa" para o detalhe cru.

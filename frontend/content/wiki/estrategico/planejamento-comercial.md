@@ -107,7 +107,7 @@ Além da grade, há a **barra lateral de Controles/Estatísticas** (resumo do m�
 
 | Coluna / Indicador | O que mostra | Como é calculado | Fonte |
 |---|---|---|---|
-| **Clientes Reais** | Público real do dia. Verde se ≥ clientes planejados (`cl_plan`) | `publico_real_consolidado` (ContaHub + bilheteria externa) | `gold.planejamento` |
+| **Clientes Reais** | Público real do dia — **só quem pagou** (comandas com pagamento > 0) + bilheteria externa. Verde se ≥ clientes planejados (`cl_plan`) | `publico_real_consolidado` (pessoas pagantes do ContaHub + Yuzer/Sympla) | `gold.planejamento` |
 | **Reservas Total** | Total de reservas do dia | `res_tot`. No Deboche é editável inline; no Ordinário, automático | `gold.planejamento` / `eventos_base` |
 | **Reservas Presentes** | Reservas que compareceram | `res_p`. Editável inline só no Deboche | `gold.planejamento` / `eventos_base` |
 
@@ -209,6 +209,9 @@ A edição inline de reservas está habilitada **apenas para o Deboche** (bar_id
 
 **Editei o realizado e nada mudou. Por quê?**
 O realizado (receita, clientes, tickets, custos reais, atrasos) **não é editável** nesta tela — vem automático do Conta Azul/ContaHub. Só planejamento, artistas e campos manuais são editáveis.
+
+**Os clientes/ticket não batem com o relatório do ContaHub. Está errado?**
+Não — é **diferença de definição**, não bug. O Zykor conta como cliente **só quem pagou** (comanda com pagamento > 0). O relatório de **períodos** do ContaHub mostra o total incluindo **comandas abertas que não pagaram** (cartão sem consumo, itens transferidos). Por isso o número do ContaHub é maior e o **ticket médio do Zykor fica um pouco mais alto** (mesmo faturamento ÷ menos gente). Se você **filtrar o relatório do ContaHub por pagamento > 0**, ele cai para o mesmo número do Zykor. Em resumo: o Zykor mede o **gasto real por cliente pagante**; o headline bruto do ContaHub dilui com cartão vazio.
 
 **Qual a diferença entre "Título" e "Label"?**
 O **Título** é o texto livre que aparece na tabela (ex.: "Feijuca do Ordi - STZ (20h)"). O **Label** é a marca do dia usada para agrupar e analisar (ex.: "Feijuca do Ordi"). Um label pode se repetir em vários dias.

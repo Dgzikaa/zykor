@@ -180,7 +180,9 @@ Move para a competência certa o faturamento da madrugada que "vira" o mês.
 | Status | Se já foi lançado | "lançado" ou botão **Lançar** | `financial.lancamento_manual_ca_log` (tipo `consumacao`) |
 | Rodapé | Total despesas · soma-zero · não lançado | "soma-zero" = total de despesas − receita de contrapartida (deve dar 0); "não lançado" = valor da categoria "outros", que fica de fora | cálculo |
 
-> A receita de contrapartida entra na categoria **"[CONSUMAÇÃO] AJUSTE CMV"** (maiúscula) e é igual à soma das despesas do dia, zerando o dia. Cada despesa entra na categoria mista minúscula "[Consumação] X". Competência = o dia, sem baixa. A categoria "outros" **não** é lançada.
+> A receita de contrapartida entra na categoria **"[CONSUMAÇÃO] AJUSTE CMV"** (maiúscula) e é igual à soma das despesas do dia, zerando o dia. Cada despesa entra na categoria mista minúscula "[Consumação] X". Competência = o dia. A categoria "outros" **não** é lançada.
+>
+> **Baixa automática (pago):** depois de lançada, a consumação recebe **baixa nos dois lados** (despesa **e** receita) — como o par soma zero, o **caixa continua neutro**, mas os lançamentos deixam de ficar "em aberto" no Conta Azul. Como o CA processa o lançamento de forma assíncrona, a baixa é dada por um passo de reconciliação que roda **de hora em hora** (some do "a pagar" logo depois de lançar, não no clique).
 
 ### Aba Consumações — modo Semana / Mês
 

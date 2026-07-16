@@ -96,6 +96,12 @@ Dentro da aba **PIX** (e da lista da aba **Boleto**/**Freela**) há sub-abas por
 
 > **Como o pagamento anda sozinho:** ao subir um PIX/boleto, ele vira **Aguardando aprovação sócio** (laranja) e fica na aba Aprovado. O **webhook do Inter** promove automaticamente: quando o sócio aprova no app, vira **Agendado** (ou **Pago**, se foi na hora) e pula para **Finalizado**; se o sócio recusa, vira **Recusado pelo sócio**. Ninguém precisa clicar de novo.
 
+### Aba Boleto
+
+Sobe boletos (foto/PDF lidos por IA, câmera ou manual) e acompanha o pagamento. Tem as sub-abas **Solicitado / Aprovado / Finalizado / Recusado / Todos** (igual ao PIX). Ao lançar, dá para **editar a descrição** que vai pro Conta Azul e **dividir em categorias (rateio)**. Na lista, quem aprova tem um botão de **excluir/cancelar** o boleto (desfaz o agendamento no Inter se já subiu).
+
+> **Status automático do boleto (reconciliação):** pagamento de boleto pelo Inter **não** passa pelo webhook de PIX, então o Zykor consulta o Inter (módulo de Pagamento) algumas vezes por dia e vira o boleto **agendado → pago/cancelado** sozinho. Quem aprova pode forçar na hora com o botão **"Reconciliar boletos"** no topo da lista. Boletos agendados para uma **data futura** ficam corretamente em aberto até o Inter debitar.
+
 ### Aba Freela
 
 O fluxo de freela é **separado em dois papéis**:
@@ -108,7 +114,7 @@ O fluxo de freela é **separado em dois papéis**:
 
 Conferência das faturas de cartão, linha a linha, com lançamento no Conta Azul. O topo lista **os cartões cadastrados** (ex.: Itaú Azul Gonza, Itaú Latam Cadu); ao clicar num cartão, aparecem **as faturas dele** (uma por vencimento) para você escolher. Você compara o total das compras com o valor informado pelo banco para checar se "bate". Faturas podem ser **encerradas**, **reabertas** e **excluídas**.
 
-**Fornecedor = titular do cartão.** No lançamento de cada compra no Conta Azul, o *fornecedor* é o **dono do cartão** (o titular), não um contato genérico nem o estabelecimento — o **estabelecimento vira a descrição** do lançamento. O bar escolhido em cada linha é só **onde** ela é lançada (Conta Azul/Inter daquele bar).
+**Fornecedor = titular do cartão (mas editável por linha).** Por padrão, no lançamento de cada compra no Conta Azul o *fornecedor* é o **dono do cartão** (o titular), não um contato genérico nem o estabelecimento — o **estabelecimento vira a descrição** do lançamento. A coluna **Fornecedor** é um **dropdown**: dá para **trocar o fornecedor pontualmente naquela linha** antes de lançar (útil quando a compra é de outra pessoa); deixando no padrão, usa o titular. O bar escolhido em cada linha é só **onde** ela é lançada (Conta Azul/Inter daquele bar).
 
 **Vincular o titular (uma vez, no botão "Cartões"):** abra **Cartões** e, na seção **Finais → Fornecedor**, para cada final de cartão (ex.: ••8939) selecione o fornecedor titular no Conta Azul (ou clique **＋ novo** para cadastrá-lo na hora). O vínculo vale **para os dois bares** e para **todas as faturas** — o Zykor acha o mesmo titular no Conta Azul de cada bar (ou cria) automaticamente. A tabela da fatura mostra o titular na coluna **Fornecedor**; se algum final ainda não estiver vinculado, o lançamento avisa "vincule o titular na seção Fornecedor por cartão".
 
