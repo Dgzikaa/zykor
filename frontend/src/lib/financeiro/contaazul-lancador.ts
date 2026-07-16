@@ -161,6 +161,59 @@ export async function criarLancamentoCA(input: CriarLancamentoInput): Promise<{ 
   return postEvento(input.token, input.sinal, payload);
 }
 
+function normalizarDesc(s: string): string {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Dá BAIXA (quita) num evento de fechamento no CA. Acha o evento na bronze por match EXATO
+ * (bar + competência + valor + descrição normalizada + sinal), pega a parcela e posta a baixa.
+ * Idempotente (se já quitada, retorna ok). `nao_sincronizado` = evento recém-criado que ainda
+ * não sincronizou (o chamador tenta de novo depois). `descricao` deve vir COM o prefixo [Zykor].
+ */
+export async function baixarEventoCA(input: {
+  token: string; barId: number; sinal: SinalLanc; competencia: string; valor: number;
+  descricao: string; contaId: string; dataPagamento?: string;
+}): Promise<{ ok: boolean; ja_baixada?: boolean; nao_sincronizado?: boolean; erro?: string }> {
+  const supabase = getLancadorAdmin();
+  const valorRound = round2(input.valor);
+  const { data: candidatos } = await (supabase.schema('bronze' as any) as any)
+    .from('bronze_contaazul_lancamentos')
+    .select('contaazul_id, descricao, valor_bruto, data_competencia, tipo')
+    .eq('bar_id', input.barId).eq('data_competencia', input.competencia)
+    .is('excluido_em', null).limit(100);
+  const descNorm = normalizarDesc(input.descricao);
+  const querReceita = input.sinal === 'RECEITA';
+  const matches = ((candidatos as any[]) || []).filter((l) =>
+    Math.abs(Number(l.valor_bruto || 0) - valorRound) < 0.01 &&
+    normalizarDesc(l.descricao || '') === descNorm &&
+    (querReceita ? String(l.tipo || '').toUpperCase() === 'RECEITA' : String(l.tipo || '').toUpperCase() !== 'RECEITA'));
+  if (matches.length === 0) return { ok: false, nao_sincronizado: true, erro: 'evento ainda não sincronizado no CA' };
+  if (matches.length > 1) return { ok: false, erro: 'mais de um evento bate (ambíguo) — baixa manual por segurança' };
+  const idEvento = matches[0].contaazul_id;
+
+  const parcelasResp = await fetch(`${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/${idEvento}/parcelas`, { headers: { Authorization: `Bearer ${input.token}` } });
+  if (!parcelasResp.ok) return { ok: false, erro: `CA parcelas HTTP ${parcelasResp.status}` };
+  const parcelas = await parcelasResp.json();
+  const parcela = (Array.isArray(parcelas) ? parcelas : [])[0];
+  if (!parcela?.id) return { ok: false, erro: 'parcela não encontrada no evento' };
+  const jaQuitada = String(parcela.status || '').toUpperCase() === 'QUITADO' || (Array.isArray(parcela.baixas) && parcela.baixas.length > 0);
+  if (jaQuitada) return { ok: true, ja_baixada: true };
+
+  const baixaResp = await fetch(`${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/parcelas/${parcela.id}/baixa`, {
+    method: 'POST', headers: { Authorization: `Bearer ${input.token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      data_pagamento: input.dataPagamento || input.competencia,
+      composicao_valor: { valor_bruto: valorRound, multa: 0, juros: 0, desconto: 0, taxa: 0 },
+      conta_financeira: input.contaId,
+      metodo_pagamento: 'TRANSFERENCIA_BANCARIA',
+      observacao: 'Baixa automática via Zykor (consumação soma-zero, caixa neutro)',
+    }),
+  });
+  if (!baixaResp.ok) { const t = await baixaResp.text(); return { ok: false, erro: `CA baixa HTTP ${baixaResp.status}: ${String(t).slice(0, 200)}` }; }
+  return { ok: true };
+}
+
 /** 1º dia do mês (competência) a partir de ano+mes. */
 export const primeiroDiaMes = (ano: number, mes: number) => `${ano}-${String(mes).padStart(2, '0')}-01`;
 /** Último dia do mês. */

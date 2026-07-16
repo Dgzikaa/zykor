@@ -51,6 +51,10 @@
     {
       "path": "/api/financeiro/inter/boleto/reconciliar",
       "schedule": "0 15,21 * * *"
+    },
+    {
+      "path": "/api/financeiro/fechamento/consumacao/baixar",
+      "schedule": "0 */6 * * *"
     }
   ],
   "functions": {
@@ -118,6 +122,9 @@
       "maxDuration": 60
     },
     "src/app/api/financeiro/inter/boleto/reconciliar/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/financeiro/fechamento/consumacao/baixar/route.ts": {
       "maxDuration": 120
     }
   },
