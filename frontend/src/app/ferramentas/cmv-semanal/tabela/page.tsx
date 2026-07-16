@@ -952,17 +952,19 @@ export default function CMVSemanalTabelaPage() {
     // Consumações = CUSTO REAL da ficha (consumo_* gravados pela edge desde jul/2026).
     // Fallback ×fator sobre os brutos p/ semanas antigas (2025) ainda não reprocessadas.
     if (key === 'total_consumos') {
-      // Custo real das 10 categorias (JSONB consumacoes_9) — MESMA fonte da tela
-      // /operacional/consumacao (total_custo). Inclui "Outros", então as linhas c9
-      // (incl. Outros) fecham EXATO com este TOTAL. Ex s28 bar 3 = 6.150,86.
-      // Antes somava só 4 colunas reais (socios/beneficios/artista/rh) e OMITIA o
-      // bucket Outros → TOTAL subestimado e residual do Outros clampava em 0.
+      // SEMANAL: custo real das 10 categorias (JSONB consumacoes_9, fonte ContaHub) —
+      // MESMA fonte da tela /operacional/consumacao (total_custo). Inclui "Outros",
+      // então as linhas c9 fecham EXATO com este TOTAL. Ex s28 bar 3 = 6.150,86.
+      // NÃO fazer isso no MENSAL: lá consumacoes_9 vem do ContaAzul (categorias
+      // [Consumação] X, GROSS) e ignora o contra-lançamento [Consumação] AJUSTE CMV
+      // → somar daria o bruto inflado. Mensal usa as colunas reais do cmv_mensal (já
+      // líquidas do ajuste). Ver [[project_cmv_consumacao_mensal_ca_semanal_contahub]].
       const c9tot = (semana as unknown as { consumacoes_9?: Record<string, number> | null }).consumacoes_9;
-      if (c9tot && typeof c9tot === 'object') {
+      if (visao === 'semanal' && c9tot && typeof c9tot === 'object') {
         const soma = Object.values(c9tot).reduce((acc: number, v) => acc + (Number(v) || 0), 0);
         if (soma > 0) return Math.round(soma * 100) / 100;
       }
-      // Fallback semanas antigas (sem consumacoes_9): colunas reais, senão ×fator sobre brutos
+      // Mensal + fallback semanas antigas (sem consumacoes_9): colunas reais, senão ×fator sobre brutos
       const s = semana as unknown as { consumo_socios?: number; consumo_beneficios?: number; consumo_artista?: number; consumo_rh?: number };
       const real = (s.consumo_socios || 0) + (s.consumo_beneficios || 0) + (s.consumo_artista || 0) + (s.consumo_rh || 0);
       if (real > 0) return real;
@@ -981,11 +983,11 @@ export default function CMVSemanalTabelaPage() {
       const c9 = (semana as unknown as { consumacoes_9?: Record<string, number> | null }).consumacoes_9;
       const get9 = (k: string) => (c9 && typeof c9 === 'object' ? (c9[k] || 0) : 0);
       if (cat === 'outros') {
-        // "Outros" é bucket PRÓPRIO no consumacoes_9 (custo real), igual à tela
-        // /operacional/consumacao. Ex s28 bar 3 = 154,70. Antes era residual
-        // (TOTAL − 9) e clampava em 0 desde ~s25 (o TOTAL vinha das colunas reais,
-        // que não incluíam o outros). Fallback residual só p/ semanas antigas sem a chave.
-        if (c9 && typeof c9 === 'object' && c9['outros'] != null) return get9('outros');
+        // SEMANAL: "Outros" é bucket PRÓPRIO no consumacoes_9 (custo real), igual à tela
+        // /operacional/consumacao. Ex s28 bar 3 = 154,70. Antes era residual (TOTAL − 9) e
+        // clampava em 0 desde ~s25. No MENSAL (consumacoes_9 = ContaAzul) mantém o residual
+        // pra não misturar fonte; ver comentário do total_consumos.
+        if (visao === 'semanal' && c9 && typeof c9 === 'object' && c9['outros'] != null) return get9('outros');
         const NOVE = ['funcionarios_operacao', 'funcionarios_escritorio', 'aniversario', 'programa_pontos', 'beneficio_cliente', 'influencer', 'artistas', 'socios', 'relacionamento'];
         const soma9 = NOVE.reduce((s, k) => s + get9(k), 0);
         const total = getValorMetrica(semana, 'total_consumos') || 0;
