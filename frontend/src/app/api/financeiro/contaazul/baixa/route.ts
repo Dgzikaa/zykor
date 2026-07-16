@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     const { data: candidatos } = await (supabase
       .schema('bronze' as any) as any)
       .from('bronze_contaazul_lancamentos')
-      .select('contaazul_id, descricao, valor_bruto, data_competencia, tipo, status')
+      .select('contaazul_id, descricao, valor_bruto, data_competencia, tipo, status, valor_pago')
       .eq('bar_id', barIdNum)
       .eq('data_competencia', data_competencia)
       .is('excluido_em', null)
@@ -119,39 +119,28 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
-    const idEvento = matches[0].contaazul_id;
+    // IMPORTANTE: bronze.contaazul_id é o id da PARCELA (não do evento). A baixa é DIRETO na
+    // parcela: /eventos-financeiros/parcelas/{id}/baixa. NÃO existe GET /eventos-financeiros/{id}/parcelas
+    // p/ esses lançamentos (volta []) — bug antigo que fazia esta rota nunca baixar de fato.
+    const idParcela = matches[0].contaazul_id;
+    const baixaUrl = `${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/parcelas/${idParcela}/baixa`;
 
-    // 2) Pega a parcela do evento
-    const parcelasResp = await fetch(
-      `${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/${idEvento}/parcelas`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (!parcelasResp.ok) {
-      const txt = await parcelasResp.text();
-      return NextResponse.json(
-        { error: `CA parcelas HTTP ${parcelasResp.status}: ${txt}` },
-        { status: 502 }
-      );
+    // Idempotência: bronze já pago OU já existe baixa (GET) → não duplica.
+    if (Number(matches[0].valor_pago || 0) >= valorRound - 0.01) {
+      return NextResponse.json({ success: true, ja_baixada: true, id_parcela: idParcela });
     }
-    const parcelas = await parcelasResp.json();
-    const lista = Array.isArray(parcelas) ? parcelas : [];
-    // conta a pagar do Zykor é parcela única
-    const parcela = lista[0];
-    if (!parcela?.id) {
-      return NextResponse.json({ error: 'Parcela não encontrada no evento' }, { status: 404 });
-    }
+    try {
+      const chk = await fetch(baixaUrl, { headers: { Authorization: `Bearer ${token}` } });
+      if (chk.status === 200) {
+        const b = await chk.json().catch(() => null);
+        const tem = Array.isArray(b) ? b.length > 0 : !!(b && (b.id || b.data_pagamento || b.itens?.length || b.baixas?.length || b.data?.length));
+        if (tem) return NextResponse.json({ success: true, ja_baixada: true, id_parcela: idParcela });
+      }
+    } catch { /* segue pro POST */ }
 
-    // Idempotência: já quitada ou já tem baixa → não duplica
-    const jaQuitada =
-      String(parcela.status || '').toUpperCase() === 'QUITADO' ||
-      (Array.isArray(parcela.baixas) && parcela.baixas.length > 0);
-    if (jaQuitada) {
-      return NextResponse.json({ success: true, ja_baixada: true, id_parcela: parcela.id });
-    }
-
-    // 3) Cria a baixa (quita) via TRANSFERENCIA_BANCARIA (PIX)
+    // Cria a baixa (quita) via TRANSFERENCIA_BANCARIA (PIX)
     const baixaResp = await fetch(
-      `${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/parcelas/${parcela.id}/baixa`,
+      baixaUrl,
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -180,8 +169,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      id_evento: idEvento,
-      id_parcela: parcela.id,
+      id_parcela: idParcela,
       id_baixa: baixaJson?.id || null,
     });
   } catch (err: any) {
