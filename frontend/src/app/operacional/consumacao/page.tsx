@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
 import Analises from './Analises';
-import { RefreshCw, Download, Search, X, SlidersHorizontal, Users, ChevronRight, ChevronDown, Layers, Filter, Check, Tag } from 'lucide-react';
+import { RefreshCw, Download, Search, X, SlidersHorizontal, Users, ChevronRight, ChevronDown, Layers, Filter, Check, Tag, Pencil } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { toast } from 'sonner';
@@ -502,9 +503,50 @@ function VinculoEditor({
   );
 }
 
+// Modal só de CATEGORIA (reclassificar) — separado do vínculo de mesa. Admin only.
+// Grava categoria_override no vínculo da mesa (preservando a tag de pessoa, se houver).
+function CategoriaPicker({
+  mesaLabel, atual, onClose, onPick,
+}: {
+  mesaLabel: string;
+  atual: string | undefined;
+  onClose: () => void;
+  onPick: (catKey: string | null) => Promise<void>;
+}) {
+  const [salvando, setSalvando] = useState(false);
+  const pick = async (k: string | null) => { setSalvando(true); await onPick(k); setSalvando(false); onClose(); };
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900 dark:text-white">Reclassificar categoria</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+        </div>
+        <p className="text-xs text-gray-500">Mesa: <span className="font-medium text-gray-700 dark:text-gray-200">{mesaLabel}</span></p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {CATS.map((c) => (
+            <button key={c.key} onClick={() => pick(c.key)} disabled={salvando}
+              className={`flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-xs text-left transition-colors disabled:opacity-50 ${atual === c.key ? 'border-blue-500 ring-1 ring-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}`}>
+              <span className={`inline-block w-2 h-2 rounded-full ${c.cor}`} />
+              <span className="truncate">{c.label}</span>
+              {atual === c.key && <Check className="w-3 h-3 ml-auto text-blue-500 shrink-0" />}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => pick(null)} disabled={salvando} className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline disabled:opacity-50">
+          Voltar ao automático (pela classificação do motivo)
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export default function ControleConsumacaoPage() {
   const { setPageTitle } = usePageTitle();
   const { selectedBar } = useBar();
+  const { isRole } = usePermissions();
+  const isAdmin = isRole('admin');
 
   const hoje = new Date();
   const primeiroDoMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
@@ -522,6 +564,7 @@ export default function ControleConsumacaoPage() {
   const [cadArtistas, setCadArtistas] = useState<Cadastro[]>([]);
   const [cadSocios, setCadSocios] = useState<Cadastro[]>([]);
   const [editandoMesa, setEditandoMesa] = useState<{ mesaLabel: string; mesaNorm: string } | null>(null);
+  const [editandoCategoria, setEditandoCategoria] = useState<{ mesaLabel: string; mesaNorm: string } | null>(null);
   const [tab, setTab] = useState('lancamentos');
 
   // filtros client-side
@@ -799,6 +842,15 @@ export default function ControleConsumacaoPage() {
             <span className="inline-flex items-center gap-1.5">
               <span className={`inline-block w-2 h-2 rounded-full ${catMix ? 'bg-gray-400' : COR[g.categoria] || 'bg-gray-400'}`} />
               <span className="text-gray-700 dark:text-gray-200">{catMix ? 'Vários' : LABEL[g.categoria] || g.categoria}</span>
+              {isAdmin && !catMix && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setEditandoCategoria({ mesaLabel: g.mesaLabel, mesaNorm: g.key }); }}
+                  title="Reclassificar categoria (admin)"
+                  className="rounded p-0.5 text-gray-300 hover:text-indigo-500"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              )}
             </span>
           </td>
           <td className="px-3 py-1.5 whitespace-nowrap font-medium text-gray-800 dark:text-gray-100">
@@ -884,6 +936,19 @@ export default function ControleConsumacaoPage() {
     } catch {
       toast.error('Erro ao salvar vínculo');
     }
+  };
+
+  // Reclassificar SÓ a categoria da mesa — preserva o vínculo de pessoa (tipo/artista/sócio) existente.
+  const setCategoriaMesa = async (mesaLabel: string, mesaNorm: string, catKey: string | null) => {
+    const atual = vincByNorm.get(mesaNorm);
+    await salvarVinculo({
+      mesa: mesaLabel,
+      tipo: atual?.tipo ?? null,
+      artista_id: atual?.artista_id ?? null,
+      socio_id: atual?.socio_id ?? null,
+      entidade_nome: atual?.entidade_nome ?? null,
+      categoria_override: catKey,
+    });
   };
 
   const removerVinculo = async (mesaLabel: string) => {
@@ -1273,6 +1338,15 @@ export default function ControleConsumacaoPage() {
                       <span className="inline-flex items-center gap-1.5">
                         <span className={`inline-block w-2 h-2 rounded-full ${COR[l.categoria] || 'bg-gray-400'}`} />
                         <span className="text-gray-700 dark:text-gray-200">{LABEL[l.categoria] || l.categoria}</span>
+                        {isAdmin && l.mesa && (
+                          <button
+                            onClick={() => setEditandoCategoria({ mesaLabel: l.mesa as string, mesaNorm: normMesa(l.mesa) })}
+                            title="Reclassificar categoria (admin)"
+                            className="rounded p-0.5 text-gray-300 hover:text-indigo-500"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        )}
                       </span>
                     </td>
                     <td className="px-3 py-1.5 whitespace-nowrap text-gray-500">{l.mesa || '-'}</td>
@@ -1336,6 +1410,15 @@ export default function ControleConsumacaoPage() {
           onSalvar={salvarVinculo}
           onRemover={() => removerVinculo(editandoMesa.mesaLabel)}
           onCriarSocio={criarSocio}
+        />
+      )}
+
+      {isAdmin && editandoCategoria && (
+        <CategoriaPicker
+          mesaLabel={editandoCategoria.mesaLabel}
+          atual={vincByNorm.get(editandoCategoria.mesaNorm)?.categoria_override ?? undefined}
+          onClose={() => setEditandoCategoria(null)}
+          onPick={(k) => setCategoriaMesa(editandoCategoria.mesaLabel, editandoCategoria.mesaNorm, k)}
         />
       )}
     </div>

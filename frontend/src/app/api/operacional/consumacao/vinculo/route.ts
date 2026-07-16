@@ -50,6 +50,18 @@ export async function POST(request: NextRequest) {
   const mesaNorm = normMesa(mesa);
   if (mesaNorm === '—') return NextResponse.json({ success: false, error: 'mesa obrigatória' }, { status: 400 });
   const tipo = body.tipo ? String(body.tipo) : null;
+
+  // Reclassificar a CATEGORIA é ADMIN only (pedido do dono). Só bloqueia quando o não-admin está
+  // MUDANDO o categoria_override — quem só edita a tag da mesa (mesma categoria) segue liberado.
+  const novaCat = body.categoria_override ? String(body.categoria_override) : null;
+  if (String((user as any).role) !== 'admin') {
+    const { data: prev } = await fin.from('consumo_mesa_vinculo')
+      .select('categoria_override').eq('bar_id', barId).eq('mesa_norm', mesaNorm).maybeSingle();
+    if (novaCat !== ((prev?.categoria_override as string | null) ?? null)) {
+      return NextResponse.json({ success: false, error: 'Só admin pode alterar a categoria da consumação.' }, { status: 403 });
+    }
+  }
+
   const row = {
     bar_id: barId,
     mesa_norm: mesaNorm,
