@@ -193,10 +193,13 @@ export async function baixarEventoCA(input: {
   const idEvento = matches[0].contaazul_id;
 
   const parcelasResp = await fetch(`${CONTA_AZUL_API_URL}/v1/financeiro/eventos-financeiros/${idEvento}/parcelas`, { headers: { Authorization: `Bearer ${input.token}` } });
-  if (!parcelasResp.ok) return { ok: false, erro: `CA parcelas HTTP ${parcelasResp.status}` };
-  const parcelas = await parcelasResp.json();
-  const parcela = (Array.isArray(parcelas) ? parcelas : [])[0];
-  if (!parcela?.id) return { ok: false, erro: 'parcela não encontrada no evento' };
+  if (!parcelasResp.ok) { const t = await parcelasResp.text(); return { ok: false, erro: `CA parcelas HTTP ${parcelasResp.status}: ${String(t).slice(0, 200)}` }; }
+  const parcelasBody = await parcelasResp.json();
+  // A resposta pode vir como array puro OU embrulhada (itens/parcelas/content/data).
+  const lista = Array.isArray(parcelasBody) ? parcelasBody
+    : (parcelasBody?.itens || parcelasBody?.parcelas || parcelasBody?.content || parcelasBody?.data || parcelasBody?.results || []);
+  const parcela = (Array.isArray(lista) ? lista : [])[0];
+  if (!parcela?.id) return { ok: false, erro: `parcela não encontrada (evento ${idEvento}) — resp: ${JSON.stringify(parcelasBody).slice(0, 300)}` };
   const jaQuitada = String(parcela.status || '').toUpperCase() === 'QUITADO' || (Array.isArray(parcela.baixas) && parcela.baixas.length > 0);
   if (jaQuitada) return { ok: true, ja_baixada: true };
 
