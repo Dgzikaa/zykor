@@ -53,8 +53,10 @@ Indicadores com o ícone de **lápis** (✏️) são editáveis (estoque final, 
 ### 6. Definir as metas de CMV
 Clique no botão **Metas** (topo direito) para abrir o modal e definir os alvos de **CMV Teórico (%)**, **CMV Limpo (%)** e **CMV Real (%)**. O operador é sempre **≤** (menor é melhor). O CMV R$ não tem campo próprio: ele é derivado como *CMV Real % × Faturamento Bruto* da semana. Também é possível editar uma meta individual clicando direto na célula da coluna **META** (exceto a de CMV R$).
 
-### 7. Atualizar os dados
-O botão verde **Atualizar dados** dispara a rotina completa: sincroniza a planilha CMV (semanal e mensal), recalcula o CMV semanal e reagrega o mensal. Use quando lançou compras novas no Conta Azul, fez contagem de estoque ou atualizou a planilha. *Observação:* a sincronização do **Conta Azul** é global e fica no botão ao lado do seletor de bar — não faz parte deste botão.
+### 7. Forçar atualização (visão Mensal)
+Os dados são **100% automáticos** — crons sincronizam ContaHub, Conta Azul, contagem de estoque e fichas técnicas ao longo do dia. Não existe mais o botão "Atualizar dados".
+
+Na visão **Mensal** existe o botão **Forçar atualização (mês atual)**, útil quando você **acabou de lançar ou excluir** consumação/compra no Conta Azul e quer ver o mês na hora, sem esperar o cron. Ele faz duas coisas: (1) sincroniza o Conta Azul do mês corrente — pegando tanto **inclusões quanto exclusões** (o sync automático diário só traz o que mudou nos últimos dias e não detecta exclusões); e (2) re-agrega o CMV mensal a partir dos dados atualizados.
 
 ## Abas e seções
 
@@ -100,7 +102,7 @@ Dentro do Cálculo CMV, os grupos **Compras** e **Consumações** são expansív
 | Artistas | Consumo de artistas/banda | `motivo = Artistas` (custo real da ficha) | ContaHub |
 | Sócios | Consumo dos sócios | `motivo = Sócios` (custo real da ficha) | ContaHub |
 | Relacionamento | Cortesias de relacionamento | `motivo = Relacionamento` (custo real da ficha) | ContaHub |
-| Outros | Resíduo das consumações | **Residual**: TOTAL − as 9 categorias. Inclui histórico pré-12/06 e a semana em andamento ainda não detalhada | Calculado |
+| Outros | Motivos não mapeados nas 9 + pré-corte | **Semanal:** custo real dos motivos não mapeados nas 9 categorias + lançamentos pré-12/06 (mesma base da tela *Controle de Consumação*). **Mensal / semanas antigas:** residual (TOTAL − as 9) | Calculado |
 | (+) Bonificações | Bonificações de fornecedores | Valor inserido manualmente (campo único `bonificacoes`; para legados, soma de Contrato Anual + Cashback Mensal) | Manual |
 
 ### Seção RESULTADOS
@@ -135,14 +137,15 @@ Dentro do Cálculo CMV, os grupos **Compras** e **Consumações** são expansív
 - **Visão Semanal / Mensal:** troca a granularidade das colunas. Semanal usa a semana ISO; mensal agrega por mês.
 - **Ano (Todos / 2025 / 2026):** filtra os períodos exibidos.
 - **Botão Metas:** abre o modal para definir os três alvos de CMV do bar.
-- **Botão Atualizar dados:** sincroniza planilha (semanal + mensal) e recalcula tudo na hora.
+- **Botão Forçar atualização (mês atual)** *(só na visão Mensal):* sincroniza o Conta Azul do mês corrente (inclusões **e** exclusões) e re-agrega o CMV mensal na hora.
 - **Colapsar seções e grupos:** clique nos cabeçalhos coloridos (seções) ou nos cabeçalhos cinza (grupos Compras/Consumações) para esconder/mostrar as linhas detalhadas.
 - **Aviso de compras zeradas:** quando as Compras de uma semana ficam em R$ 0, aparece um triângulo de alerta âmbar sugerindo que faltam lançamentos no Conta Azul.
 
 ## Regras e detalhes importantes
 
 - **Sempre filtra por `bar_id`:** todos os números são do bar selecionado. A tela nunca mistura bares.
-- **Fator de consumo (padrão 0,35):** as consumações internas entram no CMV multiplicadas por esse fator, que representa o custo real (não o valor de venda cortesiado). O fator vem das regras do bar (`cmv_fator_consumo`).
+- **Consumação = custo real da ficha:** as consumações internas entram no CMV pelo **custo real** dos insumos daquele consumo (ficha técnica), não pelo valor de venda cortesiado. O fator antigo (padrão **0,35**, `cmv_fator_consumo` nas regras do bar) só é usado como **fallback** quando o produto não tem ficha ou em semanas antigas ainda não reprocessadas.
+- **Consumação: semanal (ContaHub) × mensal (Conta Azul):** na visão **Semanal** a consumação vem do **ContaHub** (custo real, ao vivo — espelha 100% a tela *Controle de Consumação*, inclusive as reclassificações de mesa/vínculos). Na **Mensal** vem do **Conta Azul** (o número contábil, que casa com a DRE): o fechamento lança as categorias `[Consumação] X` com o **mesmo custo real da ficha + vínculos**, então as duas visões batem. Se o mês parecer defasado (ex.: acabou de lançar/excluir no CA), use **Forçar atualização**.
 - **Estoque propagado:** o estoque inicial de um período é sempre o estoque final do período anterior — não se digita estoque inicial.
 - **Semana ISO / fechamento no domingo:** a semana segue o padrão ISO (segunda a domingo). Na visão **mensal do mês corrente**, o faturamento e as compras vão do dia 01 até o **último domingo fechado** — meses passados usam o mês inteiro.
 - **Mês em andamento sem estoque final:** se o estoque final ainda não foi contado, os resultados calculados (CMV R$ e %) são **zerados** para não exibir número inflado.
@@ -169,7 +172,10 @@ O drill-down só funciona na **visão Semanal** e apenas em indicadores com o í
 Sim. O CMV Teórico é preenchido semana a semana. O manual só vale para o passado; do período atual em diante o valor vem automaticamente das fichas técnicas.
 
 **Alterei um campo manual mas o CMV R$ não atualizou na hora?**
-Na visão semanal o valor é salvo e a tela recarrega. Na visão mensal, o salvamento dispara a reagregação (`agregar_cmv_mensal_auto`) para recompor o CMV R$. Se ainda assim algo parecer defasado, use o botão "Atualizar dados".
+Na visão semanal o valor é salvo e a tela recarrega. Na visão mensal, o salvamento dispara a reagregação (`agregar_cmv_mensal_auto`) para recompor o CMV R$. Se ainda assim algo parecer defasado, na visão mensal use **Forçar atualização (mês atual)**.
+
+**Lancei/excluí uma consumação no Conta Azul e o CMV mensal não mudou. Por quê?**
+O CMV mensal lê do Conta Azul, e o sync automático diário só traz o que mudou nos últimos dias — e **não detecta exclusões** feitas direto no site do Conta Azul. Abra a visão **Mensal** e clique em **Forçar atualização (mês atual)**: ele faz um sync completo do mês (pegando inclusões e exclusões) e re-agrega na hora. *Obs.:* o Conta Azul não permite excluir lançamento pela integração — exclusões precisam ser feitas manualmente no site do Conta Azul; depois use o botão para refletir aqui.
 
 **O que é o CMA e por que está separado do CMV?**
 CMA é o **Custo da Alimentação dos Funcionários** — comida da equipe. É acompanhado à parte porque não é mercadoria vendida ao cliente; entra na categoria "Alimentação" do Conta Azul e tem estoque próprio (F).
@@ -185,4 +191,4 @@ CMA é o **Custo da Alimentação dos Funcionários** — comida da equipe. É a
 - **`gold.desempenho`** — comissão/gorjeta, couvert e faturamento de entrada usados no Faturamento Limpo.
 - **`gold.planejamento`** — bilheteria (ingressos **Yuzer** e **Sympla**) e faturamento consolidado por evento.
 - **`meta.metas_desempenho`** (período `cmv`) — metas de CMV Real, Limpo e Teórico.
-- **Edge Functions:** `sync-cmv-sheets`, `cmv-semanal-auto`, `sync-cmv-mensal` e a RPC `agregar_cmv_mensal_auto` (disparadas por "Atualizar dados"); RPCs `get_consumos_detalhes_semana`, `get_consumos_9_detalhes_semana` e `get_comissao_couvert_periodo` para os detalhamentos.
+- **Edge Functions / RPCs:** `cmv-semanal-auto` (grava o CMV semanal + `consumacoes_9` em custo real), `sync-cmv-mensal` e `agregar_cmv_mensal_auto` (visão mensal, também disparada pelo botão *Forçar atualização*); `contaazul-sync` (sincroniza o Conta Azul, com soft-delete no sweep mensal). Detalhamentos usam `get_consumos_9_detalhes_custo_semana` (custo real da ficha) e `get_comissao_couvert_periodo`.
