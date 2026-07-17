@@ -8,7 +8,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { DollarSign, Wallet, TrendingUp } from 'lucide-react';
+import Link from 'next/link';
+import { DollarSign, Wallet, TrendingUp, Sparkles } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
@@ -68,9 +69,17 @@ export default function DashboardReceitasPage() {
   return (
     <PageShell width="wide">
       <div className="flex flex-col gap-2">
-        <p className="text-sm text-[hsl(var(--muted-foreground))]">
-          Visão unificada de receita para {selectedBar?.nome ?? 'o bar selecionado'}.
-        </p>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            Visão unificada de receita para {selectedBar?.nome ?? 'o bar selecionado'}.
+          </p>
+          <Link
+            href="/receitas/analise"
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <Sparkles className="h-4 w-4" /> Análise (IA)
+          </Link>
+        </div>
         <div className="overflow-x-auto">
           <PeriodRangePicker value={periodo} onChange={setPeriodo} className="!flex-nowrap w-max" />
         </div>

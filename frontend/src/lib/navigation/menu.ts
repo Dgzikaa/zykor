@@ -70,15 +70,17 @@ export const MENU_TREE: MenuSection[] = [
     label: 'Receitas',
     href: '/receitas',
     permission: 'relatorios',
+    // Análise (IA) e Taggear Artistas viraram botão dentro das próprias páginas
+    // (/receitas e /analitico/atracoes) — saíram do menu. Sub-header "Clientes"
+    // agrupa dashboard + segmentos/win-back/retenção pra facilitar navegação.
     subItems: [
       { icon: 'BarChart3', label: 'Dashboard de Receitas', href: '/receitas', permission: 'relatorios' },
-      { icon: 'Sparkles', label: 'Análise (IA)', href: '/receitas/analise', permission: 'relatorios' },
       { icon: 'Megaphone', label: 'Comunicação', href: '/receitas/comunicacao', permission: 'relatorios' },
       { icon: 'Gift', label: 'Fidelização', href: '/receitas/fidelidade', permission: 'relatorios' },
-      { icon: 'Users', label: 'Clientes', href: '/analitico/clientes', permission: 'relatorios' },
-      { icon: 'BarChart3', label: 'Eventos', href: '/analitico/eventos', permission: 'relatorios' },
       { icon: 'Music', label: 'Visão do Artista', href: '/analitico/atracoes', permission: 'relatorios' },
-      { icon: 'Tag', label: 'Taggear Artistas', href: '/analitico/atracoes/tagging', permission: 'analitico_taggear_artistas' },
+      { icon: 'BarChart3', label: 'Eventos', href: '/analitico/eventos', permission: 'relatorios' },
+      { header: 'Clientes' },
+      { icon: 'Users', label: 'Clientes', href: '/analitico/clientes', permission: 'relatorios' },
       { icon: 'PieChart', label: 'Segmentos (RFM)', href: '/analitico/clientes/segmentos', permission: 'relatorios' },
       { icon: 'HeartHandshake', label: 'Win-back', href: '/analitico/clientes/win-back', permission: 'relatorios' },
       { icon: 'TrendingUp', label: 'Retenção', href: '/analitico/clientes/retencao', permission: 'relatorios' },

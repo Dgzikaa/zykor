@@ -9,7 +9,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Music, Users, DollarSign, Calendar, Award, TrendingUp, TrendingDown, Star, Trophy, Ticket, ArrowUpRight, ArrowDownRight, Sparkles, Handshake, Share2, Camera, X } from 'lucide-react';
+import { Music, Users, DollarSign, Calendar, Award, TrendingUp, TrendingDown, Star, Trophy, Ticket, ArrowUpRight, ArrowDownRight, Sparkles, Handshake, Share2, Camera, X, Tag } from 'lucide-react';
 import { NpsArtistaBadge } from '@/components/nps/NpsCasa';
 
 // ---- formatação ----
@@ -138,12 +138,20 @@ export default function AtracoesPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-3 py-4 max-w-6xl space-y-4">
         {/* Header */}
-        <div className="flex items-center gap-2">
-          <Music className="h-6 w-6 text-violet-600" />
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Visão do Artista</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">A trajetória de cada artista com a casa — feita pra mostrar pro artista.</p>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Music className="h-6 w-6 text-violet-600" />
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Visão do Artista</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">A trajetória de cada artista com a casa — feita pra mostrar pro artista.</p>
+            </div>
           </div>
+          <Link
+            href="/analitico/atracoes/tagging"
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <Tag className="h-4 w-4" /> Taggear Artistas
+          </Link>
         </div>
 
         {aba === 'ranking' ? (
