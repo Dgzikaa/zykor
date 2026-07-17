@@ -16,7 +16,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
-import { MENU_TREE } from '@/lib/navigation/menu';
+import { MENU_TREE, isMenuLeaf } from '@/lib/navigation/menu';
 import { iconFor } from '@/lib/navigation/menu-icons';
 
 interface BottomNavItem {
@@ -79,6 +79,8 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
     'Configurações': 'text-gray-600 dark:text-gray-400',
     'Extras': 'text-yellow-600 dark:text-yellow-400',
   };
+  // Mobile: como headers seriam invisíveis num overlay compacto, ignoro os headers
+  // aqui e mantenho a lista de folhas plana. A separação visual acontece só no desktop.
   const allMenuSections = MENU_TREE.map(section => ({
     icon: iconFor(section.icon),
     label: section.label,
@@ -86,7 +88,7 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
     color: SECTION_COLORS[section.label] ?? '',
     permission: section.permission ?? '',
     beta: section.beta,
-    subItems: section.subItems.map(item => ({
+    subItems: section.subItems.filter(isMenuLeaf).map(item => ({
       icon: iconFor(item.icon),
       label: item.label,
       href: item.href,

@@ -15,7 +15,7 @@
  * (`lib/permissions/resolver.ts`).
  */
 
-import { MENU_TREE } from '../navigation/menu';
+import { MENU_TREE, isMenuLeaf } from '../navigation/menu';
 
 // Interface para módulos de permissão (usada pela API)
 export interface ModuloPermissao {
@@ -40,7 +40,8 @@ export interface MenuSectionConfig {
  */
 export const MENU_LATERAL_STRUCTURE: MenuSectionConfig[] = MENU_TREE.map(secao => ({
   label: secao.label,
-  subItems: secao.subItems.map(item => ({ label: item.label, href: item.href })),
+  // Headers (agrupamento visual) não geram módulo/rota — só folhas com href entram aqui.
+  subItems: secao.subItems.filter(isMenuLeaf).map(item => ({ label: item.label, href: item.href })),
 }));
 
 /**

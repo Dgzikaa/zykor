@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import { MENU_TREE } from '../menu';
+import { MENU_TREE, isMenuLeaf } from '../menu';
 
 const APP_DIR = path.join(process.cwd(), 'src', 'app');
 
@@ -25,7 +25,8 @@ function routeExists(href: string): boolean {
   );
 }
 
-const leaves = MENU_TREE.flatMap(section => section.subItems);
+// Headers (cabeçalhos visuais) não são rotas — só as folhas com href entram.
+const leaves = MENU_TREE.flatMap(section => section.subItems.filter(isMenuLeaf));
 
 describe('MENU_TREE — fonte única do menu lateral', () => {
   it('tem um número razoável de itens', () => {

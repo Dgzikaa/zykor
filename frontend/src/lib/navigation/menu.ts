@@ -20,6 +20,22 @@ export interface MenuLeaf {
   href: string;
   /** Chave de permissão (resolvida pelo resolver único). */
   permission?: string;
+  /** Marca o item específico como "em construção" — badge Beta ao lado do label. */
+  beta?: boolean;
+}
+
+/**
+ * Cabeçalho visual (CAIXA ALTA) que separa grupos dentro de uma seção. Sem clique,
+ * sem href, sem permissão própria — os itens abaixo dele carregam suas permissões.
+ */
+export interface MenuHeader {
+  header: string;
+}
+
+export type MenuNode = MenuLeaf | MenuHeader;
+
+export function isMenuLeaf(n: MenuNode): n is MenuLeaf {
+  return 'href' in n;
 }
 
 export interface MenuSection {
@@ -27,7 +43,7 @@ export interface MenuSection {
   label: string;
   href: string;
   permission?: string;
-  subItems: MenuLeaf[];
+  subItems: MenuNode[];
   /** Marca a seção como "em construção" — mostra badge Beta na sidebar. */
   beta?: boolean;
 }
@@ -104,17 +120,21 @@ export const MENU_TREE: MenuSection[] = [
     permission: 'financeiro_ferramentas',
     // Cada ferramenta = módulo próprio (categoria_nome). `financeiro_ferramentas` segue como
     // GENERIC (concede todas — retrocompat) no resolver; aqui cada item filtra pela sua própria.
+    // Sub-headers (Pagamentos / Conta Azul / Contábil) são só visuais — não mexem em permissão.
     subItems: [
+      { header: 'Pagamentos' },
       { icon: 'Calendar', label: 'Agendamentos', href: '/financeiro/agendamentos', permission: 'ferramentas financeiro_agendamentos' },
       { icon: 'Receipt', label: 'Pedidos de Pagamento', href: '/financeiro/pedidos-pagamento', permission: 'ferramentas financeiro_pedidos_de_pagamento' },
+      { header: 'Conta Azul' },
       { icon: 'Users', label: 'Beneficiários', href: '/financeiro/beneficiarios', permission: 'ferramentas financeiro_beneficiarios' },
-      { icon: 'Scale', label: 'Conciliação', href: '/financeiro/conciliacao', permission: 'ferramentas financeiro_conciliacao' },
       { icon: 'TrendingUp', label: 'Receitas CA', href: '/financeiro/receitas', permission: 'ferramentas financeiro_receitas_ca' },
       { icon: 'TrendingDown', label: 'Despesas CA', href: '/financeiro/despesas', permission: 'ferramentas financeiro_despesas_ca' },
-      { icon: 'History', label: 'Histórico CA', href: '/financeiro/ca-historico', permission: 'ferramentas financeiro_historico_ca' },
-      { icon: 'ReceiptText', label: 'Notas Fiscais', href: '/financeiro/notas-fiscais', permission: 'ferramentas financeiro_notas_fiscais' },
-      { icon: 'Wallet', label: 'Fluxo de Caixa', href: '/financeiro/fluxo-caixa', permission: 'ferramentas financeiro_fluxo_de_caixa' },
       { icon: 'FileSearch', label: 'Consultas CA', href: '/ferramentas/consultas', permission: 'ferramentas financeiro_consultas_ca' },
+      { icon: 'History', label: 'Histórico CA', href: '/financeiro/ca-historico', permission: 'ferramentas financeiro_historico_ca' },
+      { header: 'Contábil' },
+      { icon: 'ReceiptText', label: 'Notas Fiscais', href: '/financeiro/notas-fiscais', permission: 'ferramentas financeiro_notas_fiscais' },
+      { icon: 'Scale', label: 'Conciliação', href: '/financeiro/conciliacao', permission: 'ferramentas financeiro_conciliacao' },
+      { icon: 'Wallet', label: 'Fluxo de Caixa', href: '/financeiro/fluxo-caixa', permission: 'ferramentas financeiro_fluxo_de_caixa' },
     ],
   },
   {

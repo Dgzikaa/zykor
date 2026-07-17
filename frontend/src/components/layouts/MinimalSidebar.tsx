@@ -10,7 +10,7 @@ import { corDoBar } from '@/lib/bar-theme';
 import { BarLogo } from '@/components/BarLogo';
 import { cn } from '@/lib/utils';
 import { ChevronRight, ChevronDown, Check, Home } from 'lucide-react';
-import { MENU_TREE } from '@/lib/navigation/menu';
+import { MENU_TREE, isMenuLeaf } from '@/lib/navigation/menu';
 import { iconFor } from '@/lib/navigation/menu-icons';
 
 // Seletor de bar no topo do menu lateral: identidade (logo + nome do bar) + troca rápida.
@@ -68,6 +68,17 @@ interface SubMenuItem {
   badge?: number;
   description?: string;
   permission?: string;
+  beta?: boolean;
+}
+
+interface SubMenuHeader {
+  header: string;
+}
+
+type SubMenuNode = SubMenuItem | SubMenuHeader;
+
+function isSubMenuItem(n: SubMenuNode): n is SubMenuItem {
+  return 'href' in n;
 }
 
 interface SidebarItem {
@@ -76,7 +87,7 @@ interface SidebarItem {
   href?: string;
   badge?: number;
   permission?: string;
-  subItems?: SubMenuItem[];
+  subItems?: SubMenuNode[];
   beta?: boolean;
 }
 
@@ -101,12 +112,17 @@ const defaultSidebarItems: SidebarItem[] = MENU_TREE.map(section => ({
   href: section.href,
   permission: section.permission,
   beta: section.beta,
-  subItems: section.subItems.map(item => ({
-    icon: iconFor(item.icon),
-    label: item.label,
-    href: item.href,
-    permission: item.permission,
-  })),
+  subItems: section.subItems.map(item =>
+    isMenuLeaf(item)
+      ? {
+          icon: iconFor(item.icon),
+          label: item.label,
+          href: item.href,
+          permission: item.permission,
+          beta: item.beta,
+        }
+      : { header: item.header },
+  ),
 }));
 
 // Componente do item de menu (memoizado)
@@ -173,39 +189,64 @@ const SidebarMenuItem = memo(({ item, isActive, isExpanded, onToggle, badges }: 
         {isExpanded && (
           <div className="ml-7 mt-1 space-y-1">
             {(() => {
-              // "match mais específico vence": entre os irmãos que casam com a rota, só o de
-              // href mais longo fica ativo. Evita que um pai (ex.: /receitas) acenda junto com
-              // o filho (/receitas/comunicacao), já que ambos casam por prefixo.
-              const activeSubHref = item.subItems!
+              // "match mais específico vence": entre os irmãos-folha que casam com a rota, só
+              // o de href mais longo fica ativo. Evita que um pai (ex.: /receitas) acenda junto
+              // com o filho (/receitas/comunicacao), já que ambos casam por prefixo.
+              const leaves = item.subItems!.filter(isSubMenuItem);
+              const activeSubHref = leaves
                 .filter((s) => pathname === s.href || pathname.startsWith(s.href + '/'))
                 .reduce<string | null>((best, s) => (!best || s.href.length > best.length ? s.href : best), null);
-              return item.subItems!.map((subItem) => {
-              const SubIcon = subItem.icon;
-              const isSubActive = subItem.href === activeSubHref;
-              const subBadge = badges[subItem.href] || subItem.badge;
+              return item.subItems!.map((subItem, idx) => {
+                // Header: rótulo pequeno em CAIXA ALTA — separa grupos visualmente, sem clique.
+                // Primeiro header não leva margem-top (encosta no topo da seção).
+                if (!isSubMenuItem(subItem)) {
+                  const isFirst = idx === 0;
+                  return (
+                    <div
+                      key={`h-${idx}-${subItem.header}`}
+                      className={cn(
+                        'px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]',
+                        isFirst ? 'pt-1' : 'pt-3',
+                      )}
+                    >
+                      {subItem.header}
+                    </div>
+                  );
+                }
+                const SubIcon = subItem.icon;
+                const isSubActive = subItem.href === activeSubHref;
+                const subBadge = badges[subItem.href] || subItem.badge;
 
-              return (
-                <Link
-                  key={subItem.href}
-                  href={subItem.href}
-                  style={isSubActive ? { boxShadow: 'inset 3px 0 0 0 var(--bar-accent)' } : undefined}
-                  className={cn(
-                    'flex items-center justify-between px-3 py-1.5 rounded-md text-sm transition-colors',
-                    'hover:bg-[hsl(var(--muted))]',
-                    isSubActive && 'bg-[hsl(var(--muted))] font-medium'
-                  )}
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <SubIcon className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="truncate">{subItem.label}</span>
-                  </div>
-                  {subBadge && subBadge > 0 && (
-                    <span className="px-1.5 py-0.5 text-xs font-medium bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded">
-                      {subBadge}
-                    </span>
-                  )}
-                </Link>
-              );
+                return (
+                  <Link
+                    key={subItem.href}
+                    href={subItem.href}
+                    style={isSubActive ? { boxShadow: 'inset 3px 0 0 0 var(--bar-accent)' } : undefined}
+                    className={cn(
+                      'flex items-center justify-between px-3 py-1.5 rounded-md text-sm transition-colors',
+                      'hover:bg-[hsl(var(--muted))]',
+                      isSubActive && 'bg-[hsl(var(--muted))] font-medium'
+                    )}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <SubIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="truncate">{subItem.label}</span>
+                      {subItem.beta && (
+                        <span
+                          className="px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 flex-shrink-0"
+                          title="Em construção — módulo em testes"
+                        >
+                          Beta
+                        </span>
+                      )}
+                    </div>
+                    {subBadge && subBadge > 0 && (
+                      <span className="px-1.5 py-0.5 text-xs font-medium bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded">
+                        {subBadge}
+                      </span>
+                    )}
+                  </Link>
+                );
               });
             })()}
           </div>
@@ -232,7 +273,7 @@ export function MinimalSidebar() {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(() => {
     const expanded = new Set<string>();
     defaultSidebarItems.forEach(item => {
-      if (item.subItems?.some(sub => pathname.startsWith(sub.href))) {
+      if (item.subItems?.some(sub => isSubMenuItem(sub) && pathname.startsWith(sub.href))) {
         expanded.add(item.label);
       }
     });
@@ -264,13 +305,29 @@ export function MinimalSidebar() {
     };
 
     return defaultSidebarItems
-      .map(item => ({
-        ...item,
-        subItems: item.subItems?.filter(subItem => matchPermission(subItem.permission)),
-      }))
+      .map(item => {
+        // Filtra folhas por permissão; headers sempre passam. Depois remove headers órfãos
+        // (sem nenhuma folha visível abaixo — evita "CONTA AZUL" aparecer sem items).
+        const filtered = item.subItems?.filter(sub =>
+          !isSubMenuItem(sub) || matchPermission(sub.permission),
+        );
+        const dropOrphanHeaders = filtered?.filter((sub, i) => {
+          if (isSubMenuItem(sub)) return true;
+          for (let j = i + 1; j < filtered.length; j++) {
+            const next = filtered[j];
+            if (!isSubMenuItem(next)) break; // outro header = este era órfão
+            return true;
+          }
+          return false;
+        });
+        return { ...item, subItems: dropOrphanHeaders };
+      })
       // Mostra a seção se ela própria libera OU se sobrou algum sub-item visível
       // (evita seção vazia e revela a seção quando o usuário só tem 1 item dela).
-      .filter(item => matchPermission(item.permission) || (item.subItems?.length ?? 0) > 0);
+      .filter(item => {
+        if (matchPermission(item.permission)) return true;
+        return (item.subItems?.some(isSubMenuItem) ?? false);
+      });
   }, [hasPermission, permissionsLoading]);
 
   return (
@@ -298,7 +355,7 @@ export function MinimalSidebar() {
           // Seção acende se a rota casa com o href DELA ou com o de algum sub-item.
           // Guarda contra href vazio (''+'/' = '/' casaria com tudo).
           const matchHref = (h?: string) => !!h && (pathname === h || pathname.startsWith(h + '/'));
-          const isActive = matchHref(item.href) || (item.subItems?.some((s) => matchHref(s.href)) ?? false);
+          const isActive = matchHref(item.href) || (item.subItems?.some((s) => isSubMenuItem(s) && matchHref(s.href)) ?? false);
           const isExpanded = expandedItems.has(item.label);
 
           return (
