@@ -492,9 +492,9 @@ export default function DesviosPage() {
               {loading ? <tr><td colSpan={11} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
               : itensView.length === 0 ? <tr><td colSpan={11} className="px-3 py-10 text-center text-gray-400">Sem dados nesse período.</td></tr>
               : itensView.map((it: any, i: number) => (
-                <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${it.pendente ? 'bg-amber-50/60 dark:bg-amber-900/15' : it.suspeita ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}`}>
+                <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${it.sem_producao ? 'bg-amber-50/60 dark:bg-amber-900/15' : it.suspeita ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}`}>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
-                    {it.pendente && <span title="Produção sem o 'produzido' informado — desvio não confiável neste dia"><AlertTriangle className="w-3.5 h-3.5 inline text-amber-500 mr-1" /></span>}
+                    {it.sem_producao && <span title="Produção sem 'produzido' informado — desvio vem do balanço bruto (est_ini + compras − vendas × ficha). Sobra grande pode ser produção não registrada."><AlertTriangle className="w-3.5 h-3.5 inline text-amber-500 mr-1" /></span>}
                     {it.insumo_nome}{it.insumo_nome !== it.insumo_codigo && <span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_codigo}</span>}
                     {it.unidade && <span className="ml-1.5 text-[10px] text-gray-400" title="Quantidades desta linha estão nesta unidade de contagem">· {it.unidade}</span>}
                     {it.is_producao && <Badge variant="outline" className="ml-1.5 text-[10px] text-indigo-600 border-indigo-300">produção</Badge>}
@@ -507,9 +507,9 @@ export default function DesviosPage() {
                   <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!podeEditarDesperd(it)} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{<EstoqueCell valor={it.estoque_fim_real} comp={it.composicao} tipo="fim" />}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${it.pendente ? 'text-gray-300' : it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : `${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.pendente ? 'text-gray-300' : it.desvio_rs < -10 ? 'text-red-600 dark:text-red-400' : it.desvio_rs > 10 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
-                    {it.pendente ? '—' : <>{it.desvio_rs < -10 ? <TrendingDown className="w-3 h-3 inline mr-0.5" /> : it.desvio_rs > 10 ? <TrendingUp className="w-3 h-3 inline mr-0.5" /> : null}{fmtBRL(it.desvio_rs)}</>}
+                  <td className={`px-3 py-2 text-right tabular-nums ${it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{`${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.desvio_rs < -10 ? 'text-red-600 dark:text-red-400' : it.desvio_rs > 10 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
+                    {it.desvio_rs < -10 ? <TrendingDown className="w-3 h-3 inline mr-0.5" /> : it.desvio_rs > 10 ? <TrendingUp className="w-3 h-3 inline mr-0.5" /> : null}{fmtBRL(it.desvio_rs)}
                   </td>
                 </tr>
               ))}
@@ -548,16 +548,16 @@ export default function DesviosPage() {
                   {loading ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
                   : prodView.length === 0 ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400">Sem produção nesse período.</td></tr>
                   : prodView.map((it: any, i: number) => (
-                    <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${it.pendente ? 'bg-amber-50/60 dark:bg-amber-900/15' : ''}`}>
-                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.pendente && <span title="Produção sem o 'produzido' informado — desvio não confiável"><AlertTriangle className="w-3.5 h-3.5 inline text-amber-500 mr-1" /></span>}{it.insumo_nome}<span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_codigo}</span>{it.unidade && <span className="ml-1.5 text-[10px] text-gray-400" title="Quantidades desta linha estão nesta unidade de contagem">· {it.unidade}</span>}</td>
+                    <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${it.sem_producao ? 'bg-amber-50/60 dark:bg-amber-900/15' : ''}`}>
+                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.sem_producao && <span title="Produção sem 'produzido' informado — desvio vem do balanço bruto. Sobra grande pode ser produção não registrada."><AlertTriangle className="w-3.5 h-3.5 inline text-amber-500 mr-1" /></span>}{it.insumo_nome}<span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_codigo}</span>{it.unidade && <span className="ml-1.5 text-[10px] text-gray-400" title="Quantidades desta linha estão nesta unidade de contagem">· {it.unidade}</span>}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{<EstoqueCell valor={it.estoque_ini} comp={it.composicao} tipo="ini" />}</td>
                       <td className="px-3 py-2 text-right"><PencilCell value={it.produzido} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('produzido', it.insumo_codigo, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
                       <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!podeEditarDesperd(it)} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{<EstoqueCell valor={it.estoque_fim_real} comp={it.composicao} tipo="fim" />}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums ${it.pendente ? 'text-gray-300' : it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : `${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.pendente ? 'text-gray-300' : it.desvio_rs < -10 ? 'text-red-600 dark:text-red-400' : it.desvio_rs > 10 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.pendente ? '—' : fmtBRL(it.desvio_rs)}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums ${it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{`${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.desvio_rs < -10 ? 'text-red-600 dark:text-red-400' : it.desvio_rs > 10 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{fmtBRL(it.desvio_rs)}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -233,9 +233,16 @@ export async function GET(request: NextRequest) {
     const is_producao = r.is_producao === true;
     const produzido = Number(r.produzido || 0);
     const desperdicio = Number(r.desperdicio || 0);
-    // produção consumida (vendas×ficha) sem o "produzido" informado → balanço sem âncora, desvio não confiável.
-    // (antes exigia estoque subir; itens sem contagem nenhuma — ini/fim = 0 — escapavam e davam desvio gigante falso)
-    const pendente = is_producao && !r.produzido_informado && teorica > 0;
+    // Produção sem "produzido" informado: SEMPRE mostrar o desvio bruto calculado
+    // pela fn_desvios (não esconde mais com "—"). A maioria dos dias não tem produção
+    // lançada, e o número cru é informação útil — sobra grande com est_ini=0 sinaliza
+    // "produziu e não registrou"; perda legítima aparece normal. Flag `sem_producao`
+    // vira só badge visual (não altera cálculo nem tira do agregado).
+    // Antes: `pendente = is_producao && !produzido_informado && teorica > 0` escondia
+    // desvios legítimos (Gonza 2026-07-17: Pastel Carne PC0013 tinha desvio +54 unid /
+    // +R$106,91 e mostrava "—").
+    const sem_producao = is_producao && !r.produzido_informado;
+    const pendente = false;
     // motivo de dado faltando (p/ o usuário ver QUAIS itens distorcem a perda) — só insumos
     const dvrs = Number(r.desvio_rs || 0);
     const dado_faltando = !is_producao
@@ -264,6 +271,7 @@ export async function GET(request: NextRequest) {
       desvio_rs: Number(r.desvio_rs || 0),
       produzido_informado: !!r.produzido_informado,
       pendente,
+      sem_producao,
       suspeita,
       dado_faltando,
     };
