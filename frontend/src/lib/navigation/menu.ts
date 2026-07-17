@@ -161,6 +161,7 @@ export const MENU_TREE: MenuSection[] = [
     label: 'Ferramentas',
     href: '/ferramentas',
     permission: 'ferramentas',
+    beta: true,
     subItems: [
       { icon: 'Activity', label: 'Painel Executivo', href: '/ferramentas/painel-executivo', permission: 'home' },
       { icon: 'BarChart3', label: 'Análises Avançadas', href: '/ferramentas/analises', permission: 'gestao' },
