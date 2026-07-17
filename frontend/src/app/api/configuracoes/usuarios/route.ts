@@ -97,7 +97,7 @@ export const POST = requireAdmin(async (request, user) => {
       );
     }
     
-    const { email: emailBruto, nome, role, bar_id, bares_ids, modulos_permitidos, ativo = true, celular, telefone, cpf, data_nascimento, endereco, cep, cidade, estado } = body;
+    const { email: emailBruto, nome, role, bar_id, bares_ids, modulos_permitidos, perfil_id, ativo = true, celular, telefone, cpf, data_nascimento, endereco, cep, cidade, estado } = body;
 
     // Email SEMPRE normalizado (lowercase+trim). O Supabase Auth guarda o email
     // minúsculo; se a tabela usuarios guardasse com maiúscula, o lookup por email
@@ -159,6 +159,7 @@ export const POST = requireAdmin(async (request, user) => {
         nome,
         role,
         modulos_permitidos: modulosArray,
+        perfil_id: perfil_id || null,
         ativo,
         telefone: celular || telefone || null,
         cpf: cpf || null,
@@ -240,7 +241,7 @@ export const PUT = requireAdmin(async (request, user) => {
   try {
     const supabase = await getAdminClient();
     const body = await request.json();
-    const { id, email: emailBruto, nome, role, bar_id, bares_ids, modulos_permitidos, ativo, celular, telefone, cpf, data_nascimento, endereco, cep, cidade, estado, senha_redefinida } = body;
+    const { id, email: emailBruto, nome, role, bar_id, bares_ids, modulos_permitidos, perfil_id, ativo, celular, telefone, cpf, data_nascimento, endereco, cep, cidade, estado, senha_redefinida } = body;
     // Normalizar email no update também (mesma razão do POST).
     const email = emailBruto ? normalizeEmail(emailBruto) : emailBruto;
 
@@ -308,6 +309,8 @@ export const PUT = requireAdmin(async (request, user) => {
       nome,
       role,
       modulos_permitidos: modulosArray,
+      // RBAC Fase 2: só grava perfil_id se veio explicitamente no body (undefined não sobrescreve).
+      ...(perfil_id !== undefined ? { perfil_id: perfil_id || null } : {}),
       ativo,
       telefone: celular || telefone || null,
       cpf: cpf || null,

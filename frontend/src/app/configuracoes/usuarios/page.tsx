@@ -45,6 +45,9 @@ interface Usuario {
   bar_id?: number;
   bares_ids?: number[]; // Novo campo para múltiplos bares
   modulos_permitidos: string[];
+  /** RBAC (Fase 2): perfil vinculado — quando setado, oculta a matriz granular. */
+  perfil_id?: string | null;
+  perfil_nome?: string | null;
   ativo: boolean;
   criado_em: string;
   ultima_atividade?: string;
@@ -102,6 +105,7 @@ function UsuariosPage() {
   const { user: currentUser, refreshUserData, isRole, loading: permissionsLoading } = usePermissions();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [modulos, setModulos] = useState<Modulo[]>([]);
+  const [perfis, setPerfis] = useState<Array<{ id: string; nome: string; sistema: boolean }>>([]);
   const [bares, setBares] = useState<{id: number, nome: string}[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -116,6 +120,7 @@ function UsuariosPage() {
     bar_id: '',
     bares_ids: [] as number[], // Novo campo para múltiplos bares
     modulos_permitidos: [] as string[],
+    perfil_id: null as string | null,
     ativo: true,
     celular: '',
     telefone: '',
@@ -220,8 +225,18 @@ function UsuariosPage() {
     }
   }, [toast]);
 
+  const fetchPerfis = useCallback(async () => {
+    try {
+      const r = await fetch('/api/configuracoes/perfis');
+      const d = await r.json();
+      if (d.success) setPerfis((d.perfis || []).map((p: any) => ({ id: p.id, nome: p.nome, sistema: p.sistema })));
+    } catch (error) {
+      console.error('Erro ao buscar perfis:', error);
+    }
+  }, []);
+
   useEffect(() => {
-    Promise.all([fetchUsuarios(), fetchModulos(), fetchBares()]);
+    Promise.all([fetchUsuarios(), fetchModulos(), fetchBares(), fetchPerfis()]);
   }, []); // Remove as dependências para evitar loop infinito
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -354,6 +369,7 @@ function UsuariosPage() {
       bar_id: usuario.bar_id?.toString() || '',
       bares_ids: baresIds,
       modulos_permitidos: modulosPermitidos,
+      perfil_id: usuario.perfil_id || null,
       ativo: usuario.ativo,
       celular: usuario.celular || '',
       telefone: usuario.telefone || '',
@@ -415,6 +431,7 @@ function UsuariosPage() {
       bar_id: '',
       bares_ids: [],
       modulos_permitidos: [],
+      perfil_id: null,
       ativo: true,
       celular: '',
       telefone: '',
@@ -600,6 +617,19 @@ function UsuariosPage() {
     { key: 'email', header: 'Email', sortable: true },
     { key: 'role', header: 'Função', render: (u: Usuario) => getRoleBadge(u.role) },
     {
+      key: 'perfil',
+      header: 'Perfil',
+      render: (u: Usuario) => {
+        const perfil = u.perfil_id ? perfis.find(p => p.id === u.perfil_id) : null;
+        if (!perfil) return <span className="text-[11px] text-muted-foreground">—</span>;
+        return (
+          <Badge variant="outline" className={`text-xs ${perfil.sistema ? 'border-purple-400 text-purple-700 dark:text-purple-300' : 'border-indigo-400 text-indigo-700 dark:text-indigo-300'}`}>
+            {perfil.nome}
+          </Badge>
+        );
+      },
+    },
+    {
       key: 'bares',
       header: 'Bares',
       render: (u: Usuario) => {
@@ -681,7 +711,7 @@ function UsuariosPage() {
         </div>
       ),
     },
-  ], [baresMap, getRoleBadge, handleEdit, handleResetPassword, handleDelete]);
+  ], [baresMap, getRoleBadge, handleEdit, handleResetPassword, handleDelete, perfis]);
 
   // Mostrar loading enquanto verifica permissões
   if (permissionsLoading) {
@@ -958,7 +988,37 @@ function UsuariosPage() {
                 <div className="pb-1">
                   <h3 className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Permissões</h3>
                 </div>
-                
+
+                {/* Perfil de acesso — RBAC Fase 2. Quando um perfil está selecionado, os
+                    módulos vêm dele (matriz granular fica só leitura, com aviso). */}
+                <div className="p-3 rounded-lg border border-[hsl(var(--border))]">
+                  <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))] uppercase tracking-wider block mb-1.5">
+                    Perfil de acesso
+                  </label>
+                  <select
+                    value={formData.perfil_id || ''}
+                    onChange={(e) => {
+                      const v = e.target.value || null;
+                      setFormData(prev => ({ ...prev, perfil_id: v }));
+                      // Se escolheu perfil, desmarca "admin manual" (perfil Admin faz isso via módulos)
+                      const escolheuAdmin = v && perfis.find(p => p.id === v)?.nome === 'Admin';
+                      if (escolheuAdmin) setIsAdminUser(true);
+                    }}
+                    className="w-full h-9 rounded-md border border-[hsl(var(--border))] bg-transparent px-2.5 text-sm"
+                  >
+                    <option value="">— sem perfil (usa matriz manual abaixo) —</option>
+                    {perfis.map(p => (
+                      <option key={p.id} value={p.id}>{p.nome}{p.sistema ? ' (sistema)' : ''}</option>
+                    ))}
+                  </select>
+                  {formData.perfil_id && (
+                    <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-1.5">
+                      Os módulos vêm do perfil selecionado. Alterações no perfil refletem em todos os vinculados.{' '}
+                      <a href="/configuracoes/administracao/perfis" className="underline">Gerenciar perfis</a>
+                    </p>
+                  )}
+                </div>
+
                 {/* Checkbox de Administrador */}
                 <div className="p-3 rounded-lg border border-[hsl(var(--border))]">
                   <div className="flex items-center space-x-2">
@@ -977,15 +1037,24 @@ function UsuariosPage() {
                   </div>
                 </div>
 
-                {/* Módulos específicos */}
+                {/* Módulos específicos — só aparece quando NÃO tem perfil selecionado */}
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">Acesso por módulo</span>
+                  <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                    Acesso por módulo {formData.perfil_id ? '(controlado pelo perfil)' : '(manual)'}
+                  </span>
                   <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
                     <b>V</b> ver · <b>E</b> editar · <b>I</b> inserir · <b>X</b> excluir
                   </span>
                 </div>
-                <div className={`rounded-lg p-3 border border-[hsl(var(--border))] max-h-64 overflow-y-auto scrollbar-thin ${isAdminUser ? 'opacity-50 pointer-events-none' : ''}`}>
-                  {isAdminUser && (
+                <div className={`rounded-lg p-3 border border-[hsl(var(--border))] max-h-64 overflow-y-auto scrollbar-thin ${isAdminUser || formData.perfil_id ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {formData.perfil_id && (
+                    <div className="mb-3 p-2 rounded-md bg-indigo-100 dark:bg-indigo-900/25">
+                      <p className="text-xs text-indigo-800 dark:text-indigo-200">
+                        Os módulos vêm do perfil <b>{perfis.find(p => p.id === formData.perfil_id)?.nome}</b>. Pra ajustar, edite o perfil.
+                      </p>
+                    </div>
+                  )}
+                  {isAdminUser && !formData.perfil_id && (
                     <div className="mb-3 p-2 rounded-md bg-[hsl(var(--muted))]">
                       <p className="text-xs text-[hsl(var(--muted-foreground))]">
                         Administrador tem acesso a todos os módulos automaticamente

@@ -158,6 +158,7 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // CONFIGURAÇÕES (Apenas Admin)
   // ========================================
   { path: '/configuracoes/administracao/usuarios', adminOnly: true },
+  { path: '/configuracoes/administracao/perfis', adminOnly: true },
   { path: '/configuracoes/administracao/integracoes', adminOnly: true },
   { path: '/configuracoes/permissoes', adminOnly: true },
   { path: '/configuracoes/seguranca', adminOnly: true },
