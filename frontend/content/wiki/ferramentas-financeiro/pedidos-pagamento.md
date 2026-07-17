@@ -126,6 +126,8 @@ Conferência das faturas de cartão, linha a linha, com lançamento no Conta Azu
 
 Quem **envia** o insumo registra: escolhe o bar de destino, os insumos e as quantidades (o custo puxa do preço do insumo). Ao registrar, o **desvio de estoque dos dois bares corrige na hora** (saída no emissor, entrada no recebedor). Depois, opcionalmente, lança no Conta Azul (receita a receber no emissor + despesa a pagar no recebedor) e dispara o PIX de acerto entre os bares — com um **preview** antes de confirmar, porque o Conta Azul não permite excluir lançamento.
 
+**De-para do insumo destino (não é código-a-código):** o mesmo código `i0XXX` no ContaHub NÃO é o mesmo insumo nos dois bares (o mesmo `i0279` pode ser "Pão Smash" no Deboche e "Espumante" no Ordinário). Por isso a coluna **"Equivale a qual insumo no [bar destino]?"** é obrigatória e funciona como um **combobox digitável**: o sistema sugere o equivalente por sobreposição de palavras do NOME (ignora acentos/pontuação e palavras tipo "und/kg/ml"), mas quem registra confirma vendo nome + código dos dois lados. Se um insumo não existe no destino, escolha **"— sem equivalente —"**: a saída daqui é registrada mesmo assim, mas a entrada lá não; o aviso amarelo lista os itens sem equivalente pra você decidir se cadastra antes.
+
 ## Colunas e cálculos
 
 ### Card do pedido (abas PIX e Boleto)

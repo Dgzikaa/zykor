@@ -112,7 +112,7 @@ A tabela tem uma coluna de **Categoria**, depois **12 pares de colunas (uma por 
 - **Sinais**: lançamentos do tipo RECEITA entram positivos; todo o resto entra negativo. As despesas aparecem com sinal negativo (em vermelho).
 - **YTD só de meses fechados**: o acumulado do ano soma apenas meses encerrados (fecham no dia 15 do mês seguinte), então o mês corrente/aberto não infla o YTD. Isso atualiza sozinho conforme o calendário.
 - **Categorização própria da DRE**: a classificação usa o de-para `financial.dre_categoria_macro`, que **não é** o mesmo da Orçamentação. O drill-down também respeita essa categorização.
-- **Fonte materializada**: a tabela lê `gold.mv_dre_ano` (uma cópia materializada da função `get_dre_por_ano`, com refresh de hora em hora) por performance — mesmos números, sem risco de timeout. Por isso, uma alteração feita agora no Conta Azul pode levar até a próxima atualização/refresh para aparecer.
+- **Fonte materializada**: a tabela lê `gold.mv_dre_ano` (uma cópia materializada da função `get_dre_por_ano`) por performance — mesmos números, sem risco de timeout. Um cron dá refresh a cada hora (às XX:07), mas **cada vez que você aperta "Atualizar" ou "sincronizar ano completo" o refresh também é acionado no final do sync**, então a alteração aparece na hora, não só na próxima virada.
 - **Exclusões**: lançamentos marcados como excluídos no Conta Azul (`excluido_em`) são ignorados. Categorias marcadas como **IGNORAR** no de-para (ex.: "Despesas Grupo Bizu") não entram na DRE de nenhum bar. Movimentações financeiras que o Conta Azul taggeia como "Outras Receitas" mas que são transferências, aplicações, resgates, PIX intercompany, depósitos do próprio caixa etc. são **filtradas por padrão de descrição** (tabela `dre_receita_ignorar_pattern`), para não inflar a receita.
 - **Esqueleto de categorias**: mesmo categorias sem nenhum lançamento no ano aparecem zeradas, para manter a estrutura da DRE sempre completa e comparável.
 - **Estados vazios**: célula com valor zero mostra "—". Célula sem base de receita não mostra %. O popup mostra "Nenhum lançamento neste período" quando não há dados.
@@ -123,7 +123,10 @@ A tabela tem uma coluna de **Categoria**, depois **12 pares de colunas (uma por 
 A DRE usa o valor **bruto por competência** (total devido no mês), enquanto o Conta Azul às vezes mostra o valor liquidado (pago). Além disso, transferências e movimentações internas taggeadas como receita são propositalmente excluídas.
 
 **Mudei um valor no Conta Azul e a DRE não atualizou. O que faço?**
-Clique em **"Atualizar"**. Se você mudou apenas a **categoria** de um lançamento (não o valor), use **"sincronizar ano completo"**, porque recategorizar não é detectado pela sincronização rápida.
+Clique em **"Atualizar"**. Se você mudou apenas a **categoria** de um lançamento (não o valor), use **"sincronizar ano completo"**, porque recategorizar não é detectado pela sincronização rápida — o toast do modo rápido, aliás, avisa isso quando a contagem volta zerada. Nos dois casos o refresh da tabela materializada já é acionado no fim do sync, então o efeito aparece na hora.
+
+**Vejo o valor certo no drill-down (lista de lançamentos) mas o total da coluna do mês está diferente. Como pode?**
+Era o sintoma clássico da MV desatualizada — o drill-down lê ao vivo e o agregado lia do cache horário. Isso foi resolvido em 16/07/2026: agora todo sync força o refresh da MV. Se ainda acontecer, é bug: reportar.
 
 **O que é o YTD?**
 É o acumulado do ano (Year To Date), somando só os meses já fechados. Cada mês fecha no dia 15 do mês seguinte.

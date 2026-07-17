@@ -10,6 +10,8 @@ icon: Users
 
 # Funcionários
 
+> **Módulo RH em Beta.** Todo o menu de RH ainda está em testes/iteração — dados podem estar incompletos e o comportamento pode mudar. Um badge "Beta" no menu lateral e um banner amarelo no topo de cada página de RH sinalizam isso. Feedback é bem-vindo.
+
 ## Visão geral
 
 A tela **Funcionários** é a central de RH (Recursos Humanos) do bar. Reúne, em um só lugar:

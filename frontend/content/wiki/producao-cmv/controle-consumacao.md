@@ -75,6 +75,20 @@ A categoria **"Outros"** é justamente o balde do que o sistema não conseguiu c
 2. Cada comanda de artista aparece com um seletor. O sistema já resolve sozinho pelo **nome** ou pelo **show da noite**; ajuste manualmente quando necessário (ex.: noite com mais de uma banda).
 3. O rótulo indica a origem: **manual**, **auto (nome)** ou **auto (noite)**. Use o botão **Só revisar** para ver apenas os que precisam de conferência.
 
+### Ignorar consumações lançadas erradas
+Serve para tirar do controle lançamentos claramente equivocados (ex.: consumação lançada como aniversário mas era outro motivo) **sem apagar do bruto** — o registro do ContaHub permanece intocado, só some das somas do painel.
+
+1. Na coluna **Ações** (última coluna) de cada linha há um ícone de olho cortado ("EyeOff"). Clique para marcar aquela linha como ignorada.
+2. No modo agrupado, o botão fica no header da mesa e marca **todas as linhas daquela mesa** de uma vez (com prompt de motivo opcional).
+3. Um aviso âmbar no topo mostra quantas ignoradas existem e o valor "escondido" quando você está no modo padrão.
+4. No topo há um seletor de **modo de visão das ignoradas**:
+   - **Ativas** (padrão) — esconde as ignoradas; somas e cards refletem só o que entra no controle.
+   - **Todas** — mostra tudo; ignoradas aparecem tachadas em vermelho.
+   - **Só ignoradas** — vê e restaura o que já foi marcado.
+5. Para restaurar, entre em **Só ignoradas** (ou **Todas**) e clique no ícone de **RotateCcw** ("desfazer") na linha.
+
+O motivo digitado no prompt fica salvo e aparece no tooltip da linha, útil pra auditar depois.
+
 ### Exportar
 Clique em **CSV** para baixar os lançamentos filtrados (respeita a ordenação atual). O arquivo sai como `consumacao_<inicio>_a_<fim>.csv`, com separador `;` e vírgula decimal (pt-BR).
 
@@ -191,6 +205,7 @@ Período e datas recarregam os dados do servidor; os demais filtros são aplicad
 - **Arredondamentos:** custo e bruto são arredondados a 2 casas; os gráficos usam valores inteiros (arredondados) só para exibição.
 - **Estados vazios:** sem lançamentos no período aparece "Nenhum lançamento no período/filtro."; a aba Análises mostra "Sem dados no período/filtro para analisar.".
 - **Performance:** a API usa uma função agregada (`..._agg`) que roda a consulta pesada uma única vez e retorna tudo em um só bloco, evitando o corte de 1000 linhas do PostgREST.
+- **Ignorar é por hash da linha:** cada linha tem um `chave_hash` (MD5 de `mesa_norm|data|motivo|produto|valor_bruto|qtd`). O que fica salvo em `financial.consumo_ignorados` é essa chave + bar_id + motivo opcional. Se duas linhas 100% idênticas existirem, marcar uma marca as duas (aceitável — em geral são erros duplicados). Filtros de coluna/dropdown do combobox **abrem para cima** quando não cabem embaixo, pra não ficar cortados no fim da tabela.
 
 ## Dúvidas frequentes
 
@@ -231,4 +246,5 @@ Origem: **ContaHub** (vendas/descontos), enriquecido com fichas técnicas e cada
 - **Ficha técnica / custo:** `producao_ficha_item`, `producao_base`, `silver.insumo_catalogo`, `produto_contahub_map`, `produto_cardapio`.
 - **Fator do bar:** `operations.bar_regras_negocio.cmv_fator_consumo`.
 - **Vínculos e cadastros:** `financial.consumo_mesa_vinculo`, `financial.consumo_socio`, `operations.bar_artistas`.
+- **Ignorados:** `financial.consumo_ignorados` (bar_id + chave_hash + motivo + criado_em/por). Endpoints `POST /api/operacional/consumacao/ignorar` e `DELETE ...?chaves=...`.
 - **Tela "Por artista":** `financial.fn_consumo_artistas_periodo` e `financial.consumo_artista_override`.

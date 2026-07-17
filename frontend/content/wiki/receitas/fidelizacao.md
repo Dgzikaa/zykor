@@ -26,20 +26,28 @@ Serve para o dono/marketing acompanhar: tamanho da base fidelizada, quantos pont
 
 Tudo respeita o **bar selecionado** no topo.
 
+## Filtro de período (topo)
+
+Acima dos KPIs há os presets **Hoje**, **7 dias**, **Mês**, **Ano**, **Tudo** e **Custom** (data inicial e final). Padrão ao abrir é **Tudo** (visão lifetime).
+
+O filtro **só afeta os dados que têm data de referência** — o parceiro entrega `vw_ordi_clientes` já consolidada por cliente (sem histórico), então KPIs de base (clientes na base, saldo, consumo total, ticket médio) são sempre snapshot atual. Já os movimentos (pontos gerados/utilizados, resgates, valor em benefícios, gráfico mensal, produtos resgatados, taxa de resgate e clientes com pontos/resgates) são recalculados no período escolhido. Um banner azul explica isso quando o filtro está ativo.
+
+Os labels dos KPIs ganham sufixo **"(período)"** ou **"(atual)"** conforme o escopo, pra deixar claro cada número.
+
 ## Colunas e cálculos
 
 ### KPIs (topo)
 
-| Indicador | O que mostra | Como é calculado |
-|---|---|---|
-| Clientes na base | Total de clientes no programa | Contagem de clientes; sub = quantos têm cadastro |
-| Com pontos | Clientes com saldo de pontos | Contagem; sub = % da base |
-| Saldo de pontos | Pontos ainda não resgatados | Σ do saldo; sub = pontos gerados × usados |
-| Resgates | Nº de resgates e % de resgatadores | Contagem de resgates; taxa = resgatadores ÷ pontuadores |
-| Consumo total | Consumo acumulado dos clientes | Σ do total consumido |
-| Ticket médio | Consumo médio por cliente | Média do ticket dos clientes com consumo |
-| **Valor em benefícios** | Quanto o programa devolveu em resgates | Σ do valor estimado dos benefícios resgatados |
-| Pontos utilizados | % dos pontos gerados que já foram usados | pontos usados ÷ pontos gerados |
+| Indicador | Sufixo | O que mostra | Como é calculado |
+|---|---|---|---|
+| Clientes na base | (atual) | Total de clientes no programa | Contagem de clientes; sub = quantos têm cadastro |
+| Com pontos | (período/total) | Clientes que ganharam pontos | Sem filtro: contagem lifetime. Com filtro: `cliente_id` DISTINCT na `vw_ordi_pontos` do período |
+| Saldo de pontos | (atual) | Pontos ainda não resgatados | Σ do saldo atual (não muda com filtro); sub mostra gerados × usados **no escopo escolhido** |
+| Resgates | (período/total) | Nº de resgates e clientes que resgataram | Sem filtro: lifetime. Com filtro: contagem em `vw_ordi_resgates` no período + `cliente_id` DISTINCT |
+| Consumo total | (atual) | Consumo acumulado dos clientes | Σ do total consumido — sempre lifetime, o parceiro não entrega recortado |
+| Ticket médio | (atual) | Consumo médio por cliente | Média do ticket dos clientes com consumo — lifetime |
+| **Valor em benefícios** | (período/total) | Quanto o programa devolveu em resgates | Σ do valor estimado dos resgates do período |
+| Pontos utilizados | (período/total) | % dos pontos gerados que foram usados | pontos usados ÷ pontos gerados **no escopo escolhido** |
 
 ### Gráficos
 
@@ -58,7 +66,8 @@ Nome, telefone, visitas, consumo, saldo de pontos, resgates e status. Busca por 
 
 - **Fonte externa (parceiro Go!Bar):** os dados vêm da API do parceiro (leitura), agregados **no servidor** do Zykor. A chave de acesso é somente-leitura e fica no back-end (nunca no navegador).
 - **De-para por bar:** cada bar do Zykor aponta para um "estabelecimento" no sistema do parceiro. Hoje só o Ordinário está mapeado.
-- **Resiliente a falha do parceiro:** os resgates e a evolução de pontos são carregados em separado; se o parceiro ficar indisponível para essas partes, a tela **continua mostrando os clientes** e exibe um aviso discreto, em vez de quebrar.
+- **Resiliente a falha do parceiro:** os resgates e a evolução de pontos são carregados em separado; se o parceiro ficar indisponível para essas partes, a tela **continua mostrando os clientes** e exibe um aviso discreto, em vez de quebrar. Quando essas views caem, os KPIs de movimento fazem fallback para o valor lifetime da `vw_ordi_clientes` para não zerar sem motivo.
+- **Escopo dos KPIs (`escopo` no response):** a API responde com `escopo: 'lifetime' | 'periodo'` e o range aplicado. A UI usa isso para trocar os sufixos dos labels e sinalizar o banner.
 - **Números do programa, não do caixa:** consumo, ticket e pontos refletem o que o parceiro registra no programa, que pode diferir do faturamento contábil do bar.
 
 ## Fonte dos dados
