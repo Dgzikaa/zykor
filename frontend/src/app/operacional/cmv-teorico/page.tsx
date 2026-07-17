@@ -16,7 +16,7 @@ import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitur
 import { usePageTitle } from '@/contexts/PageTitleContext';
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const fmtPct = (v: any) => v == null ? '—' : `${Number(v).toFixed(1)}%`;
+const fmtPct = (v: any) => v == null ? '—' : `${Number(v).toFixed(2)}%`;
 const fmtNum = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 const corCmv = (v: any) => v == null ? 'text-gray-400' : v > 45 ? 'text-red-600 dark:text-red-400' : v > 33 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400';
 
