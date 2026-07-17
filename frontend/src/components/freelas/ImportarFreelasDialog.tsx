@@ -8,7 +8,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
-import { api } from '@/lib/api-client';
 import { Loader2, Upload, FileDown, Check } from 'lucide-react';
 
 // Mesmos campos do cadastro "Novo freela".
@@ -67,19 +66,22 @@ const inferTipoChave = (tipoCell: unknown, pix: string): string | null => {
   return null;
 };
 
-type Row = {
+export type FreelaImportRow = {
   nome: string; cpf_cnpj: string; funcao: string;
   chave_pix: string; tipo_chave: string | null; valor_padrao: number | null;
-  erro?: string; dup?: boolean;
 };
 
+type Row = FreelaImportRow & { erro?: string; dup?: boolean };
+
 export function ImportarFreelasDialog({
-  open, onOpenChange, onImportado, existentes,
+  open, onOpenChange, onImportado, existentes, onImportRow,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onImportado: () => void;
   existentes: { nome: string }[];
+  /** Chamado uma vez por linha válida. Deve lançar erro em caso de falha. */
+  onImportRow: (row: FreelaImportRow) => Promise<void>;
 }) {
   const { showToast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -150,12 +152,11 @@ export function ImportarFreelasDialog({
     let ok = 0, dup = 0; const falhas: string[] = [];
     for (const r of importaveis) {
       try {
-        await api.post('/api/financeiro/beneficiarios', {
+        await onImportRow({
           nome: r.nome,
-          cpf_cnpj: r.cpf_cnpj || null,
-          tipo: 'freela',
+          cpf_cnpj: r.cpf_cnpj,
           funcao: r.funcao,
-          chave_pix: r.chave_pix || null,
+          chave_pix: r.chave_pix,
           tipo_chave: r.tipo_chave,
           valor_padrao: r.valor_padrao,
         });

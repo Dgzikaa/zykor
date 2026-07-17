@@ -11,9 +11,10 @@ import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api-client';
-import { HandCoins, Loader2, Plus, Search, Send, ChevronLeft, ChevronRight, Check, X, Pencil, Trash2, Lock, Unlock, CheckCircle2 } from 'lucide-react';
+import { HandCoins, Loader2, Plus, Search, Send, ChevronLeft, ChevronRight, Check, X, Pencil, Trash2, Lock, Unlock, CheckCircle2, Upload } from 'lucide-react';
 import { type PedidoStatus } from '@/app/financeiro/pedidos-pagamento/types';
 import { FreelaPorDia, type FreelaItem } from '@/components/freelas/FreelaPorDia';
+import { ImportarFreelasDialog } from '@/components/freelas/ImportarFreelasDialog';
 
 type Freela = { id: string; nome: string; funcao: string | null; valor_padrao: number | null; chave_pix: string | null; contaazul_pessoa_id: string | null };
 type Pedido = { id: string; beneficiario_nome: string | null; valor: number; status: PedidoStatus; data_vencimento: string; data_competencia: string | null; contaazul_pessoa_id: string | null };
@@ -59,6 +60,7 @@ export default function FreelasOperacaoPage() {
   const [novoOpen, setNovoOpen] = useState(false);
   const [novo, setNovo] = useState({ nome: '', funcao: '', valor: '', pix: '' });
   const [salvandoNovo, setSalvandoNovo] = useState(false);
+  const [importarOpen, setImportarOpen] = useState(false);
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -267,6 +269,9 @@ export default function FreelasOperacaoPage() {
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar freela por nome ou função..." className="h-9 pl-8" />
                 </div>
+                <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={() => setImportarOpen(true)}>
+                  <Upload className="w-4 h-4 mr-1.5" />Importar planilha
+                </Button>
                 <Button variant={novoOpen ? 'secondary' : 'outline'} size="sm" className="h-9 shrink-0" onClick={() => setNovoOpen(o => !o)}>
                   <Plus className="w-4 h-4 mr-1.5" />Novo freela
                 </Button>
@@ -323,6 +328,24 @@ export default function FreelasOperacaoPage() {
             </>
           )}
         </>
+      )}
+
+      {podeInserir && (
+        <ImportarFreelasDialog
+          open={importarOpen}
+          onOpenChange={setImportarOpen}
+          onImportado={carregar}
+          existentes={roster}
+          onImportRow={(r) => api.post('/api/operacional/freelas', {
+            action: 'cadastrar_freela',
+            nome: r.nome,
+            cpf_cnpj: r.cpf_cnpj || undefined,
+            funcao: r.funcao || undefined,
+            chave_pix: r.chave_pix || undefined,
+            tipo_chave: r.tipo_chave || undefined,
+            valor_padrao: r.valor_padrao ?? undefined,
+          })}
+        />
       )}
     </PageShell>
   );

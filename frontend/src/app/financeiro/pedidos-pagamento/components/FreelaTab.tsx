@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Loader2, Plus, Users, Send, ChevronLeft, ChevronRight, CheckCircle2, Check, Search, Upload, Pencil, Trash2, X } from 'lucide-react';
 import { NovoFreelaDialog } from './NovoFreelaDialog';
-import { ImportarFreelasDialog } from './ImportarFreelasDialog';
+import { ImportarFreelasDialog } from '@/components/freelas/ImportarFreelasDialog';
 import { STATUS_LABEL, STATUS_COLOR, type PedidoStatus } from '../types';
 
 type Freela = { id: string; nome: string; funcao: string | null; valor_padrao: number | null; chave_pix: string | null; contaazul_pessoa_id: string | null };
@@ -367,7 +367,21 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
       )}
 
       <NovoFreelaDialog open={novoOpen} onOpenChange={setNovoOpen} onCriado={carregar} />
-      <ImportarFreelasDialog open={importarOpen} onOpenChange={setImportarOpen} onImportado={carregar} existentes={freelas} />
+      <ImportarFreelasDialog
+        open={importarOpen}
+        onOpenChange={setImportarOpen}
+        onImportado={carregar}
+        existentes={freelas}
+        onImportRow={(r) => api.post('/api/financeiro/beneficiarios', {
+          nome: r.nome,
+          cpf_cnpj: r.cpf_cnpj || null,
+          tipo: 'freela',
+          funcao: r.funcao,
+          chave_pix: r.chave_pix || null,
+          tipo_chave: r.tipo_chave,
+          valor_padrao: r.valor_padrao,
+        })}
+      />
     </div>
   );
 }

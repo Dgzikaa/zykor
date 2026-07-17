@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
     if (!nome) return NextResponse.json({ success: false, error: 'nome do freela é obrigatório' }, { status: 400 });
     const funcao = String(body.funcao || '').trim() || null;
     const chave_pix = String(body.chave_pix || '').trim() || null;
+    const tipo_chave = String(body.tipo_chave || '').trim() || null;
     const cpf_cnpj = String(body.cpf_cnpj || '').replace(/\D/g, '') || null;
     const valorPadrao = body.valor_padrao != null && body.valor_padrao !== ''
       ? Math.round(Number(body.valor_padrao) * 100) / 100 : null;
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     const { data: criado, error } = await fin(supabase).from('beneficiarios').insert({
       bar_id, tipo: 'freela', ativo: true,
-      nome, funcao, valor_padrao, chave_pix, cpf_cnpj,
+      nome, funcao, valor_padrao, chave_pix, tipo_chave, cpf_cnpj,
     }).select('id, nome, funcao, valor_padrao, chave_pix, tipo_chave, cpf_cnpj, contaazul_pessoa_id').single();
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, freela: criado });
