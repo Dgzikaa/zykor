@@ -234,14 +234,15 @@ export async function GET(request: NextRequest) {
     const produzido = Number(r.produzido || 0);
     const desperdicio = Number(r.desperdicio || 0);
     // Produção sem "produzido" informado: SEMPRE mostrar o desvio bruto calculado
-    // pela fn_desvios (não esconde mais com "—"). A maioria dos dias não tem produção
-    // lançada, e o número cru é informação útil — sobra grande com est_ini=0 sinaliza
-    // "produziu e não registrou"; perda legítima aparece normal. Flag `sem_producao`
-    // vira só badge visual (não altera cálculo nem tira do agregado).
+    // pela fn_desvios (não esconde mais com "—"). Flag `sem_producao` (badge amber)
+    // só acende quando o balanço INDICA produção não lançada — est_fim_teorico < 0
+    // significa "venderam mais do que tinha em estoque, alguém produziu e não anotou"
+    // (Gonza 2026-07-17: Pastel Carne PC0013). Nos dias em que a produção não foi
+    // feita mesmo (estoque_ini cobre a venda), fim_teorico >= 0 → sem alerta.
     // Antes: `pendente = is_producao && !produzido_informado && teorica > 0` escondia
-    // desvios legítimos (Gonza 2026-07-17: Pastel Carne PC0013 tinha desvio +54 unid /
-    // +R$106,91 e mostrava "—").
-    const sem_producao = is_producao && !r.produzido_informado;
+    // desvios legítimos e pintava tudo amarelo à toa.
+    const est_fim_teorico = Number(r.estoque_fim_teorico || 0);
+    const sem_producao = is_producao && !r.produzido_informado && est_fim_teorico < 0;
     const pendente = false;
     // motivo de dado faltando (p/ o usuário ver QUAIS itens distorcem a perda) — só insumos
     const dvrs = Number(r.desvio_rs || 0);
