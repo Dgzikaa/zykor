@@ -1270,13 +1270,19 @@ export default function ControleConsumacaoPage() {
             </div>
           </div>
 
-          {/* Aviso de valor "escondido" pelas ignoradas */}
+          {/* Aviso de valor "escondido" pelas ignoradas — c/ atalho pra ir direto ver */}
           {modoIgnoradas === 'ativas' && qtdIgnoradas > 0 && (
-            <div className="rounded-md border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/25 px-3 py-1.5 text-[11px] text-amber-800 dark:text-amber-200 flex items-center gap-2">
+            <div className="rounded-md border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/25 px-3 py-1.5 text-[11px] text-amber-800 dark:text-amber-200 flex items-center gap-2 flex-wrap">
               <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-              <span>
-                <strong>{qtdIgnoradas}</strong> consumação(ões) ignorada(s) — {moeda(totalBrutoIgnorado)} fora do controle. Troque pra &quot;Só ignoradas&quot; pra revisar ou restaurar.
+              <span className="flex-1">
+                <strong>{qtdIgnoradas}</strong> consumação(ões) ignorada(s) — {moeda(totalBrutoIgnorado)} fora do controle.
               </span>
+              <button
+                onClick={() => setModoIgnoradas('so_ignoradas')}
+                className="rounded-md border border-amber-300 dark:border-amber-700 bg-white dark:bg-amber-900/40 px-2 py-0.5 text-[11px] font-medium text-amber-900 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-800/60 transition-colors"
+              >
+                Ver ignoradas · restaurar
+              </button>
             </div>
           )}
 
