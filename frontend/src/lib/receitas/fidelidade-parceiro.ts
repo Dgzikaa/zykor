@@ -62,6 +62,7 @@ export interface ResgateFidelidade {
 
 /** Um movimento de pontos (view vw_ordi_pontos) — só os campos que agregamos por mês. */
 export interface PontoMovimento {
+  cliente_id: string | null;
   data_movimento: string | null;
   pontos_gerados: number;
   pontos_utilizados: number;
@@ -124,7 +125,7 @@ export function fetchPontosFidelidade(
   const de = range?.de ? `&data_movimento=gte.${range.de}` : '';
   const ate = range?.ate ? `&data_movimento=lte.${range.ate}` : '';
   return fetchAllRange<PontoMovimento>(
-    `vw_ordi_pontos?select=data_movimento,pontos_gerados,pontos_utilizados,agrupamento_mes` +
+    `vw_ordi_pontos?select=cliente_id,data_movimento,pontos_gerados,pontos_utilizados,agrupamento_mes` +
       `&estabelecimento_id=eq.${encodeURIComponent(estabelecimentoId)}&agrupamento_mes=not.is.null${de}${ate}`,
   );
 }

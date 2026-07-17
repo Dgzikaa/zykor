@@ -72,6 +72,8 @@ interface Resumo {
 interface Resposta {
   success: boolean;
   disponivel: boolean;
+  escopo?: 'lifetime' | 'periodo';
+  range?: { de?: string; ate?: string };
   resumo: Resumo | null;
   porStatus: { status: string; clientes: number; saldoPontos: number }[];
   topProdutosResgatados: { produto: string; resgates: number; valor: number }[];
@@ -209,9 +211,14 @@ export default function FidelidadePage() {
           )}
         </div>
       </div>
-      {periodo !== 'tudo' && (rangeAtual.de || rangeAtual.ate) && (
-        <div className="rounded-md border border-blue-500/30 bg-blue-500/5 px-3 py-1.5 text-[11px] text-blue-800 dark:text-blue-300">
-          Movimentação (pontos, resgates, produtos, evolução mensal) filtrada por período. KPIs de base (clientes, saldo, consumo total) são sempre lifetime — o parceiro só entrega essa view consolidada.
+      {resp?.escopo === 'periodo' && (
+        <div className="rounded-md border border-blue-500/30 bg-blue-500/5 px-3 py-2 text-xs text-blue-800 dark:text-blue-300">
+          <div className="font-semibold">Filtrando por período {rangeAtual.de} → {rangeAtual.ate}</div>
+          <div className="mt-0.5 text-[11px] opacity-90">
+            <strong>Muda com o filtro:</strong> pontos gerados/utilizados, resgates, clientes com pontos/resgates, taxa de resgate, gráficos e produtos resgatados.
+            <br />
+            <strong>Não muda (lifetime):</strong> total de clientes na base, saldo de pontos, consumo total, ticket médio — o parceiro só entrega essa view consolidada.
+          </div>
         </div>
       )}
 
@@ -234,41 +241,48 @@ export default function FidelidadePage() {
         </div>
       ) : (
         <>
-          {/* KPIs */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-            <Kpi
-              label="Clientes na base"
-              valor={num(resumo!.totalClientes)}
-              sub={`${num(resumo!.comCadastro)} com cadastro`}
-            />
-            <Kpi
-              label="Com pontos"
-              valor={num(resumo!.comPontos)}
-              sub={`${pct((resumo!.comPontos / Math.max(1, resumo!.totalClientes)) * 100)} da base`}
-            />
-            <Kpi
-              label="Saldo de pontos"
-              valor={num(resumo!.saldoPontosTotal)}
-              sub={`${num(resumo!.pontosGerados)} gerados · ${num(resumo!.pontosUtilizados)} usados`}
-            />
-            <Kpi
-              label="Resgates"
-              valor={num(resumo!.totalResgates)}
-              sub={`${num(resumo!.comResgate)} clientes · taxa ${pct(resumo!.taxaResgate)}`}
-            />
-            <Kpi label="Consumo total" valor={moeda(resumo!.totalConsumido)} />
-            <Kpi label="Ticket médio" valor={moeda(resumo!.ticketMedio)} />
-            <Kpi
-              label="Valor em benefícios"
-              valor={moeda(resumo!.valorBeneficios)}
-              sub={`${num(resumo!.qtdResgates)} resgates`}
-            />
-            <Kpi
-              label="Pontos utilizados"
-              valor={pct((resumo!.pontosUtilizados / Math.max(1, resumo!.pontosGerados)) * 100)}
-              sub="do total gerado"
-            />
-          </div>
+          {/* KPIs — sufixo "(período)" ou "(total)" deixa claro o que muda com o filtro. */}
+          {(() => {
+            const noPeriodo = resp?.escopo === 'periodo';
+            const sufMov = noPeriodo ? ' (período)' : ' (total)';
+            const sufBase = ' (atual)';
+            return (
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+                <Kpi
+                  label={`Clientes na base${sufBase}`}
+                  valor={num(resumo!.totalClientes)}
+                  sub={`${num(resumo!.comCadastro)} com cadastro`}
+                />
+                <Kpi
+                  label={`Com pontos${sufMov}`}
+                  valor={num(resumo!.comPontos)}
+                  sub={`${pct((resumo!.comPontos / Math.max(1, resumo!.totalClientes)) * 100)} da base`}
+                />
+                <Kpi
+                  label={`Saldo de pontos${sufBase}`}
+                  valor={num(resumo!.saldoPontosTotal)}
+                  sub={`${num(resumo!.pontosGerados)} gerados${sufMov.trim()} · ${num(resumo!.pontosUtilizados)} usados`}
+                />
+                <Kpi
+                  label={`Resgates${sufMov}`}
+                  valor={num(resumo!.totalResgates)}
+                  sub={`${num(resumo!.comResgate)} clientes · taxa ${pct(resumo!.taxaResgate)}`}
+                />
+                <Kpi label={`Consumo total${sufBase}`} valor={moeda(resumo!.totalConsumido)} />
+                <Kpi label={`Ticket médio${sufBase}`} valor={moeda(resumo!.ticketMedio)} />
+                <Kpi
+                  label={`Valor em benefícios${sufMov}`}
+                  valor={moeda(resumo!.valorBeneficios)}
+                  sub={`${num(resumo!.qtdResgates)} resgates`}
+                />
+                <Kpi
+                  label={`Pontos utilizados${sufMov}`}
+                  valor={pct((resumo!.pontosUtilizados / Math.max(1, resumo!.pontosGerados)) * 100)}
+                  sub="do gerado no período"
+                />
+              </div>
+            );
+          })()}
 
           {/* Gráficos */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

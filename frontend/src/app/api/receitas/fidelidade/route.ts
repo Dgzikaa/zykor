@@ -55,15 +55,18 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Agregações do período completo (a view já é consolidada por cliente).
+  // Agregações lifetime — vw_ordi_clientes já vem consolidada por cliente.
+  // Alguns destes campos (pontosGerados/Utilizados, totalResgates, comPontos/Resgate)
+  // são SOBRESCRITOS abaixo quando há filtro de período, pra fazer sentido pra quem
+  // tá vendo "esse mês".
   let comCadastro = 0,
-    comPontos = 0,
-    comResgate = 0,
+    comPontos_lifetime = 0,
+    comResgate_lifetime = 0,
     comCarteira = 0,
     saldoPontosTotal = 0,
-    pontosGerados = 0,
-    pontosUtilizados = 0,
-    totalResgates = 0,
+    pontosGerados_lifetime = 0,
+    pontosUtilizados_lifetime = 0,
+    totalResgates_lifetime = 0,
     totalConsumido = 0,
     itensCarteira = 0,
     somaTicket = 0,
@@ -73,13 +76,13 @@ export async function GET(request: NextRequest) {
 
   for (const c of clientes) {
     if (c.tem_cadastro) comCadastro++;
-    if (c.tem_pontos) comPontos++;
-    if (c.tem_resgate) comResgate++;
+    if (c.tem_pontos) comPontos_lifetime++;
+    if (c.tem_resgate) comResgate_lifetime++;
     if (c.tem_itens_carteira) comCarteira++;
     saldoPontosTotal += n(c.saldo_pontos);
-    pontosGerados += n(c.pontos_gerados);
-    pontosUtilizados += n(c.pontos_utilizados);
-    totalResgates += n(c.total_resgates);
+    pontosGerados_lifetime += n(c.pontos_gerados);
+    pontosUtilizados_lifetime += n(c.pontos_utilizados);
+    totalResgates_lifetime += n(c.total_resgates);
     totalConsumido += n(c.total_consumido);
     itensCarteira += n(c.itens_na_carteira);
     if (n(c.ticket_medio) > 0) {
@@ -94,22 +97,6 @@ export async function GET(request: NextRequest) {
     statusAcc.set(status, s);
   }
 
-  const resumo = {
-    totalClientes: clientes.length,
-    comCadastro,
-    comPontos,
-    comResgate,
-    comCarteira,
-    saldoPontosTotal,
-    pontosGerados,
-    pontosUtilizados,
-    totalResgates,
-    totalConsumido,
-    itensCarteira,
-    ticketMedio: clientesComTicket ? somaTicket / clientesComTicket : 0,
-    taxaResgate: comPontos ? (comResgate / comPontos) * 100 : 0, // % dos pontuadores que já resgataram
-  };
-
   const porStatus = [...statusAcc.entries()]
     .map(([status, v]) => ({ status, clientes: v.clientes, saldoPontos: Math.round(v.saldoPontos) }))
     .sort((a, b) => b.clientes - a.clientes);
@@ -121,12 +108,18 @@ export async function GET(request: NextRequest) {
   let qtdResgates = 0;
   let evolucaoMensal: { mes: string; gerados: number; utilizados: number }[] = [];
   let extrasErro: string | null = null;
+  // Métricas do período (calculadas a partir dos pontos/resgates já filtrados)
+  let pontosGerados_periodo = 0;
+  let pontosUtilizados_periodo = 0;
+  const clientesQueGanharam = new Set<string>();
+  const clientesQueResgataram = new Set<string>();
 
-  // Filtro de período: aplica só nas views que têm data (resgates e pontos). A
-  // vw_ordi_clientes é lifetime, então KPIs do topo (saldo, cadastro, consumo total)
-  // não mudam com o período; movimentação sim.
+  // Filtro de período: aplica nas views que têm data (resgates e pontos). Quando
+  // aplicado, os KPIs de movimento são recalculados a partir do que veio filtrado
+  // — assim "Mês" mostra os pontos/resgates do mês, não os lifetime.
   const sp = new URL(request.url).searchParams;
   const range = { de: dataOk(sp.get('de')), ate: dataOk(sp.get('ate')) };
+  const temFiltro = !!(range.de || range.ate);
 
   const [resgatesR, pontosR] = await Promise.allSettled([
     fetchResgatesFidelidade(estabelecimentoId, range),
@@ -138,6 +131,7 @@ export async function GET(request: NextRequest) {
     for (const r of resgatesR.value) {
       qtdResgates++;
       valorBeneficios += n(r.valor_estimado_beneficio);
+      if (r.cliente_id) clientesQueResgataram.add(r.cliente_id);
       const prod = (r.produto_nome || r.item_nome || 'Sem produto').trim() || 'Sem produto';
       const a = prodAcc.get(prod) || { resgates: 0, valor: 0 };
       a.resgates++;
@@ -155,6 +149,11 @@ export async function GET(request: NextRequest) {
   if (pontosR.status === 'fulfilled') {
     const mesAcc = new Map<string, { gerados: number; utilizados: number }>();
     for (const p of pontosR.value) {
+      pontosGerados_periodo += n(p.pontos_gerados);
+      pontosUtilizados_periodo += n(p.pontos_utilizados);
+      if (n(p.pontos_gerados) > 0 && p.cliente_id) {
+        clientesQueGanharam.add(p.cliente_id);
+      }
       const mes = p.agrupamento_mes ? String(p.agrupamento_mes).slice(0, 7) : null; // YYYY-MM
       if (!mes) continue;
       const a = mesAcc.get(mes) || { gerados: 0, utilizados: 0 };
@@ -169,10 +168,42 @@ export async function GET(request: NextRequest) {
     extrasErro = pontosR.reason instanceof Error ? pontosR.reason.message : 'falha nos pontos';
   }
 
+  // Sem filtro: valores vêm da view consolidada por cliente (mais confiável, sempre
+  // presente). Com filtro: sobrescreve pelos totais do período (pra "Mês" fazer sentido).
+  // Se o parceiro tiver derrubado vw_ordi_pontos/vw_ordi_resgates, mantém o lifetime como
+  // fallback pra não zerar tudo sem motivo.
+  const pontosGerados = temFiltro && pontosR.status === 'fulfilled' ? Math.round(pontosGerados_periodo) : pontosGerados_lifetime;
+  const pontosUtilizados = temFiltro && pontosR.status === 'fulfilled' ? Math.round(pontosUtilizados_periodo) : pontosUtilizados_lifetime;
+  const totalResgates = temFiltro && resgatesR.status === 'fulfilled' ? qtdResgates : totalResgates_lifetime;
+  const comPontos = temFiltro && pontosR.status === 'fulfilled' ? clientesQueGanharam.size : comPontos_lifetime;
+  const comResgate = temFiltro && resgatesR.status === 'fulfilled' ? clientesQueResgataram.size : comResgate_lifetime;
+
+  const resumo = {
+    totalClientes: clientes.length,
+    comCadastro,
+    comPontos,
+    comResgate,
+    comCarteira,
+    saldoPontosTotal,
+    pontosGerados,
+    pontosUtilizados,
+    totalResgates,
+    totalConsumido,
+    itensCarteira,
+    ticketMedio: clientesComTicket ? somaTicket / clientesComTicket : 0,
+    taxaResgate: comPontos ? (comResgate / comPontos) * 100 : 0,
+    valorBeneficios: Math.round(valorBeneficios),
+    qtdResgates,
+  };
+
   return NextResponse.json({
     success: true,
     disponivel: true,
-    resumo: { ...resumo, valorBeneficios: Math.round(valorBeneficios), qtdResgates },
+    // "periodo" quando filtro aplicado, "lifetime" caso contrário. UI usa pra
+    // trocar labels dos KPIs sensíveis a período.
+    escopo: temFiltro ? 'periodo' : 'lifetime',
+    range,
+    resumo,
     porStatus,
     topProdutosResgatados,
     evolucaoMensal,
