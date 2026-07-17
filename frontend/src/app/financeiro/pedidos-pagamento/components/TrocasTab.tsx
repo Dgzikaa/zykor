@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -34,6 +35,132 @@ const normNome = (s: string) => (s || '')
   .replace(/[^a-z0-9]+/g, ' ')
   .replace(/\b(und|unid|unidade|kg|g|ml|l|lt|pct|cx|un)\b/g, ' ')
   .replace(/\s+/g, ' ').trim();
+
+// Combobox de "insumo destino" — dropdown via Portal porque a tabela pai tem
+// overflow-hidden e cortava a lista (o user via só a sugestão automática e achava
+// que o campo era read-only). Posição calculada a partir do bounding rect do input,
+// reposiciona no scroll/resize.
+function DestinoPicker({
+  itemCodigo,
+  codigoDestino,
+  barDestino,
+  nomeBarDestino,
+  insumosDestino,
+  destFiltrados,
+  insumoEscolhido,
+  destBusca,
+  aberto,
+  setBusca,
+  abrir,
+  fechar,
+  onEscolher,
+}: {
+  itemCodigo: string;
+  codigoDestino?: string | null;
+  barDestino: number | null;
+  nomeBarDestino: string;
+  insumosDestino: Insumo[];
+  destFiltrados: Insumo[];
+  insumoEscolhido: Insumo | null;
+  destBusca: string;
+  aberto: boolean;
+  setBusca: (v: string) => void;
+  abrir: () => void;
+  fechar: () => void;
+  onEscolher: (codigo: string | null) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null);
+
+  const desabilitado = !barDestino || insumosDestino.length === 0;
+  const motivoDesab = !barDestino ? 'Escolha o bar destino primeiro' : 'Bar destino sem insumos cadastrados no Zykor';
+
+  // Recalcula posição do dropdown sempre que abre + escuta scroll/resize.
+  useEffect(() => {
+    if (!aberto) { setPos(null); return; }
+    const atualizar = () => {
+      const r = inputRef.current?.getBoundingClientRect();
+      if (r) setPos({ left: r.left, top: r.bottom + 4, width: Math.max(r.width, 280) });
+    };
+    atualizar();
+    window.addEventListener('scroll', atualizar, true);
+    window.addEventListener('resize', atualizar);
+    return () => {
+      window.removeEventListener('scroll', atualizar, true);
+      window.removeEventListener('resize', atualizar);
+    };
+  }, [aberto]);
+
+  // Fecha ao clicar fora (input ou menu).
+  useEffect(() => {
+    if (!aberto) return;
+    const onDown = (e: MouseEvent) => {
+      if (inputRef.current?.contains(e.target as Node)) return;
+      if (menuRef.current?.contains(e.target as Node)) return;
+      fechar();
+    };
+    window.addEventListener('mousedown', onDown);
+    return () => window.removeEventListener('mousedown', onDown);
+  }, [aberto, fechar]);
+
+  return (
+    <div className="relative">
+      <Input
+        ref={inputRef}
+        value={aberto ? destBusca : (insumoEscolhido ? `${insumoEscolhido.nome} · ${insumoEscolhido.codigo}` : '')}
+        placeholder={desabilitado ? motivoDesab : 'clique e digite pra buscar…'}
+        disabled={desabilitado}
+        onFocus={abrir}
+        onClick={abrir}
+        onChange={(e) => setBusca(e.target.value)}
+        title={desabilitado ? motivoDesab : (insumoEscolhido ? `${insumoEscolhido.nome} (${insumoEscolhido.codigo}) — clique pra trocar` : 'Clique pra escolher o insumo')}
+        className={`h-8 pr-7 text-sm cursor-pointer ${codigoDestino ? '' : 'border-amber-400 dark:border-amber-600'}`}
+      />
+      {!desabilitado && (
+        <ChevronDown className={`absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none transition-transform ${aberto ? 'rotate-180' : ''}`} />
+      )}
+      {aberto && pos && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={menuRef}
+          data-picker-for={itemCodigo}
+          style={{ position: 'fixed', left: pos.left, top: pos.top, width: pos.width }}
+          className="z-[100] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl max-h-72 overflow-y-auto"
+        >
+          <div className="sticky top-0 z-10 border-b border-gray-100 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 px-3 py-1.5 text-[10px] uppercase tracking-wide text-gray-400">
+            Insumos de {nomeBarDestino} — {insumosDestino.length} no catálogo{destBusca ? ` · filtrando "${destBusca}"` : ''}
+          </div>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onEscolher(null)}
+            className="w-full text-left px-3 py-2 text-xs text-amber-700 dark:text-amber-400 hover:bg-gray-50 dark:hover:bg-gray-800/60 border-b border-gray-100 dark:border-gray-800"
+          >
+            — sem equivalente (não entra no estoque de lá) —
+          </button>
+          {destFiltrados.length === 0 && (
+            <div className="px-3 py-3 text-xs text-gray-400">
+              Nenhum insumo encontrado{destBusca ? ` pra "${destBusca}"` : ''}.
+            </div>
+          )}
+          {destFiltrados.map((d) => (
+            <button
+              key={d.codigo}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onEscolher(d.codigo)}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/60 flex items-center justify-between gap-2 ${d.codigo === codigoDestino ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}
+            >
+              <span className="truncate">{d.nome}</span>
+              <span className="text-xs text-gray-400 font-mono shrink-0">{d.codigo}</span>
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
 
 // melhor equivalente por sobreposição de palavras (exato > parcial); null = nada convincente
 const sugerirEquivalente = (nomeOrigem: string, candidatos: Insumo[]): string | null => {
@@ -317,53 +444,21 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                               de-para a entrada cai num insumo aleatório lá (bug 16/07: 60 pães → espumante).
                               Sugere ao adicionar, mas quem registra confirma vendo nome + código dos dois lados. */}
                           <td className="px-3 py-2">
-                            {(() => {
-                              const aberto = destPickerFor === it.codigo;
-                              const escolhido = it.codigoDestino ? insumoDestinoPorCod.get(it.codigoDestino) : null;
-                              const desabilitado = !barDestino || insumosDestino.length === 0;
-                              const motivoDesab = !barDestino
-                                ? 'Escolha o bar destino primeiro'
-                                : 'Bar destino sem insumos cadastrados no Zykor';
-                              return (
-                                <div className="relative">
-                                  <div className="relative">
-                                    <Input
-                                      value={aberto ? destBusca : (escolhido ? `${escolhido.nome} · ${escolhido.codigo}` : '')}
-                                      placeholder={desabilitado ? motivoDesab : 'clique e digite pra buscar…'}
-                                      disabled={desabilitado}
-                                      onFocus={() => { setDestPickerFor(it.codigo); setDestBusca(''); }}
-                                      onClick={() => { setDestPickerFor(it.codigo); setDestBusca(''); }}
-                                      onChange={(e) => { setDestPickerFor(it.codigo); setDestBusca(e.target.value); }}
-                                      onBlur={() => setTimeout(() => setDestPickerFor((cur) => cur === it.codigo ? null : cur), 200)}
-                                      title={desabilitado ? motivoDesab : (escolhido ? `${escolhido.nome} (${escolhido.codigo}) — clique pra trocar` : 'Clique pra escolher o insumo')}
-                                      className={`h-8 pr-7 text-sm cursor-pointer ${it.codigoDestino ? '' : 'border-amber-400 dark:border-amber-600'}`}
-                                    />
-                                    {!desabilitado && (
-                                      <ChevronDown className={`absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none transition-transform ${aberto ? 'rotate-180' : ''}`} />
-                                    )}
-                                  </div>
-                                  {aberto && (
-                                    <div className="absolute z-50 mt-1 w-full min-w-[280px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl max-h-72 overflow-y-auto">
-                                      <div className="sticky top-0 z-10 border-b border-gray-100 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 px-3 py-1.5 text-[10px] uppercase tracking-wide text-gray-400">
-                                        Insumos de {nomeBar(barDestino!)} — {insumosDestino.length} no catálogo
-                                      </div>
-                                      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setDestino(it.codigo, null)}
-                                        className="w-full text-left px-3 py-2 text-xs text-amber-700 dark:text-amber-400 hover:bg-gray-50 dark:hover:bg-gray-800/60 border-b border-gray-100 dark:border-gray-800">
-                                        — sem equivalente (não entra no estoque de lá) —
-                                      </button>
-                                      {destFiltrados.length === 0 && <div className="px-3 py-3 text-xs text-gray-400">Nenhum insumo encontrado pra &quot;{destBusca}&quot;.</div>}
-                                      {destFiltrados.map((d) => (
-                                        <button key={d.codigo} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setDestino(it.codigo, d.codigo)}
-                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/60 flex items-center justify-between gap-2 ${d.codigo === it.codigoDestino ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>
-                                          <span className="truncate">{d.nome}</span>
-                                          <span className="text-xs text-gray-400 font-mono shrink-0">{d.codigo}</span>
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
+                            <DestinoPicker
+                              itemCodigo={it.codigo}
+                              codigoDestino={it.codigoDestino}
+                              barDestino={barDestino}
+                              nomeBarDestino={barDestino ? nomeBar(barDestino) : ''}
+                              insumosDestino={insumosDestino}
+                              destFiltrados={destFiltrados}
+                              insumoEscolhido={it.codigoDestino ? insumoDestinoPorCod.get(it.codigoDestino) || null : null}
+                              destBusca={destBusca}
+                              aberto={destPickerFor === it.codigo}
+                              setBusca={(v) => { setDestPickerFor(it.codigo); setDestBusca(v); }}
+                              abrir={() => { setDestPickerFor(it.codigo); setDestBusca(''); }}
+                              fechar={() => setDestPickerFor((cur) => cur === it.codigo ? null : cur)}
+                              onEscolher={(cod) => setDestino(it.codigo, cod)}
+                            />
                           </td>
                           <td className="px-3 py-2 text-right">
                             <Input value={String(it.quantidade)} inputMode="decimal" onChange={(e) => setQtd(it.codigo, parseNum(e.target.value))}
