@@ -6,11 +6,31 @@
  */
 export async function recalcCmvTeorico(supabase: any, barId: number | null | undefined): Promise<void> {
   if (!barId) return;
+  // 1) gold.produto_cmv (rápido, ~150ms) — CMV Teórico do cardápio reflete na hora.
+  // 2) matviews de consumo teórico (silver.*_dia + gold.cmv_teorico_dia) — Saída Teórica em
+  //    /operacional/desvios e /operacional/consumo-insumo refletem na hora. Sem isso a matview
+  //    só atualizava no cron horário e o socio via valor antigo depois de editar a ficha.
+  // Roda em paralelo — refresh de matview é lento, não deve segurar o recalc.
+  await Promise.all([
+    (async () => {
+      try { await supabase.schema('gold').rpc('fn_cmv_teorico', { p_bar_id: barId }); }
+      catch (e) { console.error('[recalcCmvTeorico] fn_cmv_teorico falhou para bar', barId, e); }
+    })(),
+    refreshConsumoTeorico(supabase),
+  ]);
+}
+
+/**
+ * Refresca as matviews de consumo teórico (silver.consumo_teorico_insumo_dia e cascata).
+ * Sem isso, a coluna "Saída teórica" em /operacional/desvios e a tela /operacional/consumo-insumo
+ * ficam com o valor antigo até o próximo cron horário. Best-effort: não bloqueia a edição.
+ * REFRESH CONCURRENTLY roda sem lock — pode demorar segundos em background.
+ */
+export async function refreshConsumoTeorico(supabase: any): Promise<void> {
   try {
-    await supabase.schema('gold').rpc('fn_cmv_teorico', { p_bar_id: barId });
+    await supabase.schema('silver').rpc('fn_refresh_consumo_teorico');
   } catch (e) {
-    // Não derruba a edição que disparou — recompute é cache; backstop = cron + botão Recalcular.
-    console.error('[recalcCmvTeorico] falhou para bar', barId, e);
+    console.error('[refreshConsumoTeorico] falhou', e);
   }
 }
 
