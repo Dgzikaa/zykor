@@ -241,10 +241,10 @@ export async function GET(request: NextRequest) {
       // Buscar fator CMV do banco (centralizado)
       const fatorCmv = await getFatorCmv(supabase, barId);
 
-      // atual/futuro: automático manda. passado: manual tem prioridade; sem manual, usa o automático.
-      const manualMes = cmvMensal.cmv_teorico_percentual_manual;
-      const temManualMes = manualMes !== null && manualMes !== undefined && String(manualMes) !== '' && Number(manualMes) > 0;
-      const usaAutoMes = cmvTeoricoAuto != null && (mesAtualOuFuturo || !temManualMes);
+      // CMV Teórico agora é 100% automático em toda a linha (pra bater com /operacional/cmv-teorico).
+      // Manual foi removido da UI — coluna cmv_teorico_percentual_manual segue no banco só pra histórico.
+      void mesAtualOuFuturo;
+      const usaAutoMes = cmvTeoricoAuto != null;
       
       // Calcular semanas para informação
       const semanasComProporcao = calcularSemanasComProporcao(mes, ano);
@@ -558,18 +558,8 @@ export async function GET(request: NextRequest) {
     // Agregar dados CMV com proporção
     const dadosMensais = agregarCMVProportional(semanasComProporcao, cmvMap, estoqueFinalMesAnterior, ano, mes);
 
-    // Teórico: o MANUAL (cmv_teorico_percentual_manual) tem prioridade — a coluna sem sufixo é
-    // populada pelo ETL com o CMV Limpo, então não serve como fonte do input do sócio.
-    // Sem manual, usa o AUTOMÁTICO (gold.cmv_teorico_dia), inclusive no passado.
-    {
-      const m = cmvMensal && !errMensal ? cmvMensal.cmv_teorico_percentual_manual : null;
-      const cmvTeoricoManual = m !== null && m !== undefined ? parseFloat(String(m)) : null;
-      if (cmvTeoricoManual !== null && Number.isFinite(cmvTeoricoManual) && cmvTeoricoManual > 0) {
-        dadosMensais.cmv_teorico_percentual = cmvTeoricoManual;
-      } else if (cmvTeoricoAuto != null) {
-        dadosMensais.cmv_teorico_percentual = cmvTeoricoAuto;
-      }
-    }
+    // Teórico: 100% automático — mesma fonte do /operacional/cmv-teorico.
+    if (cmvTeoricoAuto != null) dadosMensais.cmv_teorico_percentual = cmvTeoricoAuto;
 
     // Adicionar metadados
     const resultado = {

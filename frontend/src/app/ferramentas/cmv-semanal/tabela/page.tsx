@@ -303,7 +303,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
           { key: 'cmv_percentual', label: 'CMV Real (%)', status: 'calculado', fonte: 'Calculado', calculo: 'CMV R$ / Faturamento Bruto × 100', formato: 'percentual' },
           { key: 'cmv_limpo_percentual', label: 'CMV Limpo (%)', status: 'calculado', fonte: 'Calculado', calculo: '(CMV R$ / Fat. Líquido) × 100', formato: 'percentual' },
           { key: 'gap_cmv', label: 'GAP CMV', status: 'calculado', fonte: 'Calculado', calculo: 'CMV Limpo (%) − CMV Teórico (%), em pontos percentuais', formato: 'gap' },
-          { key: 'cmv_teorico_percentual', label: 'CMV Teórico (%)', status: 'calculado', fonte: 'Automático (fichas)', calculo: 'Automático: custo da ficha técnica × vendas ÷ faturamento (gold.cmv_teorico_dia), da semana/mês atual pra frente. Passado: valor preenchido na mão.', formato: 'percentual', editavel: true },
+          { key: 'cmv_teorico_percentual', label: 'CMV Teórico (%)', status: 'calculado', fonte: 'Automático (fichas)', calculo: 'Automático: custo da ficha técnica × vendas ÷ faturamento pelo fn_cmv_teorico_periodo (produtos com ficha). Mesmo cálculo do /operacional/cmv-teorico — sempre alinhado.', formato: 'percentual', editavel: false },
         ]
       }
     ]
