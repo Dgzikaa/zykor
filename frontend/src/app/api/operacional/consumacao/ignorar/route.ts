@@ -21,7 +21,13 @@ export async function POST(request: NextRequest) {
   if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
 
   const body = (await request.json().catch(() => ({}))) as Body;
-  const chaves = (body.chaves || []).filter((c) => typeof c === 'string' && c.length > 0);
+  // dedup: quando a mesa agrupa vários lançamentos e dois deles têm produto/valor/qtd/
+  // motivo idênticos, o hash colide (intencional — linhas 100% iguais somem juntas).
+  // Sem o Set, o upsert dispara "ON CONFLICT DO UPDATE cannot affect row a second time"
+  // porque tenta atualizar a mesma (bar_id, chave_hash) 2× no mesmo comando.
+  const chaves = Array.from(
+    new Set((body.chaves || []).filter((c) => typeof c === 'string' && c.length > 0)),
+  );
   if (chaves.length === 0) {
     return NextResponse.json({ success: false, error: 'chaves é obrigatório' }, { status: 400 });
   }
@@ -49,7 +55,7 @@ export async function DELETE(request: NextRequest) {
 
   const sp = new URL(request.url).searchParams;
   const chavesParam = sp.get('chaves');
-  const chaves = (chavesParam || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const chaves = Array.from(new Set((chavesParam || '').split(',').map((s) => s.trim()).filter(Boolean)));
   if (chaves.length === 0) {
     return NextResponse.json({ success: false, error: 'chaves é obrigatório' }, { status: 400 });
   }
