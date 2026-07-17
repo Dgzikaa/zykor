@@ -387,6 +387,8 @@ function ItemRow({
 }) {
   const [busca, setBusca] = useState('');
   const [abertoBusca, setAbertoBusca] = useState(false);
+  const buscaRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (abertoBusca) buscaRef.current?.focus(); }, [abertoBusca]);
   const selecionado = useMemo(() => insumos.find(i => i.codigo === item.insumo_codigo), [insumos, item.insumo_codigo]);
 
   const filtrados = useMemo(() => {
@@ -413,7 +415,7 @@ function ItemRow({
           ) : (
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input autoFocus={abertoBusca} placeholder="Buscar insumo por nome ou código..." className="h-9 pl-8"
+              <Input ref={buscaRef} placeholder="Buscar insumo por nome ou código..." className="h-9 pl-8"
                 value={busca} onChange={e => { setBusca(e.target.value); setAbertoBusca(true); }}
                 onFocus={() => setAbertoBusca(true)} />
               {abertoBusca && filtrados.length > 0 && (
