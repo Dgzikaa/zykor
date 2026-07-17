@@ -85,6 +85,7 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
     href: section.href,
     color: SECTION_COLORS[section.label] ?? '',
     permission: section.permission ?? '',
+    beta: section.beta,
     subItems: section.subItems.map(item => ({
       icon: iconFor(item.icon),
       label: item.label,
@@ -191,6 +192,11 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
                   <div className="flex items-center">
                     <section.icon className={`w-5 h-5 flex-shrink-0 ${section.color}`} />
                     <span className="ml-3 font-medium">{section.label}</span>
+                    {section.beta && (
+                      <span className="ml-2 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                        Beta
+                      </span>
+                    )}
                   </div>
                   {section.subItems.length > 0 && (
                     isExpanded ? (

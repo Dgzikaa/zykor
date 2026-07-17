@@ -28,6 +28,8 @@ export interface MenuSection {
   href: string;
   permission?: string;
   subItems: MenuLeaf[];
+  /** Marca a seção como "em construção" — mostra badge Beta na sidebar. */
+  beta?: boolean;
 }
 
 export const MENU_TREE: MenuSection[] = [
@@ -71,6 +73,7 @@ export const MENU_TREE: MenuSection[] = [
     label: 'RH',
     href: '/rh/funcionarios',
     permission: 'gestao',
+    beta: true,
     subItems: [
       { icon: 'Users', label: 'Funcionários', href: '/rh/funcionarios', permission: 'gestao' },
       { icon: 'CalendarRange', label: 'Escala', href: '/rh/escala', permission: 'gestao' },
@@ -161,6 +164,7 @@ export const MENU_TREE: MenuSection[] = [
     subItems: [
       { icon: 'Activity', label: 'Painel Executivo', href: '/ferramentas/painel-executivo', permission: 'home' },
       { icon: 'BarChart3', label: 'Análises Avançadas', href: '/ferramentas/analises', permission: 'gestao' },
+      { icon: 'ShoppingCart', label: 'Consulta de Vendas', href: '/ferramentas/vendas-produtos', permission: 'gestao' },
       { icon: 'Users', label: 'CMO - Mão de Obra', href: '/ferramentas/cmo', permission: 'gestao' },
       { icon: 'Tag', label: 'Classificação de Grupos (Mix)', href: '/ferramentas/consumos-classificacao', permission: 'gestao' },
       { icon: 'AlertTriangle', label: 'Cancelamentos', href: '/ferramentas/cancelamentos', permission: 'gestao' },

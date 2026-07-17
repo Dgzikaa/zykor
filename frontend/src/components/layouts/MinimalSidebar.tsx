@@ -77,6 +77,7 @@ interface SidebarItem {
   badge?: number;
   permission?: string;
   subItems?: SubMenuItem[];
+  beta?: boolean;
 }
 
 const PERMISSION_MAPPINGS: Record<string, string[]> = {
@@ -99,6 +100,7 @@ const defaultSidebarItems: SidebarItem[] = MENU_TREE.map(section => ({
   label: section.label,
   href: section.href,
   permission: section.permission,
+  beta: section.beta,
   subItems: section.subItems.map(item => ({
     icon: iconFor(item.icon),
     label: item.label,
@@ -132,6 +134,14 @@ const SidebarMenuItem = memo(({ item, isActive, isExpanded, onToggle, badges }: 
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <Icon className="w-4 h-4 flex-shrink-0" />
         <span className="truncate font-medium">{item.label}</span>
+        {item.beta && (
+          <span
+            className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 flex-shrink-0"
+            title="Em construção — módulo em testes"
+          >
+            Beta
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-2">
         {badge && badge > 0 && (
