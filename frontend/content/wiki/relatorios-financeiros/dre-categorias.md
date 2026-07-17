@@ -1,18 +1,18 @@
 ---
-title: Categorias
-area: ferramentas-financeiro
-slug: categorias
-route: /financeiro/categorias
-description: Central que agrupa as categorias do Conta Azul por grupo-pai e define a macro da DRE que os filhos herdam automaticamente.
-order: 90
+title: DRE — Categorias
+area: relatorios-financeiros
+slug: dre-categorias
+route: /financeiro/dre
+description: Aba "Categorias" dentro da DRE — agrupa as categorias do Conta Azul por grupo-pai e define a macro da DRE que os filhos herdam automaticamente.
+order: 15
 icon: FolderTree
 ---
 
-# Categorias
+# DRE — Categorias
 
 ## Visão geral
 
-A tela **Categorias** (chamada no sistema de "Central de Categorias") é onde você organiza o plano de contas do **Conta Azul** para que ele se encaixe na DRE do Zykor. As categorias de lançamento financeiro do Conta Azul chegam ao sistema em forma de árvore: cada categoria tem um **grupo-pai** (o nó de nível acima). Aqui você dá um **nome** a cada grupo-pai e escolhe a **macro da DRE** (Receita, Custo insumos, Mão-de-Obra, etc.). Feito isso, **todos os filhos daquele grupo herdam a macro** — inclusive categorias novas que forem criadas depois no Conta Azul sob o mesmo pai.
+A aba **Categorias** dentro da **DRE** (chamada no sistema de "Central de Categorias") é onde você organiza o plano de contas do **Conta Azul** para que ele se encaixe na DRE do Zykor. As categorias de lançamento financeiro do Conta Azul chegam ao sistema em forma de árvore: cada categoria tem um **grupo-pai** (o nó de nível acima). Aqui você dá um **nome** a cada grupo-pai e escolhe a **macro da DRE** (Receita, Custo insumos, Mão-de-Obra, etc.). Feito isso, **todos os filhos daquele grupo herdam a macro** — inclusive categorias novas que forem criadas depois no Conta Azul sob o mesmo pai.
 
 O objetivo é acabar com o trabalho manual de mapear categoria por categoria. Em vez de classificar dezenas de categorias uma a uma, você classifica o grupo e o sistema propaga.
 
@@ -20,9 +20,9 @@ Quem usa: dono, financeiro e quem cuida do fechamento contábil e da DRE.
 
 ## Como acessar
 
-- Menu lateral: **Financeiro → Categorias** (ícone de pastas em árvore).
-- Rota: `/financeiro/categorias`.
-- Permissão necessária: módulo **`ferramentas financeiro_categorias`**. Sem essa permissão a rota é bloqueada pelo guard (a mesma checagem protege a API de gravação `/api/financeiro/categorias`).
+- Menu lateral: **Relatórios Financeiros → DRE**, aba **"Categorias"**.
+- Rota: `/financeiro/dre` (aba **Categorias**).
+- Permissão necessária: módulo **`financeiro_relatorios`** (mesmo da DRE). Essa checagem também protege a API de gravação `/api/financeiro/categorias`.
 
 ## Passo a passo
 

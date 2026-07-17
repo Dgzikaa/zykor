@@ -99,7 +99,6 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   { path: '/financeiro/agendamento', requiredModules: ['financeiro', 'financeiro_agendamento', 'agendamento_pagamentos'] },
   { path: '/financeiro/transacoes', requiredModules: ['financeiro', 'financeiro_transacoes'] },
   { path: '/financeiro/contas', requiredModules: ['financeiro', 'financeiro_contas'] },
-  { path: '/financeiro/categorias', requiredModules: ['financeiro', 'financeiro_categorias'] },
   { path: '/financeiro', requiredModules: ['financeiro'] },
   
   // ========================================

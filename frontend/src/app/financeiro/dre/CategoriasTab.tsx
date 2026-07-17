@@ -2,12 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
-import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronRight, Check, AlertTriangle, FolderTree } from 'lucide-react';
+import { ChevronDown, ChevronRight, Check, AlertTriangle } from 'lucide-react';
 
 type Cat = {
   categoria_pai_id: string | null;
@@ -26,13 +25,8 @@ type Cat = {
 const n = (x: unknown) => Number(x) || 0;
 const fmt = (v: number) => v === 0 ? '–' : `${v < 0 ? '-' : ''}R$ ${Math.abs(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function CategoriasPage() {
+export function CategoriasTab() {
   const { selectedBar } = useBar();
-  const { setPageTitle } = usePageTitle();
-  useEffect(() => {
-    setPageTitle('🗂️ Central de Categorias');
-    return () => setPageTitle('');
-  }, [setPageTitle]);
   const [ano, setAno] = useState(new Date().getFullYear());
   const [cats, setCats] = useState<Cat[]>([]);
   const [macros, setMacros] = useState<string[]>([]);
@@ -52,7 +46,6 @@ export default function CategoriasPage() {
   }, [selectedBar, ano]);
   useEffect(() => { carregar(); }, [carregar]);
 
-  // Agrupa por pai. Categorias sem pai vão pra um balde "sem-pai".
   const grupos = useMemo(() => {
     const map = new Map<string, { paiId: string | null; nome: string | null; macro: string | null; filhos: Cat[] }>();
     for (const c of cats) {
@@ -62,7 +55,6 @@ export default function CategoriasPage() {
     }
     const arr = Array.from(map.values());
     arr.forEach(g => g.filhos.sort((a, b) => Math.abs(n(b.total)) - Math.abs(n(a.total))));
-    // grupos com mais movimento primeiro; "sem-pai" por último
     arr.sort((a, b) => {
       if (!a.paiId) return 1; if (!b.paiId) return -1;
       return b.filhos.reduce((s, c) => s + Math.abs(n(c.total)), 0) - a.filhos.reduce((s, c) => s + Math.abs(n(c.total)), 0);
@@ -94,24 +86,20 @@ export default function CategoriasPage() {
   };
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <FolderTree className="w-5 h-5 text-blue-600" />
-        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 max-w-3xl">
+          Cada grupo abaixo é um <b>pai</b> do Conta Azul. Dê um nome ao grupo e escolha a <b>macro da DRE</b> — todos os filhos
+          herdam (inclusive categorias novas criadas depois sob o mesmo pai). Mapeamento manual direto sempre prevalece.
+        </p>
         <select value={ano} onChange={e => setAno(Number(e.target.value))} className="text-sm border rounded px-2 py-1 bg-white dark:bg-gray-800 dark:border-gray-700">
           {[0, 1, 2].map(d => { const a = new Date().getFullYear() - d; return <option key={a} value={a}>{a}</option>; })}
         </select>
       </div>
 
-      <p className="text-xs text-gray-500 dark:text-gray-400 max-w-3xl">
-        Cada grupo abaixo é um <b>pai</b> do Conta Azul. Dê um nome ao grupo e escolha a <b>macro da DRE</b> — todos os filhos
-        herdam (inclusive categorias novas criadas depois sob o mesmo pai). Mapeamento manual direto sempre prevalece.
-      </p>
-
       {loading ? <Skeleton className="h-[500px]" /> : (
         <div className="space-y-2">
-          {grupos.map((g, i) => {
+          {grupos.map(g => {
             const k = g.paiId ?? 'sem-pai';
             const aberto = abertos[k] ?? false;
             const semPai = !g.paiId;

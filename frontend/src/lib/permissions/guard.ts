@@ -93,7 +93,7 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   { prefix: '/api/cmv-semanal', paths: ['/ferramentas/cmv-semanal/tabela'] },
   // --- Financeiro (dados; rotas de PAGAMENTO ficam fora por ora, revisar com o dono) ---
   { prefix: '/api/financeiro/balanco', paths: ['/financeiro/balanco'] },
-  { prefix: '/api/financeiro/categorias', paths: ['/financeiro/categorias'] },
+  { prefix: '/api/financeiro/categorias', paths: ['/financeiro/dre'] },
   { prefix: '/api/financeiro/dfc', paths: ['/financeiro/dfc'] },
   { prefix: '/api/financeiro/beneficiarios', paths: ['/financeiro/beneficiarios', '/financeiro/pedidos-pagamento'] },
   // --- Financeiro PAGAMENTO (mapear a tela dona; libera quem tem o módulo do pagamento) ---
