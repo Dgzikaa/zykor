@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { getFatorCmv } from '@/lib/config/getFatorCmv';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
@@ -7,6 +8,23 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const supabase = createServiceRoleClient();
+
+/**
+ * Chave estável de uma linha de consumação (pra ignorar/restaurar). Combina os campos
+ * que identificam o lançamento na tela — colisão exata = linhas 100% idênticas, que
+ * costumam ser erros duplicados e devem ser ignoradas juntas mesmo.
+ */
+export function hashLinhaConsumacao(input: {
+  mesa_norm: string;
+  data: string;
+  motivo: string;
+  produto: string;
+  valor_bruto: number;
+  qtd: number;
+}): string {
+  const s = `${input.mesa_norm}|${input.data}|${input.motivo}|${input.produto}|${input.valor_bruto}|${input.qtd}`;
+  return createHash('md5').update(s).digest('hex');
+}
 
 /**
  * Controle de Consumação — análise linha a linha das consumações (descontos/cortesias),
@@ -60,37 +78,61 @@ export async function GET(request: NextRequest) {
     }
     const rows: any[] = (data as any[]) || [];
 
-    // vínculos por mesa (override de categoria + entidade) e cadastros p/ os dropdowns
+    // vínculos por mesa (override de categoria + entidade), cadastros p/ os dropdowns
+    // e chaves de linhas marcadas como "ignorar" (não entram no resumo/totais).
     const fin = (supabase as any).schema('financial');
     const ops = (supabase as any).schema('operations');
-    const [{ data: vincRows }, { data: socios }, { data: artistas }] = await Promise.all([
+    const [{ data: vincRows }, { data: socios }, { data: artistas }, { data: ignoradosRows }] = await Promise.all([
       fin.from('consumo_mesa_vinculo').select('mesa_norm, mesa_label, tipo, artista_id, socio_id, entidade_nome, categoria_override').eq('bar_id', barId),
       fin.from('consumo_socio').select('id, nome').eq('bar_id', barId).eq('ativo', true).order('nome'),
       ops.from('bar_artistas').select('id, nome').eq('bar_id', barId).eq('ativo', true).order('nome'),
+      fin.from('consumo_ignorados').select('chave_hash, motivo, criado_em').eq('bar_id', barId),
     ]);
     const vincMap = new Map<string, any>((vincRows || []).map((v: any) => [v.mesa_norm, v]));
+    const ignMap = new Map<string, { motivo: string | null; criado_em: string }>(
+      (ignoradosRows || []).map((r: any) => [r.chave_hash, { motivo: r.motivo, criado_em: r.criado_em }]),
+    );
 
     const linhas = rows.map((r) => {
       const mesa = r.mesa || null;
       const v = vincMap.get(normMesa(mesa));
       // categoria efetiva: override explícito > categoria implícita do tipo > motivo original
       const categoria = v ? v.categoria_override || TIPO_CAT[v.tipo] || String(r.categoria) : String(r.categoria);
+      const motivo = r.motivo || null;
+      const produto = r.prd_desc || null;
+      const valor_bruto = Number(r.valor_desconto) || 0;
+      const qtd = Number(r.qtd) || 0;
+      const chave_hash = hashLinhaConsumacao({
+        mesa_norm: normMesa(mesa),
+        data: String(r.data),
+        motivo: motivo || '',
+        produto: produto || '',
+        valor_bruto,
+        qtd,
+      });
+      const ign = ignMap.get(chave_hash);
       return {
         categoria,
         data: r.data,
         mesa,
-        motivo: r.motivo || null,
-        produto: r.prd_desc || null,
-        qtd: Number(r.qtd) || 0,
-        valor_bruto: Number(r.valor_desconto) || 0,
+        motivo,
+        produto,
+        qtd,
+        valor_bruto,
         custo: Number(r.custo_real) || 0, // custo real (ficha) ou desconto×fator quando sem ficha
         tem_ficha: !!r.tem_ficha,
+        chave_hash,
+        ignorada: !!ign,
+        ignorada_motivo: ign?.motivo ?? null,
+        ignorada_em: ign?.criado_em ?? null,
       };
     });
 
-    // resumo por categoria (bruto, custo, linhas, com_ficha)
+    // resumo por categoria só considera não-ignoradas — o objetivo do "ignorar" é
+    // tirar da conta os lançamentos errados sem apagar o histórico.
+    const linhasAtivas = linhas.filter((l) => !l.ignorada);
     const map = new Map<string, { categoria: string; linhas: number; com_ficha: number; bruto: number; custo: number }>();
-    for (const l of linhas) {
+    for (const l of linhasAtivas) {
       const a = map.get(l.categoria) || { categoria: l.categoria, linhas: 0, com_ficha: 0, bruto: 0, custo: 0 };
       a.linhas += 1;
       if (l.tem_ficha) a.com_ficha += 1;
@@ -107,9 +149,11 @@ export async function GET(request: NextRequest) {
       fator,
       data_inicio: dataInicio,
       data_fim: dataFim,
-      total_bruto: Math.round(linhas.reduce((s, l) => s + l.valor_bruto, 0) * 100) / 100,
-      total_custo: Math.round(linhas.reduce((s, l) => s + l.custo, 0) * 100) / 100,
-      com_ficha: linhas.filter((l) => l.tem_ficha).length,
+      total_bruto: Math.round(linhasAtivas.reduce((s, l) => s + l.valor_bruto, 0) * 100) / 100,
+      total_custo: Math.round(linhasAtivas.reduce((s, l) => s + l.custo, 0) * 100) / 100,
+      total_bruto_ignorado: Math.round(linhas.filter((l) => l.ignorada).reduce((s, l) => s + l.valor_bruto, 0) * 100) / 100,
+      qtd_ignoradas: linhas.filter((l) => l.ignorada).length,
+      com_ficha: linhasAtivas.filter((l) => l.tem_ficha).length,
       resumo,
       linhas,
       vinculos: vincRows || [],

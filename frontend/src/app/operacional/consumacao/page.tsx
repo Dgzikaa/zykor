@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Link from 'next/link';
 import Analises from './Analises';
-import { RefreshCw, Download, Search, X, SlidersHorizontal, Users, ChevronRight, ChevronDown, Layers, Filter, Check, Tag, Pencil, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Download, Search, X, SlidersHorizontal, Users, ChevronRight, ChevronDown, Layers, Filter, Check, Tag, Pencil, AlertTriangle, EyeOff, RotateCcw } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
@@ -24,6 +24,10 @@ interface Linha {
   valor_bruto: number;
   custo: number;
   tem_ficha: boolean;
+  chave_hash: string;
+  ignorada: boolean;
+  ignorada_motivo: string | null;
+  ignorada_em: string | null;
 }
 interface Resumo {
   categoria: string;
@@ -248,12 +252,30 @@ function ColHeader({
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  // Menu abre pra baixo por padrão, mas se não couber (tabela longa, botão perto do
+  // fim da viewport), inverte pra cima. Sem isso, o dropdown ficava cortado e não
+  // dava pra clicar nas opções.
+  const [pos, setPos] = useState<
+    | { left: number; direcao: 'baixo'; top: number; maxHeight: number }
+    | { left: number; direcao: 'cima'; bottom: number; maxHeight: number }
+    | null
+  >(null);
   const active = selected.size > 0;
 
   const openMenu = () => {
     const r = btnRef.current?.getBoundingClientRect();
-    if (r) setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - 268)), top: r.bottom + 4 });
+    if (r) {
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - 268));
+      const alturaEstim = 340; // input + controles + lista(max-h-64) + padding
+      const espacoAbaixo = window.innerHeight - r.bottom - 8;
+      const espacoAcima = r.top - 8;
+      const abrirPraCima = espacoAbaixo < alturaEstim && espacoAcima > espacoAbaixo;
+      if (abrirPraCima) {
+        setPos({ left, direcao: 'cima', bottom: window.innerHeight - r.top + 4, maxHeight: Math.max(160, espacoAcima) });
+      } else {
+        setPos({ left, direcao: 'baixo', top: r.bottom + 4, maxHeight: Math.max(160, espacoAbaixo) });
+      }
+    }
     setQ('');
     setOpen(true);
   };
@@ -304,8 +326,14 @@ function ColHeader({
         createPortal(
           <div
             ref={menuRef}
-            style={{ position: 'fixed', left: pos.left, top: pos.top, width: 256 }}
-            className="z-[60] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-2 normal-case"
+            style={{
+              position: 'fixed',
+              left: pos.left,
+              width: 256,
+              ...(pos.direcao === 'baixo' ? { top: pos.top } : { bottom: pos.bottom }),
+              maxHeight: pos.maxHeight,
+            }}
+            className="z-[60] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl p-2 normal-case flex flex-col"
           >
             <Input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filtrar valores…" className="h-8 text-xs" />
             <div className="flex items-center justify-between px-1 py-1.5 text-[11px] text-gray-500">
@@ -317,7 +345,7 @@ function ColHeader({
                 Limpar
               </button>
             </div>
-            <div className="max-h-64 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               {shown.length === 0 ? (
                 <div className="px-2 py-3 text-center text-xs text-gray-400">Nada</div>
               ) : (
@@ -560,6 +588,13 @@ export default function ControleConsumacaoPage() {
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [totalBruto, setTotalBruto] = useState(0);
   const [totalCusto, setTotalCusto] = useState(0);
+  const [totalBrutoIgnorado, setTotalBrutoIgnorado] = useState(0);
+  const [qtdIgnoradas, setQtdIgnoradas] = useState(0);
+  // Modo de visualização das ignoradas:
+  //   'ativas' (padrão) — ocultas do controle (o objetivo do "ignorar")
+  //   'todas' — mostra tudo (ignoradas aparecem tachadas)
+  //   'so_ignoradas' — vê só o que foi ignorado (pra restaurar/auditar)
+  const [modoIgnoradas, setModoIgnoradas] = useState<'ativas' | 'todas' | 'so_ignoradas'>('ativas');
   const [vinculos, setVinculos] = useState<Vinculo[]>([]);
   const [cadArtistas, setCadArtistas] = useState<Cadastro[]>([]);
   const [cadSocios, setCadSocios] = useState<Cadastro[]>([]);
@@ -615,6 +650,8 @@ export default function ControleConsumacaoPage() {
       setLinhas(j.linhas || []);
       setTotalBruto(j.total_bruto || 0);
       setTotalCusto(j.total_custo || 0);
+      setTotalBrutoIgnorado(j.total_bruto_ignorado || 0);
+      setQtdIgnoradas(j.qtd_ignoradas || 0);
       setVinculos(j.vinculos || []);
       setCadArtistas(j.artistas || []);
       setCadSocios(j.socios || []);
@@ -629,10 +666,57 @@ export default function ControleConsumacaoPage() {
     carregar();
   }, [carregar]);
 
+  // Ignorar/restaurar — o backend guarda por (bar_id, chave_hash). Depois recarrega
+  // pra propagar o efeito nos totais/resumo.
+  const ignorarLinhas = useCallback(
+    async (chaves: string[], motivoIgn?: string) => {
+      if (!chaves.length) return;
+      try {
+        const r = await fetch('/api/operacional/consumacao/ignorar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(selectedBar?.id || '') },
+          body: JSON.stringify({ chaves, motivo: motivoIgn || undefined }),
+        });
+        const j = await r.json();
+        if (!j.success) {
+          toast.error(j.error || 'Falha ao ignorar');
+          return;
+        }
+        toast.success(chaves.length === 1 ? 'Consumação ignorada' : `${chaves.length} consumações ignoradas`);
+        await carregar();
+      } catch {
+        toast.error('Falha ao ignorar');
+      }
+    },
+    [selectedBar, carregar],
+  );
+
+  const restaurarLinhas = useCallback(
+    async (chaves: string[]) => {
+      if (!chaves.length) return;
+      try {
+        const r = await fetch(`/api/operacional/consumacao/ignorar?chaves=${encodeURIComponent(chaves.join(','))}`, {
+          method: 'DELETE',
+          headers: { 'x-selected-bar-id': String(selectedBar?.id || '') },
+        });
+        const j = await r.json();
+        if (!j.success) {
+          toast.error(j.error || 'Falha ao restaurar');
+          return;
+        }
+        toast.success(chaves.length === 1 ? 'Restaurada' : `${chaves.length} restauradas`);
+        await carregar();
+      } catch {
+        toast.error('Falha ao restaurar');
+      }
+    },
+    [selectedBar, carregar],
+  );
+
   // qualquer mudança de filtro volta pra página 1
   useEffect(() => {
     setPagina(1);
-  }, [catFiltro, diaSemana, motivoSel, produtoSel, busca, di, df, agrupar, colFiltros, porCat]);
+  }, [catFiltro, diaSemana, motivoSel, produtoSel, busca, di, df, agrupar, colFiltros, porCat, modoIgnoradas]);
 
   const preset = (tipo: string) => {
     const h = new Date();
@@ -701,6 +785,10 @@ export default function ControleConsumacaoPage() {
     const mv = motivoSel.trim().toLowerCase();
     const pr = produtoSel.trim().toLowerCase();
     return linhas.filter((l) => {
+      // "ativas" (padrão) esconde ignoradas; "so_ignoradas" mostra só elas;
+      // "todas" mostra tudo (ignoradas ficam com destaque na tabela).
+      if (modoIgnoradas === 'ativas' && l.ignorada) return false;
+      if (modoIgnoradas === 'so_ignoradas' && !l.ignorada) return false;
       if (catFiltro.size > 0 && !catFiltro.has(l.categoria)) return false;
       if (diaSemana.size > 0 && !diaSemana.has(dowDe(l.data))) return false;
       if (mv && !(l.motivo || '').toLowerCase().includes(mv)) return false;
@@ -716,7 +804,7 @@ export default function ControleConsumacaoPage() {
       }
       return true;
     });
-  }, [linhas, catFiltro, diaSemana, motivoSel, produtoSel, busca, colFiltros]);
+  }, [linhas, catFiltro, diaSemana, motivoSel, produtoSel, busca, colFiltros, modoIgnoradas]);
 
   // opções (valor distinto + contagem) por coluna, para os popovers de filtro
   const opcoesCol = useMemo(() => {
@@ -886,10 +974,47 @@ export default function ControleConsumacaoPage() {
           <td className="px-3 py-1.5 text-right text-gray-500">{g.itens.toLocaleString('pt-BR')}</td>
           <td className="px-3 py-1.5 text-right font-medium text-gray-900 dark:text-white whitespace-nowrap">{moeda(g.bruto)}</td>
           <td className="px-3 py-1.5 text-right whitespace-nowrap font-semibold text-gray-800 dark:text-gray-100">{moeda(g.custo)}</td>
+          <td className="px-2 py-1.5 text-center">
+            {/* Ignorar/restaurar a mesa inteira — útil pra "mesa toda lançada errada". */}
+            {(() => {
+              const chaves = g.linhas.map((l) => l.chave_hash);
+              const todasIgn = g.linhas.every((l) => l.ignorada);
+              return todasIgn ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    restaurarLinhas(chaves);
+                  }}
+                  title="Restaurar todas as linhas da mesa"
+                  className="rounded p-1 text-gray-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-600"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const m = prompt(`Ignorar as ${chaves.length} linha(s) dessa mesa. Motivo (opcional):`) || undefined;
+                    ignorarLinhas(chaves, m);
+                  }}
+                  title="Ignorar todas as linhas dessa mesa"
+                  className="rounded p-1 text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600"
+                >
+                  <EyeOff className="w-3.5 h-3.5" />
+                </button>
+              );
+            })()}
+          </td>
         </tr>
         {aberto &&
           g.linhas.map((l, i) => (
-            <tr key={`${g.key}-${i}`} className="bg-gray-50/60 dark:bg-gray-800/30 text-[13px]">
+            <tr
+              key={`${g.key}-${i}`}
+              className={`bg-gray-50/60 dark:bg-gray-800/30 text-[13px] ${
+                l.ignorada ? 'text-gray-400 dark:text-gray-500 line-through decoration-red-300/60' : ''
+              }`}
+              title={l.ignorada ? `Ignorada${l.ignorada_motivo ? `: ${l.ignorada_motivo}` : ''}` : undefined}
+            >
               <td className="px-3 py-1 whitespace-nowrap text-gray-400">{brData(l.data)}</td>
               <td className="px-3 py-1 whitespace-nowrap text-gray-400">{DOW[dowDe(l.data)].l}</td>
               <td className="px-3 py-1"></td>
@@ -914,6 +1039,28 @@ export default function ControleConsumacaoPage() {
                   {l.tem_ficha ? 'FT' : `×${fator}`}
                 </span>
                 <span className="text-gray-600 dark:text-gray-300">{moeda(l.custo)}</span>
+              </td>
+              <td className="px-2 py-1 text-center">
+                {l.ignorada ? (
+                  <button
+                    onClick={() => restaurarLinhas([l.chave_hash])}
+                    title="Restaurar (voltar pro controle)"
+                    className="rounded p-1 text-gray-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-600"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      const m = prompt('Motivo (opcional):') || undefined;
+                      ignorarLinhas([l.chave_hash], m);
+                    }}
+                    title="Ignorar essa consumação"
+                    className="rounded p-1 text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600"
+                  >
+                    <EyeOff className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </td>
             </tr>
           ))}
@@ -1097,8 +1244,41 @@ export default function ControleConsumacaoPage() {
                   <Users className="w-4 h-4" /> Por artista
                 </Button>
               </Link>
+              {/* Modo de visão das ignoradas — "ativas" oculta, "todas" mostra tudo, "so_ignoradas" só as marcadas. */}
+              <div className="flex rounded-md border border-gray-300 dark:border-gray-700 overflow-hidden text-xs">
+                {(
+                  [
+                    { v: 'ativas', l: 'Ativas', t: 'Só consumações que entram na conta (padrão)' },
+                    { v: 'todas', l: qtdIgnoradas > 0 ? `Todas (${qtdIgnoradas} ign.)` : 'Todas', t: 'Mostra tudo — ignoradas ficam tachadas' },
+                    { v: 'so_ignoradas', l: 'Só ignoradas', t: 'Ver e restaurar consumações ignoradas' },
+                  ] as const
+                ).map((op) => (
+                  <button
+                    key={op.v}
+                    onClick={() => setModoIgnoradas(op.v)}
+                    title={op.t}
+                    className={`px-2.5 py-1 transition-colors ${
+                      modoIgnoradas === op.v
+                        ? 'bg-[hsl(var(--primary))] text-white'
+                        : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    {op.l}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
+
+          {/* Aviso de valor "escondido" pelas ignoradas */}
+          {modoIgnoradas === 'ativas' && qtdIgnoradas > 0 && (
+            <div className="rounded-md border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/25 px-3 py-1.5 text-[11px] text-amber-800 dark:text-amber-200 flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>
+                <strong>{qtdIgnoradas}</strong> consumação(ões) ignorada(s) — {moeda(totalBrutoIgnorado)} fora do controle. Troque pra &quot;Só ignoradas&quot; pra revisar ou restaurar.
+              </span>
+            </div>
+          )}
 
           {/* Dia da semana */}
           <div>
@@ -1312,18 +1492,19 @@ export default function ControleConsumacaoPage() {
                 <th className="text-right font-medium px-3 py-2 cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200" onClick={() => sortBy('custo')}>
                   Custo{seta('custo')}
                 </th>
+                <th className="text-center font-medium px-2 py-2 w-16" title="Marcar como ignorada / restaurar"></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-3 py-8 text-center text-gray-400">
+                  <td colSpan={10} className="px-3 py-8 text-center text-gray-400">
                     Carregando...
                   </td>
                 </tr>
               ) : (agrupar ? (porCat ? gruposPorCategoria.length : pageGrupos.length) : pageLinhas.length) === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-3 py-8 text-center text-gray-400">
+                  <td colSpan={10} className="px-3 py-8 text-center text-gray-400">
                     Nenhum lançamento no período/filtro.
                   </td>
                 </tr>
@@ -1351,6 +1532,7 @@ export default function ControleConsumacaoPage() {
                           <td className="px-3 py-2 text-right text-xs text-gray-400">{cg.mesas.length}</td>
                           <td className="px-3 py-2 text-right font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">{moeda(cg.bruto)}</td>
                           <td className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-white whitespace-nowrap">{moeda(cg.custo)}</td>
+                          <td className="px-2 py-2" />
                         </tr>
                         {catAberto && cg.mesas.map(renderGrupoMesa)}
                       </Fragment>
@@ -1361,7 +1543,13 @@ export default function ControleConsumacaoPage() {
                 )
               ) : (
                 pageLinhas.map((l, i) => (
-                  <tr key={i} className="border-t border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                  <tr
+                    key={i}
+                    className={`border-t border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/40 ${
+                      l.ignorada ? 'bg-red-50/50 dark:bg-red-950/20 text-gray-400 dark:text-gray-500 line-through decoration-red-300/60' : ''
+                    }`}
+                    title={l.ignorada ? `Ignorada${l.ignorada_motivo ? `: ${l.ignorada_motivo}` : ''}` : undefined}
+                  >
                     <td className="px-3 py-1.5 whitespace-nowrap text-gray-700 dark:text-gray-300">{brData(l.data)}</td>
                     <td className="px-3 py-1.5 whitespace-nowrap text-gray-500">{DOW[dowDe(l.data)].l}</td>
                     <td className="px-3 py-1.5 whitespace-nowrap">
@@ -1403,6 +1591,28 @@ export default function ControleConsumacaoPage() {
                         {l.tem_ficha ? 'FT' : `×${fator}`}
                       </span>
                       <span className="text-gray-700 dark:text-gray-200">{moeda(l.custo)}</span>
+                    </td>
+                    <td className="px-2 py-1.5 text-center">
+                      {l.ignorada ? (
+                        <button
+                          onClick={() => restaurarLinhas([l.chave_hash])}
+                          title="Restaurar (voltar pro controle)"
+                          className="rounded p-1 text-gray-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 hover:text-emerald-600"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            const m = prompt('Motivo (opcional):') || undefined;
+                            ignorarLinhas([l.chave_hash], m);
+                          }}
+                          title="Ignorar essa consumação (não entra no controle)"
+                          className="rounded p-1 text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600"
+                        >
+                          <EyeOff className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
