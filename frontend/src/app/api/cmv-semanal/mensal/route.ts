@@ -211,15 +211,21 @@ export async function GET(request: NextRequest) {
     const anoAtual = new Date().getFullYear();
     const isMesAtual = (ano === anoAtual && mes === mesAtual);
 
-    // CMV teórico AUTOMÁTICO do mês (gold.cmv_teorico_dia). Mês atual/futuro: automático manda.
+    // CMV teórico AUTOMÁTICO do mês. Mês atual/futuro: automático manda.
     // Passado: o manual tem prioridade; sem manual, usa o automático (antes o passado ficava em branco/0).
+    // Usa fn_cmv_teorico_periodo e filtra "sem ficha" pra ficar 100% igual ao /operacional/cmv-teorico
+    // (a matview gold.cmv_teorico_dia inclui produtos sem ficha com custo 0, o que dilui o CMV).
     const mesAtualOuFuturo = ano > anoAtual || (ano === anoAtual && mes >= mesAtual);
     let cmvTeoricoAuto: number | null = null;
     {
-      const { data: cdMes } = await (supabase as any).schema('gold').from('cmv_teorico_dia')
-        .select('custo, faturamento').eq('bar_id', barId).gte('data', dataInicio).lte('data', dataFim);
+      const { data: rows } = await (supabase as any).schema('gold')
+        .rpc('fn_cmv_teorico_periodo', { p_bar_id: barId, p_ini: dataInicio, p_fim: dataFim });
       let c = 0, f = 0;
-      (cdMes || []).forEach((r: any) => { c += Number(r.custo) || 0; f += Number(r.faturamento) || 0; });
+      for (const r of (rows || []) as any[]) {
+        if (Number(r.itens_ficha || 0) <= 0) continue;
+        c += Number(r.custo_total) || 0;
+        f += Number(r.faturamento) || 0;
+      }
       cmvTeoricoAuto = f > 0 ? Number((c / f * 100).toFixed(2)) : null;
     }
 
