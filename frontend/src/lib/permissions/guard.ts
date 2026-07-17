@@ -57,6 +57,7 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   { prefix: '/api/operacional/producoes', paths: ['/operacional/fichas-tecnicas', '/operacional/producoes'] },
   { prefix: '/api/operacional/insumos', paths: ['/operacional/insumos'] },
   { prefix: '/api/operacional/desvios', paths: ['/operacional/desvios'] },
+  { prefix: '/api/operacional/desperdicio', paths: ['/operacional/desperdicio'] },
   { prefix: '/api/operacional/cmv-teorico', paths: ['/operacional/cmv-teorico'] },
   { prefix: '/api/operacional/plano-producao', paths: ['/operacional/plano-producao'] },
   { prefix: '/api/operacional/plano-compras', paths: ['/operacional/plano-compras'] },

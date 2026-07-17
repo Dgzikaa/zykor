@@ -138,6 +138,7 @@ export const MENU_TREE: MenuSection[] = [
       { header: 'Estoque' },
       { icon: 'Boxes', label: 'Estoque', href: '/operacional/estoque-historico', permission: 'gestao' },
       { icon: 'Scale', label: 'Desvios de Consumo', href: '/operacional/desvios', permission: 'gestao' },
+      { icon: 'Trash2', label: 'Desperdício', href: '/operacional/desperdicio', permission: 'gestao', beta: true },
       { icon: 'AlertTriangle', label: 'Stockout', href: '/ferramentas/stockout', permission: 'gestao' },
       { icon: 'ShoppingCart', label: 'Planejamento de Compras', href: '/operacional/plano-compras', permission: 'gestao' },
       { header: 'Insumos' },
