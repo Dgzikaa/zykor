@@ -168,10 +168,13 @@ export default function CmvTeoricoPage() {
     } catch (e: any) { toast({ title: 'Erro ao cadastrar', description: e?.message, variant: 'destructive' }); }
     finally { setDpBusy(false); }
   };
-  // Lista "fora do de-para" já sem os resolvidos nesta sessão (cadastrado/vinculado/ignorado).
+  // Lista "sem código interno / ficha" já sem os resolvidos nesta sessão (cadastrado/vinculado/ignorado).
   const foraDepara = useMemo(() => ((periodo?.fora_depara || []) as any[]).filter(p => !resolvidos.has(p.prd)), [periodo, resolvidos]);
   // só entram no "vincular em massa" os exatos sem ambiguidade E cuja sugestão NÃO está mapeada a outro código
   const exatos = useMemo(() => foraDepara.filter(p => p.nivel === 'exato' && !p.ambiguo && p.sugestao_codigo && !p.sugestao_ja_mapeada), [foraDepara]);
+  // Yuzer: mesma ideia — produtos vendidos no Yuzer sem mapeamento (yuzer_produto_id em produto_yuzer_map).
+  const [mostrarForaYz, setMostrarForaYz] = useState(false);
+  const foraYuzer = useMemo(() => (periodo?.fora_yuzer || []) as any[], [periodo]);
 
   // Categoria normalizada por PREFIXO do código (b→Bebida, d→Drink, c→Comida, resto→Outros) —
   // igual o Ordinário. Evita a parede de 30+ categorias cruas do ContaHub (que o Deboche tinha),
@@ -461,7 +464,12 @@ export default function CmvTeoricoPage() {
             )}
             {periodo.headline?.fora_depara_n > 0 && (
               <button onClick={() => setMostrarForaDp(v => !v)} className={`text-left text-xs rounded-md px-3 py-2 border w-full sm:w-auto block ${mostrarForaDp ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-300' : 'border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400 hover:bg-orange-50/60 dark:hover:bg-orange-900/10'}`}>
-                🔗 <b>{periodo.headline.fora_depara_n}</b> produtos vendidos no ContaHub <b>fora do de-para</b> ({fmtBRL(periodo.headline.fora_depara_fat)}) — sem código interno/ficha, invisíveis no CMV · clique pra ver
+                🔗 <b>{periodo.headline.fora_depara_n}</b> produto{periodo.headline.fora_depara_n > 1 ? 's' : ''} vendido{periodo.headline.fora_depara_n > 1 ? 's' : ''} no ContaHub <b>sem código interno/Ficha Técnica</b> ({fmtBRL(periodo.headline.fora_depara_fat)}), invisíve{periodo.headline.fora_depara_n > 1 ? 'is' : 'l'} no CMV · clique pra ver
+              </button>
+            )}
+            {periodo.headline?.fora_yuzer_n > 0 && (
+              <button onClick={() => setMostrarForaYz(v => !v)} className={`text-left text-xs rounded-md px-3 py-2 border w-full sm:w-auto block ${mostrarForaYz ? 'bg-violet-50 dark:bg-violet-900/20 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300' : 'border-violet-200 dark:border-violet-800 text-violet-600 dark:text-violet-400 hover:bg-violet-50/60 dark:hover:bg-violet-900/10'}`}>
+                🎟️ <b>{periodo.headline.fora_yuzer_n}</b> produto{periodo.headline.fora_yuzer_n > 1 ? 's' : ''} vendido{periodo.headline.fora_yuzer_n > 1 ? 's' : ''} no Yuzer <b>sem código interno/Ficha Técnica</b> ({fmtBRL(periodo.headline.fora_yuzer_fat)}), invisíve{periodo.headline.fora_yuzer_n > 1 ? 'is' : 'l'} no CMV · clique pra ver
               </button>
             )}
             {mostrarForaDp && foraDepara.length > 0 && (
@@ -546,6 +554,45 @@ export default function CmvTeoricoPage() {
                   </tbody>
                 </table>
               </div></CardContent></Card>
+            )}
+
+            {mostrarForaYz && foraYuzer.length > 0 && (
+              <Card className="card-dark overflow-hidden"><CardContent className="p-0">
+                <div className="px-3 py-2 bg-violet-50/70 dark:bg-violet-900/15 border-b border-violet-200 dark:border-violet-800 text-xs text-violet-700 dark:text-violet-300">
+                  Pra vincular, abra a <b>Ficha Técnica</b> do produto do cardápio e adicione o ID Yuzer nos códigos.
+                </div>
+                <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-violet-50/60 dark:bg-violet-900/10 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
+                    <th className="text-left font-medium px-3 py-2">ID Yuzer</th>
+                    <th className="text-left font-medium px-3 py-2">Produto (Yuzer)</th>
+                    <th className="text-right font-medium px-3 py-2">Qtd</th>
+                    <th className="text-right font-medium px-3 py-2">Faturamento</th>
+                    <th className="text-left font-medium px-3 py-2">Sugestão de vínculo</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {foraYuzer.map((p: any) => (
+                      <tr key={p.yuzer_produto_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 align-top">
+                        <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.yuzer_produto_id}</td>
+                        <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.produto_nome}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmtNum(p.qtd)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(p.valor)}</td>
+                        <td className="px-3 py-2 text-xs">
+                          {p.sugestao_codigo ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <Badge variant="outline" className={p.nivel === 'exato' ? 'border-emerald-400 text-emerald-600 dark:text-emerald-400' : 'border-amber-400 text-amber-600 dark:text-amber-400'}>
+                                {p.nivel === 'exato' ? 'exato' : `~${Math.round((p.score || 0) * 100)}%`}
+                              </Badge>
+                              <span className="text-gray-600 dark:text-gray-300">{p.sugestao_codigo} · {p.sugestao_nome}{p.sugestao_ativo === false ? ' (inativo)' : ''}</span>
+                            </span>
+                          ) : <span className="text-gray-400">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                </div>
+              </CardContent></Card>
             )}
 
             {/* por categoria */}

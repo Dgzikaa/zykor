@@ -153,12 +153,18 @@ export async function GET(request: NextRequest) {
       .select('data_evento').eq('bar_id', barId).eq('usa_yuzer', true).gte('data_evento', ini).lte('data_evento', fim);
     (headline as any).dias_yuzer = Array.from(new Set((evtRows || []).map((r: any) => r.data_evento))).sort();
 
-    // produtos vendidos no ContaHub FORA do de-para (sem código interno → invisíveis no CMV)
-    // fn_depara_sugestoes = mesma lista, já com a sugestão de vínculo por nome (prefixo respeitado)
+    // produtos vendidos no ContaHub SEM código interno / ficha técnica → invisíveis no CMV.
+    // fn_depara_sugestoes = mesma lista, já com a sugestão de vínculo por nome (prefixo respeitado).
     const { data: foraDp } = await gold.rpc('fn_depara_sugestoes', { p_bar_id: barId, p_ini: ini, p_fim: fim });
     const foraLista = (foraDp || []) as any[];
     (headline as any).fora_depara_n = foraLista.length;
     (headline as any).fora_depara_fat = Number(foraLista.reduce((s: number, r: any) => s + num(r.valor), 0).toFixed(2));
+
+    // Mesmo aviso pra Yuzer: produtos vendidos no Yuzer sem mapeamento em produto_yuzer_map.
+    const { data: foraYz } = await gold.rpc('fn_yuzer_sem_mapeamento', { p_bar_id: barId, p_ini: ini, p_fim: fim });
+    const foraYzLista = (foraYz || []) as any[];
+    (headline as any).fora_yuzer_n = foraYzLista.length;
+    (headline as any).fora_yuzer_fat = Number(foraYzLista.reduce((s: number, r: any) => s + num(r.valor), 0).toFixed(2));
 
     // comparativo Mix × Compras vs o período anterior (dia→ontem, semana→sem. anterior, mês→mês anterior)
     const gran = sp.get('gran') || 'dia';
@@ -187,7 +193,7 @@ export async function GET(request: NextRequest) {
       };
     }).sort((a, b) => b.faturamento - a.faturamento);
 
-    return NextResponse.json({ success: true, modo: 'periodo', headline, categorias, produtos: lista, origens, fora_depara: foraLista });
+    return NextResponse.json({ success: true, modo: 'periodo', headline, categorias, produtos: lista, origens, fora_depara: foraLista, fora_yuzer: foraYzLista });
   }
 
   // MODO TEÓRICO × REAL: ?vs_real=ano → compara nosso CMV teórico (fichas×vendas) com o CMV real (financial.cmv_mensal)
