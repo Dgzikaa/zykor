@@ -104,6 +104,12 @@ export async function POST(request: NextRequest) {
       contar('bronze_contaazul_contas_financeiras'),
     ]);
 
+    // Refresh da MV da DRE — senão os totais agregados ficam parados até o cron horário
+    // (às XX:07). Reclassificação no CA não bumpa data_alteracao, então essa era a raiz
+    // do "DRE não atualiza depois de reclassificar". CONCURRENTLY, MV pequena (~1s).
+    const { error: refreshErr } = await supabase.rpc('refresh_mv_dre_ano');
+    if (refreshErr) console.warn('[contaazul/sync-manual] refresh mv_dre_ano falhou:', refreshErr.message);
+
     return NextResponse.json({
       success: true,
       bar_id: result.bar_id ?? barId,

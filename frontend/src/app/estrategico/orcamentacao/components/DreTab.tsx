@@ -133,7 +133,15 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
         toast({ title: 'Falha ao sincronizar Conta Azul', description: j?.error || 'Erro', variant: 'destructive' });
       } else {
         const n = j?.stats?.lancamentos ?? 0;
-        toast({ title: 'Conta Azul sincronizado', description: `${n} lançamento(s) atualizado(s)${j?.duration_seconds ? ` em ${j.duration_seconds}s` : ''}` });
+        // Se rodou rápido e trouxe 0, avisa o caso comum: usuário só reclassificou.
+        // Reclassificação no CA não bumpa data_alteracao — só o modo completo pega.
+        const dicaReclass = modo === 'rapido' && n === 0
+          ? ' — se você reclassificou categorias no CA, use "sincronizar ano completo".'
+          : '';
+        toast({
+          title: 'Conta Azul sincronizado',
+          description: `${n} lançamento(s) atualizado(s)${j?.duration_seconds ? ` em ${j.duration_seconds}s` : ''}${dicaReclass}`,
+        });
       }
     } catch (e) {
       toast({ title: 'Erro de rede', description: e instanceof Error ? e.message : 'Erro', variant: 'destructive' });
