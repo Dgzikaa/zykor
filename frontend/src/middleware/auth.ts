@@ -16,7 +16,17 @@ export interface AuthenticatedUser {
   role: 'admin' | 'financeiro' | 'funcionario';
   setor?: string;
   bar_id?: number;
+  /**
+   * Módulos EFETIVOS do usuário. Se `perfil_id` está setado, é
+   * `perfil.modulos` (RBAC — só o perfil manda, sem merge). Senão, cai
+   * no legado (jsonb salvo no próprio user). O middleware resolve isso
+   * antes de retornar — o resto do app vê a mesma interface.
+   */
   modulos_permitidos: string[] | Record<string, any>;
+  /** ID do perfil vinculado (Fase 1 RBAC). Null = legado. */
+  perfil_id?: string | null;
+  /** Nome do perfil vinculado (denormalizado pra UI/log). */
+  perfil_nome?: string | null;
   ativo: boolean;
 }
 
@@ -149,6 +159,25 @@ export async function authenticateUser(
 
     // Buscar bar_id do usuário (usuarios não tem bar_id — vem de usuarios_bares)
     const supabase = await getAdminClient();
+
+    // RBAC (Fase 1): se o usuário tem `perfil_id`, os módulos efetivos vêm do perfil
+    // (não do jsonb legado no user). Sobrescreve `modulos_permitidos` antes de qualquer
+    // check de permissão — o resto do app segue vendo a mesma interface. Perfil vazio
+    // = sem acesso (só o role='admin' antigo ainda dá bypass no resolver, retrocompat).
+    if (authenticatedUser.perfil_id) {
+      const { data: perfil } = await (supabase as any)
+        .from('usuarios_perfil')
+        .select('nome, modulos')
+        .eq('id', authenticatedUser.perfil_id)
+        .maybeSingle();
+      if (perfil) {
+        authenticatedUser = {
+          ...authenticatedUser,
+          modulos_permitidos: Array.isArray(perfil.modulos) ? perfil.modulos : [],
+          perfil_nome: perfil.nome,
+        };
+      }
+    }
 
     if (!authenticatedUser.bar_id) {
       const { data: userBars } = await supabase
