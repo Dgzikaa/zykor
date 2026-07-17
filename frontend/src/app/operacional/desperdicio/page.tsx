@@ -14,14 +14,42 @@ import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api-client';
 import { Trash2, Plus, ChevronLeft, ChevronRight, Loader2, Upload, X, Camera, Pencil, ImageIcon, Check, Search } from 'lucide-react';
 
+type Area = 'CozinhaFin' | 'CozinhaProd' | 'BarFin' | 'BarProd' | 'Salao';
+const AREAS: { v: Area; l: string; hint: string }[] = [
+  { v: 'CozinhaFin', l: 'Cozinha · Finalização', hint: 'Prato pronto que caiu/perdeu na cozinha' },
+  { v: 'CozinhaProd', l: 'Cozinha · Produção', hint: 'Errou receita/desperdiçou no preparo (recheio, molho…)' },
+  { v: 'BarFin', l: 'Bar · Finalização', hint: 'Drink pronto que caiu/perdeu' },
+  { v: 'BarProd', l: 'Bar · Produção', hint: 'Errou drink/perdeu insumo no preparo do bar' },
+  { v: 'Salao', l: 'Salão', hint: 'Perda no salão (garrafa quebrada, taça, etc.)' },
+];
+const areaLabel = (a: Area | null | undefined) => AREAS.find((x) => x.v === a)?.l ?? '—';
+const areaBadgeCor = (a: Area | null | undefined): string => {
+  switch (a) {
+    case 'CozinhaFin': return 'bg-amber-500/15 text-amber-700 dark:text-amber-300';
+    case 'CozinhaProd': return 'bg-orange-500/15 text-orange-700 dark:text-orange-300';
+    case 'BarFin': return 'bg-sky-500/15 text-sky-700 dark:text-sky-300';
+    case 'BarProd': return 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300';
+    case 'Salao': return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300';
+    default: return 'bg-gray-500/15 text-gray-600 dark:text-gray-400';
+  }
+};
+
 type Insumo = { codigo: string; nome: string; categoria: string | null; unidade_medida: string | null };
 type Foto = { storage_path: string; url: string; size_bytes?: number; mime?: string };
-type Item = { insumo_codigo: string; insumo_nome?: string; unidade?: string; qtd: number; motivo?: string; observacao?: string };
+type Item = {
+  insumo_codigo: string; insumo_nome?: string; unidade?: string;
+  qtd: number; motivo?: string; observacao?: string;
+  area?: Area | null;
+  preco?: number | null; valor_rs?: number | null;
+};
 type Registro = {
   id: number; bar_id: number; data: string; observacao: string | null;
   criado_por: string | null; criado_em: string; atualizado_em: string;
   itens: Item[]; fotos: Foto[];
 };
+
+const fmtBRL = (v: number | null | undefined) =>
+  v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const toISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const parseISO = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
@@ -102,6 +130,36 @@ export default function DesperdicioPage() {
   const totalRegistros = registros.length;
   const totalItens = registros.reduce((s, r) => s + r.itens.length, 0);
   const totalFotos = registros.reduce((s, r) => s + r.fotos.length, 0);
+  // Total em R$ da semana (soma valor_rs de todos os itens; item sem preço = null → não soma).
+  const totalRs = registros.reduce(
+    (s, r) => s + r.itens.reduce((si, it) => si + (Number(it.valor_rs) || 0), 0),
+    0,
+  );
+  // Rollup por dia × área — pra tabela resumo (o que o Diogo pediu: "valor por dia lançado").
+  const rollupPorDia = useMemo(() => {
+    const map = new Map<string, { data: string; total: number; porArea: Record<string, number> }>();
+    for (const r of registros) {
+      const dia = r.data;
+      let row = map.get(dia);
+      if (!row) { row = { data: dia, total: 0, porArea: {} }; map.set(dia, row); }
+      for (const it of r.itens) {
+        const v = Number(it.valor_rs) || 0;
+        row.total += v;
+        const k = it.area || 'SemArea';
+        row.porArea[k] = (row.porArea[k] || 0) + v;
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => (a.data < b.data ? 1 : -1));
+  }, [registros]);
+  // Rollup só por área (total da semana).
+  const rollupPorArea = useMemo(() => {
+    const acc: Record<string, number> = {};
+    for (const r of registros) for (const it of r.itens) {
+      const k = it.area || 'SemArea';
+      acc[k] = (acc[k] || 0) + (Number(it.valor_rs) || 0);
+    }
+    return acc;
+  }, [registros]);
 
   return (
     <PageShell width="wide">
@@ -122,14 +180,75 @@ export default function DesperdicioPage() {
         )}
       </div>
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 flex-wrap">
         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navSemana(-1)}><ChevronLeft className="w-4 h-4" /></Button>
         <div className="text-sm px-1">
           <span className="font-medium">Semana {fmtDate(semana.ini)} a {fmtDate(semana.fim)}</span>
           {!loading && registros.length > 0 && <span className="text-muted-foreground"> · {totalRegistros} registro(s) · {totalItens} item(ns) · {totalFotos} foto(s)</span>}
         </div>
         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navSemana(1)}><ChevronRight className="w-4 h-4" /></Button>
+        {!loading && registros.length > 0 && (
+          <span className="ml-auto text-sm font-semibold text-red-700 dark:text-red-400">
+            Total da semana: {fmtBRL(totalRs)}
+          </span>
+        )}
       </div>
+
+      {/* Resumo dia × área — o que Diogo pediu: valor por dia lançado + separação por área. */}
+      {!loading && registros.length > 0 && (
+        <Card>
+          <CardContent className="py-3">
+            <div className="text-xs font-medium text-muted-foreground mb-2">Desperdício por dia e por área</div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-muted-foreground border-b">
+                  <tr>
+                    <th className="text-left py-1.5 pr-3 font-normal">Dia</th>
+                    {AREAS.map((a) => (
+                      <th key={a.v} className="text-right py-1.5 px-2 font-normal whitespace-nowrap" title={a.hint}>{a.l}</th>
+                    ))}
+                    <th className="text-right py-1.5 pl-3 font-normal">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {rollupPorDia.map((row) => (
+                    <tr key={row.data}>
+                      <td className="py-1.5 pr-3 font-medium tabular-nums">{fmtDateFull(row.data)}</td>
+                      {AREAS.map((a) => {
+                        const v = row.porArea[a.v] || 0;
+                        return (
+                          <td key={a.v} className={`py-1.5 px-2 text-right tabular-nums ${v > 0 ? '' : 'text-gray-300'}`}>
+                            {v > 0 ? fmtBRL(v) : '—'}
+                          </td>
+                        );
+                      })}
+                      <td className="py-1.5 pl-3 text-right tabular-nums font-semibold">{fmtBRL(row.total)}</td>
+                    </tr>
+                  ))}
+                  {(rollupPorArea['SemArea'] || 0) > 0 && (
+                    <tr>
+                      <td colSpan={AREAS.length + 2} className="pt-1 text-[11px] text-amber-700 dark:text-amber-400">
+                        + {fmtBRL(rollupPorArea['SemArea'] || 0)} sem área definida — abra o registro e classifique.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot className="border-t">
+                  <tr>
+                    <td className="pt-1.5 pr-3 text-xs text-muted-foreground">Total semana</td>
+                    {AREAS.map((a) => (
+                      <td key={a.v} className={`pt-1.5 px-2 text-right tabular-nums text-xs font-medium ${(rollupPorArea[a.v] || 0) > 0 ? '' : 'text-gray-300'}`}>
+                        {(rollupPorArea[a.v] || 0) > 0 ? fmtBRL(rollupPorArea[a.v]) : '—'}
+                      </td>
+                    ))}
+                    <td className="pt-1.5 pl-3 text-right tabular-nums text-xs font-bold">{fmtBRL(totalRs)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {loading ? (
         <div className="py-12 text-center"><Loader2 className="w-7 h-7 animate-spin mx-auto text-muted-foreground" /></div>
@@ -176,8 +295,10 @@ export default function DesperdicioPage() {
                     <div key={it.insumo_codigo + '-' + it.qtd + '-' + (it.motivo || '')} className="text-sm border rounded-md px-2.5 py-1.5 flex items-center gap-2 flex-wrap">
                       <span className="font-medium">{it.insumo_nome || it.insumo_codigo}</span>
                       <span className="text-muted-foreground text-xs">{it.insumo_codigo}</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${areaBadgeCor(it.area)}`}>{areaLabel(it.area)}</span>
                       <span className="ml-auto tabular-nums">{it.qtd} {it.unidade || ''}</span>
-                      {it.motivo && <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 basis-full sm:basis-auto">{it.motivo}</span>}
+                      <span className="tabular-nums font-semibold text-red-700 dark:text-red-400 min-w-[80px] text-right">{fmtBRL(it.valor_rs)}</span>
+                      {it.motivo && <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 basis-full">{it.motivo}</span>}
                     </div>
                   ))}
                 </div>
@@ -276,7 +397,7 @@ function RegistroDialog({
       const payload = {
         data,
         observacao: observacao.trim() || undefined,
-        itens: itens.map(it => ({ insumo_codigo: it.insumo_codigo, qtd: it.qtd, motivo: it.motivo || undefined, observacao: it.observacao || undefined })),
+        itens: itens.map(it => ({ insumo_codigo: it.insumo_codigo, qtd: it.qtd, motivo: it.motivo || undefined, observacao: it.observacao || undefined, area: it.area || undefined })),
         fotos,
       };
       if (modo === 'editar' && registroExistente) {
@@ -445,6 +566,25 @@ function ItemRow({
             <Trash2 className="w-4 h-4 text-red-600" />
           </Button>
         )}
+      </div>
+
+      {/* Área — onde ocorreu o desperdício (finalização vs produção, por setor) */}
+      <div className="flex flex-wrap gap-1.5">
+        {AREAS.map((a) => (
+          <button
+            key={a.v}
+            type="button"
+            onClick={() => onChange({ area: item.area === a.v ? null : a.v })}
+            title={a.hint}
+            className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+              item.area === a.v
+                ? `${areaBadgeCor(a.v)} border-current font-semibold`
+                : 'border-gray-300 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
+            }`}
+          >
+            {a.l}
+          </button>
+        ))}
       </div>
 
       {/* Motivo + observação */}

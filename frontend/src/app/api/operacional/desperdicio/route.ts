@@ -20,7 +20,9 @@ export const dynamic = 'force-dynamic';
 
 const isISO = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-type Item = { insumo_codigo: string; qtd: number; motivo?: string; observacao?: string };
+type Area = 'CozinhaFin' | 'CozinhaProd' | 'BarFin' | 'BarProd' | 'Salao';
+const AREAS: Area[] = ['CozinhaFin', 'CozinhaProd', 'BarFin', 'BarProd', 'Salao'];
+type Item = { insumo_codigo: string; qtd: number; motivo?: string; observacao?: string; area?: Area | null };
 type Foto = { storage_path: string; url: string; size_bytes?: number; mime?: string };
 
 async function ctx(request: NextRequest) {
@@ -42,11 +44,14 @@ function validarItens(itens: unknown): Item[] {
     const insumo_codigo = String(raw?.insumo_codigo || '').trim();
     const qtd = Number(raw?.qtd);
     if (!insumo_codigo || !Number.isFinite(qtd) || qtd <= 0) continue;
+    const rawArea = raw?.area ? String(raw.area).trim() : null;
+    const area = rawArea && (AREAS as string[]).includes(rawArea) ? (rawArea as Area) : null;
     out.push({
       insumo_codigo,
       qtd: Math.round(qtd * 1000) / 1000,
       motivo: raw?.motivo ? String(raw.motivo).trim() : undefined,
       observacao: raw?.observacao ? String(raw.observacao).trim() : undefined,
+      area,
     });
   }
   return out;
@@ -93,24 +98,39 @@ export async function GET(request: NextRequest) {
 
   const [{ data: itens }, { data: fotos }] = await Promise.all([
     ops(supabase).from('desperdicio_registro_item')
-      .select('id, registro_id, insumo_codigo, qtd, motivo, observacao').in('registro_id', ids),
+      .select('id, registro_id, insumo_codigo, qtd, motivo, observacao, area').in('registro_id', ids),
     ops(supabase).from('desperdicio_registro_foto')
       .select('id, registro_id, storage_path, url, size_bytes, mime').in('registro_id', ids),
   ]);
 
-  // Junta nome do insumo (operations.insumos) pra facilitar a UI (evita 1 lookup por item).
+  // Junta nome + preço unitário do insumo (evita 1 lookup por item). Preço vem da view
+  // operations.v_insumo_preco_atual, que já é a fonte usada pelo desvio pra valorizar.
   const codigos = Array.from(new Set((itens || []).map((i: any) => i.insumo_codigo)));
   const nomeByCod = new Map<string, { nome: string; unidade_medida: string | null; categoria: string | null }>();
+  const precoByCod = new Map<string, number>();
   if (codigos.length) {
-    const { data: cad } = await ops(supabase).from('insumos')
-      .select('codigo, nome, unidade_medida, categoria').eq('bar_id', bar_id).in('codigo', codigos);
+    const [{ data: cad }, { data: prc }] = await Promise.all([
+      ops(supabase).from('insumos')
+        .select('codigo, nome, unidade_medida, categoria').eq('bar_id', bar_id).in('codigo', codigos),
+      ops(supabase).from('v_insumo_preco_atual')
+        .select('cod_u, preco_atual').eq('bar_id', bar_id).in('cod_u', codigos.map((c) => String(c).toUpperCase())),
+    ]);
     for (const r of (cad || []) as any[]) nomeByCod.set(r.codigo, { nome: r.nome, unidade_medida: r.unidade_medida, categoria: r.categoria });
+    for (const r of (prc || []) as any[]) precoByCod.set(String(r.cod_u).toUpperCase(), Number(r.preco_atual || 0));
   }
 
   const itensPorReg = new Map<number, any[]>();
   for (const it of (itens || []) as any[]) {
     const cad = nomeByCod.get(it.insumo_codigo);
-    const enriched = { ...it, insumo_nome: cad?.nome || it.insumo_codigo, unidade: cad?.unidade_medida || 'un', categoria: cad?.categoria || null };
+    const preco = precoByCod.get(String(it.insumo_codigo).toUpperCase()) ?? null;
+    const valor_rs = preco != null ? Math.round(Number(it.qtd) * preco * 100) / 100 : null;
+    const enriched = {
+      ...it,
+      insumo_nome: cad?.nome || it.insumo_codigo,
+      unidade: cad?.unidade_medida || 'un',
+      categoria: cad?.categoria || null,
+      preco, valor_rs,
+    };
     const arr = itensPorReg.get(it.registro_id) || []; arr.push(enriched); itensPorReg.set(it.registro_id, arr);
   }
   const fotosPorReg = new Map<number, any[]>();
