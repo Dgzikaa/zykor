@@ -176,6 +176,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, importados: novos.length, ignorados_outro_bar: ignoradosOutroBar });
   }
 
+  // ----- CHECAR ONDE UM CÓDIGO (ContaHub prd ou Yuzer produto_id) JÁ ESTÁ MAPEADO -----
+  // Usado pela tela de ficha técnica antes de fazer o upsert: se o código já está em outro
+  // produto interno, mostra confirm "este código já está no produto X, tem certeza?" e só
+  // depois envia o action='codigos' que rouba o mapeamento.
+  if (body.action === 'check_codigo_uso') {
+    const tipo = String(body.tipo || '');
+    const codigoNum = Number(body.codigo_ext);
+    if (!['ch', 'yuzer'].includes(tipo) || !Number.isFinite(codigoNum) || codigoNum <= 0) {
+      return NextResponse.json({ success: false, error: 'tipo (ch|yuzer) e codigo_ext obrigatórios' }, { status: 400 });
+    }
+    const tbl = tipo === 'ch' ? 'produto_contahub_map' : 'produto_yuzer_map';
+    const col = tipo === 'ch' ? 'prd' : 'yuzer_produto_id';
+    const { data: rows } = await supabase.from(tbl).select('cod_interno').eq('bar_id', barId).eq(col, codigoNum).limit(1);
+    const em = rows && rows[0]?.cod_interno;
+    if (!em) return NextResponse.json({ success: true, em_uso: false });
+    // busca o nome do produto pra a msg do confirm
+    const { data: p } = await supabase.from('produto_cardapio').select('codigo, nome').eq('bar_id', barId).eq('codigo', em).single();
+    return NextResponse.json({ success: true, em_uso: true, cod_interno: em, nome: p?.nome || null });
+  }
+
   // ----- EDITAR CÓDIGOS (ContaHub / Yuzer) de um produto existente -----
   if (body.action === 'codigos') {
     const codInterno = String(body.codigo || '').trim();
@@ -201,7 +221,9 @@ export async function POST(request: NextRequest) {
     const curYzSet = new Set((curYz || []).map((r: any) => Number(r.yuzer_produto_id)));
     const yzRemove = [...curYzSet].filter(p => !yzArr.includes(p));
     if (yzRemove.length) await supabase.from('produto_yuzer_map').delete().eq('bar_id', barId).eq('cod_interno', codInterno).in('yuzer_produto_id', yzRemove);
-    for (const yid of yzArr) if (!curYzSet.has(yid)) await supabase.from('produto_yuzer_map').upsert({ bar_id: barId, cod_yuzer: String(yid), yuzer_produto_id: yid, nome: nomeProd, cod_interno: codInterno }, { onConflict: 'bar_id,cod_yuzer,cod_interno' });
+    // onConflict em (bar_id, yuzer_produto_id) faz o upsert ROUBAR o mapeamento de outro cod_interno
+    // (mesmo comportamento do ContaHub). Antes usava (bar_id, cod_yuzer, cod_interno) e duplicava.
+    for (const yid of yzArr) if (!curYzSet.has(yid)) await supabase.from('produto_yuzer_map').upsert({ bar_id: barId, cod_yuzer: String(yid), yuzer_produto_id: yid, nome: nomeProd, cod_interno: codInterno }, { onConflict: 'bar_id,yuzer_produto_id' });
     // refresca o matview de vendas p/ o vínculo refletir na hora (senão só no cron horário);
     // falha do refresh não derruba o salvamento (o cron é backstop)
     try { await (supabase as any).schema('silver').rpc('fn_refresh_vendas_depara'); } catch { /* backstop: cron horário */ }

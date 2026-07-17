@@ -305,9 +305,36 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     setYzArr(((selObj?.cods_yuzer || []) as any[]).map(Number).filter((n) => Number.isFinite(n) && n > 0));
     setChBusca(''); setYzInput(''); setEditCods(true);
   };
-  const addCh = (prd: number) => { if (Number.isFinite(prd) && prd > 0) setChArr((a) => a.includes(prd) ? a : [...a, prd]); setChBusca(''); };
+  // Antes de adicionar um código na ficha, checa se ele já está em OUTRO produto interno.
+  // Se estiver, pergunta confirmação — no submit o backend "rouba" (upsert com onConflict em
+  // (bar_id, prd) pro CH e (bar_id, yuzer_produto_id) pro Yuzer). Se cancela, não adiciona.
+  const checarERoubar = async (tipo: 'ch' | 'yuzer', codigoExt: number): Promise<boolean> => {
+    if (!barId || !selObj) return true;
+    try {
+      const r = await api.post('/api/operacional/produtos', { bar_id: barId, action: 'check_codigo_uso', tipo, codigo_ext: codigoExt });
+      if (!r.success || !r.em_uso) return true; // livre
+      if (r.cod_interno === selObj.codigo) return true; // já é desta ficha (edição idempotente)
+      const rotulo = tipo === 'ch' ? `código ContaHub ${codigoExt}` : `ID Yuzer ${codigoExt}`;
+      const alvo = `${r.cod_interno}${r.nome ? ` (${r.nome})` : ''}`;
+      return window.confirm(`O ${rotulo} já está mapeado no produto ${alvo}. Ao salvar, ele será movido pra esta ficha. Continuar?`);
+    } catch { return true; /* falha do check não trava a edição */ }
+  };
+  const addCh = async (prd: number) => {
+    if (!(Number.isFinite(prd) && prd > 0)) return;
+    if (chArr.includes(prd)) { setChBusca(''); return; }
+    if (!(await checarERoubar('ch', prd))) return;
+    setChArr((a) => a.includes(prd) ? a : [...a, prd]);
+    setChBusca('');
+  };
   const rmCh = (prd: number) => setChArr((a) => a.filter((p) => p !== prd));
-  const addYz = () => { const n = Number(String(yzInput).trim()); if (Number.isFinite(n) && n > 0) { setYzArr((a) => a.includes(n) ? a : [...a, n]); setYzInput(''); } };
+  const addYz = async () => {
+    const n = Number(String(yzInput).trim());
+    if (!(Number.isFinite(n) && n > 0)) return;
+    if (yzArr.includes(n)) { setYzInput(''); return; }
+    if (!(await checarERoubar('yuzer', n))) return;
+    setYzArr((a) => a.includes(n) ? a : [...a, n]);
+    setYzInput('');
+  };
   const rmYz = (id: number) => setYzArr((a) => a.filter((p) => p !== id));
   const salvarCods = async () => {
     if (!selObj || salvandoCods) return;
