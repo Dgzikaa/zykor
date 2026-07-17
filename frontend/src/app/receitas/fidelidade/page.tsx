@@ -8,12 +8,29 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Gift, Search } from 'lucide-react';
+import { Loader2, Gift, Search, Calendar } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { PageShell } from '@/components/layout/PageShell';
 import { ChartCard, GraficoDonut, GraficoBarraH, GraficoLinha } from '@/components/graficos/Charts';
+
+// Presets de período — só afetam os dados que têm data (resgates/pontos).
+// KPIs de "base de clientes" (vw_ordi_clientes) são sempre lifetime.
+type Periodo = 'tudo' | 'dia' | 'semana' | 'mes' | 'ano' | 'custom';
+
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+function rangeDoPeriodo(p: Periodo): { de?: string; ate?: string } {
+  if (p === 'tudo' || p === 'custom') return {};
+  const hoje = new Date();
+  const ate = iso(hoje);
+  const de = new Date(hoje);
+  if (p === 'dia') de.setDate(de.getDate()); // = hoje
+  else if (p === 'semana') de.setDate(de.getDate() - 6); // últimos 7 dias
+  else if (p === 'mes') de.setDate(1); // desde o dia 1 do mês
+  else if (p === 'ano') { de.setMonth(0); de.setDate(1); } // desde 1 jan
+  return { de: iso(de), ate };
+}
 
 const num = (v: number) => Math.round(v || 0).toLocaleString('pt-BR');
 const moeda = (v: number) =>
@@ -83,6 +100,8 @@ export default function FidelidadePage() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
+  const [periodo, setPeriodo] = useState<Periodo>('tudo');
+  const [rangeCustom, setRangeCustom] = useState<{ de: string; ate: string }>({ de: '', ate: '' });
 
   useEffect(() => {
     setPageTitle('🎁 Programa de Fidelidade');
@@ -91,19 +110,29 @@ export default function FidelidadePage() {
 
   const barId = selectedBar?.id;
 
+  const rangeAtual = useMemo(() => {
+    if (periodo === 'custom') {
+      return { de: rangeCustom.de || undefined, ate: rangeCustom.ate || undefined };
+    }
+    return rangeDoPeriodo(periodo);
+  }, [periodo, rangeCustom]);
+
   useEffect(() => {
     if (!barId) return;
     setLoading(true);
     setErro(null);
+    const qs = new URLSearchParams({ bar_id: String(barId) });
+    if (rangeAtual.de) qs.set('de', rangeAtual.de);
+    if (rangeAtual.ate) qs.set('ate', rangeAtual.ate);
     api
-      .get(`/api/receitas/fidelidade?bar_id=${barId}`)
+      .get(`/api/receitas/fidelidade?${qs.toString()}`)
       .then((r: any) => {
         if (r?.success) setResp(r as Resposta);
         else setErro(r?.error || 'Falha ao carregar');
       })
       .catch((e: any) => setErro(e?.message || 'Falha ao carregar'))
       .finally(() => setLoading(false));
-  }, [barId]);
+  }, [barId, rangeAtual]);
 
   const resumo = resp?.resumo;
 
@@ -131,10 +160,60 @@ export default function FidelidadePage() {
 
   return (
     <PageShell width="wide">
-      <div className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
-        <Gift className="h-4 w-4" />
-        Programa de fidelidade de {selectedBar?.nome ?? 'o bar selecionado'} — dados do parceiro.
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
+          <Gift className="h-4 w-4" />
+          Programa de fidelidade de {selectedBar?.nome ?? 'o bar selecionado'} — dados do parceiro.
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))]">
+            <Calendar className="h-3.5 w-3.5" />
+            Período:
+          </div>
+          {[
+            { v: 'dia' as const, l: 'Hoje' },
+            { v: 'semana' as const, l: '7 dias' },
+            { v: 'mes' as const, l: 'Mês' },
+            { v: 'ano' as const, l: 'Ano' },
+            { v: 'tudo' as const, l: 'Tudo' },
+            { v: 'custom' as const, l: 'Custom' },
+          ].map((p) => (
+            <button
+              key={p.v}
+              onClick={() => setPeriodo(p.v)}
+              className={`rounded-md border px-2.5 py-1 text-xs transition-colors ${
+                periodo === p.v
+                  ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+                  : 'border-[hsl(var(--border))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]'
+              }`}
+            >
+              {p.l}
+            </button>
+          ))}
+          {periodo === 'custom' && (
+            <div className="flex items-center gap-1">
+              <input
+                type="date"
+                value={rangeCustom.de}
+                onChange={(e) => setRangeCustom((r) => ({ ...r, de: e.target.value }))}
+                className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-xs"
+              />
+              <span className="text-xs text-[hsl(var(--muted-foreground))]">até</span>
+              <input
+                type="date"
+                value={rangeCustom.ate}
+                onChange={(e) => setRangeCustom((r) => ({ ...r, ate: e.target.value }))}
+                className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-xs"
+              />
+            </div>
+          )}
+        </div>
       </div>
+      {periodo !== 'tudo' && (rangeAtual.de || rangeAtual.ate) && (
+        <div className="rounded-md border border-blue-500/30 bg-blue-500/5 px-3 py-1.5 text-[11px] text-blue-800 dark:text-blue-300">
+          Movimentação (pontos, resgates, produtos, evolução mensal) filtrada por período. KPIs de base (clientes, saldo, consumo total) são sempre lifetime — o parceiro só entrega essa view consolidada.
+        </div>
+      )}
 
       {!barId ? (
         <div className="flex h-64 items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">

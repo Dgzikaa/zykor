@@ -23,6 +23,10 @@ function getBarId(request: NextRequest): number | null {
 
 const n = (v: unknown) => Number(v) || 0;
 
+// Valida YYYY-MM-DD só pra evitar mandar lixo pro PostgREST do parceiro.
+const dataOk = (s: string | null): string | undefined =>
+  s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : undefined;
+
 export async function GET(request: NextRequest) {
   const barId = getBarId(request);
   if (!barId) {
@@ -118,9 +122,15 @@ export async function GET(request: NextRequest) {
   let evolucaoMensal: { mes: string; gerados: number; utilizados: number }[] = [];
   let extrasErro: string | null = null;
 
+  // Filtro de período: aplica só nas views que têm data (resgates e pontos). A
+  // vw_ordi_clientes é lifetime, então KPIs do topo (saldo, cadastro, consumo total)
+  // não mudam com o período; movimentação sim.
+  const sp = new URL(request.url).searchParams;
+  const range = { de: dataOk(sp.get('de')), ate: dataOk(sp.get('ate')) };
+
   const [resgatesR, pontosR] = await Promise.allSettled([
-    fetchResgatesFidelidade(estabelecimentoId),
-    fetchPontosFidelidade(estabelecimentoId),
+    fetchResgatesFidelidade(estabelecimentoId, range),
+    fetchPontosFidelidade(estabelecimentoId, range),
   ]);
 
   if (resgatesR.status === 'fulfilled') {

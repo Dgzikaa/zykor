@@ -97,18 +97,34 @@ export function fetchClientesFidelidade(estabelecimentoId: string): Promise<Clie
   );
 }
 
+/** Range opcional YYYY-MM-DD; aplicado nos endpoints que têm data. */
+export interface RangeData {
+  de?: string;
+  ate?: string;
+}
+
 /** Resgates (vw_ordi_resgates) — ignora linhas-fantasma sem data de resgate. */
-export function fetchResgatesFidelidade(estabelecimentoId: string): Promise<ResgateFidelidade[]> {
+export function fetchResgatesFidelidade(
+  estabelecimentoId: string,
+  range?: RangeData,
+): Promise<ResgateFidelidade[]> {
+  const de = range?.de ? `&data_resgate=gte.${range.de}` : '';
+  const ate = range?.ate ? `&data_resgate=lte.${range.ate}` : '';
   return fetchAllRange<ResgateFidelidade>(
     `vw_ordi_resgates?select=cliente_id,produto_nome,item_nome,quantidade_item,data_resgate,valor_estimado_beneficio,agrupamento_mes` +
-      `&estabelecimento_id=eq.${encodeURIComponent(estabelecimentoId)}&data_resgate=not.is.null&order=data_resgate.desc`,
+      `&estabelecimento_id=eq.${encodeURIComponent(estabelecimentoId)}&data_resgate=not.is.null${de}${ate}&order=data_resgate.desc`,
   );
 }
 
 /** Movimentos de pontos (vw_ordi_pontos) — só os campos usados na evolução mensal. */
-export function fetchPontosFidelidade(estabelecimentoId: string): Promise<PontoMovimento[]> {
+export function fetchPontosFidelidade(
+  estabelecimentoId: string,
+  range?: RangeData,
+): Promise<PontoMovimento[]> {
+  const de = range?.de ? `&data_movimento=gte.${range.de}` : '';
+  const ate = range?.ate ? `&data_movimento=lte.${range.ate}` : '';
   return fetchAllRange<PontoMovimento>(
     `vw_ordi_pontos?select=data_movimento,pontos_gerados,pontos_utilizados,agrupamento_mes` +
-      `&estabelecimento_id=eq.${encodeURIComponent(estabelecimentoId)}&agrupamento_mes=not.is.null`,
+      `&estabelecimento_id=eq.${encodeURIComponent(estabelecimentoId)}&agrupamento_mes=not.is.null${de}${ate}`,
   );
 }
