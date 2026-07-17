@@ -31,6 +31,31 @@ type Perfil = {
   atualizado_em?: string;
 };
 
+// Granularidade CRUD por módulo — mesma convenção da tela de usuários.
+// Token liso (ex.: 'financeiro_agendamento') = CRUD completo.
+// Token com ação (ex.: 'financeiro_agendamento:ver') = só aquela ação.
+const ACOES = ['ver', 'editar', 'inserir', 'excluir'] as const;
+type Acao = typeof ACOES[number];
+const LETRA_ACAO: Record<Acao, string> = { ver: 'V', editar: 'E', inserir: 'I', excluir: 'X' };
+const NOME_ACAO: Record<Acao, string> = { ver: 'Ver', editar: 'Editar', inserir: 'Inserir', excluir: 'Excluir' };
+
+function acoesDoModulo(id: string, arr: string[]): Record<Acao, boolean> {
+  const idl = id.toLowerCase();
+  const lower = arr.map(t => String(t).toLowerCase());
+  if (lower.includes(idl)) return { ver: true, editar: true, inserir: true, excluir: true };
+  const has = (a: string) => lower.includes(`${idl}:${a}`);
+  const editar = has('editar'), inserir = has('inserir'), excluir = has('excluir');
+  return { ver: has('ver') || editar || inserir || excluir, editar, inserir, excluir };
+}
+function semModulo(arr: string[], id: string): string[] {
+  const idl = id.toLowerCase();
+  return arr.filter(t => { const tl = String(t).toLowerCase(); return tl !== idl && !ACOES.some(a => tl === `${idl}:${a}`); });
+}
+function tokensFor(id: string, act: Record<Acao, boolean>): string[] {
+  if (act.ver && act.editar && act.inserir && act.excluir) return [id];
+  return ACOES.filter(a => act[a]).map(a => `${id}:${a}`);
+}
+
 export default function PerfisPage() {
   const { setPageTitle } = usePageTitle();
   const { toast } = useToast();
@@ -167,28 +192,38 @@ function EditarPerfilDialog({
 
   const [nome, setNome] = useState(perfilExistente?.nome || '');
   const [descricao, setDescricao] = useState(perfilExistente?.descricao || '');
-  const [modulos, setModulos] = useState<Set<string>>(new Set(perfilExistente?.modulos || []));
+  // Estado guarda o array cru de tokens (mesma convenção do modulos_permitidos):
+  // token liso = CRUD completo; `id:ver` etc. = ação específica.
+  const [tokens, setTokens] = useState<string[]>(perfilExistente?.modulos || []);
   const [salvando, setSalvando] = useState(false);
 
   const modulosPorCategoria = useMemo(() => getModulosPorCategoria(), []);
-  const temTodos = modulos.has('todos');
+  const temTodos = tokens.includes('todos');
 
-  const toggleModulo = (id: string) => {
-    if (soLeitura) return;
-    setModulos(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
+  // Marca/desmarca uma ação específica de um módulo. Reescreve os tokens desse
+  // módulo do zero (remove liso + todos os :acao e recoloca conforme o novo estado).
+  const setAcao = (id: string, acao: Acao, marcar: boolean) => {
+    if (soLeitura || temTodos) return;
+    setTokens(prev => {
+      const atuais = acoesDoModulo(id, prev);
+      const novo: Record<Acao, boolean> = { ...atuais, [acao]: marcar };
+      // Regra ergonômica igual à tela de usuário: ver é a base — se marcou uma escrita,
+      // garante ver; se desmarcou ver, desmarca escrita.
+      if (acao !== 'ver' && marcar) novo.ver = true;
+      if (acao === 'ver' && !marcar) { novo.editar = false; novo.inserir = false; novo.excluir = false; }
+      return [...semModulo(prev, id), ...tokensFor(id, novo)];
     });
   };
 
+  // "Marcar todos" da categoria: dá CRUD completo (token liso) pra todos os módulos
+  // da categoria. Desmarcar remove todos os tokens desses módulos.
   const toggleCategoria = (ids: string[], marcar: boolean) => {
-    if (soLeitura) return;
-    setModulos(prev => {
-      const next = new Set(prev);
-      if (marcar) ids.forEach(id => next.add(id));
-      else ids.forEach(id => next.delete(id));
-      return next;
+    if (soLeitura || temTodos) return;
+    setTokens(prev => {
+      let arr = prev;
+      for (const id of ids) arr = semModulo(arr, id);
+      if (marcar) arr = [...arr, ...ids];
+      return arr;
     });
   };
 
@@ -198,7 +233,7 @@ function EditarPerfilDialog({
     if (!podeSalvar) return;
     setSalvando(true);
     try {
-      const payload = { nome: nome.trim(), descricao: descricao.trim() || null, modulos: Array.from(modulos) };
+      const payload = { nome: nome.trim(), descricao: descricao.trim() || null, modulos: tokens };
       if (modo === 'editar' && perfilExistente) {
         await api.put('/api/configuracoes/perfis', { id: perfilExistente.id, ...payload });
         toast({ title: 'Perfil atualizado' });
@@ -242,7 +277,7 @@ function EditarPerfilDialog({
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs font-medium text-muted-foreground">Acesso por módulo</span>
               <span className="text-[11px] text-muted-foreground">
-                {temTodos ? 'Todos os módulos (bypass)' : `${modulos.size} módulo(s) selecionado(s)`}
+                {temTodos ? 'Todos os módulos (bypass)' : <><b>V</b> ver · <b>E</b> editar · <b>I</b> inserir · <b>X</b> excluir</>}
               </span>
             </div>
             <div className={`rounded-lg p-3 border max-h-[400px] overflow-y-auto ${soLeitura || temTodos ? 'opacity-60 pointer-events-none' : ''}`}>
@@ -253,8 +288,11 @@ function EditarPerfilDialog({
               )}
               {Object.entries(modulosPorCategoria).map(([categoria, mods]) => {
                 const ids = mods.map(m => m.id);
-                const marcados = ids.filter(id => modulos.has(id)).length;
-                const todosMarcados = marcados === ids.length;
+                const marcados = ids.filter(id => acoesDoModulo(id, tokens).ver).length;
+                const todosMarcados = marcados === ids.length && ids.every(id => {
+                  const a = acoesDoModulo(id, tokens);
+                  return a.ver && a.editar && a.inserir && a.excluir;
+                });
                 return (
                   <div key={categoria} className="mb-3 last:mb-0">
                     <div className="flex items-center justify-between mb-1.5 border-b pb-1">
@@ -266,20 +304,30 @@ function EditarPerfilDialog({
                           onCheckedChange={(c) => toggleCategoria(ids, c as boolean)}
                           disabled={soLeitura || temTodos}
                         />
-                        <span className="text-[11px] text-muted-foreground">Todos</span>
+                        <span className="text-[11px] text-muted-foreground">Todos (CRUD)</span>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                      {mods.map(m => (
-                        <label key={m.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted cursor-pointer text-xs">
-                          <Checkbox
-                            checked={modulos.has(m.id)}
-                            onCheckedChange={() => toggleModulo(m.id)}
-                            disabled={soLeitura || temTodos}
-                          />
-                          <span className="truncate">{m.nome}</span>
-                        </label>
-                      ))}
+                    <div className="grid grid-cols-1 gap-1">
+                      {mods.map(m => {
+                        const act = acoesDoModulo(m.id, tokens);
+                        return (
+                          <div key={m.id} className="flex items-center justify-between gap-2 p-1.5 rounded hover:bg-muted text-xs">
+                            <span className="flex-1 truncate">{m.nome}</span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {ACOES.map(a => (
+                                <label key={a} className="flex flex-col items-center gap-0.5 cursor-pointer" title={NOME_ACAO[a]}>
+                                  <Checkbox
+                                    checked={act[a]}
+                                    disabled={soLeitura || temTodos}
+                                    onCheckedChange={(c) => setAcao(m.id, a, c as boolean)}
+                                  />
+                                  <span className="text-[9px] leading-none text-muted-foreground">{LETRA_ACAO[a]}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
