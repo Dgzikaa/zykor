@@ -9,7 +9,7 @@ import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { DateInputBR } from '@/components/ui/date-input-br';
-import { ArrowRightLeft, ArrowRight, Search, Trash2, Loader2, Plus } from 'lucide-react';
+import { ArrowRightLeft, ArrowRight, Search, Trash2, Loader2, Plus, ChevronDown } from 'lucide-react';
 
 type Insumo = { id: number; codigo: string; nome: string; categoria?: string | null; preco_atual: number | null };
 // codigoDestino: código do MESMO insumo no catálogo do bar que recebe.
@@ -160,11 +160,15 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
     setDestPickerFor(null); setDestBusca('');
   };
   const insumoDestinoPorCod = useMemo(() => new Map(insumosDestino.map((i) => [i.codigo, i])), [insumosDestino]);
-  // lista do seletor: busca por nome OU código; sem busca, mostra o topo do catálogo do bar destino
+  // lista do seletor: busca por nome OU código; sem busca, mostra o topo do catálogo do bar destino.
+  // Normaliza acentos/pontuação nos dois lados — sem isso "pao" não casava com "Pão", "ate" não
+  // casava com "até", etc. Fallback com startsWith no código pra prefixo exato (i0227...).
   const destFiltrados = useMemo(() => {
-    const s = destBusca.trim().toLowerCase();
-    const base = s
-      ? insumosDestino.filter((i) => (i.nome || '').toLowerCase().includes(s) || (i.codigo || '').toLowerCase().includes(s))
+    const raw = destBusca.trim();
+    const s = normNome(raw);
+    const sCod = raw.toLowerCase();
+    const base = s || sCod
+      ? insumosDestino.filter((i) => normNome(i.nome || '').includes(s) || (i.codigo || '').toLowerCase().includes(sCod))
       : insumosDestino;
     return base.slice(0, 50);
   }, [insumosDestino, destBusca]);
@@ -316,28 +320,43 @@ export default function TrocasTab({ barId, onLancado }: { barId: number; onLanca
                             {(() => {
                               const aberto = destPickerFor === it.codigo;
                               const escolhido = it.codigoDestino ? insumoDestinoPorCod.get(it.codigoDestino) : null;
+                              const desabilitado = !barDestino || insumosDestino.length === 0;
+                              const motivoDesab = !barDestino
+                                ? 'Escolha o bar destino primeiro'
+                                : 'Bar destino sem insumos cadastrados no Zykor';
                               return (
                                 <div className="relative">
-                                  <Input
-                                    value={aberto ? destBusca : (escolhido ? `${escolhido.nome} · ${escolhido.codigo}` : '')}
-                                    placeholder={!barDestino ? 'escolha o bar destino primeiro' : 'digite pra buscar…'}
-                                    disabled={!barDestino || insumosDestino.length === 0}
-                                    onFocus={() => { setDestPickerFor(it.codigo); setDestBusca(''); }}
-                                    onChange={(e) => { setDestPickerFor(it.codigo); setDestBusca(e.target.value); }}
-                                    onBlur={() => setTimeout(() => setDestPickerFor((cur) => cur === it.codigo ? null : cur), 150)}
-                                    className={`h-8 text-sm ${it.codigoDestino ? '' : 'border-amber-400 dark:border-amber-600'}`}
-                                  />
+                                  <div className="relative">
+                                    <Input
+                                      value={aberto ? destBusca : (escolhido ? `${escolhido.nome} · ${escolhido.codigo}` : '')}
+                                      placeholder={desabilitado ? motivoDesab : 'clique e digite pra buscar…'}
+                                      disabled={desabilitado}
+                                      onFocus={() => { setDestPickerFor(it.codigo); setDestBusca(''); }}
+                                      onClick={() => { setDestPickerFor(it.codigo); setDestBusca(''); }}
+                                      onChange={(e) => { setDestPickerFor(it.codigo); setDestBusca(e.target.value); }}
+                                      onBlur={() => setTimeout(() => setDestPickerFor((cur) => cur === it.codigo ? null : cur), 200)}
+                                      title={desabilitado ? motivoDesab : (escolhido ? `${escolhido.nome} (${escolhido.codigo}) — clique pra trocar` : 'Clique pra escolher o insumo')}
+                                      className={`h-8 pr-7 text-sm cursor-pointer ${it.codigoDestino ? '' : 'border-amber-400 dark:border-amber-600'}`}
+                                    />
+                                    {!desabilitado && (
+                                      <ChevronDown className={`absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none transition-transform ${aberto ? 'rotate-180' : ''}`} />
+                                    )}
+                                  </div>
                                   {aberto && (
-                                    <div className="absolute z-30 mt-1 w-full min-w-[260px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl max-h-56 overflow-y-auto">
+                                    <div className="absolute z-50 mt-1 w-full min-w-[280px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl max-h-72 overflow-y-auto">
+                                      <div className="sticky top-0 z-10 border-b border-gray-100 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 px-3 py-1.5 text-[10px] uppercase tracking-wide text-gray-400">
+                                        Insumos de {nomeBar(barDestino!)} — {insumosDestino.length} no catálogo
+                                      </div>
                                       <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setDestino(it.codigo, null)}
                                         className="w-full text-left px-3 py-2 text-xs text-amber-700 dark:text-amber-400 hover:bg-gray-50 dark:hover:bg-gray-800/60 border-b border-gray-100 dark:border-gray-800">
                                         — sem equivalente (não entra no estoque de lá) —
                                       </button>
-                                      {destFiltrados.length === 0 && <div className="px-3 py-2 text-xs text-gray-400">Nenhum insumo encontrado.</div>}
+                                      {destFiltrados.length === 0 && <div className="px-3 py-3 text-xs text-gray-400">Nenhum insumo encontrado pra &quot;{destBusca}&quot;.</div>}
                                       {destFiltrados.map((d) => (
                                         <button key={d.codigo} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setDestino(it.codigo, d.codigo)}
-                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/60 ${d.codigo === it.codigoDestino ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>
-                                          <span className="truncate">{d.nome}</span> <span className="text-xs text-gray-400 font-mono">{d.codigo}</span>
+                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/60 flex items-center justify-between gap-2 ${d.codigo === it.codigoDestino ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>
+                                          <span className="truncate">{d.nome}</span>
+                                          <span className="text-xs text-gray-400 font-mono shrink-0">{d.codigo}</span>
                                         </button>
                                       ))}
                                     </div>
