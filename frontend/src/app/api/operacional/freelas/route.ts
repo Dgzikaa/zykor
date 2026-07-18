@@ -128,13 +128,42 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, freela: criado });
   }
 
+  // --- EDITAR_FREELA: atualiza cadastro (função padrão, valor padrão, PIX etc.) ---
+  if (action === 'editar_freela') {
+    const id = String(body.id || '').trim();
+    if (!id) return NextResponse.json({ success: false, error: 'id do freela obrigatório' }, { status: 400 });
+
+    // Só grava o que veio no payload (undefined não sobrescreve).
+    const patch: Record<string, unknown> = {};
+    if (body.nome !== undefined) {
+      const nome = String(body.nome).trim();
+      if (!nome) return NextResponse.json({ success: false, error: 'nome não pode ficar vazio' }, { status: 400 });
+      patch.nome = nome;
+    }
+    if (body.funcao !== undefined) patch.funcao = String(body.funcao || '').trim() || null;
+    if (body.chave_pix !== undefined) patch.chave_pix = String(body.chave_pix || '').trim() || null;
+    if (body.tipo_chave !== undefined) patch.tipo_chave = String(body.tipo_chave || '').trim() || null;
+    if (body.cpf_cnpj !== undefined) patch.cpf_cnpj = String(body.cpf_cnpj || '').replace(/\D/g, '') || null;
+    if (body.valor_padrao !== undefined) {
+      const v = body.valor_padrao === '' || body.valor_padrao == null ? null : Math.round(Number(body.valor_padrao) * 100) / 100;
+      patch.valor_padrao = v != null && Number.isFinite(v) && v > 0 ? v : null;
+    }
+    if (Object.keys(patch).length === 0) return NextResponse.json({ success: true, sem_mudancas: true });
+
+    const { data: upd, error } = await fin(supabase).from('beneficiarios')
+      .update(patch).eq('id', id).eq('bar_id', bar_id).eq('tipo', 'freela')
+      .select('id, nome, funcao, valor_padrao, chave_pix, tipo_chave, cpf_cnpj, contaazul_pessoa_id').single();
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, freela: upd });
+  }
+
   // --- LANCAR: cria N diárias em RASCUNHO ---
   const data_vencimento = String(body.data_vencimento || '');
   const data_competencia = String(body.data_competencia || '');
   if (!isISO(data_vencimento) || !isISO(data_competencia)) {
     return NextResponse.json({ success: false, error: 'data_competencia e data_vencimento (AAAA-MM-DD) obrigatórias' }, { status: 400 });
   }
-  const itens: Array<{ freela_id: string; valor: number }> = Array.isArray(body.itens) ? body.itens : [];
+  const itens: Array<{ freela_id: string; valor: number; funcao?: string }> = Array.isArray(body.itens) ? body.itens : [];
   if (itens.length === 0) return NextResponse.json({ success: false, error: 'nenhum freela no lote' }, { status: 400 });
 
   const ids = itens.map(i => i.freela_id);
@@ -150,13 +179,19 @@ export async function POST(request: NextRequest) {
     if (!f) { erros.push(`freela ${it.freela_id} não encontrado`); continue; }
     const valor = Math.round(Number(it.valor) * 100) / 100;
     if (!Number.isFinite(valor) || valor <= 0) { erros.push(`valor inválido para ${f.nome}`); continue; }
+    // Função DO DIA: se o item veio com função (a operação escolheu na hora — ex.: mesma
+    // pessoa hoje é garçom, amanhã é cumim), usa ela; senão cai na função padrão do
+    // cadastro. A função final entra na descrição do pedido pro financeiro/DRE.
+    const funcaoDoDia = it.funcao != null && String(it.funcao).trim()
+      ? String(it.funcao).trim()
+      : (f.funcao || '');
     novos.push({
       bar_id: bar_id,
       tipo: 'freela',
       status: 'rascunho',
       solicitante_id: user.auth_id,
       solicitante_nome: user.nome,
-      descricao: `Freela ${f.funcao ? f.funcao + ' — ' : ''}${f.nome} (${data_vencimento})`,
+      descricao: `Freela ${funcaoDoDia ? funcaoDoDia + ' — ' : ''}${f.nome} (${data_vencimento})`,
       valor,
       data_competencia,
       data_vencimento,

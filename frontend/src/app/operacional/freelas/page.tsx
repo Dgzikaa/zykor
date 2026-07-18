@@ -51,7 +51,7 @@ export default function FreelasOperacaoPage() {
   const [loading, setLoading] = useState(false);
   const [busca, setBusca] = useState('');
   const [dia, setDia] = useState(() => { const h = toISO(new Date()); const w = weekInfo(toISO(mondayOf(new Date()))); return h >= w.monISO && h <= w.sunISO ? h : w.monISO; });
-  const [sel, setSel] = useState<Record<string, { on: boolean; valor: string }>>({});
+  const [sel, setSel] = useState<Record<string, { on: boolean; valor: string; funcao: string }>>({});
   const [lancando, setLancando] = useState(false);
   const [encerrando, setEncerrando] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -61,6 +61,9 @@ export default function FreelasOperacaoPage() {
   const [novo, setNovo] = useState({ nome: '', funcao: '', valor: '', pix: '' });
   const [salvandoNovo, setSalvandoNovo] = useState(false);
   const [importarOpen, setImportarOpen] = useState(false);
+  // Edição do cadastro do freela (função padrão + valor padrão inline).
+  const [editandoCad, setEditandoCad] = useState<null | { id: string; funcao: string; valor: string }>(null);
+  const [salvandoCad, setSalvandoCad] = useState(false);
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -95,10 +98,20 @@ export default function FreelasOperacaoPage() {
 
   const toggle = (f: Freela) => setSel(p => {
     const cur = p[f.id];
-    if (cur?.on) return { ...p, [f.id]: { on: false, valor: cur.valor } };
-    return { ...p, [f.id]: { on: true, valor: cur?.valor ?? (f.valor_padrao ? String(f.valor_padrao).replace('.', ',') : '') } };
+    if (cur?.on) return { ...p, [f.id]: { ...cur, on: false } };
+    return {
+      ...p,
+      [f.id]: {
+        on: true,
+        // Pré-preenche valor + função com os padrões do cadastro. Editáveis pra ajustar
+        // por dia (mesma pessoa pode vir de garçom hoje, cumim amanhã).
+        valor: cur?.valor ?? (f.valor_padrao ? String(f.valor_padrao).replace('.', ',') : ''),
+        funcao: cur?.funcao ?? (f.funcao || ''),
+      },
+    };
   });
-  const setValor = (id: string, valor: string) => setSel(p => ({ ...p, [id]: { on: p[id]?.on ?? true, valor } }));
+  const setValor = (id: string, valor: string) => setSel(p => ({ ...p, [id]: { on: p[id]?.on ?? true, valor, funcao: p[id]?.funcao ?? '' } }));
+  const setFuncao = (id: string, funcao: string) => setSel(p => ({ ...p, [id]: { on: p[id]?.on ?? true, valor: p[id]?.valor ?? '', funcao } }));
   const selecionados = useMemo(() => Object.entries(sel).filter(([, v]) => v.on), [sel]);
   const totalNovo = useMemo(() => selecionados.reduce((s, [, v]) => s + parseValor(v.valor), 0), [selecionados]);
 
@@ -113,7 +126,9 @@ export default function FreelasOperacaoPage() {
   }, [roster, busca, sel]);
 
   const lancar = async () => {
-    const itens = selecionados.map(([freela_id, v]) => ({ freela_id, valor: parseValor(v.valor) })).filter(i => i.valor > 0);
+    const itens = selecionados.map(([freela_id, v]) => ({
+      freela_id, valor: parseValor(v.valor), funcao: v.funcao?.trim() || undefined,
+    })).filter(i => i.valor > 0);
     if (itens.length === 0) return toast({ title: 'Selecione freelas e informe os valores', variant: 'destructive' });
     setLancando(true);
     try {
@@ -134,6 +149,27 @@ export default function FreelasOperacaoPage() {
     if (!window.confirm(`Remover a diária de ${p.beneficiario_nome || 'freela'} (${ddmm(p.data_competencia || p.data_vencimento)} · ${fmtBRL(p.valor)})?`)) return;
     try { await api.delete(`/api/operacional/freelas?id=${p.id}`); await carregar(); }
     catch (e: any) { toast({ title: 'Erro ao remover', description: e?.message, variant: 'destructive' }); }
+  };
+
+  const salvarEdicaoCad = async () => {
+    if (!editandoCad) return;
+    const funcao = editandoCad.funcao.trim();
+    const valorTxt = editandoCad.valor.trim();
+    const valor_padrao = valorTxt ? parseValor(valorTxt) : null;
+    setSalvandoCad(true);
+    try {
+      await api.post('/api/operacional/freelas', {
+        action: 'editar_freela',
+        id: editandoCad.id,
+        funcao: funcao || '',       // string vazia vira null no backend
+        valor_padrao: valorTxt === '' ? '' : valor_padrao,
+      });
+      toast({ title: 'Cadastro atualizado' });
+      setEditandoCad(null);
+      await carregar();
+    } catch (e: any) {
+      toast({ title: 'Erro ao editar cadastro', description: e?.message, variant: 'destructive' });
+    } finally { setSalvandoCad(false); }
   };
 
   const cadastrarFreela = async () => {
@@ -264,6 +300,20 @@ export default function FreelasOperacaoPage() {
                 <span className="text-sm text-muted-foreground">Dia trabalhado:</span>
                 <Input type="date" value={dia} min={semana.monISO} max={semana.sunISO} onChange={e => setDia(e.target.value)} className="h-8 w-40" />
               </div>
+              {/* Botão "Adicionar ao rascunho" no topo (Gonza 2026-07-18) — mesmo botão
+                  da barra sticky do rodapé, replicado aqui pra quem prefere lançar sem
+                  descer a lista. Aparece só quando tem seleção. */}
+              {selecionados.length > 0 && (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-400/60 bg-emerald-50/40 dark:bg-emerald-900/10 p-2.5">
+                  <div className="text-sm">
+                    <b>{selecionados.length}</b> freela(s) selecionado(s) · dia <b>{ddmm(dia)}</b> · total <b>{fmtBRL(totalNovo)}</b>
+                  </div>
+                  <Button size="sm" onClick={lancar} disabled={lancando}>
+                    {lancando ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Lançando...</> : <><Plus className="w-4 h-4 mr-2" />Adicionar ao rascunho</>}
+                  </Button>
+                </div>
+              )}
+
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -302,16 +352,65 @@ export default function FreelasOperacaoPage() {
                   <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">Nenhum freela {busca ? `para "${busca}"` : 'cadastrado'}.</CardContent></Card>
                 ) : rosterVisivel.map(f => {
                   const s = sel[f.id];
+                  const emEdicao = editandoCad?.id === f.id;
                   return (
-                    <div key={f.id} className={`flex items-center gap-3 rounded-lg border p-2.5 ${s?.on ? 'border-emerald-400 bg-emerald-50/40 dark:bg-emerald-900/10' : 'border-[hsl(var(--border))]'}`}>
-                      <input type="checkbox" checked={!!s?.on} onChange={() => toggle(f)} className="accent-emerald-600 w-4 h-4" />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate text-sm">{f.nome}</div>
-                        <div className="text-xs text-muted-foreground truncate">{f.funcao || '—'}{f.chave_pix ? ` · PIX ${f.chave_pix}` : ' · sem PIX'}{!f.contaazul_pessoa_id && <span className="text-amber-600"> · sem fornecedor no CA (financeiro vincula)</span>}</div>
+                    <div key={f.id} className={`rounded-lg border p-2.5 ${s?.on ? 'border-emerald-400 bg-emerald-50/40 dark:bg-emerald-900/10' : 'border-[hsl(var(--border))]'}`}>
+                      <div className="flex items-center gap-3">
+                        <input type="checkbox" checked={!!s?.on} onChange={() => toggle(f)} className="accent-emerald-600 w-4 h-4" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate text-sm">{f.nome}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {f.funcao || '—'}
+                            {f.valor_padrao ? ` · padrão ${fmtBRL(Number(f.valor_padrao))}` : ''}
+                            {f.chave_pix ? ` · PIX ${f.chave_pix}` : ' · sem PIX'}
+                            {!f.contaazul_pessoa_id && <span className="text-amber-600"> · sem fornecedor no CA (financeiro vincula)</span>}
+                          </div>
+                        </div>
+                        {/* Função do dia — editável (mesma pessoa pode ser garçom hoje, cumim amanhã) */}
+                        <div className="w-32 shrink-0 hidden sm:block">
+                          <Input
+                            value={s?.on ? (s.funcao ?? '') : ''}
+                            onChange={e => setFuncao(f.id, e.target.value)}
+                            placeholder={f.funcao || 'função'}
+                            className="h-8 text-xs"
+                            disabled={!s?.on}
+                          />
+                        </div>
+                        <div className="w-24 shrink-0">
+                          <Input value={s?.valor ?? ''} onChange={e => setValor(f.id, e.target.value)} placeholder={f.valor_padrao ? String(f.valor_padrao).replace('.', ',') : 'valor'} inputMode="decimal" className="h-8 text-right" disabled={!s?.on} />
+                        </div>
+                        <button
+                          onClick={() => setEditandoCad(emEdicao ? null : { id: f.id, funcao: f.funcao || '', valor: f.valor_padrao ? String(f.valor_padrao).replace('.', ',') : '' })}
+                          title="Editar função padrão e valor padrão"
+                          className="text-muted-foreground hover:text-indigo-600 shrink-0 p-1"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                      <div className="w-28 shrink-0">
-                        <Input value={s?.valor ?? ''} onChange={e => setValor(f.id, e.target.value)} placeholder={f.valor_padrao ? String(f.valor_padrao).replace('.', ',') : 'valor'} inputMode="decimal" className="h-8 text-right" disabled={!s?.on} />
-                      </div>
+                      {/* Dialog inline de edição do cadastro (função padrão + valor padrão) */}
+                      {emEdicao && (
+                        <div className="mt-2 pt-2 border-t border-dashed grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                          <Input
+                            value={editandoCad!.funcao}
+                            onChange={e => setEditandoCad({ ...editandoCad!, funcao: e.target.value })}
+                            placeholder="Função padrão"
+                            className="h-8 text-sm"
+                          />
+                          <Input
+                            value={editandoCad!.valor}
+                            onChange={e => setEditandoCad({ ...editandoCad!, valor: e.target.value })}
+                            placeholder="Valor padrão da diária"
+                            inputMode="decimal"
+                            className="h-8 text-sm text-right"
+                          />
+                          <div className="flex items-center gap-1 justify-end">
+                            <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditandoCad(null)}>Cancelar</Button>
+                            <Button size="sm" className="h-7 px-2" onClick={salvarEdicaoCad} disabled={salvandoCad}>
+                              {salvandoCad ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
