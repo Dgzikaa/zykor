@@ -388,7 +388,7 @@ function RegistroDialog({
 
   const podeSalvar = fotos.length > 0
     && itens.length > 0
-    && itens.every(it => it.insumo_codigo && it.qtd > 0);
+    && itens.every(it => it.insumo_codigo && it.qtd > 0 && !!it.area);
 
   const salvar = async () => {
     if (!podeSalvar) return;
@@ -415,13 +415,13 @@ function RegistroDialog({
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v && !salvando) onFechar(); }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[92vh]">
+        <DialogHeader className="pb-3 border-b">
           <DialogTitle>{modo === 'editar' ? 'Editar registro' : 'Novo registro de desperdício'}</DialogTitle>
           <DialogDescription>Anexe pelo menos 1 foto e adicione os itens da caixa. A soma alimenta o /operacional/desvios.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="px-6 py-4 space-y-5 overflow-y-auto flex-1">
           {/* Data */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Data:</span>
@@ -486,7 +486,14 @@ function RegistroDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="border-t px-6 py-3">
+          {!podeSalvar && (
+            <span className="mr-auto text-[11px] text-amber-700 dark:text-amber-400 self-center">
+              {fotos.length === 0 ? 'Anexe ao menos 1 foto' :
+                itens.some(it => !it.insumo_codigo || !it.qtd) ? 'Preencha insumo e qtd de todos os itens' :
+                itens.some(it => !it.area) ? 'Escolha a área de cada item' : ''}
+            </span>
+          )}
           <Button variant="ghost" onClick={onFechar} disabled={salvando}>Cancelar</Button>
           <Button onClick={salvar} disabled={!podeSalvar || salvando || subindoFoto}>
             {salvando ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Salvando...</> : <><Check className="w-4 h-4 mr-1.5" />Salvar registro</>}
@@ -509,7 +516,19 @@ function ItemRow({
   const [busca, setBusca] = useState('');
   const [abertoBusca, setAbertoBusca] = useState(false);
   const buscaRef = useRef<HTMLInputElement>(null);
+  const buscaWrapperRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (abertoBusca) buscaRef.current?.focus(); }, [abertoBusca]);
+  // Fecha o dropdown ao clicar fora do input+lista (bug reportado 2026-07-18: abrir a
+  // busca e clicar em outro lugar do modal não fechava).
+  useEffect(() => {
+    if (!abertoBusca) return;
+    const h = (e: MouseEvent) => {
+      if (!buscaWrapperRef.current) return;
+      if (!buscaWrapperRef.current.contains(e.target as Node)) setAbertoBusca(false);
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [abertoBusca]);
   const selecionado = useMemo(() => insumos.find(i => i.codigo === item.insumo_codigo), [insumos, item.insumo_codigo]);
 
   const filtrados = useMemo(() => {
@@ -534,7 +553,7 @@ function ItemRow({
               <Button size="sm" variant="ghost" onClick={() => { setAbertoBusca(true); setBusca(''); }}><Search className="w-4 h-4" /></Button>
             </div>
           ) : (
-            <div className="relative">
+            <div className="relative" ref={buscaWrapperRef}>
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input ref={buscaRef} placeholder="Buscar insumo por nome ou código..." className="h-9 pl-8"
                 value={busca} onChange={e => { setBusca(e.target.value); setAbertoBusca(true); }}
@@ -568,23 +587,29 @@ function ItemRow({
         )}
       </div>
 
-      {/* Área — onde ocorreu o desperdício (finalização vs produção, por setor) */}
-      <div className="flex flex-wrap gap-1.5">
-        {AREAS.map((a) => (
-          <button
-            key={a.v}
-            type="button"
-            onClick={() => onChange({ area: item.area === a.v ? null : a.v })}
-            title={a.hint}
-            className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
-              item.area === a.v
-                ? `${areaBadgeCor(a.v)} border-current font-semibold`
-                : 'border-gray-300 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
-            }`}
-          >
-            {a.l}
-          </button>
-        ))}
+      {/* Área — onde ocorreu o desperdício (finalização vs produção, por setor). Obrigatório. */}
+      <div>
+        <div className={`text-[11px] font-medium mb-1 ${item.area ? 'text-muted-foreground' : 'text-amber-700 dark:text-amber-400'}`}>
+          Área do desperdício <span className="text-red-500">*</span>
+          {!item.area && <span className="ml-1 text-[10px] font-normal">— escolha uma</span>}
+        </div>
+        <div className={`flex flex-wrap gap-1.5 ${!item.area ? 'p-1.5 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/20' : ''}`}>
+          {AREAS.map((a) => (
+            <button
+              key={a.v}
+              type="button"
+              onClick={() => onChange({ area: item.area === a.v ? null : a.v })}
+              title={a.hint}
+              className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                item.area === a.v
+                  ? `${areaBadgeCor(a.v)} border-current font-semibold`
+                  : 'border-gray-300 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
+              }`}
+            >
+              {a.l}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Motivo + observação */}
