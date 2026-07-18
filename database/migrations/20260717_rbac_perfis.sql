@@ -77,4 +77,17 @@ CREATE TRIGGER trg_usuarios_perfil_updated
   BEFORE UPDATE ON public.usuarios_perfil
   FOR EACH ROW EXECUTE FUNCTION public.tg_usuarios_perfil_updated();
 
+-- Recria a view auth_custom.usuarios expondo `perfil_id`. Sem isso, os INSERT/UPDATE
+-- via schema('auth_custom') com perfil_id no payload quebravam silenciosamente
+-- (a coluna existia na tabela real mas não na view — bug reportado pelo Gonza
+-- 2026-07-18 ao criar usuário).
+CREATE OR REPLACE VIEW auth_custom.usuarios AS
+SELECT id, auth_id, nome, email, telefone, cpf, ativo,
+       created_at, updated_at, role, setor, modulos_permitidos,
+       data_nascimento, endereco, cep, cidade, estado, bio, foto_perfil,
+       preferencias, senha_redefinida, conta_verificada, ultima_atividade,
+       reset_token, reset_token_expiry,
+       perfil_id
+FROM public.usuarios;
+
 COMMIT;
