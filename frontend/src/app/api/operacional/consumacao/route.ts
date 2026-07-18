@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     const fin = (supabase as any).schema('financial');
     const ops = (supabase as any).schema('operations');
     const [{ data: vincRows }, { data: socios }, { data: artistas }, { data: ignoradosRows }] = await Promise.all([
-      fin.from('consumo_mesa_vinculo').select('mesa_norm, mesa_label, tipo, artista_id, socio_id, entidade_nome, categoria_override').eq('bar_id', barId),
+      fin.from('consumo_mesa_vinculo').select('mesa_norm, mesa_label, tipo, artista_id, socio_id, entidade_nome, categoria_override, updated_at, updated_by').eq('bar_id', barId),
       fin.from('consumo_socio').select('id, nome').eq('bar_id', barId).eq('ativo', true).order('nome'),
       ops.from('bar_artistas').select('id, nome').eq('bar_id', barId).eq('ativo', true).order('nome'),
       fin.from('consumo_ignorados').select('chave_hash, motivo, criado_em').eq('bar_id', barId),
@@ -98,6 +98,9 @@ export async function GET(request: NextRequest) {
       const v = vincMap.get(normMesa(mesa));
       // categoria efetiva: override explícito > categoria implícita do tipo > motivo original
       const categoria = v ? v.categoria_override || TIPO_CAT[v.tipo] || String(r.categoria) : String(r.categoria);
+      // Reclassificada = mesa tem categoria_override manual (categoria efetiva vem
+      // de alguém que clicou em "reclassificar", não da categoria original do CA).
+      const reclassificada = !!(v && v.categoria_override);
       const motivo = r.motivo || null;
       const produto = r.prd_desc || null;
       const valor_bruto = Number(r.valor_desconto) || 0;
@@ -125,6 +128,9 @@ export async function GET(request: NextRequest) {
         ignorada: !!ign,
         ignorada_motivo: ign?.motivo ?? null,
         ignorada_em: ign?.criado_em ?? null,
+        reclassificada,
+        reclassificada_por: reclassificada ? (v?.updated_by ?? null) : null,
+        reclassificada_em: reclassificada ? (v?.updated_at ?? null) : null,
       };
     });
 

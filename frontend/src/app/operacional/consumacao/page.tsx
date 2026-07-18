@@ -28,6 +28,9 @@ interface Linha {
   ignorada: boolean;
   ignorada_motivo: string | null;
   ignorada_em: string | null;
+  reclassificada: boolean;
+  reclassificada_por: string | null;
+  reclassificada_em: string | null;
 }
 interface Resumo {
   categoria: string;
@@ -933,6 +936,21 @@ export default function ControleConsumacaoPage() {
               {!catMix && g.categoria === 'outros' && (
                 <span className="rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide">reclassificar</span>
               )}
+              {/* Já reclassificada — badge verde com tooltip mostrando quem/quando. */}
+              {(() => {
+                const linhaRec = g.linhas.find(l => l.reclassificada);
+                if (!linhaRec || catMix || g.categoria === 'outros') return null;
+                const quando = linhaRec.reclassificada_em ? new Date(linhaRec.reclassificada_em).toLocaleString('pt-BR') : '';
+                const quem = linhaRec.reclassificada_por || '?';
+                return (
+                  <span
+                    className="rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                    title={`Reclassificada como ${LABEL[g.categoria] || g.categoria}\nPor: ${quem}${quando ? `\nEm: ${quando}` : ''}`}
+                  >
+                    ✓ reclassificada
+                  </span>
+                );
+              })()}
               {isAdmin && !catMix && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setEditandoCategoria({ mesaLabel: g.mesaLabel, mesaNorm: g.key }); }}
