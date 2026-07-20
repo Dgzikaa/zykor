@@ -409,13 +409,21 @@ export async function getPlanejamentoComercial(
     const fat19hGreen = (evento.fat_19h_percent || 0) >= metas.fat_19h_meta;
 
     // Flags extras migradas de PlanejamentoClient.tsx (Etapa 6)
-    const cArt = Number(manual?.c_art) || 0;
+    // Mesma cascata da linha (real CA > override manual > projeção) para a flag não ficar
+    // vermelha em dia pré-lançado, onde a célula já mostra a % calculada pela projeção.
+    const cArt = (Number(manual?.c_art) || 0) > 0 ? Number(manual?.c_art)
+      : (Number(manual?.c_artistico_plan) || 0) > 0 ? Number(manual?.c_artistico_plan)
+      : (Number(manual?.c_art_projecao) || 0);
+    const cProd = (Number(manual?.c_prod) || 0) > 0 ? Number(manual?.c_prod)
+      : (Number(manual?.c_prod_plan) || 0) > 0 ? Number(manual?.c_prod_plan)
+      : (Number(manual?.c_prod_projecao) || 0);
+    const custoShow = cArt + cProd;
     const couvertContahub = evento.couvert_vr_contahub !== null && evento.couvert_vr_contahub !== undefined
       ? Number(evento.couvert_vr_contahub)
       : 0;
-    // couvert / c_art >= 1.0 = green (couvert cobre o custo artistico — quanto maior melhor)
-    const couvertCArtGreen = cArt > 0 && couvertContahub > 0
-      && (couvertContahub / cArt) >= metas.couvert_c_art_ratio_meta;
+    // couvert / (c_art + c_prod) >= 1.0 = green (couvert cobre o custo do show — quanto maior melhor)
+    const couvertCArtGreen = custoShow > 0 && couvertContahub > 0
+      && (couvertContahub / custoShow) >= metas.couvert_c_art_ratio_meta;
 
     const atrasaoCozinhaGreen = (evento.atrasao_cozinha || 0) <= metas.atrasao_cozinha_meta;
     const atrasaoBarGreen = (evento.atrasao_bar || 0) <= metas.atrasao_bar_meta;

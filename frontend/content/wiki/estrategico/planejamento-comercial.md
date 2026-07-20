@@ -129,7 +129,7 @@ Em dias dominados por bilheteria externa (Yuzer/Sympla), o ContaHub vem ~zero e 
 | **Custo Produção** (c_prod) | Custo de produção do dia. ⚠️ = previsão | Mesma cascata: real CA > `c_prod_plan` > `c_prod_projecao` | `operations.eventos_base` (Conta Azul) |
 | **$ Couvert** | Valor de couvert arrecadado no ContaHub | Soma de `vr_couvert` das vendas do dia (`couvert_vr_contahub`) | `gold.planejamento` (ContaHub) |
 | **% Art/Fat** | Custo artístico como % do faturamento. Verde se ≤ meta (padrão 15%) | `percent_art_fat` do gold | `gold.planejamento` + `config_metas_planejamento` |
-| **Couv/Art** | Quanto o couvert cobre do custo artístico. Verde se ≥ ratio meta (padrão 1,0) | (`couvert_vr_contahub` ÷ `c_art`) × 100 | `gold.planejamento` + `eventos_base` |
+| **Couv/A+P** | Quanto o couvert cobre do **custo total do show** (artístico + produção). Verde se ≥ ratio meta (padrão 1,0) | (`couvert_vr_contahub` ÷ (`c_art` + `c_prod`)) × 100 — ambos com a cascata real CA > manual > projeção | `gold.planejamento` + `eventos_base` |
 | **Consumação** | Consumação de artistas — **custo real** do dia. Clicável abre os lançamentos | Custo da ficha técnica quando o produto tem ficha; senão desconto × fator de CMV (padrão 0,35). Mesma conta da tela `/operacional/consumacao` | RPC `get_consumos_9_detalhes_custo_semana` (categoria `artistas`) |
 
 ### Grupo PRODUÇÃO
@@ -156,7 +156,7 @@ O rodapé fixo consolida o mês. Regra geral: **soma** para valores em R$ e cont
 | **Clientes / Reservas** | Soma de clientes reais, reservas total e presentes |
 | **Entrada / Bar / Ticket Médio** | Média dos dias com valor > 0 |
 | **Custo Artístico / Produção / $ Couvert / Consumação** | Somas |
-| **% Art/Fat / Couv/Art** | Médias |
+| **% Art/Fat / Couv/A+P** | Médias |
 | **% Bebidas / Drinks / Cozinha / Stockout** | Médias |
 | **Atrasão Coz / Drinks** | Somas |
 | **CMV Teórico** | Ponderado do período = Σ custo teórico ÷ Σ faturamento (só dos dias que têm CMV) |

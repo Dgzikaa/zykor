@@ -763,8 +763,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
     const colCouvert = somar(e => e.couvert_vr_contahub);
     const colPercentArtFat = mediar(e => e.percent_art_fat);
     const colCouvArt = mediar(e =>
-      e.c_art > 0 && e.couvert_vr_contahub && e.couvert_vr_contahub > 0
-        ? (e.couvert_vr_contahub / e.c_art) * 100
+      (e.c_art + e.c_prod) > 0 && e.couvert_vr_contahub && e.couvert_vr_contahub > 0
+        ? (e.couvert_vr_contahub / (e.c_art + e.c_prod)) * 100
         : 0);
     const colConsumacao = somar(e => e.consumacao);
     // PRODUÇÃO
@@ -994,7 +994,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Custo Produção</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>$ Couvert</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>% Art/Fat</th>
-                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}}>Couv/Art</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px', maxWidth: '90px'}} title="Couvert ÷ (Custo Artístico + Custo Produção)">Couv/A+P</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Consumação</th>
                           </>
                         ) : (
@@ -1434,13 +1434,13 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                     <span className={`font-semibold ${
                                       evento.couvert_c_art_green
                                         ? 'text-green-600 dark:text-green-400'
-                                        : evento.c_art > 0
+                                        : (evento.c_art + evento.c_prod) > 0
                                           ? 'text-red-600 dark:text-red-400'
                                           : 'text-[hsl(var(--muted-foreground))]'
                                     }`}>
-                                      {evento.c_art > 0 && evento.couvert_vr_contahub && evento.couvert_vr_contahub > 0
-                                        ? formatarPercentual((evento.couvert_vr_contahub / evento.c_art) * 100)
-                                        : evento.c_art > 0 ? '0,0%' : '-'}
+                                      {(evento.c_art + evento.c_prod) > 0 && evento.couvert_vr_contahub && evento.couvert_vr_contahub > 0
+                                        ? formatarPercentual((evento.couvert_vr_contahub / (evento.c_art + evento.c_prod)) * 100)
+                                        : (evento.c_art + evento.c_prod) > 0 ? '0,0%' : '-'}
                                     </span>
                                   </td>
                                 <td
