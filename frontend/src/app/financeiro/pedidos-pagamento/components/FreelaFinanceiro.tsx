@@ -93,6 +93,28 @@ export function FreelaFinanceiro({
 
   const catNome = (id: string) => categorias.find((c) => c.value === id)?.label;
 
+  // Sugestão de categoria pela FUNÇÃO do dia, casando com o nome das categorias "FREELA ..." do
+  // CA (garçom/cumim→Atendimento, cozinha→Cozinha, bar/bartender→Bar, limpeza→Limpeza,
+  // segurança→Segurança). Pré-preenche na hora, sem depender de histórico. Só sugere; dá pra trocar.
+  const sugerePorFuncao = useMemo(() => {
+    const freelaCats = categorias.filter((c) => norm(c.label).includes('freela'));
+    const REGRAS: Array<[RegExp, string]> = [
+      [/garcom|garçom|cumim|cumin|atendiment|runner|hostess|recep|sal[ãa]o|maitre|apoio|copeir/, 'atendiment'],
+      [/cozinh|chapa|copa|confeit|prato|prep|churrasq|salgad|forno/, 'cozinh'],
+      [/bartend|barman|barback|drink|coquetel|\bbar\b/, 'bar'],
+      [/limpeza|faxin|steward|higien/, 'limpeza'],
+      [/brigad/, 'brigad'],
+      [/segur|portaria|vigi/, 'segur'],
+    ];
+    return (funcao?: string | null): string => {
+      const f = norm(funcao);
+      if (!f || !freelaCats.length) return '';
+      for (const [re, kw] of REGRAS) if (re.test(f)) { const hit = freelaCats.find((c) => norm(c.label).includes(kw)); if (hit) return hit.value; }
+      const direto = freelaCats.find((c) => norm(c.label).includes(f)); // função aparece direta no nome
+      return direto?.value || '';
+    };
+  }, [categorias]);
+
   // Match de fornecedor por nome (fallback quando o cadastro não trouxe pessoa CA).
   const fornPorNome = useMemo(() => {
     const exato = new Map<string, string>();
@@ -124,15 +146,18 @@ export function FreelaFinanceiro({
     if (comps.length) {
       return comps.map((c) => {
         const has = catOverride[c.id] !== undefined;
-        const value = has ? catOverride[c.id] : (c.categoria_id || c.categoria_sugerida_id || '');
+        const porFuncao = c.categoria_id ? '' : sugerePorFuncao(c.descricao);
+        const value = has ? catOverride[c.id] : (c.categoria_id || c.categoria_sugerida_id || porFuncao || '');
         return { key: c.id, dia: c.data_competencia, funcao: c.descricao || null, valor: Number(c.valor || 0),
-          catValue: value, sugerida: !has && !c.categoria_id && !!c.categoria_sugerida_id };
+          catValue: value, sugerida: !has && !c.categoria_id && (!!c.categoria_sugerida_id || !!porFuncao) };
       });
     }
     const has = catOverride[p.id] !== undefined;
-    const value = has ? catOverride[p.id] : (p.categoria_id || p.categoria_sugerida_id || '');
-    return [{ key: p.id, dia: p.data_competencia || p.data_vencimento, funcao: funcaoLegado(p.descricao),
-      valor: Number(p.valor || 0), catValue: value, sugerida: !has && !p.categoria_id && !!p.categoria_sugerida_id }];
+    const fnLegado = funcaoLegado(p.descricao);
+    const porFuncao = p.categoria_id ? '' : sugerePorFuncao(fnLegado);
+    const value = has ? catOverride[p.id] : (p.categoria_id || p.categoria_sugerida_id || porFuncao || '');
+    return [{ key: p.id, dia: p.data_competencia || p.data_vencimento, funcao: fnLegado,
+      valor: Number(p.valor || 0), catValue: value, sugerida: !has && !p.categoria_id && (!!p.categoria_sugerida_id || !!porFuncao) }];
   };
 
   // Resolve o pedido → payload de aprovação (se estiver pronto: fornecedor + toda linha com categoria).
