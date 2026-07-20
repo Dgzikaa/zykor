@@ -28,15 +28,15 @@ Todas as informações são sempre do **bar selecionado** no seletor de bar do t
 
 ## Passo a passo
 
-**Ver o desempenho orgânico do Instagram (aba Visão geral):**
+**Ver o desempenho orgânico do Instagram (aba Orgânico):**
 1. Entre em **Receitas › Comunicação**.
 2. Confirme o bar selecionado no topo.
-3. Use o seletor de período (barra logo abaixo do título) para escolher o intervalo — o padrão é o trimestre por mês.
-4. Os cards de KPI mostram alcance, engajamento, taxa de engajamento, stories, visitas de perfil e seguidores do período.
-5. Role até o gráfico **Alcance & Engajamento** para ver a tendência mês a mês.
+3. Use o seletor de período (barra logo abaixo do título) para escolher o intervalo — o padrão é o trimestre por mês. **O período escolhido é compartilhado entre as abas** (Orgânico, Mídia, Feed): trocou aqui, continua o mesmo ao navegar.
+4. Os cards de KPI mostram alcance, interações, compartilhamentos, taxa de engajamento, stories, visualizações de stories, visitas de perfil e seguidores do período.
+5. Role até o gráfico **Alcance & Interações** para ver a tendência mês a mês.
 
-**Analisar os anúncios pagos (aba Anúncios):**
-1. Clique na aba **Anúncios**.
+**Analisar os anúncios pagos (aba Mídia):**
+1. Clique na aba **Mídia**.
 2. Ajuste o período no seletor.
 3. Veja o **Resumo do período** (investimento, alcance, cliques, CPM, CTR, conversas e as métricas de eficiência).
 4. Confira os gráficos de posicionamento, público e investimento por campanha, além do **ROAS**.
@@ -51,16 +51,16 @@ Todas as informações são sempre do **bar selecionado** no seletor de bar do t
 
 **Comparar formatos de feed (aba Feed):**
 1. Clique na aba **Feed**.
-2. Escolha o período (30 dias, 90 dias, 6 meses ou 1 ano) no seletor.
-3. Veja o resumo e o comparativo **Carrossel × Imagem**.
-4. Na lista de posts, alterne entre **Melhores** e **Piores** para ordenar por engajamento.
+2. Escolha o período no seletor (o mesmo controle das outras abas — compartilhado).
+3. Veja o resumo e o comparativo entre formatos (**Carrossel × Imagem × Reels**).
+4. Na lista de posts, alterne entre **Melhores** e **Piores** para ordenar por engajamento. Cada post mostra alcance, curtidas, comentários, **compartilhamentos** e salvos.
 
 ## Abas e seções
 
 A Comunicação é organizada em abas por rota (a navegação fica fixa no topo):
 
-- **Visão geral** (`/receitas/comunicacao`) — KPIs do Instagram **orgânico** e o gráfico de tendência de alcance e engajamento. É a página inicial da tela.
-- **Anúncios** (`/receitas/comunicacao/anuncios`) — mídia **paga** (Meta Ads): resumo, gráficos, e tabelas detalhadas por campanha e por anúncio.
+- **Orgânico** (`/receitas/comunicacao`) — KPIs do Instagram **orgânico** e o gráfico de tendência de alcance e interações. É a página inicial da tela. (Antes chamava "Visão geral".)
+- **Mídia** (`/receitas/comunicacao/anuncios`) — mídia **paga** (Meta Ads): resumo, gráficos, e tabelas detalhadas por campanha e por anúncio. (Antes chamava "Anúncios".)
 - **Calendário** (`/receitas/comunicacao/calendario`) — planejamento mensal dos posts programados, com cadastro/edição/exclusão.
 - **Feed** (`/receitas/comunicacao/feed`) — performance dos posts de feed (carrossel e imagem), com ranking e comparação de formatos.
 - **Stories** (`/receitas/comunicacao/stories`) — desempenho dos stories capturados (reaproveita a tela de Stories do Instagram).
@@ -70,37 +70,44 @@ Existe ainda uma rota **Reels** (`/receitas/comunicacao/reels`) que reaproveita 
 
 ## Colunas e cálculos
 
-### Visão geral — Instagram orgânico
+### Orgânico — Instagram orgânico
+
+O alcance e as interações são somados **post a post** (Feed **+** Reels), pegando o último snapshot de cada mídia — a mesma base da aba Feed. Antes o hub somava o snapshot diário da conta inteira, o que inflava o número.
 
 | Coluna / Indicador | O que mostra | Como é calculado | Fonte |
 |---|---|---|---|
-| Alcance (orgânico) | Total de contas alcançadas no período | Soma dos valores diários de `reach` no intervalo | `integrations.instagram_conta_metricas` |
-| Engajamento | Total de interações no período | Soma dos valores diários de `total_interactions` | `integrations.instagram_conta_metricas` |
-| Taxa de engajamento | Interações por alcance, em % | `engajamento ÷ alcance × 100` (nulo se alcance = 0) | derivado |
+| Alcance (orgânico) | Alcance somado dos posts do período | Soma do `reach` de cada post **Feed + Reels** (último snapshot por mídia) | `integrations.instagram_posts` + `instagram_post_insights` |
+| Interações | Total de interações dos posts | Soma de `curtidas + comentários + compartilhamentos + salvos` por post (Feed + Reels) | `instagram_post_insights` |
+| Compartilhamentos | Compartilhamentos (subconjunto das interações, exposto à parte) | Soma de `shares` por post (Feed + Reels) | `instagram_post_insights` |
+| Taxa de engajamento | Interações por alcance, em % | `interações ÷ alcance × 100` (nulo se alcance = 0) | derivado |
 | Stories | Quantidade de stories capturados no período | Contagem de registros de stories no intervalo | `integrations.instagram_stories` |
-| Alcance dos stories | Alcance somado dos stories | Soma de `reach` dos stories do período | `integrations.instagram_stories` |
+| Visualizações dos stories | Visualizações somadas dos stories | Soma de `views` dos stories do período | `integrations.instagram_stories` |
 | Visitas de perfil | Visitas ao perfil no período | Soma dos valores diários de `profile_views` | `integrations.instagram_conta_metricas` |
 | Seguidores | Total de seguidores | Valor de `followers_count` do **último** snapshot do período | `integrations.instagram_conta_metricas` |
-| Gráfico Alcance & Engajamento | Tendência mês a mês | Alcance (barra) e engajamento (linha), agrupados por mês | `integrations.instagram_conta_metricas` |
+| Gráfico Alcance & Interações | Tendência mês a mês | Alcance (barra) e interações (linha), agrupados por mês | derivado dos posts |
 
-### Anúncios — resumo do período (Meta Ads)
+> A quebra **Feed × Reels** aparece logo abaixo dos KPIs (posts, alcance, interações e compartilhamentos de cada um). "Alcance orgânico = Feed + Reels": ferramentas externas cujo card é só "postagens do feed" podem excluir parte dos reels e mostrar um número menor.
+
+### Mídia — resumo do período (Meta Ads)
 
 | Coluna / Indicador | O que mostra | Como é calculado | Fonte |
 |---|---|---|---|
-| Investimento | Verba gasta em anúncios | `spend` da conta no período (arredondado) | Meta Marketing API (nível conta) |
+| Investimento | Verba gasta em anúncios | `spend` da conta no período (valor cheio, com centavos) | Meta Marketing API (nível conta) |
+| Impressões | Vezes que os anúncios foram exibidos | `impressions` | Meta Marketing API |
 | Alcance | Pessoas únicas alcançadas | `reach` | Meta Marketing API |
-| Cliques | Cliques nos anúncios | `clicks` | Meta Marketing API |
+| Cliques | **Todos** os cliques (link, perfil, expandir…) | `clicks` | Meta Marketing API |
 | CPM | Custo por mil impressões | `investimento ÷ impressões × 1000` (recalculado dos totais) | derivado |
-| CTR | Taxa de cliques, em % | `cliques ÷ impressões × 100` | derivado |
+| CTR | Taxa de cliques **no link**, em % | `cliques no link ÷ impressões × 100` (usa `inline_link_clicks`, igual Reportei) | derivado |
 | Conversas | Conversas iniciadas por mensagem | Valor da ação `onsite_conversion.messaging_conversation_started_7d` | Meta Marketing API (`actions`) |
-| Frequência | Média de vezes que cada pessoa viu o anúncio | `frequency` (sinal de fadiga acima de ~3–4) | Meta Marketing API |
+| Custo/clique (CPC) | Custo por clique **no link** | `investimento ÷ cliques no link` (usa `inline_link_clicks`) | derivado |
+| Frequência | Média de vezes que cada pessoa viu o anúncio | `frequency`, precisão cheia (sinal de fadiga acima de ~3–4) | Meta Marketing API |
 | ROAS de compra | Retorno de venda por R$1 investido | `purchase_roas` (compra via pixel) | Meta Marketing API |
 | Custo/conversa | Custo por conversa iniciada | `investimento ÷ conversas` | derivado |
 | Custo/venda | Custo por compra | `investimento ÷ compras` | derivado |
 | Leads | Leads gerados | Ação `lead` | Meta Marketing API (`actions`) |
 | Vídeos assistidos | ThruPlays (vídeo assistido completo/15s) | `video_thruplay_watched_actions` (tipo `video_view`) | Meta Marketing API |
 
-### Anúncios — gráficos
+### Mídia — gráficos
 
 | Gráfico | O que mostra | Como é calculado | Fonte |
 |---|---|---|---|
@@ -109,7 +116,7 @@ Existe ainda uma rota **Reels** (`/receitas/comunicacao/reels`) que reaproveita 
 | Investimento por campanha | Top 10 campanhas por gasto | `spend` por campanha, top 10 | Meta API (nível campanha) |
 | ROAS / Gasto Comercial | Retorno por R$1 (artistas + produção + marketing) | `faturamento ÷ (artistas + produção + marketing)` por período | `/api/receitas/roas` |
 
-### Anúncios — tabelas Por campanha e Por anúncio
+### Mídia — tabelas Por campanha e Por anúncio
 
 Ambas as tabelas usam as mesmas colunas de métrica; a tabela **Por anúncio** ainda mostra a miniatura do criativo, o status e a campanha de origem.
 
@@ -132,14 +139,14 @@ Ambas as tabelas usam as mesmas colunas de métrica; a tabela **Por anúncio** a
 
 | Coluna / Indicador | O que mostra | Como é calculado | Fonte |
 |---|---|---|---|
-| Posts | Quantidade de posts de feed no período | Contagem de posts com `media_product_type = FEED` | `integrations.instagram_posts` |
+| Posts | Quantidade de posts no período | Contagem de posts com `media_product_type` **FEED ou REELS** | `integrations.instagram_posts` |
 | Engajamento médio | Média de engajamento por post | Soma do engajamento ÷ nº de posts | derivado dos insights |
 | Alcance médio | Média de alcance por post | Soma de `reach` ÷ nº de posts | `integrations.instagram_post_insights` |
-| Melhor formato | Formato com maior engajamento médio | Formato (Carrossel/Imagem) com maior `engajamento_medio` | derivado |
+| Melhor formato | Formato com maior engajamento médio | Formato (Carrossel/Imagem/Reels) com maior `engajamento_medio` | derivado |
 | Engajamento (por post) | Interações do post | `curtidas + comentários + compartilhamentos + salvos` | `instagram_post_insights` (com fallback do post) |
 | Taxa engaj. (por post) | Engajamento sobre alcance | `engajamento ÷ reach` | derivado |
-| Alcance / Curtidas / Comentários / Salvos | Métricas do post | Campos `reach`, `likes`, `comments`, `saved` do insight mais recente do post | `instagram_post_insights` |
-| Comparativo Carrossel × Imagem | Qual formato rende mais | Médias de engajamento, alcance e taxa por formato | derivado |
+| Alcance / Curtidas / Comentários / Compartilhamentos / Salvos | Métricas do post | Campos `reach`, `likes`, `comments`, `shares`, `saved` do insight mais recente do post | `instagram_post_insights` |
+| Comparativo de formatos | Qual formato rende mais | Médias de engajamento, alcance e taxa por formato | derivado |
 
 ### Stories
 
@@ -175,38 +182,38 @@ Ambas as tabelas usam as mesmas colunas de métrica; a tabela **Por anúncio** a
 ## Filtros e opções
 
 - **Bar** — todas as abas mostram apenas o bar selecionado no topo (filtro por `bar_id`). Trocar de bar recarrega os dados.
-- **Período (Visão geral e Anúncios)** — seletor de intervalo com granularidade; o padrão é o trimestre agrupado por mês. Define o intervalo dos KPIs e gráficos.
-- **Período em dias (Feed)** — 30 dias, 90 dias, 6 meses ou 1 ano.
+- **Período (Orgânico, Mídia e Feed)** — seletor de intervalo; o padrão é o trimestre agrupado por mês. **É o mesmo entre essas abas** (compartilhado): trocou numa, vale nas outras. Define o intervalo dos KPIs, gráficos e da lista de posts.
 - **Ordenação (Feed)** — alternância entre **Melhores** e **Piores** posts por engajamento.
-- **Ordenação (Anúncios)** — clique no cabeçalho de qualquer coluna das tabelas para ordenar (investimento é o padrão).
+- **Ordenação (Mídia)** — clique no cabeçalho de qualquer coluna das tabelas para ordenar (investimento é o padrão).
 - **Período em dias (Stories)** — 7, 30, 90, 180 ou 365 dias.
 - **Mês (Calendário)** — navegação mês a mês, com botão **Hoje** para voltar ao mês atual.
 - **Demografia** — não tem filtro de período; mostra o retrato mais recente do público capturado pela sincronização.
 
 ## Regras e detalhes importantes
 
-- **Orgânico × pago é a separação-chave.** A **Visão geral** só traz Instagram **orgânico** (Graph API). Toda a mídia **paga** e o **ROAS** ficam na aba **Anúncios** (Meta Ads).
+- **Orgânico × pago é a separação-chave.** A aba **Orgânico** só traz Instagram **orgânico** (Graph API). Toda a mídia **paga** e o **ROAS** ficam na aba **Mídia** (Meta Ads).
 - **Filtro por bar sempre.** Toda consulta é filtrada por `bar_id`; a tela nunca mistura dados de bares diferentes.
-- **Alcance e engajamento são somas dos valores diários** dos snapshots (aproximação de período, no mesmo estilo de ferramentas como o Reportei). Não é um deduplicado de pessoas únicas ao longo do intervalo.
+- **Período compartilhado entre as abas.** O intervalo escolhido em Orgânico, Mídia ou Feed é o mesmo ao navegar (não reseta). Fica guardado na sessão.
+- **Alcance e interações são somados post a post** (Feed + Reels), pegando o último snapshot de cada mídia. É alcance **somado**, não deduplicado de pessoas únicas — quem viu 3 posts conta 3 vezes. Por isso pode ficar acima de ferramentas que mostram alcance único da conta.
 - **Seguidores** usa o valor do **último** snapshot do período (é um estoque, não uma soma).
-- **Stories dependem do sync.** A Meta só permite ler stories **ativos** (vida de 24h). A tela mostra apenas o que a sincronização capturou (roda a cada ~2h); stories antigos que não foram capturados a tempo não aparecem.
-- **Anúncios exigem conta conectada.** Se o bar não tiver conta de anúncio configurada (variável `META_ADS_ACCOUNTS` no Vercel), a aba avisa que não está conectada. Se estiver conectada mas sem gasto no período, mostra "sem anúncios com investimento".
-- **CPM, CTR e CPC são recalculados** a partir dos totais (gasto, impressões e cliques) — mais estável do que confiar nas médias que a API devolve.
+- **Stories dependem do sync.** A Meta só permite ler stories **ativos** (vida de 24h). A sincronização roda a cada ~2h e agora **pagina** a lista — captura **todos** os stories ativos, não só os 25 primeiros (antes perdia o excedente quando havia muitos ativos ao mesmo tempo). Stories que saíram do ar antes de qualquer sync não ficam registrados. **Reposts de conteúdo de terceiros não vêm pela API oficial** e não entram na contagem.
+- **Anúncios exigem conta conectada.** Se o bar não tiver conta de anúncio configurada (variável `META_ADS_ACCOUNTS` no Vercel), a aba **Mídia** avisa que não está conectada. Se estiver conectada mas sem gasto no período, mostra "sem anúncios com investimento".
+- **CPM é recalculado** dos totais. **CTR e CPC usam cliques NO LINK** (`inline_link_clicks`), não todos os cliques — assim batem com o Reportei. O card "Cliques" segue mostrando **todos** os cliques (como o Meta Ads Manager).
 - **Conversas = mensagens iniciadas por anúncio** nos últimos 7 dias (não é qualquer clique). Custo/conversa e custo/venda só aparecem quando há conversas/compras no período.
 - **Posicionamento descarta ruído:** posições com gasto abaixo de R$1 são omitidas do gráfico.
-- **Feed = apenas posts de feed** (carrossel e imagem). Reels e stories têm suas próprias abas.
+- **Feed = posts de feed + reels** (carrossel, imagem e reels). Stories têm sua própria aba. (A aba dedicada de Reels existe só por URL direta.)
 - **Calendário é manual.** Os posts programados são cadastrados pela equipe (título, formato, categoria e observação livres) — não vêm de integração. Editar/excluir só afeta o registro do próprio bar.
 - **Dados de anúncio têm cache curto** no servidor (cerca de 30 min) para não bater na API da Meta a cada abertura da tela.
 
 ## Dúvidas frequentes
 
-**Por que o alcance da Visão geral é diferente do alcance dos Anúncios?**
-São coisas diferentes: a Visão geral é o alcance **orgânico** do perfil (Graph API); os Anúncios mostram o alcance da **mídia paga** (Meta Ads). Um não substitui o outro.
+**Por que o alcance do Orgânico é diferente do alcance da Mídia?**
+São coisas diferentes: a aba **Orgânico** é o alcance **orgânico** do perfil (Graph API); a aba **Mídia** mostra o alcance da **mídia paga** (Meta Ads). Um não substitui o outro.
 
 **Meus stories de ontem não apareceram. Por quê?**
 A Meta só deixa ler stories enquanto estão ativos (24h). A sincronização roda a cada ~2h; se um story saiu do ar antes de ser capturado, ele não fica registrado.
 
-**A aba Anúncios diz que a conta não está conectada. O que fazer?**
+**A aba Mídia diz que a conta não está conectada. O que fazer?**
 Falta configurar a conta de anúncio do bar (variável `META_ADS_ACCOUNTS` no Vercel). Sem isso, não há como puxar os dados da Meta Marketing API.
 
 **O que significa a Frequência alta nos anúncios?**
@@ -221,20 +228,20 @@ Na aba Feed, o comparativo **Carrossel × Imagem** marca o "melhor" formato pelo
 ## Fonte dos dados
 
 **Instagram orgânico (Graph API):**
-- `integrations.instagram_conta_metricas` — snapshots diários de alcance, interações, visitas e seguidores (Visão geral).
-- `integrations.instagram_stories` — stories capturados (Visão geral e aba Stories).
-- `integrations.instagram_posts` + `integrations.instagram_post_insights` — posts de feed e suas métricas (aba Feed).
+- `integrations.instagram_posts` + `integrations.instagram_post_insights` — posts (Feed + Reels) e suas métricas; base do alcance/interações/compartilhamentos do Orgânico e da aba Feed.
+- `integrations.instagram_conta_metricas` — snapshots diários de visitas de perfil e seguidores (Orgânico).
+- `integrations.instagram_stories` — stories capturados (Orgânico e aba Stories).
 - `/api/instagram/dashboard` — dados demográficos da conta (aba Demografia).
 
 **Mídia paga (Meta Ads / Marketing API):**
-- Endpoint `graph.facebook.com/act_<id>/insights` via System User token, nos níveis conta, campanha e anúncio, além dos breakdowns de posicionamento e demografia (aba Anúncios). Configuração pelas variáveis `META_ADS_ACCESS_TOKEN` e `META_ADS_ACCOUNTS` no Vercel.
+- Endpoint `graph.facebook.com/act_<id>/insights` via System User token, nos níveis conta, campanha e anúncio, além dos breakdowns de posicionamento e demografia (aba Mídia). Configuração pelas variáveis `META_ADS_ACCESS_TOKEN` e `META_ADS_ACCOUNTS` no Vercel (mapa `bar_id → conta de anúncio`).
 - `/api/receitas/roas` — card ROAS / Gasto Comercial (faturamento sobre custos de artistas, produção e marketing).
 
 **Planejamento (manual):**
 - `marketing_calendario_posts` — posts programados no calendário (CRUD via `/api/receitas/comunicacao/calendario`).
 
 **Rotas de API usadas pela tela:**
-- `/api/receitas/comunicacao-organico` (Visão geral)
-- `/api/receitas/anuncios` e `/api/receitas/roas` (Anúncios)
+- `/api/receitas/comunicacao-organico` (Orgânico)
+- `/api/receitas/anuncios` e `/api/receitas/roas` (Mídia)
 - `/api/instagram/feed`, `/api/instagram/stories`, `/api/instagram/dashboard` (Feed, Stories, Demografia)
 - `/api/receitas/comunicacao/calendario` (Calendário)

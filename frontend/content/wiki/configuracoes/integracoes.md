@@ -14,7 +14,7 @@ icon: Zap
 
 A tela **Integrações** é o painel de saúde de todas as conexões externas do Zykor. Em vez de cada dono/administrador precisar entrar em cada sistema (ContaHub, Conta Azul, Instagram, etc.) para saber se está tudo conectado, esta tela reúne num só lugar o **status de cada integração**: se a credencial existe e está válida, quando foi a última sincronização e quantos registros novos entraram nos últimos 7 dias.
 
-É um painel de **monitoramento e diagnóstico**, não de configuração pesada. Ele responde perguntas como: "o ContaHub está puxando as vendas?", "o token do Conta Azul expirou?", "o Instagram deste bar está conectado?", "faz quanto tempo que a reserva do GetIn não sincroniza?". Duas integrações permitem ação direta a partir daqui (conectar/desconectar Instagram e abrir a configuração do Umbler e do Tangerino); as demais são apenas visualização de saúde.
+É um painel de **monitoramento e diagnóstico**, não de configuração pesada. Ele responde perguntas como: "o ContaHub está puxando as vendas?", "o token do Conta Azul expirou?", "o Instagram deste bar está conectado?", "faz quanto tempo que a reserva do GetIn não sincroniza?". Algumas integrações permitem ação direta a partir daqui: conectar/desconectar Instagram, **conectar o Conta Azul** (Configurar / Conectar), configurar as credenciais do Banco Inter, e abrir a configuração do Umbler e do Tangerino. As demais são apenas visualização de saúde.
 
 Quem usa: dono, administrador e time técnico, principalmente quando algo "parou de atualizar" e é preciso descobrir onde está o gargalo.
 
@@ -59,6 +59,15 @@ Quem usa: dono, administrador e time técnico, principalmente quando algo "parou
 2. Se estiver desconectado, clique em **Conectar Instagram**. Você é redirecionado para o login Business (OAuth) do Meta.
 3. Ao voltar, um aviso confirma o sucesso (ex.: "Instagram conectado: @seubar") ou mostra o erro.
 4. Para desconectar, clique em **Desconectar** no mesmo cartão e confirme. O histórico já sincronizado é preservado.
+
+### Conectar o Conta Azul de um bar
+
+Cada bar/empresa tem sua **própria conexão** com o Conta Azul (o token nasce amarrado a uma empresa). No cartão **Conta Azul**, clique em **Configurar / Conectar** para abrir a tela dedicada e:
+
+1. Com o **bar certo selecionado** no topo, cole o **client_id** e o **client_secret** (do app criado no portal de desenvolvedor do Conta Azul) em **Configurar Credenciais**.
+2. Depois de salvar, clique em **Conectar Conta Azul** → faça o login no Conta Azul **na empresa daquele bar** e autorize.
+
+> **Multi-empresa:** como o OAuth do Conta Azul **não deixa escolher a empresa** na hora de conectar, o padrão que funciona é usar **um email/login dedicado por empresa** (com acesso só àquela empresa). No app do portal, a **URL de redirecionamento** tem que ser exatamente `https://zykor.com.br/api/financeiro/contaazul/oauth/callback`, senão o login não volta. Depois de conectar, confira se as categorias batem com o negócio (não deve aparecer categoria de outra empresa).
 
 ### Configurar Umbler ou Tangerino
 

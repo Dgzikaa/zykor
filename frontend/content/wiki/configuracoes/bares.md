@@ -66,7 +66,7 @@ A entrada usa a permissão de módulo `configuracoes`. Além disso, **todas as o
 
 ## Abas e seções
 
-O editor de cada bar tem seis abas:
+O editor de cada bar tem sete abas:
 
 - **Prontidão** — checklist do que já está configurado x pendente (só existe em bar já salvo).
 - **Perfil** — identidade do bar: nome, CNPJ, endereço, telefone, email, Instagram, site, logo e o toggle Ativo. Na criação, também traz o seletor "Copiar configuração de".
@@ -74,6 +74,20 @@ O editor de cada bar tem seis abas:
 - **Metas** — não edita metas aqui; é um atalho explicativo que aponta para a tela dedicada **Metas** (`/configuracoes/metas`), que opera sobre o bar selecionado no topo.
 - **Integrações** — status e conexão das integrações do bar (Conta Azul, Stone, Instagram, Inter e outras de escopo "bar"), com atalho para a tela completa de integrações. Só existe em bar já salvo.
 - **Acesso** — lista de usuários que enxergam o bar, com adicionar/remover. Só existe em bar já salvo.
+- **Módulos** — define **quais partes do sistema aparecem quando este bar está selecionado** (ver seção abaixo). Só existe em bar já salvo.
+
+### Módulos visíveis por bar
+
+A aba **Módulos** permite deixar um bar "enxuto", mostrando só um pedaço do sistema. O caso típico é o **Escritório Central**: um bar que serve só para gerir resultados (Relatórios Financeiros, pagamentos), sem CMV, produção ou estoque.
+
+Como funciona:
+- A aba mostra a **árvore inteira do menu**, com uma caixa por seção (que marca/desmarca a seção toda) e uma por subitem, de forma independente. Botões **"Marcar tudo"** e **"Limpar"** ajudam.
+- **Nada marcado = mostra tudo** (padrão). Ordinário e Deboche ficam intactos; só restringe o bar em que você marcar algo.
+- A restrição vale para **todos os usuários do bar, inclusive administradores** — é uma configuração do bar, não uma permissão de usuário. Não é "esconder para alguns".
+- **Configurações fica sempre visível para administradores**, mesmo num bar enxuto, para não trancar o acesso à própria configuração.
+- Não é só cosmético: além de sumir do menu, se alguém digitar a URL de um módulo escondido, o sistema redireciona.
+
+Para aplicar: abra o bar → aba **Módulos** → marque o que deve aparecer → **Salvar**. Ex.: para o Escritório Central mostrar só relatórios, marque a seção **Relatórios Financeiros** (e o que mais fizer sentido).
 
 ## Colunas e cálculos
 

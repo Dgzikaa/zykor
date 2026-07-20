@@ -50,9 +50,31 @@ Abaixo da tabela principal, clique em **"Mostrar comparativo"**. Aparece uma seg
 - **"Atualizar"** (botão com ícone de reciclar): sincroniza as **alterações recentes** do Conta Azul de forma incremental (rápido, ~5-15s). É o uso do dia a dia — pega, por exemplo, um imposto que teve o valor ajustado.
 - **"sincronizar ano completo"** (link discreto): re-puxa o **ano inteiro** mês a mês (~1-2 min). Só é necessário quando alguém mudou **apenas a categoria** de um lançamento no Conta Azul (recategorizar não marca o lançamento como alterado, então a sincronização rápida não pega).
 
-## Abas e seções
+## Abas da tela
 
-A tela não tem abas, mas a tabela é organizada em **blocos verticais** com resultados parciais destacados:
+A tela tem quatro abas no topo:
+
+- **DRE** — a DRE completa do bar (descrita nesta página). Faturamento menos todos os custos até o Lucro Líquido.
+- **DRE Bar** — espelho que **isola a operação de bar** da economia do show. Deduz a entrada de eventos (couvert + ingresso Yuzer + Sympla) da Receita e **remove** o grupo Atrações & Eventos. Serve para enxergar o resultado do bar "puro", sem os shows.
+- **DRE Eventos** — o **complemento exato da DRE Bar**: mostra só a economia do show (ver seção abaixo). DRE Bar + DRE Eventos reconstroem a DRE cheia.
+- **Categorias** — a Central de Categorias, onde se configura o de-para (qual categoria do Conta Azul cai em qual macro/subgrupo da DRE).
+
+## DRE Eventos
+
+Aba que mostra **só a operação de eventos/shows**, mês a mês, no mesmo formato da DRE (12 meses + coluna do ano). É o inverso da DRE Bar — pega justamente o que a DRE Bar tira.
+
+Estrutura:
+
+- **Receita** — a arrecadação de entrada, aberta em três linhas: **Couvert** (ContaHub), **Ingresso (Yuzer)** e **Sympla**.
+- **Custo Variável** — **Imposto (2% da entrada)** e **Taxa maquininha** (proporcional à queda de receita do mês). É a **mesma conta** que a DRE Bar compensa, aqui aparecendo como custo real, o que garante que as duas abas fechem juntas.
+- **Despesas Artístico** — as quatro categorias que a DRE Bar remove: **Atrações Programação**, **[Consumação] Artistas**, **Produção Eventos** e **Produção Mensal Fixo**. Cada valor é **clicável** (drill-down) e abre os lançamentos do Conta Azul, igual à DRE.
+- **= Resultado de Eventos** — linha final: Receita − Custo Variável − Despesas Artístico. Mostra se os shows, isoladamente, deram lucro ou prejuízo no mês.
+
+Detalhe importante: o Custo Variável do couvert é **aproximado** de propósito — o couvert (ContaHub) não separa cartão de dinheiro, então a taxa de maquininha entra proporcional em vez de exata. É a mesma aproximação da DRE Bar; por isso as duas abas continuam batendo entre si.
+
+## Blocos da DRE (aba principal)
+
+A DRE principal organiza a tabela em **blocos verticais** com resultados parciais destacados:
 
 - **Receita** — faturamento do período.
 - **Custos Variáveis** e **Custo insumos (CMV)** — deduções diretas.
