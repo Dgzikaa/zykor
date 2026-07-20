@@ -53,17 +53,23 @@ async function syncStoriesBar(supabase: any, conta: any): Promise<BarSyncResult>
   const logId = logRow?.id;
 
   try {
-    // Lista stories ativos
+    // Lista stories ativos — PAGINADO. /me/stories devolve 25 por página; sem seguir
+    // paging.next a gente perdia todo o excedente quando havia >25 stories ativos ao
+    // mesmo tempo (bar posta em rajada). Teto de 20 páginas (500 stories) por segurança.
     const fields = 'id,media_type,media_product_type,permalink,timestamp,thumbnail_url,media_url';
-    const listRes = await fetch(
-      `${IG_GRAPH}/me/stories?fields=${fields}&access_token=${token}`,
-    );
-    if (!listRes.ok) {
-      const err = await listRes.json();
-      throw new Error(`Stories list: ${JSON.stringify(err).slice(0, 200)}`);
+    const stories: any[] = [];
+    let listUrl: string | null =
+      `${IG_GRAPH}/me/stories?fields=${fields}&limit=50&access_token=${token}`;
+    for (let page = 0; page < 20 && listUrl; page++) {
+      const listRes = await fetch(listUrl);
+      if (!listRes.ok) {
+        const err = await listRes.json();
+        throw new Error(`Stories list: ${JSON.stringify(err).slice(0, 200)}`);
+      }
+      const listJson = await listRes.json();
+      if (Array.isArray(listJson.data)) stories.push(...listJson.data);
+      listUrl = listJson?.paging?.next || null;
     }
-    const listJson = await listRes.json();
-    const stories: any[] = listJson.data || [];
     result.stories_descobertos = stories.length;
 
     if (stories.length === 0) {
