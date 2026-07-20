@@ -7,11 +7,12 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { useBar } from '@/contexts/BarContext';
-import { Check, X, Loader2, Sparkles, Paperclip, CalendarClock, Trash2 } from 'lucide-react';
+import { Check, X, Loader2, Sparkles, Paperclip, CalendarClock, Trash2, AlertCircle } from 'lucide-react';
 import { isoToBr } from '@/components/ui/date-input-br';
 import {
   TIPO_LABEL, STATUS_COLOR, statusLabel, formatBRL, type Pedido,
 } from '../types';
+import { interErroAmigavel } from '../interErro';
 
 export interface Opcao { value: string; label: string; searchHint?: string }
 
@@ -54,6 +55,9 @@ export function PedidoCard({
   const podeAgendar = podeAprovar && AGENDAVEL.includes(pedido.status)
     && !(pedido.status === 'aprovado' && !!pedido.contaazul_lancamento_id);
   const podeCancelar = podeAprovar && !!onCancelar && CANCELAVEL.includes(pedido.status);
+  // Erro do Inter/CA legível — mostra no próprio card (antes só aparecia abrindo o detalhe).
+  const emErro = pedido.status === 'erro_inter' || pedido.status === 'erro_ca';
+  const erro = emErro ? interErroAmigavel(pedido.erro_mensagem) : null;
 
   // Sugestão do Zykor entra como default quando o pedido ainda não tem categoria.
   const catSugerida = !pedido.categoria_id && pedido.categoria_sugerida_id;
@@ -210,6 +214,23 @@ export function PedidoCard({
           </Button>
         )}
       </div>
+
+      {/* Erro do Inter/Conta Azul — legível, clicável (abre o detalhe pra corrigir a chave e tentar de novo) */}
+      {erro && (
+        <button
+          onClick={() => onOpen(pedido.id)}
+          className="w-full text-left border-t border-red-500/20 bg-red-500/5 px-3 py-2 flex items-start gap-2 hover:bg-red-500/10 transition"
+        >
+          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+          <div className="min-w-0 text-xs">
+            <span className="font-medium text-red-600">{erro.titulo}</span>
+            {erro.acao && <span className="text-muted-foreground"> — {erro.acao}</span>}
+            {podeAprovar && (
+              <span className="text-red-600/80"> {erro.chaveInvalida ? 'Clique pra editar a chave.' : 'Clique pra abrir e tentar de novo.'}</span>
+            )}
+          </div>
+        </button>
+      )}
 
       {mostrarInline && (
         <div className="border-t border-[hsl(var(--border))] px-3 py-2 grid grid-cols-1 sm:grid-cols-3 gap-2">

@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { getSupabaseClient } from '@/lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { Plus, Loader2, AlertCircle, Receipt, Paperclip, Check, CalendarClock } from 'lucide-react';
+import { Plus, Loader2, AlertCircle, Receipt, Paperclip, Check, CalendarClock, Search, X } from 'lucide-react';
 import { type Pedido } from './types';
 import { type TabKey, TAB_STATUS, isBoleto } from './statusTabs';
 import { NovoPedidoDialog } from './components/NovoPedidoDialog';
@@ -26,6 +26,10 @@ import { ConsolidadoTab } from './components/ConsolidadoTab';
 import { FreelaFinanceiro, type FreelaAprovacao } from './components/FreelaFinanceiro';
 
 type ModoPagamento = 'pagamentos' | 'freela' | 'boleto' | 'fatura' | 'trocas';
+
+// Normaliza pra busca: minúsculo e SEM acento (ex.: "Bárbara" e "barbara" batem igual).
+const normalizar = (s: unknown) =>
+  String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 export default function PedidosPagamentoPage() {
   const { setPageTitle } = usePageTitle();
@@ -41,6 +45,8 @@ export default function PedidosPagamentoPage() {
   const [tab, setTab] = useState<TabKey>('solicitado');
   const [soMeus, setSoMeus] = useState(false);
   const [soComprovante, setSoComprovante] = useState(false);
+  // Busca por nome/descrição/etc. Quando preenchida, IGNORA a aba e varre TODOS os status.
+  const [busca, setBusca] = useState('');
   const [aprovandoTodos, setAprovandoTodos] = useState(false);
   const [agendandoTodos, setAgendandoTodos] = useState(false);
   // Seleções (categoria/conta/fornecedor) de cada card — alimenta o "Aprovar todos".
@@ -245,10 +251,20 @@ export default function PedidosPagamentoPage() {
   // (rascunho fica escondido) e faz aprovar → agendar por card, igual PIX.
   const freelasLista = useMemo(() => pedidos.filter(p => p.tipo === 'freela' && p.status !== 'rascunho'), [pedidos]);
   const listaAtiva = useMemo(() => (modo === 'freela' ? freelasLista : pedidosLista), [modo, freelasLista, pedidosLista]);
-  const filtrados = useMemo(
-    () => listaAtiva.filter(p => TAB_STATUS[tab](p.status) && (!soComprovante || p.precisa_comprovante)),
-    [listaAtiva, tab, soComprovante]
-  );
+  const buscando = busca.trim().length > 0;
+  const filtrados = useMemo(() => {
+    const base = listaAtiva.filter(p => (!soComprovante || p.precisa_comprovante));
+    const termo = normalizar(busca.trim());
+    // Busca ativa: varre TODOS os status (ignora a aba) — casa por nome, descrição,
+    // solicitante, CPF/CNPJ, chave PIX ou número do pedido.
+    if (termo) {
+      return base.filter(p => normalizar(
+        [p.beneficiario_nome, p.descricao, p.solicitante_nome, p.cpf_cnpj, p.chave_pix, p.numero]
+          .filter(Boolean).join(' ')
+      ).includes(termo));
+    }
+    return base.filter(p => TAB_STATUS[tab](p.status));
+  }, [listaAtiva, tab, soComprovante, busca]);
   const countSolicitado = useMemo(() => listaAtiva.filter(p => TAB_STATUS.solicitado(p.status)).length, [listaAtiva]);
   // Prontos pra AGENDAR (aprovados ainda não disparados + erros de agendamento p/ retry).
   const agendaveis = useMemo(
@@ -308,6 +324,8 @@ export default function PedidosPagamentoPage() {
 
   // Limpa a seleção ao trocar de aba/modo/bar (evita aprovar item que não está mais à vista).
   useEffect(() => { setSelecionados(new Set()); }, [tab, modo, barId]);
+  // Zera a busca ao trocar de modo (PIX↔Freela) ou de bar — contexto diferente.
+  useEffect(() => { setBusca(''); }, [modo, barId]);
 
   // Agenda em LOTE (dispara CA + Inter) os aprovados. SEQUENCIAL — 1 timing, sem rate burst.
   const agendarTodos = useCallback(async () => {
@@ -402,6 +420,25 @@ export default function PedidosPagamentoPage() {
                   </TabsList>
                 </Tabs>
                 <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                    <input
+                      value={busca}
+                      onChange={(e) => setBusca(e.target.value)}
+                      placeholder={modo === 'freela' ? 'Buscar freela por nome…' : 'Buscar por nome…'}
+                      className="h-8 w-48 rounded-md border border-[hsl(var(--border))] bg-background pl-7 pr-7 text-sm outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]"
+                      aria-label="Buscar em todas as abas"
+                    />
+                    {busca && (
+                      <button
+                        onClick={() => setBusca('')}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        aria-label="Limpar busca"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                   {podeAprovar && tab === 'solicitado' && selecionados.size > 0 && (
                     <Button size="sm" onClick={aprovarSelecionados} disabled={aprovandoTodos}>
                       {aprovandoTodos ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Check className="w-4 h-4 mr-1.5" />}
@@ -434,7 +471,13 @@ export default function PedidosPagamentoPage() {
                 </div>
               </div>
 
-              {tab === 'consolidado' ? (
+              {buscando && (
+                <p className="text-xs text-muted-foreground mb-2">
+                  Buscando <b>“{busca.trim()}”</b> em todas as abas — {filtrados.length} resultado(s).
+                </p>
+              )}
+
+              {tab === 'consolidado' && !buscando ? (
                 <ConsolidadoTab pedidos={listaAtiva} onOpenDetalhe={setDetalheId} />
               ) : loading ? (
                 <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
@@ -442,7 +485,7 @@ export default function PedidosPagamentoPage() {
                 <Card>
                   <CardContent className="py-12 text-center text-muted-foreground">
                     <Receipt className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                    Nenhum pedido nesta aba.
+                    {buscando ? `Nada encontrado para “${busca.trim()}”.` : 'Nenhum pedido nesta aba.'}
                   </CardContent>
                 </Card>
               ) : modo === 'freela' ? (
@@ -473,7 +516,7 @@ export default function PedidosPagamentoPage() {
                       onOpen={setDetalheId}
                       onChange={carregar}
                       onSelecao={onSelecao}
-                      selecionavel={tab === 'solicitado'}
+                      selecionavel={tab === 'solicitado' && !buscando}
                       selecionado={selecionados.has(p.id)}
                       onToggleSelecionado={toggleSelecionado}
                     />

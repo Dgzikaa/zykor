@@ -23,6 +23,7 @@ import {
   type Pedido, type Comentario, type Anexo, type HistoricoItem, type Competencia,
 } from '../types';
 import { isBoleto } from '../statusTabs';
+import { interErroAmigavel } from '../interErro';
 
 interface Opcao { value: string; label: string; searchHint?: string }
 
@@ -353,9 +354,19 @@ export function PedidoDetailDialog({
                 <strong>Rejeitado{pedido.rejeitado_por_nome ? ` por ${pedido.rejeitado_por_nome}` : ''}:</strong> {pedido.motivo_rejeicao}
               </div>
             )}
-            {pedido.erro_mensagem && (pedido.status === 'erro_ca' || pedido.status === 'erro_inter') && (
-              <div className="rounded-md bg-red-500/10 text-red-600 p-3"><strong>Erro:</strong> {pedido.erro_mensagem}</div>
-            )}
+            {(pedido.status === 'erro_ca' || pedido.status === 'erro_inter') && (() => {
+              const e = interErroAmigavel(pedido.erro_mensagem);
+              return (
+                <div className="rounded-md bg-red-500/10 text-red-600 p-3 space-y-1">
+                  <p className="font-semibold">{e.titulo}</p>
+                  {e.acao && <p className="text-xs text-red-600/90">{e.acao}</p>}
+                  {e.chaveInvalida && <p className="text-xs text-red-600/90">Edite a <b>Chave PIX</b> abaixo, salve e clique em <b>Tentar de novo</b>.</p>}
+                  {pedido.erro_mensagem && (
+                    <p className="text-[11px] text-muted-foreground pt-1">Retorno do banco: {pedido.erro_mensagem}</p>
+                  )}
+                </div>
+              );
+            })()}
             {pedido.status === 'agendado' && (
               <div className="rounded-md bg-indigo-500/10 text-indigo-600 p-3 text-xs">
                 Conta criada no Conta Azul e PIX agendado no Inter. Falta o OK final do sócio no app do Inter.
