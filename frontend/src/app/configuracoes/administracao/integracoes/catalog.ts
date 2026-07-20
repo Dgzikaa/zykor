@@ -139,6 +139,7 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     ],
     volumeTabela: { schema: 'bronze', tabela: 'bronze_contaazul_lancamentos', colunaTempo: 'synced_at' },
     crons: ['contaazul-sync'],
+    acoes: [{ id: 'config_contaazul', label: 'Configurar / Conectar', tipo: 'externa', url: '/configuracoes/administracao/integracoes/conta-azul' }],
   },
   {
     id: 'inter',
