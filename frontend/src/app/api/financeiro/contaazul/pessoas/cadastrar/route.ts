@@ -74,6 +74,31 @@ export async function POST(request: NextRequest) {
           : 'Física');
     const tipoPerfil = body.tipo_perfil || 'Fornecedor';
 
+    // Anti-duplicata: se já existe uma pessoa no bar com ESTE CPF/CNPJ, reusa (vincula) em vez
+    // de criar outra no CA. Evita a proliferação de fornecedores repetidos (ex.: freela cadastrado
+    // toda semana). Só quando o documento é válido (11/14 dígitos).
+    if (documentoLimpo.length === 11 || documentoLimpo.length === 14) {
+      const { data: existente } = await (supabase.schema('bronze' as any) as any)
+        .from('bronze_contaazul_pessoas')
+        .select('contaazul_id, nome, perfil')
+        .eq('bar_id', barId)
+        .eq('documento', documentoLimpo)
+        .eq('ativo', true)
+        .order('perfil', { ascending: true }) // FORNECEDOR antes de CLIENTE (alfabético)
+        .limit(1)
+        .maybeSingle();
+      if (existente?.contaazul_id) {
+        return NextResponse.json({
+          success: true,
+          contaazul_id: existente.contaazul_id,
+          nome: existente.nome || nome,
+          tipo_perfil: existente.perfil || tipoPerfil,
+          reusado: true,
+          message: 'Fornecedor já existente no Conta Azul (mesmo CPF/CNPJ) — vinculado sem duplicar.',
+        });
+      }
+    }
+
     const caBody: Record<string, unknown> = {
       nome,
       tipo_pessoa: tipoPessoa,

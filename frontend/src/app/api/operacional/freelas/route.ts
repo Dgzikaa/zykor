@@ -3,6 +3,7 @@ import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
 import { fin, comentarioSistema, formatBRL } from '@/lib/financeiro/pedidos-pagamento';
+import { autoVincularFreelasCA } from '@/lib/financeiro/vincularFreelaCA';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +56,10 @@ export async function GET(request: NextRequest) {
   const mon = semana;
   const d = new Date(mon + 'T00:00:00'); d.setDate(d.getDate() + 6);
   const sun = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  // Auto-cura: vincula freelas sem fornecedor CA por CPF→nome antes de carregar o roster
+  // (best-effort — nunca derruba a tela). Assim "sem fornecedor no CA" some pra quem já existe.
+  await autoVincularFreelasCA(supabase, bar_id).catch(() => {});
 
   const [rosterRes, pedidosRes] = await Promise.all([
     fin(supabase).from('beneficiarios')
