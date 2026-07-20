@@ -501,6 +501,7 @@ export default function PedidosPagamentoPage() {
                   onReprovar={reprovarFreela}
                   onAgendar={agendarFreela}
                   onExcluir={excluirFreela}
+                  onOpenDetalhe={setDetalheId}
                 />
               ) : (
                 <div className="space-y-2">

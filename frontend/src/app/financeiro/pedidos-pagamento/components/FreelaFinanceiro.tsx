@@ -7,6 +7,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Loader2, Check, X, CalendarClock, Trash2, Sparkles } from 'lucide-react';
 import { STATUS_COLOR, statusLabel, formatBRL, type PedidoStatus } from '../types';
 import type { Opcao } from './PedidoCard';
+import { interErroAmigavel } from '../interErro';
 
 // Competência (diária) de um freela agrupado — dia + função (descricao) + valor + categoria própria.
 export type FreelaComp = {
@@ -34,6 +35,7 @@ export type FreelaFinItem = {
   categoria_id?: string | null;
   categoria_sugerida_id?: string | null;
   contaazul_pessoa_id?: string | null;
+  erro_mensagem?: string | null;
   competencias?: FreelaComp[];
 };
 
@@ -75,7 +77,7 @@ type Linha = { key: string; dia: string; funcao: string | null; valor: number; c
  * Freela legado (sem competências) aparece como card de 1 linha, com categoria a nível de pedido.
  */
 export function FreelaFinanceiro({
-  itens, podeAprovar, categorias, fornecedores, busyId, onAprovar, onReprovar, onAgendar, onExcluir,
+  itens, podeAprovar, categorias, fornecedores, busyId, onAprovar, onReprovar, onAgendar, onExcluir, onOpenDetalhe,
 }: {
   itens: FreelaFinItem[];
   podeAprovar: boolean;
@@ -86,6 +88,7 @@ export function FreelaFinanceiro({
   onReprovar: (ids: string[]) => void;
   onAgendar: (id: string) => void;
   onExcluir: (id: string) => void;
+  onOpenDetalhe: (id: string) => void;
 }) {
   const [fornOverride, setFornOverride] = useState<Record<string, string>>({}); // por pedido.id
   const [catOverride, setCatOverride] = useState<Record<string, string>>({});   // por linha.key
@@ -224,6 +227,7 @@ export function FreelaFinanceiro({
           onReprovar={() => onReprovar([p.id])}
           onAgendar={() => onAgendar(p.id)}
           onExcluir={() => onExcluir(p.id)}
+          onOpenDetalhe={() => onOpenDetalhe(p.id)}
         />
       ))}
     </div>
@@ -232,7 +236,7 @@ export function FreelaFinanceiro({
 
 function CardPessoa({
   pedido: p, linhas, podeAprovar, categorias, fornecedores, fornSel, onFornChange, onCatChange,
-  busyId, selecionada, onToggleSel, onAprovar, pronta, onReprovar, onAgendar, onExcluir,
+  busyId, selecionada, onToggleSel, onAprovar, pronta, onReprovar, onAgendar, onExcluir, onOpenDetalhe,
 }: {
   pedido: FreelaFinItem;
   linhas: Linha[];
@@ -250,11 +254,14 @@ function CardPessoa({
   onReprovar: () => void;
   onAgendar: () => void;
   onExcluir: () => void;
+  onOpenDetalhe: () => void;
 }) {
   const total = linhas.reduce((s, l) => s + l.valor, 0);
   const busy = busyId === p.id;
   const pendente = APROVAVEL.includes(p.status);
   const fornAutoLabel = fornSel.auto && fornSel.value ? fornecedores.find((f) => f.value === fornSel.value)?.label : null;
+  const emErro = p.status === 'erro_inter' || p.status === 'erro_ca';
+  const erro = emErro ? interErroAmigavel(p.erro_mensagem) : null;
 
   return (
     <div className="rounded-lg border border-[hsl(var(--border))] overflow-hidden">
@@ -265,10 +272,12 @@ function CardPessoa({
             <input type="checkbox" checked={selecionada} onChange={onToggleSel}
               className="w-4 h-4 shrink-0 accent-[hsl(var(--primary))] cursor-pointer" aria-label="Selecionar pessoa" />
           )}
-          <span className="text-sm font-semibold truncate">
+          <button type="button" onClick={onOpenDetalhe}
+            className="text-sm font-semibold truncate text-left hover:underline"
+            title="Abrir detalhe do pagamento (erro, competências, histórico)">
             {p.beneficiario_nome || '—'}
             <span className="text-muted-foreground font-normal"> · {linhas.length} diária(s)</span>
-          </span>
+          </button>
           <Badge className={`${STATUS_COLOR[p.status]} text-[10px] shrink-0`}>{statusLabel(p)}</Badge>
           <span className="text-sm font-semibold shrink-0 ml-auto sm:ml-0">{formatBRL(total)}</span>
         </div>
@@ -286,6 +295,19 @@ function CardPessoa({
         <div className="px-3 py-1 text-[11px] text-blue-600 bg-blue-50/40 dark:bg-blue-950/20 flex items-center gap-1">
           <Sparkles className="w-3 h-3" /> Fornecedor sugerido por nome: <b>{fornAutoLabel}</b> — confira.
         </div>
+      )}
+
+      {/* Erro do Inter/CA legível — clicável (abre o detalhe pra ver o retorno do banco e reagendar) */}
+      {erro && (
+        <button type="button" onClick={onOpenDetalhe}
+          className="w-full text-left border-t border-red-500/20 bg-red-500/5 px-3 py-2 flex items-start gap-2 hover:bg-red-500/10 transition">
+          <X className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+          <div className="min-w-0 text-xs">
+            <span className="font-medium text-red-600">{erro.titulo}</span>
+            {erro.acao && <span className="text-muted-foreground"> — {erro.acao}</span>}
+            <span className="text-red-600/80"> Clique pra abrir e tentar de novo.</span>
+          </div>
+        </button>
       )}
 
       {/* Diárias: dia · função · valor · categoria por linha */}
