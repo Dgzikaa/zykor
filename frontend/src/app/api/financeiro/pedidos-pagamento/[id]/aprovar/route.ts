@@ -60,6 +60,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   ]) {
     if (c in body && body[c] != null && body[c] !== '') vinculo[c] = body[c];
   }
+
+  // Freela agrupado: categoria é POR COMPETÊNCIA (diária) — cada linha tem sua categoria (garçom,
+  // bartender…). Grava em cada competência; o agendar cria 1 lançamento no CA por competência
+  // com a categoria dela. A categoria do PEDIDO fica de fallback (1ª competência) só pra validação
+  // e pra qualquer lançamento sem competência.
+  const compsBody: Array<{ id: string; categoria_id?: string; categoria_nome?: string }> =
+    Array.isArray(body.competencias) ? body.competencias : [];
+  if (compsBody.length) {
+    for (const c of compsBody) {
+      if (!c?.id || !c.categoria_id) continue;
+      await fin(supabase).from('pedidos_pagamento_competencias')
+        .update({ categoria_id: c.categoria_id, categoria_nome: c.categoria_nome || null })
+        .eq('id', c.id).eq('pedido_id', id);
+    }
+    if (!vinculo.categoria_id) {
+      const prim = compsBody.find((c) => c.categoria_id);
+      if (prim) { vinculo.categoria_id = prim.categoria_id; if (prim.categoria_nome) vinculo.categoria_nome = prim.categoria_nome; }
+    }
+  }
+
   const p = { ...pedido, ...vinculo } as PedidoPagamento;
   const ehBoleto = !!p.linha_digitavel;
   const ehCopiaCola = !ehBoleto && !!p.pix_copia_cola;

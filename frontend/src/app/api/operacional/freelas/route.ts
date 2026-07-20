@@ -28,6 +28,12 @@ export const dynamic = 'force-dynamic';
 
 const isISO = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
+// A função do dia é gravada na descrição da diária: "Freela <função> — <nome> (venc)".
+function funcaoDaDescricao(desc?: string | null): string {
+  const m = /^Freela\s+(.+?)\s+—\s+/.exec(desc || '');
+  return m ? m[1].trim() : '';
+}
+
 async function ctx(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return { erro: authErrorResponse('Usuário não autenticado') };
@@ -54,8 +60,10 @@ export async function GET(request: NextRequest) {
     fin(supabase).from('beneficiarios')
       .select('id, nome, funcao, valor_padrao, chave_pix, tipo_chave, cpf_cnpj, contaazul_pessoa_id')
       .eq('bar_id', bar_id).eq('tipo', 'freela').eq('ativo', true).order('nome'),
+    // Rascunho segue POR DIA (montagem intocada). Enviados (aguardando+) viram PARENTS agrupados
+    // (1 por pessoa/semana) desde o "Encerrar"; o parent é ancorado em data_competencia=segunda.
     fin(supabase).from('pedidos_pagamento')
-      .select('id, beneficiario_nome, valor, status, data_vencimento, data_competencia, contaazul_pessoa_id')
+      .select('id, beneficiario_nome, valor, status, data_vencimento, data_competencia, contaazul_pessoa_id, descricao')
       .eq('bar_id', bar_id).eq('tipo', 'freela')
       .gte('data_competencia', mon).lte('data_competencia', sun)
       .order('data_competencia'),
@@ -63,9 +71,35 @@ export async function GET(request: NextRequest) {
   if (rosterRes.error) return NextResponse.json({ success: false, error: rosterRes.error.message }, { status: 500 });
   if (pedidosRes.error) return NextResponse.json({ success: false, error: pedidosRes.error.message }, { status: 500 });
 
+  const linhas = (pedidosRes.data || []) as any[];
+  const rascunhos = linhas.filter((p) => p.status === 'rascunho');
+  const parents = linhas.filter((p) => p.status !== 'rascunho');
+
+  // Expande os parents (agrupados) em itens POR DIA pra exibição read-only ("Enviado ao
+  // financeiro"). Parent SEM competências = linha legado (per-dia antiga), fica como está.
+  let enviadosExpandido: any[] = parents;
+  if (parents.length) {
+    const { data: comps } = await fin(supabase)
+      .from('pedidos_pagamento_competencias')
+      .select('id, pedido_id, data_competencia, valor, descricao')
+      .in('pedido_id', parents.map((p) => p.id))
+      .order('data_competencia');
+    const byParent = new Map<string, any[]>();
+    for (const c of (comps || []) as any[]) (byParent.get(c.pedido_id) || byParent.set(c.pedido_id, []).get(c.pedido_id)!).push(c);
+    enviadosExpandido = parents.flatMap((p) => {
+      const cs = byParent.get(p.id);
+      if (!cs || cs.length === 0) return [p]; // legado per-dia
+      return cs.map((c) => ({
+        id: c.id, beneficiario_nome: p.beneficiario_nome, valor: c.valor, status: p.status,
+        data_vencimento: p.data_vencimento, data_competencia: c.data_competencia,
+        contaazul_pessoa_id: p.contaazul_pessoa_id, descricao: c.descricao,
+      }));
+    });
+  }
+
   return NextResponse.json({
     success: true, semana: { mon, sun },
-    roster: rosterRes.data || [], pedidos: pedidosRes.data || [],
+    roster: rosterRes.data || [], pedidos: [...rascunhos, ...enviadosExpandido],
   });
 }
 
@@ -76,28 +110,112 @@ export async function POST(request: NextRequest) {
   try { body = await request.json(); } catch { return NextResponse.json({ success: false, error: 'JSON inválido' }, { status: 400 }); }
   const action = String(body.action || 'lancar');
 
-  // --- ENCERRAR: rascunho da semana → aguardando_aprovacao (envia ao financeiro) ---
-  if (action === 'encerrar' || action === 'reabrir') {
+  // --- ENCERRAR: rascunho da semana → 1 pedido/pessoa (aguardando_aprovacao) + N competências ---
+  // Agrupa as diárias por PESSOA numa única conta (1 PIX no financeiro); cada diária vira uma
+  // competência (dia + função na descrição + valor), com a categoria decidida depois no aprovar.
+  if (action === 'encerrar') {
     const { mon, sun } = body;
     if (!isISO(mon) || !isISO(sun)) return NextResponse.json({ success: false, error: 'mon/sun (AAAA-MM-DD) obrigatórios' }, { status: 400 });
-    const de = action === 'encerrar' ? 'rascunho' : 'aguardando_aprovacao';
-    const para = action === 'encerrar' ? 'aguardando_aprovacao' : 'rascunho';
-    const { data: alterados, error } = await fin(supabase).from('pedidos_pagamento')
-      .update({ status: para, atualizado_por: user.auth_id })
-      .eq('bar_id', bar_id).eq('tipo', 'freela').eq('status', de)
-      .gte('data_competencia', mon).lte('data_competencia', sun)
-      .select('id, valor');
-    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    for (const p of alterados || []) {
+
+    const { data: diarias, error: errD } = await fin(supabase).from('pedidos_pagamento')
+      .select('*').eq('bar_id', bar_id).eq('tipo', 'freela').eq('status', 'rascunho')
+      .gte('data_competencia', mon).lte('data_competencia', sun);
+    if (errD) return NextResponse.json({ success: false, error: errD.message }, { status: 500 });
+    if (!diarias || diarias.length === 0) return NextResponse.json({ success: true, alterados: 0, total: 0 });
+
+    const norm = (s?: string | null) => (s || '').trim().toLowerCase();
+    const grupos = new Map<string, any[]>();
+    for (const d of diarias) (grupos.get(norm(d.beneficiario_nome)) || grupos.set(norm(d.beneficiario_nome), []).get(norm(d.beneficiario_nome))!).push(d);
+
+    let pessoas = 0, total = 0;
+    for (const [, lista] of grupos) {
+      lista.sort((a, b) => String(a.data_competencia).localeCompare(String(b.data_competencia)));
+      const base = lista.find((d) => d.contaazul_pessoa_id) || lista[0];
+      const soma = lista.reduce((s, d) => s + Number(d.valor || 0), 0);
+      const venc = base.data_vencimento;
+      const nome = base.beneficiario_nome || 'Freela';
+      const ddmm = (iso: string) => { const [, m, dd] = iso.split('-'); return `${dd}/${m}`; };
+
+      const { data: parent, error: errP } = await fin(supabase).from('pedidos_pagamento').insert({
+        bar_id, tipo: 'freela', status: 'aguardando_aprovacao',
+        solicitante_id: base.solicitante_id, solicitante_nome: base.solicitante_nome,
+        descricao: `Freelas ${ddmm(mon)}–${ddmm(sun)} — ${nome} (${lista.length} diária(s))`,
+        valor: soma,
+        data_competencia: mon,       // âncora da semana (usada só p/ escopo/nav da operação)
+        data_vencimento: venc,
+        beneficiario_nome: nome,
+        chave_pix: base.chave_pix, tipo_chave: base.tipo_chave, cpf_cnpj: base.cpf_cnpj,
+        contaazul_pessoa_id: base.contaazul_pessoa_id,
+        criado_por: user.auth_id, atualizado_por: user.auth_id,
+      }).select('id').single();
+      if (errP) return NextResponse.json({ success: false, error: errP.message }, { status: 500 });
+
+      const comps = lista.map((d, i) => ({
+        pedido_id: parent.id, bar_id,
+        data_competencia: d.data_competencia, valor: d.valor,
+        descricao: funcaoDaDescricao(d.descricao) || null,  // função do dia
+        ordem: i,
+      }));
+      const { error: errC } = await fin(supabase).from('pedidos_pagamento_competencias').insert(comps);
+      if (errC) {
+        // Rollback do parent recém-criado — evita conta órfã sem competências.
+        await fin(supabase).from('pedidos_pagamento').delete().eq('id', parent.id);
+        return NextResponse.json({ success: false, error: errC.message }, { status: 500 });
+      }
+
+      await fin(supabase).from('pedidos_pagamento').delete().in('id', lista.map((d) => d.id));
       await comentarioSistema(supabase, {
-        pedido_id: p.id, bar_id: bar_id,
-        mensagem: action === 'encerrar'
-          ? `Semana encerrada pela operação (${user.nome}) — enviado ao financeiro.`
-          : `Semana reaberta pela operação (${user.nome}) — voltou a rascunho.`,
+        pedido_id: parent.id, bar_id,
+        mensagem: `Semana encerrada pela operação (${user.nome}) — ${lista.length} diária(s) de ${nome} agrupadas em 1 pagamento (${formatBRL(soma)}), enviado ao financeiro.`,
       });
+      pessoas++; total += soma;
     }
-    const total = (alterados || []).reduce((s: number, p: any) => s + Number(p.valor || 0), 0);
-    return NextResponse.json({ success: true, alterados: (alterados || []).length, total });
+    return NextResponse.json({ success: true, alterados: pessoas, total });
+  }
+
+  // --- REABRIR: desfaz o agrupamento (parent+competências → diárias por dia em rascunho). Só o
+  // que o financeiro ainda NÃO tocou (status aguardando_aprovacao). Trata também linhas legado
+  // per-dia (sem competências): só volta pra rascunho. ---
+  if (action === 'reabrir') {
+    const { mon, sun } = body;
+    if (!isISO(mon) || !isISO(sun)) return NextResponse.json({ success: false, error: 'mon/sun (AAAA-MM-DD) obrigatórios' }, { status: 400 });
+
+    const { data: parents, error: errP } = await fin(supabase).from('pedidos_pagamento')
+      .select('*').eq('bar_id', bar_id).eq('tipo', 'freela').eq('status', 'aguardando_aprovacao')
+      .gte('data_competencia', mon).lte('data_competencia', sun);
+    if (errP) return NextResponse.json({ success: false, error: errP.message }, { status: 500 });
+    if (!parents || parents.length === 0) return NextResponse.json({ success: true, alterados: 0 });
+
+    const { data: comps } = await fin(supabase).from('pedidos_pagamento_competencias')
+      .select('*').in('pedido_id', parents.map((p) => p.id)).order('ordem');
+    const byParent = new Map<string, any[]>();
+    for (const c of (comps || []) as any[]) (byParent.get(c.pedido_id) || byParent.set(c.pedido_id, []).get(c.pedido_id)!).push(c);
+
+    let diarias = 0;
+    for (const p of parents) {
+      const cs = byParent.get(p.id);
+      if (!cs || cs.length === 0) {
+        // Legado per-dia: só volta a rascunho.
+        await fin(supabase).from('pedidos_pagamento').update({ status: 'rascunho', atualizado_por: user.auth_id }).eq('id', p.id);
+        diarias++;
+        continue;
+      }
+      const novas = cs.map((c) => ({
+        bar_id, tipo: 'freela', status: 'rascunho',
+        solicitante_id: p.solicitante_id, solicitante_nome: p.solicitante_nome,
+        descricao: `Freela ${c.descricao ? c.descricao + ' — ' : ''}${p.beneficiario_nome} (${p.data_vencimento})`,
+        valor: c.valor, data_competencia: c.data_competencia, data_vencimento: p.data_vencimento,
+        beneficiario_nome: p.beneficiario_nome, chave_pix: p.chave_pix, tipo_chave: p.tipo_chave,
+        cpf_cnpj: p.cpf_cnpj, contaazul_pessoa_id: p.contaazul_pessoa_id,
+        criado_por: user.auth_id, atualizado_por: user.auth_id,
+      }));
+      const { error: errN } = await fin(supabase).from('pedidos_pagamento').insert(novas);
+      if (errN) return NextResponse.json({ success: false, error: errN.message }, { status: 500 });
+      await fin(supabase).from('pedidos_pagamento_competencias').delete().eq('pedido_id', p.id);
+      await fin(supabase).from('pedidos_pagamento').delete().eq('id', p.id);
+      diarias += cs.length;
+    }
+    return NextResponse.json({ success: true, alterados: diarias });
   }
 
   // --- CADASTRAR_FREELA: adiciona uma pessoa ao roster (financial.beneficiarios tipo=freela) ---

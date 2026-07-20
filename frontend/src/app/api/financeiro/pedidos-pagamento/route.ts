@@ -66,36 +66,76 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: error?.message || 'erro ao listar' }, { status: 500 });
   }
 
+  // Anexa as competências (diárias) aos freelas agrupados — o financeiro aprova a categoria por
+  // competência e o agendar cria 1 lançamento no CA por competência. Freela legado (per-dia, sem
+  // competências) segue como pedido de 1 linha só.
+  const freelaIds = pedidos.filter((p: any) => p.tipo === 'freela').map((p: any) => p.id);
+  if (freelaIds.length) {
+    const { data: comps } = await fin(supabase)
+      .from('pedidos_pagamento_competencias')
+      .select('id, pedido_id, data_competencia, valor, descricao, categoria_id, categoria_nome, contaazul_lancamento_id, ordem')
+      .in('pedido_id', freelaIds)
+      .order('ordem', { ascending: true });
+    const byPedido = new Map<string, any[]>();
+    for (const c of (comps || []) as any[]) (byPedido.get(c.pedido_id) || byPedido.set(c.pedido_id, []).get(c.pedido_id)!).push(c);
+    for (const p of pedidos) if (p.tipo === 'freela') p.competencias = byPedido.get(p.id) || [];
+  }
+
   // Sugestão de categoria (Zykor sugere) — só p/ quem aprova e p/ pendentes sem categoria.
-  // Fonte: categoria do último pedido APROVADO do mesmo fornecedor (por pessoa do CA,
-  // senão por nome do beneficiário). Deixa o "de sempre" (atrações, técnicos, segurança)
-  // pré-preenchido pro financeiro só confirmar sem abrir o pedido.
+  // Fonte: categoria do último pedido APROVADO. Pro FREELA, a categoria reflete O QUE a pessoa
+  // fez no dia (garçom→atendimento, cozinha→cozinha), então a FUNÇÃO é o sinal principal; cai
+  // pra pessoa/nome quando não há histórico da função. Pros demais, segue por pessoa/nome.
+  // A função da diária vem na descrição ("Freela <função> — <nome> (venc)").
   if (podeAprovar(user)) {
     const pendentes = pedidos.filter(
-      (p: any) => ['aguardando_aprovacao', 'erro_ca', 'erro_inter'].includes(p.status) && !p.categoria_id
+      (p: any) => ['aguardando_aprovacao', 'erro_ca', 'erro_inter'].includes(p.status)
     );
     if (pendentes.length) {
-      const { data: hist } = await fin(supabase)
-        .from('pedidos_pagamento')
-        .select('beneficiario_nome, contaazul_pessoa_id, categoria_id, categoria_nome, created_at')
-        .eq('bar_id', user.bar_id)
-        .in('status', ['aprovado', 'agendado', 'pago'])
-        .not('categoria_id', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(500);
       const norm = (s?: string | null) => (s || '').trim().toLowerCase();
+      const funcaoDe = (desc?: string | null) => {
+        const m = /^Freela\s+(.+?)\s+—\s+/.exec(desc || '');
+        return m ? norm(m[1]) : '';
+      };
+      const [{ data: hist }, { data: histComp }] = await Promise.all([
+        fin(supabase).from('pedidos_pagamento')
+          .select('tipo, descricao, beneficiario_nome, contaazul_pessoa_id, categoria_id, categoria_nome, created_at')
+          .eq('bar_id', user.bar_id).in('status', ['aprovado', 'agendado', 'pago'])
+          .not('categoria_id', 'is', null).order('created_at', { ascending: false }).limit(500),
+        // Histórico da FUNÇÃO por competência (descricao = função pura, ex.: "Garçom").
+        fin(supabase).from('pedidos_pagamento_competencias')
+          .select('descricao, categoria_id, categoria_nome, created_at')
+          .eq('bar_id', user.bar_id).not('categoria_id', 'is', null)
+          .order('created_at', { ascending: false }).limit(500),
+      ]);
       const byPessoa = new Map<string, any>();
       const byNome = new Map<string, any>();
+      const byFuncao = new Map<string, any>();
+      // Função por competência tem prioridade (mais fiel ao "garçom→atendimento").
+      for (const c of (histComp || []) as any[]) {
+        const fn = norm(c.descricao);
+        if (fn && !byFuncao.has(fn)) byFuncao.set(fn, { categoria_id: c.categoria_id, categoria_nome: c.categoria_nome });
+      }
       for (const h of hist || []) {
         if (h.contaazul_pessoa_id && !byPessoa.has(h.contaazul_pessoa_id)) byPessoa.set(h.contaazul_pessoa_id, h);
         const n = norm(h.beneficiario_nome);
         if (n && !byNome.has(n)) byNome.set(n, h);
+        if (h.tipo === 'freela') { const fn = funcaoDe(h.descricao); if (fn && !byFuncao.has(fn)) byFuncao.set(fn, h); }
       }
+      const sugerir = (funcao: string, pessoaId?: string | null, nome?: string | null) =>
+        byFuncao.get(funcao) || (pessoaId && byPessoa.get(pessoaId)) || byNome.get(norm(nome));
       for (const p of pendentes) {
-        const hit = (p.contaazul_pessoa_id && byPessoa.get(p.contaazul_pessoa_id)) || byNome.get(norm(p.beneficiario_nome));
-        if (hit) {
-          p.categoria_sugerida_id = hit.categoria_id;
-          p.categoria_sugerida_nome = hit.categoria_nome;
+        const comps: any[] = Array.isArray(p.competencias) ? p.competencias : [];
+        if (p.tipo === 'freela' && comps.length) {
+          // Grouped: sugere categoria POR competência (pela função de cada dia).
+          for (const c of comps) {
+            if (c.categoria_id) continue;
+            const hit = sugerir(norm(c.descricao), p.contaazul_pessoa_id, p.beneficiario_nome);
+            if (hit) { c.categoria_sugerida_id = hit.categoria_id; c.categoria_sugerida_nome = hit.categoria_nome; }
+          }
+        } else if (!p.categoria_id) {
+          // Legado / não-freela: sugestão a nível de pedido.
+          const hit = sugerir(p.tipo === 'freela' ? funcaoDe(p.descricao) : '', p.contaazul_pessoa_id, p.beneficiario_nome);
+          if (hit) { p.categoria_sugerida_id = hit.categoria_id; p.categoria_sugerida_nome = hit.categoria_nome; }
         }
       }
     }

@@ -23,7 +23,7 @@ import { BoletoTab } from './components/BoletoTab';
 import TrocasTab from './components/TrocasTab';
 import { FaturaCartaoTab } from './components/FaturaCartaoTab';
 import { ConsolidadoTab } from './components/ConsolidadoTab';
-import { FreelaFinanceiro, type FreelaVinculo } from './components/FreelaFinanceiro';
+import { FreelaFinanceiro, type FreelaAprovacao } from './components/FreelaFinanceiro';
 
 type ModoPagamento = 'pagamentos' | 'freela' | 'boleto' | 'fatura' | 'trocas';
 
@@ -106,24 +106,27 @@ export default function PedidosPagamentoPage() {
   // vínculo CA (categoria + fornecedor) que o financeiro escolhe — cobre o freela cujo cadastro
   // não trouxe fornecedor/categoria (aprovar/agendar exigem os dois).
   const [freelaBusy, setFreelaBusy] = useState<string | null>(null);
-  const aprovarFreela = useCallback(async (ids: string[], v: FreelaVinculo) => {
-    if (!ids.length) return;
-    setFreelaBusy(ids[0]);
+  // Recebe as pessoas JÁ resolvidas (fornecedor da pessoa + categoria por competência) — aprova
+  // uma a uma. Cada pessoa é 1 pedido; a categoria de cada diária vai em `competencias`.
+  const aprovarFreela = useCallback(async (itens: FreelaAprovacao[]) => {
+    if (!itens.length) return;
+    setFreelaBusy(itens[0].id);
     let ok = 0, err = 0;
-    for (const id of ids) {
+    for (const it of itens) {
       try {
-        await api.post(`/api/financeiro/pedidos-pagamento/${id}/aprovar`, {
-          categoria_id: v.categoria_id,
-          categoria_nome: opcoes.categorias.find(c => c.value === v.categoria_id)?.label,
-          contaazul_pessoa_id: v.contaazul_pessoa_id,
+        await api.post(`/api/financeiro/pedidos-pagamento/${it.id}/aprovar`, {
+          contaazul_pessoa_id: it.contaazul_pessoa_id,
+          categoria_id: it.categoria_id,
+          categoria_nome: it.categoria_nome,
+          competencias: it.competencias,
         });
         ok++;
       } catch { err++; }
     }
     setFreelaBusy(null);
-    showToast({ type: err ? 'warning' : 'success', title: `${ok} diária(s) aprovada(s)`, message: err ? `${err} com erro` : undefined });
+    showToast({ type: err ? 'warning' : 'success', title: `${ok} pessoa(s) aprovada(s)`, message: err ? `${err} com erro` : undefined });
     await carregar();
-  }, [carregar, showToast, opcoes.categorias]);
+  }, [carregar, showToast]);
   const reprovarFreela = useCallback(async (ids: string[]) => {
     if (!ids.length) return;
     const motivo = window.prompt('Motivo da recusa (vale pras diárias pendentes desta pessoa):')?.trim();
