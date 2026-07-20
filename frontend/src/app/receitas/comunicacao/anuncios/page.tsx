@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { DollarSign, Eye, MousePointerClick, Target, Percent, MessageCircle, ArrowUpDown, Repeat, TrendingUp, ShoppingCart, PlayCircle, UserPlus } from 'lucide-react';
+import { DollarSign, Eye, BarChart3, MousePointerClick, Target, Percent, MessageCircle, ArrowUpDown, Repeat, TrendingUp, ShoppingCart, PlayCircle, UserPlus } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { useApiSWR } from '@/hooks/useApiSWR';
@@ -17,7 +17,7 @@ import { PageShell } from '@/components/layout/PageShell';
 import { PeriodRangePicker } from '@/components/receitas/PeriodRangePicker';
 import { CardRoas } from '@/components/receitas/CardRoas';
 import { HeroRow, ChartCard, GraficoBarrasAgrupadasH, GraficoBarrasAgrupadas, type Kpi } from '@/components/graficos/Charts';
-import { periodoPadrao, type PeriodoValor } from '@/lib/receitas/periodo';
+import { useComunicacaoPeriodo } from '../PeriodoContext';
 
 const num = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR').format(n));
 const money = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }));
@@ -25,6 +25,8 @@ const money2 = (n: number | null | undefined) => (n == null ? '—' : n.toLocale
 const pct = (n: number | null | undefined) => (n == null ? '—' : `${n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`);
 const pct2 = (n: number | null | undefined) => (n == null ? '—' : `${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`);
 const dec1 = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+// Frequência com precisão cheia (ex.: 1,9922) — a Meta manda várias casas e o dono quer o número exato.
+const dec4 = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
 const roasFmt = (n: number | null | undefined) => (n == null ? '—' : `${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`);
 const data = (iso: string | null | undefined) => {
   if (!iso) return null;
@@ -74,7 +76,7 @@ function useSorted<T extends Record<string, any>>(rows: T[], key: SortKey) {
 export default function AnunciosPage() {
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
-  const [periodo, setPeriodo] = useState<PeriodoValor>(() => periodoPadrao('mes', 'trimestral'));
+  const { periodo, setPeriodo } = useComunicacaoPeriodo();
   const [sortCamp, setSortCamp] = useState<SortKey>('investimento');
   const [sortAd, setSortAd] = useState<SortKey>('investimento');
 
@@ -95,7 +97,8 @@ export default function AnunciosPage() {
   const r = dados?.resumo;
   const kpis: Kpi[] = r
     ? [
-        { label: 'Investimento', valor: money(r.investimento), icon: DollarSign },
+        { label: 'Investimento', valor: money2(r.investimento), icon: DollarSign },
+        { label: 'Impressões', valor: num(r.impressoes), icon: BarChart3 },
         { label: 'Alcance', valor: num(r.alcance), icon: Eye },
         { label: 'Cliques', valor: num(r.cliques), icon: MousePointerClick },
         { label: 'CPM', valor: money2(r.cpm), icon: Target },
@@ -106,7 +109,7 @@ export default function AnunciosPage() {
   const kpisEfic: Kpi[] = r
     ? [
         { label: 'Custo/clique', valor: money2(r.cpc), icon: MousePointerClick },
-        { label: 'Frequência', valor: dec1(r.frequencia), icon: Repeat },
+        { label: 'Frequência', valor: dec4(r.frequencia), icon: Repeat },
         { label: 'ROAS de compra', valor: roasFmt(r.roas_compra), icon: TrendingUp },
         { label: 'Custo/conversa', valor: money2(r.custo_conversa), icon: MessageCircle },
         { label: 'Custo/venda', valor: money2(r.custo_venda), icon: ShoppingCart },

@@ -89,25 +89,29 @@ export async function GET(request: NextRequest) {
   const postMetric = (p: any) => {
     const i = insMap.get(p.ig_media_id) ?? {};
     const reach = Number(i.reach) || 0;
-    const engajamento = (Number(i.likes) || 0) + (Number(i.comments) || 0) + (Number(i.shares) || 0) + (Number(i.saved) || 0);
-    return { reach, engajamento };
+    const shares = Number(i.shares) || 0;
+    const engajamento = (Number(i.likes) || 0) + (Number(i.comments) || 0) + shares + (Number(i.saved) || 0);
+    return { reach, engajamento, shares };
   };
 
   let alcance = 0;
   let engajamento = 0;
+  let compartilhamentos = 0; // shares já entram nas interações; expostos à parte como quebra
   // Quebra Feed × Reels — o card "postagens do feed" de ferramentas externas (Reportei)
   // exclui parte dos reels, então expor o split permite conciliar 1:1.
-  const feed = { posts: 0, alcance: 0, engajamento: 0 };
-  const reels = { posts: 0, alcance: 0, engajamento: 0 };
+  const feed = { posts: 0, alcance: 0, engajamento: 0, shares: 0 };
+  const reels = { posts: 0, alcance: 0, engajamento: 0, shares: 0 };
   const mensalMap = new Map<string, { label: string; alcance: number; engajamento: number }>();
   for (const p of posts as any[]) {
-    const { reach, engajamento: eng } = postMetric(p);
+    const { reach, engajamento: eng, shares } = postMetric(p);
     alcance += reach;
     engajamento += eng;
+    compartilhamentos += shares;
     const bucket = p.media_product_type === 'REELS' ? reels : feed;
     bucket.posts += 1;
     bucket.alcance += reach;
     bucket.engajamento += eng;
+    bucket.shares += shares;
     const { key, label } = bucketDe(String(p.timestamp_post), 'mes');
     let m = mensalMap.get(key);
     if (!m) { m = { label, alcance: 0, engajamento: 0 }; mensalMap.set(key, m); }
@@ -127,8 +131,9 @@ export async function GET(request: NextRequest) {
     conectado: true,
     alcance,
     engajamento,
-    feed,   // { posts, alcance, engajamento } — só FEED
-    reels,  // { posts, alcance, engajamento } — só REELS
+    compartilhamentos, // subconjunto das interações (shares de feed + reels)
+    feed,   // { posts, alcance, engajamento, shares } — só FEED
+    reels,  // { posts, alcance, engajamento, shares } — só REELS
     visitas_perfil: somaConta('profile_views'),
     seguidores: ultimo?.followers_count ?? null,
     qtd_stories: (stories as any[]).length,

@@ -47,7 +47,7 @@ export interface MetricasExtras {
 function extraMetrics(row: any, investimento: number, conversas: number): MetricasExtras {
   const compras = arrValue(row.actions, PURCHASE_TYPES);
   const roas = round2(arrValue(row.purchase_roas, PURCHASE_ROAS_TYPES));
-  const freq = round2(num(row.frequency));
+  const freq = num(row.frequency); // precisão cheia (ex.: 1.9922) — a UI formata
   return {
     frequencia: freq > 0 ? freq : null,
     leads: arrValue(row.actions, ['lead']),
@@ -63,11 +63,12 @@ export interface MetaAdsInsights extends MetricasExtras {
   investimento: number; // spend (BRL)
   impressoes: number;
   alcance: number;
-  cliques: number;
+  cliques: number; // clicks (TODOS os cliques — like, perfil, expandir, link)
+  cliques_link: number; // inline_link_clicks (só cliques no link) — base de CTR/CPC (igual Reportei)
   conversas: number; // conversas iniciadas por mensagem
   cpm: number | null;
-  ctr: number | null; // %
-  cpc: number | null;
+  ctr: number | null; // % — cliques no link ÷ impressões (link CTR)
+  cpc: number | null; // custo por clique no link
 }
 
 /** Lê o mapa bar_id -> ad_account_id da env. Normaliza pro formato `act_<id>`. */
@@ -109,7 +110,7 @@ export async function fetchMetaAdsInsights(
   if (!token || !account) return null;
 
   const params = new URLSearchParams({
-    fields: `spend,impressions,reach,clicks,cpm,ctr,cpc,actions,${METRICAS_FIELDS}`,
+    fields: `spend,impressions,reach,clicks,inline_link_clicks,cpm,ctr,cpc,actions,${METRICAS_FIELDS}`,
     time_range: JSON.stringify({ since: inicio, until: fim }),
     level: 'account',
     access_token: token,
@@ -130,7 +131,7 @@ export async function fetchMetaAdsInsights(
   if (!row) {
     // sem gasto no período → zera (não é erro)
     return {
-      investimento: 0, impressoes: 0, alcance: 0, cliques: 0, conversas: 0, cpm: null, ctr: null, cpc: null,
+      investimento: 0, impressoes: 0, alcance: 0, cliques: 0, cliques_link: 0, conversas: 0, cpm: null, ctr: null, cpc: null,
       frequencia: null, leads: 0, compras: 0, thruplays: 0, roas_compra: null, custo_conversa: null, custo_venda: null,
     };
   }
@@ -138,6 +139,7 @@ export async function fetchMetaAdsInsights(
   const investimento = num(row.spend);
   const impressoes = num(row.impressions);
   const cliques = num(row.clicks);
+  const cliquesLink = num(row.inline_link_clicks);
   const conversas = arrValue(row.actions, [CONVERSA_ACTION]);
 
   return {
@@ -145,11 +147,13 @@ export async function fetchMetaAdsInsights(
     impressoes,
     alcance: num(row.reach),
     cliques,
+    cliques_link: cliquesLink,
     conversas,
-    // recalcula dos totais (mais estável que confiar no cpm/ctr médio da API)
+    // recalcula dos totais (mais estável que confiar no cpm/ctr médio da API).
+    // CTR/CPC usam cliques NO LINK (inline_link_clicks) pra bater com o Reportei.
     cpm: impressoes > 0 ? round2((investimento / impressoes) * 1000) : null,
-    ctr: impressoes > 0 ? round2((cliques / impressoes) * 100) : null,
-    cpc: cliques > 0 ? round2(investimento / cliques) : null,
+    ctr: impressoes > 0 ? round2((cliquesLink / impressoes) * 100) : null,
+    cpc: cliquesLink > 0 ? round2(investimento / cliquesLink) : null,
     ...extraMetrics(row, investimento, conversas),
   };
 }
@@ -162,6 +166,7 @@ export interface CampanhaRow extends MetricasExtras {
   impressoes: number;
   alcance: number;
   cliques: number;
+  cliques_link: number;
   conversas: number;
   cpm: number | null;
   ctr: number | null;
@@ -191,7 +196,7 @@ async function fetchInsightsRows(
     `${GRAPH_BASE}/${account}/insights?` +
     new URLSearchParams({
       level,
-      fields: `spend,impressions,reach,clicks,ctr,cpc,actions,${METRICAS_FIELDS},${extraFields}`,
+      fields: `spend,impressions,reach,clicks,inline_link_clicks,ctr,cpc,actions,${METRICAS_FIELDS},${extraFields}`,
       time_range: JSON.stringify({ since: inicio, until: fim }),
       sort: 'spend_descending',
       limit: '200',
@@ -256,6 +261,7 @@ function toCampanhaRow(r: any): CampanhaRow {
   const investimento = num(r.spend);
   const impressoes = num(r.impressions);
   const cliques = num(r.clicks);
+  const cliquesLink = num(r.inline_link_clicks);
   const conversas = arrValue(r.actions, [CONVERSA_ACTION]);
   return {
     campanha: r.campaign_name || '(sem nome)',
@@ -263,10 +269,11 @@ function toCampanhaRow(r: any): CampanhaRow {
     impressoes,
     alcance: num(r.reach),
     cliques,
+    cliques_link: cliquesLink,
     conversas,
     cpm: impressoes > 0 ? round2((investimento / impressoes) * 1000) : null,
-    ctr: impressoes > 0 ? round2((cliques / impressoes) * 100) : null,
-    cpc: cliques > 0 ? round2(investimento / cliques) : null,
+    ctr: impressoes > 0 ? round2((cliquesLink / impressoes) * 100) : null,
+    cpc: cliquesLink > 0 ? round2(investimento / cliquesLink) : null,
     ...extraMetrics(r, investimento, conversas),
   };
 }

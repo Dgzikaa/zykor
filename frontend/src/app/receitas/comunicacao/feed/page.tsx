@@ -9,7 +9,9 @@ import { useEffect, useState } from 'react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { useApiSWR } from '@/hooks/useApiSWR';
-import { Loader2, Images, Image as ImageIcon, Video, Heart, MessageCircle, Bookmark, Eye, TrendingUp, ExternalLink } from 'lucide-react';
+import { Loader2, Images, Image as ImageIcon, Video, Heart, MessageCircle, Bookmark, Share2, Eye, TrendingUp, ExternalLink } from 'lucide-react';
+import { PeriodRangePicker } from '@/components/receitas/PeriodRangePicker';
+import { useComunicacaoPeriodo } from '../PeriodoContext';
 
 type Post = {
   ig_media_id: string; formato: string; caption: string; permalink: string; thumbnail: string | null;
@@ -27,17 +29,15 @@ export default function FeedComunicacaoPage() {
   const { setPageTitle } = usePageTitle();
   const { selectedBar } = useBar();
   const barId = selectedBar?.id;
-  const [dias, setDias] = useState(90);
+  // Período compartilhado entre as abas de Comunicação (não reseta ao navegar).
+  const { periodo, setPeriodo } = useComunicacaoPeriodo();
   const [ordem, setOrdem] = useState<'melhores' | 'piores'>('melhores');
-  const [de, setDe] = useState('');
-  const [ate, setAte] = useState('');
 
   useEffect(() => { setPageTitle('📸 Feed — performance dos posts'); return () => setPageTitle(''); }, [setPageTitle]);
 
-  // Cache via SWR: chave inclui bar (BarContext) + dias; trocar re-busca. Mesmo shape do fetch anterior.
-  const rangeQS = de && ate ? `&inicio=${de}&fim=${ate}` : '';
+  // Cache via SWR: chave inclui bar (BarContext) + range; trocar re-busca.
   const { data: resp, isLoading } = useApiSWR<any>(
-    barId ? `/api/instagram/feed?bar_id=${barId}&dias=${dias}${rangeQS}` : null,
+    barId ? `/api/instagram/feed?bar_id=${barId}&inicio=${periodo.inicio}&fim=${periodo.fim}` : null,
   );
   const posts: Post[] = resp?.success ? (resp.posts || []) : [];
   const formatos: Formato[] = resp?.success ? (resp.formatos || []) : [];
@@ -49,26 +49,10 @@ export default function FeedComunicacaoPage() {
 
   return (
     <div className="mx-auto max-w-[1400px] px-3 sm:px-6 py-4 space-y-4">
-      {/* filtros */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-gray-500">Período</span>
-        <select value={dias} onChange={(e) => setDias(Number(e.target.value))}
-          className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm">
-          <option value={30}>30 dias</option>
-          <option value={90}>90 dias</option>
-          <option value={180}>6 meses</option>
-          <option value={365}>1 ano</option>
-        </select>
-        <span className="text-sm text-gray-400">ou data</span>
-        <input type="date" value={de} onChange={(e) => setDe(e.target.value)}
-          className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm" />
-        <span className="text-gray-400">–</span>
-        <input type="date" value={ate} onChange={(e) => setAte(e.target.value)}
-          className="h-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm" />
-        {(de || ate) && (
-          <button onClick={() => { setDe(''); setAte(''); }} className="text-xs text-gray-500 underline">limpar</button>
-        )}
-        {loading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+      {/* filtros — período compartilhado com as outras abas de Comunicação */}
+      <div className="flex items-center gap-2 overflow-x-auto">
+        <PeriodRangePicker value={periodo} onChange={setPeriodo} mostrarGranularidade={false} className="!flex-nowrap w-max" />
+        {loading && <Loader2 className="w-4 h-4 animate-spin text-gray-400 shrink-0" />}
       </div>
 
       {!barId ? (
@@ -149,6 +133,7 @@ export default function FeedComunicacaoPage() {
                     <span className="inline-flex items-center gap-1" title="Alcance"><Eye className="w-3.5 h-3.5" />{fmtN(p.reach)}</span>
                     <span className="inline-flex items-center gap-1" title="Curtidas"><Heart className="w-3.5 h-3.5" />{fmtN(p.likes)}</span>
                     <span className="inline-flex items-center gap-1" title="Comentários"><MessageCircle className="w-3.5 h-3.5" />{fmtN(p.comments)}</span>
+                    <span className="inline-flex items-center gap-1" title="Compartilhamentos"><Share2 className="w-3.5 h-3.5" />{fmtN(p.shares)}</span>
                     <span className="inline-flex items-center gap-1" title="Salvos"><Bookmark className="w-3.5 h-3.5" />{fmtN(p.saves)}</span>
                   </div>
                   <div className="text-right shrink-0 w-16">

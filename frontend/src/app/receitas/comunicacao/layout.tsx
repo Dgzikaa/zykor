@@ -6,10 +6,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Images, Camera, Users, CalendarDays, Megaphone } from 'lucide-react';
+import { ComunicacaoPeriodoProvider } from './PeriodoContext';
 
 const TABS = [
-  { href: '/receitas/comunicacao', label: 'Visão geral', icone: LayoutDashboard },
-  { href: '/receitas/comunicacao/anuncios', label: 'Anúncios', icone: Megaphone },
+  { href: '/receitas/comunicacao', label: 'Orgânico', icone: LayoutDashboard },
+  { href: '/receitas/comunicacao/anuncios', label: 'Mídia', icone: Megaphone },
   { href: '/receitas/comunicacao/calendario', label: 'Calendário', icone: CalendarDays },
   { href: '/receitas/comunicacao/feed', label: 'Feed', icone: Images },
   { href: '/receitas/comunicacao/stories', label: 'Stories', icone: Camera },
@@ -22,7 +23,7 @@ export default function ComunicacaoLayout({ children }: { children: React.ReactN
     href === '/receitas/comunicacao' ? pathname === href : pathname === href || pathname.startsWith(href + '/');
 
   return (
-    <>
+    <ComunicacaoPeriodoProvider>
       <div className="sticky top-0 z-20 border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]">
         <nav className="mx-auto flex items-center gap-1 overflow-x-auto px-4 sm:px-6">
           {TABS.map(({ href, label, icone: Icone }) => {
@@ -45,6 +46,6 @@ export default function ComunicacaoLayout({ children }: { children: React.ReactN
         </nav>
       </div>
       {children}
-    </>
+    </ComunicacaoPeriodoProvider>
   );
 }

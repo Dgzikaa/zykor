@@ -48,10 +48,11 @@ export async function GET(request: NextRequest) {
       conta: getAdAccountId(barId),
       resumo: resumo
         ? {
-            investimento: Math.round(resumo.investimento),
+            investimento: resumo.investimento, // valor cheio (R$ 1.856,55) — UI formata
             impressoes: resumo.impressoes,
             alcance: resumo.alcance,
             cliques: resumo.cliques,
+            cliques_link: resumo.cliques_link,
             conversas: resumo.conversas,
             cpm: resumo.cpm,
             ctr: resumo.ctr,

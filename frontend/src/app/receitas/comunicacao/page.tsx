@@ -9,14 +9,14 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Eye, Heart, Camera, Users, UserPlus, Percent } from 'lucide-react';
+import { Eye, Heart, Share2, Camera, Users, UserPlus, Percent } from 'lucide-react';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { PageShell } from '@/components/layout/PageShell';
 import { PeriodRangePicker } from '@/components/receitas/PeriodRangePicker';
 import { HeroRow, ChartCard, GraficoBarrasAgrupadas, type Kpi } from '@/components/graficos/Charts';
-import { periodoPadrao, type PeriodoValor } from '@/lib/receitas/periodo';
+import { useComunicacaoPeriodo } from './PeriodoContext';
 
 const num = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('pt-BR').format(n));
 const pct = (n: number | null | undefined) => (n == null ? '—' : `${n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`);
@@ -24,7 +24,7 @@ const pct = (n: number | null | undefined) => (n == null ? '—' : `${n.toLocale
 export default function ComunicacaoPage() {
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
-  const [periodo, setPeriodo] = useState<PeriodoValor>(() => periodoPadrao('mes', 'trimestral'));
+  const { periodo, setPeriodo } = useComunicacaoPeriodo();
   const [org, setOrg] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -50,6 +50,7 @@ export default function ComunicacaoPage() {
     ? [
         { label: 'Alcance (orgânico)', valor: num(org.alcance), icon: Eye },
         { label: 'Interações', valor: num(org.engajamento), icon: Heart },
+        { label: 'Compartilhamentos', valor: num(org.compartilhamentos), icon: Share2 },
         { label: 'Taxa de engajamento', valor: pct(org.alcance > 0 ? (org.engajamento / org.alcance) * 100 : null), icon: Percent },
         { label: 'Stories', valor: num(org.qtd_stories), icon: Camera },
         { label: 'Visualizações dos stories', valor: num(org.views_stories), icon: Eye },
@@ -93,9 +94,10 @@ export default function ComunicacaoPage() {
                           <span className="text-sm font-semibold text-[hsl(var(--foreground))]">{nome}</span>
                           <span className="text-xs text-[hsl(var(--muted-foreground))]">{num(d?.posts)} posts</span>
                         </div>
-                        <div className="mt-1 flex gap-6 text-xs text-[hsl(var(--muted-foreground))]">
+                        <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-xs text-[hsl(var(--muted-foreground))]">
                           <span>Alcance <strong className="text-[hsl(var(--foreground))]">{num(d?.alcance)}</strong></span>
                           <span>Interações <strong className="text-[hsl(var(--foreground))]">{num(d?.engajamento)}</strong></span>
+                          <span>Compart. <strong className="text-[hsl(var(--foreground))]">{num(d?.shares)}</strong></span>
                         </div>
                       </div>
                     ))}
