@@ -55,6 +55,7 @@ export default function AnaliseReceitasPage() {
   const [janela, setJanela] = useState<number>(6); // quantos meses a matriz mostra (termina no mês de referência)
   const [rDe, setRDe] = useState(''); // intervalo de data explícito (sobrepõe mês+janela na matriz)
   const [rAte, setRAte] = useState('');
+  const [semOutliers, setSemOutliers] = useState(false); // exclui eventos esporádicos da média
   const [comp, setComp] = useState<{ dias: DiaCmp[]; labels: any } | null>(null);
   const [loadingComp, setLoadingComp] = useState(true);
   const [contexto, setContexto] = useState('');
@@ -205,9 +206,13 @@ export default function AnaliseReceitasPage() {
                 {(rDe || rAte) && (
                   <button onClick={() => { setRDe(''); setRAte(''); }} className="underline">limpar</button>
                 )}
+                <label className="flex items-center gap-1.5 cursor-pointer select-none" title="Exclui eventos marcados como outlier no planejamento (ex.: jogo do Brasil)">
+                  <input type="checkbox" className="h-3.5 w-3.5 accent-amber-600" checked={semOutliers} onChange={(e) => setSemOutliers(e.target.checked)} />
+                  Sem outliers
+                </label>
               </div>
             </div>
-            <MatrizFaturamentoDiaSemana barId={barId} inicio={inicio} fim={fim} />
+            <MatrizFaturamentoDiaSemana barId={barId} inicio={inicio} fim={fim} semOutliers={semOutliers} />
           </div>
 
           <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">

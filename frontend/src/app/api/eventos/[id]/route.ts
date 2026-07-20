@@ -57,6 +57,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const c_prod_plan = body.c_prod_plan;
     const observacoes = body.observacoes;
     const flag_urgente = body.flag_urgente;
+    const outlier = body.outlier;
 
     // Resolve a entidade editável. gold.planejamento.id ≠ eventos_base.id: eventos que
     // são só PROJEÇÃO (futuros) não têm linha no eventos_base, então o planejamento manda
@@ -92,6 +93,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     };
     // flag urgente só é tocado quando o payload envia (evita zerar em saves que não sabem do campo)
     if (flag_urgente !== undefined) updateData.flag_urgente = flag_urgente === true;
+    // outlier (evento esporádico) — mesmo tratamento: só toca quando enviado
+    if (outlier !== undefined) updateData.outlier = outlier === true;
     // título de exibição (texto livre) — só toca quando enviado; string vazia → null
     if (titulo !== undefined) updateData.titulo = (titulo && String(titulo).trim()) ? String(titulo) : null;
     // marca origem MANUAL da Meta M1 (mostra 🔔 no Planejamento) só quando o valor muda de fato

@@ -15,7 +15,7 @@ const money0 = (v: number) => (v || 0).toLocaleString('pt-BR', { style: 'currenc
 
 type DiaRow = Record<string, any> & { dia: string };
 
-export function MatrizFaturamentoDiaSemana({ barId, inicio, fim }: { barId?: number; inicio: string; fim: string }) {
+export function MatrizFaturamentoDiaSemana({ barId, inicio, fim, semOutliers }: { barId?: number; inicio: string; fim: string; semOutliers?: boolean }) {
   const [dias, setDias] = useState<DiaRow[]>([]);
   const [meses, setMeses] = useState<{ key: string; label: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,14 +24,14 @@ export function MatrizFaturamentoDiaSemana({ barId, inicio, fim }: { barId?: num
     if (!barId) return;
     setLoading(true);
     api
-      .get(`/api/receitas/dia-semana-mensal?bar_id=${barId}&inicio=${inicio}&fim=${fim}`)
+      .get(`/api/receitas/dia-semana-mensal?bar_id=${barId}&inicio=${inicio}&fim=${fim}${semOutliers ? '&sem_outliers=1' : ''}`)
       .then((r: any) => {
         if (r?.success) { setDias(r.dias ?? []); setMeses(r.meses ?? []); }
         else { setDias([]); setMeses([]); }
       })
       .catch(() => { setDias([]); setMeses([]); })
       .finally(() => setLoading(false));
-  }, [barId, inicio, fim]);
+  }, [barId, inicio, fim, semOutliers]);
 
   // média geral por dia = média das médias mensais (só meses com valor)
   const linhas = useMemo(() => dias.map((d) => {

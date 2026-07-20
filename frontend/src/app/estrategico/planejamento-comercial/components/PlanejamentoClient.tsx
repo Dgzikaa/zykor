@@ -218,6 +218,7 @@ interface EventoEdicaoCompleta {
   atrasos_bar?: number;
   observacoes: string;
   flag_urgente?: boolean;
+  outlier?: boolean;
   artistas?: ArtistaLinha[];
 }
 
@@ -557,6 +558,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
       atrasos_bar: atrasosData.atrasos_bar,
       observacoes: evento.observacoes || '',
       flag_urgente: evento.flag_urgente || false,
+      outlier: evento.outlier || false,
       faturamento_couvert_manual: evento.faturamento_couvert_manual,
       faturamento_bar_manual: evento.faturamento_bar_manual,
       artistas: artistasEvento
@@ -610,7 +612,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
           c_artistico_plan: eventoEdicao.c_artistico_plan,
           c_prod_plan: eventoEdicao.c_prod_plan,
           observacoes: eventoEdicao.observacoes,
-          flag_urgente: eventoEdicao.flag_urgente || false
+          flag_urgente: eventoEdicao.flag_urgente || false,
+          outlier: eventoEdicao.outlier || false
         })
       });
 
@@ -1798,6 +1801,16 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                     onChange={(e) => setEventoEdicao(p => p ? {...p, flag_urgente: e.target.checked} : null)}
                   />
                   <span className="text-sm font-medium">🚩 Marcar como urgente <span className="font-normal text-[hsl(var(--muted-foreground))]">(pinta a linha de vermelho — ex.: artista ainda não definido)</span></span>
+                </label>
+                <label className={`mb-3 flex items-center gap-2 p-3 rounded border cursor-pointer select-none ${eventoEdicao?.outlier ? 'bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-800' : 'bg-[hsl(var(--muted))] border-[hsl(var(--border))]'} ${modoEdicao ? '' : 'pointer-events-none opacity-80'}`}>
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-amber-600"
+                    checked={!!eventoEdicao?.outlier}
+                    disabled={!modoEdicao}
+                    onChange={(e) => setEventoEdicao(p => p ? {...p, outlier: e.target.checked} : null)}
+                  />
+                  <span className="text-sm font-medium">📊 Marcar como outlier <span className="font-normal text-[hsl(var(--muted-foreground))]">(evento esporádico — ex.: jogo do Brasil; pode ser excluído da média por dia da semana)</span></span>
                 </label>
                 <div className="mb-3 p-3 bg-[hsl(var(--muted))] rounded border">
                   <Label>Observação <span className="text-xs text-muted-foreground font-normal">(ex: Copa do Mundo - Brasil x Noruega 17h)</span></Label>

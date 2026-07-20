@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
   const sp = new URL(request.url).searchParams;
   const de = sp.get('inicio') || sp.get('de');
   const ate = sp.get('fim') || sp.get('ate');
+  // "sem outliers": exclui eventos marcados como esporádicos (jogo do Brasil etc.) da média
+  const semOutliers = sp.get('sem_outliers') === '1' || sp.get('sem_outliers') === 'true';
 
   let q = supabase
     .from('eventos_base')
@@ -38,6 +40,7 @@ export async function GET(request: NextRequest) {
     .order('data_evento', { ascending: true });
   if (de) q = q.gte('data_evento', de);
   if (ate) q = q.lte('data_evento', ate);
+  if (semOutliers) q = q.eq('outlier', false);
 
   const { data, error } = await q;
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -63,6 +63,8 @@ export interface PlanejamentoData {
   observacoes?: string | null;
   /** flag manual: pinta a linha de vermelho (ex.: artista ainda não definido pro dia) */
   flag_urgente?: boolean;
+  /** flag manual: evento esporádico (ex.: jogo do Brasil) — pode sair da média por dia da semana */
+  outlier?: boolean;
   /** Meta M1 editada manualmente no modal (true) vs calculadora/automático (false) — mostra 🔔 */
   m1_manual?: boolean;
   usa_yuzer?: boolean;
@@ -252,7 +254,7 @@ export async function getPlanejamentoComercial(
     supabase
       .schema('operations' as never)
       .from('eventos_base')
-      .select('id, nome, titulo, data_evento, observacoes, flag_urgente, m1_manual, m1_r, cl_plan, te_plan, tb_plan, c_art, c_prod, c_art_projecao, c_prod_projecao, c_artistico_plan, c_prod_plan, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo, usa_yuzer, usa_sympla')
+      .select('id, nome, titulo, data_evento, observacoes, flag_urgente, outlier, m1_manual, m1_r, cl_plan, te_plan, tb_plan, c_art, c_prod, c_art_projecao, c_prod_projecao, c_artistico_plan, c_prod_plan, faturamento_couvert_manual, faturamento_bar_manual, precisa_recalculo, versao_calculo, usa_yuzer, usa_sympla')
       .eq('bar_id', barId)
       .gte('data_evento', dataInicio)
       .lt('data_evento', dataFinalConsulta),
@@ -467,6 +469,8 @@ export async function getPlanejamentoComercial(
       observacoes: manual?.observacoes ?? null,
       // flag urgente (linha vermelha) — campo manual do eventos_base
       flag_urgente: manual?.flag_urgente ?? false,
+      // outlier (evento esporádico) — campo manual do eventos_base
+      outlier: manual?.outlier ?? false,
       // Meta M1 editada manualmente (🔔) vs veio da calculadora
       m1_manual: manual?.m1_manual ?? false,
       // Marcadores de bilheteria externa (toggle) — vêm do eventos_base
