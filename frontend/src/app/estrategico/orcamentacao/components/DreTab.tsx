@@ -25,7 +25,14 @@ interface Props {
   anoInicial?: number;
   // Quando fornecido, as células de mês das sub-linhas viram clicáveis (drill-down).
   onDrill?: (p: { categoria_macro: string; canon: string; mes: number; ano: number; label: string }) => void;
+  // "DRE Bar": deduz a arrecadação de entrada (couvert+ingresso+Sympla) da Receita e
+  // remove o grupo Atrações & Eventos. Toda a lógica de dedução/filtro é feita na API.
+  modoBar?: boolean;
 }
+
+// Sub-linha sintética de dedução de entrada injetada pela API no modo=bar (sem lançamentos
+// no ContaAzul → não é clicável no drill-down). Mantido igual ao canon da API.
+const DEDUCAO_ENTRADA_CANON = '(−) Couvert / Ingressos';
 
 const MACRO_ORDEM = [
   'Receita',
@@ -90,7 +97,7 @@ interface LinhaRender {
   parcial?: boolean;        // resultado parcial (Margem de Contribuição / Lucro Operacional)
 }
 
-export function DreTab({ barId, anoInicial, onDrill }: Props) {
+export function DreTab({ barId, anoInicial, onDrill, modoBar }: Props) {
   const { toast } = useToast();
   const anoAtualSistema = new Date().getFullYear();
   const [ano, setAno] = useState<number>(anoInicial ?? anoAtualSistema);
@@ -103,7 +110,7 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
   // Só lê a DRE (view financial.dre_excel agrega o bronze direto).
   // Cache via SWR: chave = endpoint (bar_id + ano). Trocar bar/ano re-busca.
   const { data: dreData, isLoading: loading, mutate } = useApiSWR<{ linhas?: any[] }>(
-    barId ? `/api/estrategico/orcamentacao/dre-excel?bar_id=${barId}&ano=${ano}` : null,
+    barId ? `/api/estrategico/orcamentacao/dre-excel?bar_id=${barId}&ano=${ano}${modoBar ? '&modo=bar' : ''}` : null,
   );
   const linhas = useMemo<DreRow[]>(
     () => (dreData?.linhas || []).map((l: any) => ({
@@ -440,9 +447,13 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
             ))}
           </select>
           <div className="min-w-0">
-            <h2 className="text-base sm:text-lg font-semibold leading-tight">DRE {ano} — Demonstrativo de Resultados</h2>
+            <h2 className="text-base sm:text-lg font-semibold leading-tight">
+              {modoBar ? `DRE Bar ${ano} — Operação sem o show` : `DRE ${ano} — Demonstrativo de Resultados`}
+            </h2>
             <p className="hidden lg:block text-xs text-muted-foreground">
-              Dados ContaAzul agregados por competência. Estrutura espelha planilha &ldquo;[Ordinário] DRE e DFC&rdquo;.
+              {modoBar
+                ? 'Espelho da DRE isolando o bar: deduz a arrecadação de entrada (couvert + ingresso Yuzer + Sympla, vinda do domínio de eventos por data do show — estimativa, não bate centavo com o CA) e remove o grupo Atrações & Eventos.'
+                : 'Dados ContaAzul agregados por competência. Estrutura espelha planilha “[Ordinário] DRE e DFC”.'}
             </p>
           </div>
         </div>
@@ -537,7 +548,8 @@ export function DreTab({ barId, anoInicial, onDrill }: Props) {
                       </span>
                     </td>
                     {row.valores.map((v, i) => {
-                      const drillable = !!onDrill && row.tipo === 'sub' && !!row.label2 && v !== 0;
+                      const drillable = !!onDrill && row.tipo === 'sub' && !!row.label2 && v !== 0
+                        && row.label2 !== DEDUCAO_ENTRADA_CANON;
                       return (
                       <Fragment key={i}>
                         <td

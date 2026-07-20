@@ -48,6 +48,7 @@ export function DreComparativo({ barId, anoAtual }: { barId: number; anoAtual: n
     <Tabs defaultValue="dre" className="space-y-2">
       <TabsList>
         <TabsTrigger value="dre">DRE</TabsTrigger>
+        <TabsTrigger value="dre-bar">DRE Bar</TabsTrigger>
         <TabsTrigger value="categorias">Categorias</TabsTrigger>
       </TabsList>
 
@@ -67,6 +68,13 @@ export function DreComparativo({ barId, anoAtual }: { barId: number; anoAtual: n
           open={drill.open} onClose={fecharDrill} titulo={drill.titulo}
           loading={drill.loading} lancamentos={drill.lancamentos} total={drill.total} erro={drill.erro}
         />
+      </TabsContent>
+
+      <TabsContent value="dre-bar" className="space-y-2 mt-2">
+        {/* Espelho da DRE isolando a operação de bar: deduz entrada (couvert+ingresso+Sympla)
+            da Receita e remove o grupo Atrações & Eventos. Drill-down da dedução é bloqueado
+            no DreTab (linha sintética, sem lançamentos no ContaAzul). */}
+        <DreTab barId={barId} anoInicial={anoAtual} onDrill={abrirDrill} modoBar />
       </TabsContent>
 
       <TabsContent value="categorias" className="mt-2">
