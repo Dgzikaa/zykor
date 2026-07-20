@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Pencil, Plus, Trash2, Check, X } from 'lucide-react';
 import { api } from '@/lib/api-client';
-import { ChartCard, GraficoLinha } from '@/components/graficos/Charts';
+import { ChartCard, GraficoBarra } from '@/components/graficos/Charts';
 import type { PeriodoValor } from '@/lib/receitas/periodo';
 
 interface Ponto {
@@ -58,11 +58,17 @@ export function CardNPS({ barId, periodo }: { barId?: number; periodo: PeriodoVa
       ) : comNps.length === 0 ? (
         <div className="flex h-[240px] items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">Sem respostas de NPS no período.</div>
       ) : (
-        <GraficoLinha
+        <GraficoBarra
           data={comNps}
           xKey="label"
-          series={[{ key: 'nps', nome: 'NPS', cor: '#8b5cf6' }]}
+          valueKey="respostas"
+          lineKey="nps"
+          nomeBarra="Respostas"
+          nomeLinha="NPS"
+          cor="#38bdf8"
+          corLinha="#8b5cf6"
           formatV={(v) => String(Math.round(v))}
+          formatLine={(v) => String(Math.round(v))}
           height={240}
           rotacaoX={comNps.length > 8 ? 30 : 0}
         />
