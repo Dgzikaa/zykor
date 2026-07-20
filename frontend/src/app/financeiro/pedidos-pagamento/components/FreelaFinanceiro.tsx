@@ -264,25 +264,26 @@ function CardPessoa({
   const erro = emErro ? interErroAmigavel(p.erro_mensagem) : null;
 
   return (
-    <div className="rounded-lg border border-[hsl(var(--border))] overflow-hidden">
+    <div onClick={onOpenDetalhe}
+      className="rounded-lg border border-[hsl(var(--border))] overflow-hidden cursor-pointer transition hover:bg-muted/20"
+      title="Abrir detalhe do pagamento (erro, competências, histórico)">
       {/* Cabeçalho: checkbox · pessoa · status · total · Fornecedor CA (1 por pessoa) */}
       <div className="flex flex-col gap-2 px-3 py-2 bg-muted/50 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 min-w-0">
           {podeAprovar && pendente && (
             <input type="checkbox" checked={selecionada} onChange={onToggleSel}
+              onClick={(e) => e.stopPropagation()}
               className="w-4 h-4 shrink-0 accent-[hsl(var(--primary))] cursor-pointer" aria-label="Selecionar pessoa" />
           )}
-          <button type="button" onClick={onOpenDetalhe}
-            className="text-sm font-semibold truncate text-left hover:underline"
-            title="Abrir detalhe do pagamento (erro, competências, histórico)">
+          <span className="text-sm font-semibold truncate">
             {p.beneficiario_nome || '—'}
             <span className="text-muted-foreground font-normal"> · {linhas.length} diária(s)</span>
-          </button>
+          </span>
           <Badge className={`${STATUS_COLOR[p.status]} text-[10px] shrink-0`}>{statusLabel(p)}</Badge>
           <span className="text-sm font-semibold shrink-0 ml-auto sm:ml-0">{formatBRL(total)}</span>
         </div>
         {podeAprovar && pendente && (
-          <div className="flex items-center gap-1.5 sm:w-72 sm:shrink-0 min-w-0">
+          <div className="flex items-center gap-1.5 sm:w-72 sm:shrink-0 min-w-0" onClick={(e) => e.stopPropagation()}>
             <span className="text-[11px] text-muted-foreground shrink-0">Fornecedor CA</span>
             <div className="flex-1 min-w-0">
               <SearchableSelect value={fornSel.value} onValueChange={onFornChange}
@@ -322,7 +323,7 @@ function CardPessoa({
               <span className="tabular-nums font-medium text-sm ml-auto md:w-24 md:text-right shrink-0">{formatBRL(l.valor)}</span>
             </div>
             {podeAprovar && pendente && (
-              <div className="min-w-0 md:w-72 md:shrink-0">
+              <div className="min-w-0 md:w-72 md:shrink-0" onClick={(e) => e.stopPropagation()}>
                 <SearchableSelect value={l.catValue} onValueChange={(v) => onCatChange(l.key, v || '')}
                   placeholder={l.sugerida ? '✨ confira a sugestão' : 'Categoria'} searchPlaceholder="Filtrar..."
                   emptyMessage="Nenhuma" options={categorias} />
@@ -334,7 +335,7 @@ function CardPessoa({
 
       {/* Ações do pedido (pessoa): Aprovar/Recusar (pendente) · Subir/Excluir (demais) */}
       {podeAprovar && (
-        <div className="border-t border-[hsl(var(--border))] px-3 py-2 flex items-center justify-end gap-1.5">
+        <div className="border-t border-[hsl(var(--border))] px-3 py-2 flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
           {pendente ? (
             <>
               <Button size="sm" className="h-8 px-2.5" disabled={busy || !pronta} onClick={onAprovar}
