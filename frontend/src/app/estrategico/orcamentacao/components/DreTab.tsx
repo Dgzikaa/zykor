@@ -34,7 +34,7 @@ interface Props {
 // não são clicáveis no drill-down). Mantidas iguais aos canons da API.
 const LINHAS_SINTETICAS_BAR = new Set([
   '(−) Couvert / Ingressos',
-  '(+) Taxa/Imposto s/ entrada (aprox.)',
+  '(+) Taxa/Imposto s/ entrada',
 ]);
 
 const MACRO_ORDEM = [
@@ -455,7 +455,7 @@ export function DreTab({ barId, anoInicial, onDrill, modoBar }: Props) {
             </h2>
             <p className="hidden lg:block text-xs text-muted-foreground">
               {modoBar
-                ? 'Espelho da DRE isolando o bar: deduz a arrecadação de entrada (couvert + ingresso Yuzer + Sympla, vinda do domínio de eventos por data do show — estimativa, não bate centavo com o CA), remove o grupo Atrações & Eventos e compensa taxa de maquininha + imposto na mesma proporção da receita deduzida (aproximado).'
+                ? 'Espelho da DRE isolando o bar: deduz a arrecadação de entrada (couvert + ingresso Yuzer + Sympla, vinda do domínio de eventos por data do show — estimativa, não bate centavo com o CA), remove o grupo Atrações & Eventos e compensa imposto (2% da entrada) + taxa de maquininha (proporcional à receita deduzida).'
                 : 'Dados ContaAzul agregados por competência. Estrutura espelha planilha “[Ordinário] DRE e DFC”.'}
             </p>
           </div>
