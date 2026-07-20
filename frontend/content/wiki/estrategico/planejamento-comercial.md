@@ -50,6 +50,7 @@ A maior parte dos números é **automática** (vem do ETL das integrações). O 
    - **Título do Evento** — texto livre mostrado na tabela (label + artistas).
    - **Label do Evento** — a marca do dia usada para agrupar/analisar (ex.: "Feijuca do Ordi").
    - **🚩 Marcar como urgente** — pinta a linha de vermelho (ex.: artista ainda não definido).
+   - **📊 Marcar como outlier** — evento esporádico (ex.: jogo do Brasil no sábado) que não reflete a operação normal. Marcado aqui, ele pode ser **excluído da média** no gráfico *Faturamento por dia da semana* (Receitas › Análise) via o toggle **"Sem outliers"**. Por enquanto afeta só esse gráfico, não a projeção do planejamento.
    - **Observação** — contexto extra (ex.: jogo da Copa), aparece no 📌 da tabela.
    - **Receita M1** — a meta do dia. Ao mudá-la, o Custo Artístico/Produção de previsão **reescala** mantendo a mesma % sobre o M1.
    - **Custo Artístico (Previsão)** e **Custo Produção (Previsão)** — ficam em amarelo (⚠️) até o Conta Azul lançar o real.
@@ -222,7 +223,7 @@ O **Título** é o texto livre que aparece na tabela (ex.: "Feijuca do Ordi - ST
 ## Fonte dos dados
 
 - **`gold.planejamento`** — consolidação principal por dia (ContaHub + Yuzer + Sympla): receita, público, tickets, couvert, mix, atrasos, stockout e reservas.
-- **`operations.eventos_base`** — campos manuais editáveis: Meta M1, título, label, observação, flag urgente, custos de previsão (`c_artistico_plan` / `c_prod_plan`), projeções (`c_art_projecao` / `c_prod_projecao`), custos reais do Conta Azul (`c_art` / `c_prod`), toggles Yuzer/Sympla e reservas.
+- **`operations.eventos_base`** — campos manuais editáveis: Meta M1, título, label, observação, flag urgente, flag outlier, custos de previsão (`c_artistico_plan` / `c_prod_plan`), projeções (`c_art_projecao` / `c_prod_projecao`), custos reais do Conta Azul (`c_art` / `c_prod`), toggles Yuzer/Sympla e reservas.
 - **`operations.evento_artistas`** — artistas taggeados por evento (coluna Artistas).
 - **`operations.config_metas_planejamento`** — thresholds (metas) por bar/ano que definem verde/amarelo/vermelho.
 - **`gold.cmv_teorico_dia`** — CMV teórico do dia (custo de ficha técnica × vendas ÷ faturamento).

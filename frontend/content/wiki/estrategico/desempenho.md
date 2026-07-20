@@ -162,12 +162,13 @@ Algumas linhas variam conforme o bar. No **Deboche (bar_id=4)**, por exemplo, "C
 
 ### Marketing
 
-Todos os indicadores de Marketing são **manuais** (digitados na tela ou vindos das planilhas/telas de marketing), exceto Google Ads e Google Meu Negócio no Mensal, que são agregados das semanas.
+**[O] Orgânico e [M] Meta Ads agora são AUTOMÁTICOS** — um cron diário preenche a `meta.marketing_semanal` a partir das fontes reais (Instagram orgânico + Meta Ads API), com a mesma lógica das abas Orgânico/Mídia da tela de Comunicação. A **tela não mudou**, só a origem do dado. As colunas de **stories continuam manuais** (Nº Stories, Visu Stories, Retenção) até a captação de reposts ser resolvida. Google Meu Negócio e Google Ads seguem manuais (no Mensal, agregam as semanas).
 
 | Grupo | Indicadores | Como é preenchido | Fonte |
 |---|---|---|---|
-| [O] Orgânico | Nº de Posts, Alcance, Interação, Compartilhamento, Engajamento, Nº Stories, Visu Stories | Manual | Instagram (`meta.marketing_semanal`) |
-| [M] Meta Ads | Valor Investido, Alcance, Frequência, CPM, Cliques, CTR, Custo por Clique, Conversas Iniciadas | Manual | Meta Ads (`meta.marketing_semanal`; no mensal, `m_cpc` vem de `gold.desempenho`) |
+| [O] Orgânico | Nº de Posts, Alcance, Interação, Compartilhamento, Engajamento | **Automático** (cron): Feed + Reels somados, por post | Instagram (`instagram_posts`+`instagram_post_insights` → `meta.marketing_semanal`) |
+| [O] Stories | Nº Stories, Visu Stories, Retenção | **Manual** (cron não sobrescreve) | Digitado (`meta.marketing_semanal`) |
+| [M] Meta Ads | Valor Investido, Impressões, Alcance, Frequência, CPM, Cliques, CTR, Custo por Clique, Conversas Iniciadas | **Automático** (cron): CTR/CPC por clique no link | Meta Ads API (`meta.marketing_semanal`) |
 | [GMN] Google Meu Negócio | Total de Visualizações, Total de Ações, Rotas | Manual (mensal agrega as semanas) | Google Meu Negócio (`meta.marketing_semanal`) |
 | [GADs] Google Ads | Valor Investido, Impressões, Cliques, CTR | Manual (mensal agrega as semanas; CTR é média) | Google Ads (`meta.marketing_semanal`) |
 
@@ -184,7 +185,7 @@ Todos os indicadores de Marketing são **manuais** (digitados na tela ou vindos 
 
 - **Sempre por bar:** toda a tabela é filtrada pelo `bar_id` do bar selecionado. Nunca mistura bares.
 - **Semanas/meses futuros ficam ocultos:** só aparecem períodos até a semana/mês em andamento — colunas futuras (zeradas) não são exibidas e surgem sozinhas com o passar do tempo.
-- **Automático × Manual:** o pontinho verde/azul/âmbar indica a origem. Campos manuais (marketing, Pro Labore, Equipe Fixa no semanal, NPS Reservas/Felicidade, reservas sem API) nunca são sobrescritos pelo cálculo automático.
+- **Automático × Manual:** o pontinho verde/azul/âmbar indica a origem. Campos manuais (stories de marketing, Pro Labore, Equipe Fixa no semanal, NPS Reservas/Felicidade, reservas sem API) nunca são sobrescritos pelo cálculo automático. Marketing [O] Orgânico e [M] Meta Ads passaram a ser automáticos (cron), mas as colunas de stories seguem manuais.
 - **CMV Teórico ao vivo:** para não ficar defasado, o CMV teórico prioriza o valor manual da tela CMV; na falta, calcula ao vivo Σcusto/Σfaturamento do período a partir de `gold.cmv_teorico_dia`. Valores 0 ou negativos são tratados como "não informado".
 - **Fat. Bar sem couvert:** como o `real_r` do ContaHub já inclui o couvert, a tela subtrai o couvert para mostrar apenas produtos vendidos no bar.
 - **Tempos em minutos, outliers descartados:** os tempos de cozinha/bar vêm em segundos e são convertidos para minutos; valores "grudados" em 9999 (outliers/erros) aparecem como "-".
@@ -217,7 +218,7 @@ A tela mostra apenas até a semana/mês em andamento — colunas futuras (vazias
 
 - **`gold.desempenho`** (granularidade `semanal` e `mensal`) — base consolidada dos indicadores automáticos.
 - **`meta.desempenho_manual`** — campos manuais (NPS Reservas, felicidade, RH/checklists, overrides).
-- **`meta.marketing_semanal`** — indicadores de marketing (Orgânico, Meta Ads, Google Ads, Google Meu Negócio).
+- **`meta.marketing_semanal`** — indicadores de marketing. [O] Orgânico e [M] Meta Ads preenchidos automaticamente por cron diário (`/api/estrategico/desempenho/sync-marketing`, semana atual + anterior); stories, Google Ads e Google Meu Negócio manuais. O cron só escreve onde a fonte existe (bar sem Instagram, como o Deboche hoje, mantém o [O] manual intacto).
 - **`meta.cmo_manual` / `meta.cmo_equipe_fixa_semanal`** — Pro Labore e Equipe Fixa manuais.
 - **`financial.cmv_semanal` / `financial.cmv_mensal`** e **`gold.cmv_teorico_dia`** — CMV real, limpo e teórico.
 - **`eventos_base` (consolidado)** e **`gold.planejamento`** — faturamento, público, ticket, couvert, atração (`c_art`).
