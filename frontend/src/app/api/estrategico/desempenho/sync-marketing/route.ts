@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { syncMarketingTodos, syncMarketingSemana } from '@/lib/receitas/marketing-semanal-sync';
+import { syncMarketingTodos, syncMarketingSemana, barSources } from '@/lib/receitas/marketing-semanal-sync';
 import { authenticateUser } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
@@ -30,9 +30,10 @@ export async function POST(request: NextRequest) {
     const ano = Number(body?.ano);
     const semana = Number(body?.semana);
 
-    // Backfill pontual: bar + semana específicos
+    // Backfill pontual: bar + semana específicos (respeita as fontes do bar)
     if (barId && ano && semana) {
-      const r = await syncMarketingSemana(barId, ano, semana);
+      const opts = await barSources(barId);
+      const r = await syncMarketingSemana(barId, ano, semana, opts);
       return NextResponse.json({ success: true, resultado: r, timestamp: new Date().toISOString() });
     }
 

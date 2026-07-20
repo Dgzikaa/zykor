@@ -150,15 +150,44 @@ function adsAccountBars(): number[] {
   }
 }
 
-/** Sincroniza uma semana de um bar (upsert preservando stories manuais). */
-export async function syncMarketingSemana(barId: number, ano: number, semana: number) {
+/** Fontes disponíveis por bar: [O] só se tem IG ativo, [M] só se tem conta de anúncio. */
+export async function barSources(barId: number): Promise<{ organico: boolean; midia: boolean }> {
+  const supabase = createServiceRoleClient();
+  const { data } = await (supabase as any)
+    .schema('integrations')
+    .from('instagram_contas')
+    .select('bar_id')
+    .eq('bar_id', barId)
+    .eq('ativo', true)
+    .limit(1);
+  return { organico: !!(data && data.length), midia: adsAccountBars().includes(barId) };
+}
+
+/**
+ * Sincroniza uma semana de um bar (upsert preservando stories manuais).
+ * `organico`/`midia` ligam cada bloco: bar SEM Instagram (ex.: Deboche hoje) NÃO deve
+ * ter [O] preenchido, senão o cálculo zerado sobrescreveria os dados manuais. Idem [M]
+ * só quando há conta de anúncio configurada.
+ */
+export async function syncMarketingSemana(
+  barId: number,
+  ano: number,
+  semana: number,
+  opts: { organico?: boolean; midia?: boolean } = {},
+) {
+  const incOrganico = opts.organico ?? true;
+  const incMidia = opts.midia ?? true;
+
   const supabase = createServiceRoleClient();
   const { inicio, fim } = isoWeekRange(ano, semana);
 
-  const org = await computeOrganico(supabase, barId, inicio, fim);
-  const midia = await computeMidia(barId, inicio, fim).catch(() => null);
+  const org = incOrganico ? await computeOrganico(supabase, barId, inicio, fim) : null;
+  const midia = incMidia ? await computeMidia(barId, inicio, fim).catch(() => null) : null;
 
-  const payload = { bar_id: barId, ano, semana, ...org, ...(midia ?? {}) };
+  // Nada calculável pra esse bar → não escreve (não zera nada manual)
+  if (!org && !midia) return { barId, ano, semana, inicio, fim, org: null, midia: null, skipped: true };
+
+  const payload = { bar_id: barId, ano, semana, ...(org ?? {}), ...(midia ?? {}) };
   const { error } = await (supabase as any)
     .schema('meta')
     .from('marketing_semanal')
@@ -181,17 +210,21 @@ export async function syncMarketingTodos() {
     .select('bar_id')
     .eq('ativo', true);
 
-  const bars = new Set<number>((contas ?? []).map((c: any) => Number(c.bar_id)).filter(Boolean));
-  for (const b of adsAccountBars()) bars.add(b);
+  // Bares com IG ativo (recebem [O]) e bares com conta de anúncio (recebem [M]) — cada
+  // bloco é preenchido só onde a fonte existe, pra não zerar dados manuais do outro.
+  const igBars = new Set<number>((contas ?? []).map((c: any) => Number(c.bar_id)).filter(Boolean));
+  const adsBars = new Set<number>(adsAccountBars());
+  const bars = new Set<number>([...igBars, ...adsBars]);
 
   const hoje = new Date();
   const semanas = [isoWeekOf(new Date(hoje.getTime() - 7 * 86400000)), isoWeekOf(hoje)];
 
   const resultados: any[] = [];
   for (const barId of bars) {
+    const opts = { organico: igBars.has(barId), midia: adsBars.has(barId) };
     for (const w of semanas) {
       try {
-        resultados.push(await syncMarketingSemana(barId, w.ano, w.semana));
+        resultados.push(await syncMarketingSemana(barId, w.ano, w.semana, opts));
       } catch (e: any) {
         resultados.push({ barId, ano: w.ano, semana: w.semana, erro: e?.message || String(e) });
       }
