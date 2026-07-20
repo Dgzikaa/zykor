@@ -30,9 +30,12 @@ interface Props {
   modoBar?: boolean;
 }
 
-// Sub-linha sintética de dedução de entrada injetada pela API no modo=bar (sem lançamentos
-// no ContaAzul → não é clicável no drill-down). Mantido igual ao canon da API.
-const DEDUCAO_ENTRADA_CANON = '(−) Couvert / Ingressos';
+// Sub-linhas sintéticas injetadas pela API no modo=bar (sem lançamentos no ContaAzul →
+// não são clicáveis no drill-down). Mantidas iguais aos canons da API.
+const LINHAS_SINTETICAS_BAR = new Set([
+  '(−) Couvert / Ingressos',
+  '(+) Taxa/Imposto s/ entrada (aprox.)',
+]);
 
 const MACRO_ORDEM = [
   'Receita',
@@ -452,7 +455,7 @@ export function DreTab({ barId, anoInicial, onDrill, modoBar }: Props) {
             </h2>
             <p className="hidden lg:block text-xs text-muted-foreground">
               {modoBar
-                ? 'Espelho da DRE isolando o bar: deduz a arrecadação de entrada (couvert + ingresso Yuzer + Sympla, vinda do domínio de eventos por data do show — estimativa, não bate centavo com o CA) e remove o grupo Atrações & Eventos.'
+                ? 'Espelho da DRE isolando o bar: deduz a arrecadação de entrada (couvert + ingresso Yuzer + Sympla, vinda do domínio de eventos por data do show — estimativa, não bate centavo com o CA), remove o grupo Atrações & Eventos e compensa taxa de maquininha + imposto na mesma proporção da receita deduzida (aproximado).'
                 : 'Dados ContaAzul agregados por competência. Estrutura espelha planilha “[Ordinário] DRE e DFC”.'}
             </p>
           </div>
@@ -549,7 +552,7 @@ export function DreTab({ barId, anoInicial, onDrill, modoBar }: Props) {
                     </td>
                     {row.valores.map((v, i) => {
                       const drillable = !!onDrill && row.tipo === 'sub' && !!row.label2 && v !== 0
-                        && row.label2 !== DEDUCAO_ENTRADA_CANON;
+                        && !LINHAS_SINTETICAS_BAR.has(row.label2);
                       return (
                       <Fragment key={i}>
                         <td

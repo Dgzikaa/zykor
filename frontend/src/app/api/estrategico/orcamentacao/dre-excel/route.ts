@@ -17,12 +17,19 @@ export const revalidate = 300;
  *      oficial fica diluída em Stone/Dinheiro. Fonte: gold.v_dre_bar_deducao_entrada.
  *   2) remove o grupo "Atrações & Eventos" (as 4 categorias abaixo), que é o custo que
  *      gera essa receita de entrada.
+ *   3) compensa APROXIMADAMENTE a taxa de maquininha e o imposto sobre a receita deduzida:
+ *      injeta uma linha positiva em Custos Variáveis reduzindo IMPOSTO e TAXA MAQUININHA na
+ *      MESMA % em que a receita caiu no mês (pct = dedução ÷ receita bruta do mês). Não é
+ *      exato — couvert tem alíquota/taxa própria e nem todo couvert é cartão — mas evita a
+ *      DRE Bar carregar taxa/imposto de receita que ela não tem. COMISSÃO 10% e PROVISÃO
+ *      FISCAL ficam de fora de propósito (couvert/ingresso não têm gorjeta).
  * Não mexe em mais nada: Margem/Lucro e % recompõem sozinhos no frontend a partir das linhas.
  */
 const ATRACOES_EVENTOS = new Set([
   'Atrações Programação', '[Consumação] Artistas', 'Produção Eventos', 'Produção Mensal Fixo',
 ]);
 const DEDUCAO_ENTRADA_CANON = '(−) Couvert / Ingressos';
+const COMPENSACAO_CANON = '(+) Taxa/Imposto s/ entrada (aprox.)';
 
 export async function GET(req: NextRequest) {
   try {
@@ -46,8 +53,24 @@ export async function GET(req: NextRequest) {
       // (2) tira o grupo Atrações & Eventos inteiro
       linhas = linhas.filter((l: any) => !ATRACOES_EVENTOS.has(l.categoria));
 
-      // (1) injeta a dedução de entrada por mês, como sub-linha da Receita (ordem_sub alta
-      // = aparece por último dentro da Receita). Reduz a receita → cascateia em % e resultados.
+      // Mapas por mês a partir das linhas ORIGINAIS (antes de injetar nada):
+      //  - receita bruta do mês (base do pct de dedução)
+      //  - IMPOSTO e TAXA MAQUININHA do mês (base da compensação proporcional)
+      const receitaPorMes = new Map<string, number>();
+      const impostoPorMes = new Map<string, number>();
+      const taxaPorMes = new Map<string, number>();
+      for (const l of linhas as any[]) {
+        if (l.categoria_macro === 'Receita') {
+          receitaPorMes.set(l.mes, (receitaPorMes.get(l.mes) || 0) + Number(l.valor_com_sinal));
+        } else if (l.categoria === 'IMPOSTO') {
+          impostoPorMes.set(l.mes, (impostoPorMes.get(l.mes) || 0) + Number(l.valor_com_sinal));
+        } else if (l.categoria === 'TAXA MAQUININHA') {
+          taxaPorMes.set(l.mes, (taxaPorMes.get(l.mes) || 0) + Number(l.valor_com_sinal));
+        }
+      }
+
+      // (1) dedução de entrada por mês, como sub-linha da Receita (ordem_sub alta = aparece
+      // por último dentro da Receita). Reduz a receita → cascateia em % e resultados.
       const { data: ded, error: errDed } = await (supabase as any)
         .schema('gold').from('v_dre_bar_deducao_entrada')
         .select('mes, total_deducao')
@@ -68,6 +91,29 @@ export async function GET(req: NextRequest) {
           valor_com_sinal: -v,
           percentual_receita: null, // recalculado no frontend
         });
+
+        // (3) compensação proporcional de taxa+imposto: mesma % que a receita caiu no mês.
+        // valor_com_sinal de custo é negativo; a compensação entra POSITIVA (reduz o custo).
+        const recOrig = receitaPorMes.get(d.mes) || 0;
+        if (recOrig > 0) {
+          const pct = v / recOrig;
+          const imposto = Math.abs(impostoPorMes.get(d.mes) || 0);
+          const taxa = Math.abs(taxaPorMes.get(d.mes) || 0);
+          const comp = pct * (imposto + taxa);
+          if (comp > 0) {
+            linhas.push({
+              bar_id: barId,
+              mes: d.mes,
+              categoria_macro: 'Custos Variáveis',
+              ordem_macro: 2,
+              ordem_sub: 999,
+              categoria: COMPENSACAO_CANON,
+              sinal: 1,
+              valor_com_sinal: comp,
+              percentual_receita: null,
+            });
+          }
+        }
       }
     }
 
