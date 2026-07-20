@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useBadges } from '@/contexts/BadgesContext';
 import { useMobileMenu } from '@/contexts/MobileMenuContext';
+import { useBar } from '@/contexts/BarContext';
 import {
   Home,
   BarChart3,
@@ -49,7 +50,15 @@ const PERMISSION_MAPPINGS: Record<string, string[]> = {
 function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
   const pathname = usePathname();
   const { hasPermission, user, loading: userLoading } = usePermissions();
+  const { selectedBar } = useBar();
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
+
+  // Portão POR BAR (mesma regra do MinimalSidebar desktop): se o bar tem whitelist de rotas,
+  // mostra só essas — inclusive p/ admin. Config sempre visível p/ admin. Vazio = mostra tudo.
+  const ehAdmin = hasPermission('todos');
+  const rotasPermitidas = Array.isArray(selectedBar?.modulos_visiveis) ? selectedBar!.modulos_visiveis : [];
+  const barRestrito = rotasPermitidas.length > 0;
+  const matchBar = (href?: string) => !barRestrito || (!!href && rotasPermitidas.includes(href));
 
   const isActive = (href: string) => {
     if (href === '/home') return pathname === '/home';
@@ -96,20 +105,23 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
     })),
   }));
 
-  // Filtrar menu por permissões do usuário
+  // Filtrar menu por permissões do usuário + portão do bar
   const menuSections = allMenuSections.filter(section => {
-    // Verifica se tem permissão para a seção
+    const isConfig = section.permission === 'configuracoes';
+    if (isConfig && ehAdmin) return true; // config sempre p/ admin (não se tranca do bar enxuto)
     const hasMainPermission = hasAnyMappedPermission(section.permission || '');
-    
-    // Filtra subitems por permissão
+
+    // Filtra subitems por permissão do usuário E pelo portão do bar
     if (section.subItems.length > 0) {
-      section.subItems = section.subItems.filter(subItem => 
-        hasAnyMappedPermission(subItem.permission || '')
+      section.subItems = section.subItems.filter(subItem =>
+        hasAnyMappedPermission(subItem.permission || '') && matchBar(subItem.href)
       );
-      // Mostra seção se tem pelo menos um subitem visível OU tem permissão principal
+      // Bar restrito: só aparece se sobrou folha. Senão, mantém o comportamento antigo.
+      if (barRestrito) return section.subItems.length > 0;
       return section.subItems.length > 0 || hasMainPermission;
     }
-    
+
+    if (barRestrito) return false;
     return hasMainPermission;
   });
 

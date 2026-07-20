@@ -13,7 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
-import { Store, Plus, Loader2, Save, Trash2, Target, ExternalLink, CheckCircle2, Clock, Instagram, Plug, Upload } from 'lucide-react';
+import { MENU_TREE, isMenuLeaf } from '@/lib/navigation/menu';
+import { Store, Plus, Loader2, Save, Trash2, Target, ExternalLink, CheckCircle2, Clock, Instagram, Plug, Upload, LayoutList } from 'lucide-react';
 
 interface Operacao {
   opera_segunda: boolean; opera_terca: boolean; opera_quarta: boolean;
@@ -175,6 +176,7 @@ function BarEditor({ bar, criando, bars, onClose, onSaved }: {
             <TabsTrigger value="metas">Metas</TabsTrigger>
             <TabsTrigger value="integracoes" disabled={criando}>Integrações</TabsTrigger>
             <TabsTrigger value="acesso" disabled={criando}>Acesso</TabsTrigger>
+            <TabsTrigger value="modulos" disabled={criando}>Módulos</TabsTrigger>
           </TabsList>
 
           {/* PRONTIDÃO */}
@@ -311,6 +313,16 @@ function BarEditor({ bar, criando, bars, onClose, onSaved }: {
           <TabsContent value="acesso" className="pt-3">
             {!criando && <AcessoBar barId={form.id} />}
           </TabsContent>
+
+          {/* MÓDULOS VISÍVEIS (por bar) */}
+          <TabsContent value="modulos" className="pt-3">
+            {!criando && (
+              <ModulosBar
+                value={Array.isArray(form.config.modulos_visiveis) ? form.config.modulos_visiveis : []}
+                onChange={(v) => setCfg('modulos_visiveis', v)}
+              />
+            )}
+          </TabsContent>
         </Tabs>
 
         <div className="px-6 pb-5 flex justify-end gap-2 border-t border-[hsl(var(--border))] pt-3">
@@ -322,6 +334,105 @@ function BarEditor({ bar, criando, bars, onClose, onSaved }: {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Módulos visíveis por bar ──────────────────────────────────────────────
+// Whitelist de ROTAS (hrefs) que aparecem quando este bar está selecionado. É do BAR e vale
+// pra TODOS os usuários, inclusive admin (diferente de permissão de usuário). Lista VAZIA =
+// mostra tudo (padrão — não restringe). Salva em config.modulos_visiveis via o botão Salvar
+// do editor. Consumido por MinimalSidebar/BottomNavigation (menu) e useBarRouteGuard (URL direta).
+function ModulosBar({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const sel = new Set(value);
+  const restrito = value.length > 0;
+
+  // hrefs-folha por seção (na ordem do menu), ignorando headers visuais.
+  const secoes = MENU_TREE.map((s) => ({
+    label: s.label,
+    icon: s.icon,
+    isConfig: s.permission === 'configuracoes',
+    leaves: s.subItems.filter(isMenuLeaf).map((l) => ({ label: l.label, href: l.href })),
+  }));
+
+  const toggleHref = (href: string) => {
+    const next = new Set(sel);
+    next.has(href) ? next.delete(href) : next.add(href);
+    onChange([...next]);
+  };
+  const toggleSecao = (hrefs: string[]) => {
+    const todosMarcados = hrefs.every((h) => sel.has(h));
+    const next = new Set(sel);
+    hrefs.forEach((h) => (todosMarcados ? next.delete(h) : next.add(h)));
+    onChange([...next]);
+  };
+  const marcarTudo = () => onChange([...new Set(secoes.flatMap((s) => s.leaves.map((l) => l.href)))]);
+  const limpar = () => onChange([]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start gap-2 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/40 px-3 py-2">
+        <LayoutList className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+        <div className="text-xs text-muted-foreground">
+          Marque o que aparece <b>quando este bar está selecionado</b>. Vale pra todos os usuários, inclusive admin.
+          <br />
+          <b>Nada marcado = mostra tudo</b> (padrão). Configurações fica sempre visível pra admin, pra não travar o acesso.
+          <div className="mt-1 font-medium text-foreground">
+            {restrito
+              ? `Mostrando só ${value.length} item(ns) marcado(s).`
+              : 'Sem restrição — este bar mostra o sistema inteiro.'}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={marcarTudo} className="h-7 text-xs">Marcar tudo</Button>
+        <Button variant="outline" size="sm" onClick={limpar} disabled={!restrito} className="h-7 text-xs">
+          Limpar (mostrar tudo)
+        </Button>
+      </div>
+
+      <div className="max-h-[46vh] overflow-y-auto space-y-3 pr-1">
+        {secoes.map((s) => {
+          const hrefs = s.leaves.map((l) => l.href);
+          const marcados = hrefs.filter((h) => sel.has(h)).length;
+          const todos = marcados === hrefs.length && hrefs.length > 0;
+          const algum = marcados > 0 && !todos;
+          return (
+            <div key={s.label} className="rounded-lg border border-[hsl(var(--border))] overflow-hidden">
+              <label className="flex items-center gap-2 px-3 py-2 bg-[hsl(var(--muted))]/40 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 accent-[hsl(var(--primary))]"
+                  checked={todos}
+                  ref={(el) => { if (el) el.indeterminate = algum; }}
+                  onChange={() => toggleSecao(hrefs)}
+                />
+                <span className="text-sm font-semibold">{s.label}</span>
+                {s.isConfig && (
+                  <Badge variant="outline" className="text-[9px]" title="Admin sempre vê Configurações, independente desta lista">
+                    sempre p/ admin
+                  </Badge>
+                )}
+                <span className="ml-auto text-[10px] text-muted-foreground">{marcados}/{hrefs.length}</span>
+              </label>
+              <div className="px-3 py-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                {s.leaves.map((l) => (
+                  <label key={l.href} className="flex items-center gap-2 text-sm cursor-pointer py-0.5">
+                    <input
+                      type="checkbox"
+                      className="w-3.5 h-3.5 accent-[hsl(var(--primary))]"
+                      checked={sel.has(l.href)}
+                      onChange={() => toggleHref(l.href)}
+                    />
+                    <span className="truncate">{l.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

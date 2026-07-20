@@ -47,6 +47,10 @@ interface Bar {
   modulos_permitidos?: string[] | Record<string, any>;
   role?: string;
   logo_url?: string | null;
+  // Whitelist de ROTAS visíveis neste bar (config do bar). Vazio/ausente = mostra tudo.
+  // Vale pra TODOS os usuários do bar, inclusive admin — é o que deixa um bar "enxuto"
+  // (ex.: Escritório Central só com Relatórios Financeiros). Ver MinimalSidebar/guard.
+  modulos_visiveis?: string[];
 }
 
 interface BarContextType {

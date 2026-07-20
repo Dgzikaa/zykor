@@ -304,13 +304,25 @@ export function MinimalSidebar() {
       return permissions.some(p => hasPermission(p));
     };
 
+    // Portão POR BAR (independe do usuário): se o bar selecionado tem uma whitelist de rotas
+    // (config.modulos_visiveis), o menu mostra só essas rotas — valendo pra TODOS, inclusive
+    // admin (que fura o matchPermission). Vazio/ausente = mostra tudo (Ordinário/Deboche intactos).
+    // Configurações fica sempre visível p/ admin, senão ele se tranca do lado de fora do bar enxuto.
+    const ehAdmin = hasPermission('todos');
+    const permitidas = Array.isArray(selectedBar?.modulos_visiveis) ? selectedBar!.modulos_visiveis : [];
+    const barRestrito = permitidas.length > 0;
+    const matchBar = (href?: string) => !barRestrito || (!!href && permitidas.includes(href));
+
     return defaultSidebarItems
       .map(item => {
-        // Filtra folhas por permissão; headers sempre passam. Depois remove headers órfãos
-        // (sem nenhuma folha visível abaixo — evita "CONTA AZUL" aparecer sem items).
-        const filtered = item.subItems?.filter(sub =>
-          !isSubMenuItem(sub) || matchPermission(sub.permission),
-        );
+        const isConfig = item.permission === 'configuracoes';
+        // Filtra folhas por permissão do usuário E pelo portão do bar; headers sempre passam
+        // (headers órfãos caem no passo seguinte). Config: folhas sempre visíveis p/ admin.
+        const filtered = item.subItems?.filter(sub => {
+          if (!isSubMenuItem(sub)) return true;
+          if (isConfig && ehAdmin) return true;
+          return matchPermission(sub.permission) && matchBar(sub.href);
+        });
         const dropOrphanHeaders = filtered?.filter((sub, i) => {
           if (isSubMenuItem(sub)) return true;
           for (let j = i + 1; j < filtered.length; j++) {
@@ -322,13 +334,17 @@ export function MinimalSidebar() {
         });
         return { ...item, subItems: dropOrphanHeaders };
       })
-      // Mostra a seção se ela própria libera OU se sobrou algum sub-item visível
-      // (evita seção vazia e revela a seção quando o usuário só tem 1 item dela).
+      // Mostra a seção se sobrou algum sub-item visível. Quando o bar NÃO está restrito,
+      // mantém o comportamento antigo (seção com permissão própria aparece mesmo sem folhas).
+      // Config sempre aparece p/ admin.
       .filter(item => {
+        if (item.permission === 'configuracoes' && ehAdmin) return true;
+        const temFolha = item.subItems?.some(isSubMenuItem) ?? false;
+        if (barRestrito) return temFolha;
         if (matchPermission(item.permission)) return true;
-        return (item.subItems?.some(isSubMenuItem) ?? false);
+        return temFolha;
       });
-  }, [hasPermission, permissionsLoading]);
+  }, [hasPermission, permissionsLoading, selectedBar]);
 
   return (
     <aside

@@ -8,6 +8,14 @@ import AuthGuard from '@/components/auth/AuthGuard';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MobileMenuProvider } from '@/contexts/MobileMenuContext';
 import { WhatsAppPrompt } from '@/components/WhatsAppPrompt';
+import { useBarRouteGuard } from '@/hooks/useBarRouteGuard';
+
+// Aplica o guard de rota por bar (redireciona se a URL for um módulo escondido neste bar).
+// Componente separado só pra rodar o hook dentro dos providers, sem re-renderizar o layout.
+function BarRouteGuard() {
+  useBarRouteGuard();
+  return null;
+}
 
 interface MinimalLayoutProps {
   children: ReactNode;
@@ -54,6 +62,7 @@ export function MinimalLayout({ children }: MinimalLayoutProps) {
     <AuthGuard>
       <ErrorBoundary>
         <MobileMenuProvider>
+          <BarRouteGuard />
           <div className="flex min-h-screen bg-[hsl(var(--muted))]">
             <MinimalSidebar />
             <div className="flex-1 flex flex-col overflow-hidden p-2">

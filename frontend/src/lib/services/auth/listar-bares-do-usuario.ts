@@ -13,6 +13,9 @@ export type BarComPermissoes = {
   role: string;
   setor?: string | null;
   logo_url?: string | null;
+  // Whitelist de ROTAS visíveis neste bar (config.modulos_visiveis). Vazio/ausente = mostra tudo.
+  // Diferente de modulos_permitidos (permissão do USUÁRIO): isto é do BAR e vale pra todos, inclusive admin.
+  modulos_visiveis: string[];
 };
 
 export type ListarBaresOutput = {
@@ -48,6 +51,9 @@ export async function listarBaresDoUsuario(email: string): Promise<ListarBaresOu
       role: usuario.role ?? 'funcionario',
       setor: usuario.setor,
       logo_url: (b.config?.logo_url as string) ?? null,
+      modulos_visiveis: Array.isArray(b.config?.modulos_visiveis)
+        ? (b.config!.modulos_visiveis as string[])
+        : [],
     })),
     userData: usuario,
   };
