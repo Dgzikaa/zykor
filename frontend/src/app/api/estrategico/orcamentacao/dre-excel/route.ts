@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
     if (!barId) return NextResponse.json({ error: 'bar_id obrigatorio' }, { status: 400 });
     const ano = Number(sp.get('ano')) || new Date().getFullYear();
     const modoBar = sp.get('modo') === 'bar';
+    const modoEventos = sp.get('modo') === 'eventos';
 
     const supabase = await getAdminClient();
     // gold.mv_dre_ano = saída materializada de get_dre_por_ano (validada idêntica, refresh
@@ -51,6 +52,62 @@ export async function GET(req: NextRequest) {
       .select('bar_id, mes, categoria_macro, ordem_macro, ordem_sub, categoria, sinal, valor_com_sinal, percentual_receita')
       .eq('bar_id', barId).eq('ano', ano);
     if (error) throw error;
+
+    // modo=eventos ("DRE Eventos"): o COMPLEMENTO exato da DRE Bar — mostra só a economia do show.
+    //   Receita        = entrada (couvert ContaHub + ingresso Yuzer + Sympla), da v_dre_bar_deducao_entrada.
+    //   Custo Variável = imposto (2% da entrada) + taxa maquininha (proporcional à queda de receita
+    //                    do mês) — a MESMA conta que a DRE Bar compensa, aqui como custo real (negativo).
+    //   Despesas Artístico = as 4 categorias que a DRE Bar remove (valores reais do CA, drilláveis).
+    // Assim DRE Bar + DRE Eventos ≈ DRE cheia. Mensal (12 meses), igual às outras abas.
+    if (modoEventos) {
+      const receitaPorMes = new Map<string, number>();
+      const taxaPorMes = new Map<string, number>();
+      for (const l of (data ?? []) as any[]) {
+        if (l.categoria_macro === 'Receita') {
+          receitaPorMes.set(l.mes, (receitaPorMes.get(l.mes) || 0) + Number(l.valor_com_sinal));
+        } else if (l.categoria === 'TAXA MAQUININHA') {
+          taxaPorMes.set(l.mes, (taxaPorMes.get(l.mes) || 0) + Number(l.valor_com_sinal));
+        }
+      }
+
+      const { data: ent, error: errEnt } = await (supabase as any)
+        .schema('gold').from('v_dre_bar_deducao_entrada')
+        .select('mes, couvert, ingresso_yuzer, sympla, total_deducao')
+        .eq('bar_id', barId).eq('ano', ano);
+      if (errEnt) throw errEnt;
+
+      const out: any[] = [];
+      for (const e of ent ?? []) {
+        const mes = e.mes;
+        // Receita (positiva) — 3 aberturas
+        out.push({ mes, grupo: 'Receita', ordem_grupo: 1, ordem_sub: 1, categoria: 'Couvert', valor: Number(e.couvert) || 0 });
+        out.push({ mes, grupo: 'Receita', ordem_grupo: 1, ordem_sub: 2, categoria: 'Ingresso (Yuzer)', valor: Number(e.ingresso_yuzer) || 0 });
+        out.push({ mes, grupo: 'Receita', ordem_grupo: 1, ordem_sub: 3, categoria: 'Sympla', valor: Number(e.sympla) || 0 });
+
+        // Custo Variável (negativo) — imposto 2% fixo + taxa maquininha proporcional
+        const v = Number(e.total_deducao) || 0;
+        const recOrig = receitaPorMes.get(mes) || 0;
+        const taxa = Math.abs(taxaPorMes.get(mes) || 0);
+        const imposto = IMPOSTO_ENTRADA_RATE * v;
+        const taxaMaq = recOrig > 0 ? (v / recOrig) * taxa : 0;
+        out.push({ mes, grupo: 'Custo Variável', ordem_grupo: 2, ordem_sub: 1, categoria: 'Imposto (2%)', valor: -imposto });
+        out.push({ mes, grupo: 'Custo Variável', ordem_grupo: 2, ordem_sub: 2, categoria: 'Taxa maquininha', valor: -taxaMaq });
+      }
+
+      // Despesas Artístico — as 4 categorias reais (valor_com_sinal já vem negativo). drill_macro
+      // preserva o macro REAL do CA ('Despesas Comerciais') pra o drill-down casar os lançamentos.
+      for (const l of (data ?? []) as any[]) {
+        if (ATRACOES_EVENTOS.has(l.categoria)) {
+          out.push({
+            mes: l.mes, grupo: 'Despesas Artístico', ordem_grupo: 3,
+            ordem_sub: Number(l.ordem_sub) || 99, categoria: l.categoria,
+            valor: Number(l.valor_com_sinal), drill_macro: l.categoria_macro,
+          });
+        }
+      }
+
+      return NextResponse.json({ linhas: out, ano, modo: 'eventos' });
+    }
 
     let linhas = data ?? [];
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { DreTab } from '../../estrategico/orcamentacao/components/DreTab';
+import { DreEventosTab } from './DreEventosTab';
 import { DreLancamentosModal, DreLancamento } from './DreLancamentosModal';
 import { CategoriasTab } from './CategoriasTab';
 import { Button } from '@/components/ui/button';
@@ -49,6 +50,7 @@ export function DreComparativo({ barId, anoAtual }: { barId: number; anoAtual: n
       <TabsList>
         <TabsTrigger value="dre">DRE</TabsTrigger>
         <TabsTrigger value="dre-bar">DRE Bar</TabsTrigger>
+        <TabsTrigger value="dre-eventos">DRE Eventos</TabsTrigger>
         <TabsTrigger value="categorias">Categorias</TabsTrigger>
       </TabsList>
 
@@ -75,6 +77,16 @@ export function DreComparativo({ barId, anoAtual }: { barId: number; anoAtual: n
             da Receita e remove o grupo Atrações & Eventos. Drill-down da dedução é bloqueado
             no DreTab (linha sintética, sem lançamentos no ContaAzul). */}
         <DreTab barId={barId} anoInicial={anoAtual} onDrill={abrirDrill} modoBar />
+      </TabsContent>
+
+      <TabsContent value="dre-eventos" className="space-y-2 mt-2">
+        {/* Complemento da DRE Bar: só a economia do show (entrada − imposto/taxa − artístico).
+            As linhas artísticas são drilláveis (macro real 'Despesas Comerciais' no CA). */}
+        <DreEventosTab barId={barId} anoInicial={anoAtual} onDrill={abrirDrill} />
+        <DreLancamentosModal
+          open={drill.open} onClose={fecharDrill} titulo={drill.titulo}
+          loading={drill.loading} lancamentos={drill.lancamentos} total={drill.total} erro={drill.erro}
+        />
       </TabsContent>
 
       <TabsContent value="categorias" className="mt-2">
