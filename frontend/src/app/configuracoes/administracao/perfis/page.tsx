@@ -11,13 +11,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { PageShell } from '@/components/layout/PageShell';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api-client';
-import { Shield, Plus, Pencil, Trash2, Users, Lock, Loader2, Check } from 'lucide-react';
+import { Shield, Plus, Pencil, Trash2, Users, Lock, Loader2, Check, X, UserPlus } from 'lucide-react';
 import { getModulosPorCategoria } from '@/lib/permissions/modules';
 
 type Perfil = {
@@ -122,7 +124,7 @@ export default function PerfisPage() {
                         </span>
                       )}
                     </div>
-                    {p.descricao && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{p.descricao}</p>}
+                    {p.descricao && <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap">{p.descricao}</p>}
                   </div>
                   <div className="flex items-center gap-0.5">
                     <Button size="sm" variant="ghost" onClick={() => setDialogAberto({ modo: 'editar', perfil: p })} title={p.sistema ? 'Só leitura' : 'Editar'}>
@@ -197,6 +199,35 @@ function EditarPerfilDialog({
   const [tokens, setTokens] = useState<string[]>(perfilExistente?.modulos || []);
   const [salvando, setSalvando] = useState(false);
 
+  // Usuários deste perfil (só no modo editar) — lista + adicionar/remover.
+  const [users, setUsers] = useState<{ id: string; nome: string; email: string }[]>([]);
+  const [candidatos, setCandidatos] = useState<{ id: string; nome: string; email: string; perfil_id: string | null }[]>([]);
+  const [carregandoUsers, setCarregandoUsers] = useState(false);
+  const [movendo, setMovendo] = useState<string | null>(null);
+
+  const carregarUsers = useCallback(async () => {
+    if (modo !== 'editar' || !perfilExistente) return;
+    setCarregandoUsers(true);
+    try {
+      const r = await api.get(`/api/configuracoes/perfis/usuarios?perfil_id=${encodeURIComponent(perfilExistente.id)}`);
+      setUsers(r.doPerfil || []);
+      setCandidatos(r.candidatos || []);
+    } catch (e: any) {
+      toast({ title: 'Erro ao carregar usuários', description: e?.message, variant: 'destructive' });
+    } finally { setCarregandoUsers(false); }
+  }, [modo, perfilExistente, toast]);
+  useEffect(() => { carregarUsers(); }, [carregarUsers]);
+
+  const moverUsuario = async (userId: string, perfilId: string | null) => {
+    setMovendo(userId);
+    try {
+      await api.post('/api/configuracoes/perfis/usuarios', { user_id: userId, perfil_id: perfilId });
+      await carregarUsers();
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e?.message, variant: 'destructive' });
+    } finally { setMovendo(null); }
+  };
+
   const modulosPorCategoria = useMemo(() => getModulosPorCategoria(), []);
   const temTodos = tokens.includes('todos');
 
@@ -249,7 +280,7 @@ function EditarPerfilDialog({
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v && !salvando) onFechar(); }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {soLeitura ? `${perfilExistente!.nome} (sistema — só leitura)` : (modo === 'editar' ? 'Editar perfil' : 'Novo perfil')}
@@ -262,14 +293,15 @@ function EditarPerfilDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
+          <div className="space-y-3">
+            <div className="sm:max-w-xs">
               <label className="text-xs font-medium text-muted-foreground">Nome</label>
               <Input value={nome} onChange={e => setNome(e.target.value)} disabled={soLeitura} placeholder="Ex.: Operação" />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground">Descrição (opcional)</label>
-              <Input value={descricao} onChange={e => setDescricao(e.target.value)} disabled={soLeitura} placeholder="Ex.: Time operacional do bar" />
+              <Textarea value={descricao} onChange={e => setDescricao(e.target.value)} disabled={soLeitura} rows={3}
+                placeholder="Ex.: Time operacional do bar — o que esse perfil faz e o que acessa…" className="resize-y" />
             </div>
           </div>
 
@@ -334,6 +366,46 @@ function EditarPerfilDialog({
               })}
             </div>
           </div>
+
+          {/* Usuários deste perfil — só no modo editar */}
+          {modo === 'editar' && perfilExistente && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Usuários deste perfil ({users.length})</span>
+                {carregandoUsers && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+              </div>
+              <div className="rounded-lg border p-3 space-y-2.5">
+                <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                  ⚠ Adicionar/remover troca as permissões da pessoa — ela precisa <b>relogar</b> pra valer. Prefira fazer fora do horário de operação.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {!carregandoUsers && users.length === 0 && <span className="text-xs text-muted-foreground">Nenhum usuário neste perfil ainda.</span>}
+                  {users.map(u => (
+                    <span key={u.id} className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs" title={u.email}>
+                      <span className="truncate max-w-[180px]">{u.nome || u.email}</span>
+                      <button type="button" onClick={() => moverUsuario(u.id, null)} disabled={movendo === u.id}
+                        title="Remover deste perfil" className="text-muted-foreground hover:text-red-500 disabled:opacity-50">
+                        {movendo === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <UserPlus className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <SearchableSelect
+                    portal
+                    className="w-full max-w-md"
+                    options={candidatos.map(c => ({ value: c.id, label: c.nome || c.email, searchHint: c.email }))}
+                    value=""
+                    onValueChange={(id) => { if (id) moverUsuario(id, perfilExistente.id); }}
+                    placeholder="Adicionar usuário a este perfil…"
+                    searchPlaceholder="buscar por nome ou email…"
+                    emptyMessage="Nenhum usuário"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
