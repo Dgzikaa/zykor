@@ -722,7 +722,14 @@ export async function getSemanas(
         m_cpm: marketing.m_cpm,
         m_cliques: marketing.m_cliques,
         m_ctr: marketing.m_ctr,
-        m_custo_por_clique: marketing.m_cpc,
+        // A key correta é 'm_cpc' (o KPI da tabela lê 'm_cpc'; 'm_custo_por_clique' ficava
+        // órfão e a coluna "Custo por Clique" vinha vazia no semanal). Fallback: quando a
+        // fonte traz 0 mas houve gasto + cliques, deriva investido/cliques.
+        m_cpc: (Number(marketing.m_cpc) > 0)
+          ? marketing.m_cpc
+          : (Number(marketing.m_cliques) > 0 && Number(marketing.m_valor_investido) > 0
+            ? Number((Number(marketing.m_valor_investido) / Number(marketing.m_cliques)).toFixed(2))
+            : marketing.m_cpc),
         m_conversas_iniciadas: marketing.m_conversas_iniciadas,
         // Google Ads
         g_valor_investido: marketing.g_valor_investido,

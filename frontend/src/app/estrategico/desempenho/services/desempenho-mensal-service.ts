@@ -305,8 +305,15 @@ export async function getMeses(
       // Cancelamentos: gold cancelamentos_total -> front cancelamentos
       cancelamentos: toNum(g.cancelamentos_total) ?? toNum(g.cancelamentos),
 
-      // Meta Ads: front exibe key 'm_cpc', gold tem coluna 'm_custo_por_clique'
-      m_cpc: toNum(g.m_custo_por_clique),
+      // Meta Ads: front exibe key 'm_cpc', gold tem coluna 'm_custo_por_clique'.
+      // Fallback: se a fonte vier 0 mas houve gasto + cliques, deriva investido/cliques.
+      m_cpc: (() => {
+        const cpc = toNum(g.m_custo_por_clique) ?? 0;
+        if (cpc > 0) return cpc;
+        const inv = toNum(g.m_valor_investido) ?? 0;
+        const cli = toNum(g.m_cliques) ?? 0;
+        return cli > 0 && inv > 0 ? Number((inv / cli).toFixed(2)) : cpc;
+      })(),
 
       // Google Ads e Google Meu Negocio: gold nao tem essas colunas — agrega de meta.marketing_semanal
       g_valor_investido: mkt?.g_valor_investido ?? 0,
