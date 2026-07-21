@@ -59,23 +59,51 @@ function mondayOf(d: Date) { const x = new Date(d); const wd = (x.getDay() + 6) 
 const norm = (s?: string | null) => (s || '').trim().toLowerCase();
 const parseQtd = (v: string) => { const n = parseFloat(v.replace(',', '.')); return Number.isFinite(n) ? n : 0; };
 
-// Compressão simples (canvas → jpeg 0.85). Reduz payload em ~10x pra fotos de câmera.
-async function comprimirImagem(file: File, maxW = 1600, quality = 0.85): Promise<File> {
+// Compressão de imagem antes do upload (canvas → jpeg). Caminho preferido: createImageBitmap,
+// que decodifica direto do File SEM materializar a imagem como dataURL base64. O base64 do
+// caminho antigo dobrava a RAM e estourava a memória do navegador em celular com foto de 12MP
+// ("devido a insuficiência de memória, não foi possível concluir a operação"). Libera o bitmap
+// e o buffer do canvas na hora. Fallback pro FileReader→Image em navegadores sem createImageBitmap.
+async function comprimirImagem(file: File, maxW = 1600, quality = 0.82): Promise<File> {
   if (!file.type.startsWith('image/')) return file;
-  const dataUrl = await new Promise<string>((res, rej) => {
-    const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(file);
-  });
-  const img = await new Promise<HTMLImageElement>((res, rej) => {
-    const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl;
-  });
-  let { width, height } = img;
-  if (width > maxW) { height = Math.round(height * maxW / width); width = maxW; }
-  const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
-  const ctx = canvas.getContext('2d'); if (!ctx) return file;
-  ctx.drawImage(img, 0, 0, width, height);
-  const blob: Blob | null = await new Promise((res) => canvas.toBlob(b => res(b), 'image/jpeg', quality));
-  if (!blob) return file;
-  return new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
+  const encode = (canvas: HTMLCanvasElement) =>
+    new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), 'image/jpeg', quality));
+  const toFile = (blob: Blob) => new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
+
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bmp = await createImageBitmap(file);
+      const scale = bmp.width > maxW ? maxW / bmp.width : 1;
+      const w = Math.max(1, Math.round(bmp.width * scale));
+      const h = Math.max(1, Math.round(bmp.height * scale));
+      const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d'); if (!ctx) { bmp.close?.(); return file; }
+      ctx.drawImage(bmp, 0, 0, w, h);
+      bmp.close?.();
+      const blob = await encode(canvas);
+      canvas.width = 0; canvas.height = 0; // libera o buffer do canvas imediatamente
+      return blob ? toFile(blob) : file;
+    } catch { /* cai no fallback abaixo */ }
+  }
+
+  // Fallback (navegadores antigos sem createImageBitmap): FileReader → Image → canvas.
+  try {
+    const dataUrl = await new Promise<string>((res, rej) => {
+      const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(file);
+    });
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl;
+    });
+    let { width, height } = img;
+    if (width > maxW) { height = Math.round(height * maxW / width); width = maxW; }
+    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d'); if (!ctx) return file;
+    ctx.drawImage(img, 0, 0, width, height);
+    const blob = await encode(canvas);
+    return blob ? toFile(blob) : file;
+  } catch {
+    return file; // último recurso: manda o original
+  }
 }
 
 export default function DesperdicioPage() {
