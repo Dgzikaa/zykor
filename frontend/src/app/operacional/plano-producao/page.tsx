@@ -143,13 +143,22 @@ export default function PlanoProducaoPage() {
       if (!r.success) { if (r.error) alert(r.error); return; }
       setDiaModal(null);
       await carregar();
+    } catch (e: any) {
+      alert(e?.message || 'Não foi possível salvar. Tente novamente.');
     } finally { setSalvando(false); }
   };
 
   const acao = async (action: string, extra: any = {}) => {
     setSalvando(true);
-    try { const r = await api.post('/api/operacional/plano-producao', { action, ...extra }); if (!r.success && r.error) alert(r.error); await carregar(); }
-    finally { setSalvando(false); }
+    try {
+      const r = await api.post('/api/operacional/plano-producao', { action, ...extra });
+      if (!r.success && r.error) alert(r.error);
+      await carregar();
+    } catch (e: any) {
+      // api.post LANÇA em qualquer erro (403/409/500 ou 401 "Sessão expirada"). Sem este catch,
+      // o clique falhava calado ("clico e não vai, sem erro") — agora mostra o motivo.
+      alert(e?.message || 'Não foi possível concluir a ação. Tente novamente.');
+    } finally { setSalvando(false); }
   };
 
   // Cascata de demanda dependente ("massa baseada na sugestão da porção"):
