@@ -14,7 +14,7 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
-const CACHE_VERSION = 4; // v4: Agrupamento por telefone (como analítico)
+const CACHE_VERSION = 5; // v5: fonte silver.cliente_visitas (fallback modelo cartão)
 
 function getCached(key: string) {
   const entry = cache.get(key);
@@ -55,6 +55,7 @@ async function fetchAllData(tableName: string, columns: string, filters: any = {
     iterations++;
     
     let query = supabase
+      .schema('silver')
       .from(tableName)
       .select(columns)
       .range(from, from + limit - 1);
@@ -152,10 +153,11 @@ export async function GET(request: NextRequest) {
       clientesSegmentados = cached.clientes;
       stats = cached.stats;
     } else {
-      // Buscar dados de visitas - ÚNICA fonte com dados REAIS de consumo
+      // Fonte: silver.cliente_visitas — tem o fallback do modelo cartão (cht_fonea/cht_nome).
+      // A public.visitas parou de receber telefone/nome desde 06/07/2026 (período veio vazio).
       const visitasDataRaw = await fetchAllData(
-        'visitas', 
-        'cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos', 
+        'cliente_visitas',
+        'cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos',
         {
           eq_bar_id: barId
         }

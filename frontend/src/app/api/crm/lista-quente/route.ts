@@ -138,10 +138,11 @@ async function fetchAllData(supabase: any, tableName: string, columns: string, f
     iterations++;
     
     let query = supabase
+      .schema('silver')
       .from(tableName)
       .select(columns)
       .range(from, from + limit - 1);
-    
+
     Object.entries(filters).forEach(([key, value]) => {
       if (key.includes('gte_')) {
         query = query.gte(key.replace('gte_', ''), value);
@@ -283,9 +284,11 @@ export async function GET(request: NextRequest) {
       filtros['lte_data_visita'] = dataFimStr;
     }
     
+    // Fonte: silver.cliente_visitas — tem o fallback do modelo cartão (cht_fonea/cht_nome).
+    // A public.visitas parou de receber telefone/nome desde 06/07/2026 (período veio vazio).
     const todosRegistros = await fetchAllData(
       supabase,
-      'visitas',
+      'cliente_visitas',
       'cliente_nome, cliente_email, cliente_fone, cliente_dtnasc, data_visita, valor_couvert, valor_pagamentos, pessoas',
       filtros
     );
