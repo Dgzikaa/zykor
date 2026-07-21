@@ -42,11 +42,14 @@ const CATEGORY_GENERICS: Record<string, string[]> = {
   // segmentar (ex: investidor recebe só 'financeiro_relatorios' e NÃO vê as ferramentas).
   'Relatórios Financeiros': ['financeiro_relatorios', 'financeiro', 'home'],
   // Ferramentas Financeiro agora é GRANULAR (1 módulo por ferramenta). Só o token do grupo
-  // ('financeiro_ferramentas') e 'financeiro' concedem TODAS as ferramentas (retrocompat p/
-  // quem já tinha). 'ferramentas'/'home' foram REMOVIDOS de propósito: com eles, qualquer
-  // funcionário operacional veria as ferramentas financeiras — o que quebrava a segmentação
-  // (0 usuários dependiam só disso, verificado). Quem recebe só 'Despesas CA' não vê as demais.
-  'Ferramentas Financeiro': ['financeiro_ferramentas', 'financeiro'],
+  // ('financeiro_ferramentas') concede TODAS as ferramentas (retrocompat p/ quem já tinha).
+  // 'ferramentas'/'home' foram REMOVIDOS de propósito (segmentação). O 'financeiro' amplo
+  // também foi REMOVIDO daqui (2026-07): ele concedia a categoria inteira (ex.: Agendamentos
+  // aparecia no menu e abria pra quem tinha só 'financeiro', sem o V específico — caso do
+  // arturpelinski, marketing, que só deveria ter Pedidos). Agora vale o módulo específico
+  // (o "V" por ferramenta) ou o grupo 'financeiro_ferramentas'. Impacto verificado: só 1
+  // usuário dependia do 'financeiro' amplo aqui, e ele mantém Pedidos pelo grant granular.
+  'Ferramentas Financeiro': ['financeiro_ferramentas'],
   'Configurações': ['configuracoes'],
   'Extras': ['home', 'relatorios'],
 };
