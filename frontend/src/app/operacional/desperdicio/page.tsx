@@ -463,7 +463,8 @@ function RegistroDialog({
                 <Camera className="w-4 h-4" />Fotos {fotos.length > 0 && <span className="text-muted-foreground">({fotos.length})</span>}
                 <span className="text-red-500">*</span>
               </div>
-              <input ref={fotoInputRef} type="file" accept="image/*" multiple capture="environment"
+              {/* Sem `capture`: no celular abre o seletor (Câmera OU Galeria/Arquivos), não força a câmera. */}
+              <input ref={fotoInputRef} type="file" accept="image/*" multiple
                 className="hidden" onChange={e => onEscolherFotos(e.target.files)} />
               <Button size="sm" variant="outline" onClick={() => fotoInputRef.current?.click()} disabled={subindoFoto}>
                 {subindoFoto ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Subindo...</> : <><Upload className="w-4 h-4 mr-1.5" />Adicionar fotos</>}
