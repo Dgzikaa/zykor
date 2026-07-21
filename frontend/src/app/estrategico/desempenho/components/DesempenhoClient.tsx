@@ -195,7 +195,9 @@ return [
       },
       {
         id: 'nps',
-        label: 'NPS',
+        // Label do grupo != label da 1ª métrica de propósito: senão isGrupoHierarquico
+        // trata 'NPS' como pai e aninha Reservas/Felicidade embaixo. Queremos as 3 planas.
+        label: 'NPS & Satisfação',
         metricas: [
           { key: 'nps', label: 'NPS', status: 'auto', fonte: 'Falaê (Digital + Salão unificados)', calculo: '% Promotores - % Detratores — respostas do digital e do salão somadas (ponderado por respostas)', formato: 'numero', temTooltipDetalhes: true, respostasKey: 'nps_ds_respostas' },
           { key: 'nps_reservas', label: 'NPS Reservas', status: 'manual', fonte: 'GetIn (aguardando API)', calculo: '% Promotores - % Detratores (avaliação sobre reservas)', formato: 'numero', editavel: true },
