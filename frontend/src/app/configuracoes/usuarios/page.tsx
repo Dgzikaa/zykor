@@ -241,19 +241,25 @@ function UsuariosPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validar que pelo menos um bar foi selecionado
-    if (formData.bares_ids.length === 0) {
+
+    // Aviso claro do que falta preencher — senão o botão "não faz nada" e a pessoa fica perdida.
+    const faltando: string[] = [];
+    if (!formData.nome?.trim()) faltando.push('Nome');
+    if (!formData.email?.trim()) faltando.push('Email');
+    if (formData.bares_ids.length === 0) faltando.push('pelo menos um Bar');
+    if (faltando.length > 0) {
       toast({
-        title: 'Erro',
-        description: 'Selecione pelo menos um bar para o usuário',
+        title: 'Complete antes de criar',
+        description: `Falta preencher: ${faltando.join(', ')}.`,
         variant: 'destructive',
       });
       return;
     }
-    
+
     try {
-      // 🔒 Se marcou como admin, garantir role="admin" e adicionar "todos" aos módulos
+      // Função (role) é DERIVADA: Admin pelo checkbox → 'admin'; ao editar preserva a função
+      // existente (ex.: 'financeiro'); novos usuários caem em 'funcionario'. O acesso é controlado
+      // pelo Perfil/módulos — o campo "Função" manual foi removido do formulário.
       let finalFormData = { ...formData };
       if (isAdminUser) {
         finalFormData.role = 'admin';
@@ -261,7 +267,7 @@ function UsuariosPage() {
           finalFormData.modulos_permitidos = ['todos', ...finalFormData.modulos_permitidos];
         }
       } else {
-        // Se desmarcou admin, remover "todos" dos módulos
+        finalFormData.role = finalFormData.role && finalFormData.role !== 'admin' ? finalFormData.role : 'funcionario';
         finalFormData.modulos_permitidos = finalFormData.modulos_permitidos.filter(m => m !== 'todos');
       }
       
@@ -326,13 +332,15 @@ function UsuariosPage() {
         resetForm();
         fetchUsuarios();
       } else {
-        throw new Error('Erro na requisição');
+        // Surfacea o motivo real (ex.: email já existe, campo faltando) em vez de erro genérico.
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.error || `Erro ${response.status} ao salvar usuário`);
       }
     } catch (error) {
       console.error('Erro ao salvar usuário:', error);
       toast({
-        title: 'Erro',
-        description: 'Erro ao salvar usuário',
+        title: 'Erro ao salvar',
+        description: error instanceof Error ? error.message : 'Erro ao salvar usuário',
         variant: 'destructive',
       });
     }
@@ -870,24 +878,7 @@ function UsuariosPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="role" className="text-sm">
-                      Função *
-                    </Label>
-                    <Select value={formData.role} onValueChange={(value) => { setFormData(prev => ({ ...prev, role: value })); setIsAdminUser(value === 'admin'); }}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ROLES_OPCOES.map(role => (
-                          <SelectItem key={role.value} value={role.value}>
-                            {role.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="celular" className="text-sm">
                       Celular
