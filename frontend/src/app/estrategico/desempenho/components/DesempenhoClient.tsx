@@ -301,27 +301,40 @@ return [
         id: 'organico',
         label: '[O] Orgânico',
         metricas: [
-          { key: 'o_num_posts', label: '[O] Nº de Posts', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'o_alcance', label: '[O] Alcance', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'o_interacao', label: '[O] Interação', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'o_compartilhamento', label: '[O] Compartilhamento', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'o_engajamento', label: '[O] Engajamento', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'percentual', editavel: true },
-          { key: 'o_num_stories', label: '[O] Nº Stories', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'o_visu_stories', label: '[O] Visu Stories', status: 'manual', fonte: 'Instagram', calculo: 'Manual', formato: 'numero', editavel: true },
+          // [O] Feed + Reels: AUTO via sync diário (marketing-semanal-sync) pra bares com
+          // Instagram conectado. Deboche (bar 4) ainda sem IG → segue manual/azul.
+          // Stories (Nº/Visu) continuam MANUAIS nos 2 bares (sync não escreve essas colunas).
+          ...(barId !== 4 ? [
+            { key: 'o_num_posts', label: '[O] Nº de Posts', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Contagem de posts Feed + Reels da semana (integrations.instagram_posts)', formato: 'numero' as const, editavel: true },
+            { key: 'o_alcance', label: '[O] Alcance', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Soma do alcance dos posts Feed + Reels (último snapshot por mídia)', formato: 'numero' as const, editavel: true },
+            { key: 'o_interacao', label: '[O] Interação', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Curtidas + comentários + compartilhamentos + salvamentos', formato: 'numero' as const, editavel: true },
+            { key: 'o_compartilhamento', label: '[O] Compartilhamento', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Soma de compartilhamentos dos posts Feed + Reels', formato: 'numero' as const, editavel: true },
+            { key: 'o_engajamento', label: '[O] Engajamento', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Interações ÷ alcance × 100', formato: 'percentual' as const, editavel: true },
+          ] : [
+            { key: 'o_num_posts', label: '[O] Nº de Posts', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual (bar sem Instagram conectado)', formato: 'numero' as const, editavel: true },
+            { key: 'o_alcance', label: '[O] Alcance', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual (bar sem Instagram conectado)', formato: 'numero' as const, editavel: true },
+            { key: 'o_interacao', label: '[O] Interação', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual (bar sem Instagram conectado)', formato: 'numero' as const, editavel: true },
+            { key: 'o_compartilhamento', label: '[O] Compartilhamento', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual (bar sem Instagram conectado)', formato: 'numero' as const, editavel: true },
+            { key: 'o_engajamento', label: '[O] Engajamento', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual (bar sem Instagram conectado)', formato: 'percentual' as const, editavel: true },
+          ]),
+          { key: 'o_num_stories', label: '[O] Nº Stories', status: 'manual', fonte: 'Instagram', calculo: 'Manual — captação de stories (reposts/collabs) ainda não automatizada', formato: 'numero', editavel: true },
+          { key: 'o_visu_stories', label: '[O] Visu Stories', status: 'manual', fonte: 'Instagram', calculo: 'Manual — captação de stories (reposts/collabs) ainda não automatizada', formato: 'numero', editavel: true },
         ]
       },
       {
         id: 'meta_ads',
         label: '[M] Meta Ads',
+        // [M] Meta Ads: AUTO via sync diário (fetchMetaAdsInsights) nos 2 bares — Ordinário e
+        // Deboche têm conta de anúncio configurada (META_ADS_ACCOUNTS).
         metricas: [
-          { key: 'm_valor_investido', label: '[M] Valor Investido', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda', editavel: true },
-          { key: 'm_alcance', label: '[M] Alcance', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'm_frequencia', label: '[M] Frequência', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'decimal', editavel: true },
-          { key: 'm_cpm', label: '[M] CPM (Custo por Visu)', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda_decimal', editavel: true },
-          { key: 'm_cliques', label: '[M] Cliques', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'm_ctr', label: '[M] CTR (Taxa de Clique)', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'percentual', editavel: true },
-          { key: 'm_cpc', label: '[M] Custo por Clique', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'moeda_decimal', editavel: true },
-          { key: 'm_conversas_iniciadas', label: '[M] Conversas Iniciadas', status: 'manual', fonte: 'Meta Ads', calculo: 'Manual', formato: 'numero', editavel: true },
+          { key: 'm_valor_investido', label: '[M] Valor Investido', status: 'auto', fonte: 'Meta Ads (sync diário)', calculo: 'fetchMetaAdsInsights — investimento da semana', formato: 'moeda', editavel: true },
+          { key: 'm_alcance', label: '[M] Alcance', status: 'auto', fonte: 'Meta Ads (sync diário)', calculo: 'fetchMetaAdsInsights — alcance', formato: 'numero', editavel: true },
+          { key: 'm_frequencia', label: '[M] Frequência', status: 'auto', fonte: 'Meta Ads (sync diário)', calculo: 'fetchMetaAdsInsights — frequência', formato: 'decimal', editavel: true },
+          { key: 'm_cpm', label: '[M] CPM (Custo por Visu)', status: 'auto', fonte: 'Meta Ads (sync diário)', calculo: 'fetchMetaAdsInsights — CPM', formato: 'moeda_decimal', editavel: true },
+          { key: 'm_cliques', label: '[M] Cliques', status: 'auto', fonte: 'Meta Ads (sync diário)', calculo: 'fetchMetaAdsInsights — todos os cliques', formato: 'numero', editavel: true },
+          { key: 'm_ctr', label: '[M] CTR (Taxa de Clique)', status: 'auto', fonte: 'Meta Ads (sync diário)', calculo: 'fetchMetaAdsInsights — CTR por clique no link', formato: 'percentual', editavel: true },
+          { key: 'm_cpc', label: '[M] Custo por Clique', status: 'auto', fonte: 'Meta Ads (sync diário)', calculo: 'fetchMetaAdsInsights — CPC por clique no link', formato: 'moeda_decimal', editavel: true },
+          { key: 'm_conversas_iniciadas', label: '[M] Conversas Iniciadas', status: 'auto', fonte: 'Meta Ads (sync diário)', calculo: 'fetchMetaAdsInsights — conversas iniciadas', formato: 'numero', editavel: true },
         ]
       },
       {
