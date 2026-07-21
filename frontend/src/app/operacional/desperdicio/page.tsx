@@ -369,7 +369,8 @@ function RegistroDialog({
   onSalvo: () => Promise<void>;
 }) {
   const { toast } = useToast();
-  const fotoInputRef = useRef<HTMLInputElement>(null);
+  const fotoInputRef = useRef<HTMLInputElement>(null);   // galeria/arquivos
+  const cameraInputRef = useRef<HTMLInputElement>(null); // câmera (capture)
   const hoje = toISO(new Date());
   const dataPadrao = hoje >= semana.ini && hoje <= semana.fim ? hoje : semana.ini;
 
@@ -401,6 +402,7 @@ function RegistroDialog({
     } finally {
       setSubindoFoto(false);
       if (fotoInputRef.current) fotoInputRef.current.value = '';
+      if (cameraInputRef.current) cameraInputRef.current.value = '';
     }
   };
 
@@ -463,12 +465,25 @@ function RegistroDialog({
                 <Camera className="w-4 h-4" />Fotos {fotos.length > 0 && <span className="text-muted-foreground">({fotos.length})</span>}
                 <span className="text-red-500">*</span>
               </div>
-              {/* Sem `capture`: no celular abre o seletor (Câmera OU Galeria/Arquivos), não força a câmera. */}
+              {/* Dois caminhos: câmera direto (capture) e galeria/arquivos (sem capture). */}
+              <input ref={cameraInputRef} type="file" accept="image/*" multiple capture="environment"
+                className="hidden" onChange={e => onEscolherFotos(e.target.files)} />
               <input ref={fotoInputRef} type="file" accept="image/*" multiple
                 className="hidden" onChange={e => onEscolherFotos(e.target.files)} />
-              <Button size="sm" variant="outline" onClick={() => fotoInputRef.current?.click()} disabled={subindoFoto}>
-                {subindoFoto ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Subindo...</> : <><Upload className="w-4 h-4 mr-1.5" />Adicionar fotos</>}
-              </Button>
+              {subindoFoto ? (
+                <Button size="sm" variant="outline" disabled>
+                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Subindo...
+                </Button>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <Button size="sm" variant="outline" onClick={() => cameraInputRef.current?.click()}>
+                    <Camera className="w-4 h-4 mr-1.5" />Tirar foto
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => fotoInputRef.current?.click()}>
+                    <Upload className="w-4 h-4 mr-1.5" />Galeria
+                  </Button>
+                </div>
+              )}
             </div>
             {fotos.length > 0 ? (
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
