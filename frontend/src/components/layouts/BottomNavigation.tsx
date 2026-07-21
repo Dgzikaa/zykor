@@ -134,7 +134,7 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
     <>
       {/* Overlay backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 z-40 md:hidden"
+        className="fixed inset-0 bg-black/50 z-40 lg:hidden"
         onClick={onClose}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -148,7 +148,7 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
 
       {/* Menu content — flex column: header fixo + meio rolável + footer fixo (evita o footer
           "Online/v2.0" sobrepor os itens quando o menu é alto) */}
-      <div className="fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-white dark:bg-gray-900 z-50 md:hidden flex flex-col">
+      <div className="fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-white dark:bg-gray-900 z-50 lg:hidden flex flex-col">
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center">
@@ -318,7 +318,7 @@ export function BottomNavigation() {
   return (
     <>
       {/* Bottom Navigation Bar - apenas no mobile */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 md:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-30 lg:hidden">
         {/* Gradient shadow above */}
         <div className="h-4 bg-gradient-to-t from-white dark:from-gray-900 to-transparent"></div>
 
@@ -393,7 +393,7 @@ export function BottomNavigation() {
       />
 
       {/* Bottom padding para compensar fixed bottom nav - apenas no mobile */}
-      <div className="h-20 md:hidden"></div>
+      <div className="h-20 lg:hidden"></div>
     </>
   );
 }

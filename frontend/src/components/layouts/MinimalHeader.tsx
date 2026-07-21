@@ -128,10 +128,11 @@ export function MinimalHeader() {
     <header className="h-16 bg-[hsl(var(--background))] flex items-center justify-between px-3 sm:px-6 gap-2 sm:gap-4 border-b border-[hsl(var(--border))]">
       {/* Left: Menu Toggle + Page Title */}
       <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
-        {/* Menu Toggle Button — abre o mesmo drawer da BottomNavigation (só no mobile) */}
+        {/* Menu Toggle Button — abre o mesmo drawer da BottomNavigation (mobile E tablet:
+            a lateral só aparece em lg+; abaixo disso o menu é o drawer/bottom-nav). */}
         <button
           onClick={toggleMobileMenu}
-          className="md:hidden p-2 rounded-md hover:bg-[hsl(var(--muted))] transition-colors shrink-0"
+          className="lg:hidden p-2 rounded-md hover:bg-[hsl(var(--muted))] transition-colors shrink-0"
           aria-label="Abrir menu"
         >
           <Menu className="w-5 h-5" />
