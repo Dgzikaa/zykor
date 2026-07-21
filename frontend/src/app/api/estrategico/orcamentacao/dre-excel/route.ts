@@ -94,6 +94,28 @@ export async function GET(req: NextRequest) {
         out.push({ mes, grupo: 'Custo Variável', ordem_grupo: 2, ordem_sub: 2, categoria: 'Taxa maquininha', valor: -taxaMaq });
       }
 
+      // OUTRAS RECEITAS SEM CMV (patrocínio/festival) lançadas à mão na DRE Eventos + o imposto
+      // informado sobre a nota. Receita positiva (sem custo de produto) + imposto como custo variável.
+      const { data: outras, error: errOutras } = await (supabase as any)
+        .schema('financial').from('dre_eventos_outras_receitas')
+        .select('competencia, valor, imposto')
+        .eq('bar_id', barId)
+        .gte('competencia', `${ano}-01-01`).lte('competencia', `${ano}-12-31`);
+      if (errOutras) throw errOutras;
+      const outrasRecPorMes = new Map<string, number>();
+      const outrasImpPorMes = new Map<string, number>();
+      for (const r of (outras ?? []) as any[]) {
+        const mes = `${String(r.competencia).slice(0, 7)}-01`;
+        outrasRecPorMes.set(mes, (outrasRecPorMes.get(mes) || 0) + (Number(r.valor) || 0));
+        outrasImpPorMes.set(mes, (outrasImpPorMes.get(mes) || 0) + (Number(r.imposto) || 0));
+      }
+      for (const [mes, v] of outrasRecPorMes) {
+        out.push({ mes, grupo: 'Receita', ordem_grupo: 1, ordem_sub: 4, categoria: 'Outras receitas (sem CMV)', valor: v });
+      }
+      for (const [mes, imp] of outrasImpPorMes) {
+        if (imp > 0) out.push({ mes, grupo: 'Custo Variável', ordem_grupo: 2, ordem_sub: 3, categoria: 'Imposto s/ outras receitas', valor: -imp });
+      }
+
       // Despesas Artístico — as 4 categorias reais (valor_com_sinal já vem negativo). drill_macro
       // preserva o macro REAL do CA ('Despesas Comerciais') pra o drill-down casar os lançamentos.
       for (const l of (data ?? []) as any[]) {

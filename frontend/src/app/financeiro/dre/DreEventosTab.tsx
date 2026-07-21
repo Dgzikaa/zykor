@@ -2,7 +2,8 @@
 
 import { Fragment, useMemo, useState } from 'react';
 import { useApiSWR } from '@/hooks/useApiSWR';
-import { Loader2 } from 'lucide-react';
+import { api } from '@/lib/api-client';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 
 /**
  * DRE Eventos — o COMPLEMENTO da aba "DRE Bar": mostra só a economia do show.
@@ -18,6 +19,14 @@ type EvRow = {
 };
 
 type DrillArg = { categoria_macro: string; canon: string; mes: number; ano: number; label: string };
+type OutraReceita = { id: string; competencia: string; descricao: string | null; valor: number; imposto: number };
+
+// Parse pt-BR/en: "36.000,00" | "36000,00" | "36000" | "36000.00"
+const parseNum = (s: string) => {
+  const t = String(s).replace(/[R$\s]/g, '').trim();
+  if (!t) return NaN;
+  return t.includes(',') ? parseFloat(t.replace(/\./g, '').replace(',', '.')) : parseFloat(t);
+};
 
 const MES_LABEL = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const GRUPOS = [
@@ -39,9 +48,50 @@ export function DreEventosTab({ barId, anoInicial, onDrill }: {
   const anoSistema = new Date().getFullYear();
   const [ano, setAno] = useState<number>(anoInicial ?? anoSistema);
 
-  const { data, isLoading } = useApiSWR<{ linhas?: EvRow[] }>(
+  const { data, isLoading, mutate } = useApiSWR<{ linhas?: EvRow[] }>(
     barId ? `/api/estrategico/orcamentacao/dre-excel?bar_id=${barId}&ano=${ano}&modo=eventos` : null,
   );
+
+  // Outras receitas sem CMV (patrocínio/festival) lançadas à mão — gerenciadas no painel.
+  const { data: outrasData, mutate: mutateOutras } = useApiSWR<{ outras_receitas?: OutraReceita[] }>(
+    barId ? `/api/financeiro/dre/eventos-outras-receitas?bar_id=${barId}&ano=${ano}` : null,
+  );
+  const outras = outrasData?.outras_receitas || [];
+
+  const [showPanel, setShowPanel] = useState(false);
+  const [fMes, setFMes] = useState<number>(new Date().getMonth() + 1);
+  const [fDesc, setFDesc] = useState('');
+  const [fValor, setFValor] = useState('');
+  const [fImposto, setFImposto] = useState('');
+  const [saving, setSaving] = useState(false);
+  const valorOk = Number.isFinite(parseNum(fValor)) && parseNum(fValor) > 0;
+
+  const adicionar = async () => {
+    if (!valorOk || saving) return;
+    const imposto = fImposto.trim() ? parseNum(fImposto) : 0;
+    setSaving(true);
+    try {
+      await api.post('/api/financeiro/dre/eventos-outras-receitas', {
+        bar_id: barId, ano, mes: fMes, descricao: fDesc.trim(),
+        valor: parseNum(fValor), imposto: Number.isFinite(imposto) ? imposto : 0,
+      });
+      setFDesc(''); setFValor(''); setFImposto('');
+      await Promise.all([mutate(), mutateOutras()]);
+    } catch (e: any) {
+      alert(e?.message || 'Erro ao lançar');
+    } finally {
+      setSaving(false);
+    }
+  };
+  const excluir = async (id: string) => {
+    if (!window.confirm('Excluir esta receita da DRE Eventos?')) return;
+    try {
+      await api.delete(`/api/financeiro/dre/eventos-outras-receitas?id=${id}&bar_id=${barId}`);
+      await Promise.all([mutate(), mutateOutras()]);
+    } catch (e: any) {
+      alert(e?.message || 'Erro ao excluir');
+    }
+  };
 
   // Pivota: por grupo → categoria → valores[12]. Guarda drill_macro pra linha artística.
   const modelo = useMemo(() => {
@@ -84,11 +134,72 @@ export function DreEventosTab({ barId, anoInicial, onDrill }: {
         <div className="text-xs text-muted-foreground">
           Economia do show: entrada (couvert + ingresso + Sympla) − imposto/taxa − artístico. Complemento da DRE Bar.
         </div>
-        <select value={ano} onChange={(e) => setAno(Number(e.target.value))}
-          className="h-8 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-sm">
-          {[anoSistema, anoSistema - 1, anoSistema - 2].map((a) => <option key={a} value={a}>{a}</option>)}
-        </select>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowPanel((s) => !s)}
+            className={`h-8 rounded-md border px-2.5 text-sm inline-flex items-center gap-1.5 ${showPanel ? 'border-emerald-500 text-emerald-700 dark:text-emerald-400' : 'border-[hsl(var(--border))]'}`}>
+            <Plus className="w-3.5 h-3.5" /> Outras receitas (sem CMV)
+          </button>
+          <select value={ano} onChange={(e) => setAno(Number(e.target.value))}
+            className="h-8 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-sm">
+            {[anoSistema, anoSistema - 1, anoSistema - 2].map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
       </div>
+
+      {/* Painel: lançar receita esporádica de evento (patrocínio/festival) sem custo de produto. */}
+      {showPanel && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-3">
+          <div className="text-xs text-muted-foreground">
+            Receita de evento <b>sem custo de produto</b> (patrocínio, festival, etc.). O <b>imposto</b> é o que você pagou sobre a nota — entra como custo variável. Some na coluna do mês da DRE Eventos.
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="text-xs">
+              <span className="block text-muted-foreground mb-0.5">Mês</span>
+              <select value={fMes} onChange={(e) => setFMes(Number(e.target.value))}
+                className="h-8 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-sm">
+                {MES_LABEL.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+              </select>
+            </label>
+            <label className="text-xs flex-1 min-w-[160px]">
+              <span className="block text-muted-foreground mb-0.5">Descrição</span>
+              <input value={fDesc} onChange={(e) => setFDesc(e.target.value)} placeholder="Ex.: Patrocínio Curicaca"
+                className="h-8 w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-sm" />
+            </label>
+            <label className="text-xs">
+              <span className="block text-muted-foreground mb-0.5">Valor (R$)</span>
+              <input value={fValor} onChange={(e) => setFValor(e.target.value)} inputMode="decimal" placeholder="36.000,00"
+                className="h-8 w-32 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-sm text-right tabular-nums" />
+            </label>
+            <label className="text-xs">
+              <span className="block text-muted-foreground mb-0.5">Imposto (R$)</span>
+              <input value={fImposto} onChange={(e) => setFImposto(e.target.value)} inputMode="decimal" placeholder="0,00"
+                className="h-8 w-28 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 text-sm text-right tabular-nums" />
+            </label>
+            <button onClick={adicionar} disabled={!valorOk || saving}
+              className="h-8 rounded-md bg-emerald-600 text-white px-3 text-sm inline-flex items-center gap-1.5 disabled:opacity-50">
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} Adicionar
+            </button>
+          </div>
+
+          {outras.length > 0 && (
+            <div className="divide-y divide-[hsl(var(--border))] rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))]">
+              {outras.map((r) => (
+                <div key={r.id} className="flex items-center gap-2 px-2.5 py-1.5 text-sm">
+                  <span className="w-10 text-xs text-muted-foreground shrink-0">{MES_LABEL[mesIdx(r.competencia)] || '—'}</span>
+                  <span className="flex-1 min-w-0 truncate">{r.descricao || <span className="text-muted-foreground">sem descrição</span>}</span>
+                  <span className="tabular-nums text-right w-28 text-emerald-700 dark:text-emerald-400">{fmtBRL(Number(r.valor))}</span>
+                  <span className="tabular-nums text-right w-24 text-rose-600 dark:text-rose-400" title="Imposto informado">
+                    {Number(r.imposto) ? fmtBRL(-Number(r.imposto)) : '—'}
+                  </span>
+                  <button onClick={() => excluir(r.id)} className="text-muted-foreground hover:text-rose-600 shrink-0 p-1" title="Excluir">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {isLoading ? (
         <div className="py-16 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></div>
