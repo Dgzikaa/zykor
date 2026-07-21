@@ -14,7 +14,7 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
-const CACHE_VERSION = 2; // v2: Busca TODOS os clientes
+const CACHE_VERSION = 3; // v3: fonte silver.cliente_visitas (fallback modelo cartão)
 
 function getCached(key: string) {
   const entry = cache.get(key);
@@ -50,6 +50,7 @@ async function fetchAllData(tableName: string, columns: string, filters: any = {
     iterations++;
     
     let query = supabase
+      .schema('silver')
       .from(tableName)
       .select(columns)
       .range(from, from + limit - 1);
@@ -216,9 +217,9 @@ async function calcularCohorts(barId: number) {
     });
   }
 
-  // Buscar dados de visitas
+  // Fonte: silver.cliente_visitas (fallback modelo cartão; public.visitas sem fone desde 06/07/2026)
   const visitasData = await fetchAllData(
-    'visitas',
+    'cliente_visitas',
     'cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos',
     { eq_bar_id: barId }
   );
@@ -390,9 +391,9 @@ async function listarJornadasClientes(barId: number) {
     });
   }
 
-  // Buscar TODOS os dados de visitas
+  // Fonte: silver.cliente_visitas (fallback modelo cartão; public.visitas sem fone desde 06/07/2026)
   const visitasDataAll = await fetchAllData(
-    'visitas',
+    'cliente_visitas',
     'cliente_nome, cliente_fone, data_visita, valor_couvert, valor_pagamentos',
     { eq_bar_id: barId }
   );
