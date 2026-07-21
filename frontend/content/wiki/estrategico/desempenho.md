@@ -138,12 +138,13 @@ Algumas linhas variam conforme o bar. No **Deboche (bar_id=4)**, por exemplo, "C
 | % Drinks | Fatia de drinks (por valor) | % por valor da categoria DRINK; inclui Yuzer nos dias de evento | ContaHub + Yuzer |
 | % Comida | Fatia de comida (por valor) | % por valor da categoria COMIDA; inclui Yuzer nos dias de evento | ContaHub + Yuzer |
 | Qtd Bebidas / Drinks / Comida | Itens vendidos por categoria | Contagem de itens vendidos (BEBIDA/DRINK/COMIDA), ContaHub + Yuzer nos dias de evento | ContaHub + Yuzer |
-| Tempo Drinks | Tempo médio de saída de drinks | Média do intervalo `t0_t3` (em segundos, convertido para minutos; outliers ≥ 9999 viram "-") | `bronze_contahub_producao_tempo` |
-| Tempo Comida | Tempo médio de saída da cozinha | Média do intervalo `t0_t2` (segundos → minutos; outliers filtrados) | `bronze_contahub_producao_tempo` |
-| Atrasinho Drinks | Nº de drinks levemente atrasados | Itens com `t0_t3` > 5 min (tem % e detalhe por dia) | `bronze_contahub_producao_tempo` |
-| Atrasinho Comida | Nº de comidas levemente atrasadas | Itens com `t0_t2` > 15 min | `bronze_contahub_producao_tempo` |
-| Atrasão Drinks | Nº de drinks muito atrasados | Itens com `t0_t3` > 10 min | `bronze_contahub_producao_tempo` |
-| Atrasão Comida | Nº de comidas muito atrasadas | Itens com `t0_t2` > 20 min | `bronze_contahub_producao_tempo` |
+| Tempo Drinks | Tempo médio de saída de drinks | Média do tempo de saída (pedido → entrega) **só de pedidos entre 1s e 3.600s** — pedidos acima de 1h (comanda esquecida aberta) são descartados. Segundos → minutos | `silver.tempos_producao` |
+| Tempo Comida | Tempo médio de saída da cozinha | Média do tempo de cozinha, mesmo corte de 1s a 3.600s. O marco depende do bar: Ordinário usa `t0_t2` (pedido → pronto); Deboche usa `t0_t2` até mar/2026 e `t0_t3` (pedido → entrega) a partir da virada de processo | `silver.tempos_producao` |
+| Atrasinho Drinks | Nº de drinks levemente atrasados | Drinks entre **5 e 10 min** (300–600s). Tem % e detalhe por dia | `silver.tempos_producao` |
+| Atrasinho Comida | Nº de comidas levemente atrasadas | Comidas entre **15 e 20 min** (900–1200s) | `silver.tempos_producao` |
+| Atrasão Drinks | Nº de drinks muito atrasados | Drinks **acima de 10 min e até 1h** (600–3.600s). Acima de 1h é outlier e **não** conta como atraso | `silver.tempos_producao` |
+| Atrasão Comida | Nº de comidas muito atrasadas | Comidas **acima de 20 min e até 1h** (1200–3.600s). Acima de 1h não conta como atraso | `silver.tempos_producao` |
+| % Atraso Drinks / Comida | Fração de pedidos atrasados | Atrasão ÷ total de pedidos válidos. **Numerador e denominador excluem os >1h** (ambos na faixa 1–3.600s), então o outlier não infla o percentual | `silver.tempos_producao` |
 
 ### Vendas
 
@@ -189,7 +190,8 @@ Algumas linhas variam conforme o bar. No **Deboche (bar_id=4)**, por exemplo, "C
 - **Freshness monitorado:** o sync diário de marketing é vigiado pelo watchdog de saúde do pipeline (`system.data_freshness_config` → tela Saúde do Pipeline). Se o cron parar de atualizar a `meta.marketing_semanal` além do SLA (36h), o pipeline acende alerta em vez de falhar silenciosamente.
 - **CMV Teórico ao vivo:** para não ficar defasado, o CMV teórico prioriza o valor manual da tela CMV; na falta, calcula ao vivo Σcusto/Σfaturamento do período a partir de `gold.cmv_teorico_dia`. Valores 0 ou negativos são tratados como "não informado".
 - **Fat. Bar sem couvert:** como o `real_r` do ContaHub já inclui o couvert, a tela subtrai o couvert para mostrar apenas produtos vendidos no bar.
-- **Tempos em minutos, outliers descartados:** os tempos de cozinha/bar vêm em segundos e são convertidos para minutos; valores "grudados" em 9999 (outliers/erros) aparecem como "-".
+- **Tempos e atrasos com corte de 1h:** os tempos de cozinha/bar vêm em segundos e são convertidos para minutos. Só entram pedidos entre **1s e 3.600s (1 hora)** — pedidos acima de 1h (comanda esquecida aberta por horas) são **descartados da média, da contagem de atraso e do total**. Assim o outlier não distorce nem o tempo médio nem o % de atraso. Esse corte é **idêntico** nas visões Semanal, Mensal e por evento (padronizado em jul/2026).
+- **Deboche mudou o marco em mar/2026:** até então a cozinha/bar do Deboche eram medidos por `t0_t2` (pedido → pronto); a partir da virada de processo passaram a `t0_t3` (pedido → entrega). As três visões respeitam essa data de corte, então o histórico do Deboche bate entre elas.
 - **Mix com Yuzer:** nos dias de evento processados no Yuzer (ex.: jogos, festas), o mix e as quantidades usam o Yuzer no lugar do ContaHub; em períodos sem Yuzer o resultado é idêntico ao ContaHub.
 - **Reservas dependem da integração:** com API GetIn ativa são automáticas; sem API, são manuais (o Deboche, por padrão, usa manual até integrar).
 - **Metas por semana (visão semanal):** a meta é vinculada à semana selecionada, com herança da última meta definida quando a semana não tem meta própria.
@@ -226,7 +228,7 @@ A tela mostra apenas até a semana/mês em andamento — colunas futuras (vazias
 - **`bronze_contahub_financeiro_pagamentosrecebidos`** — Conta Assinada.
 - **`bronze_contahub_avendas_vendasperiodo`** — Descontos.
 - **`bronze_contahub_vendas_cancelamentos`** — Cancelamentos.
-- **`bronze_contahub_producao_tempo`** — tempos de preparo e atrasos (cozinha e bar).
+- **`silver.tempos_producao`** — tempos de preparo e atrasos (cozinha e bar), com os marcos t0/t1/t2/t3 e o corte de outlier de 1h.
 - **`bronze_contahub_operacional_fatporhora`** e **`bronze_contahub_vendas_analitico`** — faturamento por hora e Happy Hour.
 - **ContaHub Stockout** — rupturas de estoque por área.
 - **RPC `get_mix_por_semana` / `get_mix_por_mes`** — Mix de vendas (ContaHub + Yuzer).
