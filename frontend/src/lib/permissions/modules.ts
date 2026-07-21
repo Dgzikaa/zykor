@@ -154,9 +154,16 @@ function buildSectionFallbackModules(categoria: string): string[] {
     // Receitas absorveu Analítico + Marketing: inclui os generics dos dois (relatorios,
     // analitico, gestao) pra quem tinha qualquer um deles continuar acessando.
     receitas: ['receitas', 'relatorios', 'analitico', 'gestao', 'dashboard', 'home'],
-    ferramentas: ['ferramentas', 'operacoes', 'dashboard', 'home'],
+    // 'gestao' incluído: os itens de Ferramentas eram gateados por 'gestao' antes de virarem
+    // granulares — mantém quem só tinha 'gestao' abrindo as páginas (espelha o fallback do menu).
+    ferramentas: ['ferramentas', 'operacoes', 'gestao', 'dashboard', 'home'],
     marketing: ['gestao', 'home'],
     operacional: ['gestao', 'operacoes', 'home'],
+    // Produção-CMV granular: a rota aceita o módulo próprio (herdado pelo item) + 'gestao'
+    // como fallback, pra quem tem 'gestao' abrir a página igual vê no menu. Não é generic
+    // no resolver (só amplia a lista aceita da rota) — sem vazamento reverso.
+    'produção - cmv': ['gestao', 'home'],
+    'producao - cmv': ['gestao', 'home'],
     financeiro: ['financeiro_agendamento', 'home'],
     'relatórios financeiros': ['financeiro_relatorios'],
     'relatorios financeiros': ['financeiro_relatorios'],

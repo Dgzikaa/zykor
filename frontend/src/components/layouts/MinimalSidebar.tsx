@@ -303,7 +303,12 @@ export function MinimalSidebar() {
     const matchPermission = (permission?: string) => {
       if (!permission) return true;
       if (hasPermission('todos')) return true;
-      const permissions = PERMISSION_MAPPINGS[permission] || [permission];
+      // Módulos granulares de Produção-CMV e Ferramentas: essas categorias NÃO têm 'gestao'
+      // nos generics do resolver, então no MENU quem tem 'gestao' continua vendo (retrocompat).
+      // Fallback só aqui — o resolver não ganha generic (evita vazamento reverso de 'gestao'
+      // pra outras áreas). Quem tem só o módulo próprio vê só o dele.
+      const permissions = PERMISSION_MAPPINGS[permission]
+        || (/^(producao - cmv_|ferramentas_)/.test(permission) ? [permission, 'gestao'] : [permission]);
       return permissions.some(p => hasPermission(p));
     };
 

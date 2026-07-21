@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { generateToken, generateRefreshToken } from '@/lib/auth/jwt';
+import { resolveEffectiveModulos } from '@/lib/auth/effective-modulos';
 import type { AuthenticatedUser } from '@/lib/auth/types';
 import crypto from 'crypto';
 import { withRateLimit, RATE_LIMIT_PRESETS } from '@/lib/rate-limiter-middleware';
@@ -169,15 +170,13 @@ async function handleLogin(request: NextRequest) {
       .in('id', barIds)
       .eq('ativo', true);
 
-    // Normalizar modulos_permitidos como array
-    let modulosPermitidos: string[] = [];
-    if (Array.isArray(usuarioPrincipal.modulos_permitidos)) {
-      modulosPermitidos = usuarioPrincipal.modulos_permitidos;
-    } else if (typeof usuarioPrincipal.modulos_permitidos === 'object' && usuarioPrincipal.modulos_permitidos) {
-      modulosPermitidos = Object.keys(usuarioPrincipal.modulos_permitidos).filter(
-        k => usuarioPrincipal.modulos_permitidos[k]
-      );
-    }
+    // Módulos EFETIVOS = do PERFIL (fonte da verdade) quando houver perfil_id e não for admin.
+    // Admin/'todos' e usuários sem perfil mantêm os módulos próprios. Ver resolveEffectiveModulos.
+    const modulosPermitidos: string[] = await resolveEffectiveModulos({
+      role: usuarioPrincipal.role,
+      perfil_id: usuarioPrincipal.perfil_id,
+      modulos_permitidos: usuarioPrincipal.modulos_permitidos,
+    });
 
     // Criar array de bares com permissões
     const baresComNome = barsData?.map((bar: { id: number; nome: string }) => ({

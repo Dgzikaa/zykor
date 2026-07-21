@@ -79,7 +79,11 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
     if (!permissionKey) return true; // Se não tem permissão definida, permite
     if (hasPermission('todos')) return true;
     
-    const mappedPermissions = PERMISSION_MAPPINGS[permissionKey] || [permissionKey];
+    // Módulos granulares de Produção-CMV e Ferramentas: essas categorias não têm 'gestao'
+    // nos generics do resolver, então no MENU quem tem 'gestao' continua vendo (retrocompat).
+    // Fallback só aqui — não vira generic no resolver (sem vazamento).
+    const mappedPermissions = PERMISSION_MAPPINGS[permissionKey]
+      || (/^(producao - cmv_|ferramentas_)/.test(permissionKey) ? [permissionKey, 'gestao'] : [permissionKey]);
     return mappedPermissions.some(perm => hasPermission(perm));
   };
 

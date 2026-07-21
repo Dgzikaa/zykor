@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateRefreshToken, generateToken } from '@/lib/auth/jwt';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { resolveEffectiveModulos } from '@/lib/auth/effective-modulos';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,15 +48,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Normalizar modulos_permitidos
-    let modulosPermitidos: string[] = [];
-    if (Array.isArray(usuario.modulos_permitidos)) {
-      modulosPermitidos = usuario.modulos_permitidos;
-    } else if (typeof usuario.modulos_permitidos === 'object' && usuario.modulos_permitidos) {
-      modulosPermitidos = Object.keys(usuario.modulos_permitidos).filter(
-        k => usuario.modulos_permitidos[k]
-      );
-    }
+    // Módulos EFETIVOS = do PERFIL (fonte da verdade) quando houver perfil_id e não for admin.
+    // Mesmo critério do login — senão um refresh reverteria pro cru do usuário.
+    const modulosPermitidos: string[] = await resolveEffectiveModulos({
+      role: usuario.role,
+      perfil_id: usuario.perfil_id,
+      modulos_permitidos: usuario.modulos_permitidos,
+    });
 
     // Gerar novo token JWT
     const newToken = generateToken({

@@ -291,8 +291,14 @@ export async function GET(request: NextRequest) {
     for (const it of itens) {
       if (!it.is_producao) continue;
       const pb = pbMap.get(String(it.insumo_codigo).toUpperCase());
-      // seção da produção (Comida/Drinks) — respeita o cadastro (producao_base.secao); fallback no prefixo (pd=Bar/Drinks)
-      const sec = pb?.secao || (String(it.insumo_codigo).toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha');
+      // seção da produção (Comida/Drinks): respeita producao_base.secao SÓ quando é canônico
+      // ('Bar'/'Cozinha'). No Deboche a coluna está preenchida com rótulos de estágio
+      // (N/S/Pré-Batch/Cozinha Fin), então aí deriva do código (pd=Bar/Drinks), igual à tela de
+      // Produção (secaoDeCodigo). Sem isso os drinks (pd*, secao='S') caíam errado em Comida.
+      const secRaw = String(pb?.secao || '').trim();
+      const sec = (secRaw === 'Bar' || secRaw === 'Cozinha')
+        ? secRaw
+        : (String(it.insumo_codigo).toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha');
       it.secao_prod = sec === 'Bar' ? 'Drinks' : 'Comida';
       const rend = Number(pb?.rendimento || 0); const fator = Number(pb?.fator_contagem || 1) || 1;
       it.rend_contagem = rend > 0 ? rend / fator : null; // unidades de contagem por fornada
