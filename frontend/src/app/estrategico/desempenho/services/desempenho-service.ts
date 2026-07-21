@@ -647,6 +647,18 @@ export async function getSemanas(
       atrasos_cozinha_perc: toNum((s as any).atrasos_comida_perc) ?? toNum(s.atrasos_cozinha_perc) ?? s.atrasos_cozinha_perc,
       atraso_cozinha: toNum(s.atraso_cozinha) ?? s.atraso_cozinha,
       quebra_reservas: quebraReservas,
+      // NPS unificado = Digital + Salão combinados. Média ponderada por respostas é
+      // matematicamente igual ao NPS real da união (promotores/detratores somados).
+      ...(() => {
+        const rd = Number((s as any).nps_digital_respostas) || 0;
+        const rs = Number((s as any).nps_salao_respostas) || 0;
+        const rt = rd + rs;
+        const d = Number((s as any).nps_digital); const sa = Number((s as any).nps_salao);
+        const nps = rt > 0
+          ? Math.round((((Number.isFinite(d) ? d : 0) * rd + (Number.isFinite(sa) ? sa : 0) * rs) / rt) * 10) / 10
+          : (Number.isFinite(d) ? d : (Number.isFinite(sa) ? sa : null));
+        return { nps, nps_ds_respostas: rt };
+      })(),
       conta_assinada_valor: contaAssinadaValor,
       conta_assinada_perc: contaAssinadaPerc,
       descontos_valor: descontosValor,

@@ -197,8 +197,7 @@ return [
         id: 'nps',
         label: 'NPS',
         metricas: [
-          { key: 'nps_digital', label: 'NPS Digital', status: 'auto', fonte: 'Falaê (pesquisa = NPS Digital)', calculo: '% Promotores - % Detratores (link randômico pós-visita)', formato: 'numero', temTooltipDetalhes: true, respostasKey: 'nps_digital_respostas' },
-          { key: 'nps_salao', label: 'NPS Salão', status: 'auto', fonte: 'Falaê (pesquisa = Salão)', calculo: '% Promotores - % Detratores (pesquisa presencial no salão)', formato: 'numero', temTooltipDetalhes: true, respostasKey: 'nps_salao_respostas' },
+          { key: 'nps', label: 'NPS', status: 'auto', fonte: 'Falaê (Digital + Salão unificados)', calculo: '% Promotores - % Detratores — respostas do digital e do salão somadas (ponderado por respostas)', formato: 'numero', temTooltipDetalhes: true, respostasKey: 'nps_ds_respostas' },
           { key: 'nps_reservas', label: 'NPS Reservas', status: 'manual', fonte: 'GetIn (aguardando API)', calculo: '% Promotores - % Detratores (avaliação sobre reservas)', formato: 'numero', editavel: true },
           { key: 'nota_felicidade_equipe', label: 'NPS Felicidade', status: 'manual', fonte: 'Planilha Equipe (Andreia)', calculo: 'Pesquisa de felicidade da equipe', formato: 'numero', editavel: true },
         ]
@@ -1203,9 +1202,10 @@ export function DesempenhoClient({
     }
   }, [effectiveBarId]);
 
-  const abrirDetalhesNps = useCallback(async (semana: DadosSemana, searchName: string, titulo: string) => {
+  const abrirDetalhesNps = useCallback(async (semana: DadosSemana, searchName: string | string[], titulo: string) => {
     const periodo = `${formatarDataCurta(semana.data_inicio)} - ${formatarDataCurta(semana.data_fim)}`;
-    
+    const searchNameStr = Array.isArray(searchName) ? searchName.join(',') : searchName;
+
     setNpsDialog(prev => ({
       ...prev,
       aberto: true,
@@ -1214,7 +1214,7 @@ export function DesempenhoClient({
       periodo,
       dataInicio: semana.data_inicio,
       dataFim: semana.data_fim,
-      searchName,
+      searchName: searchNameStr,
     }));
     setFiltroNps('todos');
     setFiltroDiaNps(null);
@@ -1222,8 +1222,11 @@ export function DesempenhoClient({
     setRespostaExpandidaNps(new Set());
 
     try {
+      const nameParam = Array.isArray(searchName)
+        ? `search_names=${encodeURIComponent(searchName.join(','))}`
+        : `search_name=${encodeURIComponent(searchName)}`;
       const response = await fetch(
-        `/api/falae/detailed-summary?bar_id=${effectiveBarId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}&search_name=${encodeURIComponent(searchName)}`
+        `/api/falae/detailed-summary?bar_id=${effectiveBarId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}&${nameParam}`
       );
       const data = await response.json();
       
@@ -2273,15 +2276,16 @@ export function DesempenhoClient({
                                                 >
                                                   {valorFormatado}
                                                 </button>
-                                              ) : (metrica.key === 'nps_digital' || metrica.key === 'nps_salao') && semana.data_inicio && semana.data_fim && valor !== null && valor !== undefined ? (
+                                              ) : metrica.key === 'nps' && semana.data_inicio && semana.data_fim && valor !== null && valor !== undefined ? (
                                                 <button
                                                   type="button"
                                                   onClick={() => abrirDetalhesNps(
                                                     semana,
-                                                    // search_name real no bronze é 'NPS' (não 'NPS Digital') —
-                                                    // mesmo filtro do ETL (ver fix-nps-digital-search-name).
-                                                    metrica.key === 'nps_digital' ? 'NPS' : 'Salão',
-                                                    metrica.label
+                                                    // NPS unificado = pesquisas de NPS: digital atual ('NPS'),
+                                                    // legado ('NPS Digital') e presencial ('Salão'). Exclui
+                                                    // Fidelidade/Aniversário (não são NPS).
+                                                    ['NPS', 'NPS Digital', 'Salão'],
+                                                    'NPS (Digital + Salão)'
                                                   )}
                                                   className={cn(
                                                     "text-xs text-center underline decoration-dotted hover:opacity-80 transition-opacity",

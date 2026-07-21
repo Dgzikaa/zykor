@@ -266,6 +266,16 @@ export async function getMeses(
       nps_salao_respostas: toNum(g.nps_salao_respostas) ?? manual.nps_salao_respostas ?? 0,
       nps_reservas: toNum(g.nps_reservas) ?? manual.nps_reservas ?? 0,
       nps_reservas_respostas: toNum(g.nps_reservas_respostas) ?? manual.nps_reservas_respostas ?? 0,
+      // NPS unificado = Digital + Salão (ponderado por respostas = NPS real da união).
+      ...(() => {
+        const rd = toNum(g.nps_digital_respostas) ?? manual.nps_digital_respostas ?? 0;
+        const rs = toNum(g.nps_salao_respostas) ?? manual.nps_salao_respostas ?? 0;
+        const rt = rd + rs;
+        const d = toNum(g.nps_digital) ?? manual.nps_digital ?? 0;
+        const sa = toNum(g.nps_salao) ?? manual.nps_salao ?? 0;
+        const nps = rt > 0 ? Math.round(((d * rd + sa * rs) / rt) * 10) / 10 : null;
+        return { nps, nps_ds_respostas: rt };
+      })(),
       nota_felicidade_equipe: g.nota_felicidade_equipe ?? manual.nota_felicidade_equipe ?? null,
 
       // Tempos: gold em SEGUNDOS -> front em MINUTOS. Filtra clamp 9999 (outliers).

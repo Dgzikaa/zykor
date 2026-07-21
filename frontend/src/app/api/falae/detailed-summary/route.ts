@@ -47,6 +47,11 @@ export async function GET(request: NextRequest) {
     const dataInicio = searchParams.get('data_inicio');
     const dataFim = searchParams.get('data_fim');
     const searchName = searchParams.get('search_name') || null;
+    // NPS unificado: aceita várias pesquisas de uma vez (ex.: 'NPS,NPS Digital,Salão').
+    const searchNamesRaw = searchParams.get('search_names') || null;
+    const searchNames = searchNamesRaw
+      ? searchNamesRaw.split(',').map((s) => s.trim()).filter(Boolean)
+      : null;
 
     if (!barId || Number.isNaN(barId)) {
       return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
@@ -77,7 +82,8 @@ export async function GET(request: NextRequest) {
           .gte('created_at', `${iniSp}T03:00:00Z`)
           .lt('created_at', `${fimExclusivoSp}T03:00:00Z`)
           .order('created_at', { ascending: false });
-        if (searchName) query = query.eq('search_name', searchName);
+        if (searchNames && searchNames.length) query = query.in('search_name', searchNames);
+        else if (searchName) query = query.eq('search_name', searchName);
         return query;
       },
       { label: 'falae/detailed-summary' },
@@ -154,7 +160,7 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.total - a.total);
 
     const summary: NpsDetailedSummary = {
-      searchName: searchName || 'Todas',
+      searchName: (searchNames && searchNames.length) ? searchNames.join(' + ') : (searchName || 'Todas'),
       total,
       npsScore,
       promotores,

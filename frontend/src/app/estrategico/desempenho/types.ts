@@ -39,6 +39,9 @@ export interface DadosSemana {
   media_avaliacoes_google: number;
   nps_geral: number;
   nps_reservas: number;
+  // NPS unificado = Digital + Salão combinados (média ponderada por respostas = NPS real da união).
+  nps?: number | null;
+  nps_ds_respostas?: number;
   nps_digital?: number | null;
   nps_salao?: number | null;
   nps_digital_respostas?: number;
