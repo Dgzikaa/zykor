@@ -9,12 +9,12 @@ import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Play, Pause, RotateCcw, Save, Search, Plus, Trash2, User,
-  Loader2, History, Clock, X, AlertTriangle, CalendarCheck, CheckCircle2,
+  RotateCcw, Save, Search, Plus, Trash2, User,
+  Loader2, History, X, AlertTriangle, CalendarCheck, CheckCircle2,
   ListChecks, Users, UtensilsCrossed,
 } from 'lucide-react';
 import {
-  addDiasIso, fmtDM, fmtBRL, fmtPeso, fmtTempo, getDeviceId, pf,
+  addDiasIso, fmtDM, fmtBRL, fmtPeso, getDeviceId, pf,
 } from './_shared';
 
 const TIPOS_REFEICAO = [
@@ -81,7 +81,6 @@ export function AbaAlimentacao({ responsaveis, podeExcluir }: { responsaveis: an
   const [salvando, setSalvando] = useState(false);
   const [busca, setBusca] = useState('');
   const [picker, setPicker] = useState(false);
-  const [nowTick, setNowTick] = useState(() => Date.now());
   const [saveInfo, setSaveInfo] = useState<{ status: 'salvando' | 'salvo' | 'offline'; at: number } | null>(null);
   const [confirmarDescartar, setConfirmarDescartar] = useState(false);
   const [resumivel, setResumivel] = useState<any | null>(null); // refeição em andamento de outro aparelho
@@ -91,13 +90,6 @@ export function AbaAlimentacao({ responsaveis, podeExcluir }: { responsaveis: an
 
   const elapsedOf = (s: { segundos: number; rodando: boolean; rodandoDesde?: number | null } | null, now = Date.now()) =>
     s ? Math.max(0, Math.round((Number(s.segundos) || 0) + (s.rodando && s.rodandoDesde ? (now - s.rodandoDesde) / 1000 : 0))) : 0;
-
-  // tick de 1s só enquanto rodando → cronômetro "anda" sem acumular drift
-  useEffect(() => {
-    if (!sessao?.rodando) return;
-    const t = setInterval(() => setNowTick(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [sessao?.rodando]);
 
   const patch = (p: Partial<NonNullable<typeof sessao>>) => setSessao(s => s ? { ...s, ...p } : s);
 
@@ -223,11 +215,6 @@ export function AbaAlimentacao({ responsaveis, podeExcluir }: { responsaveis: an
     });
     setBusca(''); setPicker(false);
   };
-  // liga o cronômetro (exige responsável — igual à execução de produção)
-  const iniciarTimer = () => {
-    if (!sessao?.responsavelId) { toast({ title: 'Selecione o responsável antes de iniciar', variant: 'destructive' }); return; }
-    patch({ rodando: true, rodandoDesde: Date.now() });
-  };
 
   const addInsumo = (c: { codigo: string; nome: string; base: string | null; precoUn: number }) => {
     setSessao(s => {
@@ -292,10 +279,8 @@ export function AbaAlimentacao({ responsaveis, podeExcluir }: { responsaveis: an
     if (!sessao.responsavelId) { toast({ title: 'Selecione o responsável', variant: 'destructive' }); return; }
     const comQtd = sessao.itens.filter(i => (pf(i.qtd) || 0) > 0);
     if (!comQtd.length) { toast({ title: 'Adicione insumos com quantidade', variant: 'destructive' }); return; }
-    // ancora início ao tempo decorrido no cronômetro (âncora de relógio, igual à execução)
-    const seg = elapsedOf(sessao);
-    const fim = new Date();
-    const inicio = new Date(fim.getTime() - seg * 1000);
+    // sem cronômetro nesta aba: registro é instantâneo (as meninas só marcam os insumos).
+    const agora = new Date();
     const respNome = responsaveis.find(r => r.id === sessao.responsavelId)?.nome ?? null;
     const linhas = comQtd.map(i => {
       const ent = entradaInsumo(i.base);
@@ -316,9 +301,9 @@ export function AbaAlimentacao({ responsaveis, podeExcluir }: { responsaveis: an
         data_refeicao: sessao.data,
         tipo: sessao.tipo,
         num_pessoas: sessao.numPessoas || null,
-        inicio: inicio.toISOString(),
-        fim: fim.toISOString(),
-        duracao_seg: seg,
+        inicio: agora.toISOString(),
+        fim: agora.toISOString(),
+        duracao_seg: 0,
         observacao: sessao.observacao.trim() || null,
         insumos: linhas,
       });
@@ -368,26 +353,14 @@ export function AbaAlimentacao({ responsaveis, podeExcluir }: { responsaveis: an
       )}
 
       {/* Painel inline de montagem da refeição (na página, não é modal) */}
-      {sessao && (() => {
-        const iniciada = sessao.rodando || elapsedOf(sessao, nowTick) > 0;
-        return (
+      {sessao && (
         <Card className="card-dark border-amber-200 dark:border-amber-900/40">
           <CardContent className="py-3 space-y-4">
-            {/* Cabeçalho + timer */}
+            {/* Cabeçalho */}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <UtensilsCrossed className="w-5 h-5 text-amber-600 dark:text-amber-400" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Registrar refeição da equipe</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="px-4 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-center min-w-[110px]">
-                  <div className="text-[10px] text-blue-600/80 dark:text-blue-300/80 uppercase tracking-wide flex items-center justify-center gap-1"><Clock className="w-3 h-3" />Tempo</div>
-                  <div className="text-2xl font-mono font-bold text-blue-700 dark:text-blue-300 leading-tight">{fmtTempo(elapsedOf(sessao, nowTick))}</div>
-                </div>
-                {!sessao.rodando
-                  ? <Button size="sm" onClick={iniciarTimer} className="bg-green-600 hover:bg-green-700"><Play className="w-4 h-4 mr-1" />{elapsedOf(sessao, nowTick) > 0 ? 'Continuar' : 'Iniciar'}</Button>
-                  : <Button size="sm" onClick={() => patch({ rodando: false, segundos: elapsedOf(sessao), rodandoDesde: null })} variant="outline"><Pause className="w-4 h-4 mr-1" />Pausar</Button>}
-                <Button size="sm" variant="ghost" onClick={() => patch({ rodando: false, segundos: 0, rodandoDesde: null })} title="Zerar tempo"><RotateCcw className="w-4 h-4" /></Button>
               </div>
             </div>
 
@@ -397,8 +370,6 @@ export function AbaAlimentacao({ responsaveis, podeExcluir }: { responsaveis: an
                 {saveInfo.status === 'salvando' ? 'Salvando…' : saveInfo.status === 'salvo' ? 'Progresso salvo no servidor — pode recarregar sem perder' : 'Sem conexão — salvo só neste aparelho por enquanto'}
               </div>
             )}
-
-            {!iniciada && <div className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1"><Play className="w-3 h-3" />Preencha o responsável e os insumos; clique <b>Iniciar</b> quando começar a fazer a refeição de fato.</div>}
 
             {/* Responsável, data, tipo, pessoas */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -505,8 +476,7 @@ export function AbaAlimentacao({ responsaveis, podeExcluir }: { responsaveis: an
             </div>
           </CardContent>
         </Card>
-        );
-      })()}
+      )}
 
       {/* Histórico das refeições */}
       <Card className="card-dark">
@@ -525,14 +495,13 @@ export function AbaAlimentacao({ responsaveis, podeExcluir }: { responsaveis: an
                 <th className="text-left font-medium px-2 py-1.5">Refeição</th>
                 <th className="text-left font-medium px-2 py-1.5">Responsável</th>
                 <th className="text-right font-medium px-2 py-1.5">Pessoas</th>
-                <th className="text-right font-medium px-2 py-1.5">Tempo</th>
                 <th className="text-right font-medium px-2 py-1.5">Custo</th>
                 <th className="text-right font-medium px-2 py-1.5">Custo/pessoa</th>
                 <th className="px-2 py-1.5"></th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {loadingHist ? <tr><td colSpan={8} className="px-2 py-6 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-                : refeicoes.length === 0 ? <tr><td colSpan={8} className="px-2 py-8 text-center text-gray-400">Nenhuma refeição registrada no período.</td></tr>
+                {loadingHist ? <tr><td colSpan={7} className="px-2 py-6 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+                : refeicoes.length === 0 ? <tr><td colSpan={7} className="px-2 py-8 text-center text-gray-400">Nenhuma refeição registrada no período.</td></tr>
                 : refeicoes.map((ref: any) => {
                   const cpp = ref.num_pessoas > 0 && ref.custo_total != null ? Number(ref.custo_total) / Number(ref.num_pessoas) : null;
                   return (
@@ -541,7 +510,6 @@ export function AbaAlimentacao({ responsaveis, podeExcluir }: { responsaveis: an
                       <td className="px-2 py-1.5"><Badge variant="outline" className="text-[11px]">{tipoLabel(ref.tipo)}</Badge></td>
                       <td className="px-2 py-1.5 text-gray-700 dark:text-gray-300">{ref.responsavel_nome || '—'}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-gray-600">{ref.num_pessoas || '—'}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-blue-600 dark:text-blue-400">{ref.duracao_seg != null ? fmtTempo(ref.duracao_seg) : '—'}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtBRL(ref.custo_total)}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{cpp != null ? fmtBRL(cpp) : '—'}</td>
                       <td className="px-2 py-1.5 text-right whitespace-nowrap">
@@ -600,7 +568,7 @@ export function AbaAlimentacao({ responsaveis, podeExcluir }: { responsaveis: an
               <AlertTriangle className="w-5 h-5" />
               <h4 className="font-semibold">Descartar refeição?</h4>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Isso apaga a refeição e tudo que você já lançou (tempo, insumos, anotações). Não dá pra desfazer.</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300">Isso apaga a refeição e tudo que você já lançou (insumos, anotações). Não dá pra desfazer.</p>
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setConfirmarDescartar(false)}>Voltar</Button>
               <Button onClick={descartarRefeicao} className="bg-red-600 hover:bg-red-700">Sim, descartar</Button>
