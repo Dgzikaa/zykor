@@ -68,7 +68,10 @@ export function MinimalLayout({ children }: MinimalLayoutProps) {
             <div className="flex-1 flex flex-col overflow-hidden p-2">
               <div className="flex-1 flex flex-col overflow-hidden bg-[hsl(var(--background))] rounded-lg shadow-sm border border-[hsl(var(--border))]">
                 <MinimalHeader />
-                <main className="flex-1 overflow-y-auto">
+                {/* pb no mobile/tablet: o BottomNavigation é fixed e cobria o rodapé do
+                    conteúdo (ex.: botão "Iniciar produção" no iPad ficava atrás do menu).
+                    Em lg+ (sidebar, sem menu de baixo) o padding zera. */}
+                <main className="flex-1 overflow-y-auto pb-24 lg:pb-0">
                   <ErrorBoundary>
                     {children}
                   </ErrorBoundary>
