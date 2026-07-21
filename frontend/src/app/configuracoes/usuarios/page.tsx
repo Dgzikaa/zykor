@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Users, 
@@ -19,7 +18,6 @@ import {
   CheckCircle, 
   XCircle, 
   Search,
-  Filter,
   Key,
   Phone,
   Calendar,
@@ -67,12 +65,6 @@ interface Modulo {
   categoria: string;
 }
 
-const ROLES_OPCOES = [
-  { value: 'admin', label: 'Administrador' },
-  { value: 'funcionario', label: 'Funcionário' },
-  { value: 'financeiro', label: 'Financeiro' },
-];
-
 // Permissão granular por módulo (CRUD). Ver é a base; editar/inserir/excluir implicam ver.
 const ACOES = ['ver', 'editar', 'inserir', 'excluir'] as const;
 type Acao = typeof ACOES[number];
@@ -109,7 +101,6 @@ function UsuariosPage() {
   const [bares, setBares] = useState<{id: number, nome: string}[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [roleFilter, setRoleFilter] = useState('todos');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<Usuario | null>(null);
   const [isAdminUser, setIsAdminUser] = useState(false); // Checkbox de admin
@@ -589,26 +580,14 @@ function UsuariosPage() {
       const matchesSearch = !q
         || usuario.nome.toLowerCase().includes(q)
         || usuario.email.toLowerCase().includes(q);
-      const matchesRole = roleFilter === 'todos' || usuario.role === roleFilter;
-      return matchesSearch && matchesRole;
+      return matchesSearch;
     });
-  }, [usuarios, deferredSearch, roleFilter]);
+  }, [usuarios, deferredSearch]);
 
   const baresMap = useMemo(
     () => new Map(bares.map(b => [b.id, b.nome])),
     [bares]
   );
-
-  const getRoleBadge = useCallback((role: string) => {
-    const roleConfig = ROLES_OPCOES.find(r => r.value === role);
-    return roleConfig ? (
-      <Badge variant="outline">
-        {roleConfig.label}
-      </Badge>
-    ) : (
-      <Badge variant="outline">{role}</Badge>
-    );
-  }, []);
 
   const modulosPorCategoria = useMemo(() => {
     return modulos.reduce((acc, modulo) => {
@@ -623,7 +602,6 @@ function UsuariosPage() {
   const tableColumns = useMemo(() => [
     { key: 'nome', header: 'Nome', sortable: true },
     { key: 'email', header: 'Email', sortable: true },
-    { key: 'role', header: 'Função', render: (u: Usuario) => getRoleBadge(u.role) },
     {
       key: 'perfil',
       header: 'Perfil',
@@ -719,7 +697,7 @@ function UsuariosPage() {
         </div>
       ),
     },
-  ], [baresMap, getRoleBadge, handleEdit, handleResetPassword, handleDelete, perfis]);
+  ], [baresMap, handleEdit, handleResetPassword, handleDelete, perfis]);
 
   // Mostrar loading enquanto verifica permissões
   if (permissionsLoading) {
@@ -764,20 +742,6 @@ function UsuariosPage() {
               className="pl-10"
             />
           </div>
-          <Select value={roleFilter} onValueChange={setRoleFilter}>
-            <SelectTrigger className="w-48">
-              <Filter className="w-4 h-4 mr-2" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todas as funções</SelectItem>
-              {ROLES_OPCOES.map(role => (
-                <SelectItem key={role.value} value={role.value}>
-                  {role.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
         <Button
           onClick={() => {
@@ -795,7 +759,7 @@ function UsuariosPage() {
         <div className="text-center py-12">
           <Users className="w-12 h-12 text-[hsl(var(--muted-foreground))] mx-auto mb-4" />
           <p className="text-[hsl(var(--muted-foreground))]">
-            {searchTerm || roleFilter !== 'todos' ? 'Nenhum usuário encontrado' : 'Nenhum usuário cadastrado'}
+            {searchTerm ? 'Nenhum usuário encontrado' : 'Nenhum usuário cadastrado'}
           </p>
         </div>
       ) : (
