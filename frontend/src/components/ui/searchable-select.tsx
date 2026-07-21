@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Search, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -23,6 +24,13 @@ interface SearchableSelectProps {
   className?: string;
   /** Permite limpar o valor selecionado com botão X. */
   clearable?: boolean;
+  /**
+   * Renderiza o dropdown num portal (position: fixed) em vez de absolute.
+   * Use dentro de containers com overflow (tabelas com scroll) pra não cortar a lista.
+   */
+  portal?: boolean;
+  /** Altura do trigger. Default h-10; use h-8 em tabelas densas. */
+  triggerClassName?: string;
 }
 
 function normalize(s: string): string {
@@ -43,11 +51,15 @@ export function SearchableSelect({
   disabled = false,
   className,
   clearable = false,
+  portal = false,
+  triggerClassName,
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const [highlight, setHighlight] = React.useState(0);
+  const [pos, setPos] = React.useState<{ top: number; left: number; width: number; drop: 'down' | 'up' } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
 
@@ -63,21 +75,47 @@ export function SearchableSelect({
     });
   }, [options, query]);
 
-  // Fecha ao clicar fora
+  const PANEL_MAX = 288; // ~max-h-60 + busca
+
+  const computePos = React.useCallback(() => {
+    if (!containerRef.current) return;
+    const r = containerRef.current.getBoundingClientRect();
+    const espacoAbaixo = window.innerHeight - r.bottom;
+    const drop: 'down' | 'up' = espacoAbaixo < PANEL_MAX && r.top > espacoAbaixo ? 'up' : 'down';
+    setPos({
+      top: drop === 'down' ? r.bottom + 4 : r.top - 4,
+      left: r.left,
+      width: r.width,
+      drop,
+    });
+  }, []);
+
+  // Fecha ao clicar fora (considera o painel no portal também)
   React.useEffect(() => {
     if (!open) return;
     const onMouseDown = (e: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-        setQuery('');
-      }
+      const t = e.target as Node;
+      if (containerRef.current?.contains(t)) return;
+      if (panelRef.current?.contains(t)) return;
+      setOpen(false);
+      setQuery('');
     };
     document.addEventListener('mousedown', onMouseDown);
     return () => document.removeEventListener('mousedown', onMouseDown);
   }, [open]);
+
+  // Recalcula posição do portal ao rolar/redimensionar
+  React.useEffect(() => {
+    if (!open || !portal) return;
+    computePos();
+    const onMove = () => computePos();
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, [open, portal, computePos]);
 
   // Foca o input ao abrir
   React.useEffect(() => {
@@ -104,6 +142,12 @@ export function SearchableSelect({
     setQuery('');
   };
 
+  const abrir = () => {
+    if (disabled) return;
+    if (!open && portal) computePos();
+    setOpen(o => !o);
+  };
+
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (!open) return;
     if (e.key === 'ArrowDown') {
@@ -123,17 +167,96 @@ export function SearchableSelect({
     }
   };
 
+  const painel = (
+    <div
+      ref={panelRef}
+      className={cn(
+        'rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg',
+        portal
+          ? 'fixed z-[9999]'
+          : 'absolute left-0 right-0 z-50 mt-1',
+      )}
+      style={portal && pos ? {
+        top: pos.drop === 'up' ? undefined : pos.top,
+        bottom: pos.drop === 'up' ? window.innerHeight - pos.top : undefined,
+        left: pos.left,
+        width: pos.width,
+      } : undefined}
+    >
+      <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={e => {
+              setQuery(e.target.value);
+              setHighlight(0);
+            }}
+            onKeyDown={onKeyDown}
+            placeholder={searchPlaceholder}
+            className="w-full h-8 pl-7 pr-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+      <div ref={listRef} className="max-h-60 overflow-y-auto py-1">
+        {filtered.length === 0 ? (
+          <div className="px-3 py-2 text-sm text-muted-foreground text-center">
+            {emptyMessage}
+          </div>
+        ) : (
+          filtered.map((opt, idx) => {
+            const isSelected = opt.value === value;
+            const isHighlighted = idx === highlight;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                data-idx={idx}
+                disabled={opt.disabled}
+                onMouseEnter={() => setHighlight(idx)}
+                onClick={() => !opt.disabled && escolher(opt.value)}
+                className={cn(
+                  'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left',
+                  isHighlighted && 'bg-blue-50 dark:bg-blue-900/30',
+                  isSelected && 'bg-blue-100 dark:bg-blue-900/50 font-medium',
+                  opt.disabled && 'opacity-50 cursor-not-allowed',
+                  !opt.disabled && 'hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer'
+                )}
+              >
+                <Check
+                  className={cn(
+                    'h-3.5 w-3.5 shrink-0',
+                    isSelected ? 'opacity-100 text-blue-600 dark:text-blue-400' : 'opacity-0'
+                  )}
+                />
+                <span className="truncate">{opt.label}</span>
+              </button>
+            );
+          })
+        )}
+      </div>
+      {filtered.length > 0 && filtered.length < options.length && (
+        <div className="px-3 py-1 text-[10px] text-muted-foreground border-t border-gray-200 dark:border-gray-700">
+          {filtered.length} de {options.length}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div ref={containerRef} className={cn('relative', className)}>
       <button
         type="button"
         disabled={disabled}
-        onClick={() => !disabled && setOpen(o => !o)}
+        onClick={abrir}
         className={cn(
           'flex h-10 w-full items-center justify-between rounded-md border bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-left',
           'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
           disabled && 'opacity-50 cursor-not-allowed',
-          !disabled && 'cursor-pointer'
+          !disabled && 'cursor-pointer',
+          triggerClassName,
         )}
       >
         <span className={cn('truncate', !selected && 'text-muted-foreground')}>
@@ -160,69 +283,9 @@ export function SearchableSelect({
         </span>
       </button>
 
-      {open && (
-        <div className="absolute left-0 right-0 z-50 mt-1 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
-          <div className="p-2 border-b border-gray-200 dark:border-gray-700">
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                ref={inputRef}
-                type="text"
-                value={query}
-                onChange={e => {
-                  setQuery(e.target.value);
-                  setHighlight(0);
-                }}
-                onKeyDown={onKeyDown}
-                placeholder={searchPlaceholder}
-                className="w-full h-8 pl-7 pr-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-          <div ref={listRef} className="max-h-60 overflow-y-auto py-1">
-            {filtered.length === 0 ? (
-              <div className="px-3 py-2 text-sm text-muted-foreground text-center">
-                {emptyMessage}
-              </div>
-            ) : (
-              filtered.map((opt, idx) => {
-                const isSelected = opt.value === value;
-                const isHighlighted = idx === highlight;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    data-idx={idx}
-                    disabled={opt.disabled}
-                    onMouseEnter={() => setHighlight(idx)}
-                    onClick={() => !opt.disabled && escolher(opt.value)}
-                    className={cn(
-                      'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left',
-                      isHighlighted && 'bg-blue-50 dark:bg-blue-900/30',
-                      isSelected && 'bg-blue-100 dark:bg-blue-900/50 font-medium',
-                      opt.disabled && 'opacity-50 cursor-not-allowed',
-                      !opt.disabled && 'hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer'
-                    )}
-                  >
-                    <Check
-                      className={cn(
-                        'h-3.5 w-3.5 shrink-0',
-                        isSelected ? 'opacity-100 text-blue-600 dark:text-blue-400' : 'opacity-0'
-                      )}
-                    />
-                    <span className="truncate">{opt.label}</span>
-                  </button>
-                );
-              })
-            )}
-          </div>
-          {filtered.length > 0 && filtered.length < options.length && (
-            <div className="px-3 py-1 text-[10px] text-muted-foreground border-t border-gray-200 dark:border-gray-700">
-              {filtered.length} de {options.length}
-            </div>
-          )}
-        </div>
-      )}
+      {open && (portal
+        ? (typeof window !== 'undefined' && pos ? createPortal(painel, document.body) : null)
+        : painel)}
     </div>
   );
 }

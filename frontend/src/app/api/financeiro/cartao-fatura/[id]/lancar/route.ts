@@ -4,6 +4,7 @@ import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/
 import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 import { fin } from '@/lib/financeiro/pedidos-pagamento';
 import { criarContaPagarCA } from '@/lib/contaazul/criarContaPagar';
+import { keywordDe } from '@/lib/financeiro/cartaoCategoria';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,6 +105,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .eq('id', id)
       .select()
       .single();
+
+    // Aprende: estabelecimento -> categoria (no bar da linha), pra próxima fatura já vir sugerido.
+    // Best-effort — nunca falha o lançamento.
+    try {
+      const kw = keywordDe(String(linha.descricao || ''));
+      if (kw) {
+        const { data: existente } = await fin(supabase)
+          .from('cartao_categoria_map')
+          .select('hits').eq('bar_id', barId).eq('keyword', kw).maybeSingle();
+        await fin(supabase).from('cartao_categoria_map').upsert({
+          bar_id: barId, keyword: kw,
+          categoria_id, categoria_nome: categoria_nome || null,
+          hits: (existente?.hits || 0) + 1, updated_at: new Date().toISOString(),
+        }, { onConflict: 'bar_id,keyword' });
+      }
+    } catch (e) {
+      console.error('[cartao-fatura/lancar] aprender categoria falhou (ignorado):', e);
+    }
 
     return NextResponse.json({ success: true, linha: atualizada });
   } catch (e: any) {

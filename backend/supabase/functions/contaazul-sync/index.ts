@@ -550,7 +550,9 @@ async function syncCentrosCusto(
     codigo: item.codigo || null,
     nome: item.nome,
     ativo: item.ativo !== false,
-    updated_at: new Date().toISOString()
+    // Coluna correta é synced_at (não updated_at, inexistente) — mesmo bug que já
+    // aconteceu com categorias. Escrever a coluna errada fazia o upsert falhar (0 registros).
+    synced_at: new Date().toISOString()
   }))
 
   const { error } = await supabase
@@ -695,7 +697,10 @@ async function syncContasFinanceiras(
     numero: item.numero || null,
     ativo: true,
     conta_padrao: item.conta_padrao || false,
-    updated_at: new Date().toISOString()
+    // Coluna correta é synced_at (não updated_at, inexistente) — o upsert falhava calado
+    // (0 contas). As flags pagadora/pagadora_padrao NÃO entram aqui de propósito: têm default
+    // e são setadas manualmente; o upsert por (contaazul_id,bar_id) não as sobrescreve.
+    synced_at: new Date().toISOString()
   }))
 
   const { error } = await supabase

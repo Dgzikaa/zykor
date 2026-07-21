@@ -148,10 +148,47 @@ export function FaturaCartaoTab() {
     } catch { /* ok */ }
   }, []);
 
+  // De-para aprendido "estabelecimento → categoria" (financial.cartao_categoria_map), por bar.
+  // Alimenta a sugestão automática de categoria. Aprende sozinho a cada lançamento (no backend).
+  type CatMapRow = { keyword: string; categoria_id: string | null; categoria_nome: string | null; hits: number };
+  const [mapaCategoria, setMapaCategoria] = useState<Record<number, CatMapRow[]>>({});
+  const carregarMapaCategoria = useCallback(async (barId: number) => {
+    try {
+      const r = await api.get(`/api/financeiro/cartao-fatura/categoria-sugestao?bar_id=${barId}`);
+      setMapaCategoria(prev => ({ ...prev, [barId]: (r.mapa || []) as CatMapRow[] }));
+    } catch { /* ok */ }
+  }, []);
+
   useEffect(() => { carregarBase(); }, [carregarBase]);
-  useEffect(() => { availableBars.forEach(b => { carregarOpcoesBar(b.id); carregarMapaCartao(b.id); }); }, [availableBars, carregarOpcoesBar, carregarMapaCartao]);
+  useEffect(() => { availableBars.forEach(b => { carregarOpcoesBar(b.id); carregarMapaCartao(b.id); carregarMapaCategoria(b.id); }); }, [availableBars, carregarOpcoesBar, carregarMapaCartao, carregarMapaCategoria]);
   useEffect(() => { if (faturaSelId) carregarLinhas(faturaSelId); else setLinhas([]); }, [faturaSelId, carregarLinhas]);
   useEffect(() => { if (verEncerradas) carregarEncerradas(); }, [verEncerradas, carregarEncerradas]);
+
+  // Sugestão automática de categoria por estabelecimento (só p/ linhas novas sem categoria).
+  // Deriva do de-para aprendido; não grava nada até a pessoa lançar (aí o backend confirma+aprende).
+  const sugestoes = useMemo(() => {
+    const norm = (s: string) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    const out: Record<string, { categoria_id: string; categoria_nome: string }> = {};
+    for (const l of linhas) {
+      if (l.status !== 'novo' || l.categoria_id || l.tipo !== 'compra') continue;
+      const bar = l.bar_id ?? faturaSel?.bar_id ?? selectedBar?.id ?? null;
+      if (!bar) continue;
+      const rows = mapaCategoria[bar];
+      const cats = opcoesBar[bar]?.categorias;
+      if (!rows?.length || !cats?.length) continue;
+      const dn = norm(l.descricao);
+      // rows já vêm por hits desc; casa por substring da keyword e só aceita categoria válida do bar
+      const hit = rows.find(r => r.keyword && r.categoria_id && dn.includes(r.keyword)
+        && cats.some(c => c.value === r.categoria_id));
+      if (hit?.categoria_id) {
+        out[l.id] = {
+          categoria_id: hit.categoria_id,
+          categoria_nome: hit.categoria_nome || (cats.find(c => c.value === hit.categoria_id)?.label ?? ''),
+        };
+      }
+    }
+    return out;
+  }, [linhas, mapaCategoria, opcoesBar, faturaSel, selectedBar]);
 
   const importar = async (file: File) => {
     if (!faturaSelId) return;
@@ -185,12 +222,14 @@ export function FaturaCartaoTab() {
   const lancar = async (l: Linha) => {
     const bar = l.bar_id || faturaSel?.bar_id || selectedBar?.id || null;
     if (!bar) return showToast({ type: 'error', title: 'Escolha o bar da linha' });
-    if (!l.categoria_id) return showToast({ type: 'error', title: 'Escolha a categoria' });
+    const catId = l.categoria_id || sugestoes[l.id]?.categoria_id || null;
+    const catNome = l.categoria_nome || sugestoes[l.id]?.categoria_nome || null;
+    if (!catId) return showToast({ type: 'error', title: 'Escolha a categoria' });
     const cfg = config[bar];
     setLancandoId(l.id);
     try {
       const res = await api.post(`/api/financeiro/cartao-fatura/${l.id}/lancar`, {
-        bar_id: bar, categoria_id: l.categoria_id, categoria_nome: l.categoria_nome,
+        bar_id: bar, categoria_id: catId, categoria_nome: catNome,
         conta_financeira_id: cfg?.contaId || undefined,
         pessoa_id: fornOverride[l.id] || undefined, // vazio → backend usa o titular do cartão
         data_vencimento: faturaSel?.vencimento || undefined,
@@ -208,7 +247,7 @@ export function FaturaCartaoTab() {
   // #25 — lança em LOTE as linhas selecionadas que já têm bar + categoria. Sequencial (sem rajada).
   const lancarLote = async () => {
     const alvos = filtradas.filter(l => selecionadas.has(l.id) && l.tipo === 'compra' && l.status === 'novo');
-    const prontos = alvos.filter(l => (l.bar_id ?? faturaSel?.bar_id ?? selectedBar?.id) && l.categoria_id);
+    const prontos = alvos.filter(l => (l.bar_id ?? faturaSel?.bar_id ?? selectedBar?.id) && (l.categoria_id || sugestoes[l.id]?.categoria_id));
     const semDados = alvos.length - prontos.length;
     if (!prontos.length) return showToast({ type: 'warning', title: 'Nada pronto pra lançar', message: 'Faltam bar/categoria nas linhas selecionadas.' });
     if (!window.confirm(`Lançar ${prontos.length} linha(s) no Conta Azul?${semDados ? `\n${semDados} sem bar/categoria ficam de fora.` : ''}`)) return;
@@ -219,7 +258,7 @@ export function FaturaCartaoTab() {
       const cfg = config[bar];
       try {
         const res = await api.post(`/api/financeiro/cartao-fatura/${l.id}/lancar`, {
-          bar_id: bar, categoria_id: l.categoria_id, categoria_nome: l.categoria_nome,
+          bar_id: bar, categoria_id: l.categoria_id || sugestoes[l.id]?.categoria_id, categoria_nome: l.categoria_nome || sugestoes[l.id]?.categoria_nome,
           conta_financeira_id: cfg?.contaId || undefined,
           pessoa_id: fornOverride[l.id] || undefined, // vazio → backend usa o titular do cartão
           data_vencimento: faturaSel?.vencimento || undefined,
@@ -534,6 +573,8 @@ export function FaturaCartaoTab() {
                   {filtradas.map(l => {
                     const barEfetivo = l.bar_id ?? faturaSel.bar_id ?? selectedBar?.id ?? null;
                     const ops = barEfetivo ? opcoesBar[barEfetivo] : undefined;
+                    // Sugestão automática de categoria (só quando a linha ainda não tem uma escolhida).
+                    const sug = sugestoes[l.id] || null;
                     // Fornecedor da linha = titular vinculado ao cartão. Automático: usa o vínculo
                     // do bar da linha; se ainda não carregou nesse bar, cai no vínculo de qualquer
                     // bar (o titular é a mesma pessoa) — assim nunca fica "vincular" à toa.
@@ -599,12 +640,31 @@ export function FaturaCartaoTab() {
                           </select>
                         </td>
                         <td className="px-2">
-                          <select value={l.categoria_id ?? ''} disabled={lancado || !barEfetivo || !editavelFatura}
-                            onChange={(e) => { const id = e.target.value; patchLinha(l, { categoria_id: id || null, categoria_nome: ops?.categorias.find(c => c.value === id)?.label || null }); }}
-                            className={`h-8 w-full max-w-[200px] text-xs border rounded px-1 bg-background disabled:opacity-60 ${!l.categoria_id && !lancado && editavelFatura ? 'border-amber-400' : ''}`}>
-                            <option value="">{barEfetivo ? '— categoria —' : 'escolha o bar'}</option>
-                            {(ops?.categorias || []).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                          </select>
+                          {editavelFatura && !lancado && barEfetivo ? (
+                            <div className="max-w-[200px]">
+                              <SearchableSelect
+                                portal
+                                triggerClassName="h-8 text-xs"
+                                className="w-full"
+                                options={ops?.categorias || []}
+                                value={l.categoria_id ?? sug?.categoria_id ?? ''}
+                                onValueChange={(id) => patchLinha(l, { categoria_id: id || null, categoria_nome: ops?.categorias.find(c => c.value === id)?.label || null })}
+                                placeholder={(ops?.categorias?.length ? '— categoria —' : 'sem categorias')}
+                                searchPlaceholder="digite pra filtrar…"
+                              />
+                              {!l.categoria_id && sug && (
+                                <span className="mt-0.5 block text-[10px] text-emerald-600 dark:text-emerald-400 truncate" title={`sugerido pelo histórico: ${sug.categoria_nome}`}>
+                                  ✨ sugerido — confira e lance
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <select value={l.categoria_id ?? ''} disabled
+                              className="h-8 w-full max-w-[200px] text-xs border rounded px-1 bg-background disabled:opacity-60">
+                              <option value="">{barEfetivo ? (l.categoria_nome || '—') : 'escolha o bar'}</option>
+                              {l.categoria_id && <option value={l.categoria_id}>{l.categoria_nome}</option>}
+                            </select>
+                          )}
                         </td>
                         <td className="px-2 text-right whitespace-nowrap">
                           {lancado ? (
