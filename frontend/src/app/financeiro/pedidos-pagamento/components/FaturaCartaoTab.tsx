@@ -546,27 +546,39 @@ export function FaturaCartaoTab() {
             <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">Nenhuma linha. Importe o Excel/OFX da fatura acima.</CardContent></Card>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm table-fixed min-w-[1180px]">
+                <colgroup>
+                  <col style={{ width: '3%' }} />
+                  <col style={{ width: '7%' }} />
+                  <col style={{ width: '17%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '5%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '18%' }} />
+                  <col style={{ width: '9%' }} />
+                </colgroup>
                 <thead className="text-xs text-muted-foreground border-b bg-muted/30">
                   <tr>
-                    <th className="px-2 w-8">
+                    <th className="py-2 px-2">
                       {lancaveis.length > 0 && (
                         <input type="checkbox" checked={todasSel} onChange={toggleTodas}
                           title="Selecionar todas as lançáveis" className="w-4 h-4 accent-[hsl(var(--primary))] cursor-pointer" />
                       )}
                     </th>
-                    <th className="text-left py-2 px-2">Data</th>
-                    <th className="text-left px-2">Estabelecimento</th>
-                    <ColumnFilterHeader label="Titular" options={optionsByCol.titular_nome || []}
+                    <th className="text-left py-2 px-2 font-medium">Data</th>
+                    <th className="text-left py-2 px-2 font-medium">Estabelecimento</th>
+                    <ColumnFilterHeader label="Titular" className="py-2" options={optionsByCol.titular_nome || []}
                       selected={colFilter.titular_nome || new Set()} onChange={(n) => setCol('titular_nome', n)} />
-                    <ColumnFilterHeader label="Cartão" options={optionsByCol.cartao_final || []}
+                    <ColumnFilterHeader label="Cartão" className="py-2" options={optionsByCol.cartao_final || []}
                       selected={colFilter.cartao_final || new Set()} onChange={(n) => setCol('cartao_final', n)} />
-                    <th className="text-left px-2">Fornecedor</th>
-                    <th className="text-right px-2">Valor</th>
-                    <th className="text-left px-2 w-32">Bar</th>
-                    <ColumnFilterHeader label="Categoria" className="w-48" options={optionsByCol.categoria_nome || []}
+                    <th className="text-left py-2 px-2 font-medium">Fornecedor</th>
+                    <th className="text-right py-2 px-2 font-medium">Valor</th>
+                    <th className="text-left py-2 px-2 font-medium">Bar</th>
+                    <ColumnFilterHeader label="Categoria" className="py-2" options={optionsByCol.categoria_nome || []}
                       selected={colFilter.categoria_nome || new Set()} onChange={(n) => setCol('categoria_nome', n)} />
-                    <th className="text-right px-2">Ação</th>
+                    <th className="text-right py-2 px-2 font-medium">Ação</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -607,30 +619,30 @@ export function FaturaCartaoTab() {
                               <input defaultValue={l.descricao}
                                 onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== l.descricao) patchLinha(l, { descricao: v }); }}
                                 title="Editar o estabelecimento antes de lançar"
-                                className="h-8 w-full max-w-[240px] text-xs border rounded px-1.5 bg-background" />
+                                className="h-8 flex-1 min-w-0 text-xs border rounded px-1.5 bg-background" />
                               {l.parcela ? <span className="text-muted-foreground text-xs shrink-0">· {l.parcela}</span> : null}
                             </div>
                           ) : (
-                            <div className="truncate max-w-[220px]">{l.descricao}{l.parcela ? <span className="text-muted-foreground text-xs"> · {l.parcela}</span> : ''}</div>
+                            <div className="truncate" title={l.descricao}>{l.descricao}{l.parcela ? <span className="text-muted-foreground text-xs"> · {l.parcela}</span> : ''}</div>
                           )}
                         </td>
-                        <td className="px-2 text-xs whitespace-nowrap">{l.titular_nome || '—'}</td>
+                        <td className="px-2 text-xs"><div className="truncate" title={l.titular_nome || ''}>{l.titular_nome || '—'}</div></td>
                         <td className="px-2 text-xs text-muted-foreground whitespace-nowrap">{l.cartao_final ? `••${l.cartao_final}` : '—'}</td>
-                        <td className="px-2 text-xs whitespace-nowrap" title={fornecedorLinha || ''}>
+                        <td className="px-2 text-xs" title={fornecedorLinha || ''}>
                           {editavelFatura && !lancado && !ignorado ? (
                             <select value={fornSelId} disabled={!barEfetivo}
                               onChange={(e) => setFornOverride(prev => ({ ...prev, [l.id]: e.target.value }))}
-                              className="h-8 w-full max-w-[180px] text-xs border rounded px-1 bg-background disabled:opacity-60">
+                              className="h-8 w-full text-xs border rounded px-1 bg-background disabled:opacity-60">
                               <option value="">{barEfetivo ? (fornecedorLinha ? `titular: ${fornecedorLinha}` : '— fornecedor —') : 'escolha o bar'}</option>
                               {(ops?.fornecedores || []).map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                             </select>
                           ) : (
-                            <span className="inline-block max-w-[180px] truncate align-middle">
+                            <div className="truncate">
                               {fornecedorLinha || <span className="text-amber-600">{l.cartao_final ? 'vincular' : '—'}</span>}
-                            </span>
+                            </div>
                           )}
                         </td>
-                        <td className="px-2 text-right whitespace-nowrap font-medium">{fmtBRL(l.valor)}</td>
+                        <td className="px-2 text-right whitespace-nowrap font-medium tabular-nums">{fmtBRL(l.valor)}</td>
                         <td className="px-2">
                           <select value={barEfetivo ?? ''} disabled={lancado || !editavelFatura}
                             onChange={(e) => patchLinha(l, { bar_id: e.target.value ? Number(e.target.value) : null, categoria_id: null, categoria_nome: null })}
@@ -641,7 +653,7 @@ export function FaturaCartaoTab() {
                         </td>
                         <td className="px-2">
                           {editavelFatura && !lancado && barEfetivo ? (
-                            <div className="max-w-[200px]">
+                            <div className="w-full">
                               <SearchableSelect
                                 portal
                                 triggerClassName="h-8 text-xs"
@@ -659,11 +671,9 @@ export function FaturaCartaoTab() {
                               )}
                             </div>
                           ) : (
-                            <select value={l.categoria_id ?? ''} disabled
-                              className="h-8 w-full max-w-[200px] text-xs border rounded px-1 bg-background disabled:opacity-60">
-                              <option value="">{barEfetivo ? (l.categoria_nome || '—') : 'escolha o bar'}</option>
-                              {l.categoria_id && <option value={l.categoria_id}>{l.categoria_nome}</option>}
-                            </select>
+                            <div className="truncate text-xs text-muted-foreground" title={l.categoria_nome || ''}>
+                              {barEfetivo ? (l.categoria_nome || '—') : 'escolha o bar'}
+                            </div>
                           )}
                         </td>
                         <td className="px-2 text-right whitespace-nowrap">
