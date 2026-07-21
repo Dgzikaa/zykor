@@ -44,6 +44,9 @@ const PERMISSION_MAPPINGS: Record<string, string[]> = {
   // Token dedicado da tela de Controle de Produção: visível p/ quem tem 'gestao'
   // E p/ o perfil de cozinha/kiosk ('operacional_producoes').
   controle_producao: ['gestao', 'operacional_producoes'],
+  // Desperdício (Beta): visível p/ gestão E p/ quem recebeu o módulo específico
+  // (ex.: perfis de produção bar/cozinha que só têm o grant granular, sem 'gestao').
+  desperdicio: ['gestao', 'producao - cmv_desperdicio'],
 };
 
 // Menu hambúrguer overlay completo (igual ao sidebar desktop)
