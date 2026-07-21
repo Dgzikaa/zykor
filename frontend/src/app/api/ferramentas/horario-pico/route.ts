@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       .select('hora, valor, quantidade')
       .eq('data_venda', data_selecionada)
       .eq('bar_id', bar_id)
-      .gte('hora', 17)
+      .gte('hora', 11)
       .lte('hora', 26);
     const temDadosFatPorHora = (faturamentoDiaAtualPre?.length || 0) > 0;
 
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     const statusDiaAtual = await verificarBarAberto(data_selecionada, bar_id);
     if (!statusDiaAtual.aberto && !temDadosFatPorHora) {
       // Estrutura vazia para o gráfico não quebrar (horario_pico obrigatório)
-      const horariosVazios = [17,18,19,20,21,22,23,0,1,2,3].map(h => ({
+      const horariosVazios = [11,12,13,14,15,16,17,18,19,20,21,22,23,0,1,2,3].map(h => ({
         hora: h, faturamento: 0, transacoes: 0,
         faturamento_semana_passada: 0, media_ultimas_4: 0, recorde_faturamento: 0
       }));
@@ -99,10 +99,12 @@ export async function POST(request: NextRequest) {
       return status?.aberto !== false;
     }).slice(0, 4); // Pegar apenas 4 dias abertos
 
-    // Horários de operação: 17:00 às 03:00
+    // Horários de operação: 11:00 às 03:00 (inclui a curva de ALMOÇO — ex.: sábado no
+    // Ordinário. Antes começava em 17h e o almoço sumia do gráfico. Bar/dia sem almoço
+    // só mostra 0 nas horas 11–16, inofensivo.)
     const horariosOperacao = [] as number[];
-    // 17:00 às 23:59
-    for (let h = 17; h <= 23; h++) {
+    // 11:00 às 23:59
+    for (let h = 11; h <= 23; h++) {
       horariosOperacao.push(h);
     }
     // 00:00 às 03:00
@@ -118,7 +120,7 @@ export async function POST(request: NextRequest) {
       .select('hora, valor, quantidade')
       .eq('data_venda', data_selecionada)
       .eq('bar_id', bar_id)
-      .gte('hora', 17)
+      .gte('hora', 11)
       .lte('hora', 23);
 
     // Horários 24h, 25h, 26h (que são 00h, 01h, 02h) do mesmo dia
@@ -241,7 +243,7 @@ export async function POST(request: NextRequest) {
       .select('hora, valor, quantidade')
       .eq('data_venda', semanaPassadaStr)
       .eq('bar_id', bar_id)
-      .gte('hora', 17)
+      .gte('hora', 11)
       .lte('hora', 26);
 
     // Normalizar horários 24h+ da semana passada
@@ -257,7 +259,7 @@ export async function POST(request: NextRequest) {
       .select('hora, valor, quantidade, data_venda')
       .in('data_venda', ultimas4Datas)
       .eq('bar_id', bar_id)
-      .gte('hora', 17)
+      .gte('hora', 11)
       .lte('hora', 26);
 
     // Normalizar horários 24h+ das últimas 4 semanas
@@ -280,7 +282,7 @@ export async function POST(request: NextRequest) {
         .from('faturamento_hora')
         .select('hora, valor, quantidade, data_venda')
         .eq('bar_id', bar_id)
-        .gte('hora', 17)
+        .gte('hora', 11)
         .lte('hora', 26)
         .order('data_venda', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
