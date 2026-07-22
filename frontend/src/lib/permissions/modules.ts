@@ -133,6 +133,46 @@ export function getModulosPorCategoria(): Record<string, ModuloPermissao[]> {
 }
 
 /**
+ * Como getModulosPorCategoria, mas PRESERVA as subseções (os `header` do menu, ex.:
+ * Ferramentas › "RH" / "Comercial", Ferramentas Financeiro › "Pagamentos" / "Conta Azul").
+ * Usado pela tela de Perfis pra dar acesso por seção (o header vira um bloco com toggle próprio).
+ * Mantém a ordem do menu. `subsecao = null` = itens sem header (topo da categoria).
+ */
+export interface SubsecaoModulos {
+  subsecao: string | null;
+  modulos: ModuloPermissao[];
+}
+export function getModulosPorCategoriaComSubsecoes(): Record<string, SubsecaoModulos[]> {
+  const out: Record<string, SubsecaoModulos[]> = {};
+  const bucketFor = (arr: SubsecaoModulos[], h: string | null): SubsecaoModulos => {
+    let b = arr.find(x => x.subsecao === h);
+    if (!b) { b = { subsecao: h, modulos: [] }; arr.push(b); }
+    return b;
+  };
+  for (const secao of MENU_TREE) {
+    const cat = secao.label;
+    const buckets: SubsecaoModulos[] = [];
+    const grupo = GRUPO_MODULO_UNICO[cat];
+    if (grupo) {
+      bucketFor(buckets, null).modulos.push({ id: grupo, nome: cat, categoria: cat });
+    } else {
+      let header: string | null = null;
+      for (const node of secao.subItems) {
+        if (!isMenuLeaf(node)) { header = node.header; continue; }
+        bucketFor(buckets, header).modulos.push({ id: gerarIdModulo(cat, node.label), nome: node.label, categoria: cat });
+      }
+    }
+    if (buckets.length) out[cat] = buckets;
+  }
+  // Módulos extras (não vêm do menu) — anexa na sua categoria, sem subseção.
+  for (const ex of MODULOS_EXTRAS) {
+    if (!out[ex.categoria]) out[ex.categoria] = [];
+    bucketFor(out[ex.categoria], null).modulos.push(ex);
+  }
+  return out;
+}
+
+/**
  * Retorna lista de categorias disponíveis
  */
 export function getCategorias(): string[] {

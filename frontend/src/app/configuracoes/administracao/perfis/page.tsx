@@ -20,7 +20,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api-client';
 import { Shield, Plus, Pencil, Trash2, Users, Lock, Loader2, Check, X, UserPlus } from 'lucide-react';
-import { getModulosPorCategoria } from '@/lib/permissions/modules';
+import { getModulosPorCategoriaComSubsecoes } from '@/lib/permissions/modules';
 
 type Perfil = {
   id: string;
@@ -112,7 +112,11 @@ export default function PerfisPage() {
       ) : (
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {perfis.map(p => (
-            <Card key={p.id} className="overflow-hidden">
+            <Card key={p.id}
+              onClick={() => setDialogAberto({ modo: 'editar', perfil: p })}
+              className="overflow-hidden cursor-pointer transition-colors hover:border-indigo-400/70 hover:bg-muted/40"
+              role="button" tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDialogAberto({ modo: 'editar', perfil: p }); } }}>
               <CardContent className="py-3 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
@@ -127,11 +131,11 @@ export default function PerfisPage() {
                     {p.descricao && <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap">{p.descricao}</p>}
                   </div>
                   <div className="flex items-center gap-0.5">
-                    <Button size="sm" variant="ghost" onClick={() => setDialogAberto({ modo: 'editar', perfil: p })} title={p.sistema ? 'Só leitura' : 'Editar'}>
+                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setDialogAberto({ modo: 'editar', perfil: p }); }} title={p.sistema ? 'Ver (só leitura)' : 'Editar'}>
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
                     {!p.sistema && (
-                      <Button size="sm" variant="ghost" onClick={() => setConfirmandoDel(p)} title="Remover">
+                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setConfirmandoDel(p); }} title="Remover">
                         <Trash2 className="w-3.5 h-3.5 text-red-600" />
                       </Button>
                     )}
@@ -228,8 +232,17 @@ function EditarPerfilDialog({
     } finally { setMovendo(null); }
   };
 
-  const modulosPorCategoria = useMemo(() => getModulosPorCategoria(), []);
+  const modulosPorSecao = useMemo(() => getModulosPorCategoriaComSubsecoes(), []);
   const temTodos = tokens.includes('todos');
+
+  // Estado agregado de um conjunto de módulos (pra os toggles de categoria/seção).
+  const estadoGrupo = (ids: string[]) => {
+    const marcados = ids.filter(id => acoesDoModulo(id, tokens).ver).length;
+    const todos = ids.length > 0 && ids.every(id => {
+      const a = acoesDoModulo(id, tokens); return a.ver && a.editar && a.inserir && a.excluir;
+    });
+    return { marcados, total: ids.length, todos };
+  };
 
   // Marca/desmarca uma ação específica de um módulo. Reescreve os tokens desse
   // módulo do zero (remove liso + todos os :acao e recoloca conforme o novo estado).
@@ -280,8 +293,8 @@ function EditarPerfilDialog({
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v && !salvando) onFechar(); }}>
-      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-5xl max-h-[92vh]">
+        <DialogHeader className="border-b">
           <DialogTitle>
             {soLeitura ? `${perfilExistente!.nome} (sistema — só leitura)` : (modo === 'editar' ? 'Editar perfil' : 'Novo perfil')}
           </DialogTitle>
@@ -292,7 +305,7 @@ function EditarPerfilDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           <div className="space-y-3">
             <div className="sm:max-w-xs">
               <label className="text-xs font-medium text-muted-foreground">Nome</label>
@@ -312,55 +325,67 @@ function EditarPerfilDialog({
                 {temTodos ? 'Todos os módulos (bypass)' : <><b>V</b> ver · <b>E</b> editar · <b>I</b> inserir · <b>X</b> excluir</>}
               </span>
             </div>
-            <div className={`rounded-lg p-3 border max-h-[400px] overflow-y-auto ${soLeitura || temTodos ? 'opacity-60 pointer-events-none' : ''}`}>
+            <div className={`rounded-lg p-3 border ${soLeitura || temTodos ? 'opacity-60 pointer-events-none' : ''}`}>
               {temTodos && (
                 <div className="mb-3 p-2 rounded-md bg-purple-100 dark:bg-purple-900/25 text-xs text-purple-800 dark:text-purple-200">
                   Este perfil tem o marcador <b>todos</b> — concede acesso a qualquer módulo automaticamente.
                 </div>
               )}
-              {Object.entries(modulosPorCategoria).map(([categoria, mods]) => {
-                const ids = mods.map(m => m.id);
-                const marcados = ids.filter(id => acoesDoModulo(id, tokens).ver).length;
-                const todosMarcados = marcados === ids.length && ids.every(id => {
-                  const a = acoesDoModulo(id, tokens);
-                  return a.ver && a.editar && a.inserir && a.excluir;
-                });
+              {Object.entries(modulosPorSecao).map(([categoria, subsecoes]) => {
+                const idsCategoria = subsecoes.flatMap(s => s.modulos.map(m => m.id));
+                const gc = estadoGrupo(idsCategoria);
                 return (
-                  <div key={categoria} className="mb-3 last:mb-0">
-                    <div className="flex items-center justify-between mb-1.5 border-b pb-1">
-                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{categoria}</h4>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-muted-foreground">{marcados}/{ids.length}</span>
-                        <Checkbox
-                          checked={todosMarcados}
-                          onCheckedChange={(c) => toggleCategoria(ids, c as boolean)}
-                          disabled={soLeitura || temTodos}
-                        />
-                        <span className="text-[11px] text-muted-foreground">Todos (CRUD)</span>
-                      </div>
+                  <div key={categoria} className="mb-4 last:mb-0">
+                    {/* Cabeçalho da categoria + toggle "Tudo" (todos os módulos, todas as seções) */}
+                    <div className="flex items-center justify-between mb-2 border-b-2 border-[hsl(var(--border))] pb-1.5">
+                      <h4 className="text-sm font-bold uppercase tracking-wide">{categoria}</h4>
+                      <label className="flex items-center gap-2 cursor-pointer shrink-0">
+                        <span className="text-[11px] text-muted-foreground tabular-nums">{gc.marcados}/{gc.total}</span>
+                        <Checkbox checked={gc.todos} onCheckedChange={(c) => toggleCategoria(idsCategoria, c as boolean)} disabled={soLeitura || temTodos} />
+                        <span className="text-[11px] text-muted-foreground">Tudo</span>
+                      </label>
                     </div>
-                    <div className="grid grid-cols-1 gap-1">
-                      {mods.map(m => {
-                        const act = acoesDoModulo(m.id, tokens);
-                        return (
-                          <div key={m.id} className="flex items-center justify-between gap-2 p-1.5 rounded hover:bg-muted text-xs">
-                            <span className="flex-1 truncate">{m.nome}</span>
-                            <div className="flex items-center gap-2 shrink-0">
-                              {ACOES.map(a => (
-                                <label key={a} className="flex flex-col items-center gap-0.5 cursor-pointer" title={NOME_ACAO[a]}>
-                                  <Checkbox
-                                    checked={act[a]}
-                                    disabled={soLeitura || temTodos}
-                                    onCheckedChange={(c) => setAcao(m.id, a, c as boolean)}
-                                  />
-                                  <span className="text-[9px] leading-none text-muted-foreground">{LETRA_ACAO[a]}</span>
-                                </label>
-                              ))}
+                    {subsecoes.map((sub, i) => {
+                      const idsSub = sub.modulos.map(m => m.id);
+                      const gs = estadoGrupo(idsSub);
+                      return (
+                        <div key={sub.subsecao ?? `__topo_${i}`} className="mb-3 last:mb-0">
+                          {/* Cabeçalho da SEÇÃO (header do menu: RH, Comercial, Pagamentos…) + toggle da seção */}
+                          {sub.subsecao && (
+                            <div className="flex items-center justify-between mb-1 mt-1 pl-1.5 border-l-2 border-indigo-400/50">
+                              <h5 className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">{sub.subsecao}</h5>
+                              <label className="flex items-center gap-2 cursor-pointer shrink-0">
+                                <span className="text-[10px] text-muted-foreground tabular-nums">{gs.marcados}/{gs.total}</span>
+                                <Checkbox checked={gs.todos} onCheckedChange={(c) => toggleCategoria(idsSub, c as boolean)} disabled={soLeitura || temTodos} />
+                                <span className="text-[10px] text-muted-foreground">Seção</span>
+                              </label>
                             </div>
+                          )}
+                          <div className="grid grid-cols-1 gap-1">
+                            {sub.modulos.map(m => {
+                              const act = acoesDoModulo(m.id, tokens);
+                              return (
+                                <div key={m.id} className="flex items-center justify-between gap-2 p-1.5 rounded hover:bg-muted text-xs">
+                                  <span className="flex-1 truncate">{m.nome}</span>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {ACOES.map(a => (
+                                      <label key={a} className="flex flex-col items-center gap-0.5 cursor-pointer" title={NOME_ACAO[a]}>
+                                        <Checkbox
+                                          checked={act[a]}
+                                          disabled={soLeitura || temTodos}
+                                          onCheckedChange={(c) => setAcao(m.id, a, c as boolean)}
+                                        />
+                                        <span className="text-[9px] leading-none text-muted-foreground">{LETRA_ACAO[a]}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -408,7 +433,7 @@ function EditarPerfilDialog({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="border-t">
           <Button variant="ghost" onClick={onFechar} disabled={salvando}>{soLeitura ? 'Fechar' : 'Cancelar'}</Button>
           {!soLeitura && (
             <Button onClick={salvar} disabled={!podeSalvar || salvando}>
