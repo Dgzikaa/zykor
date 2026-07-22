@@ -47,7 +47,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const cartao = body.tipo === 'advertencia' && ['amarelo', 'vermelho'].includes(body.cartao) ? body.cartao : null;
   const aplicado_por = (typeof body.aplicado_por === 'string' && body.aplicado_por.trim()) ? body.aplicado_por.trim() : null;
   const { data, error } = await (supabase as any).schema('hr').from('funcionario_ocorrencias').insert({
-    funcionario_id: Number(id), tipo: body.tipo, data_inicio: body.data_inicio,
+    funcionario_id: Number(id), bar_id: user.bar_id, tipo: body.tipo, data_inicio: body.data_inicio,
     data_fim: body.data_fim || null, descricao: body.descricao || null, cartao, aplicado_por, created_by: user.id,
   }).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });

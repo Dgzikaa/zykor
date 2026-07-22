@@ -10,7 +10,7 @@ import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { useApiSWR } from '@/hooks/useApiSWR';
-import { Users, Loader2, Search, Plus, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp, LayoutGrid, List, Download, Network } from 'lucide-react';
+import { Users, Loader2, Search, Plus, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp, LayoutGrid, List, Download, Network, ScrollText } from 'lucide-react';
 import { FuncionarioDialog } from './_components/FuncionarioDialog';
 import { DossieDialog } from './_components/DossieDialog';
 import { DashboardRH } from './_components/DashboardRH';
@@ -18,6 +18,7 @@ import { IndicadoresRH } from './_components/IndicadoresRH';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { CartoesBadge, type Cartoes } from './_components/CartoesBadge';
+import { HistoricoOcorrencias } from './_components/HistoricoOcorrencias';
 
 export type Funcionario = {
   id: number; nome: string; cpf: string | null; telefone: string | null; email: string | null;
@@ -26,6 +27,7 @@ export type Funcionario = {
   tipo_contratacao: string | null; salario_base: number | null; valor_diaria: number | null;
   vale_transporte_diaria: number | null; dias_trabalho_semana: number | null;
   chave_pix: string | null; tipo_chave_pix: string | null; observacoes: string | null;
+  rg?: string | null; ctps?: string | null;
   foto_url: string | null; ativo: boolean; portal_token?: string | null;
   alertas?: { tipo: string; label: string; nivel: string }[];
   cartoes?: Cartoes;
@@ -161,6 +163,7 @@ export default function FuncionariosPage() {
             <TabsTrigger value="visao"><LayoutDashboard className="w-4 h-4 mr-1.5" />Visão geral</TabsTrigger>
             <TabsTrigger value="equipe"><Users className="w-4 h-4 mr-1.5" />Equipe</TabsTrigger>
             <TabsTrigger value="organograma"><Network className="w-4 h-4 mr-1.5" />Organograma</TabsTrigger>
+            <TabsTrigger value="historico"><ScrollText className="w-4 h-4 mr-1.5" />Histórico</TabsTrigger>
             <TabsTrigger value="indicadores"><TrendingUp className="w-4 h-4 mr-1.5" />Indicadores</TabsTrigger>
           </TabsList>
 
@@ -291,6 +294,10 @@ export default function FuncionariosPage() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="historico">
+            <HistoricoOcorrencias />
           </TabsContent>
         </Tabs>
 

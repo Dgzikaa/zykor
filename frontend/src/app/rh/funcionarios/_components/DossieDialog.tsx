@@ -96,6 +96,9 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const [novoOc, setNovoOc] = useState({ tipo: 'advertencia', data_inicio: '', data_fim: '', descricao: '', cartao: 'amarelo', aplicado_por: '' });
   const [novaObs, setNovaObs] = useState({ data_inicio: '', descricao: '' });
   const [salvandoObs, setSalvandoObs] = useState(false);
+  // Números de documento digitados (CPF/RG/CTPS) — pra quem não tem o PDF/foto.
+  const [nums, setNums] = useState({ cpf: '', rg: '', ctps: '' });
+  const [salvandoNums, setSalvandoNums] = useState(false);
   const [salvandoOc, setSalvandoOc] = useState(false);
   const [avaliacoes, setAvaliacoes] = useState<Avaliacao[]>([]);
   const [novaAval, setNovaAval] = useState<{ periodo: string; avaliador: string; notas: Record<string, number>; pontos_fortes: string; pontos_desenvolver: string }>({ periodo: '', avaliador: '', notas: {}, pontos_fortes: '', pontos_desenvolver: '' });
@@ -178,6 +181,24 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
       carregar();
     } catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
     finally { setSalvandoObs(false); }
+  };
+  // Espelha os números digitados quando o funcionário carrega.
+  useEffect(() => {
+    if (func) setNums({ cpf: func.cpf || '', rg: (func as any).rg || '', ctps: (func as any).ctps || '' });
+  }, [func]);
+  const salvarNums = async () => {
+    setSalvandoNums(true);
+    try {
+      const r = await fetch(`/api/rh/funcionarios/${funcionarioId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', ...barHdr() }, credentials: 'include',
+        body: JSON.stringify({ cpf: nums.cpf.trim() || null, rg: nums.rg.trim() || null, ctps: nums.ctps.trim() || null }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || 'Falha ao salvar');
+      showToast({ type: 'success', title: 'Números salvos' });
+      carregar();
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
+    finally { setSalvandoNums(false); }
   };
   const excluirOcorrencia = async (ocId: string) => {
     try {
@@ -375,6 +396,18 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
 
               {/* Documentos */}
               <TabsContent value="docs" className="px-6 py-4">
+                {/* Números digitados (CPF/RG/CTPS) — pra quem não tem o PDF/foto do documento */}
+                <div className="rounded-lg border bg-muted/20 p-3 mb-3">
+                  <div className="text-xs font-semibold mb-2">Números dos documentos <span className="font-normal text-muted-foreground">(digitados — quem não tem o arquivo)</span></div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">CPF</span><Input value={nums.cpf} onChange={(e) => setNums({ ...nums, cpf: e.target.value })} placeholder="000.000.000-00" className="h-9 text-sm" /></label>
+                    <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">RG</span><Input value={nums.rg} onChange={(e) => setNums({ ...nums, rg: e.target.value })} placeholder="nº do RG" className="h-9 text-sm" /></label>
+                    <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Carteira de Trabalho</span><Input value={nums.ctps} onChange={(e) => setNums({ ...nums, ctps: e.target.value })} placeholder="nº / série" className="h-9 text-sm" /></label>
+                  </div>
+                  <div className="flex justify-end mt-2">
+                    <Button size="sm" onClick={salvarNums} disabled={salvandoNums} className="h-8">{salvandoNums ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Check className="w-4 h-4 mr-1.5" />}Salvar números</Button>
+                  </div>
+                </div>
                 {docs.length > 0 ? (
                   <div className="space-y-1.5 mb-3">
                     {docs.map((d) => (

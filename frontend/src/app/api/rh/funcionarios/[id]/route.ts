@@ -9,7 +9,7 @@ const CAMPOS_EDITAVEIS = [
   'nome', 'cpf', 'telefone', 'email', 'data_admissao', 'data_demissao', 'data_nascimento',
   'cargo_id', 'area_id', 'tipo_contratacao', 'salario_base', 'valor_diaria',
   'vale_transporte_diaria', 'dias_trabalho_semana', 'chave_pix', 'tipo_chave_pix',
-  'observacoes', 'foto_url', 'ativo',
+  'observacoes', 'foto_url', 'ativo', 'rg', 'ctps',
 ] as const;
 
 function limparPayload(body: any) {
