@@ -252,7 +252,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
 
   return (
     <Dialog open={funcionarioId != null} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-5xl w-[96vw] h-[88vh] p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-6xl w-[96vw] h-[88vh] p-0 gap-0 overflow-hidden">
         {loading || !func ? (
           <div className="py-24 text-center w-full"><Loader2 className="w-7 h-7 animate-spin mx-auto text-muted-foreground" /></div>
         ) : (
@@ -325,7 +325,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
             {/* ── Conteúdo (abas) ── */}
             <div className="flex-1 flex flex-col min-w-0 min-h-0 relative">
               <Tabs defaultValue="ponto" className="flex-1 flex flex-col min-h-0">
-                <TabsList className="mx-4 mt-4 mb-0 flex-wrap h-auto justify-start shrink-0 pr-8">
+                <TabsList className="mx-4 mt-4 mb-0 flex-nowrap justify-start shrink-0 pr-8 overflow-x-auto max-w-full">
                   <TabsTrigger value="ponto"><Clock className="w-3.5 h-3.5 mr-1" />Ponto</TabsTrigger>
                   <TabsTrigger value="onboarding">Onboarding{onbItens.length > 0 && ` (${onbItens.filter((i) => i.concluido).length}/${onbItens.length})`}</TabsTrigger>
                   <TabsTrigger value="docs">Documentos ({docs.length})</TabsTrigger>
@@ -431,8 +431,8 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                       </select>
                     </label>
                   )}
-                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Data</span><Input type="date" value={novoOc.data_inicio} onChange={(e) => setNovoOc({ ...novoOc, data_inicio: e.target.value })} className="h-9 text-sm w-[140px]" /></label>
-                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Até (opcional)</span><Input type="date" value={novoOc.data_fim} onChange={(e) => setNovoOc({ ...novoOc, data_fim: e.target.value })} className="h-9 text-sm w-[140px]" /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Data</span><Input type="date" value={novoOc.data_inicio} onChange={(e) => setNovoOc({ ...novoOc, data_inicio: e.target.value })} className="h-9 text-sm w-[160px]" /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Até (opcional)</span><Input type="date" value={novoOc.data_fim} onChange={(e) => setNovoOc({ ...novoOc, data_fim: e.target.value })} className="h-9 text-sm w-[160px]" /></label>
                   <label className="flex flex-col gap-1 flex-1 min-w-[160px]"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Descrição</span><Input value={novoOc.descricao} onChange={(e) => setNovoOc({ ...novoOc, descricao: e.target.value })} placeholder="ex: atraso recorrente" className="h-9 text-sm" /></label>
                   <Button size="sm" onClick={addOcorrencia} disabled={salvandoOc} className="h-9">{salvandoOc ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Plus className="w-4 h-4 mr-1.5" />}Adicionar</Button>
                 </div>
@@ -454,7 +454,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                   </div>
                 ) : <div className="text-xs text-muted-foreground text-center py-6 mb-3 border border-dashed rounded-lg">Nenhuma observação registrada.</div>}
                 <div className="flex items-end gap-2 flex-wrap rounded-lg border bg-muted/20 p-3">
-                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Data</span><Input type="date" value={novaObs.data_inicio} onChange={(e) => setNovaObs({ ...novaObs, data_inicio: e.target.value })} className="h-9 text-sm w-[140px]" /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Data</span><Input type="date" value={novaObs.data_inicio} onChange={(e) => setNovaObs({ ...novaObs, data_inicio: e.target.value })} className="h-9 text-sm w-[160px]" /></label>
                   <label className="flex flex-col gap-1 flex-1 min-w-[200px]"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Observação</span><Input value={novaObs.descricao} onChange={(e) => setNovaObs({ ...novaObs, descricao: e.target.value })} placeholder="ex: pediu troca de turno; elogiado pelo cliente…" className="h-9 text-sm" /></label>
                   <Button size="sm" onClick={addObservacao} disabled={salvandoObs} className="h-9">{salvandoObs ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Plus className="w-4 h-4 mr-1.5" />}Adicionar</Button>
                 </div>
@@ -546,9 +546,9 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                 ) : <div className="text-xs text-muted-foreground text-center py-6 mb-3 border border-dashed rounded-lg flex flex-col items-center"><GraduationCap className="w-8 h-8 mb-1.5 opacity-40" />Nenhum treinamento/certificação registrado.</div>}
                 <div className="flex items-end gap-2 flex-wrap rounded-lg border bg-muted/20 p-3">
                   <label className="flex flex-col gap-1 flex-1 min-w-[160px]"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Treinamento</span><Input value={novoTreino.nome} onChange={(e) => setNovoTreino({ ...novoTreino, nome: e.target.value })} placeholder="ex: Manipulação de Alimentos" className="h-9 text-sm" /></label>
-                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Instituição</span><Input value={novoTreino.instituicao} onChange={(e) => setNovoTreino({ ...novoTreino, instituicao: e.target.value })} className="h-9 text-sm w-[140px]" /></label>
-                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Conclusão</span><Input type="date" value={novoTreino.data_conclusao} onChange={(e) => setNovoTreino({ ...novoTreino, data_conclusao: e.target.value })} className="h-9 text-sm w-[140px]" /></label>
-                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Validade</span><Input type="date" value={novoTreino.validade} onChange={(e) => setNovoTreino({ ...novoTreino, validade: e.target.value })} className="h-9 text-sm w-[140px]" /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Instituição</span><Input value={novoTreino.instituicao} onChange={(e) => setNovoTreino({ ...novoTreino, instituicao: e.target.value })} className="h-9 text-sm w-[160px]" /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Conclusão</span><Input type="date" value={novoTreino.data_conclusao} onChange={(e) => setNovoTreino({ ...novoTreino, data_conclusao: e.target.value })} className="h-9 text-sm w-[160px]" /></label>
+                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Validade</span><Input type="date" value={novoTreino.validade} onChange={(e) => setNovoTreino({ ...novoTreino, validade: e.target.value })} className="h-9 text-sm w-[160px]" /></label>
                   <Button size="sm" onClick={salvarTreino} disabled={salvandoTreino} className="h-9">{salvandoTreino ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Plus className="w-4 h-4 mr-1.5" />}Adicionar</Button>
                 </div>
               </TabsContent>
