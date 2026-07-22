@@ -858,6 +858,19 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
               <div className="flex-1 min-w-0">
                 {/* Tabela Completa */}
                 <div className="bg-[hsl(var(--background))] md:border md:border-[hsl(var(--border))] rounded-xl md:shadow-sm">
+                  {/* MOBILE: seletor de mês/ano. A sidebar de Controles (que tem o seletor no
+                      desktop) é hidden md:block, então sem isto não dava pra trocar de mês pelo
+                      celular quando o mês já tinha eventos (o seletor do estado-vazio não renderiza). */}
+                  <div className="md:hidden grid grid-cols-2 gap-2 px-1 pt-2 pb-1">
+                    <Select value={filtroMes.toString()} onValueChange={(value) => alterarPeriodo(parseInt(value), filtroAno)}>
+                      <SelectTrigger className="h-9 bg-[hsl(var(--background))]"><SelectValue /></SelectTrigger>
+                      <SelectContent>{meses.map(m => <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                    <Select value={filtroAno.toString()} onValueChange={(value) => alterarPeriodo(filtroMes, parseInt(value))}>
+                      <SelectTrigger className="h-9 bg-[hsl(var(--background))]"><SelectValue /></SelectTrigger>
+                      <SelectContent>{anos.map(a => <SelectItem key={a} value={a.toString()}>{a}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
                   {/* MOBILE: calculadora (a sidebar de Controles é desktop-only) + lista de cards */}
                   <div className="md:hidden px-1 pt-2 pb-1">
                     <CalculadoraDistribuicao
