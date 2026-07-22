@@ -7,7 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
+import { getSelectedBarId } from '@/lib/selected-bar';
 import { cn } from '@/lib/utils';
+
+// Header do bar selecionado — os fetch crus deste dossiê PRECISAM enviar, senão o servidor cai
+// no bar padrão do usuário e não acha o funcionário quando ele é de outro bar (ex.: RH no Ordinário
+// abrindo alguém do Deboche → "funcionário não encontrado"). O api-client injeta isso sozinho.
+const barHdr = (): Record<string, string> => { const b = getSelectedBarId(); return b ? { 'x-selected-bar-id': b } : {}; };
 import {
   Loader2, Pencil, Upload, FileText, Trash2, ExternalLink,
   CalendarDays, Cake, Phone, Mail, CreditCard,
@@ -129,7 +135,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
       const fd = new FormData();
       fd.append('file', file); fd.append('tipo', tipoUp);
       if (validadeUp) fd.append('validade', validadeUp);
-      const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/documentos`, { method: 'POST', body: fd, credentials: 'include' });
+      const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/documentos`, { method: 'POST', headers: barHdr(), body: fd, credentials: 'include' });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.success) throw new Error(j.error || 'Falha no upload');
       showToast({ type: 'success', title: 'Documento anexado' });
@@ -140,7 +146,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   };
   const excluirDoc = async (docId: string) => {
     try {
-      await fetch(`/api/rh/funcionarios/${funcionarioId}/documentos?doc_id=${docId}`, { method: 'DELETE', credentials: 'include' });
+      await fetch(`/api/rh/funcionarios/${funcionarioId}/documentos?doc_id=${docId}`, { method: 'DELETE', headers: barHdr(), credentials: 'include' });
       setDocs((p) => p.filter((d) => d.id !== docId));
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
   };
@@ -149,7 +155,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
     setSalvandoOc(true);
     try {
       const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/ocorrencias`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(novoOc),
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...barHdr() }, credentials: 'include', body: JSON.stringify(novoOc),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.success) throw new Error(j.error || 'Falha ao salvar');
@@ -163,7 +169,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
     setSalvandoObs(true);
     try {
       const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/ocorrencias`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...barHdr() }, credentials: 'include',
         body: JSON.stringify({ tipo: 'observacao', data_inicio: novaObs.data_inicio || new Date().toISOString().slice(0, 10), descricao: novaObs.descricao }),
       });
       const j = await r.json().catch(() => ({}));
@@ -175,7 +181,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   };
   const excluirOcorrencia = async (ocId: string) => {
     try {
-      await fetch(`/api/rh/funcionarios/${funcionarioId}/ocorrencias?ocorrencia_id=${ocId}`, { method: 'DELETE', credentials: 'include' });
+      await fetch(`/api/rh/funcionarios/${funcionarioId}/ocorrencias?ocorrencia_id=${ocId}`, { method: 'DELETE', headers: barHdr(), credentials: 'include' });
       setOcorrencias((p) => p.filter((o) => o.id !== ocId));
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
   };
@@ -185,7 +191,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
     try {
       const criterios = CRITERIOS_PADRAO.map((c) => ({ criterio: c, nota: novaAval.notas[c] || 0 })).filter((c) => c.nota > 0);
       const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/avaliacoes`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...barHdr() }, credentials: 'include',
         body: JSON.stringify({ periodo: novaAval.periodo, avaliador: novaAval.avaliador, criterios, pontos_fortes: novaAval.pontos_fortes, pontos_desenvolver: novaAval.pontos_desenvolver }),
       });
       const j = await r.json().catch(() => ({}));
@@ -197,7 +203,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   };
   const excluirAval = async (avId: string) => {
     try {
-      await fetch(`/api/rh/funcionarios/${funcionarioId}/avaliacoes?avaliacao_id=${avId}`, { method: 'DELETE', credentials: 'include' });
+      await fetch(`/api/rh/funcionarios/${funcionarioId}/avaliacoes?avaliacao_id=${avId}`, { method: 'DELETE', headers: barHdr(), credentials: 'include' });
       setAvaliacoes((p) => p.filter((a) => a.id !== avId));
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
   };
@@ -206,7 +212,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
     setSalvandoTreino(true);
     try {
       const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/treinamentos`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(novoTreino),
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...barHdr() }, credentials: 'include', body: JSON.stringify(novoTreino),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.success) throw new Error(j.error || 'Falha ao salvar');
@@ -217,27 +223,27 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   };
   const excluirTreino = async (tId: string) => {
     try {
-      await fetch(`/api/rh/funcionarios/${funcionarioId}/treinamentos?treinamento_id=${tId}`, { method: 'DELETE', credentials: 'include' });
+      await fetch(`/api/rh/funcionarios/${funcionarioId}/treinamentos?treinamento_id=${tId}`, { method: 'DELETE', headers: barHdr(), credentials: 'include' });
       setTreinos((p) => p.filter((t) => t.id !== tId));
     } catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
   };
   const toggleOnb = async (it: Onb) => {
     const novo = !it.concluido;
     setOnbItens((p) => p.map((x) => x.id === it.id ? { ...x, concluido: novo } : x));
-    try { await fetch(`/api/rh/funcionarios/${funcionarioId}/onboarding`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ id: it.id, concluido: novo }) }); }
+    try { await fetch(`/api/rh/funcionarios/${funcionarioId}/onboarding`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...barHdr() }, credentials: 'include', body: JSON.stringify({ id: it.id, concluido: novo }) }); }
     catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); carregar(); }
   };
   const addOnb = async () => {
     if (!novoOnb.trim()) return;
     try {
-      const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/onboarding`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ item: novoOnb }) });
+      const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/onboarding`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...barHdr() }, credentials: 'include', body: JSON.stringify({ item: novoOnb }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.success) throw new Error(j.error || 'Falha');
       setNovoOnb(''); carregar();
     } catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
   };
   const removeOnb = async (itemId: string) => {
-    try { await fetch(`/api/rh/funcionarios/${funcionarioId}/onboarding?item_id=${itemId}`, { method: 'DELETE', credentials: 'include' }); setOnbItens((p) => p.filter((x) => x.id !== itemId)); }
+    try { await fetch(`/api/rh/funcionarios/${funcionarioId}/onboarding?item_id=${itemId}`, { method: 'DELETE', headers: barHdr(), credentials: 'include' }); setOnbItens((p) => p.filter((x) => x.id !== itemId)); }
     catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
   };
 
