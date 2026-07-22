@@ -120,8 +120,12 @@ export async function POST(req: NextRequest) {
     await up('bronze_tangerino_employee', 'bar_id,employee_id_ext', emp.items.map((x: any) => ({ bar_id: barId, employee_id_ext: x.id, payload: x })));
     const ws = await pullAll('/work-schedule');
     await up('bronze_tangerino_work_schedule', 'bar_id,schedule_id_ext', ws.items.map((x: any) => ({ bar_id: barId, schedule_id_ext: x.id, payload: x })));
+    // Promove os colaboradores do bronze -> hr.funcionarios: roteia por workplace -> bar (nome
+    // "Ordinário"/"Deboche"), cria novos, atualiza dados e usa fired -> ativo. Espelha o Tangerino.
+    const { data: funcionarios_sync } = await (supabase as any).schema('hr').rpc('fn_tangerino_sync_funcionarios', { p_dry_run: false });
     return NextResponse.json({ cadastros: true,
       job_roles: jr.items.length, workplaces: wp.items.length, employees: emp.items.length, work_schedules: ws.items.length,
+      funcionarios_sync,
       erros: { jr: jr.error, wp: wp.error, emp: emp.error, ws: ws.error } });
   }
 
