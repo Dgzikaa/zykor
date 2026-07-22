@@ -21,6 +21,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'bar_id obrigatorio' }, { status: 400 });
     }
 
+    // Sync manual = backfill de HISTÓRICO COMPLETO por padrão. Na 1ª conexão de
+    // um bar a gente quer puxar tudo (feed + reels antigos), não só 30 dias;
+    // depois os crons diários se alimentam incrementalmente. Pode encurtar com
+    // ?dias=N (ex.: ?dias=30) pra um refresh rápido só do recente.
+    const dias = Number(sp.get('dias')) || 3650;
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
@@ -30,7 +36,7 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${serviceKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ bar_id: barId, dias_posts: 30 }),
+      body: JSON.stringify({ bar_id: barId, dias_posts: dias }),
     });
     const data = await resp.json();
     return NextResponse.json(data, { status: resp.ok ? 200 : 502 });
