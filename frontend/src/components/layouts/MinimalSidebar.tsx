@@ -11,6 +11,7 @@ import { BarLogo } from '@/components/BarLogo';
 import { cn } from '@/lib/utils';
 import { ChevronRight, ChevronDown, Check, Home } from 'lucide-react';
 import { MENU_TREE, isMenuLeaf } from '@/lib/navigation/menu';
+import { getModuleIdForPath } from '@/lib/permissions/modules';
 import { iconFor } from '@/lib/navigation/menu-icons';
 
 // Seletor de bar no topo do menu lateral: identidade (logo + nome do bar) + troca rápida.
@@ -300,13 +301,18 @@ export function MinimalSidebar() {
 
     // Casa uma permissão de menu (seção ou item) com as do usuário, via mapeamento
     // (mesma lógica do BottomNavigation, p/ desktop e mobile não divergirem).
-    const matchPermission = (permission?: string) => {
-      if (!permission) return true;
+    const matchPermission = (permission?: string, href?: string) => {
       if (hasPermission('todos')) return true;
+      // REDE DE SEGURANÇA (anti-descasamento): além da `permission` declarada no item, aceita o
+      // MÓDULO CANÔNICO da rota — o MESMO id que a tela de Perfis concede e o route-guard exige
+      // (getModuleIdForPath). Assim, se o perfil deu acesso ao item, o menu SEMPRE mostra, mesmo
+      // que a `permission` escrita à mão no menu tenha divergido do id gerado (bug recorrente:
+      // ex.: 'controle_producao' vs 'producao - cmv_controle_de_producao'). Puramente aditivo.
+      const canonical = href ? getModuleIdForPath(href) : null;
+      if (canonical && hasPermission(canonical)) return true;
+      if (!permission) return true;
       // Módulos granulares de Produção-CMV e Ferramentas: essas categorias NÃO têm 'gestao'
       // nos generics do resolver, então no MENU quem tem 'gestao' continua vendo (retrocompat).
-      // Fallback só aqui — o resolver não ganha generic (evita vazamento reverso de 'gestao'
-      // pra outras áreas). Quem tem só o módulo próprio vê só o dele.
       const permissions = PERMISSION_MAPPINGS[permission]
         || (/^(producao - cmv_|ferramentas_)/.test(permission) ? [permission, 'gestao'] : [permission]);
       return permissions.some(p => hasPermission(p));
@@ -329,7 +335,7 @@ export function MinimalSidebar() {
         const filtered = item.subItems?.filter(sub => {
           if (!isSubMenuItem(sub)) return true;
           if (isConfig && ehAdmin) return true;
-          return matchPermission(sub.permission) && matchBar(sub.href);
+          return matchPermission(sub.permission, sub.href) && matchBar(sub.href);
         });
         const dropOrphanHeaders = filtered?.filter((sub, i) => {
           if (isSubMenuItem(sub)) return true;
@@ -349,7 +355,7 @@ export function MinimalSidebar() {
         if (item.permission === 'configuracoes' && ehAdmin) return true;
         const temFolha = item.subItems?.some(isSubMenuItem) ?? false;
         if (barRestrito) return temFolha;
-        if (matchPermission(item.permission)) return true;
+        if (matchPermission(item.permission, item.href)) return true;
         return temFolha;
       });
   }, [hasPermission, permissionsLoading, selectedBar]);

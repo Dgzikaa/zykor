@@ -145,7 +145,7 @@ export const MENU_TREE: MenuSection[] = [
       { header: 'Estoque' },
       { icon: 'Boxes', label: 'Estoque', href: '/operacional/estoque-historico', permission: 'producao - cmv_estoque' },
       { icon: 'Scale', label: 'Desvios de Consumo', href: '/operacional/desvios', permission: 'producao - cmv_desvios_de_consumo' },
-      { icon: 'Trash2', label: 'Desperdício', href: '/operacional/desperdicio', permission: 'desperdicio', beta: true },
+      { icon: 'Trash2', label: 'Desperdício', href: '/operacional/desperdicio', permission: 'producao - cmv_desperdicio', beta: true },
       { icon: 'AlertTriangle', label: 'Stockout', href: '/ferramentas/stockout', permission: 'producao - cmv_stockout' },
       { icon: 'ShoppingCart', label: 'Planejamento de Compras', href: '/operacional/plano-compras', permission: 'producao - cmv_planejamento_de_compras' },
       { header: 'Insumos' },
@@ -155,7 +155,7 @@ export const MENU_TREE: MenuSection[] = [
       { header: 'Produções' },
       { icon: 'ChefHat', label: 'Fichas Técnicas', href: '/operacional/fichas-tecnicas', permission: 'producao - cmv_fichas_tecnicas' },
       { icon: 'CalendarDays', label: 'Planejamento da Produção', href: '/operacional/plano-producao', permission: 'producao - cmv_planejamento_da_producao' },
-      { icon: 'Timer', label: 'Controle de Produção', href: '/operacional/producoes', permission: 'controle_producao' },
+      { icon: 'Timer', label: 'Controle de Produção', href: '/operacional/producoes', permission: 'producao - cmv_controle_de_producao' },
     ],
   },
   {

@@ -18,6 +18,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { MENU_TREE, isMenuLeaf } from '@/lib/navigation/menu';
+import { getModuleIdForPath } from '@/lib/permissions/modules';
 import { iconFor } from '@/lib/navigation/menu-icons';
 
 interface BottomNavItem {
@@ -75,13 +76,17 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
   };
 
   // Helper para verificar permissões (igual ao sidebar desktop)
-  const hasAnyMappedPermission = (permissionKey: string) => {
-    if (!permissionKey) return true; // Se não tem permissão definida, permite
+  const hasAnyMappedPermission = (permissionKey: string, href?: string) => {
     if (hasPermission('todos')) return true;
-    
+    // REDE DE SEGURANÇA (anti-descasamento): aceita o MÓDULO CANÔNICO da rota — o mesmo id que a
+    // tela de Perfis concede e o route-guard exige. Se o perfil deu acesso ao item, o menu SEMPRE
+    // mostra, mesmo que a `permission` escrita à mão tenha divergido do id gerado. Puramente aditivo.
+    const canonical = href ? getModuleIdForPath(href) : null;
+    if (canonical && hasPermission(canonical)) return true;
+    if (!permissionKey) return true; // Se não tem permissão definida, permite
+
     // Módulos granulares de Produção-CMV e Ferramentas: essas categorias não têm 'gestao'
     // nos generics do resolver, então no MENU quem tem 'gestao' continua vendo (retrocompat).
-    // Fallback só aqui — não vira generic no resolver (sem vazamento).
     const mappedPermissions = PERMISSION_MAPPINGS[permissionKey]
       || (/^(producao - cmv_|ferramentas_)/.test(permissionKey) ? [permissionKey, 'gestao'] : [permissionKey]);
     return mappedPermissions.some(perm => hasPermission(perm));
@@ -116,12 +121,12 @@ function MobileHamburgerMenu({ isOpen, onClose }: MobileHamburgerMenuProps) {
   const menuSections = allMenuSections.filter(section => {
     const isConfig = section.permission === 'configuracoes';
     if (isConfig && ehAdmin) return true; // config sempre p/ admin (não se tranca do bar enxuto)
-    const hasMainPermission = hasAnyMappedPermission(section.permission || '');
+    const hasMainPermission = hasAnyMappedPermission(section.permission || '', section.href);
 
     // Filtra subitems por permissão do usuário E pelo portão do bar
     if (section.subItems.length > 0) {
       section.subItems = section.subItems.filter(subItem =>
-        hasAnyMappedPermission(subItem.permission || '') && matchBar(subItem.href)
+        hasAnyMappedPermission(subItem.permission || '', subItem.href) && matchBar(subItem.href)
       );
       // Bar restrito: só aparece se sobrou folha. Senão, mantém o comportamento antigo.
       if (barRestrito) return section.subItems.length > 0;
