@@ -70,7 +70,9 @@ export default function PlanoComprasPage() {
       && (!soProteina || ehProteina(i.secao_vmarket))
       && (filtro === 'todos' || (filtro === 'comprar' ? !i.nao_comprar : i.nao_comprar))
       && (!secao || i.secao_vmarket === secao)
-      && (!s || (i.nome || '').toLowerCase().includes(s) || (i.codigo || '').toLowerCase().includes(s)));
+      && (!s || (i.nome || '').toLowerCase().includes(s) || (i.codigo || '').toLowerCase().includes(s)))
+      // insumo marcado como "acabou" sobe pro topo (o resto mantém a ordem de sugestão do servidor)
+      .sort((a, b) => (b.falta ? 1 : 0) - (a.falta ? 1 : 0));
   }, [res, busca, soCurvaA, soProteina, filtro, secao]);
 
   // muda o nível de serviço do insumo: recalcula PR/sugestão ao vivo (PR = Média6s + DesvPad × z)
@@ -123,6 +125,16 @@ export default function PlanoComprasPage() {
       : x) } : prev);
     try { await api.post('/api/operacional/plano-compras', { bar_id: barId, action: 'saida_ajuste', insumo_codigo: it.codigo, semana_ini: semana, valor_manual, ignorar }); }
     catch { /* fica local; próximo refresh corrige */ }
+  };
+
+  // Marca/resolve "insumo acabou" (sinal manual que vira badge, mesmo com a contagem mostrando estoque).
+  // Otimista no local; persiste no servidor. resolver=true limpa a falta (comprou / recontou / voltou).
+  const marcarFalta = async (it: any, resolver: boolean) => {
+    setRes((prev: any) => prev ? { ...prev, itens: (prev.itens as any[]).map((x) => x.codigo === it.codigo
+      ? { ...x, falta: resolver ? null : { origem: 'compras', por: null, em: new Date().toISOString() } } : x) } : prev);
+    try {
+      await api.post('/api/operacional/insumo-falta', { bar_id: barId, insumo_codigo: it.codigo, nome: it.nome, origem: 'compras', acao: resolver ? 'resolver' : 'marcar' });
+    } catch { /* fica local; próximo refresh corrige */ }
   };
 
   const totComprar = useMemo(() => linhas.filter((i) => !i.nao_comprar).length, [linhas]);
@@ -197,6 +209,11 @@ export default function PlanoComprasPage() {
                 <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100 leading-tight w-full">
                     <span className="whitespace-nowrap font-medium">{it.nome}</span>{it.curva_a && <Badge variant="outline" className="ml-1.5 text-[10px] text-indigo-600 border-indigo-300">A</Badge>}
+                    {it.falta
+                      ? <button onClick={() => marcarFalta(it, true)} title={`Marcado como ACABOU${it.falta.por ? ' por ' + it.falta.por : ''}${it.falta.em ? ' em ' + fmtDM(String(it.falta.em).slice(0, 10)) : ''}. Clique para resolver (comprou / recontou / voltou).`}
+                          className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-[10px] rounded px-1.5 py-0.5 border border-rose-300 bg-rose-50 text-rose-600 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-300">⚠ acabou</button>
+                      : <button onClick={() => marcarFalta(it, false)} title="Marcar que este insumo acabou (vira badge e sobe pro topo)"
+                          className="ml-1.5 align-middle text-[10px] text-gray-300 hover:text-rose-500 dark:text-gray-600 dark:hover:text-rose-400">acabou?</button>}
                     <span className="block text-[11px] text-gray-500 dark:text-gray-400 font-mono">{it.codigo}</span>
                     <span className="block text-[11px] text-gray-400 whitespace-nowrap">{it.secao_vmarket || 'sem seção'} · emb. {fmtMedida(it.embalagem, it.base)}</span>
                   </td>
@@ -214,7 +231,9 @@ export default function PlanoComprasPage() {
                     </select>
                   </td>
                   <td className="px-1.5 py-2 text-right tabular-nums text-gray-700 dark:text-gray-200 font-medium whitespace-nowrap">{fmtEmb(it.pr, it.embalagem)}</td>
-                  <td className="px-1.5 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmtEmb(it.estoque, it.embalagem)}</td>
+                  <td className="px-1.5 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap"
+                    title={it.consumo_pos > 0 ? `Estoque real = contagem ${fmtMedida(it.estoque_contagem, it.base)} − ${fmtMedida(it.consumo_pos, it.base)} produzido desde a contagem` : undefined}>
+                    {fmtEmb(it.estoque, it.embalagem)}{it.consumo_pos > 0 && <span className="ml-0.5 text-amber-500">•</span>}</td>
                   <td className="px-1.5 py-2 text-right tabular-nums whitespace-nowrap">{it.ab > 0 ? <span className="text-indigo-600 dark:text-indigo-400">{fmtEmb(it.ab, it.embalagem)}</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
                   <td className="px-1.5 py-2 text-right whitespace-nowrap">
                     {it.nao_comprar

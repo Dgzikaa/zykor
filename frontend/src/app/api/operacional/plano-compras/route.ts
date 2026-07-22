@@ -79,7 +79,11 @@ export async function GET(request: NextRequest) {
     // MESMA fonte da tela de Insumos, pra os números baterem (lib compartilhado).
     const u = (r.base && num(r.embalagem) > 0) ? { base: r.base as string, embalagem: num(r.embalagem) } : deriveUnid(r.nome, r.unidade_medida);
     const embalagem = u.embalagem || 1;
-    const estoque = num(r.estoque_cont) * embalagem; // contagem vem em pacotes → unidade-base
+    // ESTOQUE REAL = contagem (pacotes → base) − consumo de produções FINALIZADAS desde a contagem.
+    // O estoque "anda" conforme as produções dão baixa, sem esperar a próxima contagem semanal.
+    const estoqueContBase = num(r.estoque_cont) * embalagem;
+    const consumoPos = num(r.consumo_pos);
+    const estoque = Math.max(0, estoqueContBase - consumoPos); // contagem em pacotes → unidade-base
     const ab = num(r.ab);
     const nivel = cfgMap.get(String(r.insumo_codigo).toUpperCase()) ?? 95;
     const pr = media6 + desvpad * zDe(nivel);
@@ -91,12 +95,21 @@ export async function GET(request: NextRequest) {
       codigo: r.insumo_codigo, nome: r.nome, fornecedor: r.fornecedor, categoria: r.categoria,
       secao_vmarket: r.secao_vmarket || null,
       embalagem, base: u.base, unidade: u.base, custo: num(r.custo), curva_a: r.curva_a === true,
-      estoque: r2(estoque), ab: r2(ab), comprado: num(r.comprado),
+      estoque: r2(estoque), estoque_contagem: r2(estoqueContBase), consumo_pos: r2(consumoPos), ab: r2(ab), comprado: num(r.comprado),
       media6: r2(media6), desvpad: r2(desvpad), saidas, saidas_orig: saidasOrig, ignorados, manuais,
       semanas, ultima,
       nivel_servico: nivel, pr: r2(pr), sugestao_base: r2(sugestaoBase), sugestao_qtd: sugestaoQtd, nao_comprar: naoComprar,
     };
   }).sort((a, b) => b.sugestao_qtd - a.sugestao_qtd);
+
+  // Faltas ATIVAS marcadas manualmente (pausa "acabou" / gestor): viram badge no item, mesmo
+  // que a contagem semanal ainda mostre estoque. Chave por código (case-insensitive).
+  const { data: faltasRows } = await (sb() as any).schema('operations').from('insumo_falta')
+    .select('insumo_codigo, origem, marcado_por, marcado_em').eq('bar_id', barId).is('resolvido_em', null);
+  const faltaMap = new Map<string, any>();
+  (faltasRows || []).forEach((f: any) => faltaMap.set(String(f.insumo_codigo).toUpperCase(),
+    { origem: f.origem, por: f.marcado_por, em: f.marcado_em }));
+  itens.forEach((i: any) => { i.falta = faltaMap.get(String(i.codigo).toUpperCase()) || null; });
 
   return NextResponse.json({
     success: true, semana, semana_sel: semanaSel, semana_ativa: latest, semanas_disponiveis: semanasDisponiveis,

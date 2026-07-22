@@ -49,7 +49,7 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
   // FORA do estado/ActiveProd de propósito: o autosave não a inclui → pessoa e gestor anotam sem
   // conflito. Preenchido no sync; editado via /rascunho/observacao; realtime propaga pra todos.
   const [obsPausa, setObsPausa] = useState<Record<string, { motivos: string[]; texto: string; autor: string | null; em: string }>>({});
-  const [editObs, setEditObs] = useState<{ key: string; nome: string; motivos: string[]; texto: string } | null>(null);
+  const [editObs, setEditObs] = useState<{ key: string; nome: string; motivos: string[]; texto: string; insumos: { codigo: string; nome: string }[]; faltaCodigos: string[] } | null>(null);
   const [salvandoObs, setSalvandoObs] = useState(false);
   const idRef = useRef(0);
   // espelho de prods p/ os gravadores lerem sempre o valor atual sem recriar os intervals
@@ -94,6 +94,13 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
         if (r.obs_pausa) next[editObs.key] = r.obs_pausa; else delete next[editObs.key];
         return next;
       });
+      // "Acabou insumo" + insumos escolhidos → sinaliza a falta (vira badge no Plano de Compras)
+      if (editObs.motivos.includes('Acabou insumo') && editObs.faltaCodigos.length && barId) {
+        await Promise.allSettled(editObs.faltaCodigos.map((cod) => {
+          const ins = editObs.insumos.find((i) => i.codigo === cod);
+          return api.post('/api/operacional/insumo-falta', { bar_id: barId, insumo_codigo: cod, nome: ins?.nome, origem: 'producao', observacao: editObs.texto.trim(), acao: 'marcar' });
+        }));
+      }
       setEditObs(null);
     } catch (e: any) {
       toast({ title: 'Erro ao salvar motivo', description: e?.message, variant: 'destructive' });
@@ -113,8 +120,12 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
       </div>
     );
   };
-  const abrirEditObs = (key: string, nome: string) =>
-    setEditObs({ key, nome, motivos: obsPausa[key]?.motivos || [], texto: obsPausa[key]?.texto || '' });
+  const abrirEditObs = (key: string, nome: string, itens?: any[]) => {
+    const insumos = (Array.isArray(itens) ? itens : [])
+      .filter((i: any) => i?.insumo_codigo && (i.componente_tipo === 'insumo' || i.componente_tipo == null))
+      .map((i: any) => ({ codigo: String(i.insumo_codigo), nome: i.nome_componente || String(i.insumo_codigo) }));
+    setEditObs({ key, nome, motivos: obsPausa[key]?.motivos || [], texto: obsPausa[key]?.texto || '', insumos, faltaCodigos: [] });
+  };
 
   // snapshot serializável (sem flags de UI voláteis) — base dos writes local/servidor
   const snapshotProds = () => prodsRef.current.map(p => ({ ...p, loadingItens: false }));
@@ -713,7 +724,7 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
                     {(() => { const v = obsView(p.idempotencyKey); return v ? <div className="mt-1.5">{v}</div> : null; })()}
                     <div className="mt-2 flex items-center gap-1.5">
                       <Button size="sm" onClick={() => retomarUma(p)} className="flex-1 h-7 bg-amber-600 hover:bg-amber-700"><RotateCcw className="w-3.5 h-3.5 mr-1" />Retomar esta</Button>
-                      <Button size="sm" variant="ghost" onClick={() => abrirEditObs(p.idempotencyKey, p.ficha?.nome || 'Produção')} title="Anotar/ver motivo da pausa"
+                      <Button size="sm" variant="ghost" onClick={() => abrirEditObs(p.idempotencyKey, p.ficha?.nome || 'Produção', p.itens)} title="Anotar/ver motivo da pausa"
                         className="h-7 px-2 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 shrink-0"><MessageSquare className="w-3.5 h-3.5" /></Button>
                       {podeExcluirRascunho && (
                         <Button size="sm" variant="ghost" onClick={() => descartarRascunho(p)} title="Descartar este rascunho"
@@ -867,7 +878,7 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
                   ? <Button size="sm" onClick={() => iniciar(sel)} className="bg-green-600 hover:bg-green-700"><Play className="w-4 h-4 mr-1" />{elapsedOf(sel, nowTick) > 0 ? 'Continuar' : 'Iniciar'}</Button>
                   : <Button size="sm" onClick={() => patch(sel.localId, { rodando: false, segundos: elapsedOf(sel), rodandoDesde: null })} variant="outline"><Pause className="w-4 h-4 mr-1" />Pausar</Button>}
                 <Button size="sm" variant="ghost" onClick={() => pedirZerar(sel)} title="Zerar tempo"><RotateCcw className="w-4 h-4" /></Button>
-                <Button size="sm" variant="ghost" onClick={() => abrirEditObs(sel.idempotencyKey, sel.ficha.nome)} title="Motivo da pausa / observação"><MessageSquare className="w-4 h-4" /></Button>
+                <Button size="sm" variant="ghost" onClick={() => abrirEditObs(sel.idempotencyKey, sel.ficha.nome, sel.itens)} title="Motivo da pausa / observação"><MessageSquare className="w-4 h-4" /></Button>
               </div>
             </div>
 
@@ -1109,6 +1120,23 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
                 );
               })}
             </div>
+            {editObs.motivos.includes('Acabou insumo') && editObs.insumos.length > 0 && (
+              <div className="rounded-md border border-rose-200 dark:border-rose-900/40 bg-rose-50/50 dark:bg-rose-900/10 p-2 space-y-1">
+                <div className="text-[11px] font-medium text-rose-700 dark:text-rose-300">Qual insumo acabou? (marca no Plano de Compras)</div>
+                <div className="flex flex-wrap gap-1">
+                  {editObs.insumos.map(ins => {
+                    const on = editObs.faltaCodigos.includes(ins.codigo);
+                    return (
+                      <button key={ins.codigo} type="button"
+                        onClick={() => setEditObs(prev => prev ? { ...prev, faltaCodigos: on ? prev.faltaCodigos.filter(c => c !== ins.codigo) : [...prev.faltaCodigos, ins.codigo] } : prev)}
+                        className={`text-[11px] px-2 py-0.5 rounded-full border transition ${on ? 'border-rose-400 bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                        {ins.nome}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <textarea value={editObs.texto} onChange={e => setEditObs(prev => prev ? { ...prev, texto: e.target.value.slice(0, 300) } : prev)}
               placeholder="Detalhe (ex.: acabou farinha panko)…" rows={3}
               className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm text-gray-900 dark:text-white resize-none" />
