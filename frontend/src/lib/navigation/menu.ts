@@ -201,18 +201,22 @@ export const MENU_TREE: MenuSection[] = [
     label: 'Configurações',
     href: '/configuracoes',
     permission: 'configuracoes',
+    // Agrupado por headers (só visual): Administração (infra/config), Acesso (perfis) e
+    // Testes (ferramentas em validação). Usuários saiu daqui — vive dentro de Perfis de Acesso.
     subItems: [
+      { header: 'Administração' },
+      { icon: 'Zap', label: 'Integrações', href: '/configuracoes/administracao/integracoes', permission: 'configuracoes' },
       { icon: 'Bell', label: 'Notificações', href: '/configuracoes/notifications', permission: 'configuracoes' },
       { icon: 'Store', label: 'Bares', href: '/configuracoes/bares', permission: 'configuracoes' },
-      { icon: 'Zap', label: 'Integrações', href: '/configuracoes/administracao/integracoes', permission: 'configuracoes' },
-      { icon: 'Users', label: 'Administração', href: '/configuracoes/administracao/usuarios', permission: 'configuracoes' },
-      { icon: 'Shield', label: 'Perfis de Acesso', href: '/configuracoes/administracao/perfis', permission: 'configuracoes' },
-      { icon: 'MessageCircle', label: 'Feedbacks', href: '/configuracoes/feedbacks', permission: 'configuracoes' },
       { icon: 'Activity', label: 'Monitoramento', href: '/configuracoes/monitoramento', permission: 'configuracoes' },
       { icon: 'Shield', label: 'Auditoria', href: '/configuracoes/auditoria', permission: 'configuracoes' },
       { icon: 'Server', label: 'Painel Supabase', href: '/configuracoes/painel', permission: 'configuracoes' },
-      { icon: 'CheckSquare', label: 'Checklist Validação', href: '/checklist-validacao', permission: 'configuracoes' },
+      { header: 'Acesso' },
+      { icon: 'Shield', label: 'Perfis de Acesso', href: '/configuracoes/administracao/perfis', permission: 'configuracoes' },
+      { header: 'Testes' },
       { icon: 'Bot', label: 'Zykor Assistant', href: '/assistente-zykor', permission: 'gestao' },
+      { icon: 'CheckSquare', label: 'Checklist Validação', href: '/checklist-validacao', permission: 'configuracoes' },
+      { icon: 'MessageCircle', label: 'Feedbacks', href: '/configuracoes/feedbacks', permission: 'configuracoes' },
     ],
   },
 ];

@@ -152,6 +152,7 @@ export interface ActiveProd {
   rodando: boolean;
   rodandoDesde?: number | null;
   dataProducao?: string; // retroativa: data (YYYY-MM-DD) em que a produção foi feita; vazio = hoje
+  iniciadoEm?: number; // epoch ms de quando a produção foi criada (exibido no card "em andamento"). Vai no snapshot/estado → sobrevive reload e aparece no quadro do bar.
   tentouSalvar?: boolean; // já tentou salvar → destaca em vermelho os obrigatórios vazios
   idempotencyKey: string; // 1 por instância → duplo/triplo submit (internet ruim) colide no banco, não duplica
 }

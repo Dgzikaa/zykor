@@ -11,11 +11,8 @@ export default function AdministracaoLayout({
 }) {
   const pathname = usePathname();
 
+  // Usuários saiu daqui — a gestão de usuários vive dentro de "Perfis de Acesso".
   const tabs = [
-    {
-      label: 'Usuários',
-      href: '/configuracoes/administracao/usuarios',
-    },
     {
       label: 'Integrações',
       href: '/configuracoes/administracao/integracoes',

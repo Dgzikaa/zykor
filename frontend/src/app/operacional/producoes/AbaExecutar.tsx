@@ -15,7 +15,7 @@ import {
   Loader2, History, Package, Clock, X, Scale, AlertTriangle, CalendarCheck, CheckCircle2,
 } from 'lucide-react';
 import {
-  fmtDM, fmtCrono, fmtBRL, fmtNum, fmtPeso, entradaPeso, AvisoUnidade, fmtPct, fmtTempo,
+  fmtDM, fmtData, fmtCrono, fmtBRL, fmtNum, fmtPeso, entradaPeso, AvisoUnidade, fmtPct, fmtTempo,
   getDeviceId, secaoDeCodigo, MOD_GERIR_EQUIPE, pf,
   type Secao, type FichaItem, type ActiveProd,
 } from './_shared';
@@ -60,6 +60,17 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
   // tempo decorrido REAL de uma produção (âncora de relógio): segundos bancados + segmento em curso.
   const elapsedOf = (p: { segundos: number; rodando: boolean; rodandoDesde?: number | null }, now = Date.now()) =>
     Math.max(0, Math.round((Number(p.segundos) || 0) + (p.rodando && p.rodandoDesde ? (now - p.rodandoDesde) / 1000 : 0)));
+
+  // Epoch ms de quando a produção começou (pro card "em andamento"): usa iniciadoEm (novo);
+  // senão o criado_em do rascunho no servidor (drafts antigos/de outro aparelho); senão deriva
+  // da âncora do relógio (rodandoDesde − tempo bancado). null quando não dá pra saber.
+  const inicioDe = (p: any): number | null => {
+    if (p?.iniciadoEm) return Number(p.iniciadoEm);
+    if (p?.criado_em) { const t = Date.parse(p.criado_em); if (!Number.isNaN(t)) return t; }
+    const seg = (Number(p?.segundos) || 0) * 1000;
+    if (p?.rodando && p?.rodandoDesde) return Number(p.rodandoDesde) - seg;
+    return null;
+  };
 
   // snapshot serializável (sem flags de UI voláteis) — base dos writes local/servidor
   const snapshotProds = () => prodsRef.current.map(p => ({ ...p, loadingItens: false }));
@@ -225,7 +236,8 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
     const meusKeys = new Set(prodsRef.current.map(p => p.idempotencyKey));
     const outros = rows
       .filter(row => donoDe(row) !== deviceId && iniciada(row))
-      .map(row => row.estado)
+      // leva o criado_em do rascunho junto do estado — fallback de "início" p/ drafts sem iniciadoEm
+      .map(row => ({ ...row.estado, criado_em: row.criado_em }))
       .filter((e: any) => e && e.localId && e.ficha && !meusKeys.has(e.idempotencyKey));
     setResumivel(outros.length ? outros : null);
   }, [barId, deviceId, aplicarEstados, toast]);
@@ -345,6 +357,7 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
     const nova: ActiveProd = {
       localId, ficha: f, itens: [], loadingItens: true, responsavelId: null,
       pesoBruto: '', pesoMestre: '', rendimentoReal: '', observacao: '', qtdReal: {}, segundos: 0, rodando: false, rodandoDesde: null, dataProducao: '',
+      iniciadoEm: Date.now(), // marca quando a produção foi criada (exibido no card em andamento)
       idempotencyKey: (globalThis.crypto?.randomUUID?.() ?? `${localId}-${Date.now()}-${Math.round(Math.random() * 1e9)}`),
     };
     setProds(prev => [...prev, nova]);
@@ -644,6 +657,7 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
                     <div className="mt-1 flex items-center flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-gray-500">
                       <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /><span className="tabular-nums">{fmtCrono(elapsedOf(p, nowTick))}</span></span>
                       {resp && <span className="inline-flex items-center gap-1"><User className="w-3 h-3" />{resp.nome}</span>}
+                      {inicioDe(p) && <span className="inline-flex items-center gap-1" title="Quando a produção começou"><CalendarCheck className="w-3 h-3" />Início {fmtData(inicioDe(p))}</span>}
                       {p.dataProducao && <span>Data {fmtDM(p.dataProducao)}</span>}
                     </div>
                     {(p.ficha?.codigo || nItens > 0) && <div className="text-[10px] text-gray-400 mt-0.5">{p.ficha?.codigo || ''}{p.ficha?.codigo && nItens ? ' · ' : ''}{nItens ? `${nItens} itens` : ''}</div>}
