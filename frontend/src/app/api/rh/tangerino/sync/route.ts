@@ -94,6 +94,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ employees: true, tentativas: out });
   }
 
+  // PROBE ausências/ajustes: inspeciona /daily-activity (adjustment/punch/pending por dia),
+  // /daily-summary e /manual-editing-justification. { ausencias:true, employee_id?, de?, ate? }
+  // Descobre o formato dos lançamentos de férias/atestado/abono p/ descontar da falta.
+  if (body?.ausencias) {
+    const empId = body?.employee_id != null ? Number(body.employee_id) : 6076485; // default: ANA CAROLINA
+    const employerId = 2338282; // company do grupo (Ordinário/Deboche)
+    const urls = [
+      { nome: 'daily-activity', url: `${TANGERINO.punch}/daily-activity?employeeId=${empId}&employerId=${employerId}&startDate=${deMs}&endDate=${ateMs}&adjustmentList=true&punchList=true&pendingList=true&showFired=true` },
+      { nome: 'daily-summary', url: `${TANGERINO.punch}/daily-summary/?employeeId=${empId}&startDate=${deMs}&endDate=${ateMs}` },
+      { nome: 'adjustment-reason', url: `${TANGERINO.employer}/adjustment-reason/find-all?page=0&size=50` },
+    ];
+    const out: any[] = [];
+    for (const u of urls) {
+      try {
+        const r = await fetch(u.url, { headers: { Authorization: authHeader } });
+        const t = await r.text();
+        out.push({ nome: u.nome, status: r.status, ct: r.headers.get('content-type'), url: u.url, body: t.slice(0, 2500) });
+      } catch (e: any) { out.push({ nome: u.nome, erro: e?.message }); }
+    }
+    return NextResponse.json({ ausencias: true, employee_id: empId, de, ate: hoje, deMs, ateMs, tentativas: out });
+  }
+
   // SYNC dos cadastros (cargo/setor/colaborador/escala) -> bronze. { cadastros:true }
   if (body?.cadastros) {
     const pullAll = async (path: string): Promise<{ items: any[]; error?: number }> => {
