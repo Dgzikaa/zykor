@@ -61,12 +61,12 @@ export function CardNPS({ barId, periodo }: { barId?: number; periodo: PeriodoVa
         <GraficoBarra
           data={comNps}
           xKey="label"
-          valueKey="respostas"
-          lineKey="nps"
-          nomeBarra="Respostas"
-          nomeLinha="NPS"
-          cor="#38bdf8"
-          corLinha="#8b5cf6"
+          valueKey="nps"
+          lineKey="respostas"
+          nomeBarra="NPS"
+          nomeLinha="Respostas"
+          cor="#8b5cf6"
+          corLinha="#38bdf8"
           formatV={(v) => String(Math.round(v))}
           formatLine={(v) => String(Math.round(v))}
           height={240}
