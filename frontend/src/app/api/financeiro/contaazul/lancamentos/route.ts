@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { paginate } from '@/lib/supabase/paginate';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
+import { getCAValidToken } from '@/lib/contaazul/token';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY!;
@@ -15,22 +16,10 @@ function getSupabaseAdmin() {
   });
 }
 
+// Delega pro helper compartilhado: se o token expirou, RENOVA na hora (refresh on-demand) em vez
+// de falhar o pagamento e esperar o cron. Ver lib/contaazul/token.
 async function getCAToken(barId: number): Promise<{ token: string } | { error: string; status: number }> {
-  const supabase = getSupabaseAdmin();
-  const { data: credentials, error: credError } = await supabase
-    .from('api_credentials')
-    .select('access_token, expires_at')
-    .eq('sistema', 'conta_azul')
-    .eq('bar_id', barId)
-    .single();
-
-  if (credError || !credentials?.access_token) {
-    return { error: 'Credenciais do Conta Azul não encontradas', status: 404 };
-  }
-  if (credentials.expires_at && new Date(credentials.expires_at) < new Date()) {
-    return { error: 'Token CA expirado. Reconecte o Conta Azul.', status: 401 };
-  }
-  return { token: credentials.access_token };
+  return getCAValidToken(getSupabaseAdmin(), barId);
 }
 
 export async function GET(request: NextRequest) {
