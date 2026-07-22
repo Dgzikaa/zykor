@@ -33,8 +33,29 @@ const pessoaKey = (p: { contaazul_pessoa_id: string | null; beneficiario_nome?: 
 
 const SEM_AREA = 'Sem área';
 
+// Normaliza a área/função pra AGRUPAR: diferença de digitação (espaço a mais, MAIÚSCULA,
+// acento, plural) não pode virar grupo separado ("Cozinha" ≠ "Cozinha "). Além do saneamento,
+// junta sinônimos conhecidos (Bar/Bartender, Cozinha/Cozinheiro). Extensível — é só adicionar
+// a forma sem acento/minúscula → rótulo canônico.
+const ALIAS_AREA: Record<string, string> = {
+  bar: 'Bar', bartender: 'Bar', barman: 'Bar', barmen: 'Bar', 'bar/bartender': 'Bar',
+  cozinha: 'Cozinha', cozinheiro: 'Cozinha', cozinheira: 'Cozinha', cozinhas: 'Cozinha', chapa: 'Cozinha', chapeiro: 'Cozinha',
+  garcom: 'Garçom', garcons: 'Garçom', garconete: 'Garçom', garconetes: 'Garçom', 'garcom/garconete': 'Garçom',
+  atendimento: 'Atendimento', runner: 'Runner', cumim: 'Cumim', copa: 'Copa',
+  seguranca: 'Segurança', limpeza: 'Limpeza', caixa: 'Caixa', apoio: 'Apoio',
+};
+function normArea(raw?: string | null): { key: string; label: string } {
+  const base = (raw || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '') // tira acento
+    .toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!base) return { key: '', label: SEM_AREA };
+  const alias = ALIAS_AREA[base];
+  if (alias) return { key: alias.toLowerCase(), label: alias };
+  return { key: base, label: base.replace(/\b\w/g, (c) => c.toUpperCase()) }; // Título
+}
+
 type Linha = {
-  key: string; nome: string; area: string;
+  key: string; nome: string; areaKey: string; areaLabel: string;
   dias: Set<string>; totalDias: number; totalValor: number;
 };
 
@@ -63,23 +84,27 @@ export function FreelaMatrizSemana({ roster, pedidos, monISO }: { roster: Freela
       if (!key) continue;
       let ln = linhas.get(key);
       if (!ln) {
-        // Área: cadastro (roster) primeiro; senão a função do dia da descrição; senão "Sem área".
+        // Área: cadastro (roster) primeiro; senão a função do dia da descrição. Normalizada
+        // (acento/espaço/caixa + sinônimos) pra não fragmentar em grupos iguais.
         const areaCad = (p.contaazul_pessoa_id && areaRoster.byId.get(p.contaazul_pessoa_id))
           || areaRoster.byNome.get(norm(p.beneficiario_nome));
-        const area = (areaCad || funcaoDaDescricao(p.descricao) || SEM_AREA).trim() || SEM_AREA;
-        ln = { key, nome: p.beneficiario_nome || '—', area, dias: new Set(), totalDias: 0, totalValor: 0 };
+        const na = normArea(areaCad || funcaoDaDescricao(p.descricao));
+        ln = { key, nome: p.beneficiario_nome || '—', areaKey: na.key, areaLabel: na.label, dias: new Set(), totalDias: 0, totalValor: 0 };
         linhas.set(key, ln);
       }
       if (!ln.dias.has(dia)) { ln.dias.add(dia); ln.totalDias++; }
       ln.totalValor += Number(p.valor || 0);
     }
 
-    // Agrupa por área e ordena (área alfabética, "Sem área" por último; nomes alfabéticos).
-    const porArea = new Map<string, Linha[]>();
-    for (const ln of linhas.values()) (porArea.get(ln.area) || porArea.set(ln.area, []).get(ln.area)!).push(ln);
-    const grupos = [...porArea.entries()]
-      .sort(([a], [b]) => (a === SEM_AREA ? 1 : b === SEM_AREA ? -1 : a.localeCompare(b, 'pt-BR')))
-      .map(([area, ls]) => ({ area, linhas: ls.sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR')) }));
+    // Agrupa pela ÁREA NORMALIZADA (areaKey) e ordena (alfabética, "Sem área" por último).
+    const porArea = new Map<string, { label: string; linhas: Linha[] }>();
+    for (const ln of linhas.values()) {
+      const g = porArea.get(ln.areaKey) || porArea.set(ln.areaKey, { label: ln.areaLabel, linhas: [] }).get(ln.areaKey)!;
+      g.linhas.push(ln);
+    }
+    const grupos = [...porArea.values()]
+      .sort((a, b) => (a.label === SEM_AREA ? 1 : b.label === SEM_AREA ? -1 : a.label.localeCompare(b.label, 'pt-BR')))
+      .map((g) => ({ area: g.label, linhas: g.linhas.sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR')) }));
     const totalGeral = [...linhas.values()].reduce((s, l) => s + l.totalValor, 0);
     return { grupos, totalGeral };
   }, [pedidos, dias, areaRoster]);
