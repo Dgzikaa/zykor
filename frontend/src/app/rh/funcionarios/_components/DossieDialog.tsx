@@ -63,7 +63,7 @@ const corOcorr = (t: string) =>
   : 'bg-muted text-muted-foreground';
 
 type Doc = { id: string; tipo: string; descricao: string | null; nome_arquivo: string | null; validade: string | null; criado_em: string; url: string | null };
-type Ocorr = { id: string; tipo: string; data_inicio: string; data_fim: string | null; descricao: string | null; cartao?: string | null };
+type Ocorr = { id: string; tipo: string; data_inicio: string; data_fim: string | null; descricao: string | null; cartao?: string | null; aplicado_por?: string | null };
 type Alerta = { tipo: string; label: string; nivel: string };
 type Avaliacao = { id: string; periodo: string; avaliador: string | null; criterios: { criterio: string; nota: number }[]; nota_geral: number | null; pontos_fortes: string | null; pontos_desenvolver: string | null; criado_em: string };
 type Treino = { id: string; nome: string; instituicao: string | null; data_conclusao: string | null; validade: string | null; observacao: string | null };
@@ -87,7 +87,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const [validadeUp, setValidadeUp] = useState('');
   const [enviando, setEnviando] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [novoOc, setNovoOc] = useState({ tipo: 'advertencia', data_inicio: '', data_fim: '', descricao: '', cartao: 'amarelo' });
+  const [novoOc, setNovoOc] = useState({ tipo: 'advertencia', data_inicio: '', data_fim: '', descricao: '', cartao: 'amarelo', aplicado_por: '' });
   const [novaObs, setNovaObs] = useState({ data_inicio: '', descricao: '' });
   const [salvandoObs, setSalvandoObs] = useState(false);
   const [salvandoOc, setSalvandoOc] = useState(false);
@@ -153,7 +153,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.success) throw new Error(j.error || 'Falha ao salvar');
-      setNovoOc({ tipo: 'advertencia', data_inicio: '', data_fim: '', descricao: '', cartao: 'amarelo' });
+      setNovoOc({ tipo: 'advertencia', data_inicio: '', data_fim: '', descricao: '', cartao: 'amarelo', aplicado_por: '' });
       carregar();
     } catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
     finally { setSalvandoOc(false); }
@@ -252,7 +252,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
 
   return (
     <Dialog open={funcionarioId != null} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-6xl w-[96vw] h-[88vh] p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-7xl w-[97vw] h-[90vh] p-0 gap-0 overflow-hidden">
         {loading || !func ? (
           <div className="py-24 text-center w-full"><Loader2 className="w-7 h-7 animate-spin mx-auto text-muted-foreground" /></div>
         ) : (
@@ -410,7 +410,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                             <span className={`text-[10px] rounded px-1.5 py-0.5 ${corOcorr(o.tipo)}`}>
                               {TIPO_OCORR[o.tipo] || o.tipo}{o.tipo === 'advertencia' ? ` · cartão ${o.cartao === 'vermelho' ? 'vermelho' : 'amarelo'}` : ''}
                             </span>
-                            <span className="text-xs text-muted-foreground">{fmtData(o.data_inicio)}{o.data_fim ? ` → ${fmtData(o.data_fim)}` : ''}</span>
+                            <span className="text-xs text-muted-foreground">{fmtData(o.data_inicio)}{o.data_fim ? ` → ${fmtData(o.data_fim)}` : ''}{o.aplicado_por ? ` · por ${o.aplicado_por}` : ''}</span>
                           </div>
                           {o.descricao && <div className="text-sm mt-0.5">{o.descricao}</div>}
                         </div>
@@ -429,6 +429,11 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                         <option value="amarelo">🟨 Amarelo (aviso)</option>
                         <option value="vermelho">🟥 Vermelho (grave)</option>
                       </select>
+                    </label>
+                  )}
+                  {novoOc.tipo === 'advertencia' && (
+                    <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Líder que aplicou</span>
+                      <Input value={novoOc.aplicado_por} onChange={(e) => setNovoOc({ ...novoOc, aplicado_por: e.target.value })} placeholder="ex.: Renato" className="h-9 text-sm w-[140px]" />
                     </label>
                   )}
                   <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Data</span><Input type="date" value={novoOc.data_inicio} onChange={(e) => setNovoOc({ ...novoOc, data_inicio: e.target.value })} className="h-9 text-sm w-[160px]" /></label>
