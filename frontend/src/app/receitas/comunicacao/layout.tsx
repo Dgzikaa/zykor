@@ -5,11 +5,12 @@
 // por rota, dentro do shell da área Receitas.
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Images, Camera, Users, CalendarDays, Megaphone } from 'lucide-react';
+import { LayoutDashboard, Images, Camera, Users, CalendarDays, Megaphone, Instagram } from 'lucide-react';
 import { ComunicacaoPeriodoProvider } from './PeriodoContext';
 
 const TABS = [
-  { href: '/receitas/comunicacao', label: 'Orgânico', icone: LayoutDashboard },
+  { href: '/receitas/comunicacao', label: 'Instagram', icone: Instagram },
+  { href: '/receitas/comunicacao/organico', label: 'Orgânico', icone: LayoutDashboard },
   { href: '/receitas/comunicacao/anuncios', label: 'Mídia', icone: Megaphone },
   { href: '/receitas/comunicacao/calendario', label: 'Calendário', icone: CalendarDays },
   { href: '/receitas/comunicacao/feed', label: 'Feed', icone: Images },
