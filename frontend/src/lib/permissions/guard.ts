@@ -75,7 +75,11 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   // --- Analítico --- (/api/analitico/clientes/filtros-avancados é POST de LEITURA → fora do mapa)
   { prefix: '/api/campanhas-clube', paths: ['/analitico/clientes'] },
   { prefix: '/api/crm/lista-quente', paths: ['/analitico/clientes'] },
-  { prefix: '/api/eventos/artistas', paths: ['/analitico/atracoes'] },
+  // COMPARTILHADA: quem tagueia artistas em Atrações E quem edita "quem tocou"/horários no
+  // modal do Planejamento Comercial usam a MESMA rota. Libera por qualquer um dos módulos —
+  // senão quem só tem estrategico_planejamento (edita título/plano) tomava 403 ao salvar os
+  // artistas, com o título já gravado (rota /[id] é sem guard).
+  { prefix: '/api/eventos/artistas', paths: ['/analitico/atracoes', '/estrategico/planejamento-comercial'] },
   { prefix: '/api/eventos/artista-ca-pessoa', paths: ['/analitico/atracoes'] },
   { prefix: '/api/eventos/ca-atracao-override', paths: ['/analitico/atracoes'] },
   // --- Marketing / NPS / Comercial ---

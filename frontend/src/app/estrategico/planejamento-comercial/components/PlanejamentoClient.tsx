@@ -639,7 +639,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
       router.refresh(); 
     } catch (err) {
       console.error('Erro ao salvar:', err);
-      alert('Erro ao salvar alterações');
+      // apiCall propaga a mensagem do servidor (errorData.error) — mostra ela pro usuário
+      // saber o motivo real (ex.: 403 de permissão) em vez do genérico "Erro ao salvar".
+      const msg = err instanceof Error && err.message ? err.message : 'Erro ao salvar alterações';
+      alert(msg);
     } finally {
       setSalvando(false);
     }
