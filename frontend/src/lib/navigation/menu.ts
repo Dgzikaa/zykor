@@ -213,6 +213,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Server', label: 'Painel Supabase', href: '/configuracoes/painel', permission: 'configuracoes' },
       { header: 'Acesso' },
       { icon: 'Shield', label: 'Perfis de Acesso', href: '/configuracoes/administracao/perfis', permission: 'configuracoes' },
+      { icon: 'Users', label: 'Usuários', href: '/configuracoes/usuarios', permission: 'configuracoes' },
       { header: 'Testes' },
       { icon: 'Bot', label: 'Zykor Assistant', href: '/assistente-zykor', permission: 'gestao' },
       { icon: 'CheckSquare', label: 'Checklist Validação', href: '/checklist-validacao', permission: 'configuracoes' },
