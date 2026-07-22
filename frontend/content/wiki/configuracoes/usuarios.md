@@ -2,7 +2,7 @@
 title: Usuários e Permissões
 area: configuracoes
 slug: usuarios
-route: /configuracoes/administracao/usuarios
+route: /configuracoes/usuarios
 description: Cadastro de usuários do sistema, vínculo com bares e controle de acesso por módulo (ver, editar, inserir e excluir).
 order: 40
 icon: Users
@@ -26,7 +26,7 @@ Cada usuário cadastrado aqui existe em dois lugares ao mesmo tempo: no **sistem
 
 ## Como acessar
 
-No menu lateral: **Configurações → Administração → Usuários** (rota `/configuracoes/administracao/usuarios`).
+No menu lateral: **Configurações → Acesso → Usuários** (ao lado de *Perfis de Acesso*), rota `/configuracoes/usuarios`. A rota antiga `/configuracoes/administracao/usuarios` continua abrindo a mesma tela (alias).
 
 **Permissão necessária:** apenas usuários com função **Administrador** (`role = admin`) conseguem abrir a tela. Se um usuário não-admin tentar entrar, o sistema mostra "Acesso Restrito" e o redireciona para a Home. Além do bloqueio na tela, a API também exige admin — toda operação (listar, criar, editar, excluir) passa por uma verificação de administrador no servidor.
 
