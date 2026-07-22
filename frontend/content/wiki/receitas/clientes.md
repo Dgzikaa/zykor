@@ -79,7 +79,7 @@ A tela é organizada em abas dentro do card principal, além dos cartões-resumo
 |---|---|---|
 | **Clientes** | Ranking dos clientes por número de visitas, com ticket, tempo de estadia e produtos favoritos. É a aba padrão. | ContaHub (silver `cliente_estatisticas`) |
 | **Reservantes** | Top 100 de quem mais fez reservas, com status das reservas e taxa de presença. | GetIn (`bronze_getin_reservations`) cruzado com visitas |
-| **Lista Quente** | Construtor de segmentos: combina dezenas de critérios para gerar listas de disparo, com resumo por dia da semana e exportação. | ContaHub, via `/api/crm/lista-quente` |
+| **Lista Quente** | Construtor de segmentos: combina dezenas de critérios para gerar listas de disparo, com resumo por dia da semana e exportação. | ContaHub (silver `cliente_visitas`), via `/api/crm/lista-quente` |
 | **Aniversariantes** | Aniversariantes do mês escolhido, com status de relacionamento e produtos favoritos. | ContaHub (`cliente_estatisticas`, campo `cliente_dtnasc`) |
 | **Top por Categoria** | Ranking de clientes que mais consumiram uma categoria de produto (ex.: cerveja, drink). | ContaHub (`cliente_estatisticas`, campo `produtos_favoritos`) |
 | **Filtros Avançados** | Análise de público por período: idade média, faixa etária, origem (dentro/fora de Brasília), ticket e visitas. | ContaHub, via `/api/analitico/clientes/filtros-avancados` |
@@ -168,6 +168,10 @@ Cartões de estatística do segmento (após "Aplicar Filtros"), servidos por `/a
 | Com Telefone | Quantos têm telefone cadastrado |
 
 Cada **cartão de dia da semana** mostra: total de clientes, ticket médio do dia, gasto total do dia e exemplos de clientes. Ao abrir um dia, a tabela lista Nome, Telefone, Email, Visitas no Dia, Total Visitas, Ticket Médio e Gasto Total de cada cliente.
+
+> **Fonte (importante):** desde o modelo cartão do ContaHub (06/07/2026), o telefone/nome do cliente deixou de vir no relatório de PERÍODO e passou a vir só no de PAGAMENTOS (campos `cht_fonea`/`cht_nome`). A Lista Quente lê de `silver.cliente_visitas`, que já aplica esse fallback — por isso identifica os clientes recentes corretamente. A antiga `public.visitas` **não** tem esse fallback e não deve mais ser usada por telas de cliente.
+>
+> **Filtro "Mês de Aniversário":** depende da data de nascimento, que **não** está em `cliente_visitas`. Para segmentar por aniversário, use a aba **Aniversariantes** (que lê `cliente_estatisticas`, onde o dtnasc é populado por ETL próprio do cadastro ContaHub).
 
 ### Aba Aniversariantes (tabela)
 
@@ -258,7 +262,7 @@ Entrada é o couvert (o valor de porta/ingresso). Consumo é tudo o que a pessoa
 Das reservas do **GetIn**. A tela cruza o telefone da reserva com as visitas do ContaHub para calcular presença e % de reservas sobre visitas.
 
 **Os aniversariantes cobrem os dois bares?**
-Sim, mas cada bar é consultado separadamente pelo seu `bar_id`. O Deboche depende de as datas de nascimento estarem cadastradas — a própria tela avisa quando o % de clientes com data é baixo.
+Cada bar é consultado separadamente pelo seu `bar_id`, mas na prática **só o Ordinário (bar 3) tem aniversariantes** (~67 mil clientes com data). O **Deboche (bar 4) não coleta data de nascimento no PDV** — nem no relatório de vendas nem no de pagamentos do ContaHub existe campo de aniversário para o Deboche (verificado: 0 registros com `cli_dtnasc` em 2026). Por isso a aba Aniversariantes do Deboche fica praticamente vazia (só 3 clientes históricos), e isso **é esperado, não é bug** — dependeria de configurar a coleta de aniversário no cadastro de cliente do PDV do Deboche.
 
 **Com que frequência os números atualizam?**
 A base de clientes (`cliente_estatisticas`) é regenerada por sincronização e as respostas têm cache curto (alguns minutos). Mudanças recentes no ContaHub podem levar um pouco para refletir aqui.
@@ -266,7 +270,7 @@ A base de clientes (`cliente_estatisticas`) é regenerada por sincronização e 
 ## Fonte dos dados
 
 - **`silver.cliente_estatisticas`** — view/base consolidada por cliente (visitas, entrada, consumo, tickets, tempo de estadia, produtos e categorias favoritas, tags, status, VIP, data de nascimento). Origem: **ContaHub**.
-- **`silver.cliente_visitas`** — uma linha por visita (data, couvert, pagamentos, tempo de estadia). Usada no cálculo ao vivo, no histórico do modal e no cruzamento com reservas. Origem: **ContaHub**.
+- **`silver.cliente_visitas`** — uma linha por visita (data, couvert, pagamentos, tempo de estadia, telefone/nome). Usada no cálculo ao vivo, no histórico do modal, no cruzamento com reservas e em **todas as rotas de CRM** (Lista Quente, segmentação, retenção, churn, LTV, padrões). Já aplica o fallback do modelo cartão (telefone/nome do relatório de pagamentos). Origem: **ContaHub**. Não confundir com a legada `public.visitas`, que não tem o fallback.
 - **`silver.vendas_item`** — itens consumidos por visita; usada para montar o perfil de consumo em tempo real quando não há cache. Origem: **ContaHub**.
 - **`bronze_getin_reservations`** — reservas (nome, telefone, data, status, no-show). Origem: **GetIn**.
 - **Funções SQL:** `get_cliente_stats_agregado` (cartões-resumo), `top_clientes_por_categoria` e `listar_categorias_clientes_estatisticas` (aba Top por Categoria).

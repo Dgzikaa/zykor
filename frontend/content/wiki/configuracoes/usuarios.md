@@ -12,15 +12,15 @@ icon: Users
 
 ## Visão geral
 
-Esta é a tela de administração de quem pode entrar no Zykor e do que cada pessoa consegue ver e fazer. A partir dela você:
+Esta é a tela de administração de quem pode entrar no Zykor. A partir dela você:
 
 - Cadastra novos usuários (que passam a poder fazer login no sistema).
 - Define a quais **bares** cada pessoa tem acesso.
-- Escolhe a **função** (Administrador, Funcionário ou Financeiro).
-- Libera acesso **módulo por módulo**, com granularidade de ação: **Ver**, **Editar**, **Inserir** e **Excluir**.
 - Reseta senha, ativa/desativa e exclui usuários.
 
 É uma tela sensível: quem cadastra usuário aqui está criando conta real de acesso e distribuindo poder dentro do sistema. Por isso ela é restrita a administradores.
+
+> **O acesso agora é por PERFIL.** O que cada pessoa vê e faz (o menu lateral e as ações de cada tela) é definido pelo **Perfil** vinculado a ela (Administrativo, Financeiro, Marketing, Operação, Liderança, Sócio, Produção Tablet, Investidor…), gerido em **Configurações → Perfis de Acesso**. O perfil é a **fonte da verdade**: editar os módulos de um perfil muda o acesso de **todos** os membros dele (vale no próximo login). O menu é **granular por módulo** — marcar um módulo no perfil mostra exatamente aquele item. A gestão de **quais usuários pertencem a cada perfil** também vive dentro de *Perfis de Acesso* (o campo "Função" saiu do cadastro de usuário — o acesso não depende mais de role, e sim do perfil).
 
 Cada usuário cadastrado aqui existe em dois lugares ao mesmo tempo: no **sistema de autenticação** (login e senha) e na **tabela de usuários do Zykor** (dados cadastrais, função e permissões). A tela mantém os dois em sincronia automaticamente.
 

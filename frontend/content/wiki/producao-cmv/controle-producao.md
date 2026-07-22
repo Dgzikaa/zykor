@@ -50,6 +50,10 @@ No menu lateral: **Produção & CMV → Controle de Produção** (rota `/operaci
 ### Retomar uma produção de outro aparelho
 - Produções iniciadas em **outro tablet do bar** aparecem no **quadro amarelo "em andamento no bar"**. Clique em **Retomar esta** para assumir a posse (ela sai da tela do aparelho de origem — modelo de dono único).
 
+### Ver quando começou e anotar por que pausou
+- Cada card do quadro **"em andamento no bar"** mostra o **tempo decorrido**, o **responsável** e o **"Início"** (dia/hora em que a produção começou) — útil para entender há quanto tempo algo está parado.
+- Toque no botão **💬** do card (ou no detalhe da produção) para **anotar/ver o motivo da pausa**. Tanto a **pessoa que está produzindo** quanto um **gestor** podem escrever, de qualquer aparelho. Escolha uma **badge** rápida (*Acabou insumo* · *Fim de turno* · *Aguardando etapa* · *Intervalo* · *Equipamento*) e/ou detalhe no campo livre (ex.: "acabou farinha panko"). A nota aparece no card com **quem anotou** e sincroniza ao vivo para todos os aparelhos — assim o gestor entende de bate-pronto por que uma produção está pausada.
+
 ### Lançamento retroativo
 - No detalhe, mude a **"Data da produção"** para um dia passado. A produção passa a ser **retroativa** (sem cronômetro, pois já foi feita) e os campos liberam sem precisar iniciar o timer.
 
@@ -75,7 +79,7 @@ A tela tem um seletor **Cozinha 👨‍🍳 / Bar 🍺** (a seção sai da ficha
 
 | Aba | O que faz |
 |---|---|
-| **Executar** | Adiciona produções e roda o cronômetro. Traz o quadro "em andamento no bar" (retomar), o calendário do Planejamento da Produção e o formulário de execução (peso, rendimento, insumos usados). |
+| **Executar** | Adiciona produções e roda o cronômetro. Traz o quadro "em andamento no bar" (com **Início** e **motivo da pausa**, e o botão Retomar), o calendário do Planejamento da Produção e o formulário de execução (peso, rendimento, insumos usados). |
 | **Histórico** | Lista as execuções já finalizadas, com tempo, custo planejado/real, aderência, rendimento, FC e alertas. Tem o "Resumo da semana" quando uma semana está selecionada. Permite editar/excluir e ver o detalhe dos insumos. |
 | **Análise** | Consolida as execuções por Dia/Semana/Mês, com "Nota" (% de produções dentro do rendimento), rendimento médio, aderência, desvios de insumo e rendimento, e tempo. |
 | **Alimentação** | Registra refeições da equipe (sem ficha), com custo total e custo por pessoa, e histórico das refeições. |
@@ -175,6 +179,8 @@ A tela tem um seletor **Cozinha 👨‍🍳 / Bar 🍺** (a seção sai da ficha
 - **Retroativo:** lançar uma data passada ancora o fim ao meio-dia daquele dia e dispensa o cronômetro; ganha o selo "retroativo".
 - **Idempotência:** o "Finalizar" pode disparar 2–3× em rede lenta. Uma chave de idempotência por execução (índice único `bar_id + idempotencia_key`) e uma janela de 5 min impedem duplicatas — o retry recebe a execução que já venceu, não cria outra.
 - **Autosave e dono único:** o rascunho é salvo no `localStorage` (a cada 1s) e no servidor (a cada 10s + ao sair/backgroundear). Produções em andamento são visíveis entre aparelhos do bar via Supabase Realtime; cada uma tem **um único dono** (aparelho) por vez.
+- **Início do card:** vem do momento da criação da produção (ou, para as que já estavam em andamento, do `criado_em` do rascunho no servidor). Só aparece para produções que já têm rascunho salvo.
+- **Motivo da pausa:** fica numa coluna **separada** do estado da produção (`obs_pausa`), então o autosave da pessoa **nunca apaga** a nota do gestor (e vice-versa). Por isso os dois lados podem anotar sem conflito, e o Realtime propaga a nota na hora.
 - **Alertas do histórico:** `demorou` (tempo > meta da ficha, ou > 1,3× o tempo médio), `gasto alto` (custo real > 1,1× planejado), `insumo fora` (aderência < 85%), `baixo rend.` (rend. real < 95% do esperado), `retroativo`, `fora do plano`, `acima do plano`.
 - **Fora do plano** só é marcado **dentro da janela** de uma semana com plano encerrado — nunca marca execução de outra semana.
 - **Excluir** remove a execução do histórico **e das médias** (baselines) — não dá para desfazer. Fichas do ContaHub e bases de clientes não são afetadas (isto é tabela própria de execução).
@@ -204,7 +210,7 @@ Não. Você escolhe os insumos direto do catálogo e informa a quantidade; o pre
 
 - **`operations.producao_execucao`** — cabeçalho de cada execução (tempo, custos, aderência, rendimento, pesos).
 - **`operations.producao_execucao_insumo`** — insumos consumidos por execução (calculado, usado, desvio, custo).
-- **`operations.producao_execucao_rascunho`** — rascunhos de autosave (produções e refeições em andamento, sincronizados via Realtime).
+- **`operations.producao_execucao_rascunho`** — rascunhos de autosave (produções e refeições em andamento, sincronizados via Realtime). A coluna `criado_em` alimenta o "Início" e a coluna `obs_pausa` (jsonb) guarda o motivo da pausa (badges + texto + autor).
 - **`operations.alimentacao_execucao`** e **`operations.alimentacao_execucao_insumo`** — refeições da equipe.
 - **`public.producao_base`** — cadastro das fichas de produção (nome, código, unidade, rendimento, seção, tempo-meta, flag de controle).
 - **`public.producao_ficha_item`** — itens da ficha (quantidade, mestre, fator de correção, custo da planilha).
