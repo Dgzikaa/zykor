@@ -62,7 +62,9 @@ async function getAuthenticatedUser(request: NextRequest): Promise<User | null> 
 // Rotas que devem ser ignoradas pelo middleware
 const IGNORED_ROUTES = ['/_next', '/favicon.ico', '/static'];
 const BLOCKED_ROUTES = [
-  '/configuracoes/usuarios',
+  // '/configuracoes/usuarios' REABERTA: a pagina existe (configuracoes/usuarios/page.tsx,
+  // tabela de usuarios cadastrados, admin-only) e o menu (grupo Acesso) aponta pra ca. Estava
+  // na lista antiga de rotas removidas e batia com o "Pagina removida" mesmo com o item de volta.
   '/configuracoes/integracoes',
   '/configuracoes/fichas-tecnicas',
   '/configuracoes/checklists',
