@@ -6,6 +6,15 @@ export const dynamic = 'force-dynamic';
 
 const BUCKET = 'rh-documentos';
 
+// Mime por extensão — celular/scanner às vezes manda o arquivo SEM content-type (o browser
+// deixa file.type vazio), e o bucket rejeitava o fallback 'octet-stream'. Aqui inferimos pela
+// extensão pra o arquivo subir com o tipo certo (e abrir/baixar corretamente depois).
+const MIME_POR_EXT: Record<string, string> = {
+  pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+  webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', gif: 'image/gif',
+  bmp: 'image/bmp', tif: 'image/tiff', tiff: 'image/tiff',
+};
+
 // Garante que o funcionário existe e é do bar do usuário (escopo + LGPD).
 async function checaFuncionario(supabase: any, id: number, barId: number) {
   const { data } = await supabase.schema('hr').from('funcionarios').select('id').eq('id', id).eq('bar_id', barId).maybeSingle();
@@ -61,15 +70,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const safeName = file.name.replace(/[^\w.\-]+/g, '_');
   const path = `${user.bar_id}/${id}/${Date.now()}_${safeName}`;
   const buffer = new Uint8Array(await file.arrayBuffer());
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const contentType = file.type || MIME_POR_EXT[ext] || 'application/octet-stream';
 
   const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, buffer, {
-    contentType: file.type || 'application/octet-stream', upsert: false,
+    contentType, upsert: false,
   });
-  if (upErr) return NextResponse.json({ success: false, error: 'Falha no upload: ' + upErr.message }, { status: 500 });
+  if (upErr) {
+    // O bucket restringe tipo/tamanho — devolve mensagem legível pra quem está fotografando o doc.
+    const msg = /mime|content.?type|not allowed/i.test(upErr.message)
+      ? `Tipo de arquivo não aceito (${contentType}). Envie PDF ou foto (JPG/PNG/HEIC).`
+      : /size|large|exceeded/i.test(upErr.message)
+      ? 'Arquivo muito grande (máx. 15 MB).'
+      : 'Falha no upload: ' + upErr.message;
+    return NextResponse.json({ success: false, error: msg }, { status: 400 });
+  }
 
   const { data, error } = await (supabase as any).schema('hr').from('documentos_funcionario').insert({
     funcionario_id: Number(id), tipo, descricao, storage_path: path,
-    nome_arquivo: file.name, mime: file.type || null, tamanho_bytes: file.size,
+    nome_arquivo: file.name, mime: contentType, tamanho_bytes: file.size,
     validade: validade || null, uploaded_by: user.id,
   }).select().single();
   if (error) {
