@@ -12,7 +12,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
 import {
   Timer, Play, Pause, RotateCcw, Save, Search, Plus, Trash2, User,
-  Loader2, History, Package, Clock, X, Scale, AlertTriangle, CalendarCheck, CheckCircle2,
+  Loader2, History, Package, Clock, X, Scale, AlertTriangle, CalendarCheck, CheckCircle2, MessageSquare,
 } from 'lucide-react';
 import {
   fmtDM, fmtData, fmtCrono, fmtBRL, fmtNum, fmtPeso, entradaPeso, AvisoUnidade, fmtPct, fmtTempo,
@@ -45,6 +45,12 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
   const [confirmarDup, setConfirmarDup] = useState<any | null>(null); // produção já em andamento → confirmar 2ª fornada
   // produção em andamento achada em OUTRO device do bar (cache do tablet limpo / trocou de aparelho)
   const [resumivel, setResumivel] = useState<any[] | null>(null);
+  // Motivo da pausa (coluna obs_pausa do rascunho, autoritativa no servidor) por idempotencyKey.
+  // FORA do estado/ActiveProd de propósito: o autosave não a inclui → pessoa e gestor anotam sem
+  // conflito. Preenchido no sync; editado via /rascunho/observacao; realtime propaga pra todos.
+  const [obsPausa, setObsPausa] = useState<Record<string, { motivos: string[]; texto: string; autor: string | null; em: string }>>({});
+  const [editObs, setEditObs] = useState<{ key: string; nome: string; motivos: string[]; texto: string } | null>(null);
+  const [salvandoObs, setSalvandoObs] = useState(false);
   const idRef = useRef(0);
   // espelho de prods p/ os gravadores lerem sempre o valor atual sem recriar os intervals
   const prodsRef = useRef(prods);
@@ -71,6 +77,44 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
     if (p?.rodando && p?.rodandoDesde) return Number(p.rodandoDesde) - seg;
     return null;
   };
+
+  // Motivos-preset da pausa (mesma lista validada no endpoint). + campo livre.
+  const MOTIVOS_PAUSA: string[] = ['Acabou insumo', 'Fim de turno', 'Aguardando etapa', 'Intervalo', 'Equipamento'];
+  // Grava o motivo da pausa (pessoa OU gestor) → endpoint → otimista no mapa local; realtime propaga.
+  const salvarObsPausa = async () => {
+    if (!editObs || !barId || salvandoObs) return;
+    setSalvandoObs(true);
+    try {
+      const r = await api.post('/api/operacional/producoes/execucao/rascunho/observacao', {
+        bar_id: barId, idempotencia_key: editObs.key, motivos: editObs.motivos, texto: editObs.texto.trim(),
+      });
+      if (!r?.success) throw new Error(r?.error || 'Falha ao salvar');
+      setObsPausa(prev => {
+        const next = { ...prev };
+        if (r.obs_pausa) next[editObs.key] = r.obs_pausa; else delete next[editObs.key];
+        return next;
+      });
+      setEditObs(null);
+    } catch (e: any) {
+      toast({ title: 'Erro ao salvar motivo', description: e?.message, variant: 'destructive' });
+    } finally { setSalvandoObs(false); }
+  };
+  // bloco visual do motivo da pausa (badges + texto + autor) — reusado no quadro do bar e no card próprio
+  const obsView = (key: string) => {
+    const o = obsPausa[key];
+    if (!o || (!(o.motivos?.length) && !o.texto)) return null;
+    return (
+      <div className="rounded-md bg-amber-100/70 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40 px-2 py-1.5">
+        <div className="flex flex-wrap items-center gap-1">
+          {(o.motivos || []).map((m: string) => <span key={m} className="text-[10px] px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-800/60 text-amber-800 dark:text-amber-200">{m}</span>)}
+          {o.texto && <span className="text-[11px] text-amber-800 dark:text-amber-200">{o.texto}</span>}
+        </div>
+        {o.autor && <div className="text-[10px] text-amber-600/80 dark:text-amber-300/70 mt-0.5">— {o.autor}</div>}
+      </div>
+    );
+  };
+  const abrirEditObs = (key: string, nome: string) =>
+    setEditObs({ key, nome, motivos: obsPausa[key]?.motivos || [], texto: obsPausa[key]?.texto || '' });
 
   // snapshot serializável (sem flags de UI voláteis) — base dos writes local/servidor
   const snapshotProds = () => prodsRef.current.map(p => ({ ...p, loadingItens: false }));
@@ -198,6 +242,11 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
       rows = r.rascunhos;
     } catch { return; }
     const donoDe = (row: any): string | null => (row.owner_device || row.device_id) || null;
+    // Motivo da pausa por chave (fonte da verdade = servidor). Atualiza a cada sync/realtime,
+    // então a nota da pessoa E do gestor aparecem pra todos, em qualquer aparelho.
+    const obsMap: Record<string, any> = {};
+    rows.forEach((row: any) => { if (row.obs_pausa) obsMap[row.idempotencia_key] = row.obs_pausa; });
+    setObsPausa(obsMap);
 
     if (primeira && !hidratou.current) {
       // hidratação inicial: aplica minhas produções; se o servidor não tiver, cai no cache local.
@@ -661,8 +710,11 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
                       {p.dataProducao && <span>Data {fmtDM(p.dataProducao)}</span>}
                     </div>
                     {(p.ficha?.codigo || nItens > 0) && <div className="text-[10px] text-gray-400 mt-0.5">{p.ficha?.codigo || ''}{p.ficha?.codigo && nItens ? ' · ' : ''}{nItens ? `${nItens} itens` : ''}</div>}
+                    {(() => { const v = obsView(p.idempotencyKey); return v ? <div className="mt-1.5">{v}</div> : null; })()}
                     <div className="mt-2 flex items-center gap-1.5">
                       <Button size="sm" onClick={() => retomarUma(p)} className="flex-1 h-7 bg-amber-600 hover:bg-amber-700"><RotateCcw className="w-3.5 h-3.5 mr-1" />Retomar esta</Button>
+                      <Button size="sm" variant="ghost" onClick={() => abrirEditObs(p.idempotencyKey, p.ficha?.nome || 'Produção')} title="Anotar/ver motivo da pausa"
+                        className="h-7 px-2 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 shrink-0"><MessageSquare className="w-3.5 h-3.5" /></Button>
                       {podeExcluirRascunho && (
                         <Button size="sm" variant="ghost" onClick={() => descartarRascunho(p)} title="Descartar este rascunho"
                           className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-500/10 shrink-0"><Trash2 className="w-3.5 h-3.5" /></Button>
@@ -815,10 +867,13 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
                   ? <Button size="sm" onClick={() => iniciar(sel)} className="bg-green-600 hover:bg-green-700"><Play className="w-4 h-4 mr-1" />{elapsedOf(sel, nowTick) > 0 ? 'Continuar' : 'Iniciar'}</Button>
                   : <Button size="sm" onClick={() => patch(sel.localId, { rodando: false, segundos: elapsedOf(sel), rodandoDesde: null })} variant="outline"><Pause className="w-4 h-4 mr-1" />Pausar</Button>}
                 <Button size="sm" variant="ghost" onClick={() => pedirZerar(sel)} title="Zerar tempo"><RotateCcw className="w-4 h-4" /></Button>
+                <Button size="sm" variant="ghost" onClick={() => abrirEditObs(sel.idempotencyKey, sel.ficha.nome)} title="Motivo da pausa / observação"><MessageSquare className="w-4 h-4" /></Button>
               </div>
             </div>
 
-            {!iniciada && <div className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1"><Play className="w-3 h-3" />Selecione o responsável e <b>inicie a produção</b> antes de pesar o bruto e lançar o rendimento.</div>}
+            {obsView(sel.idempotencyKey)}
+
+            {!iniciada &&<div className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1"><Play className="w-3 h-3" />Selecione o responsável e <b>inicie a produção</b> antes de pesar o bruto e lançar o rendimento.</div>}
 
             {/* data da produção (permite lançamento retroativo — ex.: esqueceram de iniciar no dia) */}
             <div className="flex items-center gap-2 text-xs">
@@ -1028,6 +1083,43 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
               <Button onClick={() => { const f = confirmarDup; setConfirmarDup(null); void _adicionar(f); }} className="bg-amber-600 hover:bg-amber-700">
                 Adicionar 2ª fornada
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Motivo da pausa — badges (presets) + campo livre. Pessoa OU gestor anota; sincroniza pra todos. */}
+      {editObs && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditObs(null); }}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-md space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 text-amber-600">
+              <MessageSquare className="w-5 h-5" />
+              <h4 className="font-semibold text-gray-900 dark:text-white">Motivo da pausa</h4>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 -mt-1 truncate" title={editObs.nome}>{editObs.nome}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {MOTIVOS_PAUSA.map(m => {
+                const on = editObs.motivos.includes(m);
+                return (
+                  <button key={m} type="button"
+                    onClick={() => setEditObs(prev => prev ? { ...prev, motivos: on ? prev.motivos.filter(x => x !== m) : [...prev.motivos, m] } : prev)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition ${on ? 'border-amber-400 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                    {m}
+                  </button>
+                );
+              })}
+            </div>
+            <textarea value={editObs.texto} onChange={e => setEditObs(prev => prev ? { ...prev, texto: e.target.value.slice(0, 300) } : prev)}
+              placeholder="Detalhe (ex.: acabou farinha panko)…" rows={3}
+              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm text-gray-900 dark:text-white resize-none" />
+            <div className="flex justify-between items-center gap-2 pt-1">
+              <button type="button" onClick={() => setEditObs(prev => prev ? { ...prev, motivos: [], texto: '' } : prev)} className="text-xs text-gray-400 hover:text-gray-600 underline">limpar</button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setEditObs(null)} disabled={salvandoObs}>Cancelar</Button>
+                <Button onClick={salvarObsPausa} disabled={salvandoObs} className="bg-amber-600 hover:bg-amber-700">
+                  {salvandoObs ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

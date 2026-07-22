@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = await getAdminClient();
   let q = (supabase as any).schema(SCHEMA).from(TABLE)
-    .select('idempotencia_key, secao, producao_id, rodando, duracao_seg, estado, criado_em, atualizado_em, device_id, owner_device')
+    .select('idempotencia_key, secao, producao_id, rodando, duracao_seg, estado, obs_pausa, criado_em, atualizado_em, device_id, owner_device')
     .eq('bar_id', barId)
     .eq('kind', kind)
     .gte('atualizado_em', recenteIso)
