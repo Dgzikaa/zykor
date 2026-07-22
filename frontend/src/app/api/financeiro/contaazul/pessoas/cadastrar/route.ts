@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser } from '@/middleware/auth';
+import { getCAValidToken } from '@/lib/contaazul/token';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,20 +50,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Token CA do bar
-    const { data: credentials, error: credError } = await supabase
-      .from('api_credentials')
-      .select('access_token, expires_at')
-      .eq('sistema', 'conta_azul')
-      .eq('bar_id', barId)
-      .single();
-
-    if (credError || !credentials?.access_token) {
-      return NextResponse.json({ error: 'Credenciais CA não encontradas' }, { status: 404 });
-    }
-    if (credentials.expires_at && new Date(credentials.expires_at) < new Date()) {
-      return NextResponse.json({ error: 'Token CA expirado. Reconecte.' }, { status: 401 });
-    }
+    // Token CA — renova on-demand se estiver expirando (ver lib/contaazul/token).
+    const tk = await getCAValidToken(supabase, barId);
+    if ('error' in tk) return NextResponse.json({ error: tk.error }, { status: tk.status });
+    const credentials = { access_token: tk.token };
 
     const documentoLimpo = String(body.documento || '').replace(/\D/g, '');
     const tipoPessoa: 'Física' | 'Jurídica' | 'Estrangeira' =

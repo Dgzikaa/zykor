@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
 import { createClient } from '@supabase/supabase-js';
+import { getCAValidToken } from '@/lib/contaazul/token';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,20 +73,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Token CA
-    const { data: cred } = await supabase
-      .from('api_credentials')
-      .select('access_token, expires_at')
-      .eq('sistema', 'conta_azul')
-      .eq('bar_id', barIdNum)
-      .single();
-    if (!cred?.access_token) {
-      return NextResponse.json({ error: 'Credenciais CA não encontradas' }, { status: 404 });
-    }
-    if (cred.expires_at && new Date(cred.expires_at) < new Date()) {
-      return NextResponse.json({ error: 'Token CA expirado' }, { status: 401 });
-    }
-    const token = cred.access_token;
+    // Token CA — renova on-demand se estiver expirando (ver lib/contaazul/token).
+    const tk = await getCAValidToken(supabase, barIdNum);
+    if ('error' in tk) return NextResponse.json({ error: tk.error }, { status: tk.status });
+    const token = tk.token;
 
     // 1) Acha o evento da conta a pagar na bronze (match exato, 1 só)
     const valorRound = Math.round(valorNum * 100) / 100;
