@@ -5,7 +5,9 @@
   color: hsl(var(--foreground));
   font-size: 0.975rem;
   line-height: 1.7;
-  max-width: 46rem;
+  /* full width: preenche a coluna do artigo (limitada pelo container + índice à direita).
+     Antes travava em 46rem e sobrava espaço vazio; agora tabelas e conteúdo usam a largura. */
+  max-width: none;
 }
 
 .wiki-prose > *:first-child { margin-top: 0; }

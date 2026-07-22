@@ -17,7 +17,7 @@ export default function WikiLayout({ children }: { children: React.ReactNode }) 
   return (
     <MinimalLayout>
       <WikiTitle />
-      <div className="mx-auto max-w-[100rem] px-3 sm:px-5 py-5">
+      <div className="w-full px-3 sm:px-5 py-5">
         <div className="flex gap-8">
           <WikiSidebar grupos={grupos} />
           <main className="flex-1 min-w-0">{children}</main>
