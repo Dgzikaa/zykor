@@ -150,9 +150,9 @@ export function FreelaMatrizSemana({ roster, pedidos, monISO }: { roster: Freela
             return (
             <Fragment key={`area-${g.area}`}>
               {/* Cabeçalho da função — mais escuro (separa os grupos) + subtotal + recolher/expandir */}
-              <tr className="bg-muted text-foreground border-y border-[hsl(var(--border))] cursor-pointer select-none hover:bg-muted/80"
+              <tr className="bg-slate-200 dark:bg-neutral-800 text-foreground border-y border-[hsl(var(--border))] cursor-pointer select-none hover:bg-slate-300 dark:hover:bg-neutral-700"
                   onClick={() => toggle(g.area)}>
-                <td className="px-1 py-1.5 sticky left-0 bg-muted z-10">
+                <td className="px-1 py-1.5 sticky left-0 bg-slate-200 dark:bg-neutral-800 z-10">
                   <button type="button" aria-expanded={aberto}
                     className="flex items-center gap-1 text-xs font-bold uppercase tracking-wide">
                     {aberto ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
