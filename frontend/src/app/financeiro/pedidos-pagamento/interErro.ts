@@ -15,6 +15,14 @@ export interface ErroAmigavel {
 // Padrões (regex) → mensagem amigável. Ordem importa (mais específico primeiro).
 const PADROES: Array<{ re: RegExp; out: ErroAmigavel }> = [
   {
+    // Conta Azul (erro_ca): token expirado / credenciais ausentes / conta a pagar não criada.
+    // Vem ANTES do padrão de PIX de propósito: "Credenciais do Conta Azul não encontradas" casava
+    // com "não encontrada" e aparecia como erro de chave PIX, confundindo o financeiro (o PIX estava
+    // certo — o problema é a conexão do Conta Azul).
+    re: /conta\s+azul|token\s+ca\b|credenciais.*conta/i,
+    out: { titulo: 'Conta Azul desconectado', acao: 'Reconecte o Conta Azul em Integrações e agende o pedido de novo.' },
+  },
+  {
     re: /n[ãa]o\s+cadastrada|n[ãa]o\s+encontrada|not\s+registered|not\s+found|chave\s+inv[áa]lida|dict|chave.*inexist/i,
     out: {
       titulo: 'Chave PIX não encontrada no banco',

@@ -142,7 +142,9 @@ export function PedidoCard({
 
   return (
     <div className="rounded-lg border border-[hsl(var(--border))] bg-card transition hover:bg-muted/20">
-      <div className="flex items-center gap-3 p-3">
+      {/* Cabeçalho responsivo: no celular o conteúdo fica em cima e valor/status/ações caem numa
+          2ª linha (evita o aperto de tudo numa linha só); em sm+ segue tudo inline. */}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 p-3">
         {selecionavel && podeAprovar && (
           <input
             type="checkbox"
@@ -187,32 +189,36 @@ export function PedidoCard({
             )}
           </div>
         </button>
-        <div className="text-right shrink-0">
-          <div className="font-semibold">{formatBRL(pedido.valor)}</div>
-          <Badge className={`${STATUS_COLOR[pedido.status]} text-[10px] mt-0.5`}>{statusLabel(pedido)}</Badge>
-        </div>
-        {mostrarInline && (
-          <div className="flex flex-col gap-1 shrink-0">
-            <Button size="sm" className="h-7 px-2" onClick={aprovar} disabled={!!acao}>
-              {acao === 'aprovar' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Check className="w-3.5 h-3.5 mr-1" />Aprovar</>}
-            </Button>
-            <Button size="sm" variant="outline" className="h-7 px-2 text-red-600 hover:text-red-700" onClick={rejeitar} disabled={!!acao}>
-              {acao === 'rejeitar' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><X className="w-3.5 h-3.5 mr-1" />Recusar</>}
-            </Button>
+        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-2 pl-6 sm:pl-0">
+          <div className="text-right shrink-0">
+            <div className="font-semibold">{formatBRL(pedido.valor)}</div>
+            <Badge className={`${STATUS_COLOR[pedido.status]} text-[10px] mt-0.5`}>{statusLabel(pedido)}</Badge>
           </div>
-        )}
-        {podeAgendar && (
-          <Button size="sm" className="h-7 px-2 shrink-0" onClick={agendar} disabled={!!acao}
-            title={pedido.status === 'erro_ca' || pedido.status === 'erro_inter' ? 'Tentar agendar de novo' : 'Criar no CA e agendar o PIX no Inter'}>
-            {acao === 'agendar' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><CalendarClock className="w-3.5 h-3.5 mr-1" />{pedido.status === 'aprovado' ? 'Agendar' : 'Reagendar'}</>}
-          </Button>
-        )}
-        {podeCancelar && (
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-red-600"
-            title="Excluir/cancelar este boleto" onClick={() => onCancelar?.(pedido.id)}>
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
-        )}
+          <div className="flex items-center gap-1 shrink-0">
+            {mostrarInline && (
+              <div className="flex flex-col gap-1 shrink-0">
+                <Button size="sm" className="h-7 px-2" onClick={aprovar} disabled={!!acao}>
+                  {acao === 'aprovar' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Check className="w-3.5 h-3.5 mr-1" />Aprovar</>}
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 px-2 text-red-600 hover:text-red-700" onClick={rejeitar} disabled={!!acao}>
+                  {acao === 'rejeitar' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><X className="w-3.5 h-3.5 mr-1" />Recusar</>}
+                </Button>
+              </div>
+            )}
+            {podeAgendar && (
+              <Button size="sm" className="h-7 px-2 shrink-0" onClick={agendar} disabled={!!acao}
+                title={pedido.status === 'erro_ca' || pedido.status === 'erro_inter' ? 'Tentar agendar de novo' : 'Criar no CA e agendar o PIX no Inter'}>
+                {acao === 'agendar' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><CalendarClock className="w-3.5 h-3.5 mr-1" />{pedido.status === 'aprovado' ? 'Agendar' : 'Reagendar'}</>}
+              </Button>
+            )}
+            {podeCancelar && (
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-red-600"
+                title="Excluir/cancelar este boleto" onClick={() => onCancelar?.(pedido.id)}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Erro do Inter/Conta Azul — legível, clicável (abre o detalhe pra corrigir a chave e tentar de novo) */}
