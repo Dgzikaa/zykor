@@ -182,7 +182,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Percent', label: 'Vazamento (descontos)', href: '/operacional/vazamento-descontos', permission: 'ferramentas_vazamento_descontos' },
       { icon: 'UsersRound', label: 'Escala × Venda', href: '/operacional/escala-produtividade', permission: 'ferramentas_escala_venda' },
       { icon: 'Activity', label: 'Termômetro do Dia', href: '/operacional/termometro', permission: 'ferramentas_termometro_do_dia' },
-      { icon: 'Wallet', label: 'Fluxo de Caixa', href: '/financeiro/fluxo-caixa', permission: 'ferramentas financeiro_fluxo_de_caixa' },
+      { icon: 'Wallet', label: 'Fluxo de Caixa', href: '/financeiro/fluxo-caixa', permission: 'ferramentas_fluxo_de_caixa' },
       { icon: 'LineChart', label: 'Gráficos', href: '/graficos', permission: 'ferramentas_graficos' },
       { header: 'RH' },
       { icon: 'Users', label: 'Funcionários', href: '/rh/funcionarios', permission: 'ferramentas_funcionarios' },
