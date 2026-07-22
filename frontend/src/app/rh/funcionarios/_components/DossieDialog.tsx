@@ -252,7 +252,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
 
   return (
     <Dialog open={funcionarioId != null} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-7xl w-[97vw] h-[90vh] p-0 gap-0 overflow-hidden">
+      <DialogContent className="!max-w-[1600px] w-[97vw] h-[90vh] p-0 gap-0 overflow-hidden">
         {loading || !func ? (
           <div className="py-24 text-center w-full"><Loader2 className="w-7 h-7 animate-spin mx-auto text-muted-foreground" /></div>
         ) : (
