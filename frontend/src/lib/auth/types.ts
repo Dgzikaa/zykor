@@ -15,6 +15,10 @@ export interface AuthenticatedUser {
   bar_id: number;                // Bar atualmente selecionado
   modulos_permitidos: string[];  // SEMPRE array de strings
   
+  // RBAC por perfil (Fase 1). Se perfil_id != null, os módulos efetivos vêm do perfil.
+  perfil_id?: string | null;
+  perfil_nome?: string | null;
+
   // Status
   ativo: boolean;
   senha_redefinida?: boolean;

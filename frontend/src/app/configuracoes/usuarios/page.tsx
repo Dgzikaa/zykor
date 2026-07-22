@@ -97,7 +97,7 @@ function UsuariosPage() {
   const { user: currentUser, refreshUserData, isRole, loading: permissionsLoading } = usePermissions();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [modulos, setModulos] = useState<Modulo[]>([]);
-  const [perfis, setPerfis] = useState<Array<{ id: string; nome: string; sistema: boolean }>>([]);
+  const [perfis, setPerfis] = useState<Array<{ id: string; nome: string; sistema: boolean; modulos?: string[] }>>([]);
   const [bares, setBares] = useState<{id: number, nome: string}[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -220,7 +220,7 @@ function UsuariosPage() {
     try {
       const r = await fetch('/api/configuracoes/perfis');
       const d = await r.json();
-      if (d.success) setPerfis((d.perfis || []).map((p: any) => ({ id: p.id, nome: p.nome, sistema: p.sistema })));
+      if (d.success) setPerfis((d.perfis || []).map((p: any) => ({ id: p.id, nome: p.nome, sistema: p.sistema, modulos: Array.isArray(p.modulos) ? p.modulos : [] })));
     } catch (error) {
       console.error('Erro ao buscar perfis:', error);
     }
@@ -647,9 +647,13 @@ function UsuariosPage() {
     {
       key: 'modulos',
       header: 'Módulos',
-      render: (u: Usuario) => (
-        <Badge variant="outline" className="text-xs">{u.modulos_permitidos?.length || 0} módulos</Badge>
-      ),
+      render: (u: Usuario) => {
+        // Se o usuário tem perfil, os módulos EFETIVOS vêm do perfil (RBAC) — não do jsonb
+        // próprio (que fica vazio quando se cria via perfil). Senão mostra o legado.
+        const perfil = u.perfil_id ? perfis.find(p => p.id === u.perfil_id) : null;
+        const qtd = perfil ? (perfil.modulos?.length || 0) : (u.modulos_permitidos?.length || 0);
+        return <Badge variant="outline" className="text-xs">{qtd} módulos</Badge>;
+      },
     },
     {
       key: 'ativo',

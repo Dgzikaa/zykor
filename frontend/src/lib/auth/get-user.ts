@@ -11,6 +11,7 @@ import { NextRequest } from 'next/server';
 import { validateToken } from './jwt';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { userHasModule, type ModulosPermitidos } from '@/lib/permissions/resolver';
+import { resolveEffectiveModulos } from './effective-modulos';
 import type { AuthenticatedUser } from './types';
 
 export type { AuthenticatedUser };
@@ -136,6 +137,18 @@ async function fetchUserFromDatabase(
       );
     }
     
+    // RBAC (Fase 1): se o usuário tem `perfil_id`, os módulos EFETIVOS vêm do perfil,
+    // não do jsonb legado no user. Alinha este caminho (usado por /api/auth/me → sidebar
+    // do cliente e pelos guards de API) ao que `authenticateUser` já faz. Sem isso, usuários
+    // de perfil (ex: Investidor) enxergam 0 módulos e nenhum item de menu; e grants novos
+    // adicionados só no perfil (ex: Comunicação) nunca chegam ao menu. Perfil vazio/erro
+    // cai nos módulos próprios (salvaguarda embutida no helper — não tranca ninguém).
+    const modulosEfetivos = await resolveEffectiveModulos({
+      role: usuario.role,
+      perfil_id: usuario.perfil_id,
+      modulos_permitidos: modulosPermitidos,
+    });
+
     // Buscar primeiro bar do usuário se não tiver bar_id
     let barId = usuario.bar_id;
     if (!barId) {
@@ -158,7 +171,9 @@ async function fetchUserFromDatabase(
       nome: usuario.nome,
       role: usuario.role,
       bar_id: barId || 0,
-      modulos_permitidos: modulosPermitidos,
+      modulos_permitidos: modulosEfetivos,
+      perfil_id: usuario.perfil_id ?? null,
+      perfil_nome: usuario.perfil_nome ?? null,
       ativo: usuario.ativo,
       senha_redefinida: usuario.senha_redefinida ?? true,
       setor: usuario.setor,

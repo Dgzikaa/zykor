@@ -125,7 +125,11 @@ export async function GET(request: NextRequest) {
         await fin().from('pedidos_pagamento').update({
           status: alvo,
           ...(alvo === 'pago' ? { pago_em: new Date().toISOString() } : {}),
-          ...(alvo === 'erro_inter' ? { erro_mensagem: `Inter: ${statusRaw}` } : {}),
+          // PIX morto no Inter (EXPIRADO/FALHOU): zera o código de solicitação para que o
+          // próximo "agendar" emita um PIX NOVO em vez de reaproveitar o código morto (que
+          // prendia o pedido num loop sem nunca sair dinheiro). NÃO zera em reprovado/cancelado
+          // (recusa/cancelamento deliberado do sócio — não deve reemitir sozinho).
+          ...(alvo === 'erro_inter' ? { erro_mensagem: `Inter: ${statusRaw}`, inter_codigo_solicitacao: null } : {}),
         }).eq('id', ped.id);
         await fin().from('pix_enviados').update({
           inter_status: statusRaw,

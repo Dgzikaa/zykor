@@ -178,7 +178,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // vinha nulo, furando a idempotência, e o anti-dup do CA só pega após o sync). Invertendo,
   // se o banco falha nada é tocado no CA. Idempotente via inter_codigo_solicitacao.
   // (pula p/ copia e cola = pagamento manual, que não passa pelo banco).
-  let interCodigo = p.inter_codigo_solicitacao || null;
+  // Retry de erro_ca REAPROVEITA o PIX que já subiu ao Inter (só o lançamento no Conta Azul
+  // falhou) — reemitir criaria pagamento duplo. MAS retry de erro_inter significa que o PIX
+  // MORREU no Inter (EXPIRADO/FALHOU): a reconciliação/webhook só marcam erro_inter em estado
+  // terminal-morto. Reaproveitar o código morto prendia o pedido num loop (aguardando_socio ⇄
+  // erro_inter) em que o dinheiro nunca saía. Aqui zeramos o código pra forçar um PIX NOVO.
+  let interCodigo = pedido.status === 'erro_inter' ? null : (p.inter_codigo_solicitacao || null);
   if (!ehCopiaCola && !interCodigo) {
     try {
       const r = await fetch(`${origin}/api/financeiro/inter/${ehBoleto ? 'boleto' : 'pix'}`, {

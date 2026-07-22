@@ -201,6 +201,9 @@ export async function POST(request: NextRequest) {
             .update({
               status: alvoPedido,
               ...(alvoPedido === 'pago' ? { pago_em: new Date().toISOString() } : {}),
+              // PIX morto no Inter (FALHOU/ERRO): zera o código para o próximo "agendar" emitir
+              // um PIX NOVO em vez de reaproveitar o código morto (que travava num loop).
+              ...(alvoPedido === 'erro_inter' ? { inter_codigo_solicitacao: null } : {}),
             })
             .eq('id', ped.id);
           const MSG: Record<string, string> = {

@@ -14,10 +14,12 @@ import { api } from '@/lib/api-client';
 import { HandCoins, Loader2, Plus, Search, Send, ChevronLeft, ChevronRight, Check, X, Pencil, Trash2, Lock, Unlock, CheckCircle2, Upload } from 'lucide-react';
 import { type PedidoStatus } from '@/app/financeiro/pedidos-pagamento/types';
 import { FreelaPorDia, type FreelaItem } from '@/components/freelas/FreelaPorDia';
+import { FreelaMatrizSemana } from '@/components/freelas/FreelaMatrizSemana';
 import { ImportarFreelasDialog } from '@/components/freelas/ImportarFreelasDialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type Freela = { id: string; nome: string; funcao: string | null; valor_padrao: number | null; chave_pix: string | null; contaazul_pessoa_id: string | null };
-type Pedido = { id: string; beneficiario_nome: string | null; valor: number; status: PedidoStatus; data_vencimento: string; data_competencia: string | null; contaazul_pessoa_id: string | null };
+type Pedido = { id: string; beneficiario_nome: string | null; valor: number; status: PedidoStatus; data_vencimento: string; data_competencia: string | null; contaazul_pessoa_id: string | null; descricao?: string | null };
 
 const norm = (s?: string | null) => (s || '').trim().toLowerCase();
 const fmtBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
@@ -235,6 +237,13 @@ export default function FreelasOperacaoPage() {
         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navSemana(1)}><ChevronRight className="w-4 h-4" /></Button>
       </div>
 
+      <Tabs defaultValue="operacao" className="w-full">
+        <TabsList>
+          <TabsTrigger value="operacao">Operação</TabsTrigger>
+          <TabsTrigger value="analise">Análise</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="operacao" className="space-y-4 mt-3">
       {loading ? (
         <div className="py-12 text-center"><Loader2 className="w-7 h-7 animate-spin mx-auto text-muted-foreground" /></div>
       ) : (
@@ -428,6 +437,23 @@ export default function FreelasOperacaoPage() {
           )}
         </>
       )}
+        </TabsContent>
+
+        <TabsContent value="analise" className="mt-3">
+          {loading ? (
+            <div className="py-12 text-center"><Loader2 className="w-7 h-7 animate-spin mx-auto text-muted-foreground" /></div>
+          ) : (
+            <Card>
+              <CardContent className="py-3">
+                <div className="text-sm font-medium mb-2">
+                  Presença por dia · semana {ddmm(semana.monISO)} a {ddmm(semana.sunISO)}
+                </div>
+                <FreelaMatrizSemana roster={roster} pedidos={pedidos} monISO={semana.monISO} />
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {podeInserir && (
         <ImportarFreelasDialog
