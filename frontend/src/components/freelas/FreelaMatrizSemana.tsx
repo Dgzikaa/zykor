@@ -1,7 +1,7 @@
 'use client';
 
-import { Fragment, useMemo } from 'react';
-import { Check } from 'lucide-react';
+import { Fragment, useMemo, useState } from 'react';
+import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 
 // Matriz de presença dos freelas na semana (visão "planilha"): linhas = freelas agrupados por
 // ÁREA, colunas = dias (seg→dom), célula marcada = a pessoa trabalhou naquele dia. Não faz fetch
@@ -115,6 +115,12 @@ export function FreelaMatrizSemana({ roster, pedidos, monISO }: { roster: Freela
     grupos.reduce((s, g) => s + g.linhas.filter(l => l.dias.has(d)).length, 0)
   ), [dias, grupos]);
 
+  // Recolher/expandir cada função (por rótulo — único por grupo após normalização).
+  const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
+  const toggle = (area: string) => setRecolhidos((prev) => {
+    const n = new Set(prev); n.has(area) ? n.delete(area) : n.add(area); return n;
+  });
+
   if (totalPessoas === 0) {
     return <div className="py-10 text-center text-sm text-muted-foreground">Nenhum freela lançado nesta semana.</div>;
   }
@@ -136,14 +142,32 @@ export function FreelaMatrizSemana({ roster, pedidos, monISO }: { roster: Freela
           </tr>
         </thead>
         <tbody>
-          {grupos.map(g => (
+          {grupos.map(g => {
+            const aberto = !recolhidos.has(g.area);
+            const gDias = g.linhas.reduce((s, l) => s + l.totalDias, 0);
+            const gValor = g.linhas.reduce((s, l) => s + l.totalValor, 0);
+            const gPorDia = dias.map(d => g.linhas.filter(l => l.dias.has(d)).length);
+            return (
             <Fragment key={`area-${g.area}`}>
-              <tr className="bg-muted/40">
-                <td colSpan={dias.length + 3} className="px-1 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {g.area} · {g.linhas.length}
+              {/* Cabeçalho da função — mais escuro (separa os grupos) + subtotal + recolher/expandir */}
+              <tr className="bg-muted text-foreground border-y border-[hsl(var(--border))] cursor-pointer select-none hover:bg-muted/80"
+                  onClick={() => toggle(g.area)}>
+                <td className="px-1 py-1.5 sticky left-0 bg-muted z-10">
+                  <button type="button" aria-expanded={aberto}
+                    className="flex items-center gap-1 text-xs font-bold uppercase tracking-wide">
+                    {aberto ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                    {g.area} <span className="text-muted-foreground font-semibold normal-case">· {g.linhas.length}</span>
+                  </button>
                 </td>
+                {gPorDia.map((n, i) => (
+                  <td key={dias[i]} className="px-2 py-1.5 text-center text-xs font-semibold tabular-nums text-muted-foreground">
+                    {n || <span className="text-muted-foreground/30">·</span>}
+                  </td>
+                ))}
+                <td className="px-2 py-1.5 text-center text-xs font-bold tabular-nums">{gDias}</td>
+                <td className="px-2 py-1.5 text-right text-xs font-bold tabular-nums whitespace-nowrap">{fmtBRL(gValor)}</td>
               </tr>
-              {g.linhas.map(l => (
+              {aberto && g.linhas.map(l => (
                 <tr key={l.key} className="border-b border-[hsl(var(--border))]/60 hover:bg-muted/20">
                   <td className="py-1.5 pr-3 sticky left-0 bg-card z-10 font-medium truncate max-w-[220px]">{l.nome}</td>
                   {dias.map(d => (
@@ -158,7 +182,8 @@ export function FreelaMatrizSemana({ roster, pedidos, monISO }: { roster: Freela
                 </tr>
               ))}
             </Fragment>
-          ))}
+            );
+          })}
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-[hsl(var(--border))] font-medium">
