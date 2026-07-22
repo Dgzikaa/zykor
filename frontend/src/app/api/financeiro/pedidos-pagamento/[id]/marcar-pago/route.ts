@@ -35,10 +35,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: false, error: 'Pedido não encontrado' }, { status: 404 });
   }
   // Fecha manualmente qualquer pedido já em andamento pós-aprovação (inclui os subidos ao Inter
-  // aguardando o sócio e os agendados) — cobre copia-e-cola/boleto pagos fora do webhook.
-  if (!['aprovado', 'aguardando_socio', 'agendado'].includes(pedido.status)) {
+  // aguardando o sócio, os agendados, e os que falharam/expiraram no Inter mas foram pagos por
+  // fora) — cobre copia-e-cola/boleto/PIX pagos fora do webhook automático.
+  if (!['aprovado', 'aguardando_socio', 'agendado', 'erro_inter'].includes(pedido.status)) {
     return NextResponse.json(
-      { success: false, error: `Só dá pra marcar como pago um pedido aprovado/agendado (status atual: ${pedido.status})` },
+      { success: false, error: `Só dá pra marcar como pago um pedido aprovado/agendado/erro (status atual: ${pedido.status})` },
       { status: 409 }
     );
   }

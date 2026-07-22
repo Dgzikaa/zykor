@@ -556,8 +556,11 @@ export function PedidoDetailDialog({
               </div>
             )}
 
-            {/* Marcar como pago — copia e cola (manual) ou pagamento fora do fluxo */}
-            {podeAprovar && (pedido.status === 'aprovado' || pedido.status === 'agendado') && (
+            {/* Marcar como pago — copia e cola (manual) ou pagamento fora do fluxo.
+                Inclui aguardando_socio (subiu ao Inter mas foi pago manual) e erro_inter
+                (PIX falhou/expirou no Inter e foi pago por fora) — antes o botão sumia
+                justo nesses estados, que são os que mais precisam fechar manualmente. */}
+            {podeAprovar && ['aprovado', 'agendado', 'aguardando_socio', 'erro_inter'].includes(pedido.status) && (
               <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-0.5">Marcar como pago</p>
