@@ -69,12 +69,12 @@ Todos os números da tabela são exibidos em **número de embalagens** (unidade 
 | Coluna / Indicador | O que mostra | Como é calculado | Fonte |
 |---|---|---|---|
 | **Insumo** | Nome, código, selo "A" se for Curva A, seção VMarket e tamanho da embalagem | Cadastro do insumo + catálogo de unidade | `operations.insumos`, `silver.insumo_catalogo` (fallback pelo nome via `insumo-unidade.ts`) |
-| **Uso Direto** | Uso direto do insumo na **última** das 6 semanas, em nº de embalagens | Última posição do vetor de saídas ÷ embalagem. Saída = vendas × ficha do produto | `silver.vendas_consolidada_dia` (qtd_consumo) × `public.producao_ficha_item` |
+| **Uso Direto** | Consumo do insumo por vendas na **última** das 6 semanas, em nº de embalagens | Última posição do vetor de saídas ÷ embalagem. Saída = vendas × ficha do produto, **expandindo os preparos** (prato → preparo → insumo), escalando pelo rendimento de cada preparo | `silver.vendas_consolidada_dia` (qtd_consumo) × `public.producao_ficha_item` (recursivo) |
 | **Média 6s** | Média ponderada do uso direto nas 6 semanas anteriores (expansível) | Média ponderada: cada semana `i` pesa `i` (a mais recente pesa mais); só entram semanas com uso > 0. `Σ(saída×i) ÷ Σ(i)` | Calculado na rota a partir das saídas |
 | **Desv. Pad.** | Desvio-padrão do uso direto entre as 6 semanas | Desvio-padrão amostral das saídas (divisor n−1); com menos de 2 semanas = 0 | Calculado na rota |
 | **Nível de Serviço** | Percentual de segurança escolhido (editável por insumo) | Converte-se no fator de serviço z (ex.: 95%→1,645; 90%→1,282; 99%→2,325). Padrão 95% | `operations.compras_plano_config` (senão 95%) |
 | **PR** (Ponto de Ressuprimento) | Nível-alvo de estoque para o insumo, em nº de embalagens | `PR = Média 6s + Desvio-padrão × z` | Calculado na rota |
-| **Estoque** | Estoque atual do insumo, em nº de embalagens | Contagem mais antiga do início da semana × embalagem (a contagem vem em pacotes/embalagens) | `silver.estoque_contagem` (estoque_final) |
+| **Estoque** | Estoque **real** do insumo, em nº de embalagens | Contagem do início da semana × embalagem **− o que produções FINALIZADAS já consumiram desde a contagem** (o estoque "anda" sem esperar a próxima contagem). Um "•" âmbar marca quando houve esse desconto | `silver.estoque_contagem` (estoque_final) − `operations.producao_execucao_insumo` |
 | **p/ Produção** (AB) | Necessidade dos preparos da produção planejada e **encerrada** da semana | `Σ(receitas decididas × quantidade do insumo na ficha do preparo)`; zero se não há plano encerrado | `operations.producao_plano` + `producao_plano_item` × `producao_ficha_item` |
 | **Sugestão** | Quanto comprar: nº de embalagens (e a medida aproximada abaixo) | Base = `PR − Estoque + p/ Produção`. Se ≤ 0 → "Não comprar". Senão, embalagens = `arredonda p/ cima (base ÷ embalagem)` | Calculado na rota |
 | **Comprado** | O que entrou de compra no VMarket naquela semana | Soma das quantidades compradas no VMarket por código interno, na semana | `gold.vmarket_pedido_item` + `gold.vmarket_pedido` |
@@ -117,7 +117,9 @@ Os filtros são aplicados no navegador sobre a lista já carregada; trocar filtr
 - **Tudo em número de embalagens.** O cálculo roda na unidade-base (ml/g/un) e só a exibição converte para embalagens. Por isso os totais podem ter casas fracionárias na medida (ex.: "≈ 2.331 latas") enquanto a sugestão em embalagens é sempre arredondada **para cima**.
 - **Elo com a Produção.** A coluna "p/ Produção" só é preenchida quando existe um plano de produção com status **encerrado** naquela semana. Enquanto o plano não é encerrado, a compra considera só o uso direto (vendas) e ignora os preparos — daí o aviso âmbar.
 - **Só aparece quem tem movimento.** A lista só traz insumos que tiveram alguma saída nas 6 semanas, ou necessidade de produção, ou compra na semana. Insumo sem nenhum desses três não aparece.
-- **Uso direto vem de vendas × ficha.** A saída é o consumo do insumo **diretamente** em produtos vendidos (quantidade vendida × quantidade do insumo na ficha técnica). O consumo em preparos (produção) entra separado, pela coluna "p/ Produção".
+- **Uso direto vem de vendas × ficha, expandindo preparos.** A saída é o consumo do insumo em produtos vendidos (quantidade vendida × quantidade na ficha), **descendo pela árvore da ficha através dos preparos** (prato → preparo → insumo) e escalando pelo rendimento de cada preparo. Antes, um insumo usado **só dentro de um preparo** (ex.: farinha panko na Coxinha/Empanação) ficava com consumo zero e caía errado em "não comprar"; agora conta certo. A coluna "p/ Produção" (AB) segue trazendo, separada, a necessidade do **plano de produção encerrado** da semana.
+- **Estoque é real, não só a contagem.** O estoque usado na conta é a última **contagem** da semana **menos** o que as **produções finalizadas** consumiram do insumo **desde** a contagem — assim o número "anda" durante a semana sem esperar a próxima contagem. Um ponto âmbar ("•") aparece quando houve esse desconto. **Produção pausada NÃO dá baixa** (não entra aqui) — pra esse caso existe a badge "acabou" abaixo.
+- **Badge "⚠ acabou" (falta manual).** Quando um insumo acaba **fora do fluxo registrado** (ex.: a produção foi pausada, sem baixa), dá pra sinalizar manualmente e ele aparece com a badge **⚠ acabou** no topo da lista, mesmo com a contagem mostrando estoque. Marca de dois lugares: no **Controle de Produção**, ao pausar com o motivo "Acabou insumo" (a pessoa escolhe qual insumo da ficha), ou direto aqui no Plano de Compras (clicando em "acabou?" na linha). Some quando você resolve (comprou/recontou). Fonte: `operations.insumo_falta`.
 - **Nível de serviço é manual e persistente.** É a única configuração editável da tela. Fica gravada por insumo e por bar; se a gravação no servidor falhar, o valor continua aplicado localmente e o próximo refresh corrige.
 - **Unidade/embalagem espelham a tela de Insumos.** A base e o tamanho da embalagem vêm do catálogo de insumos (com fallback derivado do nome), a mesma fonte da tela de Insumos, para os números baterem. Insumos com unidade mal cadastrada podem exibir conversões estranhas — o ajuste é feito no cadastro/catálogo.
 - **Comprado é acompanhamento, não entra na conta.** A coluna Comprado mostra o que já foi pedido no VMarket na semana; ela não altera a sugestão, serve para conferir a execução do plano.
@@ -140,7 +142,10 @@ Porque a compra é feita em embalagens (latas, garrafas, pacotes). O sistema cal
 Ela ainda não tem contagem de estoque. Faça a contagem daquela semana e ela passa a ficar disponível no seletor.
 
 **A sugestão já desconta o que eu tenho em estoque?**
-Sim. A conta é Ponto de Ressuprimento − Estoque + necessidade da produção. Se o estoque já cobre tudo, o item aparece como "Não comprar".
+Sim. A conta é Ponto de Ressuprimento − Estoque + necessidade da produção. E o **Estoque é real**: parte da contagem e desconta o que as produções finalizadas já consumiram desde então. Se o estoque já cobre tudo, o item aparece como "Não comprar".
+
+**O insumo acabou mas o sistema diz "não comprar". E agora?**
+Isso acontece quando o insumo acaba **sem baixa registrada** — tipicamente uma produção que foi **pausada** (produção pausada não dá baixa no estoque). A contagem da semana ainda mostra estoque, então a conta não pede compra. Solução: **sinalize que acabou** — na pausa "Acabou insumo" (Controle de Produção) escolhendo o insumo, ou clicando em "acabou?" na linha aqui. Ele ganha a badge **⚠ acabou** e sobe pro topo. (Ou refaça a contagem daquele insumo.)
 
 ## Fonte dos dados
 
@@ -154,6 +159,8 @@ Tabelas e views envolvidas:
 - **`public.producao_ficha_item`** — fichas técnicas (insumo por produto/preparo).
 - **`public.produto_cardapio`** — vínculo produto × código interno.
 - **`silver.estoque_contagem`** — contagens de estoque (estoque de início de semana).
+- **`operations.producao_execucao_insumo`** — consumo real das produções finalizadas; desconta do estoque (estoque real) desde a contagem.
+- **`operations.insumo_falta`** — sinal manual de "insumo acabou" (badge ⚠ acabou); marcado na pausa do Controle de Produção ou aqui.
 - **`operations.producao_plano`** e **`operations.producao_plano_item`** — Planejamento da Produção encerrado da semana (necessidade dos preparos).
 - **`gold.vmarket_pedido`** e **`gold.vmarket_pedido_item`** — compras do período, integração **VMarket**.
 - **`operations.compras_plano_config`** — nível de serviço salvo por insumo/bar.
