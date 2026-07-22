@@ -14,6 +14,7 @@ import {
   Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Smile, ClipboardCheck, GraduationCap, Check, Link as LinkIcon,
 } from 'lucide-react';
 import type { Funcionario } from '../page';
+import { CartaoIcon } from './CartoesBadge';
 import { EspelhoPontoTab } from './EspelhoPontoTab';
 
 const TIPO_DOC: Record<string, string> = {
@@ -60,7 +61,7 @@ const corOcorr = (t: string) =>
   : 'bg-muted text-muted-foreground';
 
 type Doc = { id: string; tipo: string; descricao: string | null; nome_arquivo: string | null; validade: string | null; criado_em: string; url: string | null };
-type Ocorr = { id: string; tipo: string; data_inicio: string; data_fim: string | null; descricao: string | null };
+type Ocorr = { id: string; tipo: string; data_inicio: string; data_fim: string | null; descricao: string | null; cartao?: string | null };
 type Alerta = { tipo: string; label: string; nivel: string };
 type Avaliacao = { id: string; periodo: string; avaliador: string | null; criterios: { criterio: string; nota: number }[]; nota_geral: number | null; pontos_fortes: string | null; pontos_desenvolver: string | null; criado_em: string };
 type Treino = { id: string; nome: string; instituicao: string | null; data_conclusao: string | null; validade: string | null; observacao: string | null };
@@ -84,7 +85,9 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const [validadeUp, setValidadeUp] = useState('');
   const [enviando, setEnviando] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [novoOc, setNovoOc] = useState({ tipo: 'advertencia', data_inicio: '', data_fim: '', descricao: '' });
+  const [novoOc, setNovoOc] = useState({ tipo: 'advertencia', data_inicio: '', data_fim: '', descricao: '', cartao: 'amarelo' });
+  const [novaObs, setNovaObs] = useState({ data_inicio: '', descricao: '' });
+  const [salvandoObs, setSalvandoObs] = useState(false);
   const [salvandoOc, setSalvandoOc] = useState(false);
   const [avaliacoes, setAvaliacoes] = useState<Avaliacao[]>([]);
   const [novaAval, setNovaAval] = useState<{ periodo: string; avaliador: string; notas: Record<string, number>; pontos_fortes: string; pontos_desenvolver: string }>({ periodo: '', avaliador: '', notas: {}, pontos_fortes: '', pontos_desenvolver: '' });
@@ -148,10 +151,25 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.success) throw new Error(j.error || 'Falha ao salvar');
-      setNovoOc({ tipo: 'advertencia', data_inicio: '', data_fim: '', descricao: '' });
+      setNovoOc({ tipo: 'advertencia', data_inicio: '', data_fim: '', descricao: '', cartao: 'amarelo' });
       carregar();
     } catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
     finally { setSalvandoOc(false); }
+  };
+  const addObservacao = async () => {
+    if (!novaObs.descricao.trim()) { showToast({ type: 'error', title: 'Escreva a observação' }); return; }
+    setSalvandoObs(true);
+    try {
+      const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/ocorrencias`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ tipo: 'observacao', data_inicio: novaObs.data_inicio || new Date().toISOString().slice(0, 10), descricao: novaObs.descricao }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || 'Falha ao salvar');
+      setNovaObs({ data_inicio: '', descricao: '' });
+      carregar();
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
+    finally { setSalvandoObs(false); }
   };
   const excluirOcorrencia = async (ocId: string) => {
     try {
@@ -309,7 +327,8 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                   <TabsTrigger value="ponto"><Clock className="w-3.5 h-3.5 mr-1" />Ponto</TabsTrigger>
                   <TabsTrigger value="onboarding">Onboarding{onbItens.length > 0 && ` (${onbItens.filter((i) => i.concluido).length}/${onbItens.length})`}</TabsTrigger>
                   <TabsTrigger value="docs">Documentos ({docs.length})</TabsTrigger>
-                  <TabsTrigger value="ocorr">Ocorrências ({ocorrencias.length})</TabsTrigger>
+                  <TabsTrigger value="ocorr">Ocorrências ({ocorrencias.filter((o) => o.tipo !== 'observacao').length})</TabsTrigger>
+                  <TabsTrigger value="obs">Observações ({ocorrencias.filter((o) => o.tipo === 'observacao').length})</TabsTrigger>
                   <TabsTrigger value="avaliacoes">Avaliações ({avaliacoes.length})</TabsTrigger>
                   <TabsTrigger value="treinos">Treinamentos ({treinos.length})</TabsTrigger>
                   <TabsTrigger value="felicidade">Felicidade</TabsTrigger>
@@ -379,13 +398,16 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
 
               {/* Ocorrências */}
               <TabsContent value="ocorr" className="px-6 py-4">
-                {ocorrencias.length > 0 ? (
+                {ocorrencias.filter((o) => o.tipo !== 'observacao').length > 0 ? (
                   <div className="space-y-1.5 mb-3">
-                    {ocorrencias.map((o) => (
+                    {ocorrencias.filter((o) => o.tipo !== 'observacao').map((o) => (
                       <div key={o.id} className="flex items-start justify-between gap-2 rounded-lg border bg-background px-3 py-2">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className={`text-[10px] rounded px-1.5 py-0.5 ${corOcorr(o.tipo)}`}>{TIPO_OCORR[o.tipo] || o.tipo}</span>
+                            {o.tipo === 'advertencia' && <CartaoIcon cor={o.cartao === 'vermelho' ? 'vermelho' : 'amarelo'} />}
+                            <span className={`text-[10px] rounded px-1.5 py-0.5 ${corOcorr(o.tipo)}`}>
+                              {TIPO_OCORR[o.tipo] || o.tipo}{o.tipo === 'advertencia' ? ` · cartão ${o.cartao === 'vermelho' ? 'vermelho' : 'amarelo'}` : ''}
+                            </span>
                             <span className="text-xs text-muted-foreground">{fmtData(o.data_inicio)}{o.data_fim ? ` → ${fmtData(o.data_fim)}` : ''}</span>
                           </div>
                           {o.descricao && <div className="text-sm mt-0.5">{o.descricao}</div>}
@@ -397,12 +419,42 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                 ) : <div className="text-xs text-muted-foreground text-center py-6 mb-3 border border-dashed rounded-lg">Sem advertências, atestados, férias ou faltas registradas.</div>}
                 <div className="flex items-end gap-2 flex-wrap rounded-lg border bg-muted/20 p-3">
                   <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Tipo</span>
-                    <select value={novoOc.tipo} onChange={(e) => setNovoOc({ ...novoOc, tipo: e.target.value })} className="h-9 rounded-md border border-input bg-background px-2 text-sm">{Object.entries(TIPO_OCORR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+                    <select value={novoOc.tipo} onChange={(e) => setNovoOc({ ...novoOc, tipo: e.target.value })} className="h-9 rounded-md border border-input bg-background px-2 text-sm">{Object.entries(TIPO_OCORR).filter(([k]) => k !== 'observacao').map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
                   </label>
+                  {novoOc.tipo === 'advertencia' && (
+                    <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Cartão</span>
+                      <select value={novoOc.cartao} onChange={(e) => setNovoOc({ ...novoOc, cartao: e.target.value })} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
+                        <option value="amarelo">🟨 Amarelo (aviso)</option>
+                        <option value="vermelho">🟥 Vermelho (grave)</option>
+                      </select>
+                    </label>
+                  )}
                   <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Data</span><Input type="date" value={novoOc.data_inicio} onChange={(e) => setNovoOc({ ...novoOc, data_inicio: e.target.value })} className="h-9 text-sm w-[140px]" /></label>
                   <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Até (opcional)</span><Input type="date" value={novoOc.data_fim} onChange={(e) => setNovoOc({ ...novoOc, data_fim: e.target.value })} className="h-9 text-sm w-[140px]" /></label>
                   <label className="flex flex-col gap-1 flex-1 min-w-[160px]"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Descrição</span><Input value={novoOc.descricao} onChange={(e) => setNovoOc({ ...novoOc, descricao: e.target.value })} placeholder="ex: atraso recorrente" className="h-9 text-sm" /></label>
                   <Button size="sm" onClick={addOcorrencia} disabled={salvandoOc} className="h-9">{salvandoOc ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Plus className="w-4 h-4 mr-1.5" />}Adicionar</Button>
+                </div>
+              </TabsContent>
+
+              {/* Observações — log de anotações datadas (separado das advertências) */}
+              <TabsContent value="obs" className="px-6 py-4">
+                {ocorrencias.filter((o) => o.tipo === 'observacao').length > 0 ? (
+                  <div className="space-y-1.5 mb-3">
+                    {ocorrencias.filter((o) => o.tipo === 'observacao').map((o) => (
+                      <div key={o.id} className="flex items-start justify-between gap-2 rounded-lg border bg-background px-3 py-2">
+                        <div className="min-w-0">
+                          <div className="text-xs text-muted-foreground">{fmtData(o.data_inicio)}</div>
+                          {o.descricao && <div className="text-sm mt-0.5 whitespace-pre-wrap">{o.descricao}</div>}
+                        </div>
+                        <button onClick={() => excluirOcorrencia(o.id)} className="p-1.5 rounded-md hover:bg-muted text-red-500 shrink-0" title="Excluir"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="text-xs text-muted-foreground text-center py-6 mb-3 border border-dashed rounded-lg">Nenhuma observação registrada.</div>}
+                <div className="flex items-end gap-2 flex-wrap rounded-lg border bg-muted/20 p-3">
+                  <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Data</span><Input type="date" value={novaObs.data_inicio} onChange={(e) => setNovaObs({ ...novaObs, data_inicio: e.target.value })} className="h-9 text-sm w-[140px]" /></label>
+                  <label className="flex flex-col gap-1 flex-1 min-w-[200px]"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Observação</span><Input value={novaObs.descricao} onChange={(e) => setNovaObs({ ...novaObs, descricao: e.target.value })} placeholder="ex: pediu troca de turno; elogiado pelo cliente…" className="h-9 text-sm" /></label>
+                  <Button size="sm" onClick={addObservacao} disabled={salvandoObs} className="h-9">{salvandoObs ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Plus className="w-4 h-4 mr-1.5" />}Adicionar</Button>
                 </div>
               </TabsContent>
 

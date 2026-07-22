@@ -17,6 +17,7 @@ import { DashboardRH } from './_components/DashboardRH';
 import { IndicadoresRH } from './_components/IndicadoresRH';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
+import { CartoesBadge, type Cartoes } from './_components/CartoesBadge';
 
 export type Funcionario = {
   id: number; nome: string; cpf: string | null; telefone: string | null; email: string | null;
@@ -27,6 +28,7 @@ export type Funcionario = {
   chave_pix: string | null; tipo_chave_pix: string | null; observacoes: string | null;
   foto_url: string | null; ativo: boolean; portal_token?: string | null;
   alertas?: { tipo: string; label: string; nivel: string }[];
+  cartoes?: Cartoes;
 };
 export type Opcao = { id: number; nome: string };
 
@@ -209,6 +211,7 @@ export default function FuncionariosPage() {
                           <div className="font-semibold truncate flex items-center gap-1">{f.nome}{!f.ativo && <span className="text-[10px] text-muted-foreground">(inativo)</span>}</div>
                           <div className="text-xs text-muted-foreground truncate">{[f.cargo_nome, f.area_nome].filter(Boolean).join(' · ') || 'Sem cargo'}</div>
                         </div>
+                        <CartoesBadge {...f.cartoes} />
                         {!!f.alertas?.length && <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 inline-flex items-center gap-0.5 shrink-0" title={f.alertas.map((a) => a.label).join(', ')}><AlertTriangle className="w-2.5 h-2.5" />{f.alertas.length}</span>}
                       </div>
                       <div className="flex items-center justify-between mt-3">
@@ -237,6 +240,7 @@ export default function FuncionariosPage() {
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${corAvatar(f.nome)}`}>{iniciais(f.nome)}</div>
                             <div className="font-medium flex items-center gap-1 min-w-0">
                               <span className="truncate">{f.nome}</span>{!f.ativo && <span className="text-[10px] text-muted-foreground">(inativo)</span>}
+                              <CartoesBadge {...f.cartoes} />
                               {!!f.alertas?.length && (
                                 <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 inline-flex items-center gap-0.5 shrink-0" title={f.alertas.map((a) => a.label).join(', ')}>
                                   <AlertTriangle className="w-2.5 h-2.5" />{f.alertas.length}
@@ -275,7 +279,7 @@ export default function FuncionariosPage() {
                           <div key={f.id} onClick={() => setDossieId(f.id)} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 cursor-pointer">
                             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${corAvatar(f.nome)}`}>{iniciais(f.nome)}</div>
                             <div className="min-w-0 flex-1">
-                              <div className="text-sm font-medium truncate">{f.nome}</div>
+                              <div className="text-sm font-medium truncate flex items-center gap-1.5">{f.nome}<CartoesBadge {...f.cartoes} /></div>
                               <div className="text-[11px] text-muted-foreground truncate">{f.cargo_nome || '—'}</div>
                             </div>
                             <span className={`text-[9px] rounded px-1 py-0.5 shrink-0 ${tipoTag(f.tipo_contratacao)}`}>{f.tipo_contratacao || '—'}</span>

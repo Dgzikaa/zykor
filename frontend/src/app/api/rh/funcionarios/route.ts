@@ -58,11 +58,19 @@ export async function GET(request: NextRequest) {
   // Alertas por funcionário (documento faltando/vencido, férias vencendo).
   const ids = funcionarios.map((f: any) => f.id);
   if (ids.length) {
-    const [docsRes, feriasRes, treinosRes] = await Promise.all([
+    const [docsRes, feriasRes, treinosRes, advRes] = await Promise.all([
       (supabase as any).schema('hr').from('documentos_funcionario').select('funcionario_id, tipo, validade').in('funcionario_id', ids),
       (supabase as any).schema('hr').from('funcionario_ocorrencias').select('funcionario_id, tipo, data_inicio').in('funcionario_id', ids).eq('tipo', 'ferias'),
       (supabase as any).schema('hr').from('treinamentos').select('funcionario_id, nome, validade').in('funcionario_id', ids).not('validade', 'is', null),
+      (supabase as any).schema('hr').from('funcionario_ocorrencias').select('funcionario_id, cartao').in('funcionario_id', ids).eq('tipo', 'advertencia'),
     ]);
+    // Placar de cartões (advertências) por pessoa — cartao NULL (legado) conta como amarelo.
+    const cartoesByFunc = new Map<number, { amarelo: number; vermelho: number }>();
+    for (const r of (advRes.data || []) as any[]) {
+      const c = cartoesByFunc.get(r.funcionario_id) || { amarelo: 0, vermelho: 0 };
+      if (r.cartao === 'vermelho') c.vermelho++; else c.amarelo++;
+      cartoesByFunc.set(r.funcionario_id, c);
+    }
     const porFunc = (rows: any[]) => {
       const m = new Map<number, any[]>();
       for (const r of rows || []) { const a = m.get(r.funcionario_id) || []; a.push(r); m.set(r.funcionario_id, a); }
@@ -71,7 +79,10 @@ export async function GET(request: NextRequest) {
     const docsByFunc = porFunc(docsRes.data);
     const feriasByFunc = porFunc(feriasRes.data);
     const treinosByFunc = porFunc(treinosRes.data);
-    for (const f of funcionarios) f.alertas = computarAlertas(f, docsByFunc.get(f.id) || [], feriasByFunc.get(f.id) || [], treinosByFunc.get(f.id) || []);
+    for (const f of funcionarios) {
+      f.alertas = computarAlertas(f, docsByFunc.get(f.id) || [], feriasByFunc.get(f.id) || [], treinosByFunc.get(f.id) || []);
+      f.cartoes = cartoesByFunc.get(f.id) || { amarelo: 0, vermelho: 0 };
+    }
   }
 
   return NextResponse.json({
