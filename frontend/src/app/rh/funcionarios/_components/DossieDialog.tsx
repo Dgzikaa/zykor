@@ -19,7 +19,9 @@ import { EspelhoPontoTab } from './EspelhoPontoTab';
 
 const TIPO_DOC: Record<string, string> = {
   carteira_trabalho: 'Carteira de Trabalho', exame_admissional: 'Exame Admissional',
-  contrato: 'Contrato', rg_cpf: 'RG / CPF', outro: 'Outro',
+  contrato: 'Contrato', rg_cpf: 'RG / CPF',
+  certidao_nascimento: 'Certidão de Nascimento', titulo_eleitoral: 'Título Eleitoral',
+  outro: 'Outro',
 };
 const TIPO_OCORR: Record<string, string> = {
   advertencia: 'Advertência', falta: 'Falta', atestado: 'Atestado', ferias: 'Férias', observacao: 'Observação',
