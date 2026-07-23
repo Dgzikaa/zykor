@@ -23,15 +23,18 @@ async function carregarPedido(supabase: any, id: string): Promise<PedidoPagament
 }
 
 // Campos que o financeiro pode editar; o solicitante só os "de pedido".
+// Categoria e fornecedor (contaazul_pessoa_id) são preenchidos pelo solicitante na criação
+// e podem ser ajustados por ele enquanto o pedido está pendente — o financeiro só confere/aprova.
 const CAMPOS_SOLICITANTE = [
   'descricao', 'valor', 'data_competencia', 'data_vencimento',
   'beneficiario_nome', 'chave_pix', 'cpf_cnpj', 'observacao', 'tipo',
   'precisa_comprovante', 'pix_copia_cola',
+  'categoria_id', 'categoria_nome', 'contaazul_pessoa_id',
 ];
 const CAMPOS_FINANCEIRO = [
   ...CAMPOS_SOLICITANTE,
-  'categoria_id', 'categoria_nome', 'centro_custo_id', 'centro_custo_nome',
-  'contaazul_pessoa_id', 'conta_financeira_id', 'inter_credencial_id',
+  'centro_custo_id', 'centro_custo_nome',
+  'conta_financeira_id', 'inter_credencial_id',
 ];
 
 // =====================================================

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -9,13 +9,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { DateInputBR } from '@/components/ui/date-input-br';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useToast } from '@/components/ui/toast';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { api } from '@/lib/api-client';
 import { getSelectedBarId } from '@/lib/selected-bar';
-import { Loader2, Paperclip, HelpCircle, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Paperclip, HelpCircle, Plus, Trash2, UserPlus } from 'lucide-react';
 import { type PedidoTipo, formatBRL } from '../types';
 import { parsePixCopiaCola } from '../pixEmv';
+
+interface Opcao { value: string; label: string; searchHint?: string }
 
 // No pedido manual só existem 2 destinos: reembolso a funcionário ou fornecedor externo.
 // (freela/cartão/avulso são lançados por fluxos próprios.)
@@ -76,6 +79,19 @@ export function NovoPedidoDialog({
   const [observacao, setObservacao] = useState('');
   const [precisaComprovante, setPrecisaComprovante] = useState(false);
 
+  // Classificação (obrigatória na solicitação): categoria + fornecedor do Conta Azul.
+  // O financeiro passa a só CONFERIR e aprovar — as opções vêm do CA (mesmas do painel de aprovação).
+  const [categorias, setCategorias] = useState<Opcao[]>([]);
+  const [fornecedores, setFornecedores] = useState<Opcao[]>([]);
+  const [categoriaId, setCategoriaId] = useState('');
+  const [fornecedorId, setFornecedorId] = useState('');
+  const [carregandoOpcoes, setCarregandoOpcoes] = useState(false);
+  // Cadastro rápido de fornecedor no CA (quando não existe ainda).
+  const [showNovoForn, setShowNovoForn] = useState(false);
+  const [novoFornNome, setNovoFornNome] = useState('');
+  const [novoFornDoc, setNovoFornDoc] = useState('');
+  const [cadastrando, setCadastrando] = useState(false);
+
   // Forma de pagamento: chave PIX (automático no Inter) ou copia e cola / QR (manual).
   const [formaPagamento, setFormaPagamento] = useState<'chave' | 'copia_cola'>('chave');
   const [copiaCola, setCopiaCola] = useState('');
@@ -107,12 +123,67 @@ export function NovoPedidoDialog({
     }
   };
 
+  // Carrega categorias (DESPESA) e fornecedores do Conta Azul ao abrir o diálogo.
+  // As APIs só pedem bar_id (sem trava de aprovação), então o solicitante já consegue listar.
+  useEffect(() => {
+    if (!open) return;
+    const barId = getSelectedBarId();
+    if (!barId) return;
+    let cancelado = false;
+    (async () => {
+      setCarregandoOpcoes(true);
+      try {
+        const j = (p: Promise<Response>) => p.then(r => r.json()).catch(() => ({}));
+        const [cat, fo] = await Promise.all([
+          j(fetch(`/api/financeiro/contaazul/categorias?bar_id=${barId}&tipo=DESPESA`)),
+          j(fetch(`/api/financeiro/contaazul/stakeholders?bar_id=${barId}&perfil=FORNECEDOR`)),
+        ]);
+        if (cancelado) return;
+        setCategorias((cat.categorias || [])
+          .filter((c: any) => c.ativo !== false)
+          .map((c: any) => ({ value: c.contaazul_id, label: c.nome || c.categoria_nome })));
+        setFornecedores((fo.pessoas || []).map((p: any) => ({
+          value: p.contaazul_id, label: p.nome, searchHint: p.documento || '',
+        })));
+      } finally {
+        if (!cancelado) setCarregandoOpcoes(false);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [open]);
+
+  // Cadastro rápido de fornecedor no CA — mesma rota do painel de aprovação.
+  const cadastrarFornecedor = async () => {
+    if (!novoFornNome.trim()) return showToast({ type: 'error', title: 'Informe o nome do fornecedor' });
+    const barId = getSelectedBarId();
+    setCadastrando(true);
+    try {
+      const res = await api.post('/api/financeiro/contaazul/pessoas/cadastrar', {
+        bar_id: barId ? Number(barId) : undefined,
+        nome: novoFornNome.trim(),
+        documento: novoFornDoc.replace(/\D/g, '') || undefined,
+      });
+      const novo = { value: res.contaazul_id, label: res.nome } as Opcao;
+      setFornecedores(prev => [novo, ...prev]);
+      setFornecedorId(res.contaazul_id);
+      if (!beneficiario.trim()) setBeneficiario(res.nome);
+      setShowNovoForn(false); setNovoFornNome(''); setNovoFornDoc('');
+      showToast({ type: 'success', title: 'Fornecedor cadastrado no Conta Azul' });
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Erro ao cadastrar fornecedor', message: e?.message });
+    } finally {
+      setCadastrando(false);
+    }
+  };
+
   const reset = () => {
     setTipo('fornecedor'); setDescricao(''); setValor(''); setVencimento('');
     setCompetencia(''); setChavePix(''); setBeneficiario(''); setCpfCnpj(''); setObservacao('');
     setPrecisaComprovante(false); setArquivo(null);
     setFormaPagamento('chave'); setCopiaCola('');
     setMultiComp(false); setCompetencias([{ data: '', valor: '', descricao: '' }]);
+    setCategoriaId(''); setFornecedorId('');
+    setShowNovoForn(false); setNovoFornNome(''); setNovoFornDoc('');
   };
 
   const submit = async () => {
@@ -121,6 +192,8 @@ export function NovoPedidoDialog({
     if (valorNum <= 0) return showToast({ type: 'error', title: 'Valor inválido' });
     if (!vencimento) return showToast({ type: 'error', title: 'Informe o vencimento' });
     if (vencimento < hoje) return showToast({ type: 'error', title: 'Vencimento no passado', message: 'A data de vencimento não pode ser anterior a hoje.' });
+    if (!categoriaId) return showToast({ type: 'error', title: 'Escolha a categoria' });
+    if (!fornecedorId) return showToast({ type: 'error', title: 'Escolha o fornecedor', message: 'Selecione na lista ou cadastre um novo.' });
 
     // Competência(s)
     let competenciasPayload: Array<{ data_competencia: string; valor: number; descricao: string | null }> | undefined;
@@ -156,10 +229,14 @@ export function NovoPedidoDialog({
         competencias: competenciasPayload,
         chave_pix: usaCopiaCola ? null : (chavePix.trim() || null),
         pix_copia_cola: usaCopiaCola ? copiaCola.trim() : null,
-        beneficiario_nome: beneficiario.trim() || null,
+        beneficiario_nome: beneficiario.trim() || fornecedores.find(f => f.value === fornecedorId)?.label || null,
         cpf_cnpj: cpfCnpj.replace(/\D/g, '') || null,
         observacao: observacao.trim() || null,
         precisa_comprovante: precisaComprovante,
+        // Classificação preenchida na solicitação (financeiro só confere/aprova).
+        categoria_id: categoriaId,
+        categoria_nome: categorias.find(c => c.value === categoriaId)?.label || null,
+        contaazul_pessoa_id: fornecedorId,
       });
 
       // Anexo (opcional) — sobe depois que o pedido existe
@@ -190,7 +267,7 @@ export function NovoPedidoDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Novo pedido de pagamento</DialogTitle>
-          <DialogDescription>Preencha os dados. O financeiro completa categoria/conta na aprovação.</DialogDescription>
+          <DialogDescription>Informe categoria e fornecedor. O financeiro confere e aprova.</DialogDescription>
         </DialogHeader>
 
         <div className="px-6 overflow-y-auto space-y-4">
@@ -218,6 +295,60 @@ export function NovoPedidoDialog({
             <Label htmlFor="desc" className="mb-1.5 block">Descrição</Label>
             <Input id="desc" value={descricao} onChange={(e) => setDescricao(e.target.value)}
               placeholder="Ex: Reembolso compra de insumos / Pagamento fornecedor X" />
+          </div>
+
+          {/* Classificação (obrigatória): categoria + fornecedor do Conta Azul. O financeiro só confere. */}
+          <div className="space-y-3">
+            <div>
+              <Label className="mb-1.5 flex items-center gap-1">
+                Categoria <span className="text-red-500">*</span>
+                <CampoInfo texto="Categoria de despesa no Conta Azul. O financeiro confere na aprovação." />
+              </Label>
+              <SearchableSelect
+                value={categoriaId}
+                onValueChange={(v) => setCategoriaId(v || '')}
+                placeholder={carregandoOpcoes ? 'Carregando…' : 'Selecione a categoria'}
+                searchPlaceholder="Filtrar categoria..."
+                emptyMessage="Nenhuma categoria"
+                options={categorias}
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <Label className="flex items-center gap-1">
+                  {tipo === 'reembolso' ? 'Funcionário / Beneficiário' : 'Fornecedor'} <span className="text-red-500">*</span>
+                  <CampoInfo texto="Cadastro do Conta Azul de quem recebe. Não achou? Cadastre um novo." />
+                </Label>
+                <button type="button" onClick={() => setShowNovoForn(v => !v)}
+                  className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                  <UserPlus className="w-3.5 h-3.5" />{showNovoForn ? 'Cancelar' : 'Cadastrar novo'}
+                </button>
+              </div>
+              {showNovoForn ? (
+                <div className="rounded-md border border-blue-500/25 bg-blue-500/[0.04] p-3 space-y-2">
+                  <Input value={novoFornNome} onChange={(e) => setNovoFornNome(e.target.value)}
+                    placeholder="Nome do fornecedor / funcionário" />
+                  <Input value={novoFornDoc} onChange={(e) => setNovoFornDoc(e.target.value)}
+                    placeholder="CPF/CNPJ (opcional) — só números" inputMode="numeric" />
+                  <Button type="button" size="sm" onClick={cadastrarFornecedor} disabled={cadastrando}>
+                    {cadastrando ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Cadastrando...</> : 'Cadastrar no Conta Azul'}
+                  </Button>
+                </div>
+              ) : (
+                <SearchableSelect
+                  value={fornecedorId}
+                  onValueChange={(v) => {
+                    setFornecedorId(v || '');
+                    const f = fornecedores.find(x => x.value === v);
+                    if (f && !beneficiario.trim()) setBeneficiario(f.label);
+                  }}
+                  placeholder={carregandoOpcoes ? 'Carregando…' : 'Selecione o fornecedor'}
+                  searchPlaceholder="Filtrar por nome ou documento..."
+                  emptyMessage="Nenhum fornecedor"
+                  options={fornecedores}
+                />
+              )}
+            </div>
           </div>
 
           {/* Destaque financeiro: Valor, Vencimento e Competência — o que mais importa pro financeiro */}
@@ -336,8 +467,8 @@ export function NovoPedidoDialog({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="benef" className="mb-1.5 block">Beneficiário <span className="text-muted-foreground text-xs">(quem recebe)</span></Label>
-              <Input id="benef" value={beneficiario} onChange={(e) => setBeneficiario(e.target.value)} placeholder="Nome do fornecedor ou funcionário" />
+              <Label htmlFor="benef" className="mb-1.5 block">Beneficiário <span className="text-muted-foreground text-xs">(nome no comprovante)</span></Label>
+              <Input id="benef" value={beneficiario} onChange={(e) => setBeneficiario(e.target.value)} placeholder="Preenchido pelo fornecedor; ajuste se precisar" />
             </div>
             <div>
               <Label htmlFor="doc" className="mb-1.5 block">CPF/CNPJ <span className="text-muted-foreground text-xs">(opcional)</span></Label>
