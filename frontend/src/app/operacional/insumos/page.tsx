@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap, Utensils, Pencil, Plus, Trash2, Filter, Check } from 'lucide-react';
+import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap, Utensils, Pencil, Plus, Trash2, Filter, Check, Download } from 'lucide-react';
+import { exportarCSV } from '@/lib/utils/export-csv';
 import { PageShell } from '@/components/layout/PageShell';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
@@ -245,6 +246,43 @@ export default function InsumosPage() {
     const sel = colFilter[c.id]; if (!sel || !sel.size) return true; return sel.has(c.get(i));
   })), [insumosBase, colFilter]);
 
+  // Exporta a lista ATUAL em CSV (respeita busca + filtros de coluna). Contextual:
+  //  - visão normal: insumos cadastrados no Zykor (código i0XXX = codigo_planilha do VMarket).
+  //  - visão "sem cadastro": itens comprados no VMarket ainda sem código Zykor (traz cód. interno /
+  //    código VMarket / id_vmarket) — pro Isaías bater código Zykor × VMarket.
+  const numeroBR = (v: unknown) => (v == null || v === '' ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const simNao = (v: unknown) => (v ? 'Sim' : 'Não');
+  const exportar = () => {
+    const barSlug = (selectedBar?.nome || `bar${barId ?? ''}`).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    if (filtro === 'sem_cadastro') {
+      exportarCSV(`insumos-vmarket-sem-cadastro-${barSlug}`, semCadastro as unknown as Record<string, unknown>[], [
+        { key: 'nome', label: 'Nome (VMarket)' },
+        { key: 'cod_interno', label: 'Cód. interno VMarket' },
+        { key: 'codigo_vmarket', label: 'Código VMarket' },
+        { key: 'id_vmarket', label: 'ID VMarket' },
+        { key: 'nome_secao', label: 'Seção VMarket' },
+        { key: 'fornecedor', label: 'Fornecedor' },
+        { key: 'preco', label: 'Última compra', format: numeroBR },
+        { key: 'preco_data', label: 'Data preço', format: (v) => fmtData(v as string | null) },
+      ]);
+      return;
+    }
+    exportarCSV(`insumos-zykor-${barSlug}`, insumosView as unknown as Record<string, unknown>[], [
+      { key: 'codigo', label: 'Código Zykor' },
+      { key: 'nome', label: 'Insumo' },
+      { key: 'categoria', label: 'Local de Contagem' },
+      { key: 'secao_vmarket', label: 'Seção VMarket' },
+      { key: 'base', label: 'Unidade' },
+      { key: 'embalagem', label: 'Embalagem', format: (v) => (v == null ? '' : String(v)) },
+      { key: 'fornecedor', label: 'Fornecedor' },
+      { key: 'tem_compra', label: 'Tem compra VMarket', format: simNao },
+      { key: 'preco_atual', label: 'Preço atual', format: numeroBR },
+      { key: 'preco_data', label: 'Data preço', format: (v) => fmtData(v as string | null) },
+      { key: 'curva_a', label: 'Curva A', format: simNao },
+      { key: 'tem_ficha', label: 'Tem ficha', format: simNao },
+    ]);
+  };
+
   // ---------- cadastrar insumo ----------
   const [novoOpen, setNovoOpen] = useState(false);
   const [nCod, setNCod] = useState(''); const [nNome, setNNome] = useState(''); const [nCat, setNCat] = useState('');
@@ -402,6 +440,15 @@ export default function InsumosPage() {
                 <option value="todas">Todas as seções ({insumos.length})</option>
                 {catList.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+              <Button
+                variant="outline"
+                onClick={exportar}
+                disabled={loading || (filtro === 'sem_cadastro' ? semCadastro.length === 0 : insumosView.length === 0)}
+                title="Exportar a lista atual (respeita os filtros) em CSV — pra bater o código do insumo Zykor com o VMarket"
+              >
+                <Download className="w-4 h-4 mr-1.5" />
+                Exportar CSV{filtro === 'sem_cadastro' ? ` (${semCadastro.length})` : anyCol || busca || catSel !== 'todas' || filtro ? ` (${insumosView.length})` : ''}
+              </Button>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <button onClick={() => setFiltro(null)}><Badge variant="outline" className={`cursor-pointer ${!filtro ? 'ring-1 ring-emerald-400' : ''}`}>{anyCol ? `${insumosView.length}/${insumos.length}` : insumos.length} insumos</Badge></button>
