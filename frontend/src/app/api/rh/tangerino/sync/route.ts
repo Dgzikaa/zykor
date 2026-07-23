@@ -16,7 +16,7 @@ import { podeRH } from '@/lib/auth/rh-guard';
  *  - paginação (tamanho de page) e se `lastUpdate` traz exclusões.
  */
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({} as any));
@@ -114,6 +114,33 @@ export async function POST(req: NextRequest) {
       } catch (e: any) { out.push({ nome: u.nome, erro: e?.message }); }
     }
     return NextResponse.json({ ausencias: true, employee_id: empId, de, ate: hoje, deMs, ateMs, tentativas: out });
+  }
+
+  // SYNC do resumo diário (daily-summary) -> bronze. { daily_summary:true, de?, ate? }
+  // Livro-razão do Tangerino por funcionário-dia (worked/estimated/missed/isAdjustment/
+  // isHoliday/movementType). Conta única do grupo -> puxa p/ TODOS os ativos com
+  // tangerino_employee_id; o bar real é resolvido no silver (join por tangerino_employee_id).
+  if (body?.daily_summary) {
+    const { data: funcs } = await (supabase as any).schema('hr').from('funcionarios')
+      .select('tangerino_employee_id').eq('ativo', true).not('tangerino_employee_id', 'is', null);
+    const ids = Array.from(new Set((funcs || []).map((f: any) => Number(f.tangerino_employee_id)).filter(Boolean)));
+    let gravados = 0; const erros: any[] = [];
+    for (const eid of ids) {
+      try {
+        const r = await fetch(`${TANGERINO.punch}/daily-summary/?employeeId=${eid}&startDate=${deMs}&endDate=${ateMs}`, { headers: { Authorization: authHeader } });
+        if (!r.ok) { erros.push({ eid, status: r.status }); continue; }
+        const arr: any = await r.json();
+        const list: any[] = Array.isArray(arr) ? arr : [];
+        const rows = list.filter((d: any) => d?.date != null)
+          .map((d: any) => ({ employee_id_ext: eid, date_ms: Number(d.date), payload: d, synced_at: new Date().toISOString() }));
+        if (rows.length) {
+          await (supabase as any).schema('bronze').from('bronze_tangerino_daily_summary')
+            .upsert(rows, { onConflict: 'employee_id_ext,date_ms' });
+          gravados += rows.length;
+        }
+      } catch (e: any) { erros.push({ eid, erro: e?.message }); }
+    }
+    return NextResponse.json({ daily_summary: true, de, ate: hoje, funcionarios: ids.length, dias_gravados: gravados, erros: erros.slice(0, 20) });
   }
 
   // SYNC dos cadastros (cargo/setor/colaborador/escala) -> bronze. { cadastros:true }
