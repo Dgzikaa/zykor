@@ -11,7 +11,7 @@ type Linha = {
   horas_trab: number | null; horas_prev: number | null; horas_extra: number | null; atraso_min: number | null;
   situacao: string; observacao: string | null;
 };
-type Resumo = { horas_trab: number; horas_extra: number; faltas: number; atrasos: number; dias_com_ponto: number };
+type Resumo = { horas_trab: number; horas_extra: number; faltas: number; justificadas: number; folgas: number; atrasos: number; dias_trabalhados: number };
 
 const hhmm = (t: string | null) => (t ? t.slice(0, 5) : '—');
 const fmtDia = (d: string) => { const [y, m, dd] = d.split('-'); return `${dd}/${m}`; };
@@ -20,12 +20,17 @@ const labelMes = (ym: string) => { const [y, m] = ym.split('-').map(Number); ret
 const addMes = (ym: string, delta: number) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + delta, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
 const hojeMes = () => new Date().toISOString().slice(0, 7);
 
-const SIT: Record<string, { dot: string; txt: string }> = {
-  ok: { dot: 'bg-emerald-500', txt: 'text-emerald-600 dark:text-emerald-400' },
-  atraso: { dot: 'bg-amber-500', txt: 'text-amber-600 dark:text-amber-400' },
-  falta: { dot: 'bg-red-500', txt: 'text-red-600 dark:text-red-400' },
-  agendada: { dot: 'bg-sky-400', txt: 'text-sky-600 dark:text-sky-400' },
-  sem_marcacao: { dot: 'bg-muted-foreground/40', txt: 'text-muted-foreground' },
+const SIT: Record<string, { dot: string; txt: string; label: string }> = {
+  trabalhou: { dot: 'bg-emerald-500', txt: 'text-emerald-600 dark:text-emerald-400', label: 'trabalhou' },
+  ok: { dot: 'bg-emerald-500', txt: 'text-emerald-600 dark:text-emerald-400', label: 'trabalhou' },
+  atraso: { dot: 'bg-amber-500', txt: 'text-amber-600 dark:text-amber-400', label: 'atraso' },
+  falta: { dot: 'bg-red-500', txt: 'text-red-600 dark:text-red-400', label: 'falta' },
+  ausencia_justificada: { dot: 'bg-violet-500', txt: 'text-violet-600 dark:text-violet-400', label: 'justificada' },
+  folga: { dot: 'bg-sky-400', txt: 'text-sky-600 dark:text-sky-400', label: 'folga' },
+  feriado: { dot: 'bg-indigo-400', txt: 'text-indigo-600 dark:text-indigo-400', label: 'feriado' },
+  agendada: { dot: 'bg-sky-400', txt: 'text-sky-600 dark:text-sky-400', label: 'agendada' },
+  sem_escala: { dot: 'bg-muted-foreground/40', txt: 'text-muted-foreground', label: '—' },
+  sem_marcacao: { dot: 'bg-muted-foreground/40', txt: 'text-muted-foreground', label: 'folga' },
 };
 
 export function EspelhoPontoTab({ funcionarioId }: { funcionarioId: number }) {
@@ -60,12 +65,13 @@ export function EspelhoPontoTab({ funcionarioId }: { funcionarioId: number }) {
       : (
         <>
           {/* resumo */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
             <Kpi icon={Clock} label="Trabalhadas" value={fmtHoras(resumo.horas_trab)} />
             <Kpi icon={Clock} label="Hora extra" value={fmtHoras(resumo.horas_extra)} accent="text-indigo-600 dark:text-indigo-400" />
             <Kpi icon={CalendarX} label="Faltas" value={String(resumo.faltas)} accent={resumo.faltas ? 'text-red-600 dark:text-red-400' : ''} />
+            <Kpi icon={CalendarX} label="Justificadas" value={String(resumo.justificadas)} accent={resumo.justificadas ? 'text-violet-600 dark:text-violet-400' : ''} />
+            <Kpi icon={Clock} label="Folgas" value={String(resumo.folgas)} accent="text-sky-600 dark:text-sky-400" />
             <Kpi icon={AlertTriangle} label="Atrasos" value={String(resumo.atrasos)} accent={resumo.atrasos ? 'text-amber-600 dark:text-amber-400' : ''} />
-            <Kpi icon={Clock} label="Dias c/ ponto" value={String(resumo.dias_com_ponto)} />
           </div>
 
           {/* espelho */}
@@ -80,7 +86,7 @@ export function EspelhoPontoTab({ funcionarioId }: { funcionarioId: number }) {
               <tbody>
                 {linhas.length === 0 ? <tr><td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">Sem marcações.</td></tr>
                 : linhas.map((l, i) => {
-                  const sit = SIT[l.situacao] || SIT.sem_marcacao;
+                  const sit = SIT[l.situacao] || SIT.sem_escala;
                   return (
                     <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
                       <td className="px-3 py-1.5 font-medium whitespace-nowrap">{fmtDia(l.data)}</td>
@@ -89,7 +95,7 @@ export function EspelhoPontoTab({ funcionarioId }: { funcionarioId: number }) {
                       <td className="px-3 py-1.5 text-center whitespace-nowrap">{hhmm(l.saida)}</td>
                       <td className="px-3 py-1.5 text-right whitespace-nowrap">{fmtHoras(l.horas_trab)}</td>
                       <td className="px-3 py-1.5 text-right whitespace-nowrap text-indigo-600 dark:text-indigo-400">{l.horas_extra ? '+' + fmtHoras(l.horas_extra) : '—'}</td>
-                      <td className={`px-3 py-1.5 text-center text-xs ${sit.txt}`}><span className={`inline-block w-2 h-2 rounded-full mr-1 align-middle ${sit.dot}`} />{l.situacao === 'sem_marcacao' ? '—' : l.situacao}</td>
+                      <td className={`px-3 py-1.5 text-center text-xs ${sit.txt}`}><span className={`inline-block w-2 h-2 rounded-full mr-1 align-middle ${sit.dot}`} />{sit.label}</td>
                       <td className="px-3 py-1.5 text-center text-muted-foreground">
                         <span className="inline-flex items-center gap-1">
                           {l.foto_in_url && <Camera className="w-3.5 h-3.5" />}
@@ -103,7 +109,13 @@ export function EspelhoPontoTab({ funcionarioId }: { funcionarioId: number }) {
               </tbody>
             </table>
           </div>
-          <p className="text-[11px] text-muted-foreground">📷 foto da marcação · <MapPin className="inline w-3 h-3 text-emerald-600" /> bateu no bar · <MapPin className="inline w-3 h-3 text-red-600" /> fora do local. Marcações automáticas via Tangerino quando integrado; até lá, ponto manual.</p>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            <span className="inline-flex items-center mr-2"><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />trabalhou</span>
+            <span className="inline-flex items-center mr-2"><span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1" />falta</span>
+            <span className="inline-flex items-center mr-2"><span className="inline-block w-2 h-2 rounded-full bg-violet-500 mr-1" />ausência justificada (atestado/férias)</span>
+            <span className="inline-flex items-center mr-2"><span className="inline-block w-2 h-2 rounded-full bg-sky-400 mr-1" />folga (escala)</span>
+            <br />📷 foto da marcação · <MapPin className="inline w-3 h-3 text-emerald-600" /> bateu no bar · <MapPin className="inline w-3 h-3 text-red-600" /> fora do local. Situação espelha o Tangerino; a folga vem da escala e a justificativa do atestado/férias lançado no dossiê.
+          </p>
         </>
       )}
     </div>
