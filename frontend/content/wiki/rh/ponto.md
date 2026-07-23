@@ -112,4 +112,4 @@ Não. O registro é único por funcionário e data; salvar de novo atualiza o ex
 - **`hr.areas`** — áreas do bar, usadas no filtro de área (via `/api/rh/funcionarios/opcoes`).
 - API: `GET/POST/DELETE /api/rh/ponto` (leitura do período, upsert e exclusão) e `GET /api/rh/funcionarios/opcoes` (áreas).
 
-> Observação: existe também a rota `/api/rh/ponto/espelho` (view `hr.v_espelho_ponto`, cruzando ponto com escala) que gera o espelho mensal por funcionário — mas ela alimenta a aba "Ponto" do dossiê em RH → Funcionários, **não** esta tela.
+> Observação: existe também a rota `/api/rh/ponto/espelho` (view `hr.v_espelho_dia` — livro-razão diário do Tangerino com folga/falta/ausência justificada, e fallback para `hr.v_espelho_ponto` nos meses antigos) que gera o espelho mensal por funcionário — mas ela alimenta a aba "Ponto" do dossiê em RH → Funcionários, **não** esta tela.

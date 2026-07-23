@@ -89,7 +89,7 @@ Todos os dados são **sempre filtrados pelo bar selecionado** — cada bar enxer
 
 A tela tem **quatro abas** no topo:
 
-- **Visão geral** — dashboard operacional de RH: KPIs do dia, solicitações pendentes do portal, quadro por área, clima/felicidade, pendências, quem está de férias, aniversariantes e aniversários de empresa.
+- **Visão geral** — dashboard operacional de RH: KPIs do dia, solicitações pendentes do portal, alerta de **quem está sem bater ponto** (ativos parados 7+ dias), quadro por área, clima/felicidade, pendências, quem está de férias, aniversariantes e aniversários de empresa.
 - **Equipe** — a lista de colaboradores (cards ou tabela), com busca, filtros e exportação CSV. Clicar em qualquer pessoa abre o **dossiê**.
 - **Organograma** — a equipe agrupada por **área**, com a contagem de pessoas por área (áreas maiores primeiro).
 - **Indicadores** — painel gerencial dos últimos 12 meses: headcount, turnover, admissões/demissões, absenteísmo e eNPS (clima recorrente anônimo).
@@ -98,7 +98,7 @@ A tela tem **quatro abas** no topo:
 
 Abre um painel com a lateral de **perfil** (foto/iniciais, status, tipo, tempo de casa, admissão, salário/diária, idade, CPF, telefone, email, PIX, nascimento e histórico de salário pago via Conta Azul) e **sete sub-abas**:
 
-- **Ponto** — espelho de ponto do mês (marcações × escala) com resumo de horas.
+- **Ponto** — espelho de ponto do mês espelhando o **Tangerino**: cada dia classificado como trabalhou / falta / **ausência justificada** (atestado ou férias) / **folga** (dia sem escala) / feriado, com resumo de horas, faltas, justificadas e folgas.
 - **Onboarding** — checklist de integração com barra de progresso; itens marcáveis e adicionáveis.
 - **Documentos** — anexos com tipo, validade e link para abrir.
 - **Ocorrências** — advertências, faltas, atestados, férias e observações.
@@ -143,6 +143,7 @@ Abre um painel com a lateral de **perfil** (foto/iniciais, status, tipo, tempo d
 | Aniversariantes do mês | Aniversários de nascimento | Ativos cujo mês de nascimento = mês atual, com dia e idade | `hr.funcionarios.data_nascimento` |
 | Aniversários de empresa | Aniversários de admissão (≥ 1 ano) | Ativos cujo mês de admissão = mês atual e ≥ 1 ano de casa | `hr.funcionarios.data_admissao` |
 | Solicitações pendentes | Pedidos de folga/férias do portal | Solicitações com status "pendente" | `hr.solicitacoes` |
+| **Sem bater ponto** | Ativos **com escala** parados há **7+ dias** (candidatos a demissão não marcada no Tangerino / abandono) | Última presença (dia "trabalhou") no livro-razão do Tangerino há mais de 6 dias; corta líderes que não batem ponto (sem falta prevista e sem presença). Mostra dias parado, última presença e faltas/justificadas dos últimos 30 dias | `hr.v_ponto_ausentes` (sobre `hr.v_ponto_dia`) |
 | Avaliações de desempenho | Módulo em construção | Placeholder — "em breve" | — |
 
 ### Aba Indicadores — KPIs e gráficos (últimos 12 meses)
@@ -161,14 +162,17 @@ Abre um painel com a lateral de **perfil** (foto/iniciais, status, tipo, tempo d
 
 ### Dossiê — sub-aba Ponto (resumo do mês)
 
+Espelha o **livro-razão diário do Tangerino** (endpoint `daily-summary`): cada dia já vem classificado pelo próprio Tangerino, e a **falta é reclassificada como "ausência justificada"** quando há atestado/férias registrado no dossiê cobrindo o dia. A **folga** vem da escala (dia sem jornada prevista). Meses sem esse dado caem no cálculo antigo (ponto × escala).
+
 | Coluna / Indicador | O que mostra | Como é calculado | Fonte |
 |---|---|---|---|
-| Trabalhadas | Horas trabalhadas no mês | Soma de `horas_trab` das marcações do mês | `hr.v_espelho_ponto` |
-| Hora extra | Horas extras no mês | Soma de `horas_extra` | `hr.v_espelho_ponto` |
-| Faltas | Dias de falta | Linhas com situação "falta" | `hr.v_espelho_ponto` |
-| Atrasos | Dias com atraso | Linhas com situação "atraso" | `hr.v_espelho_ponto` |
-| Dias c/ ponto | Dias com marcação de entrada | Linhas com entrada preenchida | `hr.v_espelho_ponto` |
-| Linha do dia (Escala/Entrada/Saída/Trab./Extra/Status) | Marcação × escala do dia | Previsto vem da escala, realizado do ponto; status = ok / atraso / falta / agendada / sem_marcação. Ícones de foto e geolocalização (bateu no bar / fora do local) | `hr.v_espelho_ponto` (ponto × escala) |
+| Trabalhadas | Horas trabalhadas no mês | Soma de `horas_trab` (workedHours do Tangerino) | `hr.v_espelho_dia` |
+| Hora extra | Horas extras no mês | Soma de `horas_extra` (trabalhado − previsto) | `hr.v_espelho_dia` |
+| Faltas | Dias de falta real | Dias com situação "falta" (previsto, sem batida e sem justificativa) | `hr.v_espelho_dia` |
+| Justificadas | Ausências justificadas | Dias com atestado/férias cobrindo (situação "ausência justificada") | `hr.v_espelho_dia` + `hr.funcionario_ocorrencias` |
+| Folgas | Dias de folga | Dias sem jornada prevista na escala (situação "folga") | `hr.v_espelho_dia` |
+| Atrasos | Dias com atraso | Batida mais de 10 min após o início da escala | `hr.v_espelho_dia` |
+| Linha do dia (Escala/Entrada/Saída/Trab./Extra/Status) | Situação do dia | Situação = trabalhou / falta / ausência justificada / folga / feriado / atraso, espelhando o Tangerino. Ícones de foto e geolocalização (bateu no bar / fora do local) | `hr.v_espelho_dia` |
 
 ### Dossiê — sub-aba Avaliações
 
@@ -247,7 +251,12 @@ Todas as tabelas ficam no schema **`hr`** (domínio de RH), filtradas por `bar_i
 - `hr.enps_respostas` — respostas anônimas de eNPS (clima recorrente).
 - `hr.solicitacoes` — pedidos de folga/férias vindos do portal do funcionário.
 - `hr.ponto_registro` — marcações de ponto (fonte também da selfie usada como avatar).
-- `hr.v_espelho_ponto` — visão que cruza ponto × escala (espelho de ponto do dossiê).
+- `hr.escalas` — jornada prevista por dia (do Tangerino); dia sem linha = folga.
+- `bronze.bronze_tangerino_daily_summary` — livro-razão diário do Tangerino (worked/estimated/missed/isAdjustment/isHoliday por funcionário-dia), puxado pelo cron `tangerino-daily-summary-sync` (8:25).
+- `hr.v_ponto_dia` — silver: o livro-razão resolvido **por bar** (join `tangerino_employee_id` → funcionário), classificando cada dia (trabalhou/falta/ausência justificada/folga/feriado) e reclassificando falta→justificada via atestado/férias.
+- `hr.v_espelho_dia` — espelho do dossiê: `v_ponto_dia` + detalhe de batida (entrada/saída/foto/geo) + escala; deriva atraso.
+- `hr.v_ponto_ausentes` — ativos com escala sem presença há 7+ dias (painel "Sem bater ponto" do dashboard).
+- `hr.v_espelho_ponto` — visão antiga (ponto × escala), usada como **fallback** nos meses sem daily-summary.
 - `hr.v_funcionario_salario` — visão do salário efetivamente pago, com origem na integração **Conta Azul**.
 
-Integrações externas envolvidas: **Conta Azul** (salário pago) e **Tangerino** (ponto automático, quando integrado). Os demais dados são preenchidos manualmente no próprio Zykor.
+Integrações externas envolvidas: **Conta Azul** (salário pago) e **Tangerino** (ponto, escala e livro-razão diário; conta única do grupo, roteada por bar no silver). Os demais dados são preenchidos manualmente no próprio Zykor.
