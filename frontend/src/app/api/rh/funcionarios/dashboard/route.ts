@@ -38,6 +38,14 @@ export async function GET(request: NextRequest) {
   const ativos = lista.filter((f: any) => f.ativo);
   const hoje = hojeISO();
 
+  // ── Sem bater ponto (ativos com escala parados há >=7 dias) ──
+  const { data: ausentesRaw } = await hr('v_ponto_ausentes')
+    .select('funcionario_id, nome, area_id, ultima_presenca, dias_sem_bater, faltas_30d, justificadas_30d')
+    .eq('bar_id', bar);
+  const ausentes = (ausentesRaw || [])
+    .map((a: any) => ({ ...a, area: a.area_id ? (areaNome.get(a.area_id) as string) || null : null }))
+    .sort((x: any, y: any) => (y.dias_sem_bater ?? 999) - (x.dias_sem_bater ?? 999));
+
   // ── Headcount ──
   const porTipo = { CLT: 0, PJ: 0, Freela: 0 } as Record<string, number>;
   const porArea = new Map<string, number>();
@@ -112,6 +120,7 @@ export async function GET(request: NextRequest) {
       advertencias_mes: noMes('advertencia'),
     },
     alertas: { com_alertas: comAlertas, por_tipo: tipoAlerta },
+    sem_bater_ponto: ausentes,
     felicidade,
     avaliacoes: { total: 0, ultima: null }, // pré-construído — módulo Avaliação alimenta depois
   });

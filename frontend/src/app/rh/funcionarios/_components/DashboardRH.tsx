@@ -7,7 +7,7 @@ import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { GraficoBarraH, GraficoLinha } from '@/components/graficos/Charts';
 import {
-  Users, Loader2, Palmtree, CalendarX, AlertTriangle, Smile, Clock, TrendingUp, TrendingDown, FileWarning, ClipboardCheck, Cake, Gift, Inbox, Check, X,
+  Users, Loader2, Palmtree, CalendarX, AlertTriangle, Smile, Clock, TrendingUp, TrendingDown, FileWarning, ClipboardCheck, Cake, Gift, Inbox, Check, X, UserX,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 
@@ -81,6 +81,32 @@ export function DashboardRH() {
                     <button onClick={() => resolver(s.id, 'aprovado')} title="Aprovar" className="h-7 w-7 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 flex items-center justify-center"><Check className="w-4 h-4" /></button>
                     <button onClick={() => resolver(s.id, 'recusado')} title="Recusar" className="h-7 w-7 rounded bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300 flex items-center justify-center"><X className="w-4 h-4" /></button>
                   </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {d.sem_bater_ponto?.length > 0 && (
+        <Card className="rounded-2xl border-0 ring-1 ring-red-200 dark:ring-red-900/40 shadow-sm">
+          <CardContent className="py-4">
+            <div className="text-sm font-semibold mb-1 flex items-center gap-1.5"><UserX className="w-4 h-4 text-red-500" />Sem bater ponto <span className="text-xs font-normal text-muted-foreground">({d.sem_bater_ponto.length}) — ativos parados há 7+ dias</span></div>
+            <p className="text-[11px] text-muted-foreground mb-2">Candidatos a demissão não marcada no Tangerino ou abandono. Confirme com a liderança e, se for o caso, marque como demitido no Tangerino — o Zykor inativa sozinho.</p>
+            <div className="space-y-1.5">
+              {d.sem_bater_ponto.map((a: any) => (
+                <div key={a.funcionario_id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
+                  <div className="text-sm min-w-0">
+                    <span className="font-medium">{a.nome}</span>
+                    {a.area && <span className="text-muted-foreground"> · {a.area}</span>}
+                    <div className="text-[11px] text-muted-foreground">
+                      última presença {a.ultima_presenca ? fmtData(a.ultima_presenca) : 'nenhuma'} · {a.faltas_30d} faltas/30d
+                      {a.justificadas_30d > 0 && <span className="text-violet-600 dark:text-violet-400"> · {a.justificadas_30d} justificadas</span>}
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 shrink-0 whitespace-nowrap">
+                    {a.dias_sem_bater != null ? `${a.dias_sem_bater}d parado` : 'sem batida'}
+                  </span>
                 </div>
               ))}
             </div>
