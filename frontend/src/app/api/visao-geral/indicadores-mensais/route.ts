@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
         const { data: batch, error: batchError } = await supabase
           .schema('bronze' as never)
           .from('bronze_contahub_avendas_vendasperiodo')
-          .select('vd_vrpagamentos, vd_pessoas')
+          .select('vd_vrpagamentos, vd_pessoas, vd_qtditens, vd_vrdescontos')
           .eq('bar_id', barIdNum)
           .gte('vd_dtgerencial', inicioMes)
           .lte('vd_dtgerencial', fimMes)
@@ -98,14 +98,25 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Filtrar apenas linhas com vd_vrpagamentos > 0
-      const contahubComPagamento = contahubPeriodoData.filter(item => 
+      // Faturamento = só quem pagou (vd_vrpagamentos > 0)
+      const contahubComPagamento = contahubPeriodoData.filter(item =>
         (parseFloat(item.vd_vrpagamentos) || 0) > 0
       );
-      
-      const faturamentoContahub = contahubComPagamento.reduce((sum, item) => 
+
+      const faturamentoContahub = contahubComPagamento.reduce((sum, item) =>
         sum + (parseFloat(item.vd_vrpagamentos) || 0), 0
       );
+
+      // Clientes = quem CONSUMIU (régua v34): pagante OU cartão 100% vazio com pessoa
+      // (= conta juntada, consumo migrou pro cartão pagador). Cortesia (item/desconto sem
+      // pagamento) fica FORA. Mesma regra do calculate_evento_metrics / etl_silver_vendas_diarias_dia.
+      const contahubClientes = contahubPeriodoData.filter(item => {
+        const pag = parseFloat(item.vd_vrpagamentos) || 0;
+        const itens = parseFloat(item.vd_qtditens) || 0;
+        const desc = parseFloat(item.vd_vrdescontos) || 0;
+        const pessoas = parseInt(item.vd_pessoas) || 0;
+        return pag > 0 || (itens === 0 && desc === 0 && pessoas > 0);
+      });
 
       // 1.2. YUZER
       let yuzerData: any[] = [];
@@ -380,9 +391,8 @@ export async function GET(request: NextRequest) {
       const percentualArtistico = faturamentoTotal > 0 ? (custoArtistico / faturamentoTotal) * 100 : 0;
 
       // 10. CALCULAR TICKET MÉDIO CORRETO
-      // Ticket médio = Faturamento / Número de pessoas (apenas com vd_vrpagamentos > 0)
-      // Usar pessoas já filtradas do bronze.bronze_contahub_avendas_vendasperiodo
-      const pessoasContahub = contahubComPagamento.reduce((sum, item) => 
+      // Ticket médio = Faturamento / Número de clientes (pagante + conta juntada, régua v34)
+      const pessoasContahub = contahubClientes.reduce((sum, item) =>
         sum + (parseInt(item.vd_pessoas) || 0), 0
       );
       
