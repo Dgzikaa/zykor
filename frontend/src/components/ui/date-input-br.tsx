@@ -66,12 +66,13 @@ export function DateInputBR({ value, onChange, min, max, id, className, placehol
 
   const abaixoDoMin = !!(value && min && value < min);
 
-  // Abre o calendário nativo do navegador. showPicker() precisa de gesto do usuário e do
-  // elemento renderizado (por isso o input fica opacity-0/tamanho-zero, não display:none).
+  // Desktop: showPicker() abre o calendário nativo (precisa de gesto do usuário). No celular o
+  // simples toque no input date sobreposto já abre o seletor do SO — por isso ele fica opacity-0
+  // MAS tocável (pointer-events-auto/tamanho real), não h-0/pointer-events-none.
   const abrirCalendario = () => {
     const el = nativeRef.current as (HTMLInputElement & { showPicker?: () => void }) | null;
     if (!el || disabled) return;
-    try { el.showPicker?.(); } catch { el.focus(); }
+    try { el.showPicker?.(); } catch { /* mobile: o toque no próprio input já abriu o seletor */ }
   };
 
   const campo = (
@@ -92,17 +93,11 @@ export function DateInputBR({ value, onChange, min, max, id, className, placehol
   return (
     <div className="relative">
       {campo}
-      <button
-        type="button"
-        tabIndex={-1}
-        onClick={abrirCalendario}
-        disabled={disabled}
-        aria-label="Abrir calendário"
-        className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
-      >
-        <CalendarDays className="h-4 w-4" />
-      </button>
-      {/* Seletor nativo: só a fonte do calendário; o texto exibido é o input mascarado acima. */}
+      {/* Ícone decorativo do calendário (o toque/clique é capturado pelo input date abaixo). */}
+      <CalendarDays className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      {/* Seletor nativo transparente sobre o ícone. Tocável nos dois mundos:
+          - celular: o toque abre direto o seletor de data do SO;
+          - desktop: onClick chama showPicker(). O texto exibido é sempre o input mascarado acima. */}
       <input
         ref={nativeRef}
         type="date"
@@ -111,9 +106,10 @@ export function DateInputBR({ value, onChange, min, max, id, className, placehol
         max={max}
         disabled={disabled}
         tabIndex={-1}
-        aria-hidden
+        aria-label="Abrir calendário"
+        onClick={abrirCalendario}
         onChange={(e) => onChange(e.target.value)}
-        className="pointer-events-none absolute right-1 top-1/2 h-0 w-0 -translate-y-1/2 opacity-0"
+        className="absolute right-0 top-0 h-full w-10 cursor-pointer opacity-0 disabled:cursor-not-allowed"
       />
     </div>
   );
