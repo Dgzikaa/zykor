@@ -48,7 +48,60 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   return NextResponse.json({ success: true, documentos });
 }
 
-/** POST -> upload de documento (FormData: file, tipo, descricao?, validade?). */
+/**
+ * Modo (a): o arquivo já está no bucket (subiu direto do browser). Confere que o path é do bar +
+ * funcionário certos (anti-IDOR), lê o tamanho/mime REAIS do Storage — nunca o que o cliente diz —
+ * e grava a linha.
+ */
+async function finalizarUploadAssinado(request: NextRequest, supabase: any, user: any, id: string) {
+  const body = await request.json().catch(() => ({} as any));
+  const storagePath = String(body?.storage_path || '');
+  const prefixo = `${user.bar_id}/${id}/`;
+  if (!storagePath.startsWith(prefixo) || storagePath.includes('..')) {
+    return NextResponse.json({ success: false, error: 'Caminho de arquivo inválido' }, { status: 400 });
+  }
+
+  const barra = storagePath.lastIndexOf('/');
+  const dir = storagePath.slice(0, barra);
+  const arquivo = storagePath.slice(barra + 1);
+  const { data: achados } = await supabase.storage.from(BUCKET).list(dir, { search: arquivo, limit: 100 });
+  const obj = (achados || []).find((o: any) => o.name === arquivo);
+  if (!obj) {
+    return NextResponse.json({ success: false, error: 'Arquivo não chegou ao servidor. Tente enviar de novo.' }, { status: 400 });
+  }
+
+  const nomeOriginal = String(body?.nome_arquivo || arquivo.replace(/^\d+_/, ''));
+  const ext = (nomeOriginal.split('.').pop() || '').toLowerCase();
+  const { data, error } = await supabase.schema('hr').from('documentos_funcionario').insert({
+    funcionario_id: Number(id),
+    tipo: (body?.tipo as string) || 'outro',
+    descricao: (body?.descricao as string) || null,
+    storage_path: storagePath,
+    nome_arquivo: nomeOriginal,
+    mime: obj.metadata?.mimetype || MIME_POR_EXT[ext] || 'application/octet-stream',
+    tamanho_bytes: obj.metadata?.size ?? null,
+    validade: (body?.validade as string) || null,
+    uploaded_by: user.id,
+  }).select().single();
+  if (error) {
+    await supabase.storage.from(BUCKET).remove([storagePath]); // rollback: sem linha, o arquivo vira lixo
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+  return NextResponse.json({ success: true, documento: data }, { status: 201 });
+}
+
+/**
+ * POST -> grava o documento. Dois modos:
+ *
+ *  a) JSON  { storage_path, tipo, descricao?, validade? } — modo PADRÃO. O browser já subiu o
+ *     arquivo direto no Storage via URL assinada (rota ./upload-url) e aqui só confirmamos que
+ *     ele existe no bucket e gravamos a linha. É assim porque o corpo de requisição da função
+ *     Vercel tem teto de ~4,5 MB: PDF escaneado de várias páginas era rejeitado na borda, antes
+ *     da função rodar (por isso nem log de erro havia — só "Falha no upload" na tela).
+ *
+ *  b) FormData { file, tipo, descricao?, validade? } — caminho legado, mantido como plano B.
+ *     Só funciona pra arquivo pequeno, pelo motivo acima.
+ */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
@@ -58,6 +111,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const supabase = await getAdminClient();
   if (!(await checaFuncionario(supabase, Number(id), user.bar_id))) {
     return NextResponse.json({ success: false, error: 'Funcionário não encontrado' }, { status: 404 });
+  }
+
+  if ((request.headers.get('content-type') || '').includes('application/json')) {
+    return finalizarUploadAssinado(request, supabase, user, id);
   }
 
   const form = await request.formData();

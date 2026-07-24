@@ -8,12 +8,21 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { getSelectedBarId } from '@/lib/selected-bar';
+import { getSupabaseClient } from '@/lib/supabase';
+import { AVISO_DOC_PESADO_BYTES, MAX_DOC_BYTES, formataMb, validaDocumento } from '@/lib/rh/documentos';
 import { cn } from '@/lib/utils';
 
 // Header do bar selecionado — os fetch crus deste dossiê PRECISAM enviar, senão o servidor cai
 // no bar padrão do usuário e não acha o funcionário quando ele é de outro bar (ex.: RH no Ordinário
 // abrindo alguém do Deboche → "funcionário não encontrado"). O api-client injeta isso sozinho.
 const barHdr = (): Record<string, string> => { const b = getSelectedBarId(); return b ? { 'x-selected-bar-id': b } : {}; };
+
+// Resposta de erro nem sempre é JSON (413 da borda da Vercel vem em HTML) — sem isso o motivo
+// real do erro sumia e o usuário só via "Falha no upload".
+const lerJson = async (r: Response): Promise<any> => {
+  try { return await r.json(); }
+  catch { return { success: false, error: r.status === 413 ? `Arquivo grande demais para o envio (máx. ${formataMb(MAX_DOC_BYTES)}).` : `Erro ${r.status} no servidor.` }; }
+};
 import {
   Loader2, Pencil, Upload, FileText, Trash2, ExternalLink,
   CalendarDays, Cake, Phone, Mail, CreditCard,
@@ -91,6 +100,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const [felicidade, setFelicidade] = useState<any>(null);
   const [tipoUp, setTipoUp] = useState('carteira_trabalho');
   const [validadeUp, setValidadeUp] = useState('');
+  const [avisoArq, setAvisoArq] = useState<{ texto: string; erro: boolean } | null>(null);
   const [enviando, setEnviando] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [novoOc, setNovoOc] = useState({ tipo: 'advertencia', data_inicio: '', data_fim: '', descricao: '', cartao: 'amarelo', aplicado_por: '' });
@@ -130,19 +140,53 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
 
   useEffect(() => { if (funcionarioId) { setImgErro(false); carregar(); } }, [funcionarioId, carregar]);
 
+  // Feedback na hora de escolher o arquivo — melhor do que descobrir que não serve depois de
+  // esperar o upload inteiro no 4G.
+  const conferirArquivo = () => {
+    const file = fileRef.current?.files?.[0];
+    if (!file) { setAvisoArq(null); return; }
+    const invalido = validaDocumento(file.name, file.type || null, file.size);
+    if (invalido) { setAvisoArq({ texto: invalido, erro: true }); return; }
+    setAvisoArq(file.size > AVISO_DOC_PESADO_BYTES
+      ? { texto: `Arquivo de ${formataMb(file.size)} — pode demorar um pouco pra enviar no celular.`, erro: false }
+      : null);
+  };
+
+  // Upload em 3 passos: pede URL assinada -> sobe DIRETO pro Storage -> confirma e grava a linha.
+  // O arquivo não passa pela função da Vercel (o corpo de requisição lá tem teto de ~4,5 MB e PDF
+  // escaneado de várias páginas estourava isso: a requisição morria na borda e a tela só dizia
+  // "Falha no upload"). Ver comentários em lib/rh/documentos.ts.
   const enviarDoc = async () => {
     const file = fileRef.current?.files?.[0];
     if (!file) { showToast({ type: 'error', title: 'Escolha um arquivo' }); return; }
+    const invalido = validaDocumento(file.name, file.type || null, file.size);
+    if (invalido) { showToast({ type: 'error', title: 'Arquivo não aceito', message: invalido }); return; }
     setEnviando(true);
     try {
-      const fd = new FormData();
-      fd.append('file', file); fd.append('tipo', tipoUp);
-      if (validadeUp) fd.append('validade', validadeUp);
-      const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/documentos`, { method: 'POST', headers: barHdr(), body: fd, credentials: 'include' });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.success) throw new Error(j.error || 'Falha no upload');
+      const r1 = await fetch(`/api/rh/funcionarios/${funcionarioId}/documentos/upload-url`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...barHdr() }, credentials: 'include',
+        body: JSON.stringify({ nome_arquivo: file.name, mime: file.type || null, tamanho_bytes: file.size }),
+      });
+      const j1 = await lerJson(r1);
+      if (!r1.ok || !j1.success) throw new Error(j1.error || 'Não foi possível preparar o envio');
+
+      // Se o celular/scanner não informou o content-type, reembrulha com o tipo certo — senão o
+      // bucket rejeita o arquivo por "octet-stream".
+      const paraSubir = file.type === j1.mime ? file : new File([file], file.name, { type: j1.mime });
+      const sb = await getSupabaseClient();
+      if (!sb) throw new Error('Falha ao conectar no armazenamento. Recarregue a página e tente de novo.');
+      const { error: upErr } = await sb.storage.from(j1.bucket).uploadToSignedUrl(j1.path, j1.token, paraSubir);
+      if (upErr) throw new Error(`Falha ao enviar o arquivo (${formataMb(file.size)}): ${upErr.message}`);
+
+      const r3 = await fetch(`/api/rh/funcionarios/${funcionarioId}/documentos`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...barHdr() }, credentials: 'include',
+        body: JSON.stringify({ storage_path: j1.path, nome_arquivo: file.name, tipo: tipoUp, validade: validadeUp || null }),
+      });
+      const j3 = await lerJson(r3);
+      if (!r3.ok || !j3.success) throw new Error(j3.error || 'Falha ao salvar o documento');
+
       showToast({ type: 'success', title: 'Documento anexado' });
-      if (fileRef.current) fileRef.current.value = ''; setValidadeUp('');
+      if (fileRef.current) fileRef.current.value = ''; setValidadeUp(''); setAvisoArq(null);
       carregar();
     } catch (e: any) { showToast({ type: 'error', title: 'Erro no upload', message: e?.message }); }
     finally { setEnviando(false); }
@@ -432,8 +476,11 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                     <select value={tipoUp} onChange={(e) => setTipoUp(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm">{Object.entries(TIPO_DOC).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
                   </label>
                   <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Validade (opcional)</span><Input type="date" value={validadeUp} onChange={(e) => setValidadeUp(e.target.value)} className="h-9 text-sm w-[150px]" /></label>
-                  <label className="flex flex-col gap-1 flex-1 min-w-[160px]"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Arquivo</span><input ref={fileRef} type="file" accept="application/pdf,image/*" className="text-xs file:mr-2 file:rounded file:border-0 file:bg-muted file:px-2 file:py-1.5 file:text-xs h-9 leading-9" /></label>
-                  <Button size="sm" onClick={enviarDoc} disabled={enviando} className="h-9">{enviando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Upload className="w-4 h-4 mr-1.5" />}Anexar</Button>
+                  <label className="flex flex-col gap-1 flex-1 min-w-[160px]"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Arquivo</span><input ref={fileRef} type="file" accept="application/pdf,image/*" onChange={conferirArquivo} className="text-xs file:mr-2 file:rounded file:border-0 file:bg-muted file:px-2 file:py-1.5 file:text-xs h-9 leading-9" /></label>
+                  <Button size="sm" onClick={enviarDoc} disabled={enviando || avisoArq?.erro} className="h-9">{enviando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Upload className="w-4 h-4 mr-1.5" />}{enviando ? 'Enviando…' : 'Anexar'}</Button>
+                  <p className={cn('w-full text-[10px]', avisoArq?.erro ? 'text-red-500' : avisoArq ? 'text-amber-600' : 'text-muted-foreground')}>
+                    {avisoArq?.texto || `PDF (inclusive de várias páginas) ou foto — até ${formataMb(MAX_DOC_BYTES)}.`}
+                  </p>
                 </div>
               </TabsContent>
 
