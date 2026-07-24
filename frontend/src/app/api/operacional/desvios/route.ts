@@ -14,11 +14,14 @@ function areaDe(categoria: string | null, cod: string | null): string {
   if (/\(F\)/.test(c)) return 'Alimentação';
   if (/\(C\)/.test(c) || c.includes('PÃES') || c.includes('PAES') || c.includes('FEIJOADA')) return 'Comidas';
   if (/\(S\)/.test(c) || c.includes('MERCADO (S)')) return 'Salão';
-  if (/\(B\)/.test(c) || ['DESTILADOS', 'IMPÉRIO', 'IMPERIO', 'POLPAS', 'PRÉ-BATCH', 'PRE-BATCH', 'OUTROS'].some((k) => c.includes(k))) return 'Drinks';
+  // 'DESTILADO' (sem S) casa singular + plural + 'BAR - DESTILADO' (Deboche usa singular)
+  if (/\(B\)/.test(c) || ['DESTILADO', 'IMPÉRIO', 'IMPERIO', 'POLPAS', 'PRÉ-BATCH', 'PRE-BATCH', 'OUTROS'].some((k) => c.includes(k))) return 'Drinks';
   if (['ARTESANAL', 'LATA', 'LONG NECK', 'RETORNÁVEIS', 'RETORNAVEIS', 'VINHOS'].some((k) => c.includes(k))) return 'Salão';
   if (c.includes('ALCÓOLICOS') || c.includes('ALCOOLICOS')) return 'Salão';
   // fornecedor de bebida cadastrado como categoria (ex.: AMBEV/HEINEKEN) → Salão, não Comidas
   if (['AMBEV', 'HEINEKEN', 'KIRIN', 'CERVEJ', 'CHOPP'].some((k) => c.includes(k))) return 'Salão';
+  // categoria prefixada 'BAR - …' (armazém/hortifruti/mercado do bar) é insumo de drink, não comida
+  if (c.startsWith('BAR')) return 'Drinks';
   return 'Comidas';
 }
 
