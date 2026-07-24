@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBar } from '@/contexts/BarContext';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -59,10 +59,12 @@ export function FaturaCartaoTab() {
   const [lendo, setLendo] = useState(false);
   const [lancandoId, setLancandoId] = useState<string | null>(null);
   const [encerrando, setEncerrando] = useState(false);
-  // #25 — seleção p/ lançar várias linhas de uma vez.
+  // #25 — seleção p/ lançar várias linhas de uma vez. Também soma o valor das selecionadas
+  // (pedido do Gonza): serve pra conferir/dividir por bar antes de conciliar no Conta Azul,
+  // por isso dá pra selecionar QUALQUER linha — inclusive já lançada e em fatura encerrada.
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
   const [lancandoLote, setLancandoLote] = useState(false);
-  const toggleSel = (id: string) => setSelecionadas(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const ultimoIdxSel = useRef<number | null>(null);
   // #— Fornecedor escolhido por linha ao lançar (pedido do Gonza). Default = titular do cartão;
   // aqui dá pra trocar pontualmente sem mexer no vínculo do cartão. Vazio = usa o titular (mapa).
   const [fornOverride, setFornOverride] = useState<Record<string, string>>({});
@@ -246,7 +248,7 @@ export function FaturaCartaoTab() {
 
   // #25 — lança em LOTE as linhas selecionadas que já têm bar + categoria. Sequencial (sem rajada).
   const lancarLote = async () => {
-    const alvos = filtradas.filter(l => selecionadas.has(l.id) && l.tipo === 'compra' && l.status === 'novo');
+    const alvos = linhas.filter(l => selecionadas.has(l.id) && l.tipo === 'compra' && l.status === 'novo');
     const prontos = alvos.filter(l => (l.bar_id ?? faturaSel?.bar_id ?? selectedBar?.id) && (l.categoria_id || sugestoes[l.id]?.categoria_id));
     const semDados = alvos.length - prontos.length;
     if (!prontos.length) return showToast({ type: 'warning', title: 'Nada pronto pra lançar', message: 'Faltam bar/categoria nas linhas selecionadas.' });
@@ -343,14 +345,48 @@ export function FaturaCartaoTab() {
   const pendentes = useMemo(() => linhas.filter(l => l.tipo === 'compra' && l.status === 'novo').length, [linhas]);
 
   const editavelFatura = faturaSel?.status === 'aberta';
-  // Linhas que dá pra selecionar/lançar (compra pendente numa fatura aberta).
-  const lancaveis = useMemo(() => filtradas.filter(l => editavelFatura && l.tipo === 'compra' && l.status === 'novo'), [filtradas, editavelFatura]);
-  const todasSel = lancaveis.length > 0 && lancaveis.every(l => selecionadas.has(l.id));
+  // Selecionar pode qualquer linha (é só pra somar); lançar continua só compra pendente em fatura aberta.
+  const todasSel = filtradas.length > 0 && filtradas.every(l => selecionadas.has(l.id));
   const toggleTodas = () => setSelecionadas(prev => {
-    if (lancaveis.every(l => prev.has(l.id))) { const n = new Set(prev); lancaveis.forEach(l => n.delete(l.id)); return n; }
-    const n = new Set(prev); lancaveis.forEach(l => n.add(l.id)); return n;
+    if (filtradas.every(l => prev.has(l.id))) { const n = new Set(prev); filtradas.forEach(l => n.delete(l.id)); return n; }
+    const n = new Set(prev); filtradas.forEach(l => n.add(l.id)); return n;
   });
-  useEffect(() => { setSelecionadas(new Set()); setFornOverride({}); }, [faturaSelId]);
+  // clique normal marca/desmarca; shift+clique pega o intervalo desde o último clicado.
+  const toggleSel = (id: string, idx: number, shift: boolean) => {
+    setSelecionadas(prev => {
+      const n = new Set(prev);
+      if (shift && ultimoIdxSel.current != null) {
+        const marcar = !n.has(id);
+        const [a, b] = [Math.min(ultimoIdxSel.current, idx), Math.max(ultimoIdxSel.current, idx)];
+        for (let i = a; i <= b; i++) { const x = filtradas[i]; if (!x) continue; if (marcar) n.add(x.id); else n.delete(x.id); }
+      } else if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+    ultimoIdxSel.current = idx;
+  };
+  useEffect(() => { setSelecionadas(new Set()); setFornOverride({}); ultimoIdxSel.current = null; }, [faturaSelId]);
+
+  // Resumo da seleção (soma tipo Conta Azul). Estorno/pagamento entram com o próprio sinal do valor.
+  const resumoSel = useMemo(() => {
+    const sel = linhas.filter(l => selecionadas.has(l.id));
+    const total = sel.reduce((s, l) => s + (l.valor || 0), 0);
+    const porBar = new Map<number | null, number>();
+    for (const l of sel) {
+      const bar = l.bar_id ?? faturaSel?.bar_id ?? null;
+      porBar.set(bar, (porBar.get(bar) || 0) + (l.valor || 0));
+    }
+    const visiveis = new Set(filtradas.map(l => l.id));
+    return {
+      qtd: sel.length,
+      total,
+      foraFiltro: sel.filter(l => !visiveis.has(l.id)).length,
+      porBar: Array.from(porBar.entries())
+        .map(([bar, v]) => ({ nome: availableBars.find(b => b.id === bar)?.nome || 'sem bar', total: v }))
+        .sort((a, b) => b.total - a.total),
+      lancaveis: sel.filter(l => editavelFatura && l.tipo === 'compra' && l.status === 'novo').length,
+    };
+  }, [linhas, selecionadas, filtradas, faturaSel, availableBars, editavelFatura]);
 
   // ===== Fornecedor por cartão (titular) =====
   // O cartão tem UM titular (fornecedor), fixo — independe do bar. O bar da linha é só ONDE vai
@@ -530,12 +566,6 @@ export function FaturaCartaoTab() {
             <Button size="sm" variant={soCompras ? 'default' : 'ghost'} onClick={() => setSoCompras(s => !s)}>Só compras</Button>
             <Button size="sm" variant={esconderLancados ? 'default' : 'ghost'} onClick={() => setEsconderLancados(s => !s)}>Esconder lançados</Button>
             {anyCol && <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={clearAll}>✕ limpar filtros de coluna</Button>}
-            {editavelFatura && selecionadas.size > 0 && (
-              <Button size="sm" onClick={lancarLote} disabled={lancandoLote}>
-                {lancandoLote ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
-                Lançar selecionadas ({selecionadas.size})
-              </Button>
-            )}
             <span className="ml-auto text-xs text-muted-foreground">{filtradas.length} linhas · {pendentes} a lançar</span>
           </div>
 
@@ -562,10 +592,8 @@ export function FaturaCartaoTab() {
                 <thead className="text-xs text-muted-foreground border-b bg-muted/30">
                   <tr>
                     <th className="py-2 px-2">
-                      {lancaveis.length > 0 && (
-                        <input type="checkbox" checked={todasSel} onChange={toggleTodas}
-                          title="Selecionar todas as lançáveis" className="w-4 h-4 accent-[hsl(var(--primary))] cursor-pointer" />
-                      )}
+                      <input type="checkbox" checked={todasSel} onChange={toggleTodas}
+                        title="Selecionar todas as linhas da lista" className="w-4 h-4 accent-[hsl(var(--primary))] cursor-pointer" />
                     </th>
                     <th className="text-left py-2 px-2 font-medium">Data</th>
                     <th className="text-left py-2 px-2 font-medium">Estabelecimento</th>
@@ -582,7 +610,7 @@ export function FaturaCartaoTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtradas.map(l => {
+                  {filtradas.map((l, idx) => {
                     const barEfetivo = l.bar_id ?? faturaSel.bar_id ?? selectedBar?.id ?? null;
                     const ops = barEfetivo ? opcoesBar[barEfetivo] : undefined;
                     // Sugestão automática de categoria (só quando a linha ainda não tem uma escolhida).
@@ -604,12 +632,12 @@ export function FaturaCartaoTab() {
                     const lancado = l.status === 'lancado';
                     const ignorado = l.status === 'ignorado';
                     return (
-                      <tr key={l.id} className={`border-b last:border-0 ${ignorado ? 'opacity-40' : ''} ${lancado ? 'bg-green-500/5' : ''}`}>
+                      <tr key={l.id} className={`border-b last:border-0 ${ignorado ? 'opacity-40' : ''} ${selecionadas.has(l.id) ? 'bg-blue-500/10' : lancado ? 'bg-green-500/5' : ''}`}>
                         <td className="px-2">
-                          {editavelFatura && l.tipo === 'compra' && l.status === 'novo' && (
-                            <input type="checkbox" checked={selecionadas.has(l.id)} onChange={() => toggleSel(l.id)}
-                              className="w-4 h-4 accent-[hsl(var(--primary))] cursor-pointer" aria-label="Selecionar linha p/ lançar em lote" />
-                          )}
+                          <input type="checkbox" checked={selecionadas.has(l.id)} readOnly
+                            onClick={(e) => toggleSel(l.id, idx, e.shiftKey)}
+                            title="Selecionar p/ somar (shift+clique seleciona o intervalo)"
+                            className="w-4 h-4 accent-[hsl(var(--primary))] cursor-pointer" aria-label="Selecionar linha" />
                         </td>
                         <td className="py-1.5 px-2 whitespace-nowrap text-muted-foreground text-xs">{fmtDataBR(l.data_transacao)}</td>
                         <td className="px-2">
@@ -696,6 +724,31 @@ export function FaturaCartaoTab() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Barra da seleção (tipo Conta Azul): soma o que está marcado pra conferir/dividir por bar. */}
+          {resumoSel.qtd > 0 && (
+            <div className="sticky bottom-0 z-30 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-blue-500/50 bg-[hsl(var(--card))]/95 px-3 py-2 shadow-lg backdrop-blur">
+              <span className="text-xs text-muted-foreground">{resumoSel.qtd} selecionada{resumoSel.qtd > 1 ? 's' : ''}</span>
+              <span className="text-lg font-bold tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(resumoSel.total)}</span>
+              {resumoSel.porBar.length > 1 && (
+                <span className="text-xs text-muted-foreground">
+                  {resumoSel.porBar.map(b => `${b.nome}: ${fmtBRL(b.total)}`).join('  ·  ')}
+                </span>
+              )}
+              {resumoSel.foraFiltro > 0 && (
+                <span className="text-xs text-amber-600">{resumoSel.foraFiltro} fora do filtro atual</span>
+              )}
+              <div className="ml-auto flex items-center gap-1.5">
+                {editavelFatura && resumoSel.lancaveis > 0 && (
+                  <Button size="sm" onClick={lancarLote} disabled={lancandoLote}>
+                    {lancandoLote ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
+                    Lançar {resumoSel.lancaveis}
+                  </Button>
+                )}
+                <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => { setSelecionadas(new Set()); ultimoIdxSel.current = null; }}>Limpar</Button>
+              </div>
             </div>
           )}
         </>
