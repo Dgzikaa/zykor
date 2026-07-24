@@ -16,25 +16,60 @@ import { useToast } from '@/hooks/use-toast';
 import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick, Pencil, Check, X, RefreshCw, Filter } from 'lucide-react';
 
 // célula com lápis (padrão Orçamentação): mostra valor + lápis no hover; clica → input com ✓/✕; salva e recalcula.
-function PencilCell({ value, fmt, onSave, disabled }: { value: number | null; fmt: (v: any) => string; onSave: (v: number | null) => void; disabled?: boolean }) {
+// kg/L têm sub-unidade prática (g/ml). O desperdício quase sempre é pequeno (ex.: 32 g),
+// então o editor entra em g/ml por padrão e converte pra base (kg/L) ao salvar. Chip de
+// unidade sempre visível no editor pra nunca haver ambiguidade (evita digitar 32 = 32 kg).
+const SUBUNIT: Record<string, { fator: number; sub: string; base: string }> = {
+  kg: { fator: 1000, sub: 'g', base: 'kg' },
+  l: { fator: 1000, sub: 'ml', base: 'L' },
+  litro: { fator: 1000, sub: 'ml', base: 'L' },
+};
+// mostra a quantidade na unidade mais legível: kg/L pequenos (|v|<1) viram g/ml
+function fmtComUnidade(v: any, unidade?: string | null): string {
+  if (v == null || v === '') return '—';
+  const n = Number(v);
+  const su = SUBUNIT[(unidade || '').toLowerCase()];
+  if (su && n !== 0 && Math.abs(n) < 1)
+    return `${(n * su.fator).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} ${su.sub}`;
+  return `${n.toLocaleString('pt-BR', { maximumFractionDigits: su ? 3 : 1 })}${unidade ? ' ' + (su ? su.base : unidade) : ''}`;
+}
+
+function PencilCell({ value, fmt, onSave, disabled, unidade }: { value: number | null; fmt: (v: any) => string; onSave: (v: number | null) => void; disabled?: boolean; unidade?: string | null }) {
+  const su = unidade ? SUBUNIT[unidade.toLowerCase()] : undefined;
   const [editing, setEditing] = useState(false);
   const [v, setV] = useState('');
-  if (disabled) return <span className="tabular-nums text-gray-400">{value ? fmt(value) : '—'}</span>;
-  const commit = () => { setEditing(false); const n = v.trim() === '' ? null : Number(v.replace(',', '.')); if ((n ?? 0) !== (value ?? 0)) onSave(n); };
+  const [emSub, setEmSub] = useState(!!su); // kg/L começam em g/ml (o caso comum do desperdício)
+  const mostrar = (val: number | null) => val == null || !val ? '—' : (unidade ? fmtComUnidade(val, unidade) : fmt(val));
+  if (disabled) return <span className="tabular-nums text-gray-400">{mostrar(value)}</span>;
+  const parse = () => (v.trim() === '' ? null : Number(v.replace(',', '.')));
+  const commit = () => {
+    setEditing(false);
+    const raw = parse();
+    const n = raw == null ? null : (su && emSub ? raw / su.fator : raw);
+    if ((n ?? 0) !== (value ?? 0)) onSave(n);
+  };
+  const abrir = () => { setV(value == null ? '' : String(su && emSub ? +(value * su.fator).toFixed(3) : value)); setEditing(true); };
+  const trocarUnidade = () => {
+    if (!su) return;
+    const cur = parse(); const novo = !emSub;
+    if (cur != null) setV(String(novo ? +(cur * su.fator).toFixed(3) : +(cur / su.fator).toFixed(6)));
+    setEmSub(novo);
+  };
   if (editing) return (
     <span className="inline-flex items-center gap-0.5 justify-end">
       {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
       <input autoFocus value={v} inputMode="decimal" onChange={e => setV(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
         className="w-16 text-right tabular-nums rounded px-1 py-0.5 text-sm border border-indigo-400 ring-1 ring-indigo-300 bg-transparent" />
+      {su && <button onClick={trocarUnidade} title="clique pra trocar entre g e kg" className="text-[10px] font-semibold px-1 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/70">{emSub ? su.sub : su.base}</button>}
       <button onClick={commit} className="text-emerald-600 hover:text-emerald-700"><Check className="w-3.5 h-3.5" /></button>
       <button onClick={() => setEditing(false)} className="text-red-500 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
     </span>
   );
   return (
-    <span onClick={() => { setV(value != null ? String(value) : ''); setEditing(true); }}
+    <span onClick={abrir}
       className="group/cell inline-flex items-center gap-1 justify-end cursor-pointer rounded px-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
-      <span className="tabular-nums">{value ? fmt(value) : <span className="text-gray-300">—</span>}</span>
+      <span className="tabular-nums">{value ? mostrar(value) : <span className="text-gray-300">—</span>}</span>
       <Pencil className="w-3 h-3 text-indigo-400 opacity-0 group-hover/cell:opacity-100" />
     </span>
   );
@@ -504,7 +539,7 @@ export default function DesviosPage() {
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.compra)}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${it.troca ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-300'}`} title={it.troca ? (it.troca > 0 ? 'Recebeu por troca' : 'Enviou por troca') : undefined}>{it.troca ? `${it.troca > 0 ? '+' : ''}${fmtQtd(it.troca)}` : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
-                  <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!podeEditarDesperd(it)} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
+                  <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} unidade={it.unidade} disabled={!podeEditarDesperd(it)} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                   <td className="px-3 py-2 text-right tabular-nums font-medium">{<EstoqueCell valor={it.estoque_fim_real} comp={it.composicao} tipo="fim" />}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{`${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
@@ -553,7 +588,7 @@ export default function DesviosPage() {
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{<EstoqueCell valor={it.estoque_ini} comp={it.composicao} tipo="ini" />}</td>
                       <td className="px-3 py-2 text-right"><PencilCell value={it.produzido} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('produzido', it.insumo_codigo, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
-                      <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!podeEditarDesperd(it)} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
+                      <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} unidade={it.unidade} disabled={!podeEditarDesperd(it)} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{<EstoqueCell valor={it.estoque_fim_real} comp={it.composicao} tipo="fim" />}</td>
                       <td className={`px-3 py-2 text-right tabular-nums ${it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{`${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
@@ -596,7 +631,7 @@ export default function DesviosPage() {
                       <td className={`px-3 py-2 text-right tabular-nums ${it.troca ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-300'}`} title={it.troca ? (it.troca > 0 ? 'Recebeu por troca' : 'Enviou por troca') : undefined}>{it.troca ? `${it.troca > 0 ? '+' : ''}${fmtQtd(it.troca)}` : '—'}</td>
                       <td className="px-3 py-2 text-right"><PencilCell value={it.utilizado_producao} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('utilizado', it.insumo_cod, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.saida_direta)}</td>
-                      <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} disabled={!podeEditarDesperd(it)} onSave={(v) => salvar('desperdicio', it.insumo_cod, { qtd: v })} /></td>
+                      <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} unidade={it.unidade || 'kg'} disabled={!podeEditarDesperd(it)} onSave={(v) => salvar('desperdicio', it.insumo_cod, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium">{<EstoqueCell valor={it.estoque_fim_real} comp={it.composicao} tipo="fim" />}</td>
                       <td className={`px-3 py-2 text-right tabular-nums ${it.desvio_qtd < -0.05 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0.05 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{it.desvio_qtd > 0 ? '+' : ''}{fmtQtd(it.desvio_qtd)}</td>
