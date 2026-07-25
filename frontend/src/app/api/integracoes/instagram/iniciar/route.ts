@@ -54,7 +54,11 @@ export async function GET(req: NextRequest) {
       .insert({
         state,
         bar_id: barId,
-        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        // 30 min, não 10. O fluxo da Meta pode exigir login, trocar de conta e — o caso que
+        // mais demora — converter o perfil pra Profissional no meio do caminho, já que o
+        // Instagram Business Login não aceita conta Pessoal. Com 10 min o state expirava
+        // antes de a pessoa voltar, e a conexão falhava sem motivo aparente.
+        expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
       });
 
     if (stateErr) {
