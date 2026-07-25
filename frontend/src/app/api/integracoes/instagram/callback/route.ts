@@ -28,11 +28,34 @@ export async function GET(req: NextRequest) {
     (process.env.NEXT_PUBLIC_SITE_URL || 'https://zykor.com.br') +
     '/configuracoes/administracao/integracoes';
 
-  if (erroMeta) {
-    return NextResponse.redirect(
-      `${baseRedirect}?ig_status=erro&ig_msg=${encodeURIComponent(erroMsg || erroMeta)}`,
-    );
+  /**
+   * Deixa o motivo da falha gravado no `state`. Sem isso o erro só ia pra URL de redirect e pro
+   * console da Vercel — e quando o log rotaciona ninguém mais consegue saber por que a conexão
+   * não foi (aconteceu com o Deboche em 22/07/2026: só sobrou um state sem consumir).
+   * Best-effort de propósito: registrar a falha nunca pode atrapalhar o redirect pro usuário.
+   */
+  async function registrarFalha(motivo: string) {
+    if (!state) return;
+    try {
+      const sb = await getAdminClient();
+      await sb
+        .from('instagram_oauth_states')
+        .update({ erro: motivo.slice(0, 500), erro_em: new Date().toISOString() })
+        .eq('state', state);
+    } catch (e) {
+      console.error('[ig/callback] nao consegui registrar a falha no state:', e);
+    }
   }
+
+  const falhar = async (motivo: string) => {
+    console.error('[ig/callback] falhou:', motivo);
+    await registrarFalha(motivo);
+    return NextResponse.redirect(`${baseRedirect}?ig_status=erro&ig_msg=${encodeURIComponent(motivo)}`);
+  };
+
+  // Erro devolvido pela própria tela da Meta (conta não é Profissional, permissão negada,
+  // usuário cancelou...). É aqui que a maioria das tentativas morre.
+  if (erroMeta) return falhar(erroMsg || erroMeta);
 
   if (!code || !state) {
     return NextResponse.redirect(`${baseRedirect}?ig_status=erro&ig_msg=parametros_ausentes`);
@@ -58,12 +81,10 @@ export async function GET(req: NextRequest) {
     if (stateErr || !stateRow) {
       return NextResponse.redirect(`${baseRedirect}?ig_status=erro&ig_msg=state_invalido`);
     }
-    if ((stateRow as any).consumido_em) {
-      return NextResponse.redirect(`${baseRedirect}?ig_status=erro&ig_msg=state_ja_usado`);
-    }
-    if (new Date((stateRow as any).expires_at).getTime() < Date.now()) {
-      return NextResponse.redirect(`${baseRedirect}?ig_status=erro&ig_msg=state_expirado`);
-    }
+    if ((stateRow as any).consumido_em) return falhar('state_ja_usado');
+    // O state vale 10 minutos. Demorar na tela da Meta (trocar de conta, fazer login, aceitar
+    // permissão uma a uma) estoura esse prazo com facilidade.
+    if (new Date((stateRow as any).expires_at).getTime() < Date.now()) return falhar('state_expirado');
 
     const barId = (stateRow as any).bar_id as number;
 
@@ -168,8 +189,6 @@ export async function GET(req: NextRequest) {
     );
   } catch (e: any) {
     console.error('[ig/callback] exceção:', e);
-    return NextResponse.redirect(
-      `${baseRedirect}?ig_status=erro&ig_msg=${encodeURIComponent(e?.message || 'Erro inesperado')}`,
-    );
+    return falhar(e?.message || 'Erro inesperado');
   }
 }
