@@ -16,14 +16,21 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { Plus, Loader2, AlertCircle, Receipt, Paperclip, Check, CalendarClock, Search, X } from 'lucide-react';
 import { type Pedido } from './types';
 import { type TabKey, TAB_STATUS, isBoleto } from './statusTabs';
-import { NovoPedidoDialog } from './components/NovoPedidoDialog';
-import { PedidoDetailDialog } from './components/PedidoDetailDialog';
+import nextDynamic from 'next/dynamic';
 import { PedidoCard, type Opcao } from './components/PedidoCard';
-import { BoletoTab } from './components/BoletoTab';
-import TrocasTab from './components/TrocasTab';
-import { FaturaCartaoTab } from './components/FaturaCartaoTab';
-import { ConsolidadoTab } from './components/ConsolidadoTab';
-import { FreelaFinanceiro, type FreelaAprovacao } from './components/FreelaFinanceiro';
+import type { FreelaAprovacao } from './components/FreelaFinanceiro';
+
+// Só UMA aba aparece por vez e os dois diálogos só existem depois de um clique — mas todos
+// entravam no bundle da página, que era a rota mais pesada do app (443 kB de first load).
+// Carregando sob demanda, quem só abre a lista não paga por fatura de cartão, trocas etc.
+// PedidoCard fica estático de propósito: é a lista, aparece sempre.
+const NovoPedidoDialog   = nextDynamic(() => import('./components/NovoPedidoDialog').then(m => m.NovoPedidoDialog));
+const PedidoDetailDialog = nextDynamic(() => import('./components/PedidoDetailDialog').then(m => m.PedidoDetailDialog));
+const BoletoTab          = nextDynamic(() => import('./components/BoletoTab').then(m => m.BoletoTab));
+const TrocasTab          = nextDynamic(() => import('./components/TrocasTab'));
+const FaturaCartaoTab    = nextDynamic(() => import('./components/FaturaCartaoTab').then(m => m.FaturaCartaoTab));
+const ConsolidadoTab     = nextDynamic(() => import('./components/ConsolidadoTab').then(m => m.ConsolidadoTab));
+const FreelaFinanceiro   = nextDynamic(() => import('./components/FreelaFinanceiro').then(m => m.FreelaFinanceiro));
 
 type ModoPagamento = 'pagamentos' | 'freela' | 'boleto' | 'fatura' | 'trocas';
 
