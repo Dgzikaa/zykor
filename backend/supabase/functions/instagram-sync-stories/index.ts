@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @camada bronze
  * @jobName instagram-sync-stories
  * @descricao Captura stories ativos + métricas (a cada 4h)
@@ -13,6 +13,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders } from '../_shared/cors.ts';
+import { requireInternalAuth } from '../_shared/auth-guard.ts';
 import {
   listarContasAtivas,
   igGet,
@@ -34,6 +35,11 @@ const STORY_INSIGHT_METRICS = [
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: getCorsHeaders(req) });
+
+  // Guard interno: funcao publicada com --no-verify-jwt, entao a plataforma nao valida nada.
+  // So passa pg_cron (x-cron-secret) ou chamada com a service_role key (crons e API routes).
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,

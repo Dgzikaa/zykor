@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @camada bronze
  * @jobName contaazul-conciliacao
  * @descricao Enriquecimento por parcela do Conta Azul: grava DATA DE PAGAMENTO + CONCILIADO
@@ -15,6 +15,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { requireInternalAuth } from '../_shared/auth-guard.ts';
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
 const handleCorsOptions = (_req: Request) => new Response('ok', { headers: CORS })
@@ -24,7 +25,12 @@ const errorResponse = (message: string, _req?: Request, _d?: unknown, status = 5
 const CONTA_AZUL_API_URL = 'https://api-v2.contaazul.com'
 const CONTA_AZUL_AUTH_URL = 'https://auth.contaazul.com'
 const REQUEST_TIMEOUT_MS = 20000
-const SAFE_TIMEOUT_MS = 350000
+// Teto da plataforma pra edge function e 150s. O budget antigo era 350s, ou seja, a funcao
+// NUNCA saia pelo break — era morta no meio pelo gateway e devolvia 504 em 100% das rodadas
+// (o orquestrador registrava `enriquecimento: status 504` a cada 6 min, nos 2 bares).
+// 100s deixa folga pro pior caso: 1 iteracao em voo pode levar ate REQUEST_TIMEOUT_MS (20s)
+// depois do ultimo check, + o UPDATE + a resposta => ~125s, ainda dentro dos 150s.
+const SAFE_TIMEOUT_MS = 100000
 const DELAY_MS = 130
 
 interface ApiCredentials { id: number; bar_id: number; client_id: string; client_secret: string; access_token: string | null; refresh_token: string | null }
@@ -71,6 +77,11 @@ async function caGet(path: string, token: string, supabase: SupabaseClient, c: A
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return handleCorsOptions(req)
+
+  // Guard interno: funcao publicada com --no-verify-jwt, entao a plataforma nao valida nada.
+  // So passa pg_cron (x-cron-secret) ou chamada com a service_role key (crons e API routes).
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
   const t0 = Date.now()
   try {
     const body = await req.json().catch(() => ({}))
@@ -98,9 +109,9 @@ serve(async (req) => {
     const { data: rows, error: selErr } = await q.order('conciliado', { ascending: true }).order('data_pagamento', { ascending: false, nullsFirst: false }).order('conciliado_checado_em', { ascending: true, nullsFirst: true }).limit(limit)
     if (selErr) return errorResponse('erro ao selecionar: ' + selErr.message, req, undefined, 500)
 
-    let conc = 0, naoConc = 0, pag = 0, erros = 0, proc = 0
+    let conc = 0, naoConc = 0, pag = 0, erros = 0, proc = 0, truncado = false
     for (const row of rows || []) {
-      if (Date.now() - t0 > SAFE_TIMEOUT_MS) break
+      if (Date.now() - t0 > SAFE_TIMEOUT_MS) { truncado = true; break }
       proc++
       const { data, status, token: nt } = await caGet('/v1/financeiro/eventos-financeiros/parcelas/' + row.contaazul_id, token, supabase, credentials)
       token = nt
@@ -113,7 +124,9 @@ serve(async (req) => {
       if (upErr) erros++; else if (c) conc++; else naoConc++
       await sleep(DELAY_MS)
     }
-    const stats = { bar_id: barId, processados: proc, conciliados: conc, nao_conciliados: naoConc, data_pagamento_set: pag, erros, total_fila: rows?.length || 0, ms: Date.now() - t0 }
+    // `truncado` = saiu pelo budget de tempo antes de esgotar a fila. Nao e' erro: a proxima
+    // rodada do orquestrador (6 min) continua de onde parou, pela ordem de prioridade da query.
+    const stats = { bar_id: barId, processados: proc, conciliados: conc, nao_conciliados: naoConc, data_pagamento_set: pag, erros, total_fila: rows?.length || 0, truncado, ms: Date.now() - t0 }
     console.log('[concil] fim', JSON.stringify(stats))
     return jsonResponse({ success: true, stats }, req)
   } catch (e) {

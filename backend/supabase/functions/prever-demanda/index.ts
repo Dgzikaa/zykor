@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 🔮 Prever Demanda (G3)
  *
  * Para cada bar com IG ativo, prevê faturamento + público do próximo evento
@@ -16,7 +16,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { requireAuth } from '../_shared/auth-guard.ts';
+import { requireInternalAuth } from '../_shared/auth-guard.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 
 interface Previsao {
@@ -136,7 +136,7 @@ async function preverBar(supabase: any, barId: number, diasFrente: number): Prom
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  const authError = requireAuth(req);
+  const authError = await requireInternalAuth(req);
   if (authError) return authError;
 
   try {

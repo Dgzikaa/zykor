@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @camada bronze
  * @jobName contaazul-sync
  * @descricao Sync diario Conta Azul
@@ -26,6 +26,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders, handleCorsOptions, jsonResponse, errorResponse } from '../_shared/cors.ts'
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts'
+import { requireInternalAuth } from '../_shared/auth-guard.ts';
 
 const CONTA_AZUL_API_URL = 'https://api-v2.contaazul.com'
 const CONTA_AZUL_AUTH_URL = 'https://auth.contaazul.com'
@@ -779,6 +780,11 @@ serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return handleCorsOptions(req)
   }
+
+  // Guard interno: funcao publicada com --no-verify-jwt, entao a plataforma nao valida nada.
+  // So passa pg_cron (x-cron-secret) ou chamada com a service_role key (crons e API routes).
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
 
   if (req.method !== 'POST') {
     return errorResponse('Metodo nao permitido. Use POST.', req, undefined, 405)

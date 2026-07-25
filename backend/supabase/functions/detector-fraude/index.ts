@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 🚨 Detector de Fraude/Desvio (H3)
  *
  * Roda diário pela noite. Pra cada bar ativo + dia D-1 detecta:
@@ -16,7 +16,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { requireAuth } from '../_shared/auth-guard.ts';
+import { requireInternalAuth } from '../_shared/auth-guard.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 
 const DISCORD_WEBHOOK = Deno.env.get('DISCORD_WEBHOOK_INTEGRIDADE');
@@ -193,7 +193,7 @@ async function discord(alertas: Alerta[]) {
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  const authError = requireAuth(req);
+  const authError = await requireInternalAuth(req);
   if (authError) return authError;
 
   try {

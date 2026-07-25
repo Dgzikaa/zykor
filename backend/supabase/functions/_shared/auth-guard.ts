@@ -136,6 +136,57 @@ export function requireAuth(req: Request, requireCronSecret = false): Response |
 }
 
 /**
+ * Guard ESTRITO para funcoes publicadas com `--no-verify-jwt`.
+ *
+ * Por que existe: quando verify_jwt=false, a plataforma NAO valida nada, e o `requireAuth`
+ * padrao cai no `validateCronOrJWT`, que aceita QUALQUER header `Authorization: Bearer ...`
+ * sem conferir o token. Na pratica isso deixava a funcao aberta pra internet inteira —
+ * bastava mandar `Bearer qualquercoisa`.
+ *
+ * Aqui so passa quem prova ser interno:
+ *   - x-cron-secret == CRON_SECRET            (pg_cron)
+ *   - Authorization: Bearer <SERVICE_ROLE_KEY> (crons via net.http_post e as API routes do Next)
+ *
+ * Nao use isto em funcao chamada do NAVEGADOR (ex.: cmv-semanal-auto, recalcular-desempenho-v2,
+ * que recebem a anon key do browser e tem verify_jwt=true) — essas continuam no requireAuth.
+ *
+ * @returns Response 401 se nao autenticado, null se ok
+ */
+export async function requireInternalAuth(req: Request): Promise<Response | null> {
+  if (validateCronSecret(req)) return null;
+
+  const auth = req.headers.get('authorization') || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  const srk = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const url = Deno.env.get('SUPABASE_URL');
+
+  if (token && srk) {
+    // caminho rapido: as API routes do Next mandam a mesma chave que existe aqui na env
+    if (token === srk) return null;
+
+    // Os crons mandam public.get_service_role_key() (Vault), que hoje esta no formato NOVO
+    // (sb_secret_...), enquanto a env da function e' a JWT legada — sao strings diferentes e
+    // ambas validas. Por isso a conferencia final e' no banco: segue a rotacao sem copia local.
+    try {
+      const r = await fetch(url + '/rest/v1/rpc/validar_chave_interna', {
+        method: 'POST',
+        headers: { apikey: srk, Authorization: 'Bearer ' + srk, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_token: token }),
+      });
+      if (r.ok && (await r.json()) === true) return null;
+    } catch (e) {
+      console.error('[auth] falha ao validar chave no banco', e);
+    }
+  }
+
+  console.warn('[auth] chamada interna rejeitada: sem CRON_SECRET e sem chave de servico valida');
+  return new Response(
+    JSON.stringify({ error: 'Unauthorized' }),
+    { status: 401, headers: { 'Content-Type': 'application/json' } }
+  );
+}
+
+/**
  * Middleware de autenticação para webhooks externos
  * 
  * @param req Request object

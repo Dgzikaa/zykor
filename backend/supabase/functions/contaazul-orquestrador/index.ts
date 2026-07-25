@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @camada bronze
  * @jobName contaazul-orquestrador
  * @descricao Orquestra o pipeline do Conta Azul EM FILA (1 etapa por vez), pra respeitar
@@ -15,6 +15,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { requireInternalAuth } from '../_shared/auth-guard.ts';
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { ...CORS, 'Content-Type': 'application/json' } })
@@ -37,6 +38,11 @@ async function callFn(name: string, body: unknown): Promise<{ status: number; bo
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
+
+  // Guard interno: funcao publicada com --no-verify-jwt, entao a plataforma nao valida nada.
+  // So passa pg_cron (x-cron-secret) ou chamada com a service_role key (crons e API routes).
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
   const t0 = Date.now()
   const supabase = createClient(SUPABASE_URL, SRK)
   let barId = 3

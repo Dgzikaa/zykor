@@ -1,4 +1,4 @@
-/**
+﻿/**
  * sync-cardapio-custo
  * --------------------------------------------------------------------------
  * Re-sincroniza diariamente o CUSTO FINAL / PRECO das planilhas de Engenharia
@@ -16,6 +16,7 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getGoogleAccessToken, getSheetValues, getSheetNames } from '../_shared/google-auth.ts'
+import { requireInternalAuth } from '../_shared/auth-guard.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -93,6 +94,11 @@ async function escolherAba(spreadsheetId: string, abaConfig: string | null, toke
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
+
+  // Guard interno: funcao publicada com --no-verify-jwt, entao a plataforma nao valida nada.
+  // So passa pg_cron (x-cron-secret) ou chamada com a service_role key (crons e API routes).
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,

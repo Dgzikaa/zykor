@@ -1,4 +1,5 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
+﻿import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
+import { requireInternalAuth } from '../_shared/auth-guard.ts';
 
 /**
  * 📦 SYNC-CONTAGEM-SHEETS (v4 — medallion jun/2026)
@@ -336,6 +337,11 @@ async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtr
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
+
+  // Guard interno: funcao publicada com --no-verify-jwt, entao a plataforma nao valida nada.
+  // So passa pg_cron (x-cron-secret) ou chamada com a service_role key (crons e API routes).
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
   try {
     const url = new URL(req.url)
     const barParam = url.searchParams.get('bar_id')

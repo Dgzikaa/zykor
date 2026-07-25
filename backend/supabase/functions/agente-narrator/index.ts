@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @camada ops
  * @jobName agente-narrator
  * @descricao AI V2 narrator
@@ -32,6 +32,7 @@ import { corsHeaders, jsonResponse, errorResponse, handleCorsOptions } from '../
 import { heartbeatStart, heartbeatEnd, heartbeatError } from '../_shared/heartbeat.ts';
 import { generateGeminiResponse, extractJsonFromGemini } from '../_shared/gemini-client.ts';
 import { formatDateISO, daysAgo } from '../_shared/date-helpers.ts';
+import { requireInternalAuth } from '../_shared/auth-guard.ts';
 
 // ============================================================
 // TIPOS
@@ -276,6 +277,11 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return handleCorsOptions();
   }
+
+  // Guard interno: funcao publicada com --no-verify-jwt, entao a plataforma nao valida nada.
+  // So passa pg_cron (x-cron-secret) ou chamada com a service_role key (crons e API routes).
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
 
   let heartbeatId: number | null = null;
   let startTime: number = Date.now();

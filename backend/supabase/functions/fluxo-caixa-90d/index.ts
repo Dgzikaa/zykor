@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 💰 Fluxo de Caixa Preditivo 90d (H4)
  *
  * Pra cada bar ativo, projeta 90 dias à frente:
@@ -22,7 +22,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { requireAuth } from '../_shared/auth-guard.ts';
+import { requireInternalAuth } from '../_shared/auth-guard.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 
 const HORIZON_DAYS = 90;
@@ -48,7 +48,7 @@ function median(arr: number[]): number {
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  const authError = requireAuth(req);
+  const authError = await requireInternalAuth(req);
   if (authError) return authError;
 
   try {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 📋 Relatório Executivo Cross-Área (H1)
  *
  * Coleta de cada bar ativo, na semana indicada:
@@ -21,7 +21,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { requireAuth } from '../_shared/auth-guard.ts';
+import { requireInternalAuth } from '../_shared/auth-guard.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
@@ -114,7 +114,7 @@ async function chamarClaude(prompt: string): Promise<{ text: string; tokensIn: n
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  const authError = requireAuth(req);
+  const authError = await requireInternalAuth(req);
   if (authError) return authError;
 
   try {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @camada silver
  * @jobName contahub-processor
  * @descricao Raw JSON -> tabelas tipadas
@@ -13,6 +13,7 @@ import { getCorsHeaders } from '../_shared/cors.ts';
 import { validateFunctionEnv } from '../_shared/env-validator.ts';
 import { bronze, CONTAHUB_DATA_TYPE_MAP, deleteContaHubData } from '../_shared/table-refs.ts';
 import { trackResponse } from '../_shared/observability.ts';
+import { requireInternalAuth } from '../_shared/auth-guard.ts';
 
 console.log("🔄 ContaHub Processor - Processa dados raw salvos");
 
@@ -885,6 +886,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
+
+  // Guard interno: funcao publicada com --no-verify-jwt, entao a plataforma nao valida nada.
+  // So passa pg_cron (x-cron-secret) ou chamada com a service_role key (crons e API routes).
+  const authError = await requireInternalAuth(req);
+  if (authError) return authError;
 
   try {
     // Validar variáveis de ambiente obrigatórias
