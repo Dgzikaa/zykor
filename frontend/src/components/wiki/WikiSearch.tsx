@@ -1,25 +1,60 @@
 'use client';
 
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, X, CornerDownLeft } from 'lucide-react';
-import { searchWiki, WIKI_AREA_BY_SLUG } from '@/lib/wiki';
+import { Search, X, CornerDownLeft, Loader2 } from 'lucide-react';
+// IMPORTANTE: importar de '@/lib/wiki/areas', NÃO de '@/lib/wiki'. O index re-exporta o
+// `generated.ts` (1,2 MB com o texto de todos os artigos) e qualquer import dele aqui, num
+// client component, joga o corpus inteiro no bundle do navegador.
+import { WIKI_AREA_BY_SLUG } from '@/lib/wiki/areas';
+
+type Hit = { path: string; title: string; area: string; snippet: string };
 
 /**
- * Busca da wiki: filtra artigos por título/área/headings/corpo (searchWiki, sem dep).
- * Enter ou clique abre o artigo. Setas ↑↓ navegam os resultados.
+ * Busca da wiki: digita → chama /api/wiki/busca (a busca roda no servidor) → Enter ou clique
+ * abre o artigo. Setas ↑↓ navegam os resultados.
+ *
+ * A busca era client-side e por isso arrastava todo o conteúdo da wiki pro bundle. Agora só
+ * os resultados trafegam. O debounce evita uma requisição por tecla.
  */
 export function WikiSearch({ focarAoMontar = false }: { focarAoMontar?: boolean }) {
   const router = useRouter();
   const [q, setQ] = useState('');
+  const [hits, setHits] = useState<Hit[]>([]);
+  const [buscando, setBuscando] = useState(false);
   const [aberto, setAberto] = useState(false);
   const [ativo, setAtivo] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const hits = useMemo(() => (q.trim() ? searchWiki(q, 12) : []), [q]);
-
   useEffect(() => { setAtivo(0); }, [q]);
+
+  // Busca no servidor, com debounce. O AbortController descarta resposta de uma digitação
+  // antiga que chegue depois da nova (senão a lista "pisca" com resultado velho).
+  useEffect(() => {
+    const termo = q.trim();
+    if (!termo) { setHits([]); setBuscando(false); return; }
+
+    const ctrl = new AbortController();
+    setBuscando(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/wiki/busca?q=${encodeURIComponent(termo)}&limit=12`, {
+          signal: ctrl.signal,
+          credentials: 'include',
+        });
+        const j = await r.json();
+        setHits(r.ok && j?.success ? (j.hits ?? []) : []);
+      } catch {
+        // abort é o caso normal aqui (usuário continuou digitando); erro real também
+        // não deve quebrar a barra de busca — só fica sem resultado.
+      } finally {
+        setBuscando(false);
+      }
+    }, 180);
+
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [q]);
 
   // Foco programático (evita o atributo autoFocus, barrado pelo lint do build).
   useEffect(() => { if (focarAoMontar) inputRef.current?.focus(); }, [focarAoMontar]);
@@ -42,7 +77,7 @@ export function WikiSearch({ focarAoMontar = false }: { focarAoMontar?: boolean 
     if (!hits.length) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setAtivo((i) => Math.min(i + 1, hits.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setAtivo((i) => Math.max(i - 1, 0)); }
-    else if (e.key === 'Enter') { e.preventDefault(); ir(hits[ativo].article.path); }
+    else if (e.key === 'Enter') { e.preventDefault(); ir(hits[ativo].path); }
     else if (e.key === 'Escape') { setAberto(false); }
   };
 
@@ -73,23 +108,27 @@ export function WikiSearch({ focarAoMontar = false }: { focarAoMontar?: boolean 
 
       {aberto && q.trim() && (
         <div className="absolute z-50 mt-1.5 w-full max-h-[60vh] overflow-auto rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--popover))] shadow-lg py-1">
-          {hits.length === 0 ? (
+          {buscando && hits.length === 0 ? (
+            <div className="px-3 py-4 text-sm text-muted-foreground text-center flex items-center justify-center gap-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando…
+            </div>
+          ) : hits.length === 0 ? (
             <div className="px-3 py-4 text-sm text-muted-foreground text-center">
               Nada encontrado para “{q}”.
             </div>
           ) : (
             hits.map((h, i) => (
               <button
-                key={h.article.path}
+                key={h.path}
                 onMouseEnter={() => setAtivo(i)}
-                onClick={() => ir(h.article.path)}
+                onClick={() => ir(h.path)}
                 className={`w-full flex items-start gap-2 px-3 py-2 text-left ${i === ativo ? 'bg-[hsl(var(--muted))]' : ''}`}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium truncate">{h.article.title}</span>
+                    <span className="text-sm font-medium truncate">{h.title}</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-[hsl(var(--muted))] text-muted-foreground shrink-0">
-                      {WIKI_AREA_BY_SLUG[h.article.area]?.label || h.article.area}
+                      {WIKI_AREA_BY_SLUG[h.area]?.label || h.area}
                     </span>
                   </div>
                   {h.snippet && <div className="text-xs text-muted-foreground truncate mt-0.5">{h.snippet}</div>}

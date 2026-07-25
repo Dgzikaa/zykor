@@ -1,7 +1,10 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import * as XLSX from 'xlsx';
+// xlsx pesa ~430 kB e so' e' usado quando a pessoa escolhe um arquivo ou baixa o modelo.
+// Import estatico fazia essa biblioteca inteira entrar no bundle de /operacional/freelas,
+// que era a pagina mais pesada do app fora a wiki. Agora carrega no clique.
+const carregarXLSX = () => import('xlsx');
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -101,6 +104,7 @@ export function ImportarFreelasDialog({
     setArquivo(file.name);
     try {
       const buf = await file.arrayBuffer();
+      const XLSX = await carregarXLSX();
       const wb = XLSX.read(buf, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
@@ -134,7 +138,8 @@ export function ImportarFreelasDialog({
     }
   };
 
-  const baixarModelo = () => {
+  const baixarModelo = async () => {
+    const XLSX = await carregarXLSX();
     const ws = XLSX.utils.aoa_to_sheet([
       ['nome', 'cpf_cnpj', 'funcao', 'chave_pix', 'tipo_chave', 'valor_padrao'],
       ['João da Silva', '12345678901', 'Bar', '12345678901', 'cpf', '120,00'],
