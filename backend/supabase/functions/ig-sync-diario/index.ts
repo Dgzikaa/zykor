@@ -35,6 +35,8 @@ interface BarSyncResult {
   metricas_inseridas: number;
   tempo_ms: number;
   erro?: string;
+  /** Preenchido quando o upsert de conta_metricas falha (antes isso passava batido). */
+  erro_metricas?: string;
 }
 
 async function syncBar(
@@ -269,12 +271,21 @@ async function syncBar(
       capturado_em: new Date().toISOString(),
     };
 
-    await supabase
+    // O erro deste upsert NAO era checado e `insights_atualizado` era marcado true de qualquer
+    // jeito — entao uma gravacao que falhava era reportada como sucesso, e o unico sintoma era
+    // a tabela parar de crescer sem ninguem ver. Agora falha aparece na resposta e no log.
+    const { error: errMetricas } = await supabase
       .schema('integrations')
       .from('instagram_conta_metricas')
       .upsert(metricasRow, { onConflict: 'bar_id,data_snapshot' });
 
-    result.insights_atualizado = true;
+    if (errMetricas) {
+      console.error(`[ig-diario] bar ${barId}: falha ao gravar conta_metricas`, errMetricas);
+      result.insights_atualizado = false;
+      result.erro_metricas = errMetricas.message;
+    } else {
+      result.insights_atualizado = true;
+    }
 
     // ====== 3. POSTS (ultimos N dias) ======
     const desdeMs = Date.now() - diasPosts * 86400000;
