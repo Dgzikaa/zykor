@@ -100,8 +100,28 @@ export async function POST(request: NextRequest) {
       const oldCod = atual?.codigo;
       if (novoCod && oldCod && novoCod !== oldCod) {
         if (!/^i\d{2,}$/.test(novoCod)) return NextResponse.json({ success: false, error: 'Código deve ser i + números (ex.: i0084)' }, { status: 400 });
-        const { data: ja } = await ops.from('insumos').select('id').eq('bar_id', barId).eq('codigo', novoCod).maybeSingle();
-        if (ja) return NextResponse.json({ success: false, error: `Código ${novoCod} já existe em outro insumo` }, { status: 409 });
+        // O ocupante do código pode ser um insumo INATIVO — que sumiu da lista (ela vem de
+        // silver.insumo_catalogo, só ativos) mas continua segurando o código. Isso já mordeu
+        // 3x: a pessoa não vê nada ocupando e leva 409 sem entender. Se o ocupante estiver
+        // inativo E não estiver em nenhuma ficha, ele é lixo — libera o código sozinho.
+        const { data: ja } = await ops.from('insumos')
+          .select('id, nome, ativo').eq('bar_id', barId).eq('codigo', novoCod).maybeSingle();
+        if (ja) {
+          if (ja.ativo) {
+            return NextResponse.json({ success: false, error: `Código ${novoCod} já existe em outro insumo ("${ja.nome}")` }, { status: 409 });
+          }
+          const { data: fichaRows } = await ops.rpc('fn_insumos_em_ficha', { p_bar_id: barId });
+          const ocupanteEmFicha = (fichaRows || []).some((r: any) => r.insumo_codigo === novoCod);
+          if (ocupanteEmFicha) {
+            return NextResponse.json({
+              success: false,
+              error: `Código ${novoCod} está com o insumo inativo "${ja.nome}", que ainda é usado em ficha técnica. Corrija a ficha antes de reaproveitar o código.`,
+            }, { status: 409 });
+          }
+          const { error: delErr } = await ops.from('insumos').delete().eq('bar_id', barId).eq('id', ja.id);
+          if (delErr) return NextResponse.json({ success: false, error: `Não consegui liberar o código ${novoCod} (ocupado por inativo): ${delErr.message}` }, { status: 500 });
+          console.warn(`[insumos] código ${novoCod} liberado: removido insumo inativo "${ja.nome}" (id ${ja.id}, bar ${barId})`);
+        }
         const { error: rErr } = await supabase.rpc('fn_renomear_insumo_codigo', { p_bar: barId, p_old: oldCod, p_new: novoCod });
         if (rErr) return NextResponse.json({ success: false, error: rErr.message }, { status: 500 });
       }
@@ -154,8 +174,13 @@ export async function POST(request: NextRequest) {
     if (!/^i\d{2,}$/.test(codigo)) return NextResponse.json({ success: false, error: 'Código deve ser i + números (ex.: i0638)' }, { status: 400 });
     if (!nome) return NextResponse.json({ success: false, error: 'Nome obrigatório' }, { status: 400 });
     const vmId = Number(body.id_prod_vmarket) || 0;
-    const { data: ja } = await ops.from('insumos').select('id').eq('bar_id', barId).eq('codigo', codigo).maybeSingle();
-    if (ja) return NextResponse.json({ success: false, error: `Código ${codigo} já existe no cadastro` }, { status: 409 });
+    // Só bloqueia se o ocupante estiver ATIVO. Código segurado por insumo inativo é lixo que
+    // some da lista mas trava o cadastro com 409 — o caso que já mordeu 3x (margarina/óleo,
+    // alface/feijão). Nesses casos o certo é reaproveitar o código, não recusar.
+    const { data: ja } = await ops.from('insumos')
+      .select('id, nome, ativo').eq('bar_id', barId).eq('codigo', codigo).maybeSingle();
+    if (ja?.ativo) return NextResponse.json({ success: false, error: `Código ${codigo} já existe no cadastro ("${ja.nome}")` }, { status: 409 });
+    const reaproveitar = ja && !ja.ativo ? ja : null;
     const base = ['g', 'ml', 'un'].includes(body.base) ? body.base : 'un';
     const emb = Number(body.embalagem) > 0 ? Number(body.embalagem) : null;
     // nome já existe? (índice único lower+unaccent WHERE ativo)
@@ -180,7 +205,21 @@ export async function POST(request: NextRequest) {
       custo_unitario: Number(body.custo_unitario) || 0, fator_correcao: !!body.fator_correcao,
     };
     if (body.categoria && String(body.categoria).trim()) payload.categoria = String(body.categoria).trim();
-    const { data: novo, error } = await ops.from('insumos').insert(payload).select('id').single();
+
+    // Código estava com um inativo: reaproveita a linha (reativa e sobrescreve) em vez de
+    // inserir — inserir daria conflito na constraint de (bar_id, codigo).
+    let novo: { id: number } | null = null;
+    let error: { message: string } | null = null;
+    if (reaproveitar) {
+      const { data: upd, error: uErr } = await ops.from('insumos')
+        .update({ ...payload, ativo: true }).eq('bar_id', barId).eq('id', reaproveitar.id)
+        .select('id').single();
+      novo = upd as any; error = uErr as any;
+      if (!uErr) console.warn(`[insumos] código ${codigo} reaproveitado do inativo "${reaproveitar.nome}" (bar ${barId})`);
+    } else {
+      const { data: ins, error: iErr } = await ops.from('insumos').insert(payload).select('id').single();
+      novo = ins as any; error = iErr as any;
+    }
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     if (vmId > 0) {
       await supabase.from('bronze_vmarket_produtos').update({ codigo_planilha: codigo }).eq('bar_id', barId).eq('id_produto_sisfood_cotacao', vmId);
