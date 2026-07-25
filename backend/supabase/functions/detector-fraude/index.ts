@@ -42,13 +42,38 @@ async function detectarParaBar(supabase: any, barId: number, data: string): Prom
     .select('usr_lancou').eq('bar_id', barId).eq('ativo', true);
   const whitelist = new Set<string>((whitelistRows ?? []).map((r: any) => r.usr_lancou));
 
-  // Itens do dia
-  const { data: itens } = await supabase
-    .schema('gold').from('gold_contahub_avendas_porproduto_analitico')
-    .select('id, vd_mesadesc, itm, trn, trn_desc, usr_lancou, prd_desc, qtd, desconto, valorfinal, comandaorigem')
-    .eq('bar_id', barId).eq('trn_dtgerencial', data).limit(20000);
+  // Itens do dia — PAGINADO.
+  //
+  // Aqui havia um `.limit(20000)` que nao servia pra nada: o PostgREST tem teto proprio de 1000
+  // linhas por resposta e ignora limite maior. Num dia normal o Ordinario tem ~3.200 itens, ou
+  // seja, o detector analisava 31% do movimento e concluia que estava tudo bem. Como o erro da
+  // query tambem nao era checado, o resultado era sempre "0 alertas" com status de sucesso —
+  // ficou assim de 29/05 a 25/07/2026 sem ninguem perceber.
+  //
+  // Truncar aqui e' pior do que parece: as regras 2 e 4 sao AGREGADAS por funcionario/mesa, entao
+  // uma amostra parcial nao "acha menos", ela acha errado — dilui quem concentra desconto.
+  const PAGINA = 1000;
+  const itens: any[] = [];
+  for (let inicio = 0; ; inicio += PAGINA) {
+    const { data: lote, error } = await supabase
+      .schema('gold').from('gold_contahub_avendas_porproduto_analitico')
+      .select('id, vd_mesadesc, itm, trn, trn_desc, usr_lancou, prd_desc, qtd, desconto, valorfinal, comandaorigem')
+      .eq('bar_id', barId).eq('trn_dtgerencial', data)
+      .order('id', { ascending: true })
+      .range(inicio, inicio + PAGINA - 1);
 
-  if (!itens || itens.length === 0) return alertas;
+    if (error) {
+      // Falhar alto: melhor o job acusar erro do que jurar que o dia esta limpo.
+      console.error(`[fraude] bar ${barId} ${data}: erro lendo itens`, error);
+      throw new Error(`falha lendo itens do bar ${barId}: ${error.message}`);
+    }
+    if (!lote || lote.length === 0) break;
+    itens.push(...lote);
+    if (lote.length < PAGINA) break;
+  }
+
+  if (itens.length === 0) return alertas;
+  console.log(`[fraude] bar ${barId} ${data}: ${itens.length} itens analisados`);
 
   // 1) Cortesias por funcionario: alerta apenas se MESMO gar deu > 5 OU cortesia individual > R$ 200
   const cortesiasPorUsr: Record<string, { qtd: number; valor: number; items: any[] }> = {};
