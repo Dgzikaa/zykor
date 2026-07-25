@@ -64,7 +64,7 @@ export default function FreelasOperacaoPage() {
   const [salvandoNovo, setSalvandoNovo] = useState(false);
   const [importarOpen, setImportarOpen] = useState(false);
   // Edição do cadastro do freela (função padrão + valor padrão inline).
-  const [editandoCad, setEditandoCad] = useState<null | { id: string; funcao: string; valor: string }>(null);
+  const [editandoCad, setEditandoCad] = useState<null | { id: string; funcao: string; valor: string; pix: string }>(null);
   const [salvandoCad, setSalvandoCad] = useState(false);
 
   const carregar = useCallback(async () => {
@@ -165,6 +165,7 @@ export default function FreelasOperacaoPage() {
         id: editandoCad.id,
         funcao: funcao || '',       // string vazia vira null no backend
         valor_padrao: valorTxt === '' ? '' : valor_padrao,
+        chave_pix: editandoCad.pix.trim(),  // corrige o PIX no CADASTRO (vale das próximas semanas em diante)
       });
       toast({ title: 'Cadastro atualizado' });
       setEditandoCad(null);
@@ -389,35 +390,50 @@ export default function FreelasOperacaoPage() {
                           <Input value={s?.valor ?? ''} onChange={e => setValor(f.id, e.target.value)} placeholder={f.valor_padrao ? String(f.valor_padrao).replace('.', ',') : 'valor'} inputMode="decimal" className="h-8 text-right" disabled={!s?.on} />
                         </div>
                         <button
-                          onClick={() => setEditandoCad(emEdicao ? null : { id: f.id, funcao: f.funcao || '', valor: f.valor_padrao ? String(f.valor_padrao).replace('.', ',') : '' })}
-                          title="Editar função padrão e valor padrão"
+                          onClick={() => setEditandoCad(emEdicao ? null : { id: f.id, funcao: f.funcao || '', valor: f.valor_padrao ? String(f.valor_padrao).replace('.', ',') : '', pix: f.chave_pix || '' })}
+                          title="Editar cadastro: função padrão, valor padrão e chave PIX"
                           className="text-muted-foreground hover:text-indigo-600 shrink-0 p-1"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      {/* Dialog inline de edição do cadastro (função padrão + valor padrão) */}
+                      {/* Dialog inline de edição do cadastro (função padrão + valor padrão + chave PIX).
+                          O PIX daqui é o do CADASTRO: entra nos pedidos das PRÓXIMAS semanas. Pedido já
+                          lançado continua com a chave que copiou na hora — pra esse, o financeiro corrige
+                          no detalhe do pedido em /financeiro/pedidos-pagamento. */}
                       {emEdicao && (
-                        <div className="mt-2 pt-2 border-t border-dashed grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                        <div className="mt-2 pt-2 border-t border-dashed space-y-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                            <Input
+                              value={editandoCad!.funcao}
+                              onChange={e => setEditandoCad({ ...editandoCad!, funcao: e.target.value })}
+                              placeholder="Função padrão"
+                              className="h-8 text-sm"
+                            />
+                            <Input
+                              value={editandoCad!.valor}
+                              onChange={e => setEditandoCad({ ...editandoCad!, valor: e.target.value })}
+                              placeholder="Valor padrão da diária"
+                              inputMode="decimal"
+                              className="h-8 text-sm text-right"
+                            />
+                            <div className="flex items-center gap-1 justify-end">
+                              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditandoCad(null)}>Cancelar</Button>
+                              <Button size="sm" className="h-7 px-2" onClick={salvarEdicaoCad} disabled={salvandoCad}>
+                                {salvandoCad ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                              </Button>
+                            </div>
+                          </div>
                           <Input
-                            value={editandoCad!.funcao}
-                            onChange={e => setEditandoCad({ ...editandoCad!, funcao: e.target.value })}
-                            placeholder="Função padrão"
+                            value={editandoCad!.pix}
+                            onChange={e => setEditandoCad({ ...editandoCad!, pix: e.target.value })}
+                            placeholder="Chave PIX (CPF, telefone, e-mail ou aleatória)"
                             className="h-8 text-sm"
                           />
-                          <Input
-                            value={editandoCad!.valor}
-                            onChange={e => setEditandoCad({ ...editandoCad!, valor: e.target.value })}
-                            placeholder="Valor padrão da diária"
-                            inputMode="decimal"
-                            className="h-8 text-sm text-right"
-                          />
-                          <div className="flex items-center gap-1 justify-end">
-                            <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditandoCad(null)}>Cancelar</Button>
-                            <Button size="sm" className="h-7 px-2" onClick={salvarEdicaoCad} disabled={salvandoCad}>
-                              {salvandoCad ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                            </Button>
-                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            Vale das próximas semanas em diante. Pedido já enviado ao financeiro mantém a chave antiga —
+                            nesse caso o financeiro ajusta no detalhe do pedido.
+                          </p>
                         </div>
                       )}
                     </div>
