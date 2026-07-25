@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -56,7 +56,10 @@ const parseISO = (s: string) => { const [y, m, d] = s.split('-').map(Number); re
 const fmtDate = (iso: string) => { const [, m, d] = iso.split('-'); return `${d}/${m}`; };
 const fmtDateFull = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
 function mondayOf(d: Date) { const x = new Date(d); const wd = (x.getDay() + 6) % 7; x.setDate(x.getDate() - wd); x.setHours(0, 0, 0, 0); return x; }
-const norm = (s?: string | null) => (s || '').trim().toLowerCase();
+// Busca sem acento: o cadastro tem "ÁGUA SEM GÁS" e o time digita "agua" no iPad
+// (teclado sem acento). Sem o NFD o item simplesmente não aparecia na lista.
+const norm = (s?: string | null) =>
+  (s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const parseQtd = (v: string) => { const n = parseFloat(v.replace(',', '.')); return Number.isFinite(n) ? n : 0; };
 
 // Compressão de imagem antes do upload (canvas → jpeg). Caminho preferido: createImageBitmap,
@@ -575,10 +578,27 @@ function ItemRow({
   }, [abertoBusca]);
   const selecionado = useMemo(() => insumos.find(i => i.codigo === item.insumo_codigo), [insumos, item.insumo_codigo]);
 
-  const filtrados = useMemo(() => {
+  // Lista completa (sem corte em 8): no iPad a barra de rolagem não aparece e o time
+  // achava que só existiam os primeiros itens. Ranking: nome que começa com o termo
+  // vem primeiro, depois nome que contém, por último código/categoria.
+  const { filtrados, total } = useMemo(() => {
+    const LIMITE = 200; // teto só de renderização (DOM no iPad); `total` continua real
     const q = norm(busca);
-    if (!q) return insumos.slice(0, 8);
-    return insumos.filter(i => norm(i.nome).includes(q) || norm(i.codigo).includes(q) || norm(i.categoria).includes(q)).slice(0, 8);
+    if (!q) return { filtrados: insumos.slice(0, LIMITE), total: insumos.length };
+    const rank = (i: Insumo) => {
+      const n = norm(i.nome);
+      if (n.startsWith(q)) return 0;
+      if (n.includes(q)) return 1;
+      if (norm(i.codigo).includes(q)) return 2;
+      if (norm(i.categoria).includes(q)) return 3;
+      return 9;
+    };
+    const achados = insumos
+      .map(i => ({ i, r: rank(i) }))
+      .filter(x => x.r < 9)
+      .sort((a, b) => a.r - b.r || norm(a.i.nome).localeCompare(norm(b.i.nome)))
+      .map(x => x.i);
+    return { filtrados: achados.slice(0, LIMITE), total: achados.length };
   }, [insumos, busca]);
 
   return (
@@ -603,7 +623,15 @@ function ItemRow({
                 value={busca} onChange={e => { setBusca(e.target.value); setAbertoBusca(true); }}
                 onFocus={() => setAbertoBusca(true)} />
               {abertoBusca && filtrados.length > 0 && (
-                <div className="absolute z-10 left-0 right-0 mt-1 border rounded-md bg-popover shadow-lg max-h-56 overflow-y-auto">
+                <div className="absolute z-10 left-0 right-0 mt-1 border rounded-md bg-popover shadow-lg max-h-72 overflow-y-auto overscroll-contain scrollbar-thin">
+                  {/* Contador fixo no topo: no iPad a barra de rolagem é invisível, então o
+                      número é o único aviso de que existe mais item abaixo. */}
+                  <div className="sticky top-0 z-10 bg-popover/95 backdrop-blur border-b px-2.5 py-1 text-[11px] text-muted-foreground">
+                    {filtrados.length < total
+                      ? <>mostrando {filtrados.length} de {total} · refine a busca</>
+                      : <>{total} {total === 1 ? 'insumo' : 'insumos'}</>}
+                    {filtrados.length > 4 && <span> · role a lista ↓</span>}
+                  </div>
                   {filtrados.map(i => (
                     <button key={i.codigo} onClick={() => { onChange({ insumo_codigo: i.codigo, insumo_nome: i.nome, unidade: i.unidade_medida || 'un' }); setAbertoBusca(false); setBusca(''); }}
                       className="w-full text-left px-2.5 py-1.5 hover:bg-accent text-sm">
