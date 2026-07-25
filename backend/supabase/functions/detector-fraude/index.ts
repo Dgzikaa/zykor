@@ -42,6 +42,18 @@ async function detectarParaBar(supabase: any, barId: number, data: string): Prom
     .select('usr_lancou').eq('bar_id', barId).eq('ativo', true);
   const whitelist = new Set<string>((whitelistRows ?? []).map((r: any) => r.usr_lancou));
 
+  // Limiares POR BAR. Era 8% fixo pra todo mundo, com a premissa de "media tipica ~3%".
+  // Medindo 57 dias: a mediana do Ordinario e' 3,3% (premissa certa) mas a do Deboche e' 7,4%,
+  // ou seja, o limiar caia praticamente em cima da mediana e 46% dos dias-funcionario passavam.
+  // Alerta que dispara pra metade da operacao ninguem lê. Semeado com o p95 de cada casa.
+  const { data: paramRow } = await supabase
+    .schema('integridade').from('parametros_bar')
+    .select('limiar_desconto, limiar_cortesia_qtd, limiar_cortesia_valor')
+    .eq('bar_id', barId).maybeSingle();
+  const LIMIAR_DESCONTO = Number(paramRow?.limiar_desconto ?? 0.08);
+  const LIMIAR_CORT_QTD = Number(paramRow?.limiar_cortesia_qtd ?? 5);
+  const LIMIAR_CORT_VLR = Number(paramRow?.limiar_cortesia_valor ?? 500);
+
   // Itens do dia — PAGINADO.
   //
   // Aqui havia um `.limit(20000)` que nao servia pra nada: o PostgREST tem teto proprio de 1000
@@ -108,9 +120,9 @@ async function detectarParaBar(supabase: any, barId: number, data: string): Prom
     }
   }
 
-  // Cortesias acumuladas: alerta se > 5 do mesmo gar ou valor > R$ 500
+  // Cortesias acumuladas: limiar por bar (integridade.parametros_bar)
   for (const [usr, stat] of Object.entries(cortesiasPorUsr)) {
-    if (stat.qtd > 5 || stat.valor > 500) {
+    if (stat.qtd > LIMIAR_CORT_QTD || stat.valor > LIMIAR_CORT_VLR) {
       alertas.push({
         bar_id: barId, data_referencia: data,
         tipo: 'cortesia_volume',
@@ -151,13 +163,13 @@ async function detectarParaBar(supabase: any, barId: number, data: string): Prom
   for (const [usr, stat] of Object.entries(porUsr)) {
     if (stat.soma_valor < 500 || stat.itens < 20) continue;
     const taxa = stat.soma_desc / stat.soma_valor;
-    if (taxa > 0.08) {
+    if (taxa > LIMIAR_DESCONTO) {
       alertas.push({
         bar_id: barId, data_referencia: data,
         tipo: 'desconto_funcionario',
-        severidade: taxa > 0.15 ? 'critica' : 'alta',
+        severidade: taxa > LIMIAR_DESCONTO * 1.9 ? 'critica' : 'alta',
         titulo: `${usr} aplicou ${(taxa * 100).toFixed(1)}% de desconto`,
-        descricao: `R$ ${stat.soma_desc.toFixed(2)} em descontos de R$ ${stat.soma_valor.toFixed(2)} em vendas (${stat.itens} itens). Média típica ~3%.`,
+        descricao: `R$ ${stat.soma_desc.toFixed(2)} em descontos de R$ ${stat.soma_valor.toFixed(2)} em vendas (${stat.itens} itens). Limite deste bar: ${(LIMIAR_DESCONTO * 100).toFixed(1)}%.`,
         entidade: usr,
         valor_envolvido: stat.soma_desc,
         detalhes: { ...stat, taxa_pct: taxa * 100 },
