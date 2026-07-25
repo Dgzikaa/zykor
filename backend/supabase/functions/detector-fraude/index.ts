@@ -48,11 +48,25 @@ async function detectarParaBar(supabase: any, barId: number, data: string): Prom
   // Alerta que dispara pra metade da operacao ninguem lê. Semeado com o p95 de cada casa.
   const { data: paramRow } = await supabase
     .schema('integridade').from('parametros_bar')
-    .select('limiar_desconto, limiar_cortesia_qtd, limiar_cortesia_valor')
+    .select('limiar_desconto, limiar_cortesia_qtd, limiar_cortesia_valor, fator_dia_evento')
     .eq('bar_id', barId).maybeSingle();
   const LIMIAR_DESCONTO = Number(paramRow?.limiar_desconto ?? 0.08);
-  const LIMIAR_CORT_QTD = Number(paramRow?.limiar_cortesia_qtd ?? 5);
-  const LIMIAR_CORT_VLR = Number(paramRow?.limiar_cortesia_valor ?? 500);
+
+  // Dia de evento grande tem cortesia por natureza (entrada franca, lista, produção, convidado).
+  // Marcador: houve venda Yuzer no dia. Medido em 57 dias no Ordinário — dia normal faz 24,6
+  // cortesias e NUNCA passou de 60; dia com Yuzer faz 157,8 em média. Sem esse contexto o
+  // detector acusava todo evento grande como anomalia (os "outliers" de 13/06 a 05/07 eram
+  // todos dias de Yuzer entre R$ 87 mil e R$ 112 mil — operação normal, não desvio).
+  const { data: yuzerDia } = await supabase
+    .schema('silver').from('yuzer_pagamentos_evento')
+    .select('faturamento_bruto').eq('bar_id', barId).eq('data_evento', data)
+    .gt('faturamento_bruto', 1000).limit(1);
+  const diaDeEvento = Array.isArray(yuzerDia) && yuzerDia.length > 0;
+  const fator = diaDeEvento ? Number(paramRow?.fator_dia_evento ?? 6) : 1;
+
+  const LIMIAR_CORT_QTD = Number(paramRow?.limiar_cortesia_qtd ?? 5) * fator;
+  const LIMIAR_CORT_VLR = Number(paramRow?.limiar_cortesia_valor ?? 500) * fator;
+  if (diaDeEvento) console.log(`[fraude] bar ${barId} ${data}: dia de evento (Yuzer) — limiar de cortesia x${fator}`);
 
   // Itens do dia — PAGINADO.
   //
