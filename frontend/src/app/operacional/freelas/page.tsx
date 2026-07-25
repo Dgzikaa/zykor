@@ -18,7 +18,30 @@ import { FreelaMatrizSemana } from '@/components/freelas/FreelaMatrizSemana';
 import { ImportarFreelasDialog } from '@/components/freelas/ImportarFreelasDialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-type Freela = { id: string; nome: string; funcao: string | null; valor_padrao: number | null; chave_pix: string | null; contaazul_pessoa_id: string | null };
+type Freela = { id: string; nome: string; funcao: string | null; valor_padrao: number | null; chave_pix: string | null; tipo_chave: string | null; contaazul_pessoa_id: string | null };
+
+// Tipos aceitos pelo cadastro (mesmos valores ja gravados em financial.beneficiarios).
+const TIPOS_PIX = [
+  { v: 'cpf', l: 'CPF' },
+  { v: 'cnpj', l: 'CNPJ' },
+  { v: 'telefone', l: 'Celular' },
+  { v: 'email', l: 'E-mail' },
+  { v: 'aleatoria', l: 'Aleatória' },
+];
+const rotuloTipoPix = (t?: string | null) => TIPOS_PIX.find(x => x.v === t)?.l ?? null;
+
+// Detecta o tipo SO quando nao ha duvida. CPF e celular tem 11 digitos os dois — nesse caso
+// devolve null de proposito, pra pessoa escolher em vez de o sistema chutar errado.
+function detectaTipoPix(v: string): string | null {
+  const s = (v || '').trim();
+  if (!s) return null;
+  if (s.includes('@')) return 'email';
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return 'aleatoria';
+  const d = s.replace(/\D/g, '');
+  if (d.length === 14) return 'cnpj';
+  if (d.length === 13 || d.length === 12) return 'telefone'; // veio com +55
+  return null; // 11 digitos = ambiguo (CPF ou celular)
+}
 type Pedido = { id: string; beneficiario_nome: string | null; valor: number; status: PedidoStatus; data_vencimento: string; data_competencia: string | null; contaazul_pessoa_id: string | null; descricao?: string | null };
 
 const norm = (s?: string | null) => (s || '').trim().toLowerCase();
@@ -64,7 +87,7 @@ export default function FreelasOperacaoPage() {
   const [salvandoNovo, setSalvandoNovo] = useState(false);
   const [importarOpen, setImportarOpen] = useState(false);
   // Edição do cadastro do freela (função padrão + valor padrão inline).
-  const [editandoCad, setEditandoCad] = useState<null | { id: string; funcao: string; valor: string; pix: string }>(null);
+  const [editandoCad, setEditandoCad] = useState<null | { id: string; funcao: string; valor: string; pix: string; tipoChave: string }>(null);
   const [salvandoCad, setSalvandoCad] = useState(false);
 
   const carregar = useCallback(async () => {
@@ -166,6 +189,7 @@ export default function FreelasOperacaoPage() {
         funcao: funcao || '',       // string vazia vira null no backend
         valor_padrao: valorTxt === '' ? '' : valor_padrao,
         chave_pix: editandoCad.pix.trim(),  // corrige o PIX no CADASTRO (vale das próximas semanas em diante)
+        tipo_chave: editandoCad.tipoChave,
       });
       toast({ title: 'Cadastro atualizado' });
       setEditandoCad(null);
@@ -372,7 +396,10 @@ export default function FreelasOperacaoPage() {
                           <div className="text-xs text-muted-foreground truncate">
                             {f.funcao || '—'}
                             {f.valor_padrao ? ` · padrão ${fmtBRL(Number(f.valor_padrao))}` : ''}
-                            {f.chave_pix ? ` · PIX ${f.chave_pix}` : ' · sem PIX'}
+                            {f.chave_pix
+                              ? ` · PIX ${f.chave_pix}${rotuloTipoPix(f.tipo_chave) ? ` (${rotuloTipoPix(f.tipo_chave)})` : ''}`
+                              : ' · sem PIX'}
+                            {f.chave_pix && !f.tipo_chave && <span className="text-amber-600"> · tipo da chave não definido</span>}
                             {!f.contaazul_pessoa_id && <span className="text-amber-600"> · sem fornecedor no CA (financeiro vincula)</span>}
                           </div>
                         </div>
@@ -390,7 +417,7 @@ export default function FreelasOperacaoPage() {
                           <Input value={s?.valor ?? ''} onChange={e => setValor(f.id, e.target.value)} placeholder={f.valor_padrao ? String(f.valor_padrao).replace('.', ',') : 'valor'} inputMode="decimal" className="h-8 text-right" disabled={!s?.on} />
                         </div>
                         <button
-                          onClick={() => setEditandoCad(emEdicao ? null : { id: f.id, funcao: f.funcao || '', valor: f.valor_padrao ? String(f.valor_padrao).replace('.', ',') : '', pix: f.chave_pix || '' })}
+                          onClick={() => setEditandoCad(emEdicao ? null : { id: f.id, funcao: f.funcao || '', valor: f.valor_padrao ? String(f.valor_padrao).replace('.', ',') : '', pix: f.chave_pix || '', tipoChave: f.tipo_chave || '' })}
                           title="Editar cadastro: função padrão, valor padrão e chave PIX"
                           className="text-muted-foreground hover:text-indigo-600 shrink-0 p-1"
                         >
@@ -424,12 +451,33 @@ export default function FreelasOperacaoPage() {
                               </Button>
                             </div>
                           </div>
-                          <Input
-                            value={editandoCad!.pix}
-                            onChange={e => setEditandoCad({ ...editandoCad!, pix: e.target.value })}
-                            placeholder="Chave PIX (CPF, telefone, e-mail ou aleatória)"
-                            className="h-8 text-sm"
-                          />
+                          <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-2">
+                            <Input
+                              value={editandoCad!.pix}
+                              onChange={e => {
+                                const pix = e.target.value;
+                                // só preenche sozinho quando não há dúvida; nunca sobrescreve escolha da pessoa
+                                const auto = detectaTipoPix(pix);
+                                setEditandoCad({ ...editandoCad!, pix, tipoChave: editandoCad!.tipoChave || auto || '' });
+                              }}
+                              placeholder="Chave PIX"
+                              className="h-8 text-sm"
+                            />
+                            <select
+                              value={editandoCad!.tipoChave}
+                              onChange={e => setEditandoCad({ ...editandoCad!, tipoChave: e.target.value })}
+                              className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                            >
+                              <option value="">tipo da chave…</option>
+                              {TIPOS_PIX.map(t => <option key={t.v} value={t.v}>{t.l}</option>)}
+                            </select>
+                          </div>
+                          {/* CPF e celular tem 11 digitos os dois — aqui o sistema NAO chuta, pergunta. */}
+                          {editandoCad!.pix.replace(/\D/g, '').length === 11 && !editandoCad!.tipoChave && (
+                            <p className="text-[11px] text-amber-600">
+                              11 dígitos: pode ser CPF ou celular. Escolha o tipo — o sistema não tem como adivinhar.
+                            </p>
+                          )}
                           <p className="text-[11px] text-muted-foreground">
                             Vale das próximas semanas em diante. Pedido já enviado ao financeiro mantém a chave antiga —
                             nesse caso o financeiro ajusta no detalhe do pedido.
