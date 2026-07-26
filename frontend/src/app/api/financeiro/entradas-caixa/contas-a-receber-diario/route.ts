@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
 import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
+import { getCAValidToken } from '@/lib/contaazul/token';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -53,14 +54,14 @@ export function ontemBRT(): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Delega pro helper central, que RENOVA usando o refresh_token em vez de só desistir.
+ * A versão anterior devolvia "Token CA expirado. Reconecte" — e como esta rota roda por cron
+ * diário, isso virava furo silencioso pro bar cujo token não estava quente. Só os bares 3 e 4
+ * têm o orquestrador de 6 min; os demais chegam aqui vencidos quase sempre.
+ */
 async function getCAToken(barId: number): Promise<{ token: string } | { error: string; status: number }> {
-  const supabase = getSupabaseAdmin();
-  const { data: cred, error } = await supabase
-    .from('api_credentials').select('access_token, expires_at')
-    .eq('sistema', 'conta_azul').eq('bar_id', barId).single();
-  if (error || !cred?.access_token) return { error: 'Credenciais do Conta Azul não encontradas', status: 404 };
-  if (cred.expires_at && new Date(cred.expires_at) < new Date()) return { error: 'Token CA expirado. Reconecte o Conta Azul.', status: 401 };
-  return { token: cred.access_token };
+  return getCAValidToken(getSupabaseAdmin(), barId);
 }
 
 async function getTotalDia(barId: number, data: string): Promise<{ total: number; qtd: number }> {
