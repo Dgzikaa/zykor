@@ -67,6 +67,11 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   { prefix: '/api/operacional/cmv-teorico', paths: ['/operacional/cmv-teorico'] },
   { prefix: '/api/operacional/plano-producao', paths: ['/operacional/plano-producao'] },
   { prefix: '/api/operacional/plano-compras', paths: ['/operacional/plano-compras'] },
+  // Contagem de estoque: a tela é a de Estoque (/operacional/contagem não está no menu, então
+  // não tem módulo próprio — o módulo que governa contagem é o de Estoque).
+  { prefix: '/api/operacional/contagem', paths: ['/operacional/estoque-historico'] },
+  { prefix: '/api/operacional/insumo-falta', paths: ['/operacional/plano-compras'] },
+  { prefix: '/api/operacional/consumacao', paths: ['/operacional/consumacao'] },
   { prefix: '/api/operacional/estoque-cadastro', paths: ['/operacional/estoque-historico'] },
   { prefix: '/api/operacional/estoque-historico', paths: ['/operacional/estoque-historico'] },
   { prefix: '/api/operacional/freelas', paths: ['/operacional/freelas'] },
