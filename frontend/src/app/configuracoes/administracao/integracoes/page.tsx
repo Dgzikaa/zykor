@@ -30,6 +30,7 @@ import {
   Database,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { traduzirErroIg } from '@/lib/instagram/erros-oauth';
 import { CATEGORIA_INFO, ORDEM_CATEGORIAS, type Categoria } from './catalog';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -152,8 +153,11 @@ export default function AdministracaoIntegracoesPage() {
       const username = searchParams.get('ig_username');
       toast.success(`Instagram conectado${username ? `: @${username}` : ''}`);
     } else {
-      const msg = searchParams.get('ig_msg') || 'erro desconhecido';
-      toast.error(`Falha: ${decodeURIComponent(msg)}`);
+      // A Meta devolve coisas como "Função de desenvolvedor é insuficiente", que não dizem
+      // o que fazer. Traduz pra instrução acionável e deixa o toast aberto (é passo a passo).
+      const msg = decodeURIComponent(searchParams.get('ig_msg') || 'erro desconhecido');
+      const { titulo, detalhe } = traduzirErroIg(msg);
+      toast.error(titulo, { description: detalhe, duration: 30000 });
     }
     window.history.replaceState({}, '', window.location.pathname);
     carregar();
