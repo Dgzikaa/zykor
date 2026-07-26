@@ -188,6 +188,17 @@ async function checarCredencialGlobal(cat: IntegracaoCatalogo): Promise<{
   return { credencial, statusCredencial: status, temRefreshToken: false };
 }
 
+/**
+ * O catálogo diz o schema de cada tabela (bronze/system/integrations/financial), mas o client
+ * padrão aponta pra `public` — e NENHUMA dessas tabelas tem view-alias em public. Sem aplicar
+ * o schema, toda consulta de saúde falhava calada: volume7d e ultimaSync vinham null e o
+ * painel dizia "Sem atividade nos últimos 7 dias" pra integração que estava rodando redondo
+ * (ContaHub e Google Reviews, verificado em 26/07/2026 — havia dado do próprio dia).
+ */
+function de(supabase: any, schema: string | undefined, tabela: string) {
+  return (schema && schema !== 'public' ? supabase.schema(schema) : supabase).from(tabela);
+}
+
 async function pegarUltimaSync(
   supabase: any,
   cat: IntegracaoCatalogo,
@@ -197,8 +208,7 @@ async function pegarUltimaSync(
   let statusEncontrado: string | null = null;
 
   for (const fonte of cat.fontesSync || []) {
-    let q = supabase
-      .from(fonte.tabela)
+    let q = de(supabase, fonte.schema, fonte.tabela)
       .select(`${fonte.colunaTempo}${fonte.colunaStatus ? ',' + fonte.colunaStatus : ''}`)
       .order(fonte.colunaTempo, { ascending: false })
       .limit(1);
@@ -225,8 +235,7 @@ async function pegarUltimaSync(
 async function pegarVolume7d(supabase: any, cat: IntegracaoCatalogo, barId: number | null): Promise<number | null> {
   if (!cat.volumeTabela) return null;
   const desde = new Date(Date.now() - 7 * 86400_000).toISOString();
-  let q = supabase
-    .from(cat.volumeTabela.tabela)
+  let q = de(supabase, cat.volumeTabela.schema, cat.volumeTabela.tabela)
     .select('*', { count: 'exact', head: true })
     .gte(cat.volumeTabela.colunaTempo, desde);
   if (barId != null) {
@@ -237,6 +246,25 @@ async function pegarVolume7d(supabase: any, cat: IntegracaoCatalogo, barId: numb
   return count ?? 0;
 }
 
+/**
+ * Já houve QUALQUER dado desta integração pra este bar, em qualquer época?
+ *
+ * É o que separa "o cron parou" de "este bar não usa isso". Sem essa distinção o painel
+ * mandava verificar o cron do GetIn no Deboche — sendo que o Deboche nunca teve GetIn
+ * (a API é só do Ordinário). Uma linha só, ordenada por tempo: barato.
+ */
+async function jaTeveAtividade(supabase: any, cat: IntegracaoCatalogo, barId: number | null): Promise<boolean | null> {
+  if (!cat.volumeTabela) return null;
+  let q = de(supabase, cat.volumeTabela.schema, cat.volumeTabela.tabela)
+    .select(cat.volumeTabela.colunaTempo)
+    .order(cat.volumeTabela.colunaTempo, { ascending: false })
+    .limit(1);
+  if (barId != null) q = q.eq(cat.volumeTabela.colunaBar || 'bar_id', barId);
+  const { data, error } = await q;
+  if (error) return null;
+  return (data?.length ?? 0) > 0;
+}
+
 function calcularStatusGeral(
   statusCred: StatusCredencial,
   ultimaSync: string | null,
@@ -244,25 +272,32 @@ function calcularStatusGeral(
   global: boolean,
   temRefreshToken: boolean,
   cat: IntegracaoCatalogo,
+  jaTeve: boolean | null,
 ): { status: StatusGeral; problemas: string[] } {
   const problemas: string[] = [];
   const naoExpira = Boolean(cat.naoExpira);
   const opcional = Boolean(cat.opcional);
 
-  // Atividade recente = forte sinal de "tá funcionando", override credencial
-  const temAtividadeRecente = (volume7d ?? 0) > 0 || (() => {
-    if (!ultimaSync) return false;
-    return (Date.now() - new Date(ultimaSync).getTime()) / 3600_000 < 48;
-  })();
+  // Atividade recente = forte sinal de "tá funcionando", override credencial.
+  // Quando existe tabela de volume, ela MANDA: é o único sinal que filtra por bar. Log de
+  // sync às vezes não tem bar_id (GetIn é assim) e, se valesse, o Deboche apareceria
+  // "conectado" no GetIn por causa da sync do Ordinário.
+  const temAtividadeRecente = volume7d != null
+    ? volume7d > 0
+    : (ultimaSync ? (Date.now() - new Date(ultimaSync).getTime()) / 3600_000 < 48 : false);
 
   // Integração configurada por evidência de atividade — credencial pode estar em outro lugar (Supabase secrets)
   if (cat.inferirPorAtividade) {
     if (temAtividadeRecente) {
       return { status: 'conectada', problemas: [] };
     }
-    // Sem atividade nas últimas 7d mas integração tem que rodar — sinaliza problema
-    // (sem essa cláusula, ContaHub/Apify cairiam em "ausente" o que está errado)
     if (statusCred === 'ausente') {
+      // Sem credencial e sem atividade: "nunca rodou aqui" e "parou de rodar" são coisas
+      // diferentes e precisam de resposta diferente. Só é problema de cron se um dia já
+      // teve dado deste bar.
+      if (jaTeve === false) {
+        return { status: 'nao_configurada', problemas: ['Este bar não usa esta integração'] };
+      }
       return {
         status: 'parcial',
         problemas: ['Sem atividade nos últimos 7 dias — verifique se cron está rodando'],
@@ -287,7 +322,14 @@ function calcularStatusGeral(
       const horasDesdeSync = ultimaSync ? (Date.now() - new Date(ultimaSync).getTime()) / 3600_000 : 999;
       if (horasDesdeSync > 12) problemas.push('Token expirado — aguardando próximo refresh');
     }
-    if (statusCred === 'expirando') problemas.push('Token expirando em menos de 7 dias');
+    // "Expirando em menos de 7 dias" só faz sentido pra token LONGO (Instagram dura 60 dias).
+    // Com refresh token, expirar é o comportamento normal: o do Conta Azul vive ~1h e é
+    // renovado sob demanda (+ cron de 6min), então a condição era SEMPRE verdadeira e virava
+    // alarme permanente de uma coisa que funciona — bar 3 já renovou 15 vezes. Se o refresh
+    // parasse de verdade, o token viraria 'expirado' e cairia nas regras acima.
+    if (statusCred === 'expirando' && !temRefreshToken) {
+      problemas.push('Token expirando em menos de 7 dias');
+    }
   }
 
   if (!global && ultimaSync) {
@@ -389,6 +431,11 @@ export async function GET(request: NextRequest) {
           pegarVolume7d(supabase, cat, ehGlobal ? null : barId),
         ]);
         const { credencial, statusCredencial, temRefreshToken } = credResult;
+        // Só pergunta "já teve alguma vez?" quando não há atividade recente — que é o único
+        // caso em que a resposta muda algo. Assim o caminho normal continua em 3 queries.
+        const jaTeve = (volume ?? 0) > 0
+          ? true
+          : await jaTeveAtividade(supabase, cat, ehGlobal ? null : barId);
         let { status, problemas } = calcularStatusGeral(
           statusCredencial,
           sync.ultima,
@@ -396,6 +443,7 @@ export async function GET(request: NextRequest) {
           ehGlobal,
           temRefreshToken,
           cat,
+          jaTeve,
         );
 
         // Bar manual: integração do bar sem credencial não é "atenção", é só "não configurada".
