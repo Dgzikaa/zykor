@@ -256,7 +256,12 @@ export async function getSemanas(
       // Campos puramente manuais: meta sempre ganha, sem fallback pro gold
       cmo: meta?.cmo ?? null, // gold.cmo e valor R$ (Conta Azul), nao %. Nunca misturar.
       cmv_teorico: cmvTeoricoFinal,
-      nps_reservas: meta?.nps_reservas ?? g.nps_reservas,
+      // Mesmo cuidado do cmv_teorico acima: em meta.desempenho_manual o "não preenchido" é
+      // gravado como 0, NÃO null (230 linhas, zero NULLs) — e o ?? não pula 0. Sem filtrar,
+      // um 0 legado esconde o valor do gold (hoje: bar 3, semana 1/2026, gold=10 escondido).
+      nps_reservas: (meta?.nps_reservas != null && Number(meta.nps_reservas) > 0
+        ? Number(meta.nps_reservas)
+        : null) ?? g.nps_reservas,
       // Campos condicionais: se integracao = manual, meta ganha; se API, gold ganha
       // Ticket Medio: SEMPRE auto via gold (fat/clientes_atendidos). N depende de
       // GetIn (que eh so reserva). Bug antigo: amarrado a getinManual, e zeros
