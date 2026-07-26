@@ -102,8 +102,11 @@ const EXATO_ABERTO = new Set<string>([
   '/api/getin/sync-retroativo',
   '/api/nps/sync',
   '/api/nps/sync-reservas',
-  '/api/rh/importar-planilha',
-  '/api/rh/importar-provisoes',
+  // REMOVIDAS em 26/07/2026: '/api/rh/importar-planilha' e '/api/rh/importar-provisoes'
+  // estavam neste bloco de cron/sync, mas NÃO são cron — são upload da tela
+  // /ferramentas/simulacao-cmo. Estando aqui, aceitavam POST sem sessão nenhuma
+  // (comprovado: devolviam 400 "bar_id é obrigatório" em vez de 401), ou seja, qualquer
+  // um na internet podia importar planilha de funcionários/provisões.
 ]);
 
 /** true = rota /api liberada sem sessão (a trava central a ignora). */

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { podeRH } from '@/lib/auth/rh-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +60,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  if (!podeRH(user)) return permissionErrorResponse('Sem permissão no módulo de RH');
   try {
     const body = await request.json();
     const { bar_id, nome, descricao, nivel } = body;
@@ -116,6 +118,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  if (!podeRH(user)) return permissionErrorResponse('Sem permissão no módulo de RH');
   try {
     const body = await request.json();
     const { id, nome, descricao, nivel, ativo } = body;
@@ -177,6 +180,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  if (!podeRH(user)) return permissionErrorResponse('Sem permissão no módulo de RH');
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

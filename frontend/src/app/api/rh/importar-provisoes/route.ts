@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { podeRH } from '@/lib/auth/rh-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -140,7 +141,10 @@ interface ProvisaoPlanilha {
  * Importa provisões históricas da planilha PROVISÕES
  */
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user = await authenticateUser(request);
+  if (!user) return permissionErrorResponse('Usuário não autenticado');
+  if (!podeRH(user)) return permissionErrorResponse('Sem permissão no módulo de RH');
+
   try {
     const body = await request.json();
     const { bar_id } = body;
