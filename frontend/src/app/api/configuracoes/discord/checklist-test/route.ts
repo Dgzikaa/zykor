@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import DiscordChecklistService from '@/lib/discord-checklist-service';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +44,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await authenticateUser(req);
+  if (!user) return permissionErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, req); if (nega) return nega;
   await authenticateUser(req);
   try {
     const { type } = await req.json();

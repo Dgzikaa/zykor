@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { authenticateUser } from '@/middleware/auth';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +37,9 @@ interface ChecklistNotification {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await authenticateUser(req);
+  if (!user) return permissionErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, req); if (nega) return nega;
   await authenticateUser(req);
   try {
     const body = await req.json();

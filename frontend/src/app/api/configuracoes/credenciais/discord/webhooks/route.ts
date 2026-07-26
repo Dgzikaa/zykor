@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { negarPorRota } from '@/lib/permissions/guard';
+import { authenticateUser, permissionErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
 const supabase = createServiceRoleClient();
 
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return permissionErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const { bar_id } = await request.json();
 

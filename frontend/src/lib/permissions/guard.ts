@@ -47,6 +47,16 @@ const METODO_ACAO: Record<string, PermAction> = { POST: 'inserir', PUT: 'editar'
  */
 const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   // --- Operacional ---
+  // --- Configurações ---
+  // Credenciais de integração, disparo de WhatsApp/Discord e reset de senha admin: tudo isso
+  // é operação de configuração e estava sem exigir módulo (qualquer logado alcançava).
+  // O reset de senha admin em especial troca a senha de outro usuário — vale a trava explícita
+  // aqui além da que o middleware já faz.
+  { prefix: '/api/configuracoes/usuarios', paths: ['/configuracoes/usuarios'] },
+  { prefix: '/api/configuracoes/credenciais', paths: ['/configuracoes/administracao/integracoes'] },
+  { prefix: '/api/configuracoes/whatsapp', paths: ['/configuracoes/administracao/integracoes'] },
+  { prefix: '/api/configuracoes/discord', paths: ['/configuracoes/administracao/integracoes'] },
+  { prefix: '/api/configuracoes/edge-functions', paths: ['/configuracoes/administracao/integracoes'] },
   // --- Relatórios Financeiros (DRE editável) ---
   // A DRE manual/simples escreve linha de DRE — sem isto, qualquer usuário autenticado
   // gravava, porque a rota não estava no mapa (guard é fail-open pra não-mapeada).
