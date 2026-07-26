@@ -143,6 +143,8 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   { prefix: '/api/financeiro/boleto', paths: ['/financeiro/pedidos-pagamento'] },
   { prefix: '/api/financeiro/cartao', paths: ['/financeiro/pedidos-pagamento'] },
   { prefix: '/api/financeiro/inter/pix', paths: ['/financeiro/agendamentos'] },
+  // Disparo manual de sync do CA: a tela dona é a de Integrações, não a de pagamentos.
+  { prefix: '/api/financeiro/contaazul/sync', paths: ['/configuracoes/administracao/integracoes'] },
   { prefix: '/api/financeiro/contaazul/baixa', paths: ['/financeiro/agendamentos'] },
   { prefix: '/api/financeiro/contaazul/match-fornecedores', paths: ['/financeiro/agendamentos'] },
   { prefix: '/api/financeiro/agendamentos', paths: ['/financeiro/agendamentos'] },
