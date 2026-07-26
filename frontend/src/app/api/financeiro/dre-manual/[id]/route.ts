@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { authenticateUser } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,7 @@ export async function PUT(
 ) {
   const user = await authenticateUser(request);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const { id } = await params;
     const body = await request.json();
@@ -79,6 +81,7 @@ export async function DELETE(
 ) {
   const user = await authenticateUser(request);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const { id } = await params;
 

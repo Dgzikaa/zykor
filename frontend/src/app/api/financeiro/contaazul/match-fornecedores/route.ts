@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,7 +72,13 @@ const SIM_FUZZY = 0.85; // limite pra match automático
 const SIM_SUGESTAO = 0.55; // limite pra exibir como sugestão
 
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  // Antes era `await authenticateUser(request);` — o resultado era DESCARTADO, então a rota
+  // nem checava se havia usuário (só o middleware segurava) nem qual permissão ele tinha.
+  const user = await authenticateUser(request);
+  if (!user) return permissionErrorResponse('Usuário não autenticado');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.beneficiarios, 'inserir')) {
+    return permissionErrorResponse('Sem permissão nesta ferramenta financeira');
+  }
   try {
     const body = await request.json();
     const barId = Number(body.bar_id);

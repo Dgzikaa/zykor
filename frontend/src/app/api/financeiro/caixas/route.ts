@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -240,6 +241,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.fluxo, 'inserir')) return permissionErrorResponse('Sem permissão nesta ferramenta financeira');
   try {
     const body = await request.json();
     const { tabela, ...dados } = body;
@@ -290,6 +292,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.fluxo, 'editar')) return permissionErrorResponse('Sem permissão nesta ferramenta financeira');
   try {
     const body = await request.json();
     const { tabela, id, ...dados } = body;
@@ -341,6 +344,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.fluxo, 'excluir')) return permissionErrorResponse('Sem permissão nesta ferramenta financeira');
   try {
     const { searchParams } = new URL(request.url);
     const tabela = searchParams.get('tabela');

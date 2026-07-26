@@ -47,6 +47,12 @@ const METODO_ACAO: Record<string, PermAction> = { POST: 'inserir', PUT: 'editar'
  */
 const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   // --- Operacional ---
+  // --- Relatórios Financeiros (DRE editável) ---
+  // A DRE manual/simples escreve linha de DRE — sem isto, qualquer usuário autenticado
+  // gravava, porque a rota não estava no mapa (guard é fail-open pra não-mapeada).
+  { prefix: '/api/financeiro/dre-manual', paths: ['/financeiro/dre'] },
+  { prefix: '/api/financeiro/dre-simples', paths: ['/financeiro/dre'] },
+  // --- Operacional ---
   { prefix: '/api/operacional/producoes/ficha', paths: ['/operacional/fichas-tecnicas'] },
   { prefix: '/api/operacional/fichas/grupo', paths: ['/operacional/fichas-tecnicas'] },
   { prefix: '/api/operacional/fichas/insumo-uso', paths: ['/operacional/fichas-tecnicas'] },

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
 import { getCAValidToken } from '@/lib/contaazul/token';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,9 @@ interface CadastrarBody {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.beneficiarios, 'inserir')) {
+    return permissionErrorResponse('Sem permissão nesta ferramenta financeira');
+  }
   try {
     const body = (await request.json()) as CadastrarBody;
     const barId = Number(body.bar_id);

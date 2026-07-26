@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { getInterAccessToken } from '@/lib/inter/getAccessToken';
 import { resolveInterCredential } from '@/lib/inter/resolveCredential';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest) {
     // Diagnóstico sensível (sonda o banco, expõe tails de token/cert): só admin.
     const user = await authenticateUser(request);
     if (!user) return authErrorResponse('Usuário não autenticado');
+    if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.agendamentos, 'inserir')) return permissionErrorResponse('Sem permissão nesta ferramenta financeira');
     if (user.role !== 'admin') return permissionErrorResponse('Apenas administradores podem usar o diagnóstico');
     const body = await request.json().catch(() => ({}));
     const barId = Number(user.bar_id);
