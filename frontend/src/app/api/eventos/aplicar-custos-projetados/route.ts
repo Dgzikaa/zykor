@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 const supabase = createServiceRoleClient();
@@ -24,6 +25,7 @@ export async function POST(request: NextRequest) {
   // authenticateUser PRIMEIRO (antes de qualquer await) → publica o ator no auditContext.
   const user = await authenticateUser(request);
   if (!user) return NextResponse.json({ success: false, error: 'Não autenticado' }, { status: 401 });
+  const neg_request = negarPorRota(user, request); if (neg_request) return neg_request;
 
   const barId = getBarId(request);
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id é obrigatório' }, { status: 400 });

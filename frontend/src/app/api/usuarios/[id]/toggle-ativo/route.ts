@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { authenticateUser, authErrorResponse , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export async function POST(
   request: NextRequest,
@@ -12,6 +13,7 @@ export async function POST(
     if (!user) {
       return authErrorResponse('Usuário não autenticado');
     }
+  const neg_request = negarPorRota(user, request); if (neg_request) return neg_request;
 
     const { id: userId } = await params;
     const supabase = await getAdminClient();

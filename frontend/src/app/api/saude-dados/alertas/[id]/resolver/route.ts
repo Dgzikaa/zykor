@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase-admin'
-import { authenticateUser } from '@/middleware/auth'
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth'
 
 export async function POST(
   request: NextRequest,
@@ -11,6 +11,7 @@ export async function POST(
     if (!user) {
       return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 })
     }
+  if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
 
     const resolvedParams = await params
     const alertaId = parseInt(resolvedParams.id)

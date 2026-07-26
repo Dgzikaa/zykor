@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase-admin'
-import { authenticateUser } from '@/middleware/auth'
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth'
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: 'Não autorizado' }, { status: 401 })
     }
+  if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
 
     const supabase = await getAdminClient()
     const barId = user.bar_id

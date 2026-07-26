@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
-import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { authenticateUser, authErrorResponse , permissionErrorResponse } from '@/middleware/auth';
 import { CATEGORIA_KEYS } from '@/lib/comunicacao/calendario';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 const sb = () => createServiceRoleClient();
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const neg_request = negarPorRota(user, request); if (neg_request) return neg_request;
   const b = await request.json().catch(() => ({}));
   const barId = Number(b.bar_id) || user.bar_id;
   const data = String(b.data || '').slice(0, 10);
@@ -57,6 +59,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const neg_request = negarPorRota(user, request); if (neg_request) return neg_request;
   const id = Number(new URL(request.url).searchParams.get('id'));
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
   const b = await request.json().catch(() => ({}));
@@ -78,6 +81,7 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const neg_request = negarPorRota(user, request); if (neg_request) return neg_request;
   const id = Number(new URL(request.url).searchParams.get('id'));
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
   const { error } = await sb().from('marketing_calendario_posts').delete()

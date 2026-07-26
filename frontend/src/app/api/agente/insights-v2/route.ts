@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,6 +111,9 @@ export async function GET(request: NextRequest) {
  * - arquivado (opcional, boolean)
  */
 export async function PUT(request: NextRequest) {
+  const user_PUT = await authenticateUser(request);
+  if (!user_PUT) return permissionErrorResponse('Usuário não autenticado');
+  const neg_request = negarPorRota(user_PUT, request); if (neg_request) return neg_request;
   await authenticateUser(request);
   try {
     const body = await request.json();
@@ -171,6 +175,9 @@ export async function PUT(request: NextRequest) {
  * - data (opcional, formato YYYY-MM-DD, default = ontem)
  */
 export async function POST(request: NextRequest) {
+  const user_POST = await authenticateUser(request);
+  if (!user_POST) return permissionErrorResponse('Usuário não autenticado');
+  const neg_request = negarPorRota(user_POST, request); if (neg_request) return neg_request;
   await authenticateUser(request);
   try {
     const body = await request.json();

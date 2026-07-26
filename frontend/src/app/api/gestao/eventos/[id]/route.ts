@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export async function DELETE(
   request: NextRequest,
@@ -8,6 +9,7 @@ export async function DELETE(
 ) {
   const user = await authenticateUser(request);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  const neg_request = negarPorRota(user, request); if (neg_request) return neg_request;
   try {
     const { id } = await params;
 

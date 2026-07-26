@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 const supabase = createServiceRoleClient();
 
@@ -146,6 +147,9 @@ function getInicioFimSemana(data: string): { inicio: string; fim: string } {
 // que inclui a coluna categoria_local já normalizada por bar
 
 export async function POST(request: NextRequest) {
+  const user_POST = await authenticateUser(request);
+  if (!user_POST) return permissionErrorResponse('Usuário não autenticado');
+  const neg_request = negarPorRota(user_POST, request); if (neg_request) return neg_request;
   await authenticateUser(request);
   try {
     const { data_inicio, data_fim, bar_id, filtros = [] } = await request.json();

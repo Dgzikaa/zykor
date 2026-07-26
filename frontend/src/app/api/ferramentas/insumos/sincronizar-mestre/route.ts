@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { authenticateUser, authErrorResponse , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -35,6 +36,7 @@ type Row = { codigo: string; custo: number | null; fornecedor: string | null; em
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const neg_request = negarPorRota(user, request); if (neg_request) return neg_request;
   if (user.bar_id !== 3) {
     return NextResponse.json({ success: false, error: 'Importador disponível só para o Ordinário (bar 3) por enquanto.' }, { status: 400 });
   }

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { authenticateUser, authErrorResponse , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 
 /** POST (PÚBLICO/anônimo) -> registra um pulso de eNPS. Body: { bar_id, nota(0-10), comentario? } */
 export async function POST(request: NextRequest) {
+  const user_POST = await authenticateUser(request);
+  if (!user_POST) return permissionErrorResponse('Usuário não autenticado');
+  const neg_request = negarPorRota(user_POST, request); if (neg_request) return neg_request;
   const body = await request.json().catch(() => ({}));
   const barId = Number(body.bar_id);
   const nota = Number(body.nota);

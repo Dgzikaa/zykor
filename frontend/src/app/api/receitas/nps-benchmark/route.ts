@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { negarPorRota } from '@/lib/permissions/guard';
+import { authenticateUser, permissionErrorResponse } from '@/middleware/auth';
 
 /**
  * Benchmark de NPS de concorrentes (entrada manual) — meta.nps_benchmark.
@@ -16,6 +18,9 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  const user_PUT = await authenticateUser(request);
+  if (!user_PUT) return permissionErrorResponse('Usuário não autenticado');
+  const neg_request = negarPorRota(user_PUT, request); if (neg_request) return neg_request;
   let body: any;
   try {
     body = await request.json();

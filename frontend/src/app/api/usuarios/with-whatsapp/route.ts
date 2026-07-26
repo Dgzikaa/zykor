@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic'
 
@@ -85,6 +86,9 @@ export async function GET(req: NextRequest) {
 
 // POST - Atualizar múltiplos usuários (para operações em lote)
 export async function POST(req: NextRequest) {
+  const user_POST = await authenticateUser(req);
+  if (!user_POST) return permissionErrorResponse('Usuário não autenticado');
+  const neg_req = negarPorRota(user_POST, req); if (neg_req) return neg_req;
   await authenticateUser(req);
   try {
     const { operacao, usuarios } = await req.json();

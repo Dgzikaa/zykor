@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase-admin'
-import { authenticateUser, authErrorResponse } from '@/middleware/auth'
+import { authenticateUser, authErrorResponse , permissionErrorResponse } from '@/middleware/auth'
+import { negarPorRota } from '@/lib/permissions/guard'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -25,6 +26,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await authenticateUser(request)
     if (!user) return authErrorResponse('Usuário não autenticado')
+  const neg_request = negarPorRota(user, request); if (neg_request) return neg_request;
 
     const supabase = await getAdminClient()
     const body = await request.json().catch(() => ({}))

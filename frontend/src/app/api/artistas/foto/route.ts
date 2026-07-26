@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { authenticateUser, authErrorResponse , permissionErrorResponse } from '@/middleware/auth';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 const supabase = createServiceRoleClient();
@@ -9,6 +10,7 @@ const supabase = createServiceRoleClient();
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const neg_request = negarPorRota(user, request); if (neg_request) return neg_request;
   try {
     const { artista_id, foto_url } = await request.json();
     if (!artista_id) return NextResponse.json({ success: false, error: 'artista_id obrigatório' }, { status: 400 });

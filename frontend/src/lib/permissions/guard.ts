@@ -147,6 +147,49 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   { prefix: '/api/financeiro/contaazul/match-fornecedores', paths: ['/financeiro/agendamentos'] },
   { prefix: '/api/financeiro/agendamentos', paths: ['/financeiro/agendamentos'] },
   { prefix: '/api/financeiro/stone/contas-a-receber-diario', paths: ['/financeiro/stone-recebiveis'] },
+  // --- Eventos (escrevem eventos_base) ---
+  // COMPARTILHADA: Planejamento Comercial monta/edita o evento, Análise de Eventos corrige
+  // valores reais. Libera por qualquer um dos dois — travar só no planejamento quebraria
+  // quem trabalha pela tela de eventos. /api/ferramentas/calendario/eventos entra aqui
+  // apesar do nome: o que ela grava é eventos_base, igual às outras.
+  { prefix: '/api/eventos', paths: ['/estrategico/planejamento-comercial', '/analitico/eventos'] },
+  { prefix: '/api/gestao/eventos', paths: ['/estrategico/planejamento-comercial', '/analitico/eventos'] },
+  { prefix: '/api/ferramentas/calendario/eventos', paths: ['/estrategico/planejamento-comercial', '/analitico/eventos'] },
+  { prefix: '/api/planejamento/recalcular', paths: ['/estrategico/planejamento-comercial'] },
+  { prefix: '/api/organizador', paths: ['/estrategico/planejamento-comercial'] },
+  { prefix: '/api/custos-diluidos', paths: ['/estrategico/orcamentacao'] },
+  // --- Stockout / mix / atrações (telas do menu) ---
+  { prefix: '/api/analitico/stockout', paths: ['/ferramentas/stockout'] },
+  { prefix: '/api/analitico/stockout-historico', paths: ['/ferramentas/stockout'] },
+  { prefix: '/api/contahub/stockout', paths: ['/ferramentas/stockout'] },
+  { prefix: '/api/grupos-classificacao', paths: ['/ferramentas/consumos-classificacao'] },
+  { prefix: '/api/artistas', paths: ['/analitico/atracoes'] },
+  { prefix: '/api/analitico/clientes/perfil-consumo', paths: ['/ferramentas/crm'] },
+  // --- Análises avançadas / IA (Ferramentas › Análises Avançadas) ---
+  { prefix: '/api/agente', paths: ['/ferramentas/analises'] },
+  { prefix: '/api/integridade', paths: ['/ferramentas/analises'] },
+  { prefix: '/api/previsao', paths: ['/ferramentas/analises'] },
+  { prefix: '/api/relatorio-executivo', paths: ['/ferramentas/analises'] },
+  { prefix: '/api/relatorio', paths: ['/ferramentas/analises'] },
+  { prefix: '/api/assistente', paths: ['/assistente-zykor'] },
+  { prefix: '/api/assistant', paths: ['/assistente-zykor'] },
+  // --- Receitas / comunicação ---
+  { prefix: '/api/receitas/comunicacao', paths: ['/receitas/comunicacao'] },
+  { prefix: '/api/receitas', paths: ['/receitas'] },
+  // --- Operacional / RH / financeiro que faltavam ---
+  { prefix: '/api/ferramentas/insumos', paths: ['/operacional/insumos'] },
+  { prefix: '/api/operacoes/producoes', paths: ['/operacional/producoes'] },
+  { prefix: '/api/fichas-tecnicas', paths: ['/operacional/fichas-tecnicas'] },
+  { prefix: '/api/fluxo-caixa', paths: ['/financeiro/fluxo-caixa'] },
+  { prefix: '/api/rh/enps', paths: ['/rh/funcionarios'] },
+  // --- Configurações: gestão de OUTRO usuário (perfil próprio é self-service, fica fora) ---
+  // ATENÇÃO: prefixo largo de propósito (o pathname real traz o id, não '[id]', então não dá
+  // pra mapear a rota dinâmica). O que protege /api/usuarios/perfil e /trocar-senha é o guard
+  // ser OPT-IN: elas não chamam negarPorRota, porque são self-service (todo usuário edita o
+  // próprio perfil e a própria senha). NÃO adicionar negarPorRota nelas.
+  { prefix: '/api/usuarios', paths: ['/configuracoes/usuarios'] },
+  { prefix: '/api/integracoes/instagram', paths: ['/configuracoes/administracao/integracoes'] },
+  { prefix: '/api/alertas-inteligentes', paths: ['/configuracoes/administracao/integracoes'] },
 ];
 
 /**

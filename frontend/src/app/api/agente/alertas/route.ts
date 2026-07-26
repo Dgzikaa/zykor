@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase-server'
 import { cookies } from 'next/headers'
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export async function GET(request: NextRequest) {
   try {
@@ -48,6 +49,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const user_PATCH = await authenticateUser(request);
+  if (!user_PATCH) return permissionErrorResponse('Usuário não autenticado');
+  const neg_request = negarPorRota(user_PATCH, request); if (neg_request) return neg_request;
   await authenticateUser(request);
   try {
     const supabase = createServerClient()

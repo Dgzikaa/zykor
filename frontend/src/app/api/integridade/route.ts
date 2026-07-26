@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  const neg_req = negarPorRota(user, req); if (neg_req) return neg_req;
   try {
     const body = await req.json();
     if (body?.acao === 'detectar') {
@@ -69,6 +71,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const user = await authenticateUser(req);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  const neg_req = negarPorRota(user, req); if (neg_req) return neg_req;
   try {
     const body = await req.json();
     if (!body?.alerta_id || !body?.status) {

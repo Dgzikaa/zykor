@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,7 @@ const diaSemanaDeData = (iso: string): string => {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  const neg_request = negarPorRota(user, request); if (neg_request) return neg_request;
 
   try {
     const supabase = createServiceRoleClient();

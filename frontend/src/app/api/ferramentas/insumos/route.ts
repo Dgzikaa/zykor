@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { tbl } from '@/lib/supabase/table-schemas';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +67,9 @@ export async function GET(request: NextRequest) {
  * (escopo mínimo). Outras edições exigem SQL direto até a UI evoluir.
  */
 export async function PATCH(request: NextRequest) {
+  const user_PATCH = await authenticateUser(request);
+  if (!user_PATCH) return permissionErrorResponse('Usuário não autenticado');
+  const neg_request = negarPorRota(user_PATCH, request); if (neg_request) return neg_request;
   await authenticateUser(request);
   try {
     const body = await request.json();

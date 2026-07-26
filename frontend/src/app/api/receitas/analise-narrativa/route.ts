@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { zykorAI } from '@/lib/ai/setup';
+import { negarPorRota } from '@/lib/permissions/guard';
+import { authenticateUser, permissionErrorResponse } from '@/middleware/auth';
 
 /**
  * Narrativa IA-assistida (Bloco 3) — gera RASCUNHO dos cards de análise
@@ -43,6 +45,9 @@ function parseJson(content: string): any | null {
 }
 
 export async function POST(request: NextRequest) {
+  const user_POST = await authenticateUser(request);
+  if (!user_POST) return permissionErrorResponse('Usuário não autenticado');
+  const neg_request = negarPorRota(user_POST, request); if (neg_request) return neg_request;
   let body: any;
   try {
     body = await request.json();

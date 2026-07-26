@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 /**
  * POST /api/integracoes/instagram/desconectar
@@ -14,6 +15,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   const user = await authenticateUser(req);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  const neg_req = negarPorRota(user, req); if (neg_req) return neg_req;
   try {
     const body = await req.json().catch(() => ({}));
     const barId = Number(body?.bar_id);

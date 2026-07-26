@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase-admin'
-import { authenticateUser } from '@/middleware/auth'
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth'
 
 /**
  * API para executar verificação de saúde dos dados
@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+  if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
 
     const supabase = await getAdminClient()
 

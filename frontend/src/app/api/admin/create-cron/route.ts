@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
+import { authenticateUser, permissionErrorResponse } from '@/middleware/auth';
 
 /**
  * POST /api/admin/create-cron
  * Cria um cron job no Supabase para rodar cmv-semanal-auto diariamente
  */
 export async function POST(request: NextRequest) {
+  const user_POST = await authenticateUser(request);
+  if (!user_POST) return permissionErrorResponse('Usuário não autenticado');
+  if ((user_POST.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
   try {
     const supabase = await getAdminClient();
     
