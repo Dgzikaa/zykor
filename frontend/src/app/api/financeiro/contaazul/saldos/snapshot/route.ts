@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser } from '@/middleware/auth';
+import { getCAValidToken } from '@/lib/contaazul/token';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -30,9 +31,16 @@ export async function POST(request: NextRequest) {
 
   const resultado: any[] = [];
   for (const cred of (creds || [])) {
-    if (!cred.access_token || (cred.expires_at && new Date(cred.expires_at) < agora)) {
-      resultado.push({ bar_id: cred.bar_id, erro: 'token expirado/ausente' }); continue;
+    // Renova on-demand em vez de pular quem está expirado. O token do CA dura ~1h; só os bares
+    // 3 e 4 têm o orquestrador de 6 min mantendo ele quente, então os demais chegam neste cron
+    // (01h) sempre vencidos — e a versão anterior só desistia. Resultado medido em 26/07/2026:
+    // Primo Pobre (5) e Prefeitura (6) com ZERO snapshot, enquanto 3 e 4 tinham todos.
+    // getCAValidToken usa o refresh_token e salva o rotacionado (ver lib/contaazul/token.ts).
+    const tk = await getCAValidToken(supabase, cred.bar_id);
+    if ('error' in tk) {
+      resultado.push({ bar_id: cred.bar_id, erro: tk.error }); continue;
     }
+    const accessToken = tk.token;
     const { data: contas } = await (supabase.schema('bronze' as any) as any)
       .from('bronze_contaazul_contas_financeiras')
       .select('contaazul_id, nome, tipo').eq('bar_id', cred.bar_id).eq('ativo', true);
@@ -42,7 +50,7 @@ export async function POST(request: NextRequest) {
       const tipo = String(c.tipo || '').toUpperCase();
       if (SKIP.has(tipo)) continue;
       try {
-        const r = await fetch(`${CA}/v1/conta-financeira/${c.contaazul_id}/saldo-atual`, { headers: { Authorization: `Bearer ${cred.access_token}` } });
+        const r = await fetch(`${CA}/v1/conta-financeira/${c.contaazul_id}/saldo-atual`, { headers: { Authorization: `Bearer ${accessToken}` } });
         if (!r.ok) continue;
         const saldo = Number((await r.json())?.saldo_atual || 0);
         det.push({ nome: c.nome, tipo, saldo });
