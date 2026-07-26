@@ -243,9 +243,12 @@ export async function getMeses(
 
       // CMO: manual.cmo eh o % editado pelo socio. cmo_valor (R$) vem do gold.
       // cmo_percentual: se tiver manual override, usa ele; senao calcula de gold.cmo/faturamento.
-      cmo: manual.cmo ?? null,
+      // ATENCAO: em meta.desempenho_manual o "nao preenchido" e' 0, NAO null (95 linhas, zero
+      // NULLs). O `!= null` dava true pro 0 e travava o calculo do gold — mes sem override
+      // exibia CMO 0,0% tendo faturamento e gold.cmo disponiveis. Trata <= 0 como ausente.
+      cmo: (manual.cmo != null && Number(manual.cmo) > 0 ? Number(manual.cmo) : null),
       cmo_valor: toNum(g.cmo) ?? 0,
-      cmo_percentual: manual.cmo != null
+      cmo_percentual: (manual.cmo != null && Number(manual.cmo) > 0)
         ? Number(manual.cmo)
         : (toNum(g.cmo) != null && faturamentoTotal > 0 ? (Number(g.cmo) / faturamentoTotal * 100) : 0),
 

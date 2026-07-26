@@ -215,7 +215,11 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Shield', label: 'Perfis de Acesso', href: '/configuracoes/administracao/perfis', permission: 'configuracoes' },
       { icon: 'Users', label: 'Usuários', href: '/configuracoes/usuarios', permission: 'configuracoes' },
       { header: 'Testes' },
-      { icon: 'Bot', label: 'Zykor Assistant', href: '/assistente-zykor', permission: 'gestao' },
+      // Era `gestao` — genérico de OUTRA categoria, o único item da seção fora do padrão.
+      // A regra é a permission ser o id gerado `gerarIdModulo(seção, item)`; aqui a seção é
+      // Configurações, cujo genérico `configuracoes` cobre o módulo no resolver — então quem
+      // administra o sistema continua vendo, e sai a dependência de um token alheio.
+      { icon: 'Bot', label: 'Zykor Assistant', href: '/assistente-zykor', permission: 'configuracoes_zykor_assistant' },
       { icon: 'CheckSquare', label: 'Checklist Validação', href: '/checklist-validacao', permission: 'configuracoes' },
       { icon: 'MessageCircle', label: 'Feedbacks', href: '/configuracoes/feedbacks', permission: 'configuracoes' },
     ],

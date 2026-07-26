@@ -254,7 +254,10 @@ export async function getSemanas(
     return {
       ...g,
       // Campos puramente manuais: meta sempre ganha, sem fallback pro gold
-      cmo: meta?.cmo ?? null, // gold.cmo e valor R$ (Conta Azul), nao %. Nunca misturar.
+      // gold.cmo e valor R$ (Conta Azul), nao %. Nunca misturar — por isso nao ha fallback.
+      // O 0 aqui e' "nao preenchido" (95 linhas em meta.desempenho_manual, nenhuma NULL), entao
+      // vira null pra tela mostrar "—" em vez de um "0,0%" que parece CMO zerado.
+      cmo: (meta?.cmo != null && Number(meta.cmo) > 0 ? Number(meta.cmo) : null),
       cmv_teorico: cmvTeoricoFinal,
       // Mesmo cuidado do cmv_teorico acima: em meta.desempenho_manual o "não preenchido" é
       // gravado como 0, NÃO null (230 linhas, zero NULLs) — e o ?? não pula 0. Sem filtrar,
