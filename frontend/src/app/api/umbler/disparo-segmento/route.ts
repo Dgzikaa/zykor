@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
 import { UMBLER_API_V1, UMBLER_ORG_FALLBACK, UMBLER_FROM_FALLBACK, getUmblerToken, umblerAuthHeaders } from '@/lib/umbler';
@@ -11,7 +11,7 @@ const supabase = createServiceRoleClient();
 const UMBLER_SIMPLIFIED = `${UMBLER_API_V1}/messages/simplified/`;
 const UMBLER_TEMPLATE_SIMPLIFIED = `${UMBLER_API_V1}/template-messages/simplified/`;
 
-// SeguranÃ§a: teto de destinatÃ¡rios por disparo (evita timeout e envio acidental massivo).
+// Segurança: teto de destinatários por disparo (evita timeout e envio acidental massivo).
 const MAX_DESTINATARIOS = 500;
 
 const NIVEIS_VALIDOS = ['diamante', 'ouro', 'prata', 'bronze', 'sem_nivel'];
@@ -40,26 +40,26 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * POST /api/umbler/disparo-segmento
- * Dispara WhatsApp (Umbler) para aniversariantes filtrados por nÃ­vel.
+ * Dispara WhatsApp (Umbler) para aniversariantes filtrados por nível.
  * Grava cada envio em umbler_mensagens com campanha_id + metadata.nivel
- * pra permitir medir a aÃ§Ã£o por nÃ­vel depois.
+ * pra permitir medir a ação por nível depois.
  *
  * body: {
  *   bar_id: number,
- *   dias?: number = 30,            // janela de aniversÃ¡rio
+ *   dias?: number = 30,            // janela de aniversário
  *   niveis: string[],             // ex: ['ouro','prata']
- *   apenas_proximos7?: boolean,   // sÃ³ quem faz aniversÃ¡rio em <=7d
+ *   apenas_proximos7?: boolean,   // só quem faz aniversário em <=7d
  *   message?: string,             // texto livre (modo sem template), aceita {nome}/{primeiro_nome}
  *   template_id?: string,         // se presente: envia via template aprovado da Umbler
- *   template_label?: string,      // rÃ³tulo do template (sÃ³ p/ log)
- *   params?: string[],            // valores/tokens das variÃ¡veis do template, em ordem ({{1}},{{2}}...)
- *   dry_run?: boolean = true      // true = sÃ³ simula e conta, NÃƒO envia
+ *   template_label?: string,      // rótulo do template (só p/ log)
+ *   params?: string[],            // valores/tokens das variáveis do template, em ordem ({{1}},{{2}}...)
+ *   dry_run?: boolean = true      // true = só simula e conta, NÃO envia
  * }
  */
 export async function POST(request: NextRequest) {
-  const userPOST = await authenticateUser(request);
-  if (!userPOST) return permissionErrorResponse('UsuÃ¡rio nÃ£o autenticado');
-  const negaPOST = negarPorRota(userPOST, request); if (negaPOST) return negaPOST;
+  const user = await authenticateUser(request);
+  if (!user) return permissionErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   await authenticateUser(request);
   try {
     const body = await request.json();
@@ -71,18 +71,18 @@ export async function POST(request: NextRequest) {
     const templateLabel: string = (body.template_label ?? '').toString();
     const paramsTokens: string[] = Array.isArray(body.params) ? body.params.map((p: any) => String(p ?? '')) : [];
     const usaTemplate = templateId.length > 0;
-    const dryRun = body.dry_run !== false; // default true â€” sÃ³ dispara de verdade com dry_run:false explÃ­cito
+    const dryRun = body.dry_run !== false; // default true — só dispara de verdade com dry_run:false explícito
     const niveis: string[] = Array.isArray(body.niveis)
       ? body.niveis.filter((n: string) => NIVEIS_VALIDOS.includes(n))
       : [];
 
-    if (!barId) return NextResponse.json({ error: 'bar_id Ã© obrigatÃ³rio' }, { status: 400 });
-    if (niveis.length === 0) return NextResponse.json({ error: 'Selecione ao menos um nÃ­vel' }, { status: 400 });
+    if (!barId) return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
+    if (niveis.length === 0) return NextResponse.json({ error: 'Selecione ao menos um nível' }, { status: 400 });
     if (!dryRun && !usaTemplate && message.trim().length < 5) {
       return NextResponse.json({ error: 'Escolha um template ou escreva a mensagem' }, { status: 400 });
     }
 
-    // Token da conta (com fallback env); org/from/channel de log e rate-limit vÃªm do bar.
+    // Token da conta (com fallback env); org/from/channel de log e rate-limit vêm do bar.
     const [{ data: config }, token] = await Promise.all([
       supabase.from('umbler_config').select('organization_id, channel_id, phone_number, rate_limit_per_minute')
         .eq('bar_id', barId).eq('ativo', true).maybeSingle(),
@@ -90,13 +90,13 @@ export async function POST(request: NextRequest) {
     ]);
 
     if (!dryRun && !token) {
-      return NextResponse.json({ error: 'Token da Umbler nÃ£o configurado (nem no banco, nem no env)' }, { status: 400 });
+      return NextResponse.json({ error: 'Token da Umbler não configurado (nem no banco, nem no env)' }, { status: 400 });
     }
 
     const orgId = config?.organization_id || UMBLER_ORG_FALLBACK;
     const fromPhone = normalizePhone(config?.phone_number || UMBLER_FROM_FALLBACK);
 
-    // 2. DestinatÃ¡rios: aniversariantes na janela, com telefone, nos nÃ­veis escolhidos
+    // 2. Destinatários: aniversariantes na janela, com telefone, nos níveis escolhidos
     const hoje = new Date().toISOString().split('T')[0];
     const fim = new Date(Date.now() + dias * 86400000).toISOString().split('T')[0];
     const hoje7 = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
@@ -118,14 +118,14 @@ export async function POST(request: NextRequest) {
     const truncado = destinatarios.length > MAX_DESTINATARIOS;
     const lista = destinatarios.slice(0, MAX_DESTINATARIOS);
 
-    // Contagem por nÃ­vel (pra prÃ©via e pra mediÃ§Ã£o)
+    // Contagem por nível (pra prévia e pra medição)
     const porNivel: Record<string, number> = {};
     for (const r of lista) {
       const n = r.nivel || 'sem_nivel';
       porNivel[n] = (porNivel[n] || 0) + 1;
     }
 
-    // 3. DRY RUN â€” nÃ£o envia nada, sÃ³ devolve a prÃ©via
+    // 3. DRY RUN — não envia nada, só devolve a prévia
     if (dryRun) {
       return NextResponse.json({
         dry_run: true,
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 4. ENVIO REAL â€” respeita rate_limit_per_minute
+    // 4. ENVIO REAL — respeita rate_limit_per_minute
     const rate = Number(config?.rate_limit_per_minute) || 60;
     const delayMs = Math.min(Math.ceil(60000 / rate), 500);
     const campanhaId = crypto.randomUUID();
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
     for (const r of lista) {
       const toPhone = normalizePhone(r.cliente_fone_norm);
       const nivel = r.nivel || 'sem_nivel';
-      // Modo template: resolve tokens ({primeiro_nome}) por destinatÃ¡rio; modo texto: mensagem livre.
+      // Modo template: resolve tokens ({primeiro_nome}) por destinatário; modo texto: mensagem livre.
       const paramsResolvidos = paramsTokens.map((p) => montarMensagem(p, r.cliente_nome));
       const texto = usaTemplate ? paramsResolvidos.join(' | ') : montarMensagem(message, r.cliente_nome);
       let ok = false;
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
         if (erros.length < 20) erros.push({ telefone: toPhone, erro: erroTxt });
       }
 
-      // Registra o envio (sucesso ou falha) pra medir a aÃ§Ã£o por nÃ­vel
+      // Registra o envio (sucesso ou falha) pra medir a ação por nível
       await supabase.from('umbler_mensagens').insert({
         id: msgId || `aniv_${campanhaId}_${enviados + falhas}`,
         bar_id: barId,

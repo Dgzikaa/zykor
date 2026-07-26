@@ -1,19 +1,19 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
 
 const supabase = createServiceRoleClient();
 
-const MENSAGEM_NPS_PADRAO = `OlÃ¡ {nome}! ðŸ‘‹
+const MENSAGEM_NPS_PADRAO = `Olá {nome}! 👋
 
-Sua opiniÃ£o Ã© muito importante para nÃ³s!
+Sua opinião é muito importante para nós!
 
-De 0 a 10, o quanto vocÃª recomendaria o OrdinÃ¡rio para um amigo?
+De 0 a 10, o quanto você recomendaria o Ordinário para um amigo?
 
 Responda aqui: *{link_nps}*
 
-Obrigado! ðŸ™`;
+Obrigado! 🙏`;
 
 function normalizePhone(phone: string): string {
   if (!phone) return '';
@@ -25,7 +25,7 @@ function normalizePhone(phone: string): string {
 
 /**
  * GET /api/umbler/nps-disparo
- * Lista destinatÃ¡rios potenciais para disparo de NPS
+ * Lista destinatários potenciais para disparo de NPS
  */
 export async function GET(request: NextRequest) {
   try {
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const barIdParam = searchParams.get('bar_id');
     if (!barIdParam) {
       return NextResponse.json(
-        { success: false, error: 'bar_id Ã© obrigatÃ³rio' },
+        { success: false, error: 'bar_id é obrigatório' },
         { status: 400 }
       );
     }
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
       destinatarios
     });
   } catch (error) {
-    console.error('[NPS-DISPARO] Erro ao listar destinatÃ¡rios:', error);
+    console.error('[NPS-DISPARO] Erro ao listar destinatários:', error);
     return NextResponse.json(
       { success: false, error: String(error) },
       { status: 500 }
@@ -117,9 +117,9 @@ export async function GET(request: NextRequest) {
  * Cria campanha NPS e dispara via Umbler
  */
 export async function POST(request: NextRequest) {
-  const userPOST = await authenticateUser(request);
-  if (!userPOST) return permissionErrorResponse('UsuÃ¡rio nÃ£o autenticado');
-  const negaPOST = negarPorRota(userPOST, request); if (negaPOST) return negaPOST;
+  const user = await authenticateUser(request);
+  if (!user) return permissionErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   await authenticateUser(request);
   try {
     const body = await request.json();
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
 
     if (!bar_id) {
       return NextResponse.json(
-        { success: false, error: 'bar_id Ã© obrigatÃ³rio' },
+        { success: false, error: 'bar_id é obrigatório' },
         { status: 400 }
       );
     }
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
 
     if (configError || !config) {
       return NextResponse.json(
-        { success: false, error: 'Umbler nÃ£o configurado para este bar' },
+        { success: false, error: 'Umbler não configurado para este bar' },
         { status: 400 }
       );
     }
@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
 
     if (destinatarios.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'Nenhum destinatÃ¡rio encontrado para o perÃ­odo e filtros informados' },
+        { success: false, error: 'Nenhum destinatário encontrado para o período e filtros informados' },
         { status: 400 }
       );
     }

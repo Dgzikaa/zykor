@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { withRateLimit, RATE_LIMIT_PRESETS } from '@/lib/rate-limiter-middleware';
+import { headersInternos } from '@/lib/emails/internal-auth';
 
 const supabase = createServiceRoleClient();
 
@@ -97,9 +98,7 @@ async function handleForgotPassword(request: NextRequest) {
 
       const emailResponse = await fetch(`${baseUrl}/api/emails/password-reset`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: headersInternos(),
         body: JSON.stringify({
           to: email,
           nome: usuario.nome,

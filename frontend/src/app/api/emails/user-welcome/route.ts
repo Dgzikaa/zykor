@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { enviarEmailBoasVindas } from '@/lib/emails/user-welcome';
+import { negarSeNaoInterno } from '@/lib/emails/internal-auth';
 
 export const dynamic = 'force-dynamic';
 
 // Mantida por compatibilidade — a lógica vive em @/lib/emails/user-welcome.
 export async function POST(request: NextRequest) {
+  const negInterno = negarSeNaoInterno(request);
+  if (negInterno) return negInterno;
   try {
     const body = await request.json();
     const { to, nome, email, senha_temporaria, role, loginUrl } = body || {};

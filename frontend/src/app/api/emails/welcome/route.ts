@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { negarSeNaoInterno } from '@/lib/emails/internal-auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  const negInterno = negarSeNaoInterno(request);
+  if (negInterno) return negInterno;
   try {
     if (!process.env.RESEND_API_KEY) {
       return NextResponse.json(

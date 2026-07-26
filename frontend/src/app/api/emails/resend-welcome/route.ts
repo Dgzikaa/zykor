@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { headersInternos } from '@/lib/emails/internal-auth';
+import { negarSeNaoInterno } from '@/lib/emails/internal-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +12,8 @@ interface ResendWelcomeRequest {
 }
 
 export async function POST(request: NextRequest) {
+  const negInterno = negarSeNaoInterno(request);
+  if (negInterno) return negInterno;
   try {
     const { userId } = await request.json() as ResendWelcomeRequest;
 
@@ -45,9 +49,7 @@ export async function POST(request: NextRequest) {
     // Enviar email de boas-vindas
     const emailResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://sgbv2.vercel.app'}/api/emails/user-welcome`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: headersInternos(),
       body: JSON.stringify({
         to: usuario.email,
         nome: usuario.nome,

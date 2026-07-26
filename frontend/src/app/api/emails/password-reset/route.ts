@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
+import { negarSeNaoInterno } from '@/lib/emails/internal-auth';
 
 export async function POST(request: NextRequest) {
+  const negInterno = negarSeNaoInterno(request);
+  if (negInterno) return negInterno;
   try {
     if (!process.env.RESEND_API_KEY) {
       console.error('❌ RESEND_API_KEY não configurada');

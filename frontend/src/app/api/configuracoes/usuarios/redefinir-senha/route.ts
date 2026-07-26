@@ -4,6 +4,7 @@ import { normalizeEmail } from '@/lib/email-utils';
 import crypto from 'crypto';
 import { negarPorRota } from '@/lib/permissions/guard';
 import { authenticateUser, permissionErrorResponse } from '@/middleware/auth';
+import { headersInternos } from '@/lib/emails/internal-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -202,9 +203,7 @@ export async function POST(request: NextRequest) {
       
       const emailResponse = await fetch(`${internalBaseUrl}/api/emails/password-reset-link`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: headersInternos(),
         body: JSON.stringify({
           to: usuario.email,
           nome: usuario.nome,
