@@ -119,10 +119,21 @@ export async function GET(request: NextRequest) {
 // PUT — atualiza valores das metas (merge no objeto, por bar selecionado)
 //   body: { metas: [{ id: 'categoria::campo', valor, tipo? }] }
 // =====================================================
+/**
+ * Metas do bar (operations.bares.metas). ADMIN-ONLY por decisão do dono: metas são por bar e
+ * ficam em Configurações, área que só admin enxerga. A tela /configuracoes/metas está fora do
+ * menu, então não há módulo pra exigir — a trava é o role. Ver PADROES-DEV / guard.ts.
+ */
 export async function PUT(request: NextRequest) {
   try {
     const user = await authenticateUser(request);
     if (!user) return authErrorResponse('Usuário não autenticado');
+    if ((user.role as string) !== 'admin') {
+      return NextResponse.json(
+        { success: false, error: 'Somente admin pode alterar metas', code: 'PERMISSION_DENIED' },
+        { status: 403 },
+      );
+    }
 
     const { metas } = await request.json();
     if (!Array.isArray(metas)) {

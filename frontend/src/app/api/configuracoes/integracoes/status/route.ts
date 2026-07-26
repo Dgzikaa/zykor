@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
+
+// Colunas seguras de api_credentials. NUNCA usar select('*') aqui: a tabela guarda
+// api_token, password, client_secret, access_token e refresh_token — segredo de verdade.
+const CREDENCIAL_COLS = 'id, bar_id, sistema, ambiente, ativo, criado_em, atualizado_em, expires_at, empresa_nome, empresa_cnpj';
 
 const supabase = createServiceRoleClient();
 
@@ -68,12 +72,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/**
+ * Painel de status das integrações (Inter/ContaAzul/ContaHub/Discord/WhatsApp) de um bar.
+ * ADMIN-ONLY: é diagnóstico de configuração, não dado operacional. Nenhuma tela chama — as
+ * páginas de CRM/campanhas usam o GET acima, que devolve só dois booleans (umbler/getin).
+ */
 export async function POST(request: NextRequest) {
   try {
     const user = await authenticateUser(request);
     if (!user) {
       return authErrorResponse('Usuário não autenticado');
     }
+    if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
 
     const { bar_id } = await request.json();
     if (!bar_id) {
@@ -89,7 +99,7 @@ export async function POST(request: NextRequest) {
     // Buscar credenciais configuradas
     const { data: credentials, error: credentialsError } = await supabase
       .from('api_credentials')
-      .select('*')
+      .select(CREDENCIAL_COLS)
       .eq('bar_id', bar_id)
       .eq('ativo', true);
 

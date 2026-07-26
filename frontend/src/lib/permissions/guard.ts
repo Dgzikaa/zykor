@@ -88,6 +88,9 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   { prefix: '/api/operacional/estoque-cadastro', paths: ['/operacional/estoque-historico'] },
   { prefix: '/api/operacional/estoque-historico', paths: ['/operacional/estoque-historico'] },
   { prefix: '/api/operacional/freelas', paths: ['/operacional/freelas'] },
+  // Simulação de CMO: a tela /ferramentas/simulacao-cmo está fora do menu, mas é a mesma
+  // ferramenta do CMO — o dono definiu que quem tem acesso a Ferramentas simula.
+  { prefix: '/api/operacional/cmo-simulacao', paths: ['/ferramentas/cmo'] },
   // --- RH ---
   { prefix: '/api/rh/funcionarios', paths: ['/rh/funcionarios'] },
   { prefix: '/api/rh/solicitacoes', paths: ['/rh/funcionarios'] },
