@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Copy, Check, X } from 'lucide-react';
 
 // =====================================================
-// ðŸ“± COPIAR ITENS ENTRE CHECKLISTS (MOBILE-FRIENDLY)
+// 📱 COPIAR ITENS ENTRE CHECKLISTS (MOBILE-FRIENDLY)
 // =====================================================
 
 interface ChecklistItem {
@@ -126,23 +126,23 @@ export default function CopyItemsDialog({
   const getItemIcon = (tipo: string) => {
     switch (tipo) {
       case 'sim_nao':
-        return 'âœ…';
+        return '✅';
       case 'texto':
-        return 'ðŸ“';
+        return '📝';
       case 'numero':
-        return 'ðŸ”¢';
+        return '🔢';
       case 'data':
-        return 'ðŸ“…';
+        return '📅';
       case 'foto_camera':
-        return 'ðŸ“·';
+        return '📷';
       case 'foto_upload':
-        return 'ðŸ–¼ï¸';
+        return '🖼️';
       case 'avaliacao':
-        return 'â­';
+        return '⭐';
       case 'assinatura':
-        return 'âœï¸';
+        return '✍️';
       default:
-        return 'ðŸ“‹';
+        return '📋';
     }
   };
 
@@ -168,7 +168,7 @@ export default function CopyItemsDialog({
                   onChange={e => setFilterBySection(e.target.value)}
                   className="px-3 py-2 border rounded-lg text-sm"
                 >
-                  <option value="">Todas as seÃ§Ãµes</option>
+                  <option value="">Todas as seções</option>
                   {sections.map(section => (
                     <option key={section} value={section}>
                       {section}
@@ -182,13 +182,13 @@ export default function CopyItemsDialog({
                     onCheckedChange={setOnlyRequired}
                   />
                   <Label htmlFor="only-required" className="text-sm">
-                    Apenas obrigatÃ³rios
+                    Apenas obrigatórios
                   </Label>
                 </div>
               </div>
             </div>
 
-            {/* BotÃ£o Selecionar Todos */}
+            {/* Botão Selecionar Todos */}
             <div className="flex justify-between items-center">
               <div className="text-sm text-gray-600">
                 {selectedItems.length} de {filteredItems.length} itens
@@ -249,7 +249,7 @@ export default function CopyItemsDialog({
                           <span className="text-xs">{item.tipo}</span>
                           {item.obrigatorio && (
                             <span className="bg-red-100 text-red-800 text-xs">
-                              ObrigatÃ³rio
+                              Obrigatório
                             </span>
                           )}
                           {item.secao && (
@@ -275,7 +275,7 @@ export default function CopyItemsDialog({
         return (
           <div className="space-y-4">
             <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl mb-2">ðŸ“‹</div>
+              <div className="text-2xl mb-2">📋</div>
               <div className="text-sm font-medium">
                 {selectedItems.length}{' '}
                 {selectedItems.length === 1
@@ -316,7 +316,7 @@ export default function CopyItemsDialog({
                             {targetChecklistId === checklist.id ? (
                               <Check className="w-4 h-4" />
                             ) : (
-                              <span className="text-lg">ðŸ“‹</span>
+                              <span className="text-lg">📋</span>
                             )}
                           </div>
 
@@ -346,9 +346,9 @@ export default function CopyItemsDialog({
         return (
           <div className="space-y-4">
             <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl mb-2">âœ…</div>
+              <div className="text-2xl mb-2">✅</div>
               <div className="text-sm font-medium">
-                Confirmar cÃ³pia de itens
+                Confirmar cópia de itens
               </div>
             </div>
 
@@ -369,7 +369,7 @@ export default function CopyItemsDialog({
               </div>
 
               <div className="flex justify-center">
-                <span className="text-lg">â†’</span>
+                <span className="text-lg">→</span>
               </div>
 
               {/* Resumo do Destino */}
@@ -392,7 +392,7 @@ export default function CopyItemsDialog({
               {/* Lista de Itens a Copiar */}
               <div>
                 <Label className="text-sm font-medium text-gray-700">
-                  Itens que serÃ£o copiados:
+                  Itens que serão copiados:
                 </Label>
                 <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
                   {selectedItemsData.map(item => (
@@ -438,8 +438,8 @@ export default function CopyItemsDialog({
               disabled={selectedItems.length === 0}
               className="flex-1 touch-manipulation"
             >
-              PrÃ³ximo
-              <span className="text-lg">â†’</span>
+              Próximo
+              <span className="text-lg">→</span>
             </Button>
           </div>
         );
@@ -459,8 +459,8 @@ export default function CopyItemsDialog({
               disabled={!targetChecklistId}
               className="flex-1 touch-manipulation"
             >
-              PrÃ³ximo
-              <span className="text-lg">â†’</span>
+              Próximo
+              <span className="text-lg">→</span>
             </Button>
           </div>
         );
@@ -546,7 +546,7 @@ export default function CopyItemsDialog({
 }
 
 // =====================================================
-// ðŸŽ¯ HOOK PARA GERENCIAR CÃ“PIA DE ITENS
+// 🎯 HOOK PARA GERENCIAR CÓPIA DE ITENS
 // =====================================================
 
 export function useCopyItems() {
@@ -571,7 +571,7 @@ export function useCopyItems() {
           items: items.map(item => ({
             ...item,
             id: undefined, // Remove ID para criar novo
-            ordem: undefined, // SerÃ¡ definido automaticamente
+            ordem: undefined, // Será definido automaticamente
           })),
         }),
       });

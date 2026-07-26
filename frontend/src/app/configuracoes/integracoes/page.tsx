@@ -47,7 +47,7 @@ export default function IntegracoesPage() {
     {
       id: 'contahub',
       name: 'ContaHub',
-      description: 'IntegraÃ§Ã£o com sistema ContaHub para dados financeiros',
+      description: 'Integração com sistema ContaHub para dados financeiros',
       icon: Database,
       status: 'connected',
       lastSync: '2024-01-15T10:30:00Z',
@@ -56,7 +56,7 @@ export default function IntegracoesPage() {
     {
       id: 'whatsapp',
       name: 'WhatsApp Business',
-      description: 'NotificaÃ§Ãµes e mensagens via WhatsApp',
+      description: 'Notificações e mensagens via WhatsApp',
       icon: MessageSquare,
       status: 'connected',
       lastSync: '2024-01-15T09:45:00Z',
@@ -65,7 +65,7 @@ export default function IntegracoesPage() {
     {
       id: 'sympla',
       name: 'Sympla',
-      description: 'IntegraÃ§Ã£o com Sympla para eventos e ingressos',
+      description: 'Integração com Sympla para eventos e ingressos',
       icon: Zap,
       status: 'connected',
       lastSync: '2024-01-15T08:20:00Z',
@@ -82,7 +82,7 @@ export default function IntegracoesPage() {
     {
       id: 'getin',
       name: 'GetIn',
-      description: 'Sistema de reservas e gestÃ£o de mesas',
+      description: 'Sistema de reservas e gestão de mesas',
       icon: BarChart3,
       status: 'error',
       lastSync: '2024-01-14T15:30:00Z',
@@ -154,13 +154,13 @@ export default function IntegracoesPage() {
       );
 
       toast({
-        title: enabled ? 'âœ… IntegraÃ§Ã£o ativada' : 'âš ï¸ IntegraÃ§Ã£o desativada',
-        description: `A integraÃ§Ã£o foi ${enabled ? 'ativada' : 'desativada'} com sucesso.`,
+        title: enabled ? '✅ Integração ativada' : '⚠️ Integração desativada',
+        description: `A integração foi ${enabled ? 'ativada' : 'desativada'} com sucesso.`,
       });
     } catch (error) {
       toast({
-        title: 'âŒ Erro',
-        description: 'Erro ao alterar status da integraÃ§Ã£o',
+        title: '❌ Erro',
+        description: 'Erro ao alterar status da integração',
         variant: 'destructive',
       });
     }
@@ -169,21 +169,21 @@ export default function IntegracoesPage() {
   const handleTestIntegration = async (integrationId: string) => {
     try {
       toast({
-        title: 'ðŸ”„ Testando integraÃ§Ã£o...',
-        description: 'Verificando conexÃ£o com o serviÃ§o.',
+        title: '🔄 Testando integração...',
+        description: 'Verificando conexão com o serviço.',
       });
 
       // Simular teste
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       toast({
-        title: 'âœ… Teste concluÃ­do',
-        description: 'IntegraÃ§Ã£o funcionando corretamente.',
+        title: '✅ Teste concluído',
+        description: 'Integração funcionando corretamente.',
       });
     } catch (error) {
       toast({
-        title: 'âŒ Teste falhou',
-        description: 'Erro ao testar a integraÃ§Ã£o',
+        title: '❌ Teste falhou',
+        description: 'Erro ao testar a integração',
         variant: 'destructive',
       });
     }
@@ -201,7 +201,7 @@ export default function IntegracoesPage() {
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <RefreshCw className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">Carregando integraÃ§Ãµes...</p>
+          <p className="text-gray-600 dark:text-gray-400">Carregando integrações...</p>
         </div>
       </div>
     );
@@ -225,7 +225,7 @@ export default function IntegracoesPage() {
               
               <div>
                 <p className="text-gray-600 dark:text-gray-400 mt-1">
-                  Gerencie todas as integraÃ§Ãµes com sistemas externos
+                  Gerencie todas as integrações com sistemas externos
                 </p>
               </div>
             </div>
@@ -249,7 +249,7 @@ export default function IntegracoesPage() {
             <VMarketIntegrationCard selectedBar={selectedBar} />
           </div>
         </div>
-        {/* Lista de IntegraÃ§Ãµes */}
+        {/* Lista de Integrações */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {integrations.map((integration) => (
             <Card key={integration.id} className="card-dark shadow-lg hover:shadow-xl transition-all duration-300">
@@ -285,11 +285,11 @@ export default function IntegracoesPage() {
 
               <CardContent className="pt-0">
                 <div className="space-y-4">
-                  {/* Status e Ãºltima sincronizaÃ§Ã£o */}
+                  {/* Status e última sincronização */}
                   <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                     <div>
                       <p className="text-sm font-medium text-gray-900 dark:text-white">
-                        Ãšltima sincronizaÃ§Ã£o
+                        Última sincronização
                       </p>
                       <p className="text-xs text-gray-600 dark:text-gray-400">
                         {formatLastSync(integration.lastSync)}
@@ -306,7 +306,7 @@ export default function IntegracoesPage() {
                     </div>
                   </div>
 
-                  {/* AÃ§Ãµes */}
+                  {/* Ações */}
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
@@ -316,7 +316,7 @@ export default function IntegracoesPage() {
                       className="flex-1"
                     >
                       <RefreshCw className="w-4 h-4 mr-2" />
-                      Testar ConexÃ£o
+                      Testar Conexão
                     </Button>
                     <Button
                       variant="outline"
@@ -339,12 +339,12 @@ export default function IntegracoesPage() {
           <ContaHubResyncSemanalCard />
         </div>
 
-        {/* EstatÃ­sticas */}
+        {/* Estatísticas */}
         <div className="mt-8">
           <Card className="card-dark">
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white">
-                EstatÃ­sticas das IntegraÃ§Ãµes
+                Estatísticas das Integrações
               </CardTitle>
             </CardHeader>
             <CardContent>

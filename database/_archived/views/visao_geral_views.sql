@@ -1,11 +1,11 @@
-﻿-- Views de agregaÃ§Ã£o para VisÃ£o Geral (anual e trimestral)
--- ObservaÃ§Ã£o:
+﻿-- Views de agregação para Visão Geral (anual e trimestral)
+-- Observação:
 -- - Usamos somente data_competencia para NIBO (conforme regra interna)
--- - Para Sympla faturamento (sympla_pedidos) nÃ£o hÃ¡ mapeamento claro por bar_id; mantido fora dos cÃ¡lculos agregados por bar
+-- - Para Sympla faturamento (sympla_pedidos) não há mapeamento claro por bar_id; mantido fora dos cálculos agregados por bar
 -- - Pessoas Sympla usam sympla_participantes (possui bar_id)
--- - As views sÃ£o MATERIALIZED para performance e devem ser atualizadas via pg_cron
+-- - As views são MATERIALIZED para performance e devem ser atualizadas via pg_cron
 
--- ExtensÃ£o de agendamento (Supabase jÃ¡ oferece, mas garantimos)
+-- Extensão de agendamento (Supabase já oferece, mas garantimos)
 create extension if not exists pg_cron;
 
 -- =============================================================
@@ -90,7 +90,7 @@ left join pessoas_yuzer    py on py.bar_id = k.bar_id and py.ano = k.ano
 left join pessoas_sympla   ps on ps.bar_id = k.bar_id and ps.ano = k.ano
 left join reputacao        r  on r.ano = k.ano;
 
--- Ãndice para refresh concurrently e performance de lookup
+-- Índice para refresh concurrently e performance de lookup
 create unique index if not exists idx_view_visao_geral_anual
   on public.view_visao_geral_anual (bar_id, ano);
 
@@ -224,9 +224,9 @@ cmo as (
          sum(coalesce(valor, 0))::numeric as cmo_total
   from public.nibo_agendamentos
   where categoria_nome in (
-    'SALARIO FUNCIONARIOS','ALIMENTAÃ‡ÃƒO','PROVISÃƒO TRABALHISTA','VALE TRANSPORTE',
-    'FREELA ATENDIMENTO','FREELA BAR','FREELA COZINHA','FREELA LIMPEZA','FREELA SEGURANÃ‡A',
-    'Marketing','MANUTENÃ‡ÃƒO','Materiais OperaÃ§Ã£o','Outros OperaÃ§Ã£o'
+    'SALARIO FUNCIONARIOS','ALIMENTAÇÃO','PROVISÃO TRABALHISTA','VALE TRANSPORTE',
+    'FREELA ATENDIMENTO','FREELA BAR','FREELA COZINHA','FREELA LIMPEZA','FREELA SEGURANÇA',
+    'Marketing','MANUTENÇÃO','Materiais Operação','Outros Operação'
   )
   group by 1,2,3
 ),

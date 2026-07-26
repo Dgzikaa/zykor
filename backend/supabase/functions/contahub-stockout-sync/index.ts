@@ -5,7 +5,7 @@ import { requireAuth } from '../_shared/auth-guard.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { agoraEdgeFunction, formatarDataHoraEdge } from '../_shared/timezone.ts';
 
-console.log("­ƒôª ContaHub Stockout Sync - Controle de Estoque (Multi-Bar)");
+console.log("📦 ContaHub Stockout Sync - Controle de Estoque (Multi-Bar)");
 
 
 
@@ -47,9 +47,9 @@ interface ContaHubCredentials {
   empresa_id: string | null;
 }
 
-// Fun├º├úo para buscar credenciais do ContaHub do banco de dados
+// Função para buscar credenciais do ContaHub do banco de dados
 async function getContaHubCredentials(supabase: any, barId: number): Promise<ContaHubCredentials> {
-  console.log(`­ƒöÉ Buscando credenciais do ContaHub para bar_id=${barId}...`);
+  console.log(`🔐 Buscando credenciais do ContaHub para bar_id=${barId}...`);
   
   const { data, error } = await supabase
     .from('api_credentials')
@@ -60,15 +60,15 @@ async function getContaHubCredentials(supabase: any, barId: number): Promise<Con
     .single();
 
   if (error || !data) {
-    console.error('ÔØî Erro ao buscar credenciais:', error);
-    throw new Error(`Credenciais do ContaHub n├úo encontradas para bar_id=${barId}`);
+    console.error('❌ Erro ao buscar credenciais:', error);
+    throw new Error(`Credenciais do ContaHub não encontradas para bar_id=${barId}`);
   }
 
-  console.log(`Ô£à Credenciais encontradas para bar_id=${barId}: ${data.username}`);
+  console.log(`✅ Credenciais encontradas para bar_id=${barId}: ${data.username}`);
   return data;
 }
 
-// Fun├º├úo para extrair o ID da empresa do username (formato: usuario@empresa)
+// Função para extrair o ID da empresa do username (formato: usuario@empresa)
 function getEmpresaId(credentials: ContaHubCredentials): string {
   // Prioridade 1: usar empresa_id se estiver preenchido
   if (credentials.empresa_id) {
@@ -83,13 +83,13 @@ function getEmpresaId(credentials: ContaHubCredentials): string {
     }
   }
   
-  // Fallback: lan├ºar erro pois n├úo temos o ID da empresa
-  throw new Error('ID da empresa n├úo encontrado nas credenciais. Preencha empresa_id ou use formato usuario@empresa no username.');
+  // Fallback: lançar erro pois não temos o ID da empresa
+  throw new Error('ID da empresa não encontrado nas credenciais. Preencha empresa_id ou use formato usuario@empresa no username.');
 }
 
-// Fun├º├úo de login no ContaHub
+// Função de login no ContaHub
 async function loginContaHub(credentials: ContaHubCredentials): Promise<string> {
-  console.log(`­ƒöÉ Fazendo login no ContaHub com ${credentials.username}...`);
+  console.log(`🔐 Fazendo login no ContaHub com ${credentials.username}...`);
   
   const encoder = new TextEncoder();
   const data = encoder.encode(credentials.password);
@@ -108,7 +108,7 @@ async function loginContaHub(credentials: ContaHubCredentials): Promise<string> 
   const baseUrl = credentials.base_url.replace('/api', ''); // Remover /api se existir
   const loginUrl = `${baseUrl}/rest/contahub.cmds.UsuarioCmd/login/${loginTimestamp}?emp=0`;
   
-  console.log(`­ƒöù URL de login: ${loginUrl}`);
+  console.log(`🔗 URL de login: ${loginUrl}`);
   
   const loginResponse = await fetch(loginUrl, {
     method: 'POST',
@@ -126,16 +126,16 @@ async function loginContaHub(credentials: ContaHubCredentials): Promise<string> 
   
   const setCookieHeaders = loginResponse.headers.get('set-cookie');
   if (!setCookieHeaders) {
-    throw new Error('Cookies de sess├úo n├úo encontrados no login');
+    throw new Error('Cookies de sessão não encontrados no login');
   }
   
-  console.log('Ô£à Login ContaHub realizado com sucesso');
+  console.log('✅ Login ContaHub realizado com sucesso');
   return setCookieHeaders;
 }
 
-// Fun├º├úo para fazer requisi├º├Áes ao ContaHub
+// Função para fazer requisições ao ContaHub
 async function fetchContaHubData(url: string, sessionToken: string) {
-  console.log(`­ƒöù Fazendo requisi├º├úo: ${url}`);
+  console.log(`🔗 Fazendo requisição: ${url}`);
   
   const response = await fetch(url, {
     method: 'GET',
@@ -147,24 +147,24 @@ async function fetchContaHubData(url: string, sessionToken: string) {
   });
   
   if (!response.ok) {
-    throw new Error(`Erro na requisi├º├úo ContaHub: ${response.statusText}`);
+    throw new Error(`Erro na requisição ContaHub: ${response.statusText}`);
   }
   
   const responseText = await response.text();
   
   // Log detalhado da resposta
-  console.log('­ƒôÑ Resposta ContaHub (primeiros 200 chars):', responseText.substring(0, 200));
-  console.log('­ƒôÅ Tamanho da resposta:', responseText.length);
+  console.log('📥 Resposta ContaHub (primeiros 200 chars):', responseText.substring(0, 200));
+  console.log('📏 Tamanho da resposta:', responseText.length);
   
-  // Limpar poss├¡veis caracteres invis├¡veis no in├¡cio
+  // Limpar possíveis caracteres invisíveis no início
   const cleanedText = responseText.trim().replace(/^\uFEFF/, ''); // Remove BOM se existir
   
   try {
     return JSON.parse(cleanedText);
   } catch (parseError) {
-    console.error('ÔØî Erro ao fazer parse da resposta ContaHub:', parseError);
-    console.error('­ƒôÑ Resposta original:', responseText);
-    console.error('­ƒôÑ Resposta limpa:', cleanedText);
+    console.error('❌ Erro ao fazer parse da resposta ContaHub:', parseError);
+    console.error('📥 Resposta original:', responseText);
+    console.error('📥 Resposta limpa:', cleanedText);
     throw new Error(`Erro no parsing da resposta ContaHub: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
   }
 }
@@ -332,34 +332,34 @@ Deno.serve(async (req: Request): Promise<Response> => {
     
     console.log(`🎯 Coletando STOCKOUT para bar_id=${bar_id}, data=${data_date}`);
     
-    // Buscar credenciais do ContaHub para o bar espec├¡fico
+    // Buscar credenciais do ContaHub para o bar específico
     const credentials = await getContaHubCredentials(supabase, bar_id);
     
     // Extrair ID da empresa das credenciais
     const empresaId = getEmpresaId(credentials);
     
-    console.log(`­ƒÅ¬ Bar ID: ${bar_id}`);
-    console.log(`­ƒÅó Empresa ID: ${empresaId}`);
-    console.log(`­ƒöù Base URL: ${credentials.base_url}`);
+    console.log(`🏪 Bar ID: ${bar_id}`);
+    console.log(`🏢 Empresa ID: ${empresaId}`);
+    console.log(`🔗 Base URL: ${credentials.base_url}`);
     
     // Login no ContaHub
     const sessionToken = await loginContaHub(credentials);
     
-    // Gerar timestamp din├ómico
+    // Gerar timestamp dinâmico
     const queryTimestamp = generateDynamicTimestamp();
     
     // Usar a base_url das credenciais
     const baseUrl = credentials.base_url.replace('/api', ''); // Remover /api se existir
     
-    // URL para buscar produtos (API correta) - usando empresaId din├ómico
+    // URL para buscar produtos (API correta) - usando empresaId dinâmico
     const url = `${baseUrl}/rest/contahub.cmds.ProdutoCmd/getProdutos/${queryTimestamp}?emp=${empresaId}&prd_desc=%20&grp=-29&nfe=1`;
     
-    console.log(`­ƒöù URL Produtos: ${url}`);
+    console.log(`🔗 URL Produtos: ${url}`);
     
     // Buscar dados do ContaHub
     const rawData = await fetchContaHubData(url, sessionToken);
     
-    console.log(`­ƒôè Dados recebidos do ContaHub: ${rawData?.list?.length || 0} produtos`);
+    console.log(`📊 Dados recebidos do ContaHub: ${rawData?.list?.length || 0} produtos`);
     
     // Processar e salvar dados em bronze (delete do dia + insert em lotes)
     const result = await processStockoutData(supabase, rawData, data_date, bar_id);
@@ -392,7 +392,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       processamento_completo: true
     };
     
-    console.log('\n­ƒôè RESUMO STOCKOUT:');
+    console.log('\n📊 RESUMO STOCKOUT:');
     console.log(`- Bar ID: ${bar_id}`);
     console.log(`- Empresa ID: ${empresaId}`);
     console.log(`- Data: ${data_date}`);
