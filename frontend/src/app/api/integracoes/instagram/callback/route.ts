@@ -23,6 +23,14 @@ export async function GET(req: NextRequest) {
   const state = sp.get('state');
   const erroMeta = sp.get('error');
   const erroMsg = sp.get('error_description') || sp.get('error_reason');
+  // A Meta manda 3 campos e cada um diz uma coisa: `error` é o código (access_denied...),
+  // `error_reason` o motivo e `error_description` o texto de tela. Guardar só um perde
+  // justamente o que identifica o caso. Junta os que vierem, sem o `code` (é segredo).
+  const erroCompleto = ['error', 'error_reason', 'error_description']
+    .map(k => [k, sp.get(k)] as const)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(' | ');
 
   const baseRedirect =
     (process.env.NEXT_PUBLIC_SITE_URL || 'https://zykor.com.br') +
@@ -47,15 +55,21 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const falhar = async (motivo: string) => {
-    console.error('[ig/callback] falhou:', motivo);
-    await registrarFalha(motivo);
+  // `paraBanco` separa o que o usuário lê do que fica registrado: a tela recebe a mensagem
+  // curta, o banco recebe o payload inteiro pra diagnóstico.
+  const falhar = async (motivo: string, paraBanco?: string) => {
+    console.error('[ig/callback] falhou:', paraBanco || motivo);
+    await registrarFalha(paraBanco || motivo);
     return NextResponse.redirect(`${baseRedirect}?ig_status=erro&ig_msg=${encodeURIComponent(motivo)}`);
   };
 
   // Erro devolvido pela própria tela da Meta (conta não é Profissional, permissão negada,
   // usuário cancelou...). É aqui que a maioria das tentativas morre.
-  if (erroMeta) return falhar(erroMsg || erroMeta);
+  // ATENÇÃO: nem todo erro passa por aqui. Quando o problema é de PAPEL da conta no app
+  // ("Insufficient developer role"), a Meta mostra a tela de erro DELA e não redireciona —
+  // então não chega nada no Zykor e não há o que registrar. Se um state ficou sem consumir
+  // e sem erro, foi esse caso: a resposta está no painel da Meta, não aqui.
+  if (erroMeta) return falhar(erroMsg || erroMeta, erroCompleto);
 
   if (!code || !state) {
     return NextResponse.redirect(`${baseRedirect}?ig_status=erro&ig_msg=parametros_ausentes`);
