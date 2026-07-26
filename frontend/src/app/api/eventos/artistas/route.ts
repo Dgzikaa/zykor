@@ -78,7 +78,6 @@ export async function PUT(request: NextRequest) {
 
   // monta as linhas, resolvendo/gravando o artista no cadastro (bar_artistas) quando digitado livre
   const linhas: any[] = [];
-  let ordem = 1;
   for (const a of artistas) {
     const nome = String(a.artista_nome || '').trim();
     if (!nome) continue;
@@ -103,13 +102,28 @@ export async function PUT(request: NextRequest) {
       bar_id: barId,
       artista_id: artistaId,
       artista_nome: nome,
-      ordem: ordem++,
+      ordem: 0, // atribuída abaixo, na ordem da noite
       horario_inicio: hi || null,
       horario_fim: hf || null,
       c_art: custo != null && !isNaN(custo) ? custo : null,
       observacoes: a.observacoes ? String(a.observacoes) : null,
     });
   }
+
+  // ordem = ordem da noite: quem começa na madrugada (< 06h) é o ÚLTIMO, não o primeiro.
+  // Dentro de cada bloco preserva a ordem que veio do formulário (sort estável via índice).
+  const madrugada = (h: string | null) => {
+    const hora = h ? Number(String(h).slice(0, 2)) : NaN;
+    return Number.isFinite(hora) && hora < 6 ? 1 : 0;
+  };
+  linhas
+    .map((l, i) => ({ l, i }))
+    .sort((x, y) => {
+      const mx = madrugada(x.l.horario_inicio);
+      const my = madrugada(y.l.horario_inicio);
+      return mx !== my ? mx - my : x.i - y.i;
+    })
+    .forEach(({ l }, idx) => { l.ordem = idx + 1; });
 
   // replace-all: apaga o conjunto atual e regrava
   const { error: delErr } = await ops.from('evento_artistas').delete().eq('evento_id', eventoId);

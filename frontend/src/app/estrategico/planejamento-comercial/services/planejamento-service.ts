@@ -341,22 +341,44 @@ export async function getPlanejamentoComercial(
   );
 
   // Artistas taggeados por evento (operations.evento_artistas) → coluna "Artistas" do grid.
+  // Ordem = a da noite: quem começa depois da meia-noite (madrugada, < 06h) é o ÚLTIMO,
+  // não o primeiro — ordenar só por horario_inicio jogava o DJ das 00h30 pra frente da banda das 20h.
   const idsEventosBase = ((eventosManuais || []) as any[]).map((m) => m.id).filter((x) => x != null);
   const artistasPorEvento = new Map<number, string[]>();
   if (idsEventosBase.length) {
     const { data: eaRows } = await supabase
       .schema('operations' as never)
       .from('evento_artistas')
-      .select('evento_id, artista_nome, horario_inicio')
+      .select('evento_id, artista_nome, ordem, horario_inicio')
       .eq('bar_id', barId)
       .in('evento_id', idsEventosBase)
-      .order('horario_inicio', { ascending: true, nullsFirst: true });
+      .order('ordem', { ascending: true, nullsFirst: true });
+    const ehMadrugada = (h: string | null) => {
+      if (!h) return 0;
+      const hora = Number(String(h).slice(0, 2));
+      return Number.isFinite(hora) && hora < 6 ? 1 : 0;
+    };
+    const linhasPorEvento = new Map<number, any[]>();
     for (const r of (eaRows || []) as any[]) {
-      const nome = String(r.artista_nome || '').trim();
-      if (!nome) continue;
-      const arr = artistasPorEvento.get(r.evento_id) || [];
-      arr.push(nome);
-      artistasPorEvento.set(r.evento_id, arr);
+      if (!String(r.artista_nome || '').trim()) continue;
+      const arr = linhasPorEvento.get(r.evento_id) || [];
+      arr.push(r);
+      linhasPorEvento.set(r.evento_id, arr);
+    }
+    for (const [eventoId, linhas] of linhasPorEvento) {
+      const ordenadas = linhas
+        .map((r, i) => ({ r, i }))
+        .sort((a, b) => {
+          const madA = ehMadrugada(a.r.horario_inicio);
+          const madB = ehMadrugada(b.r.horario_inicio);
+          if (madA !== madB) return madA - madB;
+          const ordA = a.r.ordem ?? 999;
+          const ordB = b.r.ordem ?? 999;
+          if (ordA !== ordB) return ordA - ordB;
+          return a.i - b.i;
+        })
+        .map(({ r }) => String(r.artista_nome).trim());
+      artistasPorEvento.set(eventoId, ordenadas);
     }
   }
 

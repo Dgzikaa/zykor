@@ -61,6 +61,43 @@ interface ArtistaLinha {
   horario_fim?: string;
 }
 
+// "HH:MM" → minutos. Retorna null se vazio/inválido.
+const minutosDoHorario = (h?: string | null): number | null => {
+  if (!h) return null;
+  const [hh, mm] = String(h).slice(0, 5).split(':').map(Number);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  return hh * 60 + mm;
+};
+
+// Show que começa na madrugada (< 06h) é o ÚLTIMO da noite, não o primeiro.
+const ehMadrugada = (h?: string | null): boolean => {
+  const m = minutosDoHorario(h);
+  return m != null && m < 6 * 60;
+};
+
+// Ordem da noite: madrugada por último, preservando a ordem gravada dentro de cada bloco.
+const ordenarArtistasDaNoite = <T extends { horario_inicio?: string }>(linhas: T[]): T[] =>
+  linhas
+    .map((a, i) => ({ a, i }))
+    .sort((x, y) => {
+      const madX = ehMadrugada(x.a.horario_inicio) ? 1 : 0;
+      const madY = ehMadrugada(y.a.horario_inicio) ? 1 : 0;
+      return madX !== madY ? madX - madY : x.i - y.i;
+    })
+    .map(({ a }) => a);
+
+// Quanto tocou: fim − início, virando o dia quando o show atravessa a meia-noite (22h→00h10 = 2h10).
+const duracaoArtista = (inicio?: string, fim?: string): string | null => {
+  const ini = minutosDoHorario(inicio);
+  const f = minutosDoHorario(fim);
+  if (ini == null || f == null) return null;
+  const total = f > ini ? f - ini : f + 24 * 60 - ini;
+  if (total <= 0 || total > 12 * 60) return null; // janela absurda = dado errado, não mostra
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return h === 0 ? `${m}min` : m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, '0')}`;
+};
+
 // Combobox leve de artista: lista o cadastro (bar_artistas) + permite digitar um nome novo (cria no save).
 function ArtistaField({
   value,
@@ -491,12 +528,14 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
 
     const atrasosData = atrasosResponse?.data || { atrasos_cozinha: 0, atrasos_bar: 0 };
     const raw: any = eventoRawResponse?.data || {};
-    const artistasEvento: ArtistaLinha[] = (((artistasResponse as any)?.artistas) || []).map((a: any) => ({
-      artista_id: a.artista_id ?? null,
-      artista_nome: a.artista_nome || '',
-      horario_inicio: a.horario_inicio ? String(a.horario_inicio).slice(0, 5) : '',
-      horario_fim: a.horario_fim ? String(a.horario_fim).slice(0, 5) : '',
-    }));
+    const artistasEvento: ArtistaLinha[] = ordenarArtistasDaNoite(
+      (((artistasResponse as any)?.artistas) || []).map((a: any) => ({
+        artista_id: a.artista_id ?? null,
+        artista_nome: a.artista_nome || '',
+        horario_inicio: a.horario_inicio ? String(a.horario_inicio).slice(0, 5) : '',
+        horario_fim: a.horario_fim ? String(a.horario_fim).slice(0, 5) : '',
+      }))
+    );
 
     let dadosSymplaYuzer = {};
     if (isDomingo && eventoRawResponse?.data) {
@@ -1877,6 +1916,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                   {modoEdicao ? (
                     <div className="space-y-2">
                       {(eventoEdicao?.artistas || []).map((a, i) => (
+                        // w-[7.5rem] tem que ficar no WRAPPER: o Input renderiza uma div `relative w-full`
+                        // por fora, então a classe no próprio input não segurava a largura e cada campo
+                        // caía numa linha só dele (parecia que o horário não tinha carregado).
                         <div key={i} className="flex flex-wrap items-center gap-2">
                           <div className="flex-1 min-w-[180px]">
                             <ArtistaField
@@ -1885,26 +1927,44 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                               onChange={(nome, id) => setArtistaLinha(i, { artista_nome: nome, artista_id: id })}
                             />
                           </div>
-                          <Input type="time" value={a.horario_inicio || ''} onChange={(e) => setArtistaLinha(i, { horario_inicio: e.target.value })} className="w-[7.5rem]" title="Início" />
+                          <div className="w-[7.5rem] shrink-0">
+                            <Input type="time" value={a.horario_inicio || ''} onChange={(e) => setArtistaLinha(i, { horario_inicio: e.target.value })} title="Início" />
+                          </div>
                           <span className="text-xs text-[hsl(var(--muted-foreground))]">até</span>
-                          <Input type="time" value={a.horario_fim || ''} onChange={(e) => setArtistaLinha(i, { horario_fim: e.target.value })} className="w-[7.5rem]" title="Fim" />
+                          <div className="w-[7.5rem] shrink-0">
+                            <Input type="time" value={a.horario_fim || ''} onChange={(e) => setArtistaLinha(i, { horario_fim: e.target.value })} title="Fim" />
+                          </div>
+                          <span className="w-12 shrink-0 text-xs text-[hsl(var(--muted-foreground))]" title="Tempo de show">
+                            {duracaoArtista(a.horario_inicio, a.horario_fim) || ''}
+                          </span>
                           <Button variant="ghost" size="icon" onClick={() => removerArtista(i)} title="Remover artista"><X className="h-4 w-4" /></Button>
                         </div>
                       ))}
                       <Button variant="outline" size="sm" onClick={addArtista}><Plus className="h-4 w-4 mr-1" /> Adicionar artista</Button>
+                      <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                        Quem começa depois da meia-noite entra como último da noite (ex.: 00h30 toca depois do show das 22h).
+                      </p>
                     </div>
                   ) : (eventoEdicao?.artistas || []).length > 0 ? (
                     <ul className="space-y-1">
-                      {(eventoEdicao?.artistas || []).map((a, i) => (
-                        <li key={i} className="text-sm flex items-center gap-2">
-                          <span className="font-medium">{a.artista_nome}</span>
-                          {(a.horario_inicio || a.horario_fim) && (
-                            <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                              {a.horario_inicio || '—'}{a.horario_fim ? `–${a.horario_fim}` : ''}
-                            </span>
-                          )}
-                        </li>
-                      ))}
+                      {(eventoEdicao?.artistas || []).map((a, i) => {
+                        const dur = duracaoArtista(a.horario_inicio, a.horario_fim);
+                        return (
+                          <li key={i} className="text-sm flex items-center gap-2">
+                            <span className="font-medium">{a.artista_nome}</span>
+                            {(a.horario_inicio || a.horario_fim) && (
+                              <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                                {a.horario_inicio || '—'}{a.horario_fim ? `–${a.horario_fim}` : ''}
+                              </span>
+                            )}
+                            {dur && (
+                              <span className="text-xs rounded px-1.5 py-0.5 bg-[hsl(var(--background))] border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]" title="Tempo de show">
+                                {dur}
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   ) : (
                     <p className="text-sm text-[hsl(var(--muted-foreground))]">Nenhum artista cadastrado neste evento.</p>
