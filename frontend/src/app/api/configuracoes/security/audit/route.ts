@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -81,6 +81,9 @@ export async function GET(request: NextRequest) {
 
 // Endpoint para registrar um log de auditoria
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return permissionErrorResponse('Usuário não autenticado');
+  if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
   await authenticateUser(request);
   try {
     const body = await request.json();

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
+import { authenticateUser, permissionErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
 const supabase = createServiceRoleClient();
 
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return permissionErrorResponse('Usuário não autenticado');
+  if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
   try {
     const { action, bar_id, webhooks } = await request.json();
 

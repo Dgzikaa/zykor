@@ -53,6 +53,9 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   // O reset de senha admin em especial troca a senha de outro usuário — vale a trava explícita
   // aqui além da que o middleware já faz.
   { prefix: '/api/configuracoes/usuarios', paths: ['/configuracoes/usuarios'] },
+  // Chamada tanto por /configuracoes/permissoes (fora do menu) quanto por
+  // /configuracoes/usuarios (no menu) — é a segunda que dá o módulo.
+  { prefix: '/api/configuracoes/permissoes', paths: ['/configuracoes/usuarios'] },
   { prefix: '/api/configuracoes/credenciais', paths: ['/configuracoes/administracao/integracoes'] },
   { prefix: '/api/configuracoes/whatsapp', paths: ['/configuracoes/administracao/integracoes'] },
   { prefix: '/api/configuracoes/discord', paths: ['/configuracoes/administracao/integracoes'] },

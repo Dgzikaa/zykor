@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { authenticateUser, authErrorResponse , permissionErrorResponse } from '@/middleware/auth';
 
 // =====================================================
 // GET - BUSCAR META ESPECÍFICA
@@ -70,6 +70,7 @@ export async function PUT(
     if (!user) {
       return authErrorResponse('Usuário não autenticado');
     }
+    if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
 
     const { id: metaId } = await params;
     const body = await request.json();
@@ -154,6 +155,7 @@ export async function DELETE(
     if (!user) {
       return authErrorResponse('Usuário não autenticado');
     }
+    if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
 
     const { id: metaId } = await params;
     const supabase = await getAdminClient();

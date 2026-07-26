@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -98,6 +98,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
   try {
     const body = await request.json();
     const {
@@ -222,6 +223,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
   try {
     const body = await request.json();
     const { checklist_id, item_id, status, observacoes } = body;

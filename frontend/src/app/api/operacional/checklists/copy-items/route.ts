@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: NextRequest) {
   const authUser = await authenticateUser(req);
   if (!authUser) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  if ((authUser.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

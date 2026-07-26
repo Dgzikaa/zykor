@@ -285,6 +285,7 @@ export async function PUT(
     if (!user) {
       return authErrorResponse('Usuário não autenticado');
     }
+    if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
 
     // 🔒 PERMISSÕES - Verificar se pode editar checklists
     if (!checkPermission(user, { module: 'checklists', action: 'write' })) {
@@ -437,6 +438,7 @@ export async function DELETE(
     if (!user) {
       return authErrorResponse('Usuário não autenticado');
     }
+    if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
 
     // 🔒 PERMISSÕES - Verificar se pode deletar checklists
     if (!checkPermission(user, { module: 'checklists', action: 'delete' })) {

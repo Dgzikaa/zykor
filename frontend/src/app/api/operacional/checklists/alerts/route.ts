@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { DiscordChecklistService } from '@/lib/discord-checklist-service';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
@@ -312,6 +312,9 @@ function generateAlertMessage(
 // =====================================================
 
 export async function POST(req: NextRequest) {
+  const user = await authenticateUser(req);
+  if (!user) return permissionErrorResponse('Usuário não autenticado');
+  if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
   await authenticateUser(req);
   try {
     const supabase = createClient(

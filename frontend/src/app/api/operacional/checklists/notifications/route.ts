@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { authenticateUser, authErrorResponse , permissionErrorResponse } from '@/middleware/auth';
 import { z } from 'zod';
 import { SupabaseClient } from '@supabase/supabase-js';
 
@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return authErrorResponse('Usuário não autenticado');
     }
+    if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
 
     const body = await request.json();
     const data = NotificacaoChecklistSchema.parse(body);

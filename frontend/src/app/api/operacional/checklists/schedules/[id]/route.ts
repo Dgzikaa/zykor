@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { authenticateUser, authErrorResponse , permissionErrorResponse } from '@/middleware/auth';
 
 // =====================================================
 // 🗑️ API PARA EXCLUIR AGENDAMENTO ESPECÍFICO
@@ -16,6 +16,7 @@ export async function DELETE(
     if (!user) {
       return authErrorResponse('Usuário não autenticado');
     }
+    if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
 
     const { id: scheduleId } = await params;
 

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateUser, permissionErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return permissionErrorResponse('Usuário não autenticado');
+  if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
   try {
     const cronJobSQL = `-- CONFIGURAR PG_CRON PARA DESEMPENHO AUTOMÁTICO
 -- Execute este SQL no Supabase SQL Editor:
@@ -210,6 +214,9 @@ ORDER BY jobname;`;
 }
 
 export async function DELETE(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return permissionErrorResponse('Usuário não autenticado');
+  if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
   try {
     const deleteSQL = `-- REMOVER JOBS DO PG_CRON DESEMPENHO
 -- Execute este SQL no Supabase SQL Editor:

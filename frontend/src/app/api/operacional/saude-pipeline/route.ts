@@ -12,7 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -156,6 +156,9 @@ export async function GET(request: NextRequest) {
  * (o middleware de auth cuida). Uso esperado: botão "Atualizar agora" na tela.
  */
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return permissionErrorResponse('Usuário não autenticado');
+  if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
   await authenticateUser(request);
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);

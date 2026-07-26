@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
 
 // Interfaces TypeScript
 interface ChecklistFuncionario {
@@ -14,6 +14,9 @@ interface ChecklistFuncionario {
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return permissionErrorResponse('Usuário não autenticado');
+  if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
   await authenticateUser(request);
   try {
     const body = await request.json();

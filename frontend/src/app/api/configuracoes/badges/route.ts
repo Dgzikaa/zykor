@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { authenticateUser, authErrorResponse , permissionErrorResponse } from '@/middleware/auth';
 import { safeErrorLog, isExpectedError } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic'
@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return authErrorResponse('Usuário não autenticado');
     }
+    if ((user.role as string) !== 'admin') return permissionErrorResponse('Somente admin');
 
     const body = (await request.json()) as BadgeRequest;
     const { bar_id, user_id } = body;
