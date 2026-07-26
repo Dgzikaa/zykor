@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { linhaDigitavelValida } from '@/app/financeiro/pedidos-pagamento/boletoBarcode';
 import Anthropic from '@anthropic-ai/sdk';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -36,6 +37,7 @@ const RETRY_LINHA = (lida: string) =>
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const nega = negarPorRota(user, request); if (nega) return nega;
   if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;

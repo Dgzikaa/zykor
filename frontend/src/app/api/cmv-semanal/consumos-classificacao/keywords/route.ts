@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { authenticateUser } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 const supabase = createServiceRoleClient();
 
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  const nega = negarPorRota(user, request); if (nega) return nega;
   try {
     const body = await request.json();
     const { pattern, categoria, descricao, exemplo, bar_id } = body;
