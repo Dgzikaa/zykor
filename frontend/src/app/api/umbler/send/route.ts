@@ -1,42 +1,46 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
 import { getUmblerToken } from '@/lib/umbler';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 const supabase = createServiceRoleClient();
 
 /**
  * POST /api/umbler/send
- * Envia uma mensagem WhatsApp única via Umbler.
+ * Envia uma mensagem WhatsApp Ãºnica via Umbler.
  * Modo bulk foi removido em 2026-04-27 (CUT Feature B - DIY-send nunca usado em prod).
  * Time dispara campanhas em massa direto pelo portal da Umbler.
  */
 export async function POST(request: NextRequest) {
+  const userPOST = await authenticateUser(request);
+  if (!userPOST) return permissionErrorResponse('UsuÃ¡rio nÃ£o autenticado');
+  const negaPOST = negarPorRota(userPOST, request); if (negaPOST) return negaPOST;
   await authenticateUser(request);
   try {
     const body = await request.json();
     const { bar_id, mode, to_phone, message } = body;
 
     if (!bar_id) {
-      return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 });
+      return NextResponse.json({ error: 'bar_id Ã© obrigatÃ³rio' }, { status: 400 });
     }
 
     // Backwards-compat: aceita mode='single' explicito ou ausente
     if (mode && mode !== 'single') {
       return NextResponse.json(
-        { error: `mode "${mode}" não é mais suportado. Apenas "single" disponível.` },
+        { error: `mode "${mode}" nÃ£o Ã© mais suportado. Apenas "single" disponÃ­vel.` },
         { status: 400 }
       );
     }
 
     if (!to_phone || !message) {
       return NextResponse.json(
-        { error: 'to_phone e message são obrigatórios' },
+        { error: 'to_phone e message sÃ£o obrigatÃ³rios' },
         { status: 400 }
       );
     }
 
-    // Buscar configuração
+    // Buscar configuraÃ§Ã£o
     const { data: config, error: configError } = await supabase
       .from('umbler_config')
       .select('*')
@@ -46,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     if (configError || !config) {
       return NextResponse.json(
-        { error: 'Umbler não configurado para este bar' },
+        { error: 'Umbler nÃ£o configurado para este bar' },
         { status: 400 }
       );
     }
@@ -99,7 +103,7 @@ async function sendUmblerMessage(
     const response = await fetch('https://app-utalk.umbler.com/api/v1/messages/simplified/', {
       method: 'POST',
       headers: {
-        // Token da conta com fallback pro env — ver src/lib/umbler.ts
+        // Token da conta com fallback pro env â€” ver src/lib/umbler.ts
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },

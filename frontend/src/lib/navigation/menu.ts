@@ -194,6 +194,11 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Star', label: 'NPS Funcionários', href: '/operacional/nps', permission: 'ferramentas_nps_funcionarios' },
       { header: 'Comercial' },
       { icon: 'Megaphone', label: 'Central Comercial', href: '/comercial', permission: 'ferramentas_central_comercial' },
+      // CRM (Umbler): as telas viviam em /crm/*, fora do menu — ou seja, sem módulo pra exigir,
+      // o que deixava as rotas de disparo sem autorização. /ferramentas/crm é o hub com abas
+      // (as páginas de lá só re-exportam /crm/*, nada duplicado). Entra no menu agora pra
+      // existir o módulo `ferramentas_crm`; ainda não está em uso — vai ser ativado depois.
+      { icon: 'MessageCircle', label: 'CRM', href: '/ferramentas/crm', permission: 'ferramentas_crm', beta: true },
     ],
   },
   {

@@ -102,6 +102,15 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   // --- Analítico --- (/api/analitico/clientes/filtros-avancados é POST de LEITURA → fora do mapa)
   { prefix: '/api/campanhas-clube', paths: ['/analitico/clientes'] },
   { prefix: '/api/crm/lista-quente', paths: ['/analitico/clientes'] },
+  // --- CRM / Umbler --- (hub /ferramentas/crm, módulo ferramentas_crm)
+  // Os disparos mandam WhatsApp de verdade pra cliente: sem isto qualquer usuário logado
+  // conseguia disparar campanha, win-back ou NPS pela API.
+  { prefix: '/api/crm/campanhas', paths: ['/ferramentas/crm'] },
+  { prefix: '/api/umbler/config', paths: ['/ferramentas/crm'] },
+  { prefix: '/api/umbler/disparo-segmento', paths: ['/ferramentas/crm'] },
+  { prefix: '/api/umbler/disparo-winback', paths: ['/ferramentas/crm'] },
+  { prefix: '/api/umbler/nps-disparo', paths: ['/ferramentas/crm'] },
+  { prefix: '/api/umbler/send', paths: ['/ferramentas/crm'] },
   // COMPARTILHADA: quem tagueia artistas em Atrações E quem edita "quem tocou"/horários no
   // modal do Planejamento Comercial usam a MESMA rota. Libera por qualquer um dos módulos —
   // senão quem só tem estrategico_planejamento (edita título/plano) tomava 403 ao salvar os
