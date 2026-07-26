@@ -34,6 +34,8 @@ const REQUEST_TIMEOUT_MS = 25000
 const PAGE_SIZE = 500
 const SAFE_TIMEOUT_MS = 360000 // 360s (40s antes do limite de 400s do Supabase Pro)
 const MAX_RECORDS_PER_SYNC = 10000 // Limitar registros por execução (aumentado para capturar todos)
+// Únicos valores que o CHECK de bronze_contaazul_pessoas.tipo_pessoa aceita.
+const TIPOS_PESSOA_VALIDOS = new Set(['Física', 'Jurídica', 'Estrangeira'])
 
 interface SyncRequest {
   bar_id: number
@@ -620,9 +622,15 @@ async function syncPessoas(
           contaazul_id: item.id || item.uuid,
           bar_id: barId,
           nome: item.nome || item.name || 'SEM NOME',
-          // tipo_pessoa fica null: o CHECK constraint da tabela está mal-encodado
-          // (FÃ­sica) e o valor correto do CA (Física) viola. Não é usado no match.
-          tipo_pessoa: null,
+          // O CHECK desta coluna estava mal-encodado ('FÃ­sica'), então o valor correto que o
+          // CA devolve ('Física') violava e esta rota gravava null sempre — 2.607 pessoas, 0 com
+          // tipo. Constraint corrigida em 26/07/2026 (migration
+          // 20260726_fix_encoding_check_contaazul_pessoas_tipo). Grava defensivo: só o que a
+          // constraint aceita; qualquer outra coisa vira null, pra um valor novo do CA nunca
+          // derrubar o sync inteiro.
+          tipo_pessoa: TIPOS_PESSOA_VALIDOS.has(String(item.tipo_pessoa ?? item.person_type ?? ''))
+            ? String(item.tipo_pessoa ?? item.person_type)
+            : null,
           documento: doc.length ? doc : null,
           email: item.email || null,
           telefone: item.telefone || null,
