@@ -14,7 +14,10 @@ interface User {
 }
 
 // Função para pegar dados do usuário validando JWT
-async function getAuthenticatedUser(request: NextRequest): Promise<User | null> {
+/** 'cortado' = token válido porém emitido antes do corte de permissão → dá pra renovar sozinho. */
+type ResultadoAuth = User | 'cortado' | null;
+
+async function getAuthenticatedUser(request: NextRequest): Promise<ResultadoAuth> {
   try {
     // Autorização de PÁGINA = SÓ o auth_token assinado, verificado no Edge por Web Crypto
     // (INFORJÁVEL). O jsonwebtoken não roda no Edge, por isso usamos decodificarTokenEdge.
@@ -25,13 +28,15 @@ async function getAuthenticatedUser(request: NextRequest): Promise<User | null> 
     if (authToken) {
       const decoded = await decodificarTokenEdge(authToken);
       if (decoded) {
-        // Corte de re-login: token emitido antes do corte (global ou do usuário) → rejeita
-        // → o fluxo trata como não-autenticado e manda pro /login (relogin com token fresco).
+        // Corte de re-login: token emitido antes do corte (global ou do usuário).
+        // Devolve 'cortado' (não null): o token é AUTÊNTICO, só está desatualizado. Quem chama
+        // manda renovar em silêncio pelo refresh_token, em vez de exigir senha de novo — ver
+        // /api/auth/renovar. Sem refresh válido, aquela rota é que joga pro /login.
         if (decoded.iat) {
           const cortes = await getCortesEdge();
           const email = String(decoded.email || '').toLowerCase();
           const corte = Math.max(cortes.global, cortes.users[email] || 0);
-          if (corte && decoded.iat < corte) return null;
+          if (corte && decoded.iat < corte) return 'cortado';
         }
         const modulos = Array.isArray(decoded.modulos_permitidos)
           ? decoded.modulos_permitidos
@@ -225,6 +230,16 @@ export async function middleware(request: NextRequest) {
 
   // Verificar autenticação
   const user = await getAuthenticatedUser(request);
+
+  // Token autêntico mas anterior ao corte (ganhou/perdeu permissão): renova em SILÊNCIO pelo
+  // refresh_token e devolve pro destino. Antes isso caía no /login e a pessoa tinha que digitar
+  // senha só porque liberaram um módulo pra ela. Sem refresh válido, a própria rota manda pro
+  // login — o corte continua sendo respeitado, só não custa mais uma senha.
+  if (user === 'cortado') {
+    const renovar = new URL('/api/auth/renovar', request.url);
+    renovar.searchParams.set('next', pathname + request.nextUrl.search);
+    return NextResponse.redirect(renovar);
+  }
 
   if (!user) {
     console.log(`🚫 MIDDLEWARE: Usuário não autenticado tentando acessar ${pathname}`);

@@ -9,7 +9,7 @@
 //    ex.: .../webhook liberado NÃO deve liberar .../webhook/registrar, que é ação de admin).
 
 const PREFIXO_ABERTO = [
-  '/api/auth/', // login, logout, refresh, staff/login
+  '/api/auth/', // login, logout, refresh, renovar (silenciosa pós-corte), staff/login
   '/api/configuracoes/auth/', // login, logout, forgot-password, google, redefinir-senha
   '/api/emails/', // gatilhos de e-mail (transacional, server-side)
   '/api/portal/', // portal do funcionário por token
