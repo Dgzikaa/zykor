@@ -123,7 +123,14 @@ export default function AdministracaoIntegracoesPage() {
     if (!selectedBar?.id) return;
     setLoading(true);
     try {
-      const resp = await fetch(`/api/configuracoes/administracao/integracoes?bar_id=${selectedBar.id}`);
+      // no-store: a resposta vai com Cache-Control de 60s, então alternar entre dois bares
+      // dentro desse intervalo (A→B→A) reexibia números do cache em vez de recarregar — dava a
+      // impressão de que a tela não acompanhava a troca de bar. O painel é de saúde: sempre
+      // mostrar o estado atual vale mais que economizar a requisição.
+      const resp = await fetch(
+        `/api/configuracoes/administracao/integracoes?bar_id=${selectedBar.id}`,
+        { cache: 'no-store' },
+      );
       const json = await resp.json();
       if (!resp.ok) throw new Error(json?.error || 'Erro');
       setIntegracoes(json.integracoes || []);
