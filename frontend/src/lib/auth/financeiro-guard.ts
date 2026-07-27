@@ -39,6 +39,25 @@ export function podeFerramentaFinanceira(user: any, moduleId: string, action: Pe
 }
 
 /**
+ * Pode operar PELO MENOS UMA das ferramentas listadas.
+ *
+ * Para rota compartilhada entre telas — mesma regra do `negarSeNaoPode` em
+ * lib/permissions/guard.ts. Cadastrar fornecedor no CA, por exemplo, é feito tanto da tela de
+ * Beneficiários quanto de dentro do Pedido de Pagamento; exigir só `beneficiarios` barrava
+ * quem tinha acesso legítimo a Pedidos (caso da Ana Paula, 27/07/2026: a tela abria, o
+ * cadastro voltava "Sem permissão nesta ferramenta financeira").
+ *
+ * Passe as ferramentas que a rota realmente serve — não use como atalho pra afrouxar guard.
+ */
+export function podeAlgumaFerramentaFinanceira(
+  user: any,
+  moduleIds: readonly string[],
+  action: PermAction = 'inserir',
+): boolean {
+  return moduleIds.some(id => podeFerramentaFinanceira(user, id, action));
+}
+
+/**
  * Pode operar o financeiro/agendamentos?
  *
  * Antes as rotas exigiam `role === 'admin' || 'financeiro'`, o que BARRAVA funcionário

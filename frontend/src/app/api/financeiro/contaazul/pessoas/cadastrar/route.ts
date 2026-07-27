@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
 import { getCAValidToken } from '@/lib/contaazul/token';
-import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
+import { podeAlgumaFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +38,12 @@ interface CadastrarBody {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.beneficiarios, 'inserir')) {
+  // COMPARTILHADA: cadastra fornecedor tanto pela tela de Beneficiários quanto de dentro do
+  // Pedido de Pagamento (NovoPedidoDialog, PedidoDetailDialog, FaturaCartaoTab). Exigir só
+  // `beneficiarios` barrava quem tem Pedidos — a tela abria e o cadastro dava 403.
+  if (!podeAlgumaFerramentaFinanceira(
+    user, [FERRAMENTA_FINANCEIRA.beneficiarios, FERRAMENTA_FINANCEIRA.pedidos], 'inserir',
+  )) {
     return permissionErrorResponse('Sem permissão nesta ferramenta financeira');
   }
   try {
@@ -90,6 +95,29 @@ export async function POST(request: NextRequest) {
           tipo_perfil: existente.perfil || tipoPerfil,
           reusado: true,
           message: 'Fornecedor já existente no Conta Azul (mesmo CPF/CNPJ) — vinculado sem duplicar.',
+        });
+      }
+    } else {
+      // SEM documento (freela só com nome, chave PIX aleatória/e-mail...): antes caía direto no
+      // POST e criava fornecedor repetido toda vez que digitassem o mesmo nome. Aqui reusa por
+      // NOME, sem diferenciar maiúscula/acento.
+      //
+      // Só quando não veio documento de propósito: se veio e não bateu acima, é o MESMO nome com
+      // documento DIFERENTE — aí são pessoas distintas e tem que cadastrar mesmo.
+      // Comparação no banco (RPC buscar_pessoa_ca_por_nome): ignora acento, caixa e espaço
+      // duplicado. Em JS o `ilike` não resolveria — "Jose" não casa com "José", e nome digitado
+      // por pessoas diferentes varia justamente no acento.
+      const { data: achado } = await (supabase as any)
+        .rpc('buscar_pessoa_ca_por_nome', { p_bar_id: barId, p_nome: nome });
+      const igual = Array.isArray(achado) ? achado[0] : achado;
+      if (igual?.contaazul_id) {
+        return NextResponse.json({
+          success: true,
+          contaazul_id: igual.contaazul_id,
+          nome: igual.nome || nome,
+          tipo_perfil: igual.perfil || tipoPerfil,
+          reusado: true,
+          message: 'Já existe cadastro com esse nome no Conta Azul — vinculado sem duplicar.',
         });
       }
     }
