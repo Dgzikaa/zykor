@@ -34,13 +34,21 @@ const areaBadgeCor = (a: Area | null | undefined): string => {
   }
 };
 
-type Insumo = { codigo: string; nome: string; categoria: string | null; unidade_medida: string | null };
+// `origem_tipo: 'produto'` = item do CARDÁPIO (hambúrguer montado). Nesses, `codigo` guarda o id
+// do produto e o servidor explode a ficha ao gravar. Ausente = insumo/preparo, debitado direto.
+type Insumo = {
+  codigo: string; nome: string; categoria: string | null; unidade_medida: string | null;
+  origem_tipo?: 'produto';
+};
 type Foto = { storage_path: string; url: string; size_bytes?: number; mime?: string };
 type Item = {
   insumo_codigo: string; insumo_nome?: string; unidade?: string;
   qtd: number; motivo?: string; observacao?: string;
   area?: Area | null;
   preco?: number | null; valor_rs?: number | null;
+  // origem = o que a pessoa escolheu (o produto), quando a linha veio de explosão de ficha
+  origem_tipo?: 'insumo' | 'preparo' | 'produto';
+  origem_codigo?: string; origem_nome?: string; origem_qtd?: number;
 };
 type Registro = {
   id: number; bar_id: number; data: string; observacao: string | null;
@@ -133,12 +141,29 @@ export default function DesperdicioPage() {
     if (!barId) return;
     setLoading(true);
     try {
-      const [reg, ins] = await Promise.all([
+      // Produtos do cardápio entram na MESMA lista de busca dos insumos. Jogar fora um
+      // hambúrguer é jogar fora tudo que vai nele — o servidor explode a ficha na hora de
+      // gravar (ver expandirItens na API). Só entram produtos QUE TÊM ficha; sem ficha não há
+      // o que debitar, e apareceriam como opção que falha ao salvar.
+      const [reg, ins, prod] = await Promise.all([
         api.get(`/api/operacional/desperdicio?ini=${semana.ini}&fim=${semana.fim}`),
         api.get(`/api/operacional/insumos?bar_id=${barId}`),
+        api.get(`/api/operacional/produtos?bar_id=${barId}`).catch(() => ({ success: false })),
       ]);
       if (reg.success) setRegistros(reg.registros || []);
-      if (ins.success) setInsumos(ins.insumos || []);
+
+      const listaInsumos: Insumo[] = ins.success ? (ins.insumos || []) : [];
+      const listaProdutos: Insumo[] = ((prod as any)?.success ? ((prod as any).produtos || []) : [])
+        .filter((p: any) => p.ativo !== false && Number(p.qtd_componentes || 0) > 0)
+        .map((p: any) => ({
+          // `codigo` carrega o ID do cardápio: é ele que a API usa pra explodir a ficha.
+          codigo: String(p.id),
+          nome: p.nome,
+          unidade_medida: 'un',
+          categoria: p.categoria || 'Cardápio',
+          origem_tipo: 'produto' as const,
+        }));
+      setInsumos([...listaInsumos, ...listaProdutos]);
     } catch (e: any) {
       toast({ title: 'Erro ao carregar', description: e?.message, variant: 'destructive' });
     } finally { setLoading(false); }
@@ -633,10 +658,29 @@ function ItemRow({
                     {filtrados.length > 4 && <span> · role a lista ↓</span>}
                   </div>
                   {filtrados.map(i => (
-                    <button key={i.codigo} onClick={() => { onChange({ insumo_codigo: i.codigo, insumo_nome: i.nome, unidade: i.unidade_medida || 'un' }); setAbertoBusca(false); setBusca(''); }}
+                    <button key={`${i.origem_tipo || 'insumo'}-${i.codigo}`}
+                      onClick={() => {
+                        onChange({
+                          insumo_codigo: i.codigo, insumo_nome: i.nome,
+                          unidade: i.unidade_medida || 'un',
+                          origem_tipo: i.origem_tipo, origem_nome: i.origem_tipo === 'produto' ? i.nome : undefined,
+                        });
+                        setAbertoBusca(false); setBusca('');
+                      }}
                       className="w-full text-left px-2.5 py-1.5 hover:bg-accent text-sm">
-                      <div className="font-medium truncate">{i.nome}</div>
-                      <div className="text-[11px] text-muted-foreground">{i.codigo}{i.unidade_medida ? ` · ${i.unidade_medida}` : ''}{i.categoria ? ` · ${i.categoria}` : ''}</div>
+                      <div className="font-medium truncate flex items-center gap-1.5">
+                        {i.nome}
+                        {i.origem_tipo === 'produto' && (
+                          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+                            prato pronto
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {i.origem_tipo === 'produto'
+                          ? 'desconta tudo que vai nele (pão, blend, queijo, molho...)'
+                          : <>{i.codigo}{i.unidade_medida ? ` · ${i.unidade_medida}` : ''}{i.categoria ? ` · ${i.categoria}` : ''}</>}
+                      </div>
                     </button>
                   ))}
                 </div>

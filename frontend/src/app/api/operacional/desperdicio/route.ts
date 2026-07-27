@@ -22,7 +22,11 @@ const isISO = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2
 
 type Area = 'CozinhaFin' | 'CozinhaProd' | 'BarFin' | 'BarProd' | 'Salao';
 const AREAS: Area[] = ['CozinhaFin', 'CozinhaProd', 'BarFin', 'BarProd', 'Salao'];
-type Item = { insumo_codigo: string; qtd: number; motivo?: string; observacao?: string; area?: Area | null };
+type OrigemTipo = 'insumo' | 'preparo' | 'produto';
+type Item = {
+  insumo_codigo: string; qtd: number; motivo?: string; observacao?: string; area?: Area | null;
+  origem_tipo?: OrigemTipo; origem_codigo?: string; origem_nome?: string; origem_qtd?: number;
+};
 type Foto = { storage_path: string; url: string; size_bytes?: number; mime?: string };
 
 async function ctx(request: NextRequest) {
@@ -46,13 +50,57 @@ function validarItens(itens: unknown): Item[] {
     if (!insumo_codigo || !Number.isFinite(qtd) || qtd <= 0) continue;
     const rawArea = raw?.area ? String(raw.area).trim() : null;
     const area = rawArea && (AREAS as string[]).includes(rawArea) ? (rawArea as Area) : null;
+    const ot = String(raw?.origem_tipo || '').trim();
     out.push({
       insumo_codigo,
       qtd: Math.round(qtd * 1000) / 1000,
       motivo: raw?.motivo ? String(raw.motivo).trim() : undefined,
       observacao: raw?.observacao ? String(raw.observacao).trim() : undefined,
       area,
+      origem_tipo: (['insumo', 'preparo', 'produto'] as string[]).includes(ot) ? (ot as OrigemTipo) : undefined,
+      origem_codigo: raw?.origem_codigo ? String(raw.origem_codigo).trim() : undefined,
+      origem_nome: raw?.origem_nome ? String(raw.origem_nome).trim() : undefined,
+      origem_qtd: Number.isFinite(Number(raw?.origem_qtd)) ? Number(raw.origem_qtd) : undefined,
     });
+  }
+  return out;
+}
+
+/**
+ * Produto do cardápio → linhas que realmente saem do estoque.
+ *
+ * "Hambúrguer, quando a gente fala, é ele completo" (dono, 27/07) — então jogar fora 1 Debochão
+ * debita blend, pão, queijo, cebola... e o Molho Barbecoca. A explosão PARA no preparo de
+ * propósito: preparo tem estoque próprio e é contado, e o insumo cru dele já saiu quando foi
+ * produzido — descer além disso contaria o mesmo prejuízo duas vezes.
+ *
+ * Preparo e insumo escolhidos direto não explodem: viram 1 linha, no próprio código.
+ */
+async function expandirItens(supabase: any, barId: number, itens: Item[]): Promise<Item[]> {
+  const out: Item[] = [];
+  for (const it of itens) {
+    if (it.origem_tipo !== 'produto') {
+      out.push({ ...it, origem_tipo: it.origem_tipo || 'insumo', origem_codigo: it.origem_codigo || it.insumo_codigo, origem_qtd: it.origem_qtd ?? it.qtd });
+      continue;
+    }
+    const produtoId = Number(it.insumo_codigo); // no produto, o "código" que chega é o id do cardápio
+    const { data: comps } = await supabase.rpc('fn_desperdicio_explodir_produto', {
+      p_bar: barId, p_produto_id: produtoId,
+    });
+    if (!comps || comps.length === 0) continue; // produto sem ficha → nada a debitar
+    for (const c of comps as any[]) {
+      const qtdComponente = Number(c.qtd_por_unidade) * it.qtd;
+      if (!Number.isFinite(qtdComponente) || qtdComponente <= 0) continue;
+      out.push({
+        insumo_codigo: String(c.codigo),
+        qtd: Math.round(qtdComponente * 1000) / 1000,
+        motivo: it.motivo, observacao: it.observacao, area: it.area,
+        origem_tipo: 'produto',
+        origem_codigo: String(produtoId),
+        origem_nome: it.origem_nome,
+        origem_qtd: it.qtd,
+      });
+    }
   }
   return out;
 }
@@ -98,7 +146,7 @@ export async function GET(request: NextRequest) {
 
   const [{ data: itens }, { data: fotos }] = await Promise.all([
     ops(supabase).from('desperdicio_registro_item')
-      .select('id, registro_id, insumo_codigo, qtd, motivo, observacao, area').in('registro_id', ids),
+      .select('id, registro_id, insumo_codigo, qtd, motivo, observacao, area, origem_tipo, origem_codigo, origem_nome, origem_qtd').in('registro_id', ids),
     ops(supabase).from('desperdicio_registro_foto')
       .select('id, registro_id, storage_path, url, size_bytes, mime').in('registro_id', ids),
   ]);
@@ -155,8 +203,11 @@ export async function POST(request: NextRequest) {
   const data = String(body?.data || '');
   if (!isISO(data)) return NextResponse.json({ success: false, error: 'data (AAAA-MM-DD) obrigatória' }, { status: 400 });
 
-  const itens = validarItens(body?.itens);
-  if (itens.length === 0) return NextResponse.json({ success: false, error: 'Informe pelo menos 1 item (insumo + qtd)' }, { status: 400 });
+  const itensBrutos = validarItens(body?.itens);
+  if (itensBrutos.length === 0) return NextResponse.json({ success: false, error: 'Informe pelo menos 1 item (insumo + qtd)' }, { status: 400 });
+  // Produto do cardápio vira N linhas (blend, pão, queijo, molho...) ANTES de gravar.
+  const itens = await expandirItens(supabase, bar_id, itensBrutos);
+  if (itens.length === 0) return NextResponse.json({ success: false, error: 'Nenhum item com ficha técnica pra debitar — confira a ficha do produto escolhido' }, { status: 400 });
 
   const fotos = validarFotos(body?.fotos);
   if (fotos.length === 0) return NextResponse.json({ success: false, error: 'Anexe pelo menos 1 foto' }, { status: 400 });
@@ -216,7 +267,7 @@ export async function PUT(request: NextRequest) {
 
   // Se veio itens[] no body, SUBSTITUI o conjunto de itens (delete + insert) — trigger sincroniza.
   if (body?.itens !== undefined) {
-    const itens = validarItens(body.itens);
+    const itens = await expandirItens(supabase, bar_id, validarItens(body.itens));
     if (itens.length === 0) return NextResponse.json({ success: false, error: 'Pelo menos 1 item obrigatório' }, { status: 400 });
     const { error: errDel } = await ops(supabase).from('desperdicio_registro_item').delete().eq('registro_id', id);
     if (errDel) return NextResponse.json({ success: false, error: errDel.message }, { status: 500 });
