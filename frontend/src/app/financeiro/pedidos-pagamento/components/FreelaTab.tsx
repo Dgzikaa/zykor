@@ -58,6 +58,10 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
   const [aprovandoSemana, setAprovandoSemana] = useState(false);
 
   const semana = useMemo(() => weekInfo(dia), [dia]);
+  // Terça é só o padrão — o financeiro escolhe a data (costuma pagar na segunda pra sobrar
+  // terça e quarta pra resolver quem não recebeu). Reancora ao trocar de semana.
+  const [vencISO, setVencISO] = useState(semana.payTueISO);
+  useEffect(() => { setVencISO(semana.payTueISO); }, [semana.payTueISO]);
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -175,11 +179,11 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
     if (itens.length === 0) return showToast({ type: 'error', title: 'Selecione freelas e informe os valores' });
     setLancando(true);
     try {
-      // competência = dia trabalhado; vencimento = terça seguinte (fechamento semanal).
+      // competência = dia trabalhado; vencimento = data de pagamento escolhida (padrão terça).
       const res = await api.post('/api/financeiro/freelas/lancar', {
-        data_vencimento: semana.payTueISO, data_competencia: dia, itens,
+        data_vencimento: vencISO, data_competencia: dia, itens,
       });
-      showToast({ type: 'success', title: `${res.criados} diária(s) na semana`, message: `Vence terça ${ddmm(semana.payTueISO)}.` });
+      showToast({ type: 'success', title: `${res.criados} diária(s) na semana`, message: `Pagamento em ${ddmm(vencISO)}.` });
       setSel({});
       await carregar();
       onLancado();
@@ -218,9 +222,19 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navSemana(-1)}><ChevronLeft className="w-4 h-4" /></Button>
           <div className="text-sm px-1">
             <span className="font-medium">Semana {ddmm(semana.monISO)} a {ddmm(semana.sunISO)}</span>
-            <span className="text-muted-foreground"> · vence terça {ddmm(semana.payTueISO)}</span>
           </div>
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navSemana(1)}><ChevronRight className="w-4 h-4" /></Button>
+          <div className="flex items-center gap-1.5 ml-1 sm:ml-3">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Pagamento</span>
+            <Input
+              type="date"
+              value={vencISO}
+              min={semana.monISO}
+              onChange={(e) => setVencISO(e.target.value || semana.payTueISO)}
+              className="h-8 w-[9.5rem]"
+              title="Data em que os freelas serão pagos. Vale para as diárias lançadas aqui."
+            />
+          </div>
         </div>
         <div className="flex items-center gap-1.5">
           {/* #16 — Lançar na semana também aqui em cima (além do rodapé), pra não precisar rolar. */}
@@ -357,7 +371,7 @@ export function FreelaTab({ barId, podeAprovar, onLancado }: { barId: number | n
 
           {selecionados.length > 0 && (
             <div className="sticky bottom-3 flex items-center justify-between gap-3 rounded-lg border bg-card shadow-lg p-3">
-              <div className="text-sm"><b>{selecionados.length}</b> freela(s) · total <b>{fmtBRL(totalNovo)}</b> · vence terça {ddmm(semana.payTueISO)}</div>
+              <div className="text-sm"><b>{selecionados.length}</b> freela(s) · total <b>{fmtBRL(totalNovo)}</b> · pagamento {ddmm(vencISO)}</div>
               <Button onClick={lancar} disabled={lancando}>
                 {lancando ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Lançando...</> : <><Send className="w-4 h-4 mr-2" />Lançar na semana</>}
               </Button>

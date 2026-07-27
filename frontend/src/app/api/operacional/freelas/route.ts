@@ -121,6 +121,13 @@ export async function POST(request: NextRequest) {
   if (action === 'encerrar') {
     const { mon, sun } = body;
     if (!isISO(mon) || !isISO(sun)) return NextResponse.json({ success: false, error: 'mon/sun (AAAA-MM-DD) obrigatórios' }, { status: 400 });
+    // Data de pagamento escolhida na tela. Opcional: sem ela, mantém o vencimento que a diária
+    // já tinha (comportamento antigo). Com ela, vale pra semana INTEIRA — inclusive as diárias
+    // lançadas antes de trocarem a data, que ficaram com a terça padrão.
+    const vencEscolhido: string | null = isISO(body.data_vencimento) ? body.data_vencimento : null;
+    if (body.data_vencimento && !vencEscolhido) {
+      return NextResponse.json({ success: false, error: 'data_vencimento inválida (use AAAA-MM-DD)' }, { status: 400 });
+    }
 
     const { data: diarias, error: errD } = await fin(supabase).from('pedidos_pagamento')
       .select('*').eq('bar_id', bar_id).eq('tipo', 'freela').eq('status', 'rascunho')
@@ -137,7 +144,7 @@ export async function POST(request: NextRequest) {
       lista.sort((a, b) => String(a.data_competencia).localeCompare(String(b.data_competencia)));
       const base = lista.find((d) => d.contaazul_pessoa_id) || lista[0];
       const soma = lista.reduce((s, d) => s + Number(d.valor || 0), 0);
-      const venc = base.data_vencimento;
+      const venc = vencEscolhido || base.data_vencimento;
       const nome = base.beneficiario_nome || 'Freela';
       const ddmm = (iso: string) => { const [, m, dd] = iso.split('-'); return `${dd}/${m}`; };
 
@@ -171,7 +178,7 @@ export async function POST(request: NextRequest) {
       await fin(supabase).from('pedidos_pagamento').delete().in('id', lista.map((d) => d.id));
       await comentarioSistema(supabase, {
         pedido_id: parent.id, bar_id,
-        mensagem: `Semana encerrada pela operação (${user.nome}) — ${lista.length} diária(s) de ${nome} agrupadas em 1 pagamento (${formatBRL(soma)}), enviado ao financeiro.`,
+        mensagem: `Semana encerrada pela operação (${user.nome}) — ${lista.length} diária(s) de ${nome} agrupadas em 1 pagamento (${formatBRL(soma)}), pagamento em ${ddmm(venc)}, enviado ao financeiro.`,
       });
       pessoas++; total += soma;
     }

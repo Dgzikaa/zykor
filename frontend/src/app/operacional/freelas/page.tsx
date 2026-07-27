@@ -55,7 +55,9 @@ function mondayOf(d: Date) { const x = new Date(d); const wd = (x.getDay() + 6) 
 function weekInfo(monISO: string) {
   const mon = parseISO(monISO);
   const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-  const payTue = new Date(sun); payTue.setDate(sun.getDate() + 2); // diárias pagam na terça seguinte
+  // Terça seguinte é só o PADRÃO — a data é editável na tela (o financeiro costuma pagar na
+  // segunda pra sobrar terça e quarta pra resolver quem não recebeu).
+  const payTue = new Date(sun); payTue.setDate(sun.getDate() + 2);
   return { monISO, sunISO: toISO(sun), payTueISO: toISO(payTue) };
 }
 const RASCUNHO: PedidoStatus = 'rascunho';
@@ -70,6 +72,11 @@ export default function FreelasOperacaoPage() {
 
   const [monISO, setMonISO] = useState(() => toISO(mondayOf(new Date())));
   const semana = useMemo(() => weekInfo(monISO), [monISO]);
+
+  // Data de pagamento da semana. Começa na terça (padrão antigo) e o usuário pode mudar.
+  // Reancora ao trocar de semana pra não carregar a data da semana anterior sem querer.
+  const [vencISO, setVencISO] = useState(semana.payTueISO);
+  useEffect(() => { setVencISO(semana.payTueISO); }, [semana.payTueISO]);
 
   const [roster, setRoster] = useState<Freela[]>([]);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
@@ -157,7 +164,7 @@ export default function FreelasOperacaoPage() {
     if (itens.length === 0) return toast({ title: 'Selecione freelas e informe os valores', variant: 'destructive' });
     setLancando(true);
     try {
-      const res = await api.post('/api/operacional/freelas', { action: 'lancar', data_competencia: dia, data_vencimento: semana.payTueISO, itens });
+      const res = await api.post('/api/operacional/freelas', { action: 'lancar', data_competencia: dia, data_vencimento: vencISO, itens });
       toast({ title: `${res.criados} diária(s) no rascunho`, description: `Dia ${ddmm(dia)} · total ${fmtBRL(res.total)}.` });
       setSel({}); await carregar();
     } catch (e: any) { toast({ title: 'Erro ao lançar', description: e?.message, variant: 'destructive' }); }
@@ -222,10 +229,12 @@ export default function FreelasOperacaoPage() {
 
   const encerrarSemana = async () => {
     if (rascunhos.length === 0) return;
-    if (!window.confirm(`Encerrar a semana e enviar ${rascunhos.length} diária(s) (${fmtBRL(totalRascunho)}) ao financeiro? Depois disso quem agenda o pagamento é o financeiro.`)) return;
+    if (!window.confirm(`Encerrar a semana e enviar ${rascunhos.length} diária(s) (${fmtBRL(totalRascunho)}) ao financeiro, com pagamento em ${ddmm(vencISO)}? Depois disso quem agenda o pagamento é o financeiro.`)) return;
     setEncerrando(true);
     try {
-      const res = await api.post('/api/operacional/freelas', { action: 'encerrar', mon: semana.monISO, sun: semana.sunISO });
+      // Manda a data escolhida: as diárias lançadas ANTES da troca ficaram com a terça padrão,
+      // e sem isto a semana iria pro financeiro com a data velha.
+      const res = await api.post('/api/operacional/freelas', { action: 'encerrar', mon: semana.monISO, sun: semana.sunISO, data_vencimento: vencISO });
       toast({ title: 'Semana encerrada', description: `${res.alterados} diária(s) enviada(s) ao financeiro.` });
       await carregar();
     } catch (e: any) { toast({ title: 'Erro ao encerrar', description: e?.message, variant: 'destructive' }); }
@@ -257,9 +266,30 @@ export default function FreelasOperacaoPage() {
         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navSemana(-1)}><ChevronLeft className="w-4 h-4" /></Button>
         <div className="text-sm px-1">
           <span className="font-medium">Semana {ddmm(semana.monISO)} a {ddmm(semana.sunISO)}</span>
-          <span className="text-muted-foreground"> · pagamento terça {ddmm(semana.payTueISO)}</span>
         </div>
         <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navSemana(1)}><ChevronRight className="w-4 h-4" /></Button>
+
+        <div className="flex items-center gap-1.5 ml-1 sm:ml-3">
+          <span className="text-sm text-muted-foreground whitespace-nowrap">Pagamento</span>
+          <Input
+            type="date"
+            value={vencISO}
+            min={semana.monISO}
+            onChange={(e) => setVencISO(e.target.value || semana.payTueISO)}
+            disabled={soLeitura}
+            className="h-8 w-[9.5rem]"
+            title="Data em que os freelas serão pagos. Vale para as diárias que você lançar e para a semana ao encerrar."
+          />
+          {vencISO !== semana.payTueISO && (
+            <button
+              type="button"
+              onClick={() => setVencISO(semana.payTueISO)}
+              className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            >
+              voltar pra terça
+            </button>
+          )}
+        </div>
       </div>
 
       <Tabs defaultValue="operacao" className="w-full">
