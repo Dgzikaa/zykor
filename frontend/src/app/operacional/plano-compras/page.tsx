@@ -323,8 +323,17 @@ export default function PlanoComprasPage() {
                             <td className="py-0.5 text-gray-400">+</td>
                             <td className="py-0.5">Vai gastar produzindo</td>
                             <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap">{fmtMedida(it.ab, it.base)}</td>
-                            <td className="py-0.5 pl-2 text-gray-400">
-                              {(it.ab_detalhe?.length ?? 0) > 0 ? 'as receitas planejadas da semana (detalhe abaixo)' : 'nenhuma produção planejada nesta semana'}
+                            {/* "Zero" tem DOIS motivos muito diferentes e o texto genérico
+                                ("nenhuma produção planejada") fazia parecer que não ia produzir
+                                nada. Quase sempre é o plano ainda não encerrado: medido em
+                                27/07, o plano é encerrado de 0 a 7 dias DEPOIS da semana começar,
+                                então quem compra na segunda pega 0 aqui. */}
+                            <td className={`py-0.5 pl-2 ${(it.ab_detalhe?.length ?? 0) === 0 && semProducao ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'}`}>
+                              {(it.ab_detalhe?.length ?? 0) > 0
+                                ? 'as receitas planejadas da semana (detalhe abaixo)'
+                                : semProducao
+                                  ? 'o Planejamento da Produção desta semana ainda não foi encerrado — quando encerrar, entra aqui e a sugestão pode subir'
+                                  : 'nenhuma das produções planejadas da semana usa este insumo'}
                             </td>
                           </tr>
                           <tr className="border-t border-gray-200 dark:border-gray-700">
