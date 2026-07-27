@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 /**
  * POST /api/instagram/inbox/enviar
@@ -13,7 +14,9 @@ import { authenticateUser } from '@/middleware/auth';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  await authenticateUser(req);
+  const user_POST = await authenticateUser(req);
+  if (!user_POST) return permissionErrorResponse('Usuário não autenticado');
+  const neg_POST = negarPorRota(user_POST, req); if (neg_POST) return neg_POST;
   try {
     const body = await req.json().catch(() => ({}));
     const barId = Number(body?.bar_id);

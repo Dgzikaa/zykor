@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { authenticateUser, authErrorResponse } from '@/middleware/auth';
+import { authenticateUser, authErrorResponse , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const neg_POST = negarPorRota(user, request); if (neg_POST) return neg_POST;
   if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
 
   const { id } = await params;
@@ -53,6 +55,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
+  const neg_DELETE = negarPorRota(user, request); if (neg_DELETE) return neg_DELETE;
   if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
 
   const { id } = await params;

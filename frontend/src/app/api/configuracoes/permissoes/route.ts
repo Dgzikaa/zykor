@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getModulosParaPermissoes, ROLES_PADRAO } from '@/lib/permissions/modules';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  const neg_POST = negarPorRota(user, request); if (neg_POST) return neg_POST;
   try {
     const body = await request.json();
     const { role, modulos } = body;

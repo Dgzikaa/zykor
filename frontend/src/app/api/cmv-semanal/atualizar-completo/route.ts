@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 /**
  * POST /api/cmv-semanal/atualizar-completo
@@ -18,7 +19,9 @@ import { authenticateUser } from '@/middleware/auth';
 export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user_POST = await authenticateUser(request);
+  if (!user_POST) return permissionErrorResponse('Usuário não autenticado');
+  const neg_POST = negarPorRota(user_POST, request); if (neg_POST) return neg_POST;
   try {
     const body = await request.json();
     const barId = body.bar_id;

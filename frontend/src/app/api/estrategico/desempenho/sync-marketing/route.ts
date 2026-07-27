@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { syncMarketingTodos, syncMarketingSemana, barSources } from '@/lib/receitas/marketing-semanal-sync';
-import { authenticateUser } from '@/middleware/auth';
+import { authenticateUser , permissionErrorResponse } from '@/middleware/auth';
+import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -23,7 +24,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
+  const user_POST = await authenticateUser(request);
+  if (!user_POST) return permissionErrorResponse('Usuário não autenticado');
+  const neg_POST = negarPorRota(user_POST, request); if (neg_POST) return neg_POST;
   try {
     const body = await request.json().catch(() => ({}));
     const barId = Number(body?.bar_id);
