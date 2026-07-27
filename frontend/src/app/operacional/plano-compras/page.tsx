@@ -8,7 +8,7 @@ import { PageShell } from '@/components/layout/PageShell';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
-import { ShoppingCart, Search, Loader2, CalendarDays, RefreshCw, ChevronDown, ChevronRight, AlertTriangle, Eye, EyeOff, RotateCcw } from 'lucide-react';
+import { ShoppingCart, Search, Loader2, CalendarDays, RefreshCw, ChevronDown, ChevronRight, AlertTriangle, Eye, EyeOff, RotateCcw, HelpCircle } from 'lucide-react';
 
 const fmtN = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtI = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
@@ -235,10 +235,18 @@ export default function PlanoComprasPage() {
                     title={it.consumo_pos > 0 ? `Estoque real = contagem ${fmtMedida(it.estoque_contagem, it.base)} − ${fmtMedida(it.consumo_pos, it.base)} produzido desde a contagem` : undefined}>
                     {fmtEmb(it.estoque, it.embalagem)}{it.consumo_pos > 0 && <span className="ml-0.5 text-amber-500">•</span>}</td>
                   <td className="px-1.5 py-2 text-right tabular-nums whitespace-nowrap">{it.ab > 0 ? <span className="text-indigo-600 dark:text-indigo-400">{fmtEmb(it.ab, it.embalagem)}</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
+                  {/* A dúvida nasce OLHANDO a sugestão ("por que 7 se tenho 8?"), então é ela que
+                      abre a explicação. A setinha da Média 6s continua funcionando, mas ninguém
+                      adivinhava que era ali que explicava a conta. */}
                   <td className="px-1.5 py-2 text-right whitespace-nowrap">
-                    {it.nao_comprar
-                      ? <span className="text-gray-400 text-xs">Não comprar</span>
-                      : <span className="inline-flex flex-col items-end"><span className="font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{fmtI(it.sugestao_qtd)} emb.</span><span className="text-[10px] text-gray-400">≈ {fmtMedida(it.sugestao_base, it.base)}</span></span>}
+                    <button onClick={() => setAberto(expandido ? null : it.codigo)}
+                      title={expandido ? 'Fechar explicação' : 'Entender por que essa quantidade'}
+                      className="inline-flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+                      {it.nao_comprar
+                        ? <span className="text-gray-400 text-xs">Não comprar</span>
+                        : <span className="inline-flex flex-col items-end"><span className="font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{fmtI(it.sugestao_qtd)} emb.</span><span className="text-[10px] text-gray-400">≈ {fmtMedida(it.sugestao_base, it.base)}</span></span>}
+                      <HelpCircle className={`w-3.5 h-3.5 shrink-0 ${expandido ? 'text-emerald-600' : 'text-gray-400'}`} />
+                    </button>
                   </td>
                   <td className="px-1.5 py-2 text-right tabular-nums whitespace-nowrap">{it.comprado > 0 ? <span className="text-gray-700 dark:text-gray-200">{fmtI(it.comprado)} emb.</span> : <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
                 </tr>
@@ -273,46 +281,91 @@ export default function PlanoComprasPage() {
                         mas tenho 8kg em estoque, por quê?". Os números já existiam espalhados em
                         colunas; aqui viram a CONTA, com a produção planejada aberta receita a
                         receita — que é o que permite achar ficha técnica errada. */}
-                    <div className="mt-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/40 p-2.5">
-                      <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200 mb-1.5">Por que essa sugestão?</div>
-                      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-gray-600 dark:text-gray-300">
-                        <span title="Média ponderada das 6 semanas (a mais recente pesa 6×)">média <b>{fmtEmb(it.media6, it.embalagem)}</b></span>
-                        <span className="text-gray-400">+</span>
-                        <span title={`Margem de segurança = desvio padrão × fator do nível de serviço (${it.nivel_servico}%). Cobre a variação entre semanas.`}>
-                          margem <b>{fmtEmb(it.margem ?? 0, it.embalagem)}</b> <span className="opacity-60">({it.nivel_servico}%)</span>
-                        </span>
-                        <span className="text-gray-400">=</span>
-                        <span title="Ponto de reposição">PR <b>{fmtEmb(it.pr, it.embalagem)}</b></span>
-                        <span className="text-gray-400">−</span>
-                        <span title={it.consumo_pos > 0 ? `contagem ${fmtEmb(it.estoque_contagem, it.embalagem)} − ${fmtEmb(it.consumo_pos, it.embalagem)} já produzido` : 'estoque atual'}>
-                          estoque <b>{fmtEmb(it.estoque, it.embalagem)}</b>
-                        </span>
-                        <span className="text-gray-400">+</span>
-                        <span title="Necessidade das produções planejadas da semana">p/ produção <b>{fmtEmb(it.ab, it.embalagem)}</b></span>
-                        <span className="text-gray-400">=</span>
-                        <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                          {fmtEmb(it.sugestao_base, it.embalagem)} → {it.nao_comprar ? 'não comprar' : `${fmtI(it.sugestao_qtd)} emb.`}
-                        </span>
+                    {/* Conta em coluna, com o NOME do que cada parcela significa em português.
+                        Antes era "média + margem = PR − estoque + p/ produção" numa linha só:
+                        quem não conhece a fórmula não tirava nada dali (feedback do dono, 27/07). */}
+                    <div className="mt-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/50 p-3 max-w-3xl">
+                      <div className="text-xs font-semibold text-gray-800 dark:text-gray-100 mb-2">
+                        Por que {it.nao_comprar ? 'não precisa comprar' : `comprar ${fmtI(it.sugestao_qtd)} ${it.sugestao_qtd === 1 ? 'embalagem' : 'embalagens'}`}?
                       </div>
 
-                      {(it.ab_detalhe?.length ?? 0) > 0 ? (
-                        <div className="mt-2">
-                          <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">O que a produção da semana consome</div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {it.ab_detalhe!.map((d, i) => (
-                              <span key={`${d.producao}-${i}`} className="inline-flex items-center gap-1 rounded px-2 py-1 border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 text-sky-800 dark:text-sky-200">
-                                <b>{d.producao}</b>
-                                <span className="opacity-70">{fmtI(d.receitas)}× {fmtMedida(d.qtd_receita, it.base)}</span>
-                                <span className="font-semibold">= {fmtMedida(d.total, it.base)}</span>
-                              </span>
-                            ))}
+                      <table className="w-full text-[11px]">
+                        <tbody className="text-gray-600 dark:text-gray-300">
+                          <tr>
+                            <td className="py-0.5 w-4 text-gray-400"></td>
+                            <td className="py-0.5">Gasta por semana, na média</td>
+                            <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap">{fmtMedida(it.media6, it.base)}</td>
+                            <td className="py-0.5 pl-2 text-gray-400">média das 6 últimas semanas (as mais recentes pesam mais)</td>
+                          </tr>
+                          <tr>
+                            <td className="py-0.5 text-gray-400">+</td>
+                            <td className="py-0.5">Folga de segurança</td>
+                            <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap">{fmtMedida(it.margem ?? 0, it.base)}</td>
+                            <td className="py-0.5 pl-2 text-gray-400">porque tem semana que gasta bem mais — cobre {it.nivel_servico}% das semanas</td>
+                          </tr>
+                          <tr className="border-t border-gray-200 dark:border-gray-700">
+                            <td className="py-0.5 text-gray-400">=</td>
+                            <td className="py-0.5 font-medium text-gray-800 dark:text-gray-100">Quanto precisa ter pra semana</td>
+                            <td className="py-0.5 text-right tabular-nums font-semibold whitespace-nowrap">{fmtMedida(it.pr, it.base)}</td>
+                            <td className="py-0.5 pl-2 text-gray-400">é o &ldquo;PR&rdquo; da tabela (ponto de reposição)</td>
+                          </tr>
+                          <tr>
+                            <td className="py-0.5 text-gray-400">−</td>
+                            <td className="py-0.5">Já tem em estoque</td>
+                            <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap">{fmtMedida(it.estoque, it.base)}</td>
+                            <td className="py-0.5 pl-2 text-gray-400">
+                              {it.consumo_pos > 0
+                                ? `contagem ${fmtMedida(it.estoque_contagem, it.base)} − ${fmtMedida(it.consumo_pos, it.base)} já usado em produção`
+                                : 'última contagem'}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td className="py-0.5 text-gray-400">+</td>
+                            <td className="py-0.5">Vai gastar produzindo</td>
+                            <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap">{fmtMedida(it.ab, it.base)}</td>
+                            <td className="py-0.5 pl-2 text-gray-400">
+                              {(it.ab_detalhe?.length ?? 0) > 0 ? 'as receitas planejadas da semana (detalhe abaixo)' : 'nenhuma produção planejada nesta semana'}
+                            </td>
+                          </tr>
+                          <tr className="border-t border-gray-200 dark:border-gray-700">
+                            <td className="py-1 text-gray-400">=</td>
+                            <td className="py-1 font-semibold text-gray-800 dark:text-gray-100">Falta comprar</td>
+                            <td className="py-1 text-right tabular-nums font-semibold text-emerald-700 dark:text-emerald-300 whitespace-nowrap">{fmtMedida(it.sugestao_base, it.base)}</td>
+                            <td className="py-1 pl-2 text-emerald-700 dark:text-emerald-300">
+                              {it.nao_comprar
+                                ? 'já tem o suficiente — não precisa comprar'
+                                : <>÷ {fmtMedida(it.embalagem, it.base)} por embalagem, arredondando pra cima = <b>{fmtI(it.sugestao_qtd)} emb.</b></>}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                      {(it.ab_detalhe?.length ?? 0) > 0 && (
+                        <div className="mt-2.5 pt-2 border-t border-dashed border-gray-200 dark:border-gray-700">
+                          <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200 mb-1">
+                            As {it.ab_detalhe!.length} produções da semana que usam este insumo
                           </div>
-                          <p className="mt-1 text-[10px] text-gray-400">Quantidade estranha aqui costuma ser <b>ficha técnica errada</b> — confira a receita apontada.</p>
+                          <table className="w-full text-[11px]">
+                            <tbody className="text-gray-600 dark:text-gray-300">
+                              {it.ab_detalhe!.map((d, i) => (
+                                <tr key={`${d.producao}-${i}`}>
+                                  <td className="py-0.5 pr-2">{d.producao}</td>
+                                  <td className="py-0.5 text-right tabular-nums whitespace-nowrap text-gray-500">
+                                    {fmtI(d.receitas)} {d.receitas === 1 ? 'receita' : 'receitas'} × {fmtMedida(d.qtd_receita, it.base)}
+                                  </td>
+                                  <td className="py-0.5 pl-2 text-right tabular-nums font-medium whitespace-nowrap">{fmtMedida(d.total, it.base)}</td>
+                                </tr>
+                              ))}
+                              <tr className="border-t border-gray-200 dark:border-gray-700">
+                                <td className="py-0.5 font-medium text-gray-800 dark:text-gray-100" colSpan={2}>Total pra produção</td>
+                                <td className="py-0.5 pl-2 text-right tabular-nums font-semibold whitespace-nowrap">{fmtMedida(it.ab, it.base)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                          <p className="mt-1.5 text-[10px] text-gray-400">
+                            Quantidade estranha em alguma linha costuma ser <b>ficha técnica errada</b> — confira a receita apontada.
+                          </p>
                         </div>
-                      ) : (
-                        <p className="mt-2 text-[10px] text-gray-400">
-                          Nenhuma produção planejada nesta semana pra este insumo — a sugestão vem só da média + margem, menos o estoque.
-                        </p>
                       )}
                     </div>
                   </td>
