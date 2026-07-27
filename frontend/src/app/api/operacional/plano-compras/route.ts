@@ -49,6 +49,23 @@ export async function GET(request: NextRequest) {
     .select('area').eq('bar_id', barId).eq('semana_ini', semanaSel).eq('status', 'encerrado');
   const producaoEncerrada = (planosProd || []).map((p: any) => p.area);
 
+  // DE ONDE VEM O "p/ Produção" (AB), item a item. A fn_plano_compras devolve o AB já somado, e
+  // sem a quebra ninguém consegue conferir a conta — o pedido da operação foi exatamente esse:
+  // "tá pedindo 7kg porque vai produzir 4 receitas de X (+4kg) e 2 de Y (+2kg)". Serve também
+  // pra achar ficha técnica errada: receita com quantidade absurda salta aqui.
+  const { data: abRows } = await (sb() as any).rpc('plano_compras_ab_detalhe', {
+    p_bar: barId, p_semana: semanaSel,
+  });
+  const abDetalhe = new Map<string, Array<{ producao: string; receitas: number; qtd_receita: number; total: number }>>();
+  (abRows || []).forEach((r: any) => {
+    const cod = String(r.cod).toUpperCase();
+    if (!abDetalhe.has(cod)) abDetalhe.set(cod, []);
+    abDetalhe.get(cod)!.push({
+      producao: r.producao, receitas: Number(r.receitas),
+      qtd_receita: Number(r.qtd_receita), total: Number(r.total),
+    });
+  });
+
   // nível de serviço por insumo (config); sem config = 95%
   const { data: cfgs } = await (sb() as any).schema('operations').from('compras_plano_config')
     .select('insumo_codigo, nivel_servico').eq('bar_id', barId);
@@ -101,6 +118,9 @@ export async function GET(request: NextRequest) {
       media6: r2(media6), desvpad: r2(desvpad), saidas, saidas_orig: saidasOrig, ignorados, manuais,
       semanas, ultima,
       nivel_servico: nivel, pr: r2(pr), sugestao_base: r2(sugestaoBase), sugestao_qtd: sugestaoQtd, nao_comprar: naoComprar,
+      // margem de segurança separada da média: é ela que explica pedir acima do consumo médio
+      margem: r2(desvpad * zDe(nivel)),
+      ab_detalhe: abDetalhe.get(String(r.insumo_codigo).toUpperCase()) || [],
     };
   }).sort((a, b) => b.sugestao_qtd - a.sugestao_qtd);
 

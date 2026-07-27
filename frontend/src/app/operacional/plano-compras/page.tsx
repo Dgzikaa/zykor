@@ -88,7 +88,7 @@ export default function PlanoComprasPage() {
           const sugestaoBase = pr - x.estoque + x.ab;
           const naoComprar = sugestaoBase <= 0;
           const sugestaoQtd = !naoComprar ? Math.ceil(sugestaoBase / (x.embalagem || 1)) : 0;
-          return { ...x, nivel_servico: ns, pr: r2(pr), sugestao_base: r2(sugestaoBase), sugestao_qtd: sugestaoQtd, nao_comprar: naoComprar };
+          return { ...x, nivel_servico: ns, pr: r2(pr), margem: r2(x.desvpad * zDe(ns)), sugestao_base: r2(sugestaoBase), sugestao_qtd: sugestaoQtd, nao_comprar: naoComprar };
         }),
       };
     });
@@ -121,7 +121,7 @@ export default function PlanoComprasPage() {
     const sugestaoQtd = !naoComprar ? Math.ceil(sugestaoBase / (it.embalagem || 1)) : 0;
     const ultima = saidas.length ? saidas[saidas.length - 1] : null;
     setRes((prev: any) => prev ? { ...prev, itens: (prev.itens as any[]).map((x) => x.codigo === it.codigo
-      ? { ...x, saidas, ignorados, manuais, ultima, media6: r2(media6), desvpad: r2(desvpad), pr: r2(pr), sugestao_base: r2(sugestaoBase), sugestao_qtd: sugestaoQtd, nao_comprar: naoComprar }
+      ? { ...x, saidas, ignorados, manuais, ultima, media6: r2(media6), desvpad: r2(desvpad), pr: r2(pr), margem: r2(desvpad * zDe(it.nivel_servico)), sugestao_base: r2(sugestaoBase), sugestao_qtd: sugestaoQtd, nao_comprar: naoComprar }
       : x) } : prev);
     try { await api.post('/api/operacional/plano-compras', { bar_id: barId, action: 'saida_ajuste', insumo_codigo: it.codigo, semana_ini: semana, valor_manual, ignorar }); }
     catch { /* fica local; próximo refresh corrige */ }
@@ -268,6 +268,53 @@ export default function PlanoComprasPage() {
                       <span className="text-gray-600 dark:text-gray-300 ml-1">= média <b>{fmtEmb(it.media6, it.embalagem)} emb</b></span>
                     </div>
                     <p className="mt-1.5 text-[10px] text-gray-400">Editar troca o valor da semana no cálculo (fica <b>registrado que foi manual</b> — borda amarela). O olho <b>ignora</b> a semana (sai da média e do desvio). ↺ volta ao automático.</p>
+
+                    {/* POR QUE ESSA SUGESTÃO — pedido da operação (Isaías, 27/07): "tá pedindo 7kg
+                        mas tenho 8kg em estoque, por quê?". Os números já existiam espalhados em
+                        colunas; aqui viram a CONTA, com a produção planejada aberta receita a
+                        receita — que é o que permite achar ficha técnica errada. */}
+                    <div className="mt-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/40 p-2.5">
+                      <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200 mb-1.5">Por que essa sugestão?</div>
+                      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-gray-600 dark:text-gray-300">
+                        <span title="Média ponderada das 6 semanas (a mais recente pesa 6×)">média <b>{fmtEmb(it.media6, it.embalagem)}</b></span>
+                        <span className="text-gray-400">+</span>
+                        <span title={`Margem de segurança = desvio padrão × fator do nível de serviço (${it.nivel_servico}%). Cobre a variação entre semanas.`}>
+                          margem <b>{fmtEmb(it.margem ?? 0, it.embalagem)}</b> <span className="opacity-60">({it.nivel_servico}%)</span>
+                        </span>
+                        <span className="text-gray-400">=</span>
+                        <span title="Ponto de reposição">PR <b>{fmtEmb(it.pr, it.embalagem)}</b></span>
+                        <span className="text-gray-400">−</span>
+                        <span title={it.consumo_pos > 0 ? `contagem ${fmtEmb(it.estoque_contagem, it.embalagem)} − ${fmtEmb(it.consumo_pos, it.embalagem)} já produzido` : 'estoque atual'}>
+                          estoque <b>{fmtEmb(it.estoque, it.embalagem)}</b>
+                        </span>
+                        <span className="text-gray-400">+</span>
+                        <span title="Necessidade das produções planejadas da semana">p/ produção <b>{fmtEmb(it.ab, it.embalagem)}</b></span>
+                        <span className="text-gray-400">=</span>
+                        <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                          {fmtEmb(it.sugestao_base, it.embalagem)} → {it.nao_comprar ? 'não comprar' : `${fmtI(it.sugestao_qtd)} emb.`}
+                        </span>
+                      </div>
+
+                      {(it.ab_detalhe?.length ?? 0) > 0 ? (
+                        <div className="mt-2">
+                          <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">O que a produção da semana consome</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {it.ab_detalhe!.map((d, i) => (
+                              <span key={`${d.producao}-${i}`} className="inline-flex items-center gap-1 rounded px-2 py-1 border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 text-sky-800 dark:text-sky-200">
+                                <b>{d.producao}</b>
+                                <span className="opacity-70">{fmtI(d.receitas)}× {fmtMedida(d.qtd_receita, it.base)}</span>
+                                <span className="font-semibold">= {fmtMedida(d.total, it.base)}</span>
+                              </span>
+                            ))}
+                          </div>
+                          <p className="mt-1 text-[10px] text-gray-400">Quantidade estranha aqui costuma ser <b>ficha técnica errada</b> — confira a receita apontada.</p>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-[10px] text-gray-400">
+                          Nenhuma produção planejada nesta semana pra este insumo — a sugestão vem só da média + margem, menos o estoque.
+                        </p>
+                      )}
+                    </div>
                   </td>
                 </tr>}
                 </Fragment>
