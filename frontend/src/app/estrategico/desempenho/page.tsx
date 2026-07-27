@@ -35,7 +35,7 @@ export default async function DesempenhoPage({
   const integPromise = supabase
     .schema('operations' as never)
     .from('vw_bar_tem_integracao')
-    .select('getin_api, getin_modo')
+    .select('getin_api, getin_modo, instagram_api')
     .eq('bar_id', barId)
     .single();
 
@@ -67,10 +67,12 @@ export default async function DesempenhoPage({
     integResult = integ;
   }
 
-  const integConfig = integResult.data as { getin_api: boolean | null; getin_modo: string | null } | null;
+  const integConfig = integResult.data as { getin_api: boolean | null; getin_modo: string | null; instagram_api: boolean | null } | null;
   const integracoes = {
     getin_api: integConfig?.getin_api ?? true,
     getin_modo: integConfig?.getin_modo ?? null,
+    // vem de integrations.instagram_contas (via view): conectou → orgânico vira automático
+    instagram_api: integConfig?.instagram_api ?? false,
   };
 
   return (

@@ -65,10 +65,15 @@ const STATUS_COLORS = {
 
 const getSecoesConfig = (
   barId?: number,
-  integracoes?: { getin_api?: boolean },
+  integracoes?: { getin_api?: boolean; instagram_api?: boolean },
   visao: 'semanal' | 'mensal' = 'semanal',
 ): SecaoConfig[] => {
 const getinAuto = integracoes?.getin_api ?? (barId !== 4);
+// Orgânico é automático quando o bar TEM Instagram conectado (integrations.instagram_contas,
+// via operations.vw_bar_tem_integracao). Antes era `barId !== 4` fixo, escrito quando o Deboche
+// não tinha IG — ele conectou em 27/07/2026 e o hardcode passou a mentir. Agora bar novo que
+// conectar já entra verde sozinho, e bar que desconectar volta pra manual.
+const igAuto = integracoes?.instagram_api ?? (barId !== 4);
 
 return [
   {
@@ -302,21 +307,22 @@ return [
         id: 'organico',
         label: '[O] Orgânico',
         metricas: [
-          // [O] Feed + Reels: AUTO via sync diário (marketing-semanal-sync) pra bares com
-          // Instagram conectado. Deboche (bar 4) ainda sem IG → segue manual/azul.
-          // Stories (Nº/Visu) continuam MANUAIS nos 2 bares (sync não escreve essas colunas).
-          ...(barId !== 4 ? [
+          // [O] Feed + Reels: AUTO via sync diário (marketing-semanal-sync) pra bar com Instagram
+          // conectado — quem manda é `igAuto`, não o bar_id.
+          // Stories (Nº/Visu) continuam MANUAIS em TODOS os bares: a API do Instagram não devolve
+          // repost/collab, que é justamente boa parte do story do bar.
+          ...(igAuto ? [
             { key: 'o_num_posts', label: '[O] Nº de Posts', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Contagem de posts Feed + Reels da semana (integrations.instagram_posts)', formato: 'numero' as const, editavel: true },
             { key: 'o_alcance', label: '[O] Alcance', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Soma do alcance dos posts Feed + Reels (último snapshot por mídia)', formato: 'numero' as const, editavel: true },
             { key: 'o_interacao', label: '[O] Interação', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Curtidas + comentários + compartilhamentos + salvamentos', formato: 'numero' as const, editavel: true },
             { key: 'o_compartilhamento', label: '[O] Compartilhamento', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Soma de compartilhamentos dos posts Feed + Reels', formato: 'numero' as const, editavel: true },
             { key: 'o_engajamento', label: '[O] Engajamento', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Interações ÷ alcance × 100', formato: 'percentual' as const, editavel: true },
           ] : [
-            { key: 'o_num_posts', label: '[O] Nº de Posts', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual (bar sem Instagram conectado)', formato: 'numero' as const, editavel: true },
-            { key: 'o_alcance', label: '[O] Alcance', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual (bar sem Instagram conectado)', formato: 'numero' as const, editavel: true },
-            { key: 'o_interacao', label: '[O] Interação', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual (bar sem Instagram conectado)', formato: 'numero' as const, editavel: true },
-            { key: 'o_compartilhamento', label: '[O] Compartilhamento', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual (bar sem Instagram conectado)', formato: 'numero' as const, editavel: true },
-            { key: 'o_engajamento', label: '[O] Engajamento', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual (bar sem Instagram conectado)', formato: 'percentual' as const, editavel: true },
+            { key: 'o_num_posts', label: '[O] Nº de Posts', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual — este bar não tem Instagram conectado (conecte em Configurações › Integrações)', formato: 'numero' as const, editavel: true },
+            { key: 'o_alcance', label: '[O] Alcance', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual — este bar não tem Instagram conectado (conecte em Configurações › Integrações)', formato: 'numero' as const, editavel: true },
+            { key: 'o_interacao', label: '[O] Interação', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual — este bar não tem Instagram conectado (conecte em Configurações › Integrações)', formato: 'numero' as const, editavel: true },
+            { key: 'o_compartilhamento', label: '[O] Compartilhamento', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual — este bar não tem Instagram conectado (conecte em Configurações › Integrações)', formato: 'numero' as const, editavel: true },
+            { key: 'o_engajamento', label: '[O] Engajamento', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual — este bar não tem Instagram conectado (conecte em Configurações › Integrações)', formato: 'percentual' as const, editavel: true },
           ]),
           { key: 'o_num_stories', label: '[O] Nº Stories', status: 'manual', fonte: 'Instagram', calculo: 'Manual — captação de stories (reposts/collabs) ainda não automatizada', formato: 'numero', editavel: true },
           { key: 'o_visu_stories', label: '[O] Visu Stories', status: 'manual', fonte: 'Instagram', calculo: 'Manual — captação de stories (reposts/collabs) ainda não automatizada', formato: 'numero', editavel: true },
