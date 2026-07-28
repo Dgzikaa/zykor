@@ -28,6 +28,7 @@ import {
   Plug,
   Clock,
   Database,
+  MapPin,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { traduzirErroIg } from '@/lib/instagram/erros-oauth';
@@ -59,6 +60,14 @@ interface IntegracaoApi {
   volume7d: number | null;
   crons: string[];
   acoes: Array<{ id: string; label: string; tipo: string; url?: string }>;
+}
+
+interface FichaGoogle {
+  name: string;
+  title: string;
+  endereco: string | null;
+  accountName: string;
+  accountNome: string | null;
 }
 
 interface ResumoApi {
@@ -118,6 +127,13 @@ export default function AdministracaoIntegracoesPage() {
   const [filtroStatus, setFiltroStatus] = useState<IntegracaoApi['statusGeral'] | 'todas'>('todas');
   const [detalheAberto, setDetalheAberto] = useState<IntegracaoApi | null>(null);
   const [acaoPendente, setAcaoPendente] = useState<string | null>(null);
+  // Seleção da ficha do Google: uma conta costuma administrar as fichas de TODOS os bares,
+  // então a amarração ficha ↔ bar é escolhida à mão (casar por nome erraria em rede).
+  const [fichasAbertas, setFichasAbertas] = useState(false);
+  const [fichas, setFichas] = useState<FichaGoogle[]>([]);
+  const [fichaSelecionada, setFichaSelecionada] = useState<string | null>(null);
+  const [fichasCarregando, setFichasCarregando] = useState(false);
+  const [fichasErro, setFichasErro] = useState<string | null>(null);
 
   const carregar = async () => {
     if (!selectedBar?.id) return;
@@ -171,6 +187,39 @@ export default function AdministracaoIntegracoesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
+  // Resultado do OAuth Google
+  useEffect(() => {
+    const status = searchParams.get('google_status');
+    if (!status) return;
+    if (status === 'ok') {
+      const email = searchParams.get('google_email');
+      const ficha = searchParams.get('google_ficha');
+      const pendente = searchParams.get('google_pendente');
+      if (pendente) {
+        // Autorizou, mas ainda não dá pra sincronizar: ou a conta administra várias fichas (e
+        // precisa escolher qual é deste bar), ou a API recusou a listagem. Duration alta porque
+        // é instrução, não aviso.
+        toast.warning('Google conectado, mas falta escolher a ficha', {
+          description:
+            pendente === 'escolher_ficha'
+              ? `Conta ${email || ''}: clique em "Escolher ficha" no card do Google Meu Negócio.`
+              : pendente,
+          duration: 30000,
+        });
+      } else {
+        toast.success(`Google conectado${ficha ? `: ${ficha}` : ''}${email ? ` (${email})` : ''}`);
+      }
+    } else {
+      toast.error('Falha ao conectar o Google', {
+        description: decodeURIComponent(searchParams.get('google_msg') || 'erro desconhecido'),
+        duration: 30000,
+      });
+    }
+    window.history.replaceState({}, '', window.location.pathname);
+    carregar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const conectarInstagram = async () => {
     if (!selectedBar?.id) return;
     setAcaoPendente('instagram_connect');
@@ -205,9 +254,94 @@ export default function AdministracaoIntegracoesPage() {
     }
   };
 
+  const conectarGoogle = async () => {
+    if (!selectedBar?.id) return;
+    setAcaoPendente('google_connect');
+    try {
+      const resp = await fetch(`/api/integracoes/google/iniciar?bar_id=${selectedBar.id}`);
+      const json = await resp.json();
+      if (!resp.ok || !json.url) throw new Error(json?.error || 'Falha');
+      window.location.href = json.url;
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro');
+      setAcaoPendente(null);
+    }
+  };
+
+  const desconectarGoogle = async () => {
+    if (!selectedBar?.id) return;
+    if (!confirm('Desconectar o Google Meu Negócio desse bar? As métricas já sincronizadas ficam preservadas.')) return;
+    setAcaoPendente('google_disconnect');
+    try {
+      const resp = await fetch('/api/integracoes/google/desconectar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: selectedBar.id }),
+      });
+      if (!resp.ok) throw new Error('Erro');
+      toast.success('Google Meu Negócio desconectado');
+      await carregar();
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro');
+    } finally {
+      setAcaoPendente(null);
+    }
+  };
+
+  const abrirFichas = async () => {
+    if (!selectedBar?.id) return;
+    setFichasAbertas(true);
+    setFichasCarregando(true);
+    setFichasErro(null);
+    try {
+      const resp = await fetch(`/api/integracoes/google/fichas?bar_id=${selectedBar.id}`);
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json?.error || 'Falha ao listar fichas');
+      setFichas(json.fichas || []);
+      setFichaSelecionada(json.selecionada || null);
+    } catch (e: any) {
+      // O erro aqui costuma ser a Business Profile API sem acesso aprovado — a mensagem já vem
+      // traduzida do backend, então mostrar inline vale mais que um toast que some.
+      setFichasErro(e?.message || 'Erro');
+    } finally {
+      setFichasCarregando(false);
+    }
+  };
+
+  const salvarFicha = async () => {
+    if (!selectedBar?.id || !fichaSelecionada) return;
+    const ficha = fichas.find((f) => f.name === fichaSelecionada);
+    setAcaoPendente('google_fichas');
+    try {
+      const resp = await fetch('/api/integracoes/google/fichas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bar_id: selectedBar.id,
+          location_id: fichaSelecionada,
+          location_nome: ficha?.title ?? null,
+          account_id: ficha?.accountName ?? null,
+          account_nome: ficha?.accountNome ?? null,
+        }),
+      });
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json?.error || 'Falha ao salvar');
+      toast.success(`Ficha "${ficha?.title}" vinculada a ${selectedBar.nome ?? 'este bar'}`);
+      setFichasAbertas(false);
+      await carregar();
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro');
+    } finally {
+      setAcaoPendente(null);
+    }
+  };
+
   const executarAcao = (acao: IntegracaoApi['acoes'][number]) => {
     if (acao.tipo === 'instagram_connect') return conectarInstagram();
     if (acao.tipo === 'instagram_disconnect') return desconectarInstagram();
+    if (acao.tipo === 'google_connect') return conectarGoogle();
+    if (acao.tipo === 'google_disconnect') return desconectarGoogle();
+    if (acao.tipo === 'google_fichas') return abrirFichas();
     if (acao.tipo === 'externa' && acao.url) {
       window.open(acao.url, '_blank');
     }
@@ -351,6 +485,69 @@ export default function AdministracaoIntegracoesPage() {
           {detalheAberto && <Detalhe item={detalheAberto} />}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={fichasAbertas} onOpenChange={setFichasAbertas}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Ficha do Google Meu Negócio</DialogTitle>
+            <DialogDescription>
+              Escolha qual ficha corresponde a {selectedBar?.nome || 'este bar'}. A conta conectada
+              costuma administrar as fichas de todos os bares — por isso a escolha é manual.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 mt-2">
+            {fichasCarregando && (
+              <p className="text-sm text-muted-foreground py-4 text-center">Carregando fichas…</p>
+            )}
+
+            {!fichasCarregando && fichasErro && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+                {fichasErro}
+              </div>
+            )}
+
+            {!fichasCarregando && !fichasErro && fichas.length === 0 && (
+              <p className="text-sm text-muted-foreground py-4 text-center">
+                Nenhuma ficha encontrada nesta conta do Google.
+              </p>
+            )}
+
+            {!fichasCarregando &&
+              fichas.map((f) => {
+                const ativa = fichaSelecionada === f.name;
+                return (
+                  <button
+                    key={f.name}
+                    onClick={() => setFichaSelecionada(f.name)}
+                    className={`w-full text-left rounded-lg border p-3 transition-all hover:border-primary ${
+                      ativa ? 'border-primary bg-primary/5' : 'border-border'
+                    }`}
+                  >
+                    <p className="font-medium text-sm">{f.title}</p>
+                    {f.endereco && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{f.endereco}</p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground mt-1 font-mono">{f.name}</p>
+                  </button>
+                );
+              })}
+          </div>
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" size="sm" onClick={() => setFichasAbertas(false)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={salvarFicha}
+              disabled={!fichaSelecionada || acaoPendente === 'google_fichas'}
+            >
+              {acaoPendente === 'google_fichas' ? 'Salvando…' : 'Vincular ao bar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -427,13 +624,24 @@ function IntegracaoCard({
             {item.acoes.map((acao) => {
               const isPendente = acaoPendente === acao.tipo;
               const isConectarIg = acao.tipo === 'instagram_connect';
-              const isDesconectar = acao.tipo === 'instagram_disconnect';
-              const Icone = isConectarIg ? Instagram : isDesconectar ? Unplug : ExternalLink;
+              const isConectarGoogle = acao.tipo === 'google_connect';
+              const isDesconectar =
+                acao.tipo === 'instagram_disconnect' || acao.tipo === 'google_disconnect';
+              const isEscolherFicha = acao.tipo === 'google_fichas';
+              const Icone = isConectarIg
+                ? Instagram
+                : isConectarGoogle
+                  ? Plug
+                  : isEscolherFicha
+                    ? MapPin
+                    : isDesconectar
+                      ? Unplug
+                      : ExternalLink;
               return (
                 <Button
                   key={acao.id}
                   size="sm"
-                  variant={isConectarIg ? 'default' : 'outline'}
+                  variant={isConectarIg || isConectarGoogle ? 'default' : 'outline'}
                   onClick={() => onAcao(acao)}
                   disabled={isPendente}
                   className="text-xs h-7"

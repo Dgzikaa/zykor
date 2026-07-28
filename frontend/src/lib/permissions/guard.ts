@@ -191,6 +191,10 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   // próprio perfil e a própria senha). NÃO adicionar negarPorRota nelas.
   { prefix: '/api/usuarios', paths: ['/configuracoes/usuarios'] },
   { prefix: '/api/integracoes/instagram', paths: ['/configuracoes/administracao/integracoes'] },
+  // Vincular ficha do Google e desconectar mexem em qual bar recebe as métricas do Meu Negócio —
+  // mesma tela dona do Instagram, mesma exigência de módulo. Sem esta linha o guard passaria
+  // batido (fail-open) e qualquer usuário logado conseguiria desconectar pela API.
+  { prefix: '/api/integracoes/google', paths: ['/configuracoes/administracao/integracoes'] },
   { prefix: '/api/alertas-inteligentes', paths: ['/configuracoes/administracao/integracoes'] },
 ];
 

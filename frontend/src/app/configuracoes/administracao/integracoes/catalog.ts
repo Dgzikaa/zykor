@@ -45,6 +45,9 @@ export interface AcaoIntegracao {
   tipo:
     | 'instagram_connect'
     | 'instagram_disconnect'
+    | 'google_connect'
+    | 'google_disconnect'
+    | 'google_fichas'
     | 'ver_logs'
     | 'sincronizar_manual'
     | 'editar_credencial'
@@ -232,6 +235,35 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     ],
   },
 
+  {
+    id: 'google_business',
+    nome: 'Google Meu Negócio',
+    descricao: 'Ficha do Google/Maps — visualizações, rotas, ligações e cliques. Alimenta o bloco [GMN] do Desempenho.',
+    categoria: 'marketing',
+    logoLabel: 'GMN',
+    logoCor: '#4285F4',
+    acento: 'blue-500',
+    fontesAuth: [{ tipo: 'oauth_table', schema: 'integrations', tabela: 'google_oauth_tokens' }],
+    crons: ['sync-marketing (diário 14h UTC)'],
+    acoes: [
+      { id: 'google_connect', label: 'Conectar', tipo: 'google_connect' },
+      { id: 'google_fichas', label: 'Escolher ficha', tipo: 'google_fichas' },
+      { id: 'google_disconnect', label: 'Desconectar', tipo: 'google_disconnect' },
+    ],
+  },
+  {
+    id: 'google_ads',
+    nome: 'Google Ads',
+    descricao: 'Anúncios no Google — investimento, impressões, cliques, CTR. Ainda MANUAL: depende de developer token (Basic access) emitido numa conta de administrador (MCC).',
+    categoria: 'marketing',
+    logoLabel: 'GAd',
+    logoCor: '#34A853',
+    acento: 'green-600',
+    // Sem fonte de credencial ainda — o card existe pra deixar visível que o bloco [GADs] do
+    // Desempenho segue digitado à mão, e o que falta pra deixar de ser.
+    fontesAuth: [{ tipo: 'env_global', envs: ['GOOGLE_ADS_DEVELOPER_TOKEN'] }],
+  },
+
   // ─── REVIEWS ────────────────────────────────────────────────────────
   {
     id: 'google_reviews',
@@ -311,8 +343,10 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     acento: 'green-600',
     global: true,
     inferirPorAtividade: true,
+    // Não lê mais google_oauth_tokens: aquela tabela guarda a conexão do Google Meu Negócio
+    // (business.manage), não o acesso às planilhas — apontar pra ela fazia o card do Sheets
+    // aparecer conectado por causa de uma integração que não é a dele.
     fontesAuth: [
-      { tipo: 'oauth_table', schema: 'integrations', tabela: 'google_oauth_tokens' },
       { tipo: 'env_global', envs: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_SERVICE_ACCOUNT_KEY', 'GOOGLE_SHEETS_API_KEY'] },
     ],
   },
