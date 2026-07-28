@@ -534,7 +534,7 @@ function VinculoEditor({
   );
 }
 
-// Modal só de CATEGORIA (reclassificar) — separado do vínculo de mesa. Admin only.
+// Modal só de CATEGORIA (reclassificar) — separado do vínculo de mesa. Admin e financeiro.
 // Grava categoria_override no vínculo da mesa (preservando a tag de pessoa, se houver).
 function CategoriaPicker({
   mesaLabel, atual, onClose, onPick,
@@ -577,7 +577,9 @@ export default function ControleConsumacaoPage() {
   const { setPageTitle } = usePageTitle();
   const { selectedBar } = useBar();
   const { isRole } = usePermissions();
-  const isAdmin = isRole('admin');
+  // Reclassificar categoria: admin OU financeiro (mesma regra do guard em
+  // /api/operacional/consumacao/vinculo — se divergir, o lápis some pra quem a API deixa gravar).
+  const podeReclassificar = isRole('admin') || isRole('financeiro');
 
   const hoje = new Date();
   const primeiroDoMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
@@ -951,10 +953,10 @@ export default function ControleConsumacaoPage() {
                   </span>
                 );
               })()}
-              {isAdmin && !catMix && (
+              {podeReclassificar && !catMix && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setEditandoCategoria({ mesaLabel: g.mesaLabel, mesaNorm: g.key }); }}
-                  title="Reclassificar categoria (admin)"
+                  title="Reclassificar categoria"
                   className="rounded p-0.5 text-gray-300 hover:text-indigo-500"
                 >
                   <Pencil className="w-3 h-3" />
@@ -1425,7 +1427,7 @@ export default function ControleConsumacaoPage() {
                 {moeda(o.custo)} em &ldquo;Outros&rdquo; ({(o.linhas || 0).toLocaleString('pt-BR')} lançamento{(o.linhas || 0) === 1 ? '' : 's'}) — <span className="underline">não entra no CMV</span>.
               </p>
               <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                Reclassifique cada mesa na categoria correta (lápis <Pencil className="inline w-3 h-3" /> na coluna Categoria){isAdmin ? '' : ' — só admin'}. Enquanto ficar em Outros, é a diferença que aparece no CMV.
+                Reclassifique cada mesa na categoria correta (lápis <Pencil className="inline w-3 h-3" /> na coluna Categoria){podeReclassificar ? '' : ' — só admin ou financeiro'}. Enquanto ficar em Outros, é a diferença que aparece no CMV.
               </p>
             </div>
             <button
@@ -1583,10 +1585,10 @@ export default function ControleConsumacaoPage() {
                         {l.categoria === 'outros' && (
                           <span className="rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide">reclassificar</span>
                         )}
-                        {isAdmin && l.mesa && (
+                        {podeReclassificar && l.mesa && (
                           <button
                             onClick={() => setEditandoCategoria({ mesaLabel: l.mesa as string, mesaNorm: normMesa(l.mesa) })}
-                            title="Reclassificar categoria (admin)"
+                            title="Reclassificar categoria"
                             className="rounded p-0.5 text-gray-300 hover:text-indigo-500"
                           >
                             <Pencil className="w-3 h-3" />
@@ -1680,7 +1682,7 @@ export default function ControleConsumacaoPage() {
         />
       )}
 
-      {isAdmin && editandoCategoria && (
+      {podeReclassificar && editandoCategoria && (
         <CategoriaPicker
           mesaLabel={editandoCategoria.mesaLabel}
           atual={vincByNorm.get(editandoCategoria.mesaNorm)?.categoria_override ?? undefined}
