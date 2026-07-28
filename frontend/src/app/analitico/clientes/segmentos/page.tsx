@@ -6,7 +6,6 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users, Download } from 'lucide-react';
-import { exportarCSV } from '@/lib/utils/export-csv';
 
 const fmtBRL = (n: number | null | undefined) =>
   n == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(n);
@@ -60,17 +59,20 @@ export default function SegmentosRfmPage() {
   const resumoMap = new Map(resumo.map(r => [r.segmento, r]));
   const totalClientes = resumo.reduce((s, r) => s + Number(r.clientes), 0);
 
+  // Quantos o CSV vai trazer de verdade: o total do segmento (ou da base), não as linhas da
+  // tela. A lista exibida é só o topo por valor — exportar ela dava 100 clientes de ~119 mil.
+  const totalExport = segSel ? Number(resumoMap.get(segSel)?.clientes ?? 0) : totalClientes;
+
+  /**
+   * Baixa a base INTEIRA pela rota de export (CSV montado e paginado no servidor).
+   * Não dá pra reaproveitar o exportarCSV do front aqui: ele precisa das linhas em memória, e
+   * 119 mil clientes no state travam o navegador.
+   */
   const exportar = () => {
-    exportarCSV(`segmentos-${segSel || 'todos'}`, clientes as unknown as Record<string, unknown>[], [
-      { key: 'cliente_nome', label: 'Cliente' },
-      { key: 'cliente_fone_norm', label: 'Telefone' },
-      { key: 'segmento', label: 'Segmento' },
-      { key: 'frequencia', label: 'Visitas' },
-      { key: 'recencia_dias', label: 'Dias sem vir' },
-      { key: 'ticket_medio', label: 'Ticket médio', format: v => Number(v ?? 0).toFixed(2) },
-      { key: 'monetario', label: 'Total gasto', format: v => Number(v ?? 0).toFixed(2) },
-      { key: 'ultima_visita', label: 'Última visita' },
-    ]);
+    if (!selectedBar?.id) return;
+    const url = `/api/analitico/clientes/rfm/export?bar_id=${selectedBar.id}`
+      + (segSel ? `&segmento=${encodeURIComponent(segSel)}` : '');
+    window.location.href = url; // o Content-Disposition da rota dispara o download
   };
 
   return (
@@ -117,9 +119,10 @@ export default function SegmentosRfmPage() {
             : <>Top clientes por valor (todos os segmentos)</>}
           {segSel && <button onClick={() => setSegSel(null)} className="ml-2 text-xs text-violet-600 underline">limpar filtro</button>}
         </p>
-        <button onClick={exportar} disabled={clientes.length === 0}
+        <button onClick={exportar} disabled={totalExport === 0}
+          title={`Baixa os ${totalExport.toLocaleString('pt-BR')} clientes ${segSel ? `de "${segSel}"` : 'da base'} — não só os ${clientes.length} da tela`}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-emerald-600 text-white disabled:opacity-40 hover:bg-emerald-700">
-          <Download className="w-3.5 h-3.5" /> Exportar CSV ({clientes.length})
+          <Download className="w-3.5 h-3.5" /> Exportar CSV ({totalExport.toLocaleString('pt-BR')})
         </button>
       </Card>
 
