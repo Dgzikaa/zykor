@@ -184,14 +184,6 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Activity', label: 'Termômetro do Dia', href: '/operacional/termometro', permission: 'ferramentas_termometro_do_dia' },
       { icon: 'Wallet', label: 'Fluxo de Caixa', href: '/financeiro/fluxo-caixa', permission: 'ferramentas_fluxo_de_caixa' },
       { icon: 'LineChart', label: 'Gráficos', href: '/graficos', permission: 'ferramentas_graficos' },
-      { header: 'RH' },
-      { icon: 'Users', label: 'Funcionários', href: '/rh/funcionarios', permission: 'ferramentas_funcionarios' },
-      { icon: 'CalendarRange', label: 'Escala', href: '/rh/escala', permission: 'ferramentas_escala' },
-      { icon: 'HandCoins', label: 'Freelas', href: '/rh/freelas', permission: 'ferramentas_freelas' },
-      { icon: 'Clock', label: 'Ponto', href: '/rh/ponto', permission: 'ferramentas_ponto' },
-      { icon: 'Briefcase', label: 'Recrutamento', href: '/rh/recrutamento', permission: 'ferramentas_recrutamento' },
-      { icon: 'Coins', label: 'Custo de MO', href: '/rh/custo-mo', permission: 'ferramentas_custo_de_mo' },
-      { icon: 'Star', label: 'NPS Funcionários', href: '/operacional/nps', permission: 'ferramentas_nps_funcionarios' },
       { header: 'Comercial' },
       { icon: 'Megaphone', label: 'Central Comercial', href: '/comercial', permission: 'ferramentas_central_comercial' },
       // CRM (Umbler): as telas viviam em /crm/*, fora do menu — ou seja, sem módulo pra exigir,
@@ -199,6 +191,34 @@ export const MENU_TREE: MenuSection[] = [
       // (as páginas de lá só re-exportam /crm/*, nada duplicado). Entra no menu agora pra
       // existir o módulo `ferramentas_crm`; ainda não está em uso — vai ser ativado depois.
       { icon: 'MessageCircle', label: 'CRM', href: '/ferramentas/crm', permission: 'ferramentas_crm', beta: true },
+    ],
+  },
+  {
+    icon: 'Users',
+    label: 'RH',
+    // Sem página raiz /rh — a seção aponta pro primeiro item, mesmo padrão de "Produção - CMV".
+    href: '/rh/funcionarios',
+    permission: 'rh',
+    beta: true,
+    // Saiu de dentro de Ferramentas (29/07/2026) e virou seção própria. Isso MUDA os ids de
+    // módulo, que são gerados por categoria_nome: `ferramentas_funcionarios` → `rh_funcionarios`.
+    //
+    // A troca não quebra permissão — pelo contrário, CONSERTA: 17 usuários já tinham no banco
+    // exatamente os tokens `rh_funcionarios`, `rh_escala`, `rh_freelas`, `rh_ponto`,
+    // `rh_recrutamento`, `rh_custo_de_mo` e `rh_nps_funcionarios` (sobra de quando RH era seção
+    // própria), que estavam órfãos: não correspondiam a módulo nenhum e portanto não concediam
+    // nada. Só 1 usuário tinha os equivalentes `ferramentas_*`, cobertos por alias no resolver.
+    //
+    // Os LABELS abaixo são o que gera o id — mexer neles quebra os grants dos 17. Não renomear
+    // sem migrar os tokens junto.
+    subItems: [
+      { icon: 'Users', label: 'Funcionários', href: '/rh/funcionarios', permission: 'rh_funcionarios' },
+      { icon: 'CalendarRange', label: 'Escala', href: '/rh/escala', permission: 'rh_escala' },
+      { icon: 'HandCoins', label: 'Freelas', href: '/rh/freelas', permission: 'rh_freelas' },
+      { icon: 'Clock', label: 'Ponto', href: '/rh/ponto', permission: 'rh_ponto' },
+      { icon: 'Briefcase', label: 'Recrutamento', href: '/rh/recrutamento', permission: 'rh_recrutamento' },
+      { icon: 'Coins', label: 'Custo de MO', href: '/rh/custo-mo', permission: 'rh_custo_de_mo' },
+      { icon: 'Star', label: 'NPS Funcionários', href: '/operacional/nps', permission: 'rh_nps_funcionarios' },
     ],
   },
   {

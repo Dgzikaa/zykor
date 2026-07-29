@@ -50,6 +50,11 @@ const CATEGORY_GENERICS: Record<string, string[]> = {
   // (o "V" por ferramenta) ou o grupo 'financeiro_ferramentas'. Impacto verificado: só 1
   // usuário dependia do 'financeiro' amplo aqui, e ele mantém Pedidos pelo grant granular.
   'Ferramentas Financeiro': ['financeiro_ferramentas'],
+  // RH virou seção própria em 29/07/2026 (antes era um bloco dentro de Ferramentas).
+  // 'ferramentas'/'operacoes'/'dashboard'/'home' seguem aceitos de propósito: eram os generics
+  // da categoria antiga, e tirá-los removeria o RH de quem enxergava por eles. Aditivo, como
+  // manda a regra 3 do topo — ninguém perde acesso na mudança.
+  'RH': ['rh', 'ferramentas', 'operacoes', 'dashboard', 'home'],
   'Configurações': ['configuracoes'],
   'Extras': ['home', 'relatorios'],
 };
@@ -86,9 +91,19 @@ const ALIAS_TO_CANONICAL: Record<string, string> = {
   crm_predicao_churn: 'ferramentas_crm',
   crm_ltv_e_engajamento: 'ferramentas_crm',
   crm_umbler_talk: 'ferramentas_crm',
+  // RH — saiu de Ferramentas e virou seção própria (29/07/2026): o id canônico passou de
+  // `ferramentas_*` pra `rh_*`. Estes aliases mantêm funcionando quem recebeu os grants com o
+  // nome antigo (1 usuário nos itens gerais, 2 no NPS) sem precisar migrar dado no banco.
+  ferramentas_funcionarios: 'rh_funcionarios',
+  ferramentas_escala: 'rh_escala',
+  ferramentas_freelas: 'rh_freelas',
+  ferramentas_ponto: 'rh_ponto',
+  ferramentas_recrutamento: 'rh_recrutamento',
+  ferramentas_custo_de_mo: 'rh_custo_de_mo',
   // NPS
-  ferramentas_nps: 'ferramentas_nps_funcionarios',
-  nps: 'ferramentas_nps_funcionarios',
+  ferramentas_nps_funcionarios: 'rh_nps_funcionarios',
+  ferramentas_nps: 'rh_nps_funcionarios',
+  nps: 'rh_nps_funcionarios',
   // Controle de Produção (perfil de tablet: producaobar@/producaocozinha@).
   // A página /operacional/producoes é liberada por estes tokens (route-permissions/menu). Eles
   // mapeiam pro módulo `producao - cmv_controle_de_producao`, mas concedem só a AÇÃO 'ver' (abrir a
