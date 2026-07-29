@@ -224,6 +224,15 @@ export async function GET(request: NextRequest) {
     .rpc('fn_desvios_composicao', { p_bar: user.bar_id, p_ini: ini, p_fim: fim });
   const compMap = new Map<string, any>((compRows || []).map((c: any) => [String(c.cod).toUpperCase(), c]));
 
+  // Insumos marcados como "não controlamos" (olhinho). Vêm como FLAG na linha, não como filtro
+  // na origem: a tela precisa poder mostrar os ignorados pra revisar/desfazer a marcação.
+  const { data: ignorados } = await (sb() as any).schema('operations')
+    .from('insumos')
+    .select('codigo')
+    .eq('bar_id', user.bar_id)
+    .eq('ignorar_desvio', true);
+  const ignoradosSet = new Set<string>((ignorados || []).map((i: any) => String(i.codigo).toUpperCase()));
+
   const itens = base.map((r: any) => {
     const estoque_ini = Number(r.estoque_ini || 0);
     const compra = Number(r.compra || 0);
@@ -257,6 +266,7 @@ export async function GET(request: NextRequest) {
       insumo_codigo: r.insumo_codigo,
       insumo_nome: r.insumo_nome,
       curva_a: r.curva_a,
+      ignorado: ignoradosSet.has(String(r.insumo_codigo).toUpperCase()),
       is_producao,
       unidade: r.unidade || null,
       area: areaDe(r.categoria, r.insumo_codigo),
@@ -384,6 +394,22 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const codigo = String(body.codigo || '').trim();
   const data = String(body.data || '').trim();
+
+  // "Ignorar no desvio" é do CADASTRO do insumo, não de um dia — por isso é tratado ANTES da
+  // validação de data (que os outros tipos exigem). Ex.: "óleo fritura rateio", que o time não
+  // controla; marcado uma vez, some do desvio pra sempre (e do total), sem sair do cadastro.
+  if (body.tipo === 'ignorar') {
+    if (!codigo) return NextResponse.json({ success: false, error: 'codigo obrigatório' }, { status: 400 });
+    const ignorar = body.ignorar !== false; // default true; false = desfazer
+    const { error } = await (sb() as any).schema('operations')
+      .from('insumos')
+      .update({ ignorar_desvio: ignorar, updated_at: new Date().toISOString() })
+      .eq('bar_id', user.bar_id)
+      .eq('codigo', codigo);
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, codigo, ignorar_desvio: ignorar });
+  }
+
   if (!codigo || !/^\d{4}-\d{2}-\d{2}$/.test(data)) {
     return NextResponse.json({ success: false, error: 'codigo e data (YYYY-MM-DD) obrigatórios' }, { status: 400 });
   }

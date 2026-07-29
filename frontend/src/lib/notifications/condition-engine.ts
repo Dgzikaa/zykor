@@ -146,10 +146,21 @@ async function medirSinal(
         p_ini: ini,
         p_fim: fim,
       });
-      const total = ((data ?? []) as Array<any>).reduce(
-        (s, r) => s + Math.abs(Number(r.desvio_rs) || 0),
-        0
+      // Respeita o "olhinho" de /operacional/desvios (operations.insumos.ignorar_desvio): item
+      // que o time não controla (ex.: óleo fritura rateio) não pode disparar alerta — senão a
+      // tela mostra um total e a notificação cobra outro.
+      const { data: ign } = await supabase
+        .schema('operations')
+        .from('insumos')
+        .select('codigo')
+        .eq('bar_id', barId)
+        .eq('ignorar_desvio', true);
+      const ignoradas = new Set<string>(
+        ((ign ?? []) as Array<any>).map(i => String(i.codigo).toUpperCase())
       );
+      const total = ((data ?? []) as Array<any>)
+        .filter(r => !ignoradas.has(String(r.insumo_codigo).toUpperCase()))
+        .reduce((s, r) => s + Math.abs(Number(r.desvio_rs) || 0), 0);
       return [{ valor: total, alvoKey: `${ini}_${fim}`, descricaoValor: `R$ ${br(total)} (7 dias)` }];
     }
 

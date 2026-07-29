@@ -13,7 +13,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick, Pencil, Check, X, RefreshCw, Filter } from 'lucide-react';
+import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick, Pencil, Check, X, RefreshCw, Filter, Eye, EyeOff } from 'lucide-react';
 
 // célula com lápis (padrão Orçamentação): mostra valor + lápis no hover; clica → input com ✓/✕; salva e recalcula.
 // kg/L têm sub-unidade prática (g/ml). O desperdício quase sempre é pequeno (ex.: 32 g),
@@ -246,6 +246,9 @@ export default function DesviosPage() {
   const [busca, setBusca] = useState('');
   const [aba, setAba] = useState('insumos');
   const [soCurvaA, setSoCurvaA] = useState(false);
+  // Itens que o time não controla (olhinho). 'ativos' é o padrão pedido: a tela abre mostrando
+  // só o que é acompanhado de fato. Mesma convenção da tela de Consumação.
+  const [modoIgnorados, setModoIgnorados] = useState<'ativos' | 'todos' | 'so_ignorados'>('ativos');
   const [filtroDado, setFiltroDado] = useState<'sem_contagem' | 'sem_ficha' | null>(null);
   const [filtroArea, setFiltroArea] = useState<string | null>(null);
   const [filtroSecaoProd, setFiltroSecaoProd] = useState<'Comida' | 'Drinks' | null>(null);
@@ -370,6 +373,27 @@ export default function DesviosPage() {
     } finally { setSincronizando(false); }
   }, [barId, ini, fim, tipo, andamento, carregar, toast]);
 
+  // Olhinho: marca/desmarca "não controlamos este item". É flag do CADASTRO do insumo, então
+  // vale pra todos os períodos — não é ajuste de uma semana. Recarrega pra refletir nos totais.
+  const alternarIgnorado = useCallback(async (it: any) => {
+    try {
+      const novo = !it.ignorado;
+      const r = await api.post('/api/operacional/desvios', {
+        tipo: 'ignorar', codigo: it.insumo_codigo, ignorar: novo,
+      });
+      if (!r.success) throw new Error(r.error);
+      toast({
+        title: novo ? 'Fora do desvio' : 'De volta ao desvio',
+        description: novo
+          ? `${it.insumo_nome} não entra mais na conta (nem no total). Use "Ver ignorados" pra desfazer.`
+          : `${it.insumo_nome} volta a ser contabilizado.`,
+      });
+      if (ini && fim) await carregar(ini, fim, tipo, andamento, true);
+    } catch (e: any) {
+      toast({ title: 'Erro ao marcar', description: e?.message, variant: 'destructive' });
+    }
+  }, [ini, fim, tipo, andamento, carregar, toast]);
+
   // Insumos = só insumos (exclui produção e proteína, que têm aba própria).
   // Semanal/mensal: esconde item fora de ficha (Gonza: sem ficha não entra no desvio nem tem
   // desperdício — nunca tem saída teórica). Filtro "Só Curva A" separado.
@@ -377,12 +401,15 @@ export default function DesviosPage() {
     const s = busca.trim().toLowerCase();
     return (res?.itens || []).filter((i: any) => !i.is_producao && !i.is_proteina
       && (tipo === 'diaria' || andamento || i.tem_ficha)
+      // Ignorados ficam FORA por padrão — e como os cards de headline somam a partir desta
+      // view, sair daqui já tira do Desvio total/Perdas/Sobras, que é o pedido.
+      && (modoIgnorados === 'todos' || (modoIgnorados === 'so_ignorados' ? i.ignorado : !i.ignorado))
       && (!soCurvaA || i.curva_a === true)
       && (!filtroDado || i.dado_faltando === filtroDado)
       && (!filtroArea || i.area === filtroArea)
       && passNum(i, numF)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
-  }, [res, busca, tipo, andamento, soCurvaA, filtroDado, filtroArea, numF]);
+  }, [res, busca, tipo, andamento, soCurvaA, filtroDado, filtroArea, numF, modoIgnorados]);
 
   // contadores dos chips de filtro (igual /operacional/insumos) — base = aba ativa sem o filtro Curva A
   const baseRows = useMemo(() => {
@@ -394,6 +421,9 @@ export default function DesviosPage() {
   }, [res, busca, aba]);
   const cntTotal = baseRows.length;
   const cntCurvaA = baseRows.filter((i: any) => i.curva_a === true).length;
+  // Conta sobre TODOS os itens da aba (baseRows já ignora o filtro de modo), senão o chip
+  // "fora do desvio" zeraria justamente quando eles estão escondidos — que é o padrão.
+  const cntIgnorados = baseRows.filter((i: any) => i.ignorado).length;
   const cntSemContagem = baseRows.filter((i: any) => i.dado_faltando === 'sem_contagem').length;
   const cntSemFicha = baseRows.filter((i: any) => i.dado_faltando === 'sem_ficha').length;
   // contagem por área (chips de filtro por área) — só Insumos
@@ -498,6 +528,15 @@ export default function DesviosPage() {
               ))}
               {aba === 'insumos' && cntSemContagem > 0 && <button onClick={() => setFiltroDado(f => f === 'sem_contagem' ? null : 'sem_contagem')}><Badge variant="outline" className={`cursor-pointer text-amber-700 dark:text-amber-400 border-amber-300 ${filtroDado === 'sem_contagem' ? 'ring-1 ring-amber-400 bg-amber-50 dark:bg-amber-900/20' : ''}`}>⚠ {cntSemContagem} sem contagem final</Badge></button>}
               {aba === 'insumos' && cntSemFicha > 0 && <button onClick={() => setFiltroDado(f => f === 'sem_ficha' ? null : 'sem_ficha')}><Badge variant="outline" className={`cursor-pointer text-amber-700 dark:text-amber-400 border-amber-300 ${filtroDado === 'sem_ficha' ? 'ring-1 ring-amber-400 bg-amber-50 dark:bg-amber-900/20' : ''}`}>⚠ {cntSemFicha} sem ficha</Badge></button>}
+              {/* Ignorados: só aparece se existir algum marcado — senão é ruído numa tela que já
+                  tem muitos chips. Clique alterna entre esconder (padrão) e ver só os ignorados. */}
+              {aba === 'insumos' && cntIgnorados > 0 && (
+                <button onClick={() => setModoIgnorados(m => m === 'so_ignorados' ? 'ativos' : 'so_ignorados')}>
+                  <Badge variant="outline" className={`cursor-pointer text-gray-600 dark:text-gray-300 ${modoIgnorados === 'so_ignorados' ? 'ring-1 ring-amber-400 bg-amber-50 dark:bg-amber-900/20' : ''}`}>
+                    <EyeOff className="w-3 h-3 mr-1 inline" />{cntIgnorados} fora do desvio
+                  </Badge>
+                </button>
+              )}
             </div>
           )}
 
@@ -528,9 +567,21 @@ export default function DesviosPage() {
               : itensView.length === 0 ? <tr><td colSpan={11} className="px-3 py-10 text-center text-gray-400">Sem dados nesse período.</td></tr>
               : itensView.map((it: any, i: number) => (
                 <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${it.sem_producao ? 'bg-amber-50/60 dark:bg-amber-900/15' : it.suspeita ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}`}>
-                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
+                  <td className={`px-3 py-2 text-gray-900 dark:text-gray-100 ${it.ignorado ? 'opacity-60' : ''}`}>
+                    {!it.is_producao && (
+                      <button
+                        onClick={() => alternarIgnorado(it)}
+                        title={it.ignorado
+                          ? 'Item fora do desvio — clique pra voltar a contabilizar'
+                          : 'Não controlamos este item: tirar do desvio (some da lista e do total)'}
+                        className={`mr-1.5 align-middle ${it.ignorado ? 'text-amber-600 dark:text-amber-400' : 'text-gray-300 hover:text-gray-500 dark:hover:text-gray-300'}`}
+                      >
+                        {it.ignorado ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    )}
                     {it.sem_producao && <span title="Produção sem 'produzido' informado — desvio vem do balanço bruto (est_ini + compras − vendas × ficha). Sobra grande pode ser produção não registrada."><AlertTriangle className="w-3.5 h-3.5 inline text-amber-500 mr-1" /></span>}
-                    {it.insumo_nome}{it.insumo_nome !== it.insumo_codigo && <span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_codigo}</span>}
+                    <span className={it.ignorado ? 'line-through decoration-amber-400/60' : ''}>{it.insumo_nome}</span>
+                    {it.insumo_nome !== it.insumo_codigo && <span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_codigo}</span>}
                     {it.unidade && <span className="ml-1.5 text-[10px] text-gray-400" title="Quantidades desta linha estão nesta unidade de contagem">· {it.unidade}</span>}
                     {it.is_producao && <Badge variant="outline" className="ml-1.5 text-[10px] text-indigo-600 border-indigo-300">produção</Badge>}
                   </td>
