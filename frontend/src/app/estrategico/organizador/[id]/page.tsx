@@ -40,24 +40,47 @@ interface OKR {
   historia: string;
   responsavel: string;
   observacoes: string;
+  /** Texto livre de progresso (coluna "Status" da planilha). */
+  andamento: string;
+  /** Semáforo — ver statusOptions. */
   status: string;
+  /** 'GERAL' = OKRs gerais; demais = módulos por área (ver AREAS) */
+  area: string;
 }
+
+/**
+ * Grids das tabelas de OKR. Colunas fixas para header e linhas baterem.
+ * Gerais: Épico | Big Bet | Resp. | OBS | Andamento | Status | ⌫
+ * Área:   Tema  | Big Bet | OBS | Andamento | Status | ⌫
+ */
+const GRID_OKR_GERAL = 'lg:grid-cols-[1.5fr_2.2fr_0.8fr_2.4fr_2.4fr_1.1fr_0.5fr]';
+const GRID_OKR_AREA = 'lg:grid-cols-[1.8fr_2.2fr_2.4fr_2.4fr_1.1fr_0.5fr]';
 
 interface OrganizadorData {
   id?: number;
   bar_id: number;
   ano: number;
+  /** Legado: organizadores criados antes do modelo semestral. */
   trimestre: number | null;
+  semestre: number | null;
   tipo: string;
+  // --- Metas DO SEMESTRE ---
+  tema_semestre: string;
+  meta_faturamento: number | null;
   meta_clientes_ativos: number | null;
-  meta_visitas: number | null;
   meta_cmv_limpo: number | null;
-  meta_cmo: number | null;
   meta_artistica: number | null;
+  meta_cmo_fixo: number | null;
+  // --- Imagem de 1 Ano ---
   faturamento_meta: number | null;
+  lucro_liquido_meta: number | null;
   pessoas_meta: number | null;
+  artistico_meta: number | null;
   reputacao_meta: number | null;
-  ebitda_meta: number | null;
+  // --- Legado (colunas mantidas, fora da planilha atual) ---
+  meta_visitas: number | null;
+  meta_cmo: number | null;
+  // --- Base estratégica ---
   missao: string;
   nicho: string;
   valores_centrais: string[];
@@ -70,6 +93,10 @@ interface OrganizadorData {
   imagem_1_ano: string;
 }
 
+/** 7 BIZUS (valores centrais) e 5 Principais Problemas — conforme a planilha. */
+const QTD_BIZUS = 7;
+const QTD_PROBLEMAS = 5;
+
 const statusOptions = [
   { value: 'verde', label: '✓ Concluído', bg: 'bg-green-100 dark:bg-green-900/40', border: 'border-green-400', text: 'text-green-700 dark:text-green-300' },
   { value: 'amarelo', label: '◐ Em Progresso', bg: 'bg-yellow-100 dark:bg-yellow-900/40', border: 'border-yellow-400', text: 'text-yellow-700 dark:text-yellow-300' },
@@ -77,46 +104,158 @@ const statusOptions = [
   { value: 'cinza', label: '○ Pendente', bg: 'bg-gray-100 dark:bg-gray-700', border: 'border-gray-300', text: 'text-gray-600 dark:text-gray-300' },
 ];
 
+// Defaults conforme a planilha "ORGANIZADOR VISÃO - TRAÇÃO - 2º SEM 2026".
 const defaultOrganizador: OrganizadorData = {
   bar_id: 0,
   ano: new Date().getFullYear(),
-  trimestre: 1, // 1º Tri 2026
-  tipo: 'trimestral',
-  meta_clientes_ativos: 5100, // Meta 31/03
-  meta_visitas: 15000,
-  meta_cmv_limpo: 34, // CMV Limpo Médio do Tri
-  meta_cmo: 20,
-  meta_artistica: 20, // Atrações/Fat
-  faturamento_meta: 18000000, // Meta ano 2026
+  trimestre: null,
+  semestre: 2,
+  tipo: 'semestral',
+  // Metas do semestre
+  tema_semestre: 'Segurar Gastos e Ver Dinheiro',
+  meta_faturamento: 10000000,
+  meta_clientes_ativos: 6500,
+  meta_cmv_limpo: 34,
+  meta_artistica: 19, // (Atrações+Produção)/Fat
+  meta_cmo_fixo: 160000,
+  // Imagem de 1 Ano
+  faturamento_meta: 18000000,
+  lucro_liquido_meta: 1800000,
   pessoas_meta: 6500, // Média-ano Clientes Ativos
-  reputacao_meta: 4.9, // Meta 2026
-  ebitda_meta: 1800000, // Meta 2026
-  missao: 'Ver de Qualé - Segura a Peteca',
-  nicho: 'Bares Musicais (Contexto - Responsa - Mundo vivo - Deboche - Brazólia)',
-  valores_centrais: ['', '', ''],
+  artistico_meta: 19, // (Atrações+Produ)/Fat
+  reputacao_meta: 4.9, // Avaliações Google
+  // Legado
+  meta_visitas: null,
+  meta_cmo: null,
+  // Base estratégica
+  missao: 'Fazer momentos virarem memórias',
+  nicho: 'Bares Musicais',
+  valores_centrais: [
+    'Defendemos o nosso Barco, Sempre',
+    'Não existe "não é comigo"',
+    'Não Seja um Cuzão',
+    'A Gente come Dado com Farofa todo dia',
+    'Curte o Caminho e não pesa a Lombra',
+    'Missão Dada é Missão Cumprida',
+    'Errar faz parte, Não aprender, não',
+  ],
   mercado_alvo: 'Adulto com Espírito Jovem de 28 a 48, Pagosambeiro',
   posicionamento: 'Para o Sambagodeiro, o Ordi é o Bar que não tem erro',
   singularidades: [
-    'O melhor da Festa (Melhores artistas da cidade, bom som, boa iluminação, melhor horário, grandes projetos)',
+    'O melhor da Festa - (Melhores artistas da cidade, bom som, boa iluminação, melhor horário, grandes projetos)',
     'O melhor do Boteco - Atendimento Eficiente (Garçom cordial, entrega veloz), Bons drinks, poder sentar',
-    'Abraça todos os pagosambeiros (coisa que nem Brazólia nem Tia Zélia fazem)'
+    'Abraça todos os pagosambeiros (coisa que nem Brazólia nem Tia Zélia fazem)',
   ],
-  principais_problemas: ['Custo % de artistas alto', 'Risco de dar alguma merda reputacional'],
+  principais_problemas: [
+    'Descontrole de Gastos',
+    'Despesa Comercial vs Faturamento',
+    'Artista Dependência',
+    'CMO Fixo',
+    'Risco de dar alguma merda reputacional',
+  ],
   meta_10_anos: '',
   imagem_3_anos: '',
   imagem_1_ano: 'Se Consolidar como O Bar de Samba de Brasília',
 };
 
 const defaultOKRs: OKR[] = [
-  // 1º TRI 2026 - "Ver de Qualé - Segura a Peteca"
-  { epico: 'Faturamento', historia: 'DATAS CHAVE - CARNAVAL', responsavel: 'Augusto', observacoes: 'Planejamento da proposta do evento, atrações, preço, modelo. Meta Carnaval +25% = R$ 500.000,00', status: 'cinza' },
-  { epico: 'Faturamento', historia: 'DATAS CHAVE - COPA DO MUNDO', responsavel: 'Augusto', observacoes: 'Planejamento da proposta do evento, atrações, preço, modelo', status: 'cinza' },
-  { epico: 'Faturamento', historia: 'Estudo da experiência da fila de espera', responsavel: 'Cadu', observacoes: 'Melhorar a experiência da fila de espera. Fila de espera como "expansão" da capacidade', status: 'cinza' },
-  { epico: 'Clientes Ativos', historia: 'Ações de fidelização/reativação para aumentar retornantes', responsavel: 'Diogo', observacoes: 'CRM com disparos? Programa de Fidelização?', status: 'cinza' },
-  { epico: 'Clientes Novos', historia: 'Ação de Mídia para Awareness', responsavel: 'Diogo', observacoes: 'Plano de mídia digital+OOH', status: 'cinza' },
-  { epico: 'Margem', historia: 'ROI das Atrações', responsavel: 'Augusto', observacoes: '(2º semestre?) Fazer Contrato com atrações fixas. "Não mexer em time que está ganhando" mas aproveitar novos entrantes para "começar certo" com melhores negociações', status: 'cinza' },
-  { epico: 'Reputação (Marca)', historia: 'Artistas Nacionais com modelo de atendimento padrão', responsavel: 'Augusto', observacoes: 'Aproveitar oportunidade de artistas que já estejam em Brasília? Aniver de Bsb? Na Praia? Fazer 2 no ano. 1 no 1º Semestre em Abril', status: 'cinza' },
+  // OKR Gerais — planilha "ORGANIZADOR VISÃO - TRAÇÃO - 2º SEM 2026" (O33:S41)
+  { epico: 'Descontrole de Gastos', historia: 'Seguir novo BP-base', responsavel: 'Gonza', observacoes: '', andamento: '', status: 'cinza', area: 'GERAL' },
+  { epico: 'Descontrole de Gastos', historia: 'Abrir custos e colocar Orçamentos em valores absolutos', responsavel: 'Gonza', observacoes: 'Operacional, Consumo Artista, Locações, CMO fixo, Alimentação, etc', andamento: 'Renegociação consumos artista. Ritual de levar os orçamentos prontos na quarta. Readequar estouros de budget e responsabilizar', status: 'cinza', area: 'GERAL' },
+  { epico: 'Artista Dependência', historia: 'Repensar proposta de valor dos dias que não dependa do Artista', responsavel: 'Augusto', observacoes: 'Como faturar bem sexta sem o Benza?', andamento: '', status: 'cinza', area: 'GERAL' },
+  { epico: 'Faturamento', historia: 'Faturamento de Sábado em 85k', responsavel: 'Diogo', observacoes: 'Como fazer Média de 85k com atração de 12,5k? Focalizar promoção, mídia, disparo? Desenhar propostas de investimento de marketing direcionado para sábado. Artistas promoverem os eventos do dia', andamento: '', status: 'cinza', area: 'GERAL' },
+  { epico: 'Faturamento', historia: 'Dezembro 2.0 Turbo', responsavel: 'Diogo', observacoes: '', andamento: '', status: 'cinza', area: 'GERAL' },
+  { epico: 'Clientes Ativos', historia: 'Manutenção do Programa de Pontos + Ações específicas de CRM', responsavel: 'Diogo', observacoes: '', andamento: '', status: 'cinza', area: 'GERAL' },
+  { epico: '(Atração+Produção)/Fat', historia: 'Renegociações de Artistas + Contrato. Revisão dos Custos de Produção', responsavel: 'Corbal', observacoes: '', andamento: '', status: 'cinza', area: 'GERAL' },
+  { epico: 'Merda Reputacional', historia: 'Cobrar a entrega de qualidade dos protocolos. Contratamos Assessoria de Imprensa e a assessoria de inclusão', responsavel: 'Corbal', observacoes: '', andamento: '', status: 'cinza', area: 'GERAL' },
 ];
+
+// ==================== OKRs POR ÁREA ====================
+// Cada área é um módulo próprio: Tema | Big Bet | OBS | Status.
+interface AreaConfig {
+  key: string;
+  label: string;
+  icon: typeof Target;
+  header: string;
+  border: string;
+  text: string;
+}
+
+const AREAS: AreaConfig[] = [
+  { key: 'FINANCEIRO', label: 'FINANCEIRO', icon: DollarSign, header: 'bg-emerald-100 dark:bg-emerald-900/40', border: 'border-emerald-400 dark:border-emerald-700', text: 'text-emerald-700 dark:text-emerald-300' },
+  { key: 'OPERACAO', label: 'OPERAÇÃO', icon: Settings, header: 'bg-sky-100 dark:bg-sky-900/40', border: 'border-sky-400 dark:border-sky-700', text: 'text-sky-700 dark:text-sky-300' },
+  { key: 'RECEITA', label: 'RECEITA', icon: TrendingUp, header: 'bg-violet-100 dark:bg-violet-900/40', border: 'border-violet-400 dark:border-violet-700', text: 'text-violet-700 dark:text-violet-300' },
+  { key: 'ARTISTICO', label: 'ARTÍSTICO', icon: Music, header: 'bg-pink-100 dark:bg-pink-900/40', border: 'border-pink-400 dark:border-pink-700', text: 'text-pink-700 dark:text-pink-300' },
+  { key: 'RH', label: 'RH', icon: Users, header: 'bg-orange-100 dark:bg-orange-900/40', border: 'border-orange-400 dark:border-orange-700', text: 'text-orange-700 dark:text-orange-300' },
+  { key: 'PRODUCAO', label: 'PRODUÇÃO', icon: Building2, header: 'bg-amber-100 dark:bg-amber-900/40', border: 'border-amber-400 dark:border-amber-700', text: 'text-amber-700 dark:text-amber-300' },
+];
+
+// Esqueleto padrão de cada área (usado quando a área ainda não tem linhas salvas).
+const defaultOkrsPorArea: Record<string, Array<{ epico: string; historia?: string; observacoes?: string }>> = {
+  FINANCEIRO: [
+    { epico: '% Proj = Real' },
+    { epico: 'Lançamentos Atrasados' },
+    { epico: 'Metas dos Discricionários' },
+    { epico: 'Meta Custo Art: R$ não %', observacoes: 'Sempre atualizado; cobrar responsáveis; realocar estouros' },
+  ],
+  OPERACAO: [
+    { epico: 'NPS' },
+    { epico: 'CMO' },
+    { epico: 'Treinamentos por Área' },
+  ],
+  RECEITA: [
+    { epico: 'Reservas' },
+    { epico: 'Ativos no Clube' },
+    { epico: 'Reservas Sábado' },
+    { epico: 'Investimento em Mídia' },
+  ],
+  ARTISTICO: [
+    { epico: 'R$ Produção', historia: 'Renegociação para valor fixo' },
+    { epico: 'Consumação', historia: 'Ajuste para rider fixo + renegociação' },
+    { epico: 'Revisão de Programação', historia: 'Menos bandas sex e sáb' },
+    { epico: 'Meta Custo Art: R$ não %' },
+  ],
+  RH: [
+    { epico: '100% Gestão no Zykor', historia: 'Gonza neles' },
+    { epico: 'Dossiê do Funcionário', historia: 'Ajuste para rider fixo + renegociação' },
+    { epico: 'Gestão dos Planos de Ação - Marca Empregadora', historia: 'Menos bandas sex e sáb' },
+    { epico: 'Processos de Registros de "BOs"', observacoes: 'Exemplo: acidente de trabalho; rescisão homologada no Sindicato' },
+  ],
+  PRODUCAO: [
+    { epico: 'CMV Limpo' },
+    { epico: 'Desvio Insumos' },
+    { epico: 'Desvio Produções' },
+    { epico: 'Desvio Proteínas' },
+  ],
+};
+
+const okrsPadraoDaArea = (areaKey: string): OKR[] =>
+  (defaultOkrsPorArea[areaKey] || []).map(item => ({
+    epico: item.epico,
+    historia: item.historia || '',
+    responsavel: '',
+    observacoes: item.observacoes || '',
+    andamento: '',
+    status: 'cinza',
+    area: areaKey,
+  }));
+
+/**
+ * Junta o que veio do banco com os esqueletos padrão: mantém a ordem
+ * (Gerais primeiro, depois cada área) e semeia áreas ainda vazias.
+ */
+const construirOkrs = (salvos?: OKR[] | null): OKR[] => {
+  const normalizados = (salvos || []).map(o => ({ ...o, area: o.area || 'GERAL', andamento: o.andamento || '' }));
+  const gerais = normalizados.filter(o => o.area === 'GERAL');
+  const resultado: OKR[] = gerais.length > 0 ? gerais : [...defaultOKRs];
+
+  AREAS.forEach(area => {
+    const daArea = normalizados.filter(o => o.area === area.key);
+    resultado.push(...(daArea.length > 0 ? daArea : okrsPadraoDaArea(area.key)));
+  });
+
+  return resultado;
+};
 
 export default function OrganizadorEditPage() {
   const router = useRouter();
@@ -137,15 +276,17 @@ export default function OrganizadorEditPage() {
   
   // Seções colapsáveis
   const [secaoBaseAberta, setSecaoBaseAberta] = useState(false);
-  const [secaoTrimestreAberta, setSecaoTrimestreAberta] = useState(true);
+  const [secaoSemestreAberta, setSecaoSemestreAberta] = useState(true);
   const [secaoOkrsAberta, setSecaoOkrsAberta] = useState(true);
-  
+  const [secaoAreasAberta, setSecaoAreasAberta] = useState(true);
+  const [areasFechadas, setAreasFechadas] = useState<Record<string, boolean>>({});
+
   const [organizador, setOrganizador] = useState<OrganizadorData>({
     ...defaultOrganizador,
     ano: parseInt(searchParams.get('ano') || String(new Date().getFullYear())),
-    trimestre: parseInt(searchParams.get('trimestre') || '4'),
+    semestre: parseInt(searchParams.get('semestre') || String(new Date().getMonth() < 6 ? 1 : 2)),
   });
-  const [okrs, setOkrs] = useState<OKR[]>(defaultOKRs);
+  const [okrs, setOkrs] = useState<OKR[]>(() => construirOkrs());
 
   // Flag para evitar múltiplas chamadas
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -167,14 +308,19 @@ export default function OrganizadorEditPage() {
           const data = await response.json();
           
           if (data.organizador) {
+            const salvo = data.organizador;
             setOrganizador({
               ...defaultOrganizador,
-              ...data.organizador,
-              valores_centrais: data.organizador.valores_centrais?.length ? data.organizador.valores_centrais : ['', '', ''],
-              singularidades: data.organizador.singularidades?.length ? data.organizador.singularidades : defaultOrganizador.singularidades,
-              principais_problemas: data.organizador.principais_problemas?.length ? data.organizador.principais_problemas : ['', '', ''],
+              ...salvo,
+              // Registros legados (trimestrais/anuais) passam a ser lidos como semestrais.
+              tipo: 'semestral',
+              trimestre: null,
+              semestre: salvo.semestre ?? (salvo.trimestre ? Math.ceil(salvo.trimestre / 2) : defaultOrganizador.semestre),
+              valores_centrais: salvo.valores_centrais?.length ? salvo.valores_centrais : defaultOrganizador.valores_centrais,
+              singularidades: salvo.singularidades?.length ? salvo.singularidades : defaultOrganizador.singularidades,
+              principais_problemas: salvo.principais_problemas?.length ? salvo.principais_problemas : defaultOrganizador.principais_problemas,
             });
-            setOkrs(data.okrs?.length > 0 ? data.okrs : defaultOKRs);
+            setOkrs(construirOkrs(data.okrs));
           }
         } catch (error) {
           console.error('Erro ao carregar:', error);
@@ -239,8 +385,20 @@ export default function OrganizadorEditPage() {
     });
   };
 
-  const addOKR = () => {
-    setOkrs(prev => [...prev, { epico: '', historia: '', responsavel: '', observacoes: '', status: 'cinza' }]);
+  // Insere a nova linha logo depois da última da mesma área, para a `ordem`
+  // gravada no banco continuar agrupada.
+  const addOKR = (area: string = 'GERAL') => {
+    setOkrs(prev => {
+      const novo: OKR = { epico: '', historia: '', responsavel: '', observacoes: '', andamento: '', status: 'cinza', area };
+      let ultimoDaArea = -1;
+      prev.forEach((o, i) => {
+        if ((o.area || 'GERAL') === area) ultimoDaArea = i;
+      });
+      if (ultimoDaArea === -1) return [...prev, novo];
+      const copia = [...prev];
+      copia.splice(ultimoDaArea + 1, 0, novo);
+      return copia;
+    });
   };
 
   const removeOKR = (index: number) => {
@@ -249,7 +407,12 @@ export default function OrganizadorEditPage() {
 
   const getStatusStyle = (status: string) => statusOptions.find(s => s.value === status) || statusOptions[3];
 
-  const getNomePeriodo = () => `${organizador.trimestre}º TRI ${organizador.ano}`;
+  // Índice global preservado para os handlers continuarem operando sobre `okrs`.
+  const okrsIndexados = okrs.map((okr, index) => ({ okr, index }));
+  const okrsGerais = okrsIndexados.filter(({ okr }) => (okr.area || 'GERAL') === 'GERAL');
+  const okrsDaArea = (areaKey: string) => okrsIndexados.filter(({ okr }) => okr.area === areaKey);
+
+  const getNomePeriodo = () => `${organizador.semestre || 2}º SEM ${organizador.ano}`;
 
   if (loading) {
     return (
@@ -293,7 +456,7 @@ export default function OrganizadorEditPage() {
           </Button>
         </div>
 
-        {/* Título Principal com Seletor de Trimestre */}
+        {/* Título Principal com Seletor de Semestre/Ano */}
         <div className="bg-gradient-to-r from-[#d4e8d1] via-[#e8f0e5] to-[#d4e8d1] dark:from-green-900/40 dark:to-green-900/40 border-2 border-[#8fbc8f] rounded-lg px-4 py-2.5 mb-3">
           <div className="flex items-center justify-center gap-4">
             <div className="flex items-center gap-2">
@@ -301,26 +464,40 @@ export default function OrganizadorEditPage() {
             </div>
             <div className="flex items-center gap-2 bg-white dark:bg-gray-700 rounded-lg px-2 py-1 border border-[#8fbc8f]">
               <button
-                onClick={() => updateOrganizador('trimestre', Math.max(1, (organizador.trimestre || 4) - 1))}
+                onClick={() => {
+                  // Voltar um semestre: 1º Sem volta para o 2º Sem do ano anterior.
+                  const sem = organizador.semestre || 2;
+                  if (sem === 2) return updateOrganizador('semestre', 1);
+                  setOrganizador(prev => ({ ...prev, semestre: 2, ano: prev.ano - 1 }));
+                }}
                 className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded"
-                disabled={organizador.trimestre === 1}
+                aria-label="Semestre anterior"
               >
                 <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-300" />
               </button>
               <select
-                value={organizador.trimestre || 4}
-                onChange={(e) => updateOrganizador('trimestre', parseInt(e.target.value))}
+                value={organizador.semestre || 2}
+                onChange={(e) => updateOrganizador('semestre', parseInt(e.target.value))}
                 className="bg-transparent text-center font-bold text-gray-800 dark:text-white cursor-pointer focus:outline-none"
               >
-                <option value={1}>1º TRI {organizador.ano}</option>
-                <option value={2}>2º TRI {organizador.ano}</option>
-                <option value={3}>3º TRI {organizador.ano}</option>
-                <option value={4}>4º TRI {organizador.ano}</option>
+                <option value={1}>1º SEM</option>
+                <option value={2}>2º SEM</option>
               </select>
+              <Input
+                type="number"
+                value={organizador.ano}
+                onChange={(e) => updateOrganizador('ano', parseInt(e.target.value) || new Date().getFullYear())}
+                className="w-20 h-7 text-center font-bold bg-transparent border-0 focus-visible:ring-0 text-gray-800 dark:text-white"
+              />
               <button
-                onClick={() => updateOrganizador('trimestre', Math.min(4, (organizador.trimestre || 4) + 1))}
+                onClick={() => {
+                  // Avançar um semestre: 2º Sem vai para o 1º Sem do ano seguinte.
+                  const sem = organizador.semestre || 2;
+                  if (sem === 1) return updateOrganizador('semestre', 2);
+                  setOrganizador(prev => ({ ...prev, semestre: 1, ano: prev.ano + 1 }));
+                }}
                 className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded"
-                disabled={organizador.trimestre === 4}
+                aria-label="Próximo semestre"
               >
                 <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-300" />
               </button>
@@ -347,21 +524,23 @@ export default function OrganizadorEditPage() {
               {/* Grid Estilo Planilha */}
               <table className="w-full border-collapse text-xs">
                 <tbody>
-                  {/* VALORES CENTRAIS */}
+                  {/* 7 BIZUS (valores centrais) */}
                   <tr className="border-b border-gray-200 dark:border-gray-700">
                     <td className="bg-[#f5deb3] dark:bg-amber-900/30 p-3 font-bold text-gray-800 dark:text-white w-40 align-top border-r border-gray-300 dark:border-gray-600">
-                      VALORES CENTRAIS
+                      7 BIZUS
                     </td>
                     <td className="p-2">
                       <div className="space-y-1">
-                        {[0, 1, 2].map(i => (
-                          <Input
-                            key={i}
-                            value={organizador.valores_centrais?.[i] || ''}
-                            onChange={(e) => updateArrayField('valores_centrais', i, e.target.value)}
-                            placeholder={`Valor ${i + 1}`}
-                            className="h-8 text-sm bg-gray-50 dark:bg-gray-700"
-                          />
+                        {Array.from({ length: QTD_BIZUS }, (_, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-amber-600 dark:text-amber-400 w-4 flex-shrink-0">{i + 1}.</span>
+                            <Input
+                              value={organizador.valores_centrais?.[i] || ''}
+                              onChange={(e) => updateArrayField('valores_centrais', i, e.target.value)}
+                              placeholder={`Bizu ${i + 1}`}
+                              className="h-8 text-sm bg-gray-50 dark:bg-gray-700"
+                            />
+                          </div>
                         ))}
                       </div>
                     </td>
@@ -476,60 +655,75 @@ export default function OrganizadorEditPage() {
           )}
         </div>
 
-        {/* ==================== SEÇÃO 2: METAS DO TRIMESTRE ==================== */}
+        {/* ==================== SEÇÃO 2: METAS DO SEMESTRE ==================== */}
         <div className="mb-3">
           <button
-            onClick={() => setSecaoTrimestreAberta(!secaoTrimestreAberta)}
+            onClick={() => setSecaoSemestreAberta(!secaoSemestreAberta)}
             className="w-full flex items-center justify-between bg-[#d4e8d1] dark:bg-green-900/50 border-2 border-[#8fbc8f] dark:border-green-700 rounded-lg px-3 py-2 hover:bg-[#c8e0c5] transition-colors"
           >
             <div className="flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-green-700 dark:text-green-400" />
               <span className="font-bold text-sm text-gray-800 dark:text-white">{getNomePeriodo()} • METAS E INDICADORES</span>
             </div>
-            {secaoTrimestreAberta ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {secaoSemestreAberta ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
-          
-          {secaoTrimestreAberta && (
+
+          {secaoSemestreAberta && (
             <div className="mt-1.5 grid grid-cols-1 lg:grid-cols-3 gap-2">
-              {/* Metas do Trimestre */}
+              {/* Metas do Semestre */}
               <div className="bg-white dark:bg-gray-800 border-2 border-[#8fbc8f] dark:border-green-700 rounded-lg overflow-hidden">
-                <div className="bg-[#d4e8d1] dark:bg-green-900/50 px-3 py-2 font-bold text-center text-gray-800 dark:text-white border-b border-[#8fbc8f] flex items-center justify-center gap-2">
-                  <Target className="w-4 h-4" />
-                  Metas {organizador.trimestre}º Tri
+                <div className="bg-[#d4e8d1] dark:bg-green-900/50 px-3 py-2 border-b border-[#8fbc8f]">
+                  <div className="flex items-center justify-center gap-2 font-bold text-gray-800 dark:text-white">
+                    <Target className="w-4 h-4" />
+                    {organizador.semestre || 2}º Sem
+                  </div>
+                  <Input
+                    value={organizador.tema_semestre || ''}
+                    onChange={(e) => updateOrganizador('tema_semestre', e.target.value)}
+                    placeholder="Tema do semestre"
+                    className="h-7 mt-1 text-xs font-semibold text-center bg-white/70 dark:bg-gray-700"
+                  />
                 </div>
                 <div className="p-3 space-y-3">
                   {[
+                    { label: 'Faturamento', field: 'meta_faturamento', icon: DollarSign, tag: 'BP', isCurrency: true },
                     { label: 'Clientes Ativos', field: 'meta_clientes_ativos', icon: Users, tag: 'NSM', isNumber: true },
-                    { label: 'Nº Visitas', field: 'meta_visitas', icon: TrendingUp, tag: 'INPUT', isNumber: true },
                     { label: 'CMV Limpo', field: 'meta_cmv_limpo', icon: Percent, tag: 'BP', suffix: '%' },
-                    { label: 'CMO', field: 'meta_cmo', icon: DollarSign, tag: 'BP', suffix: '%' },
-                    { label: '% Artístico', field: 'meta_artistica', icon: Music, tag: 'BP', suffix: '%' },
+                    { label: '(Atrações+Produção)/Fat', field: 'meta_artistica', icon: Music, tag: 'BP', suffix: '%' },
+                    { label: 'CMO Fixo', field: 'meta_cmo_fixo', icon: DollarSign, tag: 'BP', isCurrency: true },
                   ].map((item) => {
                     const IconComponent = item.icon;
                     const value = (organizador as any)[item.field];
                     // Formatar valor para exibição no input
-                    const displayValue = value != null 
-                      ? ((item as any).isNumber ? formatarNumero(value) : String(value))
-                      : '';
+                    let displayValue = '';
+                    if (value != null) {
+                      if ((item as any).isCurrency) displayValue = formatCurrency(value);
+                      else if ((item as any).isNumber) displayValue = formatarNumero(value);
+                      else displayValue = String(value);
+                    }
                     return (
                       <div key={item.field} className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
                           <IconComponent className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
-                          <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">{item.label}</span>
+                          <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{item.label}</span>
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 font-bold flex-shrink-0">{item.tag}</span>
                         </div>
-                        <div className="flex items-center gap-1 w-28 justify-end flex-shrink-0">
+                        <div className="flex items-center gap-1 justify-end flex-shrink-0">
                           <Input
                             type="text"
                             value={displayValue}
                             onChange={(e) => {
                               // Remove formatação para salvar como número
-                              const rawValue = e.target.value.replace(/\./g, '').replace(',', '.');
+                              const rawValue = e.target.value
+                                .replace('R$', '')
+                                .replace(/\s/g, '')
+                                .replace(/\./g, '')
+                                .replace(',', '.');
                               const numValue = parseFloat(rawValue) || null;
                               updateOrganizador(item.field as keyof OrganizadorData, numValue);
                             }}
-                            className="w-20 h-8 text-center text-sm font-bold bg-gray-50 dark:bg-gray-700"
-                            placeholder="0"
+                            className={`${(item as any).isCurrency ? 'w-32 text-right' : 'w-20 text-center'} h-8 text-sm font-bold bg-gray-50 dark:bg-gray-700`}
+                            placeholder={(item as any).isCurrency ? 'R$ 0,00' : '0'}
                           />
                           <span className="text-xs font-bold text-gray-600 dark:text-gray-400 w-4 text-left">{item.suffix || ''}</span>
                         </div>
@@ -546,7 +740,7 @@ export default function OrganizadorEditPage() {
                   Principais Problemas
                 </div>
                 <div className="p-3 space-y-2">
-                  {[0, 1, 2].map(i => (
+                  {Array.from({ length: QTD_PROBLEMAS }, (_, i) => (
                     <div key={i} className="flex items-center gap-2">
                       <span className="text-xs font-bold text-amber-600 dark:text-amber-400 w-4">{i + 1}.</span>
                       <Input
@@ -576,9 +770,10 @@ export default function OrganizadorEditPage() {
                   <div className="space-y-3 text-xs">
                     {[
                       { label: 'Faturamento', field: 'faturamento_meta', icon: DollarSign, isCurrency: true },
-                      { label: 'Pessoas', field: 'pessoas_meta', icon: Users, suffix: '/mês', isNumber: true },
-                      { label: 'Reputação', field: 'reputacao_meta', icon: Star, prefix: '⭐', isDecimal: true },
-                      { label: 'Ebitda', field: 'ebitda_meta', icon: TrendingUp, isCurrency: true },
+                      { label: 'Lucro Líquido', field: 'lucro_liquido_meta', icon: TrendingUp, isCurrency: true },
+                      { label: 'Média-ano Clientes Ativos', field: 'pessoas_meta', icon: Users, isNumber: true },
+                      { label: '(Atrações+Produ)/Fat', field: 'artistico_meta', icon: Music, suffix: '%' },
+                      { label: 'Avaliações Google', field: 'reputacao_meta', icon: Star, prefix: '⭐', isDecimal: true },
                     ].map(item => {
                       const IconComponent = item.icon;
                       const value = (organizador as any)[item.field];
@@ -597,10 +792,9 @@ export default function OrganizadorEditPage() {
                       }
                       return (
                         <div key={item.field} className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="flex items-center gap-1.5 min-w-0">
                             <IconComponent className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
-                            <span className="text-gray-700 dark:text-gray-300 whitespace-nowrap">{item.label}</span>
-                            {item.suffix && <span className="text-gray-500 text-[10px]">{item.suffix}</span>}
+                            <span className="text-gray-700 dark:text-gray-300 truncate">{item.label}</span>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
                             {item.prefix && <span className="text-gray-500 text-[10px]">{item.prefix}</span>}
@@ -617,9 +811,10 @@ export default function OrganizadorEditPage() {
                                 const numValue = parseFloat(rawValue) || null;
                                 updateOrganizador(item.field as keyof OrganizadorData, numValue);
                               }}
-                              className="w-32 h-8 text-right text-xs font-semibold bg-gray-50 dark:bg-gray-700"
+                              className={`${(item as any).isCurrency ? 'w-32' : 'w-20'} h-8 text-right text-xs font-semibold bg-gray-50 dark:bg-gray-700`}
                               placeholder={(item as any).isCurrency ? 'R$ 0,00' : '0'}
                             />
+                            <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400 w-3 text-left">{item.suffix || ''}</span>
                           </div>
                         </div>
                       );
@@ -639,8 +834,8 @@ export default function OrganizadorEditPage() {
           >
             <div className="flex items-center gap-2">
               <ListTodo className="w-4 h-4 text-gray-700 dark:text-gray-300" />
-              <span className="font-bold text-sm text-gray-800 dark:text-white">OKRs • HISTÓRIAS</span>
-              <span className="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-xs font-bold text-gray-600 dark:text-gray-300">{okrs.length}</span>
+              <span className="font-bold text-sm text-gray-800 dark:text-white">OKRs GERAIS • BIG BETS</span>
+              <span className="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-xs font-bold text-gray-600 dark:text-gray-300">{okrsGerais.length}</span>
             </div>
             {secaoOkrsAberta ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -648,31 +843,32 @@ export default function OrganizadorEditPage() {
           {secaoOkrsAberta && (
             <div className="mt-1.5 bg-white dark:bg-gray-800 border-2 border-gray-400 dark:border-gray-600 rounded-lg overflow-hidden">
               {/* Header da Tabela */}
-              <div className="hidden lg:grid grid-cols-12 bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-300 dark:border-gray-600 text-[11px] font-bold text-gray-700 dark:text-gray-300">
-                <div className="col-span-2 px-2 py-1.5 border-r border-gray-300 dark:border-gray-600 flex items-center gap-1">
+              <div className={`hidden lg:grid ${GRID_OKR_GERAL} bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-300 dark:border-gray-600 text-[11px] font-bold text-gray-700 dark:text-gray-300`}>
+                <div className="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600 flex items-center gap-1">
                   <Target className="w-3 h-3" />Épico
                 </div>
-                <div className="col-span-3 px-2 py-1.5 border-r border-gray-300 dark:border-gray-600">História</div>
-                <div className="col-span-1 px-2 py-1.5 border-r border-gray-300 dark:border-gray-600 text-center">Resp.</div>
-                <div className="col-span-4 px-2 py-1.5 border-r border-gray-300 dark:border-gray-600">Observações</div>
-                <div className="col-span-1 px-2 py-1.5 border-r border-gray-300 dark:border-gray-600 text-center">Status</div>
-                <div className="col-span-1 px-1 py-1 flex justify-center">
-                  <Button size="sm" onClick={addOKR} className="h-5 px-1.5 bg-green-600 hover:bg-green-700 text-[10px]">
+                <div className="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600">Big Bet</div>
+                <div className="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600 text-center">Resp.</div>
+                <div className="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600">Observações</div>
+                <div className="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600">Andamento</div>
+                <div className="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600 text-center">Status</div>
+                <div className="px-1 py-1 flex justify-center">
+                  <Button size="sm" onClick={() => addOKR('GERAL')} className="h-5 px-1.5 bg-green-600 hover:bg-green-700 text-[10px]">
                     <Plus className="w-3 h-3" />
                   </Button>
                 </div>
               </div>
-              
+
               {/* Linhas */}
               <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                {okrs.map((okr, index) => {
+                {okrsGerais.map(({ okr, index }) => {
                   const statusStyle = getStatusStyle(okr.status);
                   return (
-                    <div 
+                    <div
                       key={index}
-                      className={`grid grid-cols-1 lg:grid-cols-12 ${statusStyle.bg} ${index % 2 === 0 ? '' : 'bg-opacity-50'}`}
+                      className={`grid grid-cols-1 ${GRID_OKR_GERAL} ${statusStyle.bg} ${index % 2 === 0 ? '' : 'bg-opacity-50'}`}
                     >
-                      <div className="lg:col-span-2 px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
+                      <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
                         <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Épico</label>
                         <Input
                           value={okr.epico}
@@ -680,8 +876,8 @@ export default function OrganizadorEditPage() {
                           className="h-7 text-xs font-semibold bg-white/80 dark:bg-gray-700"
                         />
                       </div>
-                      <div className="lg:col-span-3 px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
-                        <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">História</label>
+                      <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
+                        <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Big Bet</label>
                         <Textarea
                           value={okr.historia}
                           onChange={(e) => updateOKR(index, 'historia', e.target.value)}
@@ -689,7 +885,7 @@ export default function OrganizadorEditPage() {
                           rows={2}
                         />
                       </div>
-                      <div className="lg:col-span-1 px-1 py-1 border-r border-gray-200 dark:border-gray-700">
+                      <div className="px-1 py-1 border-r border-gray-200 dark:border-gray-700">
                         <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Responsável</label>
                         <Input
                           value={okr.responsavel}
@@ -697,7 +893,7 @@ export default function OrganizadorEditPage() {
                           className="h-7 text-[11px] text-center font-semibold bg-white/80 dark:bg-gray-700"
                         />
                       </div>
-                      <div className="lg:col-span-4 px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
+                      <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
                         <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Observações</label>
                         <Textarea
                           value={okr.observacoes}
@@ -706,7 +902,17 @@ export default function OrganizadorEditPage() {
                           rows={2}
                         />
                       </div>
-                      <div className="lg:col-span-1 px-1 py-1 border-r border-gray-200 dark:border-gray-700">
+                      <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
+                        <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Andamento</label>
+                        <Textarea
+                          value={okr.andamento}
+                          onChange={(e) => updateOKR(index, 'andamento', e.target.value)}
+                          placeholder="Onde está hoje..."
+                          className="text-xs bg-white/80 dark:bg-gray-700 min-h-[40px] py-1.5"
+                          rows={2}
+                        />
+                      </div>
+                      <div className="px-1 py-1 border-r border-gray-200 dark:border-gray-700">
                         <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Status</label>
                         <select
                           value={okr.status}
@@ -718,7 +924,7 @@ export default function OrganizadorEditPage() {
                           ))}
                         </select>
                       </div>
-                      <div className="lg:col-span-1 px-1 py-1 flex items-center justify-center">
+                      <div className="px-1 py-1 flex items-center justify-center">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -735,14 +941,175 @@ export default function OrganizadorEditPage() {
               
               {/* Botão Add Mobile */}
               <div className="lg:hidden p-2 border-t border-gray-200 dark:border-gray-700">
-                <Button 
-                  onClick={addOKR} 
+                <Button
+                  onClick={() => addOKR('GERAL')}
                   className="w-full h-8 bg-green-600 hover:bg-green-700 text-sm"
                   leftIcon={<Plus className="w-4 h-4" />}
                 >
                   Adicionar OKR
                 </Button>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* ==================== SEÇÃO 4: OKRs POR ÁREA ==================== */}
+        <div className="mb-3">
+          <button
+            onClick={() => setSecaoAreasAberta(!secaoAreasAberta)}
+            className="w-full flex items-center justify-between bg-white dark:bg-gray-800 border-2 border-gray-400 dark:border-gray-600 rounded-lg px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+              <span className="font-bold text-sm text-gray-800 dark:text-white">OKRs POR ÁREA</span>
+              <span className="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-xs font-bold text-gray-600 dark:text-gray-300">
+                {okrs.length - okrsGerais.length}
+              </span>
+              <span className="text-xs text-gray-600 dark:text-gray-400 hidden sm:inline">
+                (Financeiro, Operação, Receita, Artístico, RH, Produção)
+              </span>
+            </div>
+            {secaoAreasAberta ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+
+          {/* Uma área por linha: com a coluna Andamento, 2 colunas ficam apertadas demais. */}
+          {secaoAreasAberta && (
+            <div className="mt-1.5 space-y-2">
+              {AREAS.map(area => {
+                const AreaIcon = area.icon;
+                const linhas = okrsDaArea(area.key);
+                const aberta = !areasFechadas[area.key];
+                return (
+                  <div
+                    key={area.key}
+                    className={`bg-white dark:bg-gray-800 border-2 ${area.border} rounded-lg overflow-hidden`}
+                  >
+                    <div className={`${area.header} px-3 py-2 flex items-center justify-between border-b ${area.border}`}>
+                      <button
+                        onClick={() => setAreasFechadas(prev => ({ ...prev, [area.key]: !prev[area.key] }))}
+                        className="flex items-center gap-2 flex-1 text-left"
+                      >
+                        <AreaIcon className={`w-4 h-4 ${area.text}`} />
+                        <span className="font-bold text-sm text-gray-800 dark:text-white">{area.label}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-white/70 dark:bg-gray-900/40 text-[10px] font-bold text-gray-600 dark:text-gray-300">
+                          {linhas.length}
+                        </span>
+                        {aberta ? <ChevronUp className="w-3.5 h-3.5 text-gray-600 dark:text-gray-300" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-600 dark:text-gray-300" />}
+                      </button>
+                      <Button
+                        size="sm"
+                        onClick={() => addOKR(area.key)}
+                        className="h-6 px-2 bg-green-600 hover:bg-green-700 text-[10px]"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </Button>
+                    </div>
+
+                    {aberta && (
+                      <>
+                        {/* Header da Tabela */}
+                        <div className={`hidden lg:grid ${GRID_OKR_AREA} bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-300 dark:border-gray-600 text-[11px] font-bold text-gray-700 dark:text-gray-300`}>
+                          <div className="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600">Tema</div>
+                          <div className="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600">Big Bet</div>
+                          <div className="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600">OBS</div>
+                          <div className="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600">Andamento</div>
+                          <div className="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600 text-center">Status</div>
+                          <div className="px-1 py-1.5" />
+                        </div>
+
+                        {/* Linhas */}
+                        <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                          {linhas.length === 0 && (
+                            <div className="px-3 py-4 text-center text-xs text-gray-500 dark:text-gray-400">
+                              Nenhum OKR nesta área. Use o + para adicionar.
+                            </div>
+                          )}
+                          {linhas.map(({ okr, index }) => {
+                            const statusStyle = getStatusStyle(okr.status);
+                            return (
+                              <div
+                                key={index}
+                                className={`grid grid-cols-1 ${GRID_OKR_AREA} ${statusStyle.bg}`}
+                              >
+                                <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
+                                  <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Tema</label>
+                                  <Textarea
+                                    value={okr.epico}
+                                    onChange={(e) => updateOKR(index, 'epico', e.target.value)}
+                                    className="text-xs font-semibold bg-white/80 dark:bg-gray-700 min-h-[40px] py-1.5"
+                                    rows={2}
+                                  />
+                                </div>
+                                <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
+                                  <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Big Bet</label>
+                                  <Textarea
+                                    value={okr.historia}
+                                    onChange={(e) => updateOKR(index, 'historia', e.target.value)}
+                                    className="text-xs bg-white/80 dark:bg-gray-700 min-h-[40px] py-1.5"
+                                    rows={2}
+                                  />
+                                </div>
+                                <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
+                                  <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">OBS</label>
+                                  <Textarea
+                                    value={okr.observacoes}
+                                    onChange={(e) => updateOKR(index, 'observacoes', e.target.value)}
+                                    className="text-xs bg-white/80 dark:bg-gray-700 min-h-[40px] py-1.5"
+                                    rows={2}
+                                  />
+                                </div>
+                                <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
+                                  <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Andamento</label>
+                                  <Textarea
+                                    value={okr.andamento}
+                                    onChange={(e) => updateOKR(index, 'andamento', e.target.value)}
+                                    placeholder="Onde está hoje..."
+                                    className="text-xs bg-white/80 dark:bg-gray-700 min-h-[40px] py-1.5"
+                                    rows={2}
+                                  />
+                                </div>
+                                <div className="px-1 py-1 border-r border-gray-200 dark:border-gray-700">
+                                  <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Status</label>
+                                  <select
+                                    value={okr.status}
+                                    onChange={(e) => updateOKR(index, 'status', e.target.value)}
+                                    className={`w-full h-7 px-1 rounded text-[10px] font-bold cursor-pointer border-2 ${statusStyle.border} ${statusStyle.bg} ${statusStyle.text}`}
+                                  >
+                                    {statusOptions.map(opt => (
+                                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="px-1 py-1 flex items-center justify-center">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeOKR(index)}
+                                    className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-100"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Botão Add Mobile */}
+                        <div className="lg:hidden p-2 border-t border-gray-200 dark:border-gray-700">
+                          <Button
+                            onClick={() => addOKR(area.key)}
+                            className="w-full h-8 bg-green-600 hover:bg-green-700 text-sm"
+                            leftIcon={<Plus className="w-4 h-4" />}
+                          >
+                            Adicionar em {area.label}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

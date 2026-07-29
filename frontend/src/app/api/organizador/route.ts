@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const barId = searchParams.get('bar_id');
     const ano = searchParams.get('ano');
-    const trimestre = searchParams.get('trimestre');
+    const semestre = searchParams.get('semestre');
     const id = searchParams.get('id');
 
     if (!barId) {
@@ -49,14 +49,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ organizador, okrs });
     }
 
-    // Buscar organizador por ano e trimestre
-    if (ano && trimestre) {
+    // Buscar organizador por ano e semestre
+    if (ano && semestre) {
       const { data: organizador, error } = await supabase
         .from('organizador_visao')
         .select('*')
         .eq('bar_id', barId)
         .eq('ano', parseInt(ano))
-        .eq('trimestre', parseInt(trimestre))
+        .eq('semestre', parseInt(semestre))
         .single();
 
       if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
@@ -77,9 +77,10 @@ export async function GET(request: Request) {
     // Listar todos os organizadores do bar
     const { data: organizadores, error } = await supabase
       .from('organizador_visao')
-      .select('id, bar_id, ano, trimestre, tipo, missao, created_at, updated_at')
+      .select('id, bar_id, ano, trimestre, semestre, tipo, missao, tema_semestre, created_at, updated_at')
       .eq('bar_id', barId)
       .order('ano', { ascending: false })
+      .order('semestre', { ascending: false, nullsFirst: true })
       .order('trimestre', { ascending: false, nullsFirst: true });
 
     if (error) throw error;
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
   const neg_request = negarPorRota(user, request); if (neg_request) return neg_request;
   try {
     const body = await request.json();
-    const { bar_id, ano, trimestre, tipo, okrs, ...dados } = body;
+    const { bar_id, ano, trimestre, semestre, tipo, okrs, ...dados } = body;
 
     if (!bar_id || !ano) {
       return NextResponse.json(
@@ -111,14 +112,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar se já existe
-    const { data: existente } = await supabase
+    // Verificar se já existe o mesmo período. O modelo atual é semestral;
+    // trimestre só aparece em registros legados.
+    let checagem = supabase
       .from('organizador_visao')
       .select('id')
       .eq('bar_id', bar_id)
-      .eq('ano', ano)
-      .eq('trimestre', trimestre || null)
-      .single();
+      .eq('ano', ano);
+    checagem = semestre
+      ? checagem.eq('semestre', semestre)
+      : checagem.eq('trimestre', trimestre || null);
+
+    const { data: existente } = await checagem.maybeSingle();
 
     if (existente) {
       return NextResponse.json(
@@ -134,7 +139,8 @@ export async function POST(request: NextRequest) {
         bar_id,
         ano,
         trimestre: trimestre || null,
-        tipo: tipo || 'trimestral',
+        semestre: semestre || null,
+        tipo: tipo || 'semestral',
         ...dados
       })
       .select()
@@ -145,7 +151,13 @@ export async function POST(request: NextRequest) {
     // Criar OKRs se fornecidos
     if (okrs && okrs.length > 0) {
       const okrsComOrganizador = okrs.map((okr: any, index: number) => ({
-        ...okr,
+        epico: okr.epico,
+        historia: okr.historia,
+        responsavel: okr.responsavel,
+        observacoes: okr.observacoes,
+        andamento: okr.andamento,
+        status: okr.status || 'cinza',
+        area: okr.area || 'GERAL',
         organizador_id: organizador.id,
         ordem: index
       }));
@@ -175,16 +187,17 @@ export async function PUT(request: NextRequest) {
   const neg_request = negarPorRota(user, request); if (neg_request) return neg_request;
   try {
     const body = await request.json();
-    const { id, okrs, bar_id, ano, trimestre, tipo, created_at, ...dados } = body;
+    const { id, okrs, bar_id, created_at, updated_at, ...dados } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID é obrigatório' }, { status: 400 });
     }
 
-    // Atualizar organizador
+    // O período (ano/semestre) é editável na tela, então vai junto no update.
+    // bar_id continua imutável.
     const { data: organizador, error } = await supabase
       .from('organizador_visao')
-      .update(dados)
+      .update({ ...dados, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
@@ -206,7 +219,9 @@ export async function PUT(request: NextRequest) {
           historia: okr.historia,
           responsavel: okr.responsavel,
           observacoes: okr.observacoes,
+          andamento: okr.andamento,
           status: okr.status || 'cinza',
+          area: okr.area || 'GERAL',
           organizador_id: id,
           ordem: index
         }));

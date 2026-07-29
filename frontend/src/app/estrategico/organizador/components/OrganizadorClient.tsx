@@ -60,14 +60,9 @@ export function OrganizadorClient({ initialData, barId, barNome }: OrganizadorCl
 
   const handleCriarNovo = () => {
     const anoAtual = new Date().getFullYear();
-    const mesAtual = new Date().getMonth() + 1;
-    let trimestreAtual = 1;
-    if (mesAtual >= 1 && mesAtual <= 3) trimestreAtual = 1;
-    else if (mesAtual >= 4 && mesAtual <= 6) trimestreAtual = 2;
-    else if (mesAtual >= 7 && mesAtual <= 9) trimestreAtual = 3;
-    else trimestreAtual = 4;
-    
-    router.push(`/estrategico/organizador/novo?ano=${anoAtual}&trimestre=${trimestreAtual}`);
+    const semestreAtual = new Date().getMonth() + 1 <= 6 ? 1 : 2;
+
+    router.push(`/estrategico/organizador/novo?ano=${anoAtual}&semestre=${semestreAtual}`);
   };
 
   const handleEditar = (id: number) => {
@@ -80,9 +75,11 @@ export function OrganizadorClient({ initialData, barId, barNome }: OrganizadorCl
       const data = await response.json();
       
       if (data.organizador) {
-        const novoTrimestre = org.trimestre === 4 ? 1 : (org.trimestre || 1) + 1;
-        const novoAno = org.trimestre === 4 ? org.ano + 1 : org.ano;
-        
+        // 2º Sem duplica para o 1º Sem do ano seguinte.
+        const semestreAtual = org.semestre || (org.trimestre ? Math.ceil(org.trimestre / 2) : 1);
+        const novoSemestre = semestreAtual === 2 ? 1 : 2;
+        const novoAno = semestreAtual === 2 ? org.ano + 1 : org.ano;
+
         const createResponse = await fetch('/api/organizador', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -90,7 +87,9 @@ export function OrganizadorClient({ initialData, barId, barNome }: OrganizadorCl
             ...data.organizador,
             id: undefined,
             ano: novoAno,
-            trimestre: novoTrimestre,
+            semestre: novoSemestre,
+            trimestre: null,
+            tipo: 'semestral',
             okrs: data.okrs?.map((o: any) => ({ ...o, id: undefined })) || []
           })
         });
@@ -98,9 +97,16 @@ export function OrganizadorClient({ initialData, barId, barNome }: OrganizadorCl
         if (createResponse.ok) {
           toast({
             title: 'Sucesso!',
-            description: `Organizador duplicado para ${novoTrimestre}º Tri ${novoAno}`
+            description: `Organizador duplicado para ${novoSemestre}º Sem ${novoAno}`
           });
           carregarOrganizadores();
+        } else {
+          const erro = await createResponse.json().catch(() => ({}));
+          toast({
+            title: 'Erro',
+            description: erro?.error || 'Não foi possível duplicar o organizador',
+            variant: 'destructive'
+          });
         }
       }
     } catch (error) {
@@ -139,21 +145,16 @@ export function OrganizadorClient({ initialData, barId, barNome }: OrganizadorCl
   };
 
   const getNomePeriodo = (org: Organizador) => {
-    if (org.tipo === 'anual' || !org.trimestre) {
-      return `Visão Anual ${org.ano}`;
-    }
-    return `${org.trimestre}º Trimestre ${org.ano}`;
+    if (org.semestre) return `${org.semestre}º Semestre ${org.ano}`;
+    // Legado: registros criados antes do modelo semestral.
+    if (org.trimestre) return `${org.trimestre}º Trimestre ${org.ano}`;
+    return `Visão Anual ${org.ano}`;
   };
 
-  const getCorTrimestre = (trimestre: number | null) => {
-    if (!trimestre) return 'bg-blue-500';
-    const cores: Record<number, string> = {
-      1: 'bg-cyan-500',
-      2: 'bg-green-500',
-      3: 'bg-yellow-500',
-      4: 'bg-orange-500'
-    };
-    return cores[trimestre] || 'bg-gray-500';
+  const getCorPeriodo = (org: Organizador) => {
+    if (org.semestre === 1) return 'bg-cyan-500';
+    if (org.semestre === 2) return 'bg-orange-500';
+    return 'bg-blue-500';
   };
 
   return (
@@ -172,7 +173,7 @@ export function OrganizadorClient({ initialData, barId, barNome }: OrganizadorCl
           </Button>
           <div>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Planejamento estratégico anual e trimestral • {barNome}
+              Planejamento estratégico semestral • {barNome}
             </p>
           </div>
         </div>
@@ -219,7 +220,7 @@ export function OrganizadorClient({ initialData, barId, barNome }: OrganizadorCl
                     className="flex items-center gap-3 cursor-pointer flex-1"
                     onClick={() => handleEditar(org.id)}
                   >
-                    <div className={`w-3 h-3 rounded-full ${getCorTrimestre(org.trimestre)}`} />
+                    <div className={`w-3 h-3 rounded-full ${getCorPeriodo(org)}`} />
                     <CardTitle className="text-lg text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                       {getNomePeriodo(org)}
                     </CardTitle>
