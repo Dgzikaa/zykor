@@ -24,17 +24,23 @@ function podeGerir(user: { role?: string; modulos_permitidos: unknown }, action:
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
-  const barId = Number(new URL(request.url).searchParams.get('bar_id')) || user.bar_id;
+  const sp = new URL(request.url).searchParams;
+  const barId = Number(sp.get('bar_id')) || user.bar_id;
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id obrigatório' }, { status: 400 });
 
+  // ?secao=Bar|Cozinha filtra quem atende àquela área. Quem está com secao NULL aparece nas
+  // DUAS listas de propósito (ex.: Chefe de Produção, que transita entre bar e cozinha).
+  const secao = sp.get('secao');
+
   const supabase = await getAdminClient();
-  const { data, error } = await (supabase as any)
+  let q = (supabase as any)
     .schema('auth_custom')
     .from('pessoas_responsaveis')
-    .select('id, nome, cargo, ativo')
+    .select('id, nome, cargo, ativo, secao')
     .eq('bar_id', barId)
-    .eq('ativo', true)
-    .order('nome', { ascending: true });
+    .eq('ativo', true);
+  if (secao === 'Bar' || secao === 'Cozinha') q = q.or(`secao.eq.${secao},secao.is.null`);
+  const { data, error } = await q.order('nome', { ascending: true });
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, data: data || [] });
 }
@@ -49,12 +55,15 @@ export async function POST(request: NextRequest) {
   const nome = String(body.nome || '').trim();
   if (!barId || !nome) return NextResponse.json({ success: false, error: 'bar_id e nome obrigatórios' }, { status: 400 });
 
+  // secao: 'Bar' | 'Cozinha' | null (null = atende as duas áreas)
+  const secao = body.secao === 'Bar' || body.secao === 'Cozinha' ? body.secao : null;
+
   const supabase = await getAdminClient();
   const { data, error } = await (supabase as any)
     .schema('auth_custom')
     .from('pessoas_responsaveis')
-    .insert({ bar_id: barId, nome, cargo: body.cargo ? String(body.cargo).trim() : null, ativo: true })
-    .select('id, nome, cargo, ativo')
+    .insert({ bar_id: barId, nome, cargo: body.cargo ? String(body.cargo).trim() : null, secao, ativo: true })
+    .select('id, nome, cargo, ativo, secao')
     .single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, data });
@@ -74,12 +83,16 @@ export async function PUT(request: NextRequest) {
   if ('nome' in body) patch.nome = body.nome;
   if ('cargo' in body) patch.cargo = body.cargo;
   if ('ativo' in body) patch.ativo = body.ativo;
+  // Aceita null explícito (volta a valer pras duas seções); valor inválido não vira patch.
+  if ('secao' in body) {
+    patch.secao = body.secao === 'Bar' || body.secao === 'Cozinha' ? body.secao : null;
+  }
   const { data, error } = await (supabase as any)
     .schema('auth_custom')
     .from('pessoas_responsaveis')
     .update(patch)
     .eq('id', id)
-    .select('id, nome, cargo, ativo')
+    .select('id, nome, cargo, ativo, secao')
     .single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, data });

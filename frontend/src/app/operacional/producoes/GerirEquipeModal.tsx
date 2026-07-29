@@ -14,27 +14,31 @@ export function GerirEquipeModal({ barId, responsaveis, podeInserir, podeEditar,
   const { toast } = useToast();
   const [novoNome, setNovoNome] = useState('');
   const [novoCargo, setNovoCargo] = useState('');
+  // '' = atende as DUAS seções (ex.: Chefe de Produção). É o default de propósito: melhor
+  // aparecer nas duas listas do que sumir da certa por um cadastro apressado.
+  const [novaSecao, setNovaSecao] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [editNome, setEditNome] = useState('');
   const [editCargo, setEditCargo] = useState('');
+  const [editSecao, setEditSecao] = useState('');
 
   const adicionar = async () => {
     const nome = novoNome.trim();
     if (!nome) { toast({ title: 'Informe o nome', variant: 'destructive' }); return; }
     setSalvando(true);
-    const r = await api.post('/api/operacional/pessoas-responsaveis', { bar_id: barId, nome, cargo: novoCargo.trim() || null });
+    const r = await api.post('/api/operacional/pessoas-responsaveis', { bar_id: barId, nome, cargo: novoCargo.trim() || null, secao: novaSecao || null });
     setSalvando(false);
-    if (r.success) { setNovoNome(''); setNovoCargo(''); onChanged(); }
+    if (r.success) { setNovoNome(''); setNovoCargo(''); setNovaSecao(''); onChanged(); }
     else toast({ title: 'Erro ao adicionar', description: r.error, variant: 'destructive' });
   };
 
-  const iniciarEdicao = (p: any) => { setEditId(p.id); setEditNome(p.nome); setEditCargo(p.cargo || ''); };
+  const iniciarEdicao = (p: any) => { setEditId(p.id); setEditNome(p.nome); setEditCargo(p.cargo || ''); setEditSecao(p.secao || ''); };
   const salvarEdicao = async () => {
     const nome = editNome.trim();
     if (!nome) { toast({ title: 'Informe o nome', variant: 'destructive' }); return; }
     setSalvando(true);
-    const r = await api.put('/api/operacional/pessoas-responsaveis', { id: editId, nome, cargo: editCargo.trim() || null });
+    const r = await api.put('/api/operacional/pessoas-responsaveis', { id: editId, nome, cargo: editCargo.trim() || null, secao: editSecao || null });
     setSalvando(false);
     if (r.success) { setEditId(null); onChanged(); }
     else toast({ title: 'Erro ao salvar', description: r.error, variant: 'destructive' });
@@ -69,10 +73,19 @@ export function GerirEquipeModal({ barId, responsaveis, podeInserir, podeEditar,
                 <Input value={novoNome} onChange={e => setNovoNome(e.target.value)} placeholder="Nome completo"
                   onKeyDown={e => { if (e.key === 'Enter') adicionar(); }} />
               </div>
-              <div className="w-36">
+              <div className="w-32">
                 <label className="text-[11px] text-gray-400">Cargo</label>
                 <Input value={novoCargo} onChange={e => setNovoCargo(e.target.value)} placeholder="Ex.: Cozinha"
                   onKeyDown={e => { if (e.key === 'Enter') adicionar(); }} />
+              </div>
+              <div className="w-28">
+                <label className="text-[11px] text-gray-400">Seção</label>
+                <select value={novaSecao} onChange={e => setNovaSecao(e.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm">
+                  <option value="">Ambas</option>
+                  <option value="Cozinha">Cozinha</option>
+                  <option value="Bar">Bar</option>
+                </select>
               </div>
               <Button onClick={adicionar} disabled={salvando} className="gap-1.5">
                 {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}Adicionar
@@ -90,7 +103,13 @@ export function GerirEquipeModal({ barId, responsaveis, podeInserir, podeEditar,
                 {editId === p.id ? (
                   <>
                     <Input value={editNome} onChange={e => setEditNome(e.target.value)} className="flex-1 h-8" />
-                    <Input value={editCargo} onChange={e => setEditCargo(e.target.value)} placeholder="Cargo" className="w-28 h-8" />
+                    <Input value={editCargo} onChange={e => setEditCargo(e.target.value)} placeholder="Cargo" className="w-24 h-8" />
+                    <select value={editSecao} onChange={e => setEditSecao(e.target.value)}
+                      className="h-8 w-24 rounded-md border border-input bg-background px-1.5 text-xs">
+                      <option value="">Ambas</option>
+                      <option value="Cozinha">Cozinha</option>
+                      <option value="Bar">Bar</option>
+                    </select>
                     <Button size="sm" onClick={salvarEdicao} disabled={salvando} className="h-8">Salvar</Button>
                     <Button size="sm" variant="ghost" onClick={() => setEditId(null)} className="h-8">Cancelar</Button>
                   </>
@@ -99,6 +118,9 @@ export function GerirEquipeModal({ barId, responsaveis, podeInserir, podeEditar,
                     <div className="flex-1 min-w-0">
                       <span className="text-sm text-gray-900 dark:text-white">{p.nome}</span>
                       {p.cargo && <span className="text-xs text-gray-400 ml-2">{p.cargo}</span>}
+                      <span className="text-[10px] ml-2 px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
+                        {p.secao === 'Cozinha' ? '👨‍🍳 Cozinha' : p.secao === 'Bar' ? '🍺 Bar' : 'Ambas'}
+                      </span>
                     </div>
                     {podeEditar && (
                       <button onClick={() => iniciarEdicao(p)} title="Editar"

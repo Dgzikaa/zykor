@@ -11,8 +11,16 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api-client';
-import { Trash2, Plus, ChevronLeft, ChevronRight, Loader2, Upload, X, Camera, Pencil, ImageIcon, Check, Search } from 'lucide-react';
+import { Trash2, Plus, ChevronLeft, ChevronRight, Loader2, Upload, X, Camera, Pencil, ImageIcon, Check, Search, Users } from 'lucide-react';
+// Reusa o mesmo módulo e o mesmo modal do Controle de Produção: quem gere a equipe lá gere aqui,
+// e a lista de responsáveis é a mesma (auth_custom.pessoas_responsaveis). Duplicar viraria dois
+// cadastros pra manter.
+import { MOD_GERIR_EQUIPE, type Secao } from '../producoes/_shared';
+import { GerirEquipeModal } from '../producoes/GerirEquipeModal';
+
+type Responsavel = { id: number; nome: string; cargo: string | null; secao: string | null };
 
 type Area = 'CozinhaFin' | 'CozinhaProd' | 'BarFin' | 'BarProd' | 'Salao';
 const AREAS: { v: Area; l: string; hint: string }[] = [
@@ -53,6 +61,9 @@ type Item = {
 type Registro = {
   id: number; bar_id: number; data: string; observacao: string | null;
   criado_por: string | null; criado_em: string; atualizado_em: string;
+  // Registros anteriores a 29/07/2026 não têm seção/responsável — por isso nullable, e por isso
+  // o filtro de seção também aceita NULL (senão sumiriam das duas abas).
+  secao: string | null; responsavel_id: number | null;
   itens: Item[]; fotos: Foto[];
 };
 
@@ -123,7 +134,25 @@ export default function DesperdicioPage() {
   const { toast } = useToast();
   const { setPageTitle } = usePageTitle();
   const { soLeitura, podeInserir } = useModuloPermissao('/operacional/desperdicio');
+  const { hasPermission, can } = useAuth();
   useEffect(() => { setPageTitle('🗑️ Desperdício'); return () => setPageTitle(''); }, [setPageTitle]);
+
+  // Seção (Bar/Cozinha) no mesmo desenho do Controle de Produção, inclusive a trava: quem só tem
+  // 'producao_bar' vê só Bar (tablets do bar), quem só tem 'producao_cozinha' vê só Cozinha.
+  const podeBar = hasPermission('producao_bar');
+  const podeCozinha = hasPermission('producao_cozinha');
+  const secaoTravada: Secao | null = podeBar && !podeCozinha ? 'Bar' : podeCozinha && !podeBar ? 'Cozinha' : null;
+  const secoesVisiveis: Secao[] = secaoTravada ? [secaoTravada] : ['Cozinha', 'Bar'];
+  const [secaoAtiva, setSecaoAtiva] = useState<Secao>('Cozinha');
+  useEffect(() => { if (secaoTravada) setSecaoAtiva(secaoTravada); }, [secaoTravada]);
+
+  // Gerir equipe: mesmas ações granulares do Controle de Produção (admin sempre pode).
+  const podeGerirInserir = can(MOD_GERIR_EQUIPE, 'inserir');
+  const podeGerirEditar = can(MOD_GERIR_EQUIPE, 'editar');
+  const podeGerirExcluir = can(MOD_GERIR_EQUIPE, 'excluir');
+  const podeGerirEquipe = podeGerirInserir || podeGerirEditar || podeGerirExcluir;
+  const [gerirEquipe, setGerirEquipe] = useState(false);
+  const [responsaveis, setResponsaveis] = useState<Responsavel[]>([]);
 
   // Semana seg→dom padrão. Navega em passos de 7 dias.
   const [monISO, setMonISO] = useState(() => toISO(mondayOf(new Date())));
@@ -145,12 +174,15 @@ export default function DesperdicioPage() {
       // hambúrguer é jogar fora tudo que vai nele — o servidor explode a ficha na hora de
       // gravar (ver expandirItens na API). Só entram produtos QUE TÊM ficha; sem ficha não há
       // o que debitar, e apareceriam como opção que falha ao salvar.
-      const [reg, ins, prod] = await Promise.all([
-        api.get(`/api/operacional/desperdicio?ini=${semana.ini}&fim=${semana.fim}`),
+      const [reg, ins, prod, resp] = await Promise.all([
+        api.get(`/api/operacional/desperdicio?ini=${semana.ini}&fim=${semana.fim}&secao=${secaoAtiva}`),
         api.get(`/api/operacional/insumos?bar_id=${barId}`),
         api.get(`/api/operacional/produtos?bar_id=${barId}`).catch(() => ({ success: false })),
+        // Responsáveis JÁ filtrados pela seção no servidor (quem tem secao null vem nas duas).
+        api.get(`/api/operacional/pessoas-responsaveis?bar_id=${barId}&secao=${secaoAtiva}`).catch(() => ({ success: false })),
       ]);
       if (reg.success) setRegistros(reg.registros || []);
+      if ((resp as any)?.success) setResponsaveis((resp as any).data || []);
 
       const listaInsumos: Insumo[] = ins.success ? (ins.insumos || []) : [];
       const listaProdutos: Insumo[] = ((prod as any)?.success ? ((prod as any).produtos || []) : [])
@@ -167,10 +199,15 @@ export default function DesperdicioPage() {
     } catch (e: any) {
       toast({ title: 'Erro ao carregar', description: e?.message, variant: 'destructive' });
     } finally { setLoading(false); }
-  }, [barId, semana.ini, semana.fim, toast]);
+  }, [barId, semana.ini, semana.fim, secaoAtiva, toast]);
   useEffect(() => { carregar(); }, [carregar]);
 
   const navSemana = (d: number) => { const x = parseISO(monISO); x.setDate(x.getDate() + d * 7); setMonISO(toISO(x)); };
+
+  // O registro guarda só o id do responsável; o nome vem da lista já carregada. Se a pessoa foi
+  // desativada depois, some da lista mas o registro antigo continua — mostra o id pra não sumir
+  // a informação de que alguém respondeu por aquilo.
+  const nomeResponsavel = (id: number) => responsaveis.find(p => p.id === id)?.nome || `#${id}`;
 
   const excluir = async (r: Registro) => {
     if (!window.confirm(`Apagar o registro de ${fmtDateFull(r.data)} (${r.itens.length} item(ns), ${r.fotos.length} foto(s))? A soma na coluna Desperdício em /desvios é atualizada.`)) return;
@@ -229,11 +266,27 @@ export default function DesperdicioPage() {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Registro visual do que foi jogado fora. Alimenta a coluna Desperdício em /operacional/desvios. · {selectedBar?.nome || `Bar ${barId ?? ''}`}</p>
         </div>
+        {podeGerirEquipe && (
+          <Button variant="outline" onClick={() => setGerirEquipe(true)} className="gap-1.5 shrink-0">
+            <Users className="w-4 h-4" />Gerir equipe
+          </Button>
+        )}
         {podeInserir && (
           <Button onClick={() => setDialogAberto({ modo: 'novo' })}>
             <Plus className="w-4 h-4 mr-1.5" />Novo registro
           </Button>
         )}
+      </div>
+
+      {/* Seção: mesma convenção do Controle de Produção. Troca refaz a busca (registros e
+          responsáveis vêm filtrados do servidor). */}
+      <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-0.5 bg-muted/30 w-fit">
+        {secoesVisiveis.map(s => (
+          <button key={s} onClick={() => setSecaoAtiva(s)}
+            className={`flex items-center gap-1.5 text-sm rounded-md px-3 py-1.5 transition ${secaoAtiva === s ? 'bg-indigo-600 text-white shadow-sm' : 'text-muted-foreground hover:bg-muted'}`}>
+            {s === 'Cozinha' ? '👨‍🍳' : '🍺'} {s}
+          </button>
+        ))}
       </div>
 
       <div className="flex items-center gap-1.5 flex-wrap">
@@ -320,7 +373,19 @@ export default function DesperdicioPage() {
               <CardContent className="py-3 space-y-3">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div>
-                    <div className="text-sm font-medium">{fmtDateFull(r.data)} · <span className="text-muted-foreground">{r.itens.length} item(ns)</span></div>
+                    <div className="text-sm font-medium flex items-center gap-2 flex-wrap">
+                      {fmtDateFull(r.data)} · <span className="text-muted-foreground">{r.itens.length} item(ns)</span>
+                      {r.secao && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
+                          {r.secao === 'Cozinha' ? '👨‍🍳' : '🍺'} {r.secao}
+                        </span>
+                      )}
+                      {r.responsavel_id != null && (
+                        <span className="text-xs text-muted-foreground">
+                          Responsável: <b className="font-medium text-foreground">{nomeResponsavel(r.responsavel_id)}</b>
+                        </span>
+                      )}
+                    </div>
                     {r.criado_por && <div className="text-xs text-muted-foreground">Por {r.criado_por} · {new Date(r.criado_em).toLocaleString('pt-BR')}</div>}
                   </div>
                   {podeInserir && (
@@ -374,8 +439,22 @@ export default function DesperdicioPage() {
           registroExistente={dialogAberto.registro}
           insumos={insumos}
           semana={semana}
+          secao={secaoAtiva}
+          responsaveis={responsaveis}
           onFechar={() => setDialogAberto(false)}
           onSalvo={async () => { setDialogAberto(false); await carregar(); }}
+        />
+      )}
+
+      {gerirEquipe && barId && (
+        <GerirEquipeModal
+          barId={barId}
+          responsaveis={responsaveis}
+          podeInserir={podeGerirInserir}
+          podeEditar={podeGerirEditar}
+          podeExcluir={podeGerirExcluir}
+          onClose={() => setGerirEquipe(false)}
+          onChanged={carregar}
         />
       )}
     </PageShell>
@@ -387,12 +466,15 @@ export default function DesperdicioPage() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function RegistroDialog({
-  modo, registroExistente, insumos, semana, onFechar, onSalvo,
+  modo, registroExistente, insumos, semana, secao, responsaveis, onFechar, onSalvo,
 }: {
   modo: 'novo' | 'editar';
   registroExistente?: Registro;
   insumos: Insumo[];
   semana: { ini: string; fim: string };
+  /** Seção da aba ativa — grava no registro e define quais responsáveis aparecem. */
+  secao: Secao;
+  responsaveis: Responsavel[];
   onFechar: () => void;
   onSalvo: () => Promise<void>;
 }) {
@@ -403,6 +485,9 @@ function RegistroDialog({
   const dataPadrao = hoje >= semana.ini && hoje <= semana.fim ? hoje : semana.ini;
 
   const [data, setData] = useState(registroExistente?.data || dataPadrao);
+  const [responsavelId, setResponsavelId] = useState<string>(
+    registroExistente?.responsavel_id != null ? String(registroExistente.responsavel_id) : '',
+  );
   const [observacao, setObservacao] = useState(registroExistente?.observacao || '');
   const [fotos, setFotos] = useState<Foto[]>(registroExistente?.fotos || []);
   const [itens, setItens] = useState<Item[]>(
@@ -454,6 +539,8 @@ function RegistroDialog({
     try {
       const payload = {
         data,
+        secao,
+        responsavel_id: responsavelId ? Number(responsavelId) : null,
         observacao: observacao.trim() || undefined,
         itens: itens.map(it => ({ insumo_codigo: it.insumo_codigo, qtd: it.qtd, motivo: it.motivo || undefined, observacao: it.observacao || undefined, area: it.area || undefined })),
         fotos,
@@ -480,10 +567,30 @@ function RegistroDialog({
         </DialogHeader>
 
         <div className="px-6 py-4 space-y-5 overflow-y-auto flex-1">
-          {/* Data */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Data:</span>
-            <Input type="date" value={data} onChange={e => setData(e.target.value)} className="h-8 w-40" />
+          {/* Data + responsável. A seção vem da aba ativa (não se escolhe aqui, pra não gravar
+              um registro numa seção diferente da que está sendo vista). */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Data:</span>
+              <Input type="date" value={data} onChange={e => setData(e.target.value)} className="h-8 w-40" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                {secao === 'Cozinha' ? '👨‍🍳' : '🍺'} Responsável:
+              </span>
+              <select
+                value={responsavelId}
+                onChange={e => setResponsavelId(e.target.value)}
+                className="h-8 rounded-md border border-input bg-background px-2 text-sm min-w-[11rem]"
+              >
+                <option value="">— não informado —</option>
+                {responsaveis.map(p => (
+                  <option key={p.id} value={String(p.id)}>
+                    {p.nome}{p.cargo ? ` · ${p.cargo}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Fotos */}

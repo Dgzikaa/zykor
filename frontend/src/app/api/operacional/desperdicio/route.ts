@@ -129,14 +129,19 @@ export async function GET(request: NextRequest) {
   const ini = sp.get('ini');
   const fim = sp.get('fim');
   if (!isISO(ini) || !isISO(fim)) return NextResponse.json({ success: false, error: 'ini e fim (AAAA-MM-DD) obrigatórios' }, { status: 400 });
+  // Filtro de seção (abas Bar/Cozinha). Registros ANTES de 29/07/2026 não têm seção — sem o
+  // `secao.is.null` eles sumiriam das duas abas, e a tela pareceria ter perdido histórico.
+  const secao = sp.get('secao');
 
   // Cabeçalho + itens + fotos em 3 queries paralelas (mais simples que 1 join grande).
-  const { data: registros, error: errReg } = await ops(supabase)
+  let qReg = ops(supabase)
     .from('desperdicio_registro')
-    .select('id, bar_id, data, observacao, criado_por, criado_em, atualizado_em')
+    .select('id, bar_id, data, observacao, criado_por, criado_em, atualizado_em, secao, responsavel_id')
     .eq('bar_id', bar_id)
     .gte('data', ini)
-    .lte('data', fim)
+    .lte('data', fim);
+  if (secao === 'Bar' || secao === 'Cozinha') qReg = qReg.or(`secao.eq.${secao},secao.is.null`);
+  const { data: registros, error: errReg } = await qReg
     .order('data', { ascending: false })
     .order('id', { ascending: false });
   if (errReg) return NextResponse.json({ success: false, error: errReg.message }, { status: 500 });
@@ -212,9 +217,14 @@ export async function POST(request: NextRequest) {
   const fotos = validarFotos(body?.fotos);
   if (fotos.length === 0) return NextResponse.json({ success: false, error: 'Anexe pelo menos 1 foto' }, { status: 400 });
 
+  // Seção + responsável (espelha o Controle de Produção). Seção inválida vira null em vez de
+  // barrar: o registro do desperdício não pode ser perdido por causa de metadado de organização.
+  const secao = body?.secao === 'Bar' || body?.secao === 'Cozinha' ? body.secao : null;
+  const responsavelId = Number(body?.responsavel_id) || null;
+
   // 1) Cabeçalho
   const { data: reg, error: errReg } = await ops(supabase).from('desperdicio_registro').insert({
-    bar_id, data,
+    bar_id, data, secao, responsavel_id: responsavelId,
     observacao: body?.observacao ? String(body.observacao).trim() : null,
     criado_por: user.email || user.nome || 'desperdicio-beta',
   }).select('id').single();
@@ -260,6 +270,10 @@ export async function PUT(request: NextRequest) {
     patch.data = body.data;
   }
   if (body?.observacao !== undefined) patch.observacao = body.observacao ? String(body.observacao).trim() : null;
+  if (body?.secao !== undefined) {
+    patch.secao = body.secao === 'Bar' || body.secao === 'Cozinha' ? body.secao : null;
+  }
+  if (body?.responsavel_id !== undefined) patch.responsavel_id = Number(body.responsavel_id) || null;
   if (Object.keys(patch).length > 0) {
     const { error } = await ops(supabase).from('desperdicio_registro').update(patch).eq('id', id);
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
