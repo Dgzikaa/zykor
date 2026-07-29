@@ -305,28 +305,51 @@ export async function POST(request: NextRequest) {
     // Endpoint retorna 202 Accepted com { protocolId, status: PENDING|SUCCESS|ERROR, createdAt }
     const valorRound = Math.round(valorNum * 100) / 100;
 
-    // VALIDACAO ANTI-DUPLICADO (2026-05-25)
+    // VALIDACAO ANTI-DUPLICADO (2026-05-25; consertada em 2026-07-29)
     // Pode acontecer 2 pagamentos com valores DIFERENTES pra mesma pessoa no mesmo dia,
     // mas se TUDO bate (valor, descricao, categoria, data, fornecedor) → quase certamente
     // eh repeat-click acidental do usuario. Bloqueia.
+    //
+    // ESTA TRAVA NUNCA FUNCIONOU ATE 29/07/2026: o select pedia `stakeholder_id` e `created_at`,
+    // colunas que NAO existem na tabela (sao `pessoa_id` e `data_criacao_ca`). O PostgREST
+    // devolvia erro, o retorno nao era checado, `duplicados` virava null e nenhuma duplicata era
+    // detectada. Custou 4 lancamentos duplicados de freela (R$ 3.800, bar 3, semana 20-26/07) que
+    // tiveram de ser apagados a mao — o CA nao exclui lancamento por API.
     const normalizar = (s: string) =>
       String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
     const descricaoNorm = normalizar(descricao);
 
-    const { data: duplicados } = await (supabase
+    // Filtra o valor no BANCO (tolerancia de 1 centavo) em vez de so no JS: com data+categoria+valor
+    // o conjunto vira pequeno e o limite deixa de poder cortar justamente a linha duplicada.
+    const { data: duplicados, error: errDup } = await (supabase
       .schema('bronze' as any) as any)
       .from('bronze_contaazul_lancamentos')
-      .select('contaazul_id, descricao, valor_bruto, data_competencia, categoria_id, stakeholder_id, status, created_at')
+      .select('contaazul_id, descricao, valor_bruto, data_competencia, categoria_id, pessoa_id, status, data_criacao_ca')
       .eq('bar_id', barIdNum)
       .eq('data_competencia', data_competencia)
       .eq('categoria_id', categoria_id)
+      .gte('valor_bruto', valorRound - 0.01)
+      .lte('valor_bruto', valorRound + 0.01)
       .is('excluido_em', null)
-      .limit(50);
+      .limit(200);
+
+    // Falha na checagem NAO pode virar "segue em frente": criar duplicado no CA e um registro
+    // financeiro que so da pra apagar a mao e' pior que pedir pra tentar de novo.
+    if (errDup) {
+      console.error('[contaazul/lancamentos] checagem anti-duplicado falhou:', errDup);
+      return NextResponse.json(
+        {
+          error: 'Nao foi possivel verificar duplicidade no Conta Azul agora. Tente de novo em instantes.',
+          hint: 'O lancamento NAO foi criado. Se persistir, avise o suporte — a checagem de duplicidade esta indisponivel.',
+        },
+        { status: 503 }
+      );
+    }
 
     const possivelDup = ((duplicados as any[]) || []).find(d => {
       const vMatch = Math.abs(Number(d.valor_bruto || 0) - valorRound) < 0.01;
       const dMatch = normalizar(d.descricao || '') === descricaoNorm;
-      const sMatch = !d.stakeholder_id || d.stakeholder_id === resolvedPessoaId;
+      const sMatch = !d.pessoa_id || d.pessoa_id === resolvedPessoaId;
       return vMatch && dMatch && sMatch;
     });
 
@@ -339,7 +362,7 @@ export async function POST(request: NextRequest) {
             descricao: possivelDup.descricao,
             valor: possivelDup.valor_bruto,
             data_competencia: possivelDup.data_competencia,
-            criado_em: possivelDup.created_at,
+            criado_em: possivelDup.data_criacao_ca,
             status: possivelDup.status,
           },
           hint: 'Mesmo valor, descricao, categoria, data e fornecedor ja existe. Se for proposital, altere a descricao ou crie em data diferente.',
