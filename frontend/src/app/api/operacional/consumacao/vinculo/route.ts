@@ -51,14 +51,21 @@ export async function POST(request: NextRequest) {
   if (mesaNorm === '—') return NextResponse.json({ success: false, error: 'mesa obrigatória' }, { status: 400 });
   const tipo = body.tipo ? String(body.tipo) : null;
 
-  // Reclassificar a CATEGORIA é ADMIN only (pedido do dono). Só bloqueia quando o não-admin está
-  // MUDANDO o categoria_override — quem só edita a tag da mesa (mesma categoria) segue liberado.
+  // Reclassificar a CATEGORIA é restrito a ADMIN e ao FINANCEIRO (28/07/2026: reclassificar
+  // consumação é rotina do financeiro, e a trava só-admin o impedia de trabalhar). Só bloqueia
+  // quem está MUDANDO o categoria_override — quem edita a tag da mesa (mesma categoria) segue
+  // liberado, como antes.
+  //
+  // De propósito NÃO usa `podeFinanceiro()`: aquele helper também aceita o MÓDULO financeiro,
+  // o que liberaria mais 9 funcionários — incluindo contas de agências parceiras. Aqui o
+  // critério é o papel na empresa (role), que é o que o dono pediu.
+  const podeReclassificar = ['admin', 'financeiro'].includes(String((user as any).role));
   const novaCat = body.categoria_override ? String(body.categoria_override) : null;
-  if (String((user as any).role) !== 'admin') {
+  if (!podeReclassificar) {
     const { data: prev } = await fin.from('consumo_mesa_vinculo')
       .select('categoria_override').eq('bar_id', barId).eq('mesa_norm', mesaNorm).maybeSingle();
     if (novaCat !== ((prev?.categoria_override as string | null) ?? null)) {
-      return NextResponse.json({ success: false, error: 'Só admin pode alterar a categoria da consumação.' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'Só admin ou financeiro pode alterar a categoria da consumação.' }, { status: 403 });
     }
   }
 

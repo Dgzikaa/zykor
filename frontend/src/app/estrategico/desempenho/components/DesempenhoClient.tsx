@@ -65,7 +65,7 @@ const STATUS_COLORS = {
 
 const getSecoesConfig = (
   barId?: number,
-  integracoes?: { getin_api?: boolean; instagram_api?: boolean },
+  integracoes?: { getin_api?: boolean; instagram_api?: boolean; google_gmn_api?: boolean },
   visao: 'semanal' | 'mensal' = 'semanal',
 ): SecaoConfig[] => {
 const getinAuto = integracoes?.getin_api ?? (barId !== 4);
@@ -74,6 +74,10 @@ const getinAuto = integracoes?.getin_api ?? (barId !== 4);
 // não tinha IG — ele conectou em 27/07/2026 e o hardcode passou a mentir. Agora bar novo que
 // conectar já entra verde sozinho, e bar que desconectar volta pra manual.
 const igAuto = integracoes?.instagram_api ?? (barId !== 4);
+// [GMN] vira automático quando o bar tem ficha do Google Meu Negócio conectada E escolhida
+// (integrations.google_oauth_tokens.location_id, via a mesma view). Sem ficha amarrada não há
+// de onde puxar, então segue manual — nunca por bar_id fixo.
+const gmnAuto = integracoes?.google_gmn_api ?? false;
 
 return [
   {
@@ -347,10 +351,20 @@ return [
       {
         id: 'gmn',
         label: '[GMN] Google Meu Negócio',
-        metricas: [
-          { key: 'gmn_total_visualizacoes', label: '[GMN] Total de Visualizações', status: 'manual', fonte: 'Google Meu Negócio', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'gmn_total_acoes', label: '[GMN] Total de Ações', status: 'manual', fonte: 'Google Meu Negócio', calculo: 'Manual', formato: 'numero', editavel: true },
-          { key: 'gmn_solicitacoes_rotas', label: '[GMN] Rotas', status: 'manual', fonte: 'Google Meu Negócio', calculo: 'Manual', formato: 'numero', editavel: true },
+        // AUTO via Business Profile Performance API (sync diário, mesmo cron do [O]/[M]) quando o
+        // bar tem ficha conectada e escolhida. O sync grava ainda a quebra que a tela não mostra
+        // (pesquisa vs maps, website, ligações, menu) — está em meta.marketing_semanal se um dia
+        // valer a pena abrir aqui.
+        // ATENÇÃO ao comparar com o histórico digitado: o Google trocou "visualizações" por
+        // "impressões" em 2022, então a série tem um degrau na semana em que virou automática.
+        metricas: gmnAuto ? [
+          { key: 'gmn_total_visualizacoes', label: '[GMN] Total de Visualizações', status: 'auto' as const, fonte: 'Google Meu Negócio (sync diário)', calculo: 'Impressões da semana: pesquisa + maps, desktop + mobile', formato: 'numero' as const, editavel: true },
+          { key: 'gmn_total_acoes', label: '[GMN] Total de Ações', status: 'auto' as const, fonte: 'Google Meu Negócio (sync diário)', calculo: 'Rotas + ligações + cliques no site + cliques no cardápio', formato: 'numero' as const, editavel: true },
+          { key: 'gmn_solicitacoes_rotas', label: '[GMN] Rotas', status: 'auto' as const, fonte: 'Google Meu Negócio (sync diário)', calculo: 'BUSINESS_DIRECTION_REQUESTS da semana', formato: 'numero' as const, editavel: true },
+        ] : [
+          { key: 'gmn_total_visualizacoes', label: '[GMN] Total de Visualizações', status: 'manual' as const, fonte: 'Google Meu Negócio', calculo: 'Manual — este bar não tem ficha do Google conectada (conecte em Configurações › Integrações)', formato: 'numero' as const, editavel: true },
+          { key: 'gmn_total_acoes', label: '[GMN] Total de Ações', status: 'manual' as const, fonte: 'Google Meu Negócio', calculo: 'Manual — este bar não tem ficha do Google conectada (conecte em Configurações › Integrações)', formato: 'numero' as const, editavel: true },
+          { key: 'gmn_solicitacoes_rotas', label: '[GMN] Rotas', status: 'manual' as const, fonte: 'Google Meu Negócio', calculo: 'Manual — este bar não tem ficha do Google conectada (conecte em Configurações › Integrações)', formato: 'numero' as const, editavel: true },
         ]
       },
       {

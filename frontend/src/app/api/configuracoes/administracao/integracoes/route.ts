@@ -119,7 +119,11 @@ async function checarCredencialBar(
     }
 
     if (fonte.tipo === 'oauth_table' && fonte.tabela) {
-      const { data: row } = await supabase
+      // `.schema()` explícito: instagram_contas tem alias em public, mas google_oauth_tokens só
+      // existe em integrations — sem isso o PostgREST não acha a tabela e o card apareceria como
+      // "não configurada" sem erro nenhum (a falha calada clássica do from() sem schema).
+      const base = fonte.schema ? supabase.schema(fonte.schema) : supabase;
+      const { data: row } = await base
         .from(fonte.tabela)
         .select('*')
         .eq(fonte.colunaBar || 'bar_id', barId)
@@ -130,23 +134,32 @@ async function checarCredencialBar(
           access_token: mascarar((row as any).access_token),
           ig_username: (row as any).ig_username || null,
           facebook_page_name: (row as any).facebook_page_name || null,
+          // Google: qual conta autorizou e qual ficha está amarrada ao bar
+          conta_google: (row as any).google_email || null,
+          ficha: (row as any).location_nome || (row as any).location_id || null,
         };
         credencial.expires_at = (row as any).expires_at;
         credencial.detalhes_extras = {
           conectado_em: (row as any).conectado_em,
           ultima_sync_em: (row as any).ultima_sync_em,
           token_type: (row as any).token_type,
+          ...((row as any).ultimo_erro ? { ultimo_erro: (row as any).ultimo_erro } : {}),
         };
+        temRefreshToken = Boolean((row as any).refresh_token);
+        // O access_token do Google dura 1h — sem esta ressalva o card viveria "expirado" mesmo
+        // funcionando, porque o token se renova sozinho pelo refresh na hora do uso.
+        const expirado =
+          (row as any).expires_at && new Date((row as any).expires_at).getTime() < Date.now();
         if ((row as any).ativo === false) statusCredencial = 'desativada';
-        else if ((row as any).expires_at && new Date((row as any).expires_at).getTime() < Date.now())
-          statusCredencial = 'expirado';
+        else if (expirado && !temRefreshToken) statusCredencial = 'expirado';
         else if (
+          !temRefreshToken &&
           (row as any).expires_at &&
           new Date((row as any).expires_at).getTime() < Date.now() + 7 * 86400_000
         )
           statusCredencial = 'expirando';
         else statusCredencial = 'ok';
-        return { credencial, statusCredencial, temRefreshToken: false };
+        return { credencial, statusCredencial, temRefreshToken };
       }
     }
   }

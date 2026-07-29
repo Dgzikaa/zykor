@@ -7,6 +7,8 @@
  *     "Alcance (orgânico)" da aba Orgânico). Fonte: integrations.instagram_posts +
  *     instagram_post_insights (último snapshot por mídia).
  * [M] Mídia (Meta Ads) = fetchMetaAdsInsights (CTR/CPC por clique no link, igual Reportei).
+ * [GMN] Google Meu Negócio = Business Profile Performance API, da ficha amarrada ao bar em
+ *     integrations.google_oauth_tokens.location_id.
  *
  * IMPORTANTE: o upsert NÃO envia as colunas de stories (o_num_stories, o_visu_stories,
  * o_retencao_stories) — elas seguem MANUAIS até resolver a captação de reposts/collabs.
@@ -16,6 +18,8 @@
 
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { fetchMetaAdsInsights, hasMetaAdsCredentials } from '@/lib/meta-ads/insights';
+import { getGoogleAccessToken } from '@/lib/google/oauth';
+import { buscarMetricasGmn } from '@/lib/google/business-profile';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -137,6 +141,38 @@ async function computeMidia(barId: number, inicio: string, fim: string) {
   };
 }
 
+// ── Cálculo [GMN] Google Meu Negócio ────────────────────────────────────────
+
+/**
+ * Métricas da ficha do Google amarrada ao bar. Retorna null (e não zeros) em qualquer
+ * situação de "não deu pra calcular" — bar sem ficha, token vencido, API sem acesso liberado.
+ * Zerar aqui apagaria os números que o time digitou à mão, que é justamente o que não pode
+ * acontecer enquanto a automação não estiver de pé.
+ */
+async function computeGmn(supabase: any, barId: number, inicio: string, fim: string) {
+  const { data: conexao } = await supabase
+    .schema('integrations')
+    .from('google_oauth_tokens')
+    .select('location_id, ativo')
+    .eq('bar_id', barId)
+    .maybeSingle();
+
+  if (!conexao?.location_id || conexao.ativo === false) return null;
+
+  const tk = await getGoogleAccessToken(supabase, barId);
+  if ('error' in tk) throw new Error(`Google bar ${barId}: ${tk.error}`);
+
+  const metricas = await buscarMetricasGmn(tk.token, conexao.location_id, inicio, fim);
+
+  await supabase
+    .schema('integrations')
+    .from('google_oauth_tokens')
+    .update({ ultima_sync_em: new Date().toISOString(), ultimo_erro: null, ultimo_erro_em: null })
+    .eq('bar_id', barId);
+
+  return metricas;
+}
+
 // ── Orquestração ────────────────────────────────────────────────────────────
 
 /** bar_ids com conta de anúncio configurada na env META_ADS_ACCOUNTS. */
@@ -150,8 +186,24 @@ function adsAccountBars(): number[] {
   }
 }
 
-/** Fontes disponíveis por bar: [O] só se tem IG ativo, [M] só se tem conta de anúncio. */
-export async function barSources(barId: number): Promise<{ organico: boolean; midia: boolean }> {
+/** bar_ids com ficha do Google Meu Negócio conectada E amarrada. */
+async function gmnBars(supabase: any): Promise<number[]> {
+  const { data } = await supabase
+    .schema('integrations')
+    .from('google_oauth_tokens')
+    .select('bar_id')
+    .eq('ativo', true)
+    .not('location_id', 'is', null);
+  return (data ?? []).map((r: any) => Number(r.bar_id)).filter(Boolean);
+}
+
+/**
+ * Fontes disponíveis por bar: [O] só se tem IG ativo, [M] só se tem conta de anúncio,
+ * [GMN] só se tem ficha do Google escolhida.
+ */
+export async function barSources(
+  barId: number,
+): Promise<{ organico: boolean; midia: boolean; gmn: boolean }> {
   const supabase = createServiceRoleClient();
   const { data } = await (supabase as any)
     .schema('integrations')
@@ -160,7 +212,8 @@ export async function barSources(barId: number): Promise<{ organico: boolean; mi
     .eq('bar_id', barId)
     .eq('ativo', true)
     .limit(1);
-  return { organico: !!(data && data.length), midia: adsAccountBars().includes(barId) };
+  const gmn = (await gmnBars(supabase)).includes(barId);
+  return { organico: !!(data && data.length), midia: adsAccountBars().includes(barId), gmn };
 }
 
 /**
@@ -173,33 +226,52 @@ export async function syncMarketingSemana(
   barId: number,
   ano: number,
   semana: number,
-  opts: { organico?: boolean; midia?: boolean } = {},
+  opts: { organico?: boolean; midia?: boolean; gmn?: boolean } = {},
 ) {
   const incOrganico = opts.organico ?? true;
   const incMidia = opts.midia ?? true;
+  const incGmn = opts.gmn ?? true;
 
   const supabase = createServiceRoleClient();
   const { inicio, fim } = isoWeekRange(ano, semana);
 
   const org = incOrganico ? await computeOrganico(supabase, barId, inicio, fim) : null;
   const midia = incMidia ? await computeMidia(barId, inicio, fim).catch(() => null) : null;
+  // Falha do Google não pode derrubar [O]/[M], que já funcionam — registra e segue sem o bloco.
+  const gmn = incGmn
+    ? await computeGmn(supabase, barId, inicio, fim).catch(async (e) => {
+        console.error(`[marketing-sync] GMN bar ${barId} ${ano}-W${semana}:`, e?.message);
+        await (supabase as any)
+          .schema('integrations')
+          .from('google_oauth_tokens')
+          .update({
+            ultimo_erro: String(e?.message || e).slice(0, 500),
+            ultimo_erro_em: new Date().toISOString(),
+          })
+          .eq('bar_id', barId);
+        return null;
+      })
+    : null;
 
   // Nada calculável pra esse bar → não escreve (não zera nada manual)
-  if (!org && !midia) return { barId, ano, semana, inicio, fim, org: null, midia: null, skipped: true };
+  if (!org && !midia && !gmn) {
+    return { barId, ano, semana, inicio, fim, org: null, midia: null, gmn: null, skipped: true };
+  }
 
-  const payload = { bar_id: barId, ano, semana, ...(org ?? {}), ...(midia ?? {}) };
+  const payload = { bar_id: barId, ano, semana, ...(org ?? {}), ...(midia ?? {}), ...(gmn ?? {}) };
   const { error } = await (supabase as any)
     .schema('meta')
     .from('marketing_semanal')
     .upsert(payload, { onConflict: 'bar_id,ano,semana' });
 
   if (error) throw new Error(`marketing_semanal bar ${barId} ${ano}-W${semana}: ${error.message}`);
-  return { barId, ano, semana, inicio, fim, org, midia: midia ?? null };
+  return { barId, ano, semana, inicio, fim, org, midia: midia ?? null, gmn: gmn ?? null };
 }
 
 /**
- * Sincroniza semana atual + anterior (para pegar assentamento de atribuição da Meta e
- * crescimento de alcance dos posts recentes) de todos os bares com IG ativo ou ads.
+ * Sincroniza semana atual + anterior (para pegar assentamento de atribuição da Meta, o
+ * crescimento de alcance dos posts recentes e a consolidação atrasada do Google) de todos os
+ * bares com IG ativo, conta de anúncio ou ficha do Google.
  */
 export async function syncMarketingTodos() {
   const supabase = createServiceRoleClient();
@@ -210,18 +282,24 @@ export async function syncMarketingTodos() {
     .select('bar_id')
     .eq('ativo', true);
 
-  // Bares com IG ativo (recebem [O]) e bares com conta de anúncio (recebem [M]) — cada
-  // bloco é preenchido só onde a fonte existe, pra não zerar dados manuais do outro.
+  // Bares com IG ativo (recebem [O]), com conta de anúncio (recebem [M]) e com ficha do Google
+  // amarrada (recebem [GMN]) — cada bloco é preenchido só onde a fonte existe, pra não zerar
+  // os dados manuais dos outros.
   const igBars = new Set<number>((contas ?? []).map((c: any) => Number(c.bar_id)).filter(Boolean));
   const adsBars = new Set<number>(adsAccountBars());
-  const bars = new Set<number>([...igBars, ...adsBars]);
+  const googleBars = new Set<number>(await gmnBars(supabase));
+  const bars = new Set<number>([...igBars, ...adsBars, ...googleBars]);
 
   const hoje = new Date();
   const semanas = [isoWeekOf(new Date(hoje.getTime() - 7 * 86400000)), isoWeekOf(hoje)];
 
   const resultados: any[] = [];
   for (const barId of bars) {
-    const opts = { organico: igBars.has(barId), midia: adsBars.has(barId) };
+    const opts = {
+      organico: igBars.has(barId),
+      midia: adsBars.has(barId),
+      gmn: googleBars.has(barId),
+    };
     for (const w of semanas) {
       try {
         resultados.push(await syncMarketingSemana(barId, w.ano, w.semana, opts));
