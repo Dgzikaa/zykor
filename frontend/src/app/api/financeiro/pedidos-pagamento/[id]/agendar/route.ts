@@ -230,7 +230,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         : `${p.descricao} (comp. ${comp.data_competencia})`;
       try {
         const caId = await criarLancamentoCA({ data_competencia: comp.data_competencia, valor: comp.valor, descricao: desc, categoria_id: (comp as any).categoria_id || null });
-        await fin(supabase).from('pedidos_pagamento_competencias').update({ contaazul_lancamento_id: caId }).eq('id', comp.id);
+        // Gravar o id É o que impede o próximo retry de recriar o lançamento (é ele que o
+        // `continue` lá em cima consulta). Se este UPDATE falhar em silêncio, a idempotência
+        // morre junto: foi assim que 4 diárias do VIP'S viraram 8 lançamentos (R$ 3.800) entre
+        // 27 e 28/07/2026 — o retry de erro_inter passou de novo pelo CA. Erro aqui vira erro_ca
+        // com o id no texto, pra ninguém reenviar às cegas (o CA não exclui por API).
+        const { error: errVinculo } = await fin(supabase)
+          .from('pedidos_pagamento_competencias')
+          .update({ contaazul_lancamento_id: caId })
+          .eq('id', comp.id);
+        if (errVinculo) {
+          const msg = `competência ${comp.data_competencia}: o lançamento ${caId} FOI criado no Conta Azul, mas não consegui gravar o vínculo (${errVinculo.message}). NÃO reenvie sem conferir no CA — reenviar duplicaria.`;
+          await marcarErro(supabase, id, pedido.bar_id, 'erro_ca', msg, user);
+          return NextResponse.json({ success: false, etapa: 'ca', error: msg }, { status: 500 });
+        }
         comp.contaazul_lancamento_id = caId;
       } catch (e: any) {
         const msg = `competência ${comp.data_competencia}: ${e?.message || 'falha no Conta Azul'}`;
@@ -245,7 +258,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } else if (!contaazulLancamentoId) {
     try {
       contaazulLancamentoId = await criarLancamentoCA({ data_competencia: competencia, valor: p.valor, descricao: p.descricao });
-      await fin(supabase).from('pedidos_pagamento').update({ contaazul_lancamento_id: contaazulLancamentoId }).eq('id', id);
+      // Mesmo cuidado do bloco de competências: sem o id gravado, o próximo retry recria.
+      const { error: errVinculo } = await fin(supabase)
+        .from('pedidos_pagamento')
+        .update({ contaazul_lancamento_id: contaazulLancamentoId })
+        .eq('id', id);
+      if (errVinculo) {
+        const msg = `o lançamento ${contaazulLancamentoId} FOI criado no Conta Azul, mas não consegui gravar o vínculo (${errVinculo.message}). NÃO reenvie sem conferir no CA — reenviar duplicaria.`;
+        await marcarErro(supabase, id, pedido.bar_id, 'erro_ca', msg, user);
+        return NextResponse.json({ success: false, etapa: 'ca', error: msg }, { status: 500 });
+      }
     } catch (e: any) {
       const msg = e?.message || 'Falha de rede ao criar no Conta Azul';
       await marcarErro(supabase, id, pedido.bar_id, 'erro_ca', msg, user);
