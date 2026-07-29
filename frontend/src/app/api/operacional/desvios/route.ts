@@ -401,12 +401,23 @@ export async function POST(request: NextRequest) {
   if (body.tipo === 'ignorar') {
     if (!codigo) return NextResponse.json({ success: false, error: 'codigo obrigatório' }, { status: 400 });
     const ignorar = body.ignorar !== false; // default true; false = desfazer
-    const { error } = await (sb() as any).schema('operations')
+    // `ilike` (sem curinga = igualdade sem caixa) porque a fn_desvios devolve o código em
+    // MAIÚSCULA ('I0267') e o cadastro guarda minúscula ('i0267'). Com .eq() o UPDATE não casava
+    // nada, afetava 0 linhas e — como ninguém conferia — a API respondia sucesso e o olhinho não
+    // fazia nada (reportado 29/07). Daí também o .select(): sem linha afetada, é ERRO, não sucesso.
+    const { data: afetados, error } = await (sb() as any).schema('operations')
       .from('insumos')
       .update({ ignorar_desvio: ignorar, updated_at: new Date().toISOString() })
       .eq('bar_id', user.bar_id)
-      .eq('codigo', codigo);
+      .ilike('codigo', codigo)
+      .select('codigo');
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    if (!afetados?.length) {
+      return NextResponse.json(
+        { success: false, error: `Insumo ${codigo} não encontrado no cadastro deste bar — não dá pra marcar.` },
+        { status: 404 },
+      );
+    }
     return NextResponse.json({ success: true, codigo, ignorar_desvio: ignorar });
   }
 
