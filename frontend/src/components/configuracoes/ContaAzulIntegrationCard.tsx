@@ -53,9 +53,14 @@ interface ContaAzulStatus {
     contas_financeiras: number;
   };
   last_sync: {
-    data: string;
+    data: string | null;
     status: string;
     registros: number;
+  } | null;
+  /** Sync começado e ainda sem fim gravado (em curso ou travado). Não é o "último sync". */
+  sync_em_andamento?: {
+    iniciado_em: string;
+    tipo: string;
   } | null;
 }
 
@@ -182,8 +187,12 @@ export default function ContaAzulIntegrationCard({
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString('pt-BR');
+  // Tolerante a null/data inválida: `new Date(null)` vira epoch e a tela mostrava
+  // "31/12/1969, 21:00" — que lia como integração quebrada quando era só ausência de data.
+  const formatDate = (dateStr?: string | null) => {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('pt-BR');
   };
 
   if (loading) {
@@ -311,11 +320,22 @@ export default function ContaAzulIntegrationCard({
                 </div>
               </div>
 
-              {status.last_sync && (
+              {(status.last_sync || status.sync_em_andamento) && (
                 <div className="p-3 bg-muted/30 rounded-lg">
-                  <p className="text-xs text-muted-foreground">Ultimo sync</p>
-                  <p className="text-sm font-medium">{formatDate(status.last_sync.data)}</p>
-                  <p className="text-xs text-muted-foreground">{status.last_sync.registros} registros - {status.last_sync.status}</p>
+                  <p className="text-xs text-muted-foreground">Último sync concluído</p>
+                  <p className="text-sm font-medium">{formatDate(status.last_sync?.data)}</p>
+                  {status.last_sync && (
+                    <p className="text-xs text-muted-foreground">
+                      {status.last_sync.registros} registros - {status.last_sync.status}
+                    </p>
+                  )}
+                  {status.sync_em_andamento && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                      Um sync ({status.sync_em_andamento.tipo}) iniciou em{' '}
+                      {formatDate(status.sync_em_andamento.iniciado_em)} e ainda não registrou
+                      conclusão.
+                    </p>
+                  )}
                 </div>
               )}
 

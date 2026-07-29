@@ -49,14 +49,30 @@ export async function GET(request: NextRequest) {
       bronzeClient.from('bronze_contaazul_contas_financeiras').select('*', { count: 'exact', head: true }).eq('bar_id', parseInt(barId))
     ]);
 
-    const { data: lastLog } = await supabase
-      .schema('integrations' as any)
-      .from('contaazul_logs_sincronizacao')
-      .select('data_fim, status, total_registros')
-      .eq('bar_id', parseInt(barId))
-      .order('data_inicio', { ascending: false })
-      .limit(1)
-      .single();
+    // "Último sync" = a última execução que REALMENTE CONCLUIU.
+    // Antes pegava o log mais recente por data_inicio e devolvia data_fim: quando esse log estava
+    // preso em 'iniciado' (que é comum — 87 dos 182 `alteracao_full_ano` nunca gravam o fim), a
+    // data vinha null e a tela exibia "31/12/1969, 21:00" (new Date(null) = epoch em GMT-3), com
+    // "0 registros - iniciado" do lado. Parecia integração quebrada quando estava tudo certo.
+    const logs = supabase.schema('integrations' as any).from('contaazul_logs_sincronizacao');
+    const [{ data: lastLog }, { data: emAndamento }] = await Promise.all([
+      logs
+        .select('data_fim, status, total_registros')
+        .eq('bar_id', parseInt(barId))
+        .eq('status', 'success')
+        .not('data_fim', 'is', null)
+        .order('data_fim', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      // Um sync em curso (ou preso) é informação útil — só não pode virar o "último sync".
+      logs
+        .select('data_inicio, tipo_sincronizacao')
+        .eq('bar_id', parseInt(barId))
+        .eq('status', 'iniciado')
+        .order('data_inicio', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
     return NextResponse.json({
       connected: authData.connected || false,
@@ -74,6 +90,10 @@ export async function GET(request: NextRequest) {
         data: lastLog.data_fim,
         status: lastLog.status,
         registros: lastLog.total_registros
+      } : null,
+      sync_em_andamento: emAndamento ? {
+        iniciado_em: emAndamento.data_inicio,
+        tipo: emAndamento.tipo_sincronizacao,
       } : null
     });
 
