@@ -703,6 +703,12 @@ function ItemRow({
 }) {
   const [busca, setBusca] = useState('');
   const [abertoBusca, setAbertoBusca] = useState(false);
+  // Texto CRU do campo de quantidade. Antes o input era controlado pelo número já convertido
+  // (`value={item.qtd ? ... : ''}`), e isso tornava impossível digitar qualquer valor começando
+  // com zero: ao teclar "0", parseQtd devolvia 0, que é falsy, e o campo se limpava sozinho —
+  // ninguém conseguia lançar 0,072 kg (72 g) no iPad. Guardando o texto, "0", "0," e "0,0"
+  // sobrevivem enquanto a pessoa digita; o número é derivado em paralelo.
+  const [qtdTexto, setQtdTexto] = useState(item.qtd ? String(item.qtd).replace('.', ',') : '');
   const buscaRef = useRef<HTMLInputElement>(null);
   const buscaWrapperRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (abertoBusca) buscaRef.current?.focus(); }, [abertoBusca]);
@@ -808,8 +814,14 @@ function ItemRow({
         {/* Qtd */}
         <div className="w-28">
           <Input type="text" inputMode="decimal" placeholder="Qtd" className="h-9 text-right"
-            value={item.qtd ? String(item.qtd).replace('.', ',') : ''}
-            onChange={e => onChange({ qtd: parseQtd(e.target.value) })} />
+            value={qtdTexto}
+            onChange={e => {
+              // Aceita só dígitos e UM separador decimal (vírgula ou ponto). O texto fica como a
+              // pessoa digitou; o item recebe o número. "0,072" → 0.072.
+              const limpo = e.target.value.replace(/[^\d.,]/g, '').replace(/([.,].*)[.,]/g, '$1');
+              setQtdTexto(limpo);
+              onChange({ qtd: parseQtd(limpo) });
+            }} />
         </div>
 
         {onRemover && (
