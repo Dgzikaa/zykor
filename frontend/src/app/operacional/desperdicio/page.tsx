@@ -64,6 +64,8 @@ type Registro = {
   // Registros anteriores a 29/07/2026 não têm seção/responsável — por isso nullable, e por isso
   // o filtro de seção também aceita NULL (senão sumiriam das duas abas).
   secao: string | null; responsavel_id: number | null;
+  /** Seção resolvida pelo servidor: a marcada, ou inferida da área dos itens. Pode ter as duas. */
+  secao_efetiva?: string[];
   itens: Item[]; fotos: Foto[];
 };
 
@@ -375,11 +377,12 @@ export default function DesperdicioPage() {
                   <div>
                     <div className="text-sm font-medium flex items-center gap-2 flex-wrap">
                       {fmtDateFull(r.data)} · <span className="text-muted-foreground">{r.itens.length} item(ns)</span>
-                      {r.secao && (
-                        <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
-                          {r.secao === 'Cozinha' ? '👨‍🍳' : '🍺'} {r.secao}
+                      {(r.secao ? [r.secao] : (r.secao_efetiva || [])).map(s => (
+                        <span key={s} className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${r.secao ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300' : 'bg-gray-500/15 text-gray-600 dark:text-gray-400'}`}
+                          title={r.secao ? 'Seção informada no registro' : 'Seção deduzida pela área dos itens (registro antigo, sem seção informada)'}>
+                          {s === 'Cozinha' ? '👨‍🍳' : '🍺'} {s}
                         </span>
-                      )}
+                      ))}
                       {r.responsavel_id != null && (
                         <span className="text-xs text-muted-foreground">
                           Responsável: <b className="font-medium text-foreground">{nomeResponsavel(r.responsavel_id)}</b>
@@ -549,8 +552,14 @@ function RegistroDialog({
         await api.put('/api/operacional/desperdicio', { id: registroExistente.id, ...payload });
         toast({ title: 'Registro atualizado' });
       } else {
-        await api.post('/api/operacional/desperdicio', payload);
-        toast({ title: 'Registro salvo', description: `${itens.length} item(ns) · ${fotos.length} foto(s)` });
+        const r = await api.post('/api/operacional/desperdicio', payload);
+        // O servidor devolve `duplicado_evitado` quando o mesmo conteúdo já entrou há pouco
+        // (clique repetido). Não é erro: o registro existe, só não criamos um segundo.
+        if (r?.duplicado_evitado) {
+          toast({ title: 'Este registro já estava salvo', description: 'Nada foi duplicado — o lançamento anterior foi mantido.' });
+        } else {
+          toast({ title: 'Registro salvo', description: `${itens.length} item(ns) · ${fotos.length} foto(s)` });
+        }
       }
       await onSalvo();
     } catch (e: any) {

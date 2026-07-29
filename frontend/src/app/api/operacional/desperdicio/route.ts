@@ -129,19 +129,19 @@ export async function GET(request: NextRequest) {
   const ini = sp.get('ini');
   const fim = sp.get('fim');
   if (!isISO(ini) || !isISO(fim)) return NextResponse.json({ success: false, error: 'ini e fim (AAAA-MM-DD) obrigatórios' }, { status: 400 });
-  // Filtro de seção (abas Bar/Cozinha). Registros ANTES de 29/07/2026 não têm seção — sem o
-  // `secao.is.null` eles sumiriam das duas abas, e a tela pareceria ter perdido histórico.
+  // Filtro de seção (abas Bar/Cozinha). O filtro NÃO é aplicado aqui na query: registros antigos
+  // não têm `secao`, e filtrar só por ela colocava registro 100% de Bar dentro da aba Cozinha
+  // (reportado em 29/07). A seção efetiva é resolvida abaixo, depois de carregar os itens —
+  // a ÁREA de cada item (BarFin/BarProd/CozinhaFin/CozinhaProd) é a informação precisa.
   const secao = sp.get('secao');
 
   // Cabeçalho + itens + fotos em 3 queries paralelas (mais simples que 1 join grande).
-  let qReg = ops(supabase)
+  const { data: registros, error: errReg } = await ops(supabase)
     .from('desperdicio_registro')
     .select('id, bar_id, data, observacao, criado_por, criado_em, atualizado_em, secao, responsavel_id')
     .eq('bar_id', bar_id)
     .gte('data', ini)
-    .lte('data', fim);
-  if (secao === 'Bar' || secao === 'Cozinha') qReg = qReg.or(`secao.eq.${secao},secao.is.null`);
-  const { data: registros, error: errReg } = await qReg
+    .lte('data', fim)
     .order('data', { ascending: false })
     .order('id', { ascending: false });
   if (errReg) return NextResponse.json({ success: false, error: errReg.message }, { status: 500 });
@@ -191,11 +191,32 @@ export async function GET(request: NextRequest) {
     const arr = fotosPorReg.get(f.registro_id) || []; arr.push(f); fotosPorReg.set(f.registro_id, arr);
   }
 
-  const enriched = (registros || []).map((r: any) => ({
-    ...r,
-    itens: itensPorReg.get(r.id) || [],
-    fotos: fotosPorReg.get(r.id) || [],
-  }));
+  // Seção EFETIVA: a marcada no registro manda; sem ela, deriva das ÁREAS dos itens
+  // (BarFin/BarProd → Bar; CozinhaFin/CozinhaProd → Cozinha). Registro com itens dos dois lados
+  // aparece nas duas abas — é misto de verdade. 'Salao' não é bar nem cozinha: cai nas duas, pra
+  // não sumir de lugar nenhum.
+  const secoesDoRegistro = (reg: any, itensDoReg: any[]): string[] => {
+    if (reg.secao === 'Bar' || reg.secao === 'Cozinha') return [reg.secao];
+    const areas = new Set(itensDoReg.map((i) => String(i.area || '')));
+    const out: string[] = [];
+    if ([...areas].some((a) => a.startsWith('Bar'))) out.push('Bar');
+    if ([...areas].some((a) => a.startsWith('Cozinha'))) out.push('Cozinha');
+    // Sem área nenhuma (ou só Salão): não dá pra afirmar de que lado é — mostra nas duas.
+    return out.length ? out : ['Bar', 'Cozinha'];
+  };
+
+  const enriched = (registros || [])
+    .map((r: any) => {
+      const itensDoReg = itensPorReg.get(r.id) || [];
+      return {
+        ...r,
+        itens: itensDoReg,
+        fotos: fotosPorReg.get(r.id) || [],
+        // Devolvido pra tela poder rotular o card mesmo quando a seção foi inferida.
+        secao_efetiva: secoesDoRegistro(r, itensDoReg),
+      };
+    })
+    .filter((r: any) => (secao === 'Bar' || secao === 'Cozinha') ? r.secao_efetiva.includes(secao) : true);
 
   return NextResponse.json({ success: true, registros: enriched });
 }
@@ -221,6 +242,51 @@ export async function POST(request: NextRequest) {
   // barrar: o registro do desperdício não pode ser perdido por causa de metadado de organização.
   const secao = body?.secao === 'Bar' || body?.secao === 'Cozinha' ? body.secao : null;
   const responsavelId = Number(body?.responsavel_id) || null;
+
+  // ── ANTI-DUPLICAÇÃO ────────────────────────────────────────────────────────────────────
+  // Em 29/07/2026 o mesmo registro entrou 13 VEZES (ids 37-49, 00:59→01:00): a pessoa clicou
+  // várias vezes em Salvar, provavelmente achando que não tinha funcionado — o upload das fotos
+  // demora e a tela não dava sinal claro. Cada clique virou um registro, e o desperdício foi
+  // 13x pro desvio (78 un onde eram 6).
+  //
+  // O `disabled` do botão não basta: em tablet o toque repetido dispara antes do re-render, e
+  // aqui os cliques tinham 2-7s de intervalo (pessoa insistindo). A trava tem que ser do lado
+  // do servidor, comparando o CONTEÚDO — mesmo bar, mesma data, mesmos itens/qtds, na última
+  // meia hora. Nesse caso devolve o registro que já existe em vez de criar outro (idempotente):
+  // pro usuário parece que salvou, que é o que ele queria mesmo.
+  const assinatura = (lista: any[]) => lista
+    .map((i) => `${String(i.insumo_codigo).toUpperCase()}:${Number(i.qtd)}`)
+    .sort()
+    .join('|');
+  const assinaturaNova = assinatura(itens);
+
+  const trintaMinAtras = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const { data: recentes } = await ops(supabase).from('desperdicio_registro')
+    .select('id, criado_em')
+    .eq('bar_id', bar_id)
+    .eq('data', data)
+    .gte('criado_em', trintaMinAtras);
+
+  if (recentes?.length) {
+    const idsRecentes = recentes.map((r: any) => r.id);
+    const { data: itensRecentes } = await ops(supabase).from('desperdicio_registro_item')
+      .select('registro_id, insumo_codigo, qtd')
+      .in('registro_id', idsRecentes);
+    const porRegistro = new Map<number, any[]>();
+    for (const it of (itensRecentes || []) as any[]) {
+      const arr = porRegistro.get(it.registro_id) || []; arr.push(it); porRegistro.set(it.registro_id, arr);
+    }
+    for (const [regId, lista] of porRegistro) {
+      if (assinatura(lista) === assinaturaNova) {
+        return NextResponse.json({
+          success: true,
+          duplicado_evitado: true,
+          registro_id: regId,
+          aviso: 'Este mesmo registro já tinha sido salvo há pouco — reaproveitamos o existente em vez de duplicar.',
+        });
+      }
+    }
+  }
 
   // 1) Cabeçalho
   const { data: reg, error: errReg } = await ops(supabase).from('desperdicio_registro').insert({
