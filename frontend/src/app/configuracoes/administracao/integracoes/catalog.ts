@@ -48,6 +48,7 @@ export interface AcaoIntegracao {
     | 'google_connect'
     | 'google_disconnect'
     | 'google_fichas'
+    | 'google_backfill'
     | 'ver_logs'
     | 'sincronizar_manual'
     | 'editar_credencial'
@@ -248,6 +249,7 @@ export const CATALOGO_INTEGRACOES: IntegracaoCatalogo[] = [
     acoes: [
       { id: 'google_connect', label: 'Conectar', tipo: 'google_connect' },
       { id: 'google_fichas', label: 'Escolher ficha', tipo: 'google_fichas' },
+      { id: 'google_backfill', label: 'Puxar histórico', tipo: 'google_backfill' },
       { id: 'google_disconnect', label: 'Desconectar', tipo: 'google_disconnect' },
     ],
   },

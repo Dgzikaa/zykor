@@ -94,9 +94,10 @@ export async function listarFichas(token: string): Promise<GoogleLocation[]> {
  *
  * Cuidados desta API:
  *  - devolve no máximo os últimos ~18 meses;
- *  - os últimos dias vêm incompletos (o Google consolida com alguns dias de atraso), então
- *    ressincronizar a semana anterior não é desperdício, é necessário;
- *  - `value` vem AUSENTE (não zero) nos dias sem ocorrência — daí o Number(...) || 0.
+ *  - os últimos ~2-3 dias ainda não fecharam (o Google consolida com atraso) e vão SUBINDO
+ *    depois; foi exatamente isso que fez os números digitados à mão ficarem menores que os
+ *    reais — por isso a janela é ressincronizada todo dia, não uma vez só;
+ *  - `value` vem AUSENTE (não zero) tanto em dia sem ocorrência quanto em dia não consolidado.
  */
 export interface MetricasGmn {
   gmn_visu_pesquisa: number;
@@ -120,13 +121,7 @@ const METRICAS_DIARIAS = [
   'BUSINESS_FOOD_MENU_CLICKS',
 ] as const;
 
-/** `locationName` = "locations/123"; datas em YYYY-MM-DD. */
-export async function buscarMetricasGmn(
-  token: string,
-  locationName: string,
-  inicio: string,
-  fim: string,
-): Promise<MetricasGmn> {
+function paramsPeriodo(inicio: string, fim: string): URLSearchParams {
   const [ai, mi, di] = inicio.split('-').map(Number);
   const [af, mf, df] = fim.split('-').map(Number);
 
@@ -138,24 +133,11 @@ export async function buscarMetricasGmn(
   params.set('dailyRange.end_date.year', String(af));
   params.set('dailyRange.end_date.month', String(mf));
   params.set('dailyRange.end_date.day', String(df));
+  return params;
+}
 
-  const json = await googleGet(
-    `${PERFORMANCE_API}/${locationName}:fetchMultiDailyMetricsTimeSeries?${params.toString()}`,
-    token,
-  );
-
-  const somas = new Map<string, number>();
-  for (const multi of json?.multiDailyMetricTimeSeries ?? []) {
-    for (const serie of multi?.dailyMetricTimeSeries ?? []) {
-      const total = (serie?.timeSeries?.datedValues ?? []).reduce(
-        (acc: number, d: any) => acc + (Number(d?.value) || 0),
-        0,
-      );
-      somas.set(serie.dailyMetric, (somas.get(serie.dailyMetric) || 0) + total);
-    }
-  }
-  const v = (k: string) => somas.get(k) || 0;
-
+/** Soma bruta por métrica → colunas gmn_*. */
+function montarMetricas(v: (k: string) => number): MetricasGmn {
   const pesquisa = v('BUSINESS_IMPRESSIONS_DESKTOP_SEARCH') + v('BUSINESS_IMPRESSIONS_MOBILE_SEARCH');
   const maps = v('BUSINESS_IMPRESSIONS_DESKTOP_MAPS') + v('BUSINESS_IMPRESSIONS_MOBILE_MAPS');
   const rotas = v('BUSINESS_DIRECTION_REQUESTS');
@@ -175,4 +157,71 @@ export async function buscarMetricasGmn(
     // Google mostra como interações; não inclui as impressões (que são alcance, não ação).
     gmn_total_acoes: rotas + ligacoes + website + menu,
   };
+}
+
+export interface DiaGmn {
+  /** YYYY-MM-DD */
+  data: string;
+  metricas: MetricasGmn;
+}
+
+/**
+ * Série DIÁRIA do período, já mapeada pras colunas gmn_*. UMA chamada cobre o intervalo
+ * inteiro (testado: 577 dias de uma vez), então backfill de 18 meses custa o mesmo que uma
+ * semana — é por isso que o histórico é reconstruído inteiro em vez de semana a semana.
+ *
+ * Dias AINDA NÃO CONSOLIDADOS pelo Google chegam com o `value` ausente (não zero) e são
+ * OMITIDOS daqui. Essa distinção é o coração da correção contínua: quem consome sabe
+ * diferenciar "esse dia foi zero" de "esse dia ainda não fechou", e não grava um número
+ * baixo como se fosse definitivo.
+ */
+export async function buscarSerieDiariaGmn(
+  token: string,
+  locationName: string,
+  inicio: string,
+  fim: string,
+): Promise<DiaGmn[]> {
+  const json = await googleGet(
+    `${PERFORMANCE_API}/${locationName}:fetchMultiDailyMetricsTimeSeries?${paramsPeriodo(inicio, fim).toString()}`,
+    token,
+  );
+
+  const porDia = new Map<string, Map<string, number>>();
+  for (const multi of json?.multiDailyMetricTimeSeries ?? []) {
+    for (const serie of multi?.dailyMetricTimeSeries ?? []) {
+      for (const d of serie?.timeSeries?.datedValues ?? []) {
+        if (d?.value === undefined || d?.value === null) continue; // dia ainda não fechado
+        const dt = d.date;
+        if (!dt?.year) continue;
+        const data = `${dt.year}-${String(dt.month).padStart(2, '0')}-${String(dt.day).padStart(2, '0')}`;
+        const m = porDia.get(data) ?? new Map<string, number>();
+        m.set(serie.dailyMetric, (m.get(serie.dailyMetric) || 0) + (Number(d.value) || 0));
+        porDia.set(data, m);
+      }
+    }
+  }
+
+  return [...porDia.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([data, m]) => ({ data, metricas: montarMetricas((k) => m.get(k) || 0) }));
+}
+
+/** Total do período (soma da série diária). `locationName` = "locations/123". */
+export async function buscarMetricasGmn(
+  token: string,
+  locationName: string,
+  inicio: string,
+  fim: string,
+): Promise<MetricasGmn> {
+  const serie = await buscarSerieDiariaGmn(token, locationName, inicio, fim);
+  return somarMetricas(serie.map((d) => d.metricas));
+}
+
+/** Soma métricas já mapeadas (usado pra agregar dias em semana). */
+export function somarMetricas(itens: MetricasGmn[]): MetricasGmn {
+  const zero = montarMetricas(() => 0);
+  return itens.reduce<MetricasGmn>((acc, m) => {
+    for (const k of Object.keys(zero) as (keyof MetricasGmn)[]) acc[k] += m[k];
+    return acc;
+  }, { ...zero });
 }

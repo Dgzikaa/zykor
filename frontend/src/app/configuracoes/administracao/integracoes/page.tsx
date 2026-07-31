@@ -288,6 +288,51 @@ export default function AdministracaoIntegracoesPage() {
     }
   };
 
+  /**
+   * Reconstrói o histórico do GMN pela API. O aviso é explícito porque isso SOBRESCREVE os
+   * números que o time digitou à mão — que é o objetivo (o digitado ficou menor que o real,
+   * capturado antes de o Google fechar a semana), mas não pode ser surpresa.
+   */
+  const backfillGoogle = async () => {
+    if (!selectedBar?.id) return;
+    if (
+      !confirm(
+        'Puxar todo o histórico do Google Meu Negócio (até 18 meses) para este bar?\n\n' +
+          'As métricas GMN das semanas antigas serão REESCRITAS com os números da API — ' +
+          'que são maiores que os digitados à mão, porque o Google fecha os dados com atraso. ' +
+          'Instagram, Meta Ads e stories manuais não são tocados.',
+      )
+    )
+      return;
+    setAcaoPendente('google_backfill');
+    try {
+      const resp = await fetch('/api/integracoes/google/backfill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bar_id: selectedBar.id }),
+      });
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json?.error || 'Falha no histórico');
+      const r = json.resultado || {};
+      if (!r.semanas) {
+        toast.warning('Nada foi gravado', {
+          description: r.motivo || 'Nenhuma semana com dado consolidado no período.',
+          duration: 20000,
+        });
+      } else {
+        toast.success(
+          `Histórico do Google atualizado: ${r.semanas} semanas (${r.primeira} → ${r.ultima})`,
+          { description: `${r.dias} dias lidos da API, desde ${r.inicio}.`, duration: 15000 },
+        );
+      }
+      await carregar();
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro', { duration: 20000 });
+    } finally {
+      setAcaoPendente(null);
+    }
+  };
+
   const abrirFichas = async () => {
     if (!selectedBar?.id) return;
     setFichasAbertas(true);
@@ -342,6 +387,7 @@ export default function AdministracaoIntegracoesPage() {
     if (acao.tipo === 'google_connect') return conectarGoogle();
     if (acao.tipo === 'google_disconnect') return desconectarGoogle();
     if (acao.tipo === 'google_fichas') return abrirFichas();
+    if (acao.tipo === 'google_backfill') return backfillGoogle();
     if (acao.tipo === 'externa' && acao.url) {
       window.open(acao.url, '_blank');
     }
