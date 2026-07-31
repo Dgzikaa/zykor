@@ -61,17 +61,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'data_inicio e data_fim são obrigatórios' }, { status: 400 });
     }
 
-    // Janela ter-seg, igual ao ETL (etl_gold_desempenho_semanal): a respostas
-    // chegam ~1 dia após a visita, então a janela é (data_inicio+1)..(data_fim+1)
-    // pela DATA em fuso de São Paulo. Sem isto o modal contava menos respostas que
-    // a tabela (gold). SP = UTC-3 → data SP D = [D 03:00Z, (D+1) 03:00Z).
+    // A janela TEM que ser a mesma que o ETL usou pra calcular a linha da tabela, senão o
+    // popup mostra um NPS diferente do número que a pessoa clicou — e não há como saber
+    // qual dos dois está certo. Os dois ETLs não usam a mesma convenção:
+    //   semanal (etl_gold_desempenho_semanal): janela ter-seg = (inicio+1)..(fim+1)
+    //   mensal  (etl_gold_desempenho_mensal):  mês cheio      = inicio..fim (sem deslocar)
+    // Default 'semanal' pra não mudar o comportamento de quem já chamava sem o parâmetro.
+    // Concreto: em jul/2026 o Deboche teve 23 respostas no dia 01/07 — deslocar a janela do
+    // MÊS jogava todas fora e o popup mostrava 26 respostas onde a tabela dizia 49.
+    const janela = (searchParams.get('janela') || 'semanal').toLowerCase();
+    const deslocamento = janela === 'exata' ? 0 : 1;
     const addDays = (iso: string, days: number) => {
       const d = new Date(iso + 'T00:00:00Z');
       d.setUTCDate(d.getUTCDate() + days);
       return d.toISOString().slice(0, 10);
     };
-    const iniSp = addDays(dataInicio, 1);       // 1º dia SP da janela
-    const fimExclusivoSp = addDays(dataFim, 2); // dia seguinte ao último dia SP
+    // SP = UTC-3 → data SP D = [D 03:00Z, (D+1) 03:00Z).
+    const iniSp = addDays(dataInicio, deslocamento);           // 1º dia SP da janela
+    const fimExclusivoSp = addDays(dataFim, deslocamento + 1); // dia seguinte ao último dia SP
 
     const filtradas = await paginate<any>(
       () => {
@@ -93,7 +100,11 @@ export async function GET(request: NextRequest) {
     const promotores = filtradas.filter(r => r.nps >= 9).length;
     const neutros = filtradas.filter(r => r.nps >= 7 && r.nps <= 8).length;
     const detratores = filtradas.filter(r => r.nps <= 6).length;
-    const npsScore = total > 0 ? Math.round(((promotores - detratores) / total) * 100) : null;
+    // 1 casa decimal: a tabela do Desempenho exibe o NPS com decimal (71,2) e arredondar
+    // pra inteiro aqui fazia o popup dizer 71 no mesmo período — divergência de fachada.
+    const npsScore = total > 0
+      ? Math.round(((promotores - detratores) / total) * 1000) / 10
+      : null;
     const mediaNotas = total > 0 ? Math.round((filtradas.reduce((acc, r) => acc + (r.nps || 0), 0) / total) * 10) / 10 : null;
 
     // Calcular NPS por categoria (4-5 = promotor, 3 = neutro, 1-2 = detrator)

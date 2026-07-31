@@ -1247,8 +1247,12 @@ export function DesempenhoClient({
       const nameParam = Array.isArray(searchName)
         ? `search_names=${encodeURIComponent(searchName.join(','))}`
         : `search_name=${encodeURIComponent(searchName)}`;
+      // Janela IGUAL à do ETL que gerou a linha clicada: o mensal usa o mês cheio, o
+      // semanal usa ter-seg (inicio+1..fim+1). Mandar a errada faz o popup contradizer
+      // o número da tabela.
+      const janela = visao === 'mensal' ? 'exata' : 'semanal';
       const response = await fetch(
-        `/api/falae/detailed-summary?bar_id=${effectiveBarId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}&${nameParam}`
+        `/api/falae/detailed-summary?bar_id=${effectiveBarId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}&${nameParam}&janela=${janela}`
       );
       const data = await response.json();
       
@@ -1272,7 +1276,7 @@ export function DesempenhoClient({
       console.error('Erro ao buscar detalhes NPS:', error);
       setNpsDialog(prev => ({ ...prev, loading: false }));
     }
-  }, [effectiveBarId]);
+  }, [effectiveBarId, visao]);
 
   const abrirDetalhesAtracao = useCallback(async (semana: DadosSemana) => {
     const periodo = `${formatarDataCurta(semana.data_inicio)} - ${formatarDataCurta(semana.data_fim)}`;
@@ -2955,7 +2959,9 @@ export function DesempenhoClient({
             Detalhes {npsDialog.titulo}
           </DialogTitle>
           <DialogDescription>
-            Semana {npsDialog.periodo} • NPS {npsDialog.npsScore ?? '-'} • {npsDialog.total} respostas
+            {visao === 'mensal' ? 'Período' : 'Semana'} {npsDialog.periodo} • NPS{' '}
+            {npsDialog.npsScore !== null ? formatarValor(npsDialog.npsScore, 'numero') : '-'} •{' '}
+            {npsDialog.total} respostas
           </DialogDescription>
         </DialogHeader>
         {npsDialog.loading ? (
@@ -2975,7 +2981,7 @@ export function DesempenhoClient({
                       npsDialog.npsScore !== null && npsDialog.npsScore >= 50 ? "text-yellow-600" :
                       npsDialog.npsScore !== null && npsDialog.npsScore >= 0 ? "text-orange-500" : "text-red-600"
                     )}>
-                      {npsDialog.npsScore ?? '-'}
+                      {npsDialog.npsScore !== null ? formatarValor(npsDialog.npsScore, 'numero') : '-'}
                     </p>
                     <p className="text-xs text-gray-500">NPS Score</p>
                   </div>
@@ -2994,7 +3000,7 @@ export function DesempenhoClient({
                 </div>
               </div>
               <p className="text-xs text-gray-600 dark:text-gray-300 mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-                <strong>Fórmula:</strong> (({npsDialog.promotores} - {npsDialog.detratores}) / {npsDialog.total || 1}) × 100 = <span className="font-semibold">{npsDialog.npsScore ?? '-'}</span>
+                <strong>Fórmula:</strong> (({npsDialog.promotores} - {npsDialog.detratores}) / {npsDialog.total || 1}) × 100 = <span className="font-semibold">{npsDialog.npsScore !== null ? formatarValor(npsDialog.npsScore, 'numero') : '-'}</span>
               </p>
             </section>
 
