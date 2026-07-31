@@ -8,6 +8,12 @@ interface KpiCardProps {
   value: ReactNode;
   /** valor de apoio (ex.: "vs média R$ 90k") */
   sub?: ReactNode;
+  /**
+   * Linha logo abaixo do valor, para uma leitura DERIVADA do próprio card
+   * (ex.: "R$ 15,96 /pessoa" em Entrada e Bar). Fica acima do `sub` de propósito:
+   * pertence ao número do card, enquanto o `sub` é a comparação com a média.
+   */
+  detalhe?: ReactNode;
   delta?: number | null;
   /** subir é ruim (custo/stockout/atraso) */
   inverso?: boolean;
@@ -30,6 +36,7 @@ export function KpiCard({
   label,
   value,
   sub,
+  detalhe,
   delta,
   inverso,
   icon,
@@ -55,6 +62,11 @@ export function KpiCard({
       >
         {value}
       </span>
+      {detalhe && (
+        <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300 tabular-nums">
+          {detalhe}
+        </span>
+      )}
       <div className="flex items-center justify-between gap-2 min-h-[16px]">
         {sub ? (
           <span className="text-[10px] text-gray-400">{sub}</span>

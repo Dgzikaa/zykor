@@ -56,6 +56,17 @@ export function TabVisaoGeral({ data }: Props) {
   const subVs = (val: number | undefined, fmt: (n: number) => string) =>
     val !== undefined && val !== null && baseN > 0 ? `méd ${fmt(val)}` : undefined;
 
+  // TM por origem (pedido do Cadu, 31/07/2026): "quanto cada pessoa deixou na entrada" e
+  // "quanto deixou no bar". Derivado aqui, não da API: couvert e bar são exatamente os números
+  // dos cards ao lado, e público é o mesmo divisor do Ticket Médio — então TM entrada + TM bar
+  // fecha com o TM total, e ninguém precisa conferir se três lugares calcularam igual.
+  // (`te_real`/`tb_real` existem em gold.planejamento mas estão 100% nulas desde 01/2026.)
+  // null quando não há público (dividir por zero viraria "R$ 0,00 /pessoa", que mente) e
+  // também quando a receita é zero — em dia sem couvert o card já mostra R$ 0, e repetir
+  // "R$ 0,00 /pessoa" embaixo só parece defeito.
+  const tmEntrada = m.publico > 0 && m.couvert > 0 ? m.couvert / m.publico : null;
+  const tmBar = m.publico > 0 && m.bar > 0 ? m.bar / m.publico : null;
+
   const percArtFat = m.faturamento > 0 ? (m.c_art / m.faturamento) * 100 : 0;
   const margem = m.faturamento > 0 ? (m.resultado / m.faturamento) * 100 : 0;
   // ROI da atração: faturamento incremental (vs média do mesmo dia) por R$ de cachê.
@@ -129,6 +140,7 @@ export function TabVisaoGeral({ data }: Props) {
           accent="violet"
           icon={<Receipt className="w-4 h-4" />}
           delta={d.couvert}
+          detalhe={tmEntrada != null ? `${formatCurrency(tmEntrada)} /pessoa` : undefined}
           sub={subVs(base?.couvert, moedaCompacta)}
         />
         <KpiCard
@@ -137,6 +149,7 @@ export function TabVisaoGeral({ data }: Props) {
           accent="violet"
           icon={<Beer className="w-4 h-4" />}
           delta={d.bar}
+          detalhe={tmBar != null ? `${formatCurrency(tmBar)} /pessoa` : undefined}
           sub={subVs(base?.bar, moedaCompacta)}
         />
         <KpiCard
