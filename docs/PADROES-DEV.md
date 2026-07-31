@@ -66,7 +66,24 @@
   do SWR na ilha client. Degrada seguro. **Limite atual**: bar é per-aba (sessionStorage), então o ganho
   RSC é capado até o bar virar cookie-first — decisão de produto pendente.
 
-## 7. Idioma
+## 7. shadcn / ShadcnStore — como usar sem quebrar o app
+
+O projeto segue o **padrão** shadcn (Radix + Tailwind + tokens HSL + `cn()`), mas os componentes de
+`components/ui/` foram escritos à mão e **divergiram** do upstream (ex.: `Button` não usa `cva`, não exporta
+`buttonVariants`, e tem props próprias `loading` / `leftIcon` / `rightIcon` usadas em ~250 páginas).
+O `components.json` existe só para permitir **acrescentar** componentes — não para migrar os existentes.
+
+- **NUNCA sobrescrever componente que já existe.** `npx shadcn add <x>` só para componente novo
+  (ex.: `dropdown-menu`, `accordion`, `avatar`, `sheet`). Se o CLI avisar que vai substituir, **abortar**.
+- **Gráfico de bloco pronto não entra.** ShadcnStore/shadcn usam Recharts; aqui vale a seção 1 (só ECharts
+  do hub). Bloco com gráfico serve de referência visual, o gráfico se reescreve.
+- **Tailwind aqui é v3.4**, blocos novos podem vir com sintaxe v4 (`@theme`, `@import "tailwindcss"`) —
+  converter antes de colar.
+- **Cores**: os tokens do `tailwind.config.ts` são os do shadcn, então bloco colado já pega o tema. Mudança
+  de paleta se faz em `src/app/globals.css` (`--primary`, `--muted`, ...), nunca hardcoded no componente.
+- `tailwindcss-animate` está instalado — `animate-in`, `fade-in-0`, `zoom-in-95`, `slide-in-from-*` funcionam.
+
+## 8. Idioma
 
 - Código (variáveis, funções, tipos): **inglês**. UI, docs, regras de negócio, commits: **pt-BR**.
 
