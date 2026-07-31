@@ -109,6 +109,8 @@ export interface PlanejamentoData {
   c_prod_is_projecao: boolean;
   cmv_teorico_custo: number;       // custo teórico do dia (ficha × vendas) — gold.cmv_teorico_dia
   cmv_teorico_pct: number | null;  // CMV% teórico do dia
+  qtd_itens: number | null;        // itens que SAÍRAM no dia (com cortesia) — silver.vendas_consolidada_dia
+  qtd_itens_pagos: number | null;  // idem, só o pago (a diferença pro anterior é a cortesia)
   consumacao: number; // Consumação Artistas do dia (ContaHub vd_vrdescontos motivo='Artistas')
   percent_art_fat: number;
 
@@ -226,7 +228,7 @@ export async function getPlanejamentoComercial(
   // bug de double-counting (L268 subtraia quando real_r ja era consolidado)
   // REFACTOR 2026-04-23 (Etapa 6): lê também operations.config_metas_planejamento
   // para eliminar thresholds hardcoded. Ver docs/planning/06-auditoria-planejamento.md
-  const [{ data: eventosGold, error }, { data: eventosManuais }, { data: configMetas }, consumoCustoRows, { data: mixConsolidado }, { data: cmvDias }] = await Promise.all([
+  const [{ data: eventosGold, error }, { data: eventosManuais }, { data: configMetas }, consumoCustoRows, { data: mixConsolidado }, { data: cmvDias }, { data: itensDias }] = await Promise.all([
     supabase
       .schema('gold' as never)
       .from('planejamento')
@@ -287,7 +289,16 @@ export async function getPlanejamentoComercial(
       .select('data, custo, cmv_pct')
       .eq('bar_id', barId)
       .gte('data', dataInicio)
-      .lt('data', dataFinalConsulta)
+      .lt('data', dataFinalConsulta),
+
+    // Itens que saíram por dia (seção Produção). RPC porque a agregação tem que ser no banco:
+    // produto×dia dá ~6 mil linhas no mês e o PostgREST corta em 1000 — somar no cliente
+    // devolveria um número menor sem avisar ninguém.
+    (supabase as any).rpc('get_itens_vendidos_periodo', {
+      p_bar_id: barId,
+      p_ini: dataInicio,
+      p_fim: dataFinalConsulta,
+    })
   ]);
 
   // data_evento -> mix consolidado (so aplicado quando o gold vem zerado)
@@ -312,6 +323,17 @@ export async function getPlanejamentoComercial(
   const cmvMap = new Map<string, { custo: number; pct: number | null }>();
   ((cmvDias as Array<{ data: string; custo: number | string; cmv_pct: number | string | null }> | null) || []).forEach(c => {
     if (c.data) cmvMap.set(c.data, { custo: Number(c.custo) || 0, pct: c.cmv_pct == null ? null : Number(c.cmv_pct) });
+  });
+
+  // data -> itens que saíram no dia (com cortesia) e só o pago
+  const itensMap = new Map<string, { itens: number; pagos: number }>();
+  ((itensDias as Array<{ data: string; qtd_itens: number | string; qtd_itens_pagos: number | string }> | null) || []).forEach(i => {
+    if (i?.data) {
+      itensMap.set(String(i.data).slice(0, 10), {
+        itens: Number(i.qtd_itens) || 0,
+        pagos: Number(i.qtd_itens_pagos) || 0,
+      });
+    }
   });
 
   // Resolve metas — usa fallback SOMENTE quando config não existe ainda (migration pendente)
@@ -544,6 +566,9 @@ export async function getPlanejamentoComercial(
       c_prod_is_projecao: !((Number(manual?.c_prod) || 0) > 0) && ((Number(manual?.c_prod_plan) || 0) > 0 || (Number(manual?.c_prod_projecao) || 0) > 0),
       cmv_teorico_custo: cmvMap.get(evento.data_evento)?.custo ?? 0,
       cmv_teorico_pct: cmvMap.get(evento.data_evento)?.pct ?? null,
+      // null (e não 0) quando não há venda no dia: dia fechado mostra "—", não "0 itens".
+      qtd_itens: itensMap.get(evento.data_evento)?.itens ?? null,
+      qtd_itens_pagos: itensMap.get(evento.data_evento)?.pagos ?? null,
       consumacao: consumacaoMap.get(evento.data_evento) || 0,
       percent_art_fat: Number(evento.percent_art_fat) || 0,
 
