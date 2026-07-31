@@ -61,4 +61,10 @@ export interface FolhaPreviewItem {
   pix: string;
   cargo: string;
   total: number;
+  /**
+   * Texto cru da coluna Empresa da planilha, quando existir. É o que permite uma planilha só
+   * atender Ordinário e Descubra: sem ela toda linha herda o bar selecionado na tela, que foi
+   * exatamente como a folha do Descubra inteira caiu no Ordinário (relatado em 30/07/2026).
+   */
+  empresa?: string;
 }

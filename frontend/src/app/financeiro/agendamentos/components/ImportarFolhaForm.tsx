@@ -1,16 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUser } from '@/contexts/UserContext';
+import { useBar } from '@/contexts/BarContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useToast } from '@/components/ui/toast';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Upload } from 'lucide-react';
 import type { FolhaPreviewItem, PagamentoAgendamento } from '../types';
 import { CadastrarFornecedorModal } from './CadastrarFornecedorModal';
+import { resolverBarDaEmpresa, agruparPorBar } from '../empresa-lote';
+import { salvarPendentes } from '../services/agendamento-service';
 
 type ContaAzulListaItem = {
   contaazul_id?: string;
@@ -64,6 +67,22 @@ function formatCurrency(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+/** Mantém exatamente o texto que a tela gerava antes de a descrição virar editável. */
+const MODELO_DESCRICAO_PADRAO = 'Folha {competencia} - {descricao}';
+
+/**
+ * Aplica o modelo de descrição a uma linha. `{descricao}` é a coluna de cargo/descrição da
+ * planilha — quando ela vem vazia, o hífen solto no fim é removido em vez de virar "Folha 2026-08 -".
+ */
+function montarDescricao(modelo: string, competencia: string, linha: string): string {
+  return (modelo || MODELO_DESCRICAO_PADRAO)
+    .replace(/\{competencia\}/gi, competencia)
+    .replace(/\{descricao\}/gi, linha || '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s\-–—]+|[\s\-–—]+$/g, '')
+    .trim();
+}
+
 export function ImportarFolhaForm({
   barId,
   barNome,
@@ -93,6 +112,14 @@ export function ImportarFolhaForm({
   const [dataPagamentoFolha, setDataPagamentoFolha] = useState(
     () => new Date().toISOString().split('T')[0]
   );
+  // A descrição era fixa em "Folha {competência} - {linha}". Como esta é a ÚNICA entrada em lote
+  // da tela, tudo que passa por aqui saía rotulado como folha no Conta Azul — inclusive vale
+  // transporte e passagens (relatado pelo Digão em 30/07). Vira modelo editável, com o mesmo
+  // padrão de antes como default: quem lança folha de verdade não muda nada.
+  const [modeloDescricao, setModeloDescricao] = useState(MODELO_DESCRICAO_PADRAO);
+  const { availableBars } = useBar();
+  const arquivoInputRef = useRef<HTMLInputElement>(null);
+  const [lendoArquivo, setLendoArquivo] = useState(false);
 
   const toast = useCallback(
     (options: {
@@ -107,6 +134,45 @@ export function ImportarFolhaForm({
       });
     },
     [showToast]
+  );
+
+  /**
+   * .xlsx/.csv → o MESMO texto separado por TAB que o campo de colar já entende. Converter em vez
+   * de criar um segundo parser evita ter duas regras de leitura divergindo com o tempo.
+   * `xlsx` entra por import dinâmico pra não pesar o bundle de quem só abre a tela.
+   */
+  const onEscolherArquivo = useCallback(
+    async (file: File | null | undefined) => {
+      if (!file) return;
+      setLendoArquivo(true);
+      try {
+        const XLSX = await import('xlsx');
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const primeira = wb.SheetNames[0];
+        if (!primeira) {
+          toast({ title: 'Planilha vazia', description: 'O arquivo não tem nenhuma aba.', variant: 'destructive' });
+          return;
+        }
+        const tsv = XLSX.utils.sheet_to_csv(wb.Sheets[primeira], { FS: '\t', blankrows: false });
+        setTextoFolha(tsv);
+        setPreviewFolha([]);
+        toast({
+          title: `Arquivo lido — aba "${primeira}"`,
+          description: 'Confira o conteúdo abaixo e clique em "Gerar prévia".',
+        });
+      } catch (e) {
+        toast({
+          title: 'Não consegui ler o arquivo',
+          description: e instanceof Error ? e.message : 'Formato não reconhecido (use .xlsx, .xls ou .csv)',
+          variant: 'destructive',
+        });
+      } finally {
+        setLendoArquivo(false);
+        if (arquivoInputRef.current) arquivoInputRef.current.value = '';
+      }
+    },
+    [toast]
   );
 
   const categoriasDespesa = useMemo(
@@ -187,6 +253,9 @@ export function ImportarFolhaForm({
     let indicePix = 1;
     let indiceCargo = 3;
     let indiceValor = 2;
+    // -1 = planilha sem coluna de empresa → todas as linhas caem no bar selecionado (comportamento
+    // antigo). Só existe destino por linha quando a coluna aparece.
+    let indiceEmpresa = -1;
     let inicioDados = 0;
 
     const extrairNomeEPix = (prefixo: string): { nome: string; pix: string } => {
@@ -267,10 +336,15 @@ export function ImportarFolhaForm({
         );
         const idxValor = headerCols.findIndex(h => h === 'valor');
         const idxTotal = headerCols.findIndex(h => h === 'total');
+        // "empresa" é o nome canônico; os outros são como o financeiro costuma chamar a coluna.
+        const idxEmpresa = headerCols.findIndex(
+          h => h === 'empresa' || h === 'cnpj' || h === 'bar' || h === 'loja' || h === 'filial'
+        );
 
         if (idxNome >= 0) indiceNome = idxNome;
         if (idxPix >= 0) indicePix = idxPix;
         if (idxCargo >= 0) indiceCargo = idxCargo;
+        if (idxEmpresa >= 0) indiceEmpresa = idxEmpresa;
         if (idxTotal >= 0) {
           indiceValor = idxTotal;
         } else if (idxValor >= 0) {
@@ -301,7 +375,8 @@ export function ImportarFolhaForm({
         const total = parseCurrencyToNumber(totalBruto);
 
         if (!nome || total <= 0) continue;
-        preview.push({ nome, pix, cargo, total });
+        const empresa = indiceEmpresa >= 0 ? cols[indiceEmpresa] || '' : '';
+        preview.push({ nome, pix, cargo, total, empresa });
         continue;
       }
 
@@ -381,7 +456,7 @@ export function ImportarFolhaForm({
     }
   };
 
-  const importarFolhaParaLista = () => {
+  const importarFolhaParaLista = async () => {
     if (!barId) {
       toast({
         title: '❌ Nenhum bar selecionado',
@@ -404,6 +479,27 @@ export function ImportarFolhaForm({
       toast({
         title: 'Prévia vazia',
         description: 'Gere a prévia da folha antes de importar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Destino de cada linha ANTES de montar qualquer pagamento: se alguma empresa não for
+    // reconhecida, nada é importado. Importar "o que deu" espalharia metade da folha no bar errado
+    // — que é o problema que essa coluna existe pra resolver.
+    const barPorLinha = previewFolha.map(item =>
+      item.empresa?.trim()
+        ? resolverBarDaEmpresa(item.empresa, availableBars)
+        : barId
+    );
+    const naoResolvidas = previewFolha
+      .map((item, i) => ({ item, bar: barPorLinha[i] }))
+      .filter(x => x.bar == null);
+    if (naoResolvidas.length > 0) {
+      const exemplos = Array.from(new Set(naoResolvidas.map(x => x.item.empresa?.trim() || '(vazio)')));
+      toast({
+        title: `${naoResolvidas.length} linha(s) com empresa não reconhecida`,
+        description: `Não sei para qual bar mandar: ${exemplos.slice(0, 3).join(', ')}. Bares disponíveis: ${availableBars.map(b => b.nome).join(', ')}. Nada foi importado.`,
         variant: 'destructive',
       });
       return;
@@ -441,7 +537,7 @@ export function ImportarFolhaForm({
           nome_beneficiario: item.nome,
           chave_pix: item.pix,
           valor: formatCurrency(item.total),
-          descricao: `Folha ${competenciaFolha} - ${item.cargo}`,
+          descricao: montarDescricao(modeloDescricao, competenciaFolha, item.cargo),
           data_pagamento: dataPagamentoFolha,
           data_competencia: `${competenciaFolha}-01`,
           categoria_id: categoriaFolhaId,
@@ -453,8 +549,9 @@ export function ImportarFolhaForm({
             ? categoriaLabel(centroSelecionado)
             : '',
           status: 'pendente',
-          bar_id: barId,
-          bar_nome: barNome || '',
+          bar_id: barPorLinha[index] as number,
+          bar_nome:
+            availableBars.find(b => b.id === barPorLinha[index])?.nome || barNome || '',
           contaazul_pessoa_id: contaazulPessoaId,
           criado_por_id: usuarioId,
           criado_por_nome: usuarioNome,
@@ -466,14 +563,46 @@ export function ImportarFolhaForm({
       }
     );
 
-    onImportado(pagamentosFolha);
-    setPreviewFolha([]);
-    setTextoFolha('');
+    // A lista da tela é de UM bar só (a API ignora bar_id do corpo e usa o do header — ver
+    // pendentes/route.ts). Então: o que é do bar aberto entra na lista aqui; o que é de outra
+    // empresa é gravado direto na lista DELA, com o header do bar certo. O servidor ainda valida
+    // se o usuário tem acesso àquele bar, então isso não abre escrita cross-bar.
+    const porBar = agruparPorBar(pagamentosFolha, p => Number(p.bar_id));
+    const doBarAtual = porBar.get(barId) ?? [];
+    const outrosBares = [...porBar.entries()].filter(([bid]) => bid !== barId);
+
+    const gravados: string[] = [];
+    const falhas: string[] = [];
+    for (const [outroBarId, lista] of outrosBares) {
+      const nome = availableBars.find(b => b.id === outroBarId)?.nome || `bar ${outroBarId}`;
+      const r = await salvarPendentes(outroBarId, lista);
+      if (r.ok) gravados.push(`${lista.length} em ${nome}`);
+      else falhas.push(`${nome}: ${r.error}`);
+    }
+
+    if (doBarAtual.length > 0) onImportado(doBarAtual);
+
+    // Só limpa o que foi entregue. Com falha parcial, o texto fica na tela pra poder repetir.
+    if (falhas.length === 0) {
+      setPreviewFolha([]);
+      setTextoFolha('');
+    }
     onAfterImport?.();
 
+    if (falhas.length > 0) {
+      toast({
+        title: '⚠️ Importação parcial',
+        description: `Falhou em ${falhas.join(' · ')}. ${doBarAtual.length} linha(s) do bar atual foram para a lista${gravados.length ? ` e ${gravados.join(', ')}` : ''}.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     toast({
-      title: '✅ Folha importada',
-      description: `${pagamentosFolha.length} pagamento(s) adicionado(s) à lista`,
+      title: '✅ Importado',
+      description: gravados.length
+        ? `${doBarAtual.length} na lista deste bar · ${gravados.join(', ')} (troque o bar no topo pra ver e pagar)`
+        : `${doBarAtual.length} pagamento(s) adicionado(s) à lista`,
     });
   };
 
@@ -502,6 +631,64 @@ export function ImportarFolhaForm({
             className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
           />
         </div>
+      </div>
+
+      <div className="rounded-md border border-dashed border-gray-300 dark:border-gray-600 p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            ref={arquivoInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={e => void onEscolherArquivo(e.target.files?.[0])}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => arquivoInputRef.current?.click()}
+            disabled={lendoArquivo}
+            leftIcon={<Upload className="w-4 h-4" />}
+          >
+            {lendoArquivo ? 'Lendo...' : 'Subir planilha (.xlsx / .csv)'}
+          </Button>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            ou cole o conteúdo no campo abaixo — dá no mesmo.
+          </span>
+        </div>
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          Colunas lidas do cabeçalho: <b>nome</b>, <b>pix</b>, <b>valor</b> (ou <b>total</b>),{' '}
+          <b>cargo</b> e <b>empresa</b>. A coluna <b>empresa</b> é opcional — com ela, uma planilha
+          só atende {availableBars.map(b => b.nome).join(' e ')}, e cada linha vai para a empresa
+          certa. Sem ela, tudo cai em {barNome || 'no bar selecionado'}.
+        </p>
+      </div>
+
+      <div>
+        <Label className="text-gray-700 dark:text-gray-300">
+          Descrição no Conta Azul *
+        </Label>
+        <Input
+          value={modeloDescricao}
+          onChange={e => setModeloDescricao(e.target.value)}
+          placeholder={MODELO_DESCRICAO_PADRAO}
+          className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+        />
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          <code>{'{competencia}'}</code> vira {competenciaFolha || 'AAAA-MM'} e{' '}
+          <code>{'{descricao}'}</code> vira a coluna de cargo/descrição de cada linha. Para
+          passagens, vale transporte etc., troque o &quot;Folha&quot; — não é folha e não deve
+          entrar como folha no Conta Azul.
+        </p>
+        <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+          Fica assim:{' '}
+          <span className="font-medium">
+            {montarDescricao(
+              modeloDescricao,
+              competenciaFolha,
+              previewFolha[0]?.cargo || 'Auxiliar de cozinha'
+            )}
+          </span>
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
