@@ -83,7 +83,7 @@ export async function GET(request: Request) {
     const rows = await fetchAll(
       silver,
       'lancamento_classificado',
-      'data_competencia, data_pagamento, descricao, pessoa_nome, valor_bruto, status, tipo_ca, categoria_ca, categoria_zykor, bloco_dre',
+      'data_competencia, data_pagamento, descricao, pessoa_nome, valor_bruto, status, tipo_ca, categoria_ca, categoria_zykor, bloco_dre, tipo_zykor',
       (q: any) => {
         q = q
           .eq('bar_id', parseInt(barId))
@@ -105,14 +105,37 @@ export async function GET(request: Request) {
       return (parseFloat(b.valor_bruto) || 0) - (parseFloat(a.valor_bruto) || 0);
     });
 
-    // Totais por tipo (despesa/receita) — o net depende do tipo da linha, mas a
-    // tela só precisa exibir a lista; devolvemos os dois pra contexto.
     let totalDespesa = 0;
     let totalReceita = 0;
+    // NET por categoria, com a MESMA fórmula do gold (gold.fn_refresh_gold_orcamento):
+    // numa categoria de despesa, um lançamento de RECEITA (estorno, devolução) ABATE em
+    // vez de somar — e vice-versa. Somar despesa+receita mostrava um total maior que o
+    // realizado da linha (ex.: Materiais Operação com estorno: 4.722 no popup vs 2.811
+    // na tela). O tipo vem do próprio lançamento, então não depende de a tela mandar nada.
+    const netPorCategoria = new Map<string, { receita: number; despesa: number; tipo: string }>();
     for (const r of rows) {
       const v = parseFloat(r.valor_bruto) || 0;
-      if (String(r.tipo_ca).toUpperCase() === 'RECEITA') totalReceita += v;
+      const ehReceita = String(r.tipo_ca).toUpperCase() === 'RECEITA';
+      if (ehReceita) totalReceita += v;
       else totalDespesa += v;
+
+      const cat = r.categoria_zykor || '(sem categoria)';
+      const acc = netPorCategoria.get(cat) ?? {
+        receita: 0,
+        despesa: 0,
+        tipo: String(r.tipo_zykor || 'despesa').toLowerCase(),
+      };
+      if (ehReceita) acc.receita += v;
+      else acc.despesa += v;
+      // Igual ao MAX(tipo_zykor) do gold: qualquer linha da categoria marcada como
+      // receita define a categoria como receita.
+      if (String(r.tipo_zykor || '').toLowerCase() === 'receita') acc.tipo = 'receita';
+      netPorCategoria.set(cat, acc);
+    }
+
+    let totalNet = 0;
+    for (const { receita, despesa, tipo } of netPorCategoria.values()) {
+      totalNet += tipo === 'receita' ? receita - despesa : despesa - receita;
     }
 
     return NextResponse.json({
@@ -121,6 +144,7 @@ export async function GET(request: Request) {
       total_lancamentos: rows.length,
       total_despesa: Math.round(totalDespesa * 100) / 100,
       total_receita: Math.round(totalReceita * 100) / 100,
+      total_net: Math.round(totalNet * 100) / 100,
       lancamentos: rows,
     });
   } catch (error: any) {

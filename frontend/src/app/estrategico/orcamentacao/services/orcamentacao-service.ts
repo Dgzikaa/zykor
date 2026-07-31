@@ -370,10 +370,37 @@ export async function getOrcamentacaoCompleta(
   // categoria mapeada (na aba Categorias) a um bloco vira linha na Orçamentação mesmo sem
   // estar na ESTRUTURA hardcoded. Map: 'ano-mes-bloco_dre' -> (normKey -> nome original).
   const goldZykorPorBloco = new Map<string, Map<string, string>>();
+  // normKey -> nome(s) EXATOS como estão gravados no gold/silver. O realizado casa por
+  // normKey, mas o drill-down consulta silver.lancamento_classificado por igualdade de
+  // string: mandar o nome da ESTRUTURA ('ACESSORIOS SALAO') onde o banco tem 'Acessórios
+  // Salão' devolvia lista VAZIA num valor diferente de zero — a tela dizia "nenhum
+  // lançamento encontrado" bem embaixo de R$ 1,9 mil. Set porque o mesmo normKey pode ter
+  // mais de uma grafia no de-para (todas precisam entrar no filtro).
+  const goldNomesReais = new Map<string, Set<string>>();
+  /**
+   * Nomes da ESTRUTURA -> nomes reais do banco, pro filtro do drill-down.
+   * Categoria sem nenhuma linha no gold mantém o nome original (aí a lista vazia é a
+   * verdade: não houve lançamento no período).
+   */
+  const nomesParaDrill = (cats: string[]): string[] => {
+    const out = new Set<string>();
+    for (const c of cats) {
+      const reais = goldNomesReais.get(normKey(c));
+      if (reais?.size) reais.forEach(r => out.add(r));
+      else out.add(c);
+    }
+    return [...out];
+  };
   dadosGold.forEach(g => {
     const net = num(g.net);
     const ck = `${g.ano}-${g.mes}-${normKey(g.categoria_zykor)}`;
     goldCatMap.set(ck, (goldCatMap.get(ck) || 0) + net);
+    if (g.categoria_zykor) {
+      const nk = normKey(g.categoria_zykor);
+      const nomes = goldNomesReais.get(nk) ?? new Set<string>();
+      nomes.add(g.categoria_zykor);
+      goldNomesReais.set(nk, nomes);
+    }
     if (g.bloco_dre) {
       const bk = `${g.ano}-${g.mes}-${g.bloco_dre}`;
       goldBlocoMap.set(bk, (goldBlocoMap.get(bk) || 0) + net);
@@ -504,7 +531,7 @@ export async function getOrcamentacaoCompleta(
           const manualVal = manualCat(s.manualKey || nomeBar);
           real = bloco.tipo === 'receita' ? goldVal + manualVal : goldVal - manualVal;
           realizadoFonte = 'ca';
-          goldCategorias = s.gold;
+          goldCategorias = s.gold?.length ? nomesParaDrill(s.gold) : s.gold;
         }
         // Linha % do faturamento: realizado também vira % (R$ realizado / faturamento realizado).
         if (pctFatPlan !== undefined) pctFatReal = fatReal > 0 ? (real / fatReal) * 100 : 0;

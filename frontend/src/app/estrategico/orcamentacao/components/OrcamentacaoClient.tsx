@@ -157,7 +157,8 @@ export default function OrcamentacaoClient({ initialData, barId }: OrcamentacaoC
       setDrill(d => ({
         ...d, loading: false,
         lancamentos: json.lancamentos || [],
-        total: (json.total_despesa || 0) + (json.total_receita || 0),
+        // total_net = mesma conta do realizado da linha (receita abate despesa e vice-versa).
+        total: json.total_net ?? ((json.total_despesa || 0) + (json.total_receita || 0)),
       }));
     } catch (e: any) {
       setDrill(d => ({ ...d, loading: false, erro: e?.message || 'Erro ao carregar lançamentos' }));
