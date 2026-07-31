@@ -234,6 +234,10 @@ interface EventoEdicaoCompleta {
   cmv_teorico_pct?: number | null;
   qtd_itens?: number | null;
   qtd_itens_pagos?: number | null;
+  qtd_bebida?: number | null;
+  qtd_drink?: number | null;
+  qtd_cozinha?: number | null;
+  qtd_outros?: number | null;
   consumacao?: number;
   couvert_vr_contahub?: number | null;
   percent_b: number;
@@ -585,6 +589,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
       cmv_teorico_pct: evento.cmv_teorico_pct ?? null,
       qtd_itens: evento.qtd_itens ?? null,
       qtd_itens_pagos: evento.qtd_itens_pagos ?? null,
+      qtd_bebida: evento.qtd_bebida ?? null,
+      qtd_drink: evento.qtd_drink ?? null,
+      qtd_cozinha: evento.qtd_cozinha ?? null,
+      qtd_outros: evento.qtd_outros ?? null,
       percent_b: evento.percent_b || 0,
       percent_d: evento.percent_d || 0,
       percent_c: evento.percent_c || 0,
@@ -818,6 +826,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
     const colConsumacao = somar(e => e.consumacao);
     // PRODUÇÃO
     const colQtdItens = dados.reduce((s, e) => s + (e.qtd_itens || 0), 0);
+    const colQtdBebida = dados.reduce((s, e) => s + (e.qtd_bebida || 0), 0);
+    const colQtdDrink = dados.reduce((s, e) => s + (e.qtd_drink || 0), 0);
+    const colQtdCozinha = dados.reduce((s, e) => s + (e.qtd_cozinha || 0), 0);
     const colPercentB = mediar(e => e.percent_b);
     const colPercentD = mediar(e => e.percent_d);
     const colPercentC = mediar(e => e.percent_c);
@@ -834,7 +845,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
       colClientesReais, colResTot, colResP,
       colTeReal, colTbReal, colTMedio,
       colCArt, colCProd, colCouvert, colPercentArtFat, colCouvArt, colConsumacao,
-      colQtdItens, colPercentB, colPercentD, colPercentC, colAtrasaoCoz, colAtrasaoBar,
+      colQtdItens, colQtdBebida, colQtdDrink, colQtdCozinha,
+      colPercentB, colPercentD, colPercentC, colAtrasaoCoz, colAtrasaoBar,
       colStockoutDrinks, colStockoutComidas, colCmvTeorico,
       realizado,
       empilhamento, 
@@ -1004,7 +1016,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
 
                         {/* Grupo PRODUÇÃO */}
                         <th
-                          colSpan={gruposAbertos.producao ? 9 : 1}
+                          colSpan={gruposAbertos.producao ? 12 : 1}
                           className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('producao')}
                         >
@@ -1075,7 +1087,53 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                   <div className="text-xs space-y-1">
                                     <p className="font-semibold">Itens que saíram no dia</p>
                                     <p>Unidades vendidas somando ContaHub + Yuzer, <strong>incluindo cortesia</strong> (foi produzida igual).</p>
-                                    <p className="text-[hsl(var(--muted-foreground))]">Não conta os lançamentos internos &quot;[IN]&quot; de insumo. Passe o mouse no número para ver quanto foi pago.</p>
+                                    <p className="text-[hsl(var(--muted-foreground))]">Não conta os lançamentos internos &quot;[IN]&quot; de insumo. Passe o mouse no número para ver o pago e a quebra por categoria.</p>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </th>
+                            {/* Quebra da coluna acima (pedido do Gonza): a soma das 3 + outros = Qtd Itens.
+                                Categoria pela 1ª letra do cod_interno (b/d/c), o mesmo de-para das fichas —
+                                é a única régua que cobre 100% dos itens (por grupo, "Pegue e Pague" e "50%"
+                                ficariam sem classificação e são ~16% do volume). */}
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '70px', minWidth: '70px', maxWidth: '70px'}}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="cursor-help underline decoration-dotted">Beb</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs bg-[hsl(var(--popover))] border-[hsl(var(--border))] z-[9999]">
+                                  <div className="text-xs space-y-1">
+                                    <p className="font-semibold">Itens de bebida</p>
+                                    <p>Cervejas, não alcoólicas, vinhos, baldes — inclusive os do Pegue e Pague e do happy hour.</p>
+                                    <p className="text-[hsl(var(--muted-foreground))]">Classificado pelo código do produto (b…), a mesma régua da ficha técnica.</p>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '70px', minWidth: '70px', maxWidth: '70px'}}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="cursor-help underline decoration-dotted">Drink</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs bg-[hsl(var(--popover))] border-[hsl(var(--border))] z-[9999]">
+                                  <div className="text-xs space-y-1">
+                                    <p className="font-semibold">Itens de drink</p>
+                                    <p>Drinks autorais e clássicos, doses, combos, garrafas — inclusive os [50%] do happy hour.</p>
+                                    <p className="text-[hsl(var(--muted-foreground))]">Classificado pelo código do produto (d…).</p>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '70px', minWidth: '70px', maxWidth: '70px'}}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="cursor-help underline decoration-dotted">Coz</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs bg-[hsl(var(--popover))] border-[hsl(var(--border))] z-[9999]">
+                                  <div className="text-xs space-y-1">
+                                    <p className="font-semibold">Itens de cozinha</p>
+                                    <p>Pratos individuais e de compartilhar, sanduíches, feijoada, sobremesas.</p>
+                                    <p className="text-[hsl(var(--muted-foreground))]">Classificado pelo código do produto (c…). O que sobra (tabacaria etc.) fica só no total.</p>
                                   </div>
                                 </TooltipContent>
                               </Tooltip>
@@ -1183,7 +1241,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                             + (gruposAbertos.clientes ? 3 : 1)
                             + (gruposAbertos.ticket ? 3 : 1)
                             + (gruposAbertos.artistico ? 6 : 1)
-                            + (gruposAbertos.producao ? 9 : 1)
+                            + (gruposAbertos.producao ? 12 : 1)
                             + 1; // Ações
 
                           return (
@@ -1548,11 +1606,25 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                           (evento.qtd_itens - (evento.qtd_itens_pagos || 0)) > 0
                                             ? ` · ${formatarContagem(evento.qtd_itens - (evento.qtd_itens_pagos || 0))} de cortesia`
                                             : ''
+                                        }\nBebida ${formatarContagem(evento.qtd_bebida || 0)} · Drink ${formatarContagem(evento.qtd_drink || 0)} · Cozinha ${formatarContagem(evento.qtd_cozinha || 0)}${
+                                          (evento.qtd_outros || 0) > 0 ? ` · Outros ${formatarContagem(evento.qtd_outros || 0)}` : ''
                                         }`
                                       : undefined
                                   }
                                   className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'qtd_itens' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
                                   style={{width: '85px', minWidth: '85px', maxWidth: '85px'}}>{evento.qtd_itens != null && evento.qtd_itens > 0 ? formatarContagem(evento.qtd_itens) : '-'}</td>
+                                <td
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight(prev => prev === 'qtd_bebida' ? null : 'qtd_bebida'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'qtd_bebida' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
+                                  style={{width: '70px', minWidth: '70px', maxWidth: '70px'}}>{evento.qtd_bebida != null && evento.qtd_bebida > 0 ? formatarContagem(evento.qtd_bebida) : '-'}</td>
+                                <td
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight(prev => prev === 'qtd_drink' ? null : 'qtd_drink'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'qtd_drink' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
+                                  style={{width: '70px', minWidth: '70px', maxWidth: '70px'}}>{evento.qtd_drink != null && evento.qtd_drink > 0 ? formatarContagem(evento.qtd_drink) : '-'}</td>
+                                <td
+                                  onClick={(e) => { e.stopPropagation(); setLinhaHighlight(idx); setColunaHighlight(prev => prev === 'qtd_cozinha' ? null : 'qtd_cozinha'); }}
+                                  className={`px-2 py-1.5 text-center text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'qtd_cozinha' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
+                                  style={{width: '70px', minWidth: '70px', maxWidth: '70px'}}>{evento.qtd_cozinha != null && evento.qtd_cozinha > 0 ? formatarContagem(evento.qtd_cozinha) : '-'}</td>
                                 <td
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1679,6 +1751,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                         {gruposAbertos.producao ? (
                           <>
                             <td className={`${tfCls} text-center border-r`} title="Total de itens que saíram no período (com cortesia)">{totaisAgregados.colQtdItens > 0 ? formatarContagem(totaisAgregados.colQtdItens) : '-'}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Total de itens de bebida no período">{totaisAgregados.colQtdBebida > 0 ? formatarContagem(totaisAgregados.colQtdBebida) : '-'}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Total de itens de drink no período">{totaisAgregados.colQtdDrink > 0 ? formatarContagem(totaisAgregados.colQtdDrink) : '-'}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Total de itens de cozinha no período">{totaisAgregados.colQtdCozinha > 0 ? formatarContagem(totaisAgregados.colQtdCozinha) : '-'}</td>
                             <td className={`${tfCls} text-center border-r`} title="Média % bebidas">{formatarPercentual(totaisAgregados.colPercentB)}</td>
                             <td className={`${tfCls} text-center border-r`} title="Média % drinks">{formatarPercentual(totaisAgregados.colPercentD)}</td>
                             <td className={`${tfCls} text-center border-r`} title="Média % cozinha">{formatarPercentual(totaisAgregados.colPercentC)}</td>

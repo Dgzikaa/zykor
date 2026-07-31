@@ -111,6 +111,11 @@ export interface PlanejamentoData {
   cmv_teorico_pct: number | null;  // CMV% teórico do dia
   qtd_itens: number | null;        // itens que SAÍRAM no dia (com cortesia) — silver.vendas_consolidada_dia
   qtd_itens_pagos: number | null;  // idem, só o pago (a diferença pro anterior é a cortesia)
+  // Quebra por categoria (1ª letra do cod_interno, mesmo de-para das fichas). Os 4 somam qtd_itens.
+  qtd_bebida: number | null;
+  qtd_drink: number | null;
+  qtd_cozinha: number | null;
+  qtd_outros: number | null;
   consumacao: number; // Consumação Artistas do dia (ContaHub vd_vrdescontos motivo='Artistas')
   percent_art_fat: number;
 
@@ -325,13 +330,17 @@ export async function getPlanejamentoComercial(
     if (c.data) cmvMap.set(c.data, { custo: Number(c.custo) || 0, pct: c.cmv_pct == null ? null : Number(c.cmv_pct) });
   });
 
-  // data -> itens que saíram no dia (com cortesia) e só o pago
-  const itensMap = new Map<string, { itens: number; pagos: number }>();
-  ((itensDias as Array<{ data: string; qtd_itens: number | string; qtd_itens_pagos: number | string }> | null) || []).forEach(i => {
+  // data -> itens que saíram no dia (com cortesia), só o pago, e a quebra por categoria
+  const itensMap = new Map<string, { itens: number; pagos: number; bebida: number; drink: number; cozinha: number; outros: number }>();
+  ((itensDias as Array<Record<string, number | string>> | null) || []).forEach(i => {
     if (i?.data) {
       itensMap.set(String(i.data).slice(0, 10), {
         itens: Number(i.qtd_itens) || 0,
         pagos: Number(i.qtd_itens_pagos) || 0,
+        bebida: Number(i.qtd_bebida) || 0,
+        drink: Number(i.qtd_drink) || 0,
+        cozinha: Number(i.qtd_cozinha) || 0,
+        outros: Number(i.qtd_outros) || 0,
       });
     }
   });
@@ -569,6 +578,10 @@ export async function getPlanejamentoComercial(
       // null (e não 0) quando não há venda no dia: dia fechado mostra "—", não "0 itens".
       qtd_itens: itensMap.get(evento.data_evento)?.itens ?? null,
       qtd_itens_pagos: itensMap.get(evento.data_evento)?.pagos ?? null,
+      qtd_bebida: itensMap.get(evento.data_evento)?.bebida ?? null,
+      qtd_drink: itensMap.get(evento.data_evento)?.drink ?? null,
+      qtd_cozinha: itensMap.get(evento.data_evento)?.cozinha ?? null,
+      qtd_outros: itensMap.get(evento.data_evento)?.outros ?? null,
       consumacao: consumacaoMap.get(evento.data_evento) || 0,
       percent_art_fat: Number(evento.percent_art_fat) || 0,
 
