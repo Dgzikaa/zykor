@@ -774,6 +774,46 @@ export function DesempenhoClient({
   const NPS_POR_PAGINA = 10;
 
   // Estado do modal de Atração/Faturamento
+  // Estado do modal do TICKET MÉDIO. Nasceu de uma conferência que não fechava (31/07/2026:
+  // tela 76,37 x conferência manual 80,47) — a diferença era média ponderada x média simples,
+  // e não havia como ver isso sem montar planilha. O popup abre a conta dia a dia.
+  const [ticketDialog, setTicketDialog] = useState<{
+    aberto: boolean;
+    loading: boolean;
+    periodo: string;
+    faturamento: number;
+    pessoas: number;
+    cortesias: number;
+    contaAssinada: number;
+    outrasFontes: number;
+    ticketPonderado: number | null;
+    mediaSimples: number | null;
+    dias: {
+      data: string;
+      evento: string;
+      faturamento: number;
+      pessoas: number;
+      ticket: number | null;
+      pessoasContahub: number;
+      ticketContahub: number | null;
+      cortesias: number;
+      contaAssinada: number;
+      outrasFontes: number;
+    }[];
+  }>({
+    aberto: false,
+    loading: false,
+    periodo: '',
+    faturamento: 0,
+    pessoas: 0,
+    cortesias: 0,
+    contaAssinada: 0,
+    outrasFontes: 0,
+    ticketPonderado: null,
+    mediaSimples: null,
+    dias: [],
+  });
+
   const [atracaoDialog, setAtracaoDialog] = useState<{
     aberto: boolean;
     loading: boolean;
@@ -1277,6 +1317,44 @@ export function DesempenhoClient({
       setNpsDialog(prev => ({ ...prev, loading: false }));
     }
   }, [effectiveBarId, visao]);
+
+  const abrirDetalhesTicket = useCallback(async (semana: DadosSemana) => {
+    const periodo = `${formatarDataCurta(semana.data_inicio)} - ${formatarDataCurta(semana.data_fim)}`;
+    setTicketDialog(prev => ({ ...prev, aberto: true, loading: true, periodo, dias: [] }));
+    try {
+      const r = await fetch(
+        `/api/estrategico/desempenho/ticket-detalhe?bar_id=${effectiveBarId}&data_inicio=${semana.data_inicio}&data_fim=${semana.data_fim}`
+      );
+      const d = await r.json();
+      if (!d?.success) throw new Error(d?.error || 'falha ao carregar');
+      setTicketDialog(prev => ({
+        ...prev,
+        loading: false,
+        faturamento: d.totais.faturamento,
+        pessoas: d.totais.pessoas,
+        cortesias: d.totais.cortesias,
+        contaAssinada: d.totais.conta_assinada,
+        outrasFontes: d.totais.outras_fontes,
+        ticketPonderado: d.totais.ticket_ponderado,
+        mediaSimples: d.totais.media_simples,
+        dias: (d.dias || []).map((x: any) => ({
+          data: x.data,
+          evento: x.evento,
+          faturamento: x.faturamento,
+          pessoas: x.pessoas,
+          ticket: x.ticket,
+          pessoasContahub: x.pessoas_contahub,
+          ticketContahub: x.ticket_contahub,
+          cortesias: x.cortesias,
+          contaAssinada: x.conta_assinada,
+          outrasFontes: x.outras_fontes,
+        })),
+      }));
+    } catch (e) {
+      console.error('Erro ao buscar detalhe do ticket médio:', e);
+      setTicketDialog(prev => ({ ...prev, loading: false }));
+    }
+  }, [effectiveBarId]);
 
   const abrirDetalhesAtracao = useCallback(async (semana: DadosSemana) => {
     const periodo = `${formatarDataCurta(semana.data_inicio)} - ${formatarDataCurta(semana.data_fim)}`;
@@ -2321,6 +2399,18 @@ export function DesempenhoClient({
                                                 >
                                                   {valorFormatado}
                                                 </button>
+                                              ) : metrica.key === 'ticket_medio' && semana.data_inicio && semana.data_fim && valor !== null && valor !== undefined ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => abrirDetalhesTicket(semana)}
+                                                  className={cn(
+                                                    "text-xs text-center underline decoration-dotted hover:opacity-80 transition-opacity",
+                                                    getCorMeta(verificarMeta(valorMeta, metrica.key, metas))
+                                                  )}
+                                                  title="Clique para ver a conta dia a dia (pessoas, cortesias, ContaHub x Zykor)"
+                                                >
+                                                  {valorFormatado}
+                                                </button>
                                               ) : metrica.temTooltipFaturamento ? (
                                                 <TooltipProvider>
                                                   <Tooltip>
@@ -2944,6 +3034,149 @@ export function DesempenhoClient({
                   )}
                 </>
               )}
+            </section>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+
+    {/* Modal do TICKET MÉDIO — a conta aberta, dia a dia */}
+    <Dialog open={ticketDialog.aberto} onOpenChange={(aberto) => setTicketDialog((prev) => ({ ...prev, aberto }))}>
+      <DialogContent className="max-w-5xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-blue-600" />
+            Como o Ticket Médio é calculado
+          </DialogTitle>
+          <DialogDescription>
+            {visao === 'mensal' ? 'Período' : 'Semana'} {ticketDialog.periodo}
+          </DialogDescription>
+        </DialogHeader>
+        {ticketDialog.loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+          </div>
+        ) : (
+          <div className="p-4 pt-0 space-y-4 overflow-y-auto max-h-[70vh]">
+            {/* A conta do período: é ponderada, não média dos dias. */}
+            <section className="rounded-md border p-3 bg-blue-50/60 dark:bg-blue-950/20">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                <div>
+                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                    {ticketDialog.ticketPonderado != null ? formatarValor(ticketDialog.ticketPonderado, 'moeda_decimal') : '-'}
+                  </p>
+                  <p className="text-xs text-gray-500">Ticket do período (o número da tabela)</p>
+                </div>
+                <div className="text-sm">
+                  <p className="font-mono">
+                    {formatarValor(ticketDialog.faturamento, 'moeda')} ÷ {ticketDialog.pessoas.toLocaleString('pt-BR')} pessoas
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Faturamento do período dividido pelas pessoas do período.
+                  </p>
+                </div>
+                {ticketDialog.mediaSimples != null && (
+                  <div className="text-sm border-l pl-6 border-blue-200 dark:border-blue-800">
+                    <p className="font-semibold text-gray-600 dark:text-gray-300">
+                      {formatarValor(ticketDialog.mediaSimples, 'moeda_decimal')}
+                    </p>
+                    <p className="text-xs text-gray-500 max-w-xs">
+                      Média simples dos {ticketDialog.dias.length} dias — dá o mesmo peso a um dia de 90
+                      pessoas e a um de 1.000. Não é o ticket do período.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Dia a dia, com os dois tickets lado a lado */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b text-gray-500 dark:text-gray-400">
+                    <th className="text-left py-1.5 px-2">Dia</th>
+                    <th className="text-right py-1.5 px-2">Faturamento</th>
+                    <th className="text-right py-1.5 px-2">Pessoas</th>
+                    <th className="text-right py-1.5 px-2">Ticket Zykor *</th>
+                    <th className="text-right py-1.5 px-2">Pessoas ContaHub</th>
+                    <th className="text-right py-1.5 px-2">Ticket ContaHub</th>
+                    <th className="text-right py-1.5 px-2">Cortesias</th>
+                    <th className="text-right py-1.5 px-2">Conta assinada</th>
+                    <th className="text-right py-1.5 px-2">% do público</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ticketDialog.dias.map((d) => {
+                    const peso = ticketDialog.pessoas > 0 ? (d.pessoas / ticketDialog.pessoas) * 100 : 0;
+                    return (
+                      <tr key={d.data} className="border-b border-gray-100 dark:border-gray-800">
+                        <td className="py-1.5 px-2">
+                          <span className="font-medium">{formatarDataCurta(d.data)}</span>
+                          <span className="text-gray-400 ml-1.5">{d.evento}</span>
+                        </td>
+                        <td className="text-right py-1.5 px-2">{formatarValor(d.faturamento, 'moeda')}</td>
+                        <td className="text-right py-1.5 px-2">{d.pessoas.toLocaleString('pt-BR')}</td>
+                        <td className="text-right py-1.5 px-2 font-semibold">
+                          {d.ticket != null ? formatarValor(d.ticket, 'moeda_decimal') : '-'}
+                        </td>
+                        <td className="text-right py-1.5 px-2 text-gray-500">{d.pessoasContahub.toLocaleString('pt-BR')}</td>
+                        <td className="text-right py-1.5 px-2 text-gray-500">
+                          {d.ticketContahub != null ? formatarValor(d.ticketContahub, 'moeda_decimal') : '-'}
+                        </td>
+                        <td className="text-right py-1.5 px-2 text-gray-500">{d.cortesias || '-'}</td>
+                        <td className="text-right py-1.5 px-2 text-gray-500">
+                          {d.contaAssinada > 0 ? formatarValor(d.contaAssinada, 'moeda') : '-'}
+                        </td>
+                        {/* O peso é o que explica o ticket do período não ser a média dos dias */}
+                        <td className={cn(
+                          "text-right py-1.5 px-2",
+                          peso >= 40 ? "font-semibold text-blue-700 dark:text-blue-300" : "text-gray-500"
+                        )}>
+                          {peso.toFixed(1)}%
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="font-semibold border-t-2">
+                    <td className="py-1.5 px-2">Total</td>
+                    <td className="text-right py-1.5 px-2">{formatarValor(ticketDialog.faturamento, 'moeda')}</td>
+                    <td className="text-right py-1.5 px-2">{ticketDialog.pessoas.toLocaleString('pt-BR')}</td>
+                    <td className="text-right py-1.5 px-2 text-blue-700 dark:text-blue-300">
+                      {ticketDialog.ticketPonderado != null ? formatarValor(ticketDialog.ticketPonderado, 'moeda_decimal') : '-'}
+                    </td>
+                    <td className="text-right py-1.5 px-2" />
+                    <td className="text-right py-1.5 px-2" />
+                    <td className="text-right py-1.5 px-2">{ticketDialog.cortesias || '-'}</td>
+                    <td className="text-right py-1.5 px-2">
+                      {ticketDialog.contaAssinada > 0 ? formatarValor(ticketDialog.contaAssinada, 'moeda') : '-'}
+                    </td>
+                    <td className="text-right py-1.5 px-2">100%</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* As três diferenças que fazem o ContaHub e o Zykor não baterem */}
+            <section className="rounded-md border p-3 text-xs space-y-1.5 text-gray-600 dark:text-gray-300">
+              <p>
+                <strong>* Ticket Zykor x Ticket ContaHub.</strong> O ContaHub divide pelo total de pessoas
+                do headline. O Zykor tira do denominador quem consumiu sem pagar (cortesia) e conta quem
+                juntou a conta em outro cartão — por isso o ticket do Zykor costuma ficar um pouco maior.
+              </p>
+              <p>
+                <strong>Conta assinada</strong> sai do faturamento do Zykor e continua no do ContaHub.
+                {ticketDialog.outrasFontes > 0 && (
+                  <> <strong>Yuzer/Sympla</strong> ({formatarValor(ticketDialog.outrasFontes, 'moeda')}) entram
+                  no Zykor e não existem no ContaHub.</>
+                )}
+              </p>
+              <p>
+                <strong>Por que não é a média dos dias:</strong> um dia que concentra grande parte do público
+                domina o ticket do período. Some o faturamento e divida pelas pessoas — é o que a coluna
+                &quot;% do público&quot; mostra.
+              </p>
             </section>
           </div>
         )}
