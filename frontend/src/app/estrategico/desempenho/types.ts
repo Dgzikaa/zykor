@@ -22,6 +22,8 @@ export interface DadosSemana {
   retencao_1m: number;
   retencao_2m: number;
   perc_clientes_novos: number;
+  /** VOLUME de novos clientes no período (numerador do % acima). null = período sem dia calculado. */
+  clientes_novos?: number | null;
   clientes_atendidos: number;
   clientes_ativos: number;
   reservas_totais: number; // Pessoas totais

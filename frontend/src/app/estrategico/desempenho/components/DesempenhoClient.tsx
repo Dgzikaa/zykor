@@ -167,7 +167,13 @@ return [
           ] : []),
           { key: 'clientes_atendidos', label: 'Visitas', status: 'auto', fonte: 'eventos_base (consolidado)', calculo: 'Soma de clientes_real de todos os eventos (Sympla + Yuzer + ContaHub)', formato: 'numero' },
           ...(barId !== 4 ? [
-            { key: 'perc_clientes_novos', label: '% Novos Clientes', status: 'auto' as const, fonte: 'Stored Procedure', calculo: 'Clientes novos / Total de visitas', formato: 'percentual' as const },
+            // Volume vem PRIMEIRO desde 31/07/2026 (pedido do Diogo): com o investimento de
+            // mídia subindo, o que se acompanha é quantos clientes novos entraram — o % fica
+            // quase parado (~50% em junho e julho) enquanto o volume foi de 774 a 1.841 por
+            // semana. O % continua logo abaixo, indentado, porque ainda diz se o crescimento
+            // veio de gente nova ou de recorrência.
+            { key: 'clientes_novos', label: 'Novos Clientes', status: 'auto' as const, fonte: 'gold.clientes_diario', calculo: 'Soma de novos_clientes_dia no período (cliente cuja PRIMEIRA visita caiu no período)', formato: 'numero' as const },
+            { key: 'perc_clientes_novos', label: '% Novos Clientes', status: 'auto' as const, fonte: 'gold.clientes_diario', calculo: 'Novos clientes ÷ clientes únicos do período (mesmo numerador da linha acima)', formato: 'percentual' as const, indentado: true },
           ] : []),
         ]
       },

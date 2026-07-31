@@ -102,6 +102,24 @@ export async function getMeses(
     return a && a.f > 0 ? Number((a.c / a.f * 100).toFixed(2)) : null;
   };
 
+  // VOLUME de novos clientes por mês — mesmo overlay do semanal (ver desempenho-service.ts).
+  // O gold.desempenho só tem o %, e o volume não sai dele: o denominador do % é clientes
+  // ÚNICOS do dia. Somamos o numerador na fonte, então volume e % sempre contam a mesma coisa.
+  const novosMes = new Map<string, number>();
+  {
+    const { data: nd } = await supabase
+      .schema('gold' as never)
+      .from('clientes_diario')
+      .select('data_referencia, novos_clientes_dia')
+      .eq('bar_id', barId)
+      .gte('data_referencia', `${anoInicio}-01-01`)
+      .lte('data_referencia', `${anoFim}-12-31`);
+    (nd as any[] || []).forEach((r) => {
+      const k = String(r.data_referencia).slice(0, 7);
+      novosMes.set(k, (novosMes.get(k) || 0) + (Number(r.novos_clientes_dia) || 0));
+    });
+  }
+
   const cmvMensalMap = new Map<string, { manual: number | null; auto: number | null }>();
   (cmvMensaisData as any[] || []).forEach((c) => {
     const key = `${c.ano}-${String(c.mes).padStart(2, '0')}`;
@@ -247,6 +265,9 @@ export async function getMeses(
       // NULLs). O `!= null` dava true pro 0 e travava o calculo do gold — mes sem override
       // exibia CMO 0,0% tendo faturamento e gold.cmo disponiveis. Trata <= 0 como ausente.
       cmo: (manual.cmo != null && Number(manual.cmo) > 0 ? Number(manual.cmo) : null),
+      // null (não 0) quando o mês não tem nenhum dia calculado: 0 leria como "não entrou
+      // ninguém novo", que é diferente de "ainda não processou".
+      clientes_novos: novosMes.has(g.periodo) ? novosMes.get(g.periodo)! : null,
       cmo_valor: toNum(g.cmo) ?? 0,
       cmo_percentual: (manual.cmo != null && Number(manual.cmo) > 0)
         ? Number(manual.cmo)

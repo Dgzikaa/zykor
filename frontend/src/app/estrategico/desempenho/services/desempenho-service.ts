@@ -222,6 +222,40 @@ export async function getSemanas(
     return f > 0 ? Number((c / f * 100).toFixed(2)) : null;
   };
 
+  // VOLUME de novos clientes por período (pedido do Diogo, 31/07/2026: "vamos aumentar
+  // investimento de mídia pra isso, quero acompanhar o volume, não o %"). O gold.desempenho só
+  // guarda `perc_clientes_novos`, e o volume NÃO é derivável dele: o denominador do % é
+  // clientes ÚNICOS do dia, não as visitas da tabela. Então somamos o próprio numerador do %,
+  // na mesma fonte (gold.clientes_diario.novos_clientes_dia) — o número fecha com a %
+  // exibida ao lado por construção. Mesmo padrão do overlay do CMV teórico acima; evita
+  // reescrever as duas funções de ETL (24k+27k chars) e um backfill de histórico.
+  const periodosIni = semanasGoldFilt.map((g: any) => g.data_inicio).filter(Boolean).sort();
+  const periodosFim = semanasGoldFilt.map((g: any) => g.data_fim).filter(Boolean).sort();
+  let novosDiaRows: Array<{ data_referencia: string; novos_clientes_dia: number }> = [];
+  if (periodosIni.length && periodosFim.length) {
+    const { data: nd } = await (supabase as unknown as { schema: (s: string) => SupabaseClient }).schema('gold')
+      .from('clientes_diario')
+      .select('data_referencia, novos_clientes_dia')
+      .eq('bar_id', barId)
+      .gte('data_referencia', periodosIni[0])
+      .lte('data_referencia', periodosFim[periodosFim.length - 1]);
+    novosDiaRows = (nd as unknown as typeof novosDiaRows) || [];
+  }
+  const novosClientesDe = (ini?: string | null, fim?: string | null): number | null => {
+    if (!ini || !fim) return null;
+    let total = 0;
+    let achou = false;
+    for (const r of novosDiaRows) {
+      if (r.data_referencia >= ini && r.data_referencia <= fim) {
+        total += Number(r.novos_clientes_dia) || 0;
+        achou = true;
+      }
+    }
+    // null (não 0) quando o período não tem nenhum dia calculado — 0 sugeriria "não entrou
+    // ninguém novo", que é bem diferente de "ainda não processou".
+    return achou ? total : null;
+  };
+
   const cmvSemanaisMap = new Map<string, { manual: number | null; auto: number | null }>();
   (cmvSemanaisRows || []).forEach((c: any) => {
     const manual = c.cmv_teorico_percentual_manual != null
@@ -258,6 +292,7 @@ export async function getSemanas(
       // O 0 aqui e' "nao preenchido" (95 linhas em meta.desempenho_manual, nenhuma NULL), entao
       // vira null pra tela mostrar "—" em vez de um "0,0%" que parece CMO zerado.
       cmo: (meta?.cmo != null && Number(meta.cmo) > 0 ? Number(meta.cmo) : null),
+      clientes_novos: novosClientesDe(g.data_inicio, g.data_fim),
       cmv_teorico: cmvTeoricoFinal,
       // Mesmo cuidado do cmv_teorico acima: em meta.desempenho_manual o "não preenchido" é
       // gravado como 0, NÃO null (230 linhas, zero NULLs) — e o ?? não pula 0. Sem filtrar,
