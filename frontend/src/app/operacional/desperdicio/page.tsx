@@ -174,21 +174,32 @@ export default function DesperdicioPage() {
     if (!barId) return;
     setLoading(true);
     try {
-      // A busca lista SÓ insumos. Produto do cardápio ("prato pronto", que baixaria a ficha
-      // inteira) saiu em 30/07/2026: a ficha está em g/ml e o desperdício conta em unidade/kg,
-      // então a explosão baixaria 330x-1000x a mais. O servidor também recusa — ver
-      // EXPLOSAO_PRODUTO_BLOQUEADA na API. Quando a conversão por embalagem existir, volta
-      // a busca de /api/operacional/produtos aqui.
-      const [reg, ins, resp] = await Promise.all([
+      // Produtos do cardápio entram na MESMA lista de busca dos insumos. Jogar fora um
+      // hambúrguer é jogar fora tudo que vai nele — o servidor explode a ficha na hora de
+      // gravar (ver expandirItens na API). Só entram produtos QUE TÊM ficha; sem ficha não há
+      // o que debitar, e apareceriam como opção que falha ao salvar.
+      const [reg, ins, prod, resp] = await Promise.all([
         api.get(`/api/operacional/desperdicio?ini=${semana.ini}&fim=${semana.fim}&secao=${secaoAtiva}`),
         api.get(`/api/operacional/insumos?bar_id=${barId}`),
+        api.get(`/api/operacional/produtos?bar_id=${barId}`).catch(() => ({ success: false })),
         // Responsáveis JÁ filtrados pela seção no servidor (quem tem secao null vem nas duas).
         api.get(`/api/operacional/pessoas-responsaveis?bar_id=${barId}&secao=${secaoAtiva}`).catch(() => ({ success: false })),
       ]);
       if (reg.success) setRegistros(reg.registros || []);
       if ((resp as any)?.success) setResponsaveis((resp as any).data || []);
 
-      setInsumos(ins.success ? (ins.insumos || []) : []);
+      const listaInsumos: Insumo[] = ins.success ? (ins.insumos || []) : [];
+      const listaProdutos: Insumo[] = ((prod as any)?.success ? ((prod as any).produtos || []) : [])
+        .filter((p: any) => p.ativo !== false && Number(p.qtd_componentes || 0) > 0)
+        .map((p: any) => ({
+          // `codigo` carrega o ID do cardápio: é ele que a API usa pra explodir a ficha.
+          codigo: String(p.id),
+          nome: p.nome,
+          unidade_medida: 'un',
+          categoria: p.categoria || 'Cardápio',
+          origem_tipo: 'produto' as const,
+        }));
+      setInsumos([...listaInsumos, ...listaProdutos]);
     } catch (e: any) {
       toast({ title: 'Erro ao carregar', description: e?.message, variant: 'destructive' });
     } finally { setLoading(false); }
@@ -579,11 +590,9 @@ function RegistroDialog({
         <DialogHeader className="pb-3 border-b">
           <DialogTitle>{modo === 'editar' ? 'Editar registro' : 'Novo registro de desperdício'}</DialogTitle>
           <DialogDescription>Anexe pelo menos 1 foto e adicione os itens da caixa. A soma alimenta o /operacional/desvios.</DialogDescription>
-          {/* Aviso explícito em vez de a opção simplesmente sumir da busca sem explicação. */}
-          <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
-            Prato pronto (baixar a ficha inteira) está fora no momento: a parte de produção da ficha
-            está certa, mas os insumos crus dela estão em g/ml e a contagem é em unidade/kg — sairia
-            80 kg de limão no lugar de 80 g. Lance os itens direto por enquanto.
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Escolher um <b>prato pronto</b> baixa tudo que vai nele — o quibe, o limão, o molho —
+            cada um já na unidade em que é contado.
           </p>
         </DialogHeader>
 

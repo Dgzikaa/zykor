@@ -48,35 +48,24 @@ async function ctx(request: NextRequest) {
 const ops = (supabase: any) => supabase.schema('operations');
 
 /**
- * A explosão de PRODUTO do cardápio está desligada porque a ficha e o desperdício falam unidades
- * diferentes em PARTE dos componentes — e ninguém percebeu porque a explosão NUNCA rodou de
- * verdade: até 30/07/2026 a tela não mandava `origem_tipo`, então todo "prato pronto" era gravado
- * como um insumo de código inexistente e morria ali, sem chegar no /desvios.
+ * UNIDADE DA EXPLOSÃO (resolvido em 30/07/2026 — não regredir).
  *
- * O que o /desvios espera, medido nos lançamentos reais do time (operations.desvio_desperdicio_manual):
- *   - PRODUÇÃO unitizada (pc0040 Quibe, pc0011 Isca, pc0024 Croquete) → UNIDADE. qtd = 1, 3, 10.
- *   - EMBALADO (i0199 Stella, i0186 Original)                        → UNIDADE (garrafas). qtd = 3, 9.
- *   - GRANEL (i0043 Limão, i0089 Laranja, i0125 Morango)             → KG. qtd = 0,27 / 0,088 / 0,072.
- * `insumos.unidade_medida` NÃO distingue: diz "ml" pra Stella (contada em garrafa) e "g" pro
- * morango (contado em kg).
+ * `fn_desperdicio_explodir_produto` devolve a quantidade JÁ na unidade de contagem. Ela precisa
+ * estar assim porque o desperdício entra na mesma conta do `gold.fn_desvios` que o estoque:
+ *     estoque_fim_teorico = e_ini + compra + troca + produzido − saida_teorica − desperdicio
+ * e `fn_sync_desperdicio_para_desvio` copia a qtd crua, sem converter nada no caminho.
  *
- * O que a ficha (public.producao_ficha_item) guarda:
- *   - pc0040 Quibe → 1        ✅ bate: 1 quibe é 1 quibe
- *   - pc0024 Croquete → 8     ✅ bate: 8 croquetes na porção
- *   - i0199 Stella → 330      ❌ 330 (ml) onde o desvio espera 1 (garrafa)      → 330x
- *   - i0188 Pepsi → 350       ❌ 350 (ml) onde o desvio espera 1 (lata)         → 350x
- *   - i0043 Limão → 80        ❌ 80 (g) onde o desvio espera 0,08 (kg)          → 1000x
+ * A ficha guarda g/ml, então a função divide pelos MESMOS divisores que o fn_desvios usa na
+ * saida_teorica: `producao_base.fator_contagem` pra preparo e a embalagem (`insumo_unidade`, com
+ * fallback em `derive_embalagem`) pra insumo. Resultado conferido caso a caso:
+ *     Stella 330 ÷ 330 = 1 garrafa   |   Quibe 1 ÷ 1 = 1 un
+ *     Pepsi  350 ÷ 350 = 1 lata      |   Croquete 8 ÷ 1 = 8 un
+ *     Limão   80 ÷ 1000 = 0,08 kg    |   Molho Barbecue 60 ÷ 1000 = 0,06 kg
+ * que é exatamente como o time lança na mão (Stella = 3 pra 3 garrafas, Limão = 0,27 kg).
  *
- * Ou seja: a parte de produção já está certa — jogar fora 1 Quibe do Calaf debita mesmo 1 quibe.
- * O que quebra são os insumos crus da MESMA ficha. Como a explosão grava tudo de uma vez, basta um
- * componente errado pra contaminar desvio e CMV. Enquanto a conversão por embalagem não existir,
- * é melhor recusar na cara do que gravar 80 kg de limão.
+ * Se voltar a sair número absurdo no /desvios depois de um desperdício de prato pronto, o
+ * suspeito é essa conversão — conferir a função SQL antes de mexer aqui.
  */
-const EXPLOSAO_PRODUTO_BLOQUEADA = true;
-const ERRO_EXPLOSAO_UNIDADE =
-  'Prato pronto está temporariamente indisponível: a parte de produção da ficha está certa, mas os ' +
-  'insumos crus dela estão em g/ml enquanto o desvio conta em unidade/kg — sairia 80 kg de limão ' +
-  'no lugar de 80 g. Lance os itens direto por enquanto; a equipe do Zykor já está com isso.';
 
 function validarItens(itens: unknown): Item[] {
   if (!Array.isArray(itens) || itens.length === 0) return [];
@@ -118,7 +107,7 @@ function validarItens(itens: unknown): Item[] {
  * `origem_tipo: 'produto'` como histórico ("esta linha nasceu de um Debochão"). Explodir de novo
  * leria o código do componente (ex.: "PAO001") como id de produto — NaN — e a linha sumiria.
  *
- * ⚠️ EXPLOSÃO DESLIGADA (30/07/2026) — CONFLITO DE UNIDADE, ver EXPLOSAO_PRODUTO_BLOQUEADA.
+ * A qtd devolvida pela RPC já vem na unidade de contagem — ver o bloco UNIDADE DA EXPLOSÃO acima.
  */
 async function expandirItens(supabase: any, barId: number, itens: Item[]): Promise<Item[]> {
   const out: Item[] = [];
@@ -129,7 +118,6 @@ async function expandirItens(supabase: any, barId: number, itens: Item[]): Promi
       out.push({ ...it, origem_tipo: it.origem_tipo || 'insumo', origem_codigo: it.origem_codigo || it.insumo_codigo, origem_qtd: it.origem_qtd ?? it.qtd });
       continue;
     }
-    if (EXPLOSAO_PRODUTO_BLOQUEADA) throw new Error(ERRO_EXPLOSAO_UNIDADE);
     const produtoId = Number(it.insumo_codigo); // no produto, o "código" que chega é o id do cardápio
     const { data: comps } = await supabase.rpc('fn_desperdicio_explodir_produto', {
       p_bar: barId, p_produto_id: produtoId,
