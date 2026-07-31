@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { mensagemFalhaInter } from '@/lib/inter/erroPagamento';
+import { dispatchNotification } from '@/lib/notifications/dispatch';
 
 export const dynamic = 'force-dynamic';
 
@@ -197,13 +199,22 @@ export async function POST(request: NextRequest) {
         const podeAtualizar = ped && ped.status !== alvoPedido &&
           (alvoPedido === 'pago' ? ped.status !== 'pago' : !TERMINAIS.includes(ped.status));
         if (podeAtualizar) {
+          // MOTIVO DA FALHA: o Inter manda em ev.erros[] ("Saldo Insuficiente." / 60168). Sem
+          // gravar aqui, o pedido virava erro_inter com erro_mensagem NULL e a tela mostrava
+          // "Falha no pagamento (sem detalhe do banco)" — foi o que aconteceu com os cachês do
+          // Pagode Vira-Lata em 31/07/2026. NUNCA deixar NULL: sem motivo o financeiro reenvia
+          // às cegas o pagamento que o banco recusou.
+          const motivoFalha = alvoPedido === 'erro_inter' ? mensagemFalhaInter(ev, statusUpper) : null;
           await fin2.from('pedidos_pagamento')
             .update({
               status: alvoPedido,
               ...(alvoPedido === 'pago' ? { pago_em: new Date().toISOString() } : {}),
               // PIX morto no Inter (FALHOU/ERRO): zera o código para o próximo "agendar" emitir
               // um PIX NOVO em vez de reaproveitar o código morto (que travava num loop).
-              ...(alvoPedido === 'erro_inter' ? { inter_codigo_solicitacao: null } : {}),
+              ...(alvoPedido === 'erro_inter' ? { inter_codigo_solicitacao: null, erro_mensagem: motivoFalha } : {}),
+              // Voltou a andar (aprovado/agendado/pago): limpa o erro velho pra não ficar um
+              // aviso vermelho de uma tentativa que já foi superada.
+              ...(['pago', 'agendado', 'aguardando_socio'].includes(alvoPedido) ? { erro_mensagem: null } : {}),
             })
             .eq('id', ped.id);
           const MSG: Record<string, string> = {
@@ -211,12 +222,27 @@ export async function POST(request: NextRequest) {
             agendado: 'Aprovado pelo sócio no Inter — agendado, aguardando a data (webhook PIX).',
             aguardando_socio: 'Enviado ao Inter — aguardando a aprovação do sócio no app (webhook PIX).',
             reprovado: 'Recusado pelo sócio no app do Inter (webhook PIX).',
-            erro_inter: 'Falha reportada pelo Inter no pagamento (webhook PIX).',
+            erro_inter: `Falha reportada pelo Inter no pagamento (webhook PIX): ${motivoFalha}`,
           };
           await fin2.from('pedidos_pagamento_comentarios').insert({
             pedido_id: ped.id, bar_id: ped.bar_id, autor_id: null, autor_nome: 'Sistema',
             mensagem: MSG[alvoPedido] || `Status atualizado pelo Inter: ${alvoPedido}.`, tipo: 'sistema',
           });
+          // AVISA NA HORA. Pagamento que falha na madrugada (o Inter processa a fila ~06h) só era
+          // descoberto quando alguém abria a tela — no caso do Pagode, no dia do show. Best-effort:
+          // notificação nunca derruba o webhook (o Inter espera 200).
+          if (alvoPedido === 'erro_inter') {
+            await dispatchNotification({
+              barId: ped.bar_id,
+              eventKey: 'pagamento_falhou',
+              titulo: 'Pagamento recusado pelo Inter',
+              mensagem: `${ev?.recebedor?.nome || 'Beneficiário'} — ${ev?.valor ? `R$ ${ev.valor}` : 'valor não informado'}: ${motivoFalha}`,
+              url: '/financeiro/pedidos-pagamento',
+              canais: ['in_app', 'push'],
+              destinatarios: { roles: ['financeiro', 'admin'] },
+              dados: { pedido_id: ped.id, codigo_solicitacao: String(codigo) },
+            }).catch((e) => console.error('[INTER-WEBHOOK] Falha ao notificar erro de pagamento:', e));
+          }
           await fin2.from('pedidos_pagamento_historico').insert({
             pedido_id: ped.id, bar_id: ped.bar_id, autor_id: null, autor_nome: 'Inter (webhook)',
             campo: 'status', valor_anterior: ped.status, valor_novo: alvoPedido,

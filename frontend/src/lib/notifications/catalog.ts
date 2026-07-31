@@ -120,6 +120,31 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
     urlPadrao: '/financeiro/pedidos-pagamento',
   },
   {
+    // O Inter processa a fila de PIX agendados de madrugada (~06h). Quando um falha — saldo
+    // insuficiente, chave morta —, ninguém fica sabendo até abrir a tela, e o dinheiro não saiu.
+    // Disparado pelo webhook e pela reconciliação, com o motivo que o banco deu.
+    key: 'pagamento_falhou',
+    label: 'Pagamento recusado pelo banco',
+    descricao: 'O Inter recusou um pagamento agendado (saldo, chave, limite). O dinheiro NÃO saiu.',
+    categoria: 'financeiro',
+    severidadePadrao: 'critico',
+    canaisSuportados: ['in_app', 'push', 'whatsapp'],
+    urlPadrao: '/financeiro/pedidos-pagamento',
+    acaoLabel: 'Ver pedidos',
+  },
+  {
+    // Preventivo do anterior: roda na véspera, compara o que vai sair com o saldo do Inter.
+    // Enquanto avisa, ainda dá pra aportar; depois das ~06h o banco já recusou.
+    key: 'saldo_agenda_insuficiente',
+    label: 'Saldo não cobre os pagamentos agendados',
+    descricao: 'O total agendado pra sair é maior que o saldo disponível na conta do Inter.',
+    categoria: 'financeiro',
+    severidadePadrao: 'critico',
+    canaisSuportados: ['in_app', 'push', 'whatsapp'],
+    urlPadrao: '/financeiro/pedidos-pagamento',
+    acaoLabel: 'Ver pagamentos',
+  },
+  {
     key: 'caixa_apertado',
     label: 'Caixa apertado',
     descricao: 'Projeção de fluxo de caixa negativa nos próximos dias.',

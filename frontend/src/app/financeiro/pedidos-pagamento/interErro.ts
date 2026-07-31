@@ -15,12 +15,32 @@ export interface ErroAmigavel {
 // Padrões (regex) → mensagem amigável. Ordem importa (mais específico primeiro).
 const PADROES: Array<{ re: RegExp; out: ErroAmigavel }> = [
   {
-    // Conta Azul (erro_ca): token expirado / credenciais ausentes / conta a pagar não criada.
-    // Vem ANTES do padrão de PIX de propósito: "Credenciais do Conta Azul não encontradas" casava
-    // com "não encontrada" e aparecia como erro de chave PIX, confundindo o financeiro (o PIX estava
-    // certo — o problema é a conexão do Conta Azul).
-    re: /conta\s+azul|token\s+ca\b|credenciais.*conta/i,
+    // DUPLICIDADE no Conta Azul — vem antes de tudo. Casava com o padrão genérico de "conta azul"
+    // e a tela mandava "Reconecte e agende de novo": a pior orientação possível, porque reagendar
+    // é exatamente o que a trava anti-duplicado está impedindo (o CA não exclui por API).
+    // Real em 30/07/2026: FGTS de R$ 248,45 (Beatriz), com o Conta Azul conectado o tempo todo.
+    re: /duplicad/i,
+    out: {
+      titulo: 'Possível pagamento duplicado no Conta Azul',
+      acao: 'A trava do Zykor barrou porque já existe lançamento igual. Confira no Conta Azul ANTES de reenviar — reenviar duplica (o CA não exclui por API).',
+    },
+  },
+  {
+    // Conta Azul REALMENTE desconectado: token expirado, credencial ausente, refresh que falhou.
+    // O padrão era só /conta azul/ e engolia qualquer erro que citasse o CA — inclusive
+    // duplicidade e categoria inválida — mandando reconectar uma integração que estava no ar.
+    // Casa as mensagens que lib/contaazul/token.ts realmente produz.
+    re: /conta\s*azul\s*desconectado|credenciais\s+do\s+conta\s*azul|token\s+ca\b|token\s+do\s+conta\s*azul|conta\s*azul\s+n[ãa]o\s+retornou\s+o\s+token/i,
     out: { titulo: 'Conta Azul desconectado', acao: 'Reconecte o Conta Azul em Integrações e agende o pedido de novo.' },
+  },
+  {
+    // Boleto (erro_inter): o Inter devolve estes três o tempo todo e nenhum é problema de chave PIX.
+    re: /t[íi]tulo\s+j[áa]\s+liquidado|j[áa]\s+baixado/i,
+    out: { titulo: 'Boleto já pago/baixado no banco emissor', acao: 'Confira o extrato: se já foi pago, use "Marcar como pago" em vez de reenviar.' },
+  },
+  {
+    re: /boleto\s+n[ãa]o\s+registrado|boleto\s+inv[áa]lido|c[óo]digo\s+de\s+barras/i,
+    out: { titulo: 'Boleto não registrado/inválido no banco emissor', acao: 'Recapture o boleto (linha digitável) ou peça a 2ª via ao fornecedor.' },
   },
   {
     re: /n[ãa]o\s+cadastrada|n[ãa]o\s+encontrada|not\s+registered|not\s+found|chave\s+inv[áa]lida|dict|chave.*inexist/i,
@@ -31,8 +51,11 @@ const PADROES: Array<{ re: RegExp; out: ErroAmigavel }> = [
     },
   },
   {
-    re: /saldo\s+insuficiente|insufficient|sem\s+saldo/i,
-    out: { titulo: 'Saldo insuficiente na conta pagadora', acao: 'Garanta saldo na conta e tente de novo.' },
+    re: /saldo\s+insuficiente|insufficient|sem\s+saldo|60168/i,
+    out: {
+      titulo: 'Saldo insuficiente na conta pagadora',
+      acao: 'O dinheiro NÃO saiu. Garanta saldo na conta do Inter e agende de novo — o PIX anterior morreu, este botão emite um novo.',
+    },
   },
   {
     re: /cpf|cnpj|documento.*(diverge|inv[áa]lid|n[ãa]o\s+confere)/i,

@@ -3,6 +3,8 @@ import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { getInterAccessToken, clearInterTokenCache } from '@/lib/inter/getAccessToken';
 import { resolveInterCredential } from '@/lib/inter/resolveCredential';
 import { consultarPixInter, mapStatusPixParaPedido } from '@/lib/inter/pixConsulta';
+import { mensagemFalhaInter } from '@/lib/inter/erroPagamento';
+import { dispatchNotification } from '@/lib/notifications/dispatch';
 import { authenticateUser, permissionErrorResponse } from '@/middleware/auth';
 import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 
@@ -129,7 +131,12 @@ export async function GET(request: NextRequest) {
           // próximo "agendar" emita um PIX NOVO em vez de reaproveitar o código morto (que
           // prendia o pedido num loop sem nunca sair dinheiro). NÃO zera em reprovado/cancelado
           // (recusa/cancelamento deliberado do sócio — não deve reemitir sozinho).
-          ...(alvo === 'erro_inter' ? { erro_mensagem: `Inter: ${statusRaw}`, inter_codigo_solicitacao: null } : {}),
+          // "Inter: EXPIRADO" não explica nada pra quem paga. O GET do Inter traz o porquê em
+          // erros[] (ex.: "Saldo Insuficiente." / 60168) — grava o motivo e cai no status cru
+          // só quando o banco não detalhou.
+          ...(alvo === 'erro_inter'
+            ? { erro_mensagem: mensagemFalhaInter(consulta.data, statusRaw), inter_codigo_solicitacao: null }
+            : {}),
         }).eq('id', ped.id);
         await fin().from('pix_enviados').update({
           inter_status: statusRaw,
@@ -138,8 +145,23 @@ export async function GET(request: NextRequest) {
         }).eq('inter_codigo_solicitacao', codigo);
         await fin().from('pedidos_pagamento_comentarios').insert({
           pedido_id: ped.id, bar_id: barId, autor_id: null, autor_nome: 'Sistema',
-          mensagem: MSG[alvo] || `Status atualizado pelo Inter: ${alvo} (${statusRaw}).`, tipo: 'sistema',
+          mensagem: alvo === 'erro_inter'
+            ? `${MSG.erro_inter} Motivo: ${mensagemFalhaInter(consulta.data, statusRaw)}`
+            : MSG[alvo] || `Status atualizado pelo Inter: ${alvo} (${statusRaw}).`,
+          tipo: 'sistema',
         });
+        // Mesmo aviso do webhook: dinheiro que não saiu não pode depender de alguém abrir a tela.
+        if (alvo === 'erro_inter') {
+          await dispatchNotification({
+            barId, eventKey: 'pagamento_falhou',
+            titulo: 'Pagamento recusado pelo Inter',
+            mensagem: `${ped.beneficiario_nome || 'Beneficiário'}: ${mensagemFalhaInter(consulta.data, statusRaw)}`,
+            url: '/financeiro/pedidos-pagamento',
+            canais: ['in_app', 'push'],
+            destinatarios: { roles: ['financeiro', 'admin'] },
+            dados: { pedido_id: ped.id, codigo_solicitacao: codigo },
+          }).catch(() => { /* best-effort: reconciliação não pode parar por notificação */ });
+        }
         await fin().from('pedidos_pagamento_historico').insert({
           pedido_id: ped.id, bar_id: barId, autor_id: null, autor_nome: 'Inter (reconciliação PIX)',
           campo: 'status', valor_anterior: ped.status, valor_novo: alvo,
