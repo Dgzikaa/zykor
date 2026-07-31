@@ -26,6 +26,12 @@ type OrigemTipo = 'insumo' | 'preparo' | 'produto';
 type Item = {
   insumo_codigo: string; qtd: number; motivo?: string; observacao?: string; area?: Area | null;
   origem_tipo?: OrigemTipo; origem_codigo?: string; origem_nome?: string; origem_qtd?: number;
+  /**
+   * Só do REQUEST (não é coluna): marca linha que já é resultado da explosão e veio do banco,
+   * na edição de um registro. Sem isso, reexplodir trataria o código do COMPONENTE como id de
+   * produto e a linha sumiria. Ver expandirItens.
+   */
+  ja_expandido?: boolean;
 };
 type Foto = { storage_path: string; url: string; size_bytes?: number; mime?: string };
 
@@ -40,6 +46,37 @@ async function ctx(request: NextRequest) {
 }
 
 const ops = (supabase: any) => supabase.schema('operations');
+
+/**
+ * A explosão de PRODUTO do cardápio está desligada porque a ficha e o desperdício falam unidades
+ * diferentes em PARTE dos componentes — e ninguém percebeu porque a explosão NUNCA rodou de
+ * verdade: até 30/07/2026 a tela não mandava `origem_tipo`, então todo "prato pronto" era gravado
+ * como um insumo de código inexistente e morria ali, sem chegar no /desvios.
+ *
+ * O que o /desvios espera, medido nos lançamentos reais do time (operations.desvio_desperdicio_manual):
+ *   - PRODUÇÃO unitizada (pc0040 Quibe, pc0011 Isca, pc0024 Croquete) → UNIDADE. qtd = 1, 3, 10.
+ *   - EMBALADO (i0199 Stella, i0186 Original)                        → UNIDADE (garrafas). qtd = 3, 9.
+ *   - GRANEL (i0043 Limão, i0089 Laranja, i0125 Morango)             → KG. qtd = 0,27 / 0,088 / 0,072.
+ * `insumos.unidade_medida` NÃO distingue: diz "ml" pra Stella (contada em garrafa) e "g" pro
+ * morango (contado em kg).
+ *
+ * O que a ficha (public.producao_ficha_item) guarda:
+ *   - pc0040 Quibe → 1        ✅ bate: 1 quibe é 1 quibe
+ *   - pc0024 Croquete → 8     ✅ bate: 8 croquetes na porção
+ *   - i0199 Stella → 330      ❌ 330 (ml) onde o desvio espera 1 (garrafa)      → 330x
+ *   - i0188 Pepsi → 350       ❌ 350 (ml) onde o desvio espera 1 (lata)         → 350x
+ *   - i0043 Limão → 80        ❌ 80 (g) onde o desvio espera 0,08 (kg)          → 1000x
+ *
+ * Ou seja: a parte de produção já está certa — jogar fora 1 Quibe do Calaf debita mesmo 1 quibe.
+ * O que quebra são os insumos crus da MESMA ficha. Como a explosão grava tudo de uma vez, basta um
+ * componente errado pra contaminar desvio e CMV. Enquanto a conversão por embalagem não existir,
+ * é melhor recusar na cara do que gravar 80 kg de limão.
+ */
+const EXPLOSAO_PRODUTO_BLOQUEADA = true;
+const ERRO_EXPLOSAO_UNIDADE =
+  'Prato pronto está temporariamente indisponível: a parte de produção da ficha está certa, mas os ' +
+  'insumos crus dela estão em g/ml enquanto o desvio conta em unidade/kg — sairia 80 kg de limão ' +
+  'no lugar de 80 g. Lance os itens direto por enquanto; a equipe do Zykor já está com isso.';
 
 function validarItens(itens: unknown): Item[] {
   if (!Array.isArray(itens) || itens.length === 0) return [];
@@ -61,6 +98,7 @@ function validarItens(itens: unknown): Item[] {
       origem_codigo: raw?.origem_codigo ? String(raw.origem_codigo).trim() : undefined,
       origem_nome: raw?.origem_nome ? String(raw.origem_nome).trim() : undefined,
       origem_qtd: Number.isFinite(Number(raw?.origem_qtd)) ? Number(raw.origem_qtd) : undefined,
+      ja_expandido: raw?.ja_expandido === true || undefined,
     });
   }
   return out;
@@ -75,14 +113,23 @@ function validarItens(itens: unknown): Item[] {
  * produzido — descer além disso contaria o mesmo prejuízo duas vezes.
  *
  * Preparo e insumo escolhidos direto não explodem: viram 1 linha, no próprio código.
+ *
+ * `ja_expandido` desliga a explosão: na EDIÇÃO, as linhas vêm do banco já explodidas e carregam
+ * `origem_tipo: 'produto'` como histórico ("esta linha nasceu de um Debochão"). Explodir de novo
+ * leria o código do componente (ex.: "PAO001") como id de produto — NaN — e a linha sumiria.
+ *
+ * ⚠️ EXPLOSÃO DESLIGADA (30/07/2026) — CONFLITO DE UNIDADE, ver EXPLOSAO_PRODUTO_BLOQUEADA.
  */
 async function expandirItens(supabase: any, barId: number, itens: Item[]): Promise<Item[]> {
   const out: Item[] = [];
-  for (const it of itens) {
-    if (it.origem_tipo !== 'produto') {
+  for (const item of itens) {
+    // `ja_expandido` é campo só de request: tirar aqui evita vazar pro insert (não existe coluna).
+    const { ja_expandido, ...it } = item;
+    if (ja_expandido || it.origem_tipo !== 'produto') {
       out.push({ ...it, origem_tipo: it.origem_tipo || 'insumo', origem_codigo: it.origem_codigo || it.insumo_codigo, origem_qtd: it.origem_qtd ?? it.qtd });
       continue;
     }
+    if (EXPLOSAO_PRODUTO_BLOQUEADA) throw new Error(ERRO_EXPLOSAO_UNIDADE);
     const produtoId = Number(it.insumo_codigo); // no produto, o "código" que chega é o id do cardápio
     const { data: comps } = await supabase.rpc('fn_desperdicio_explodir_produto', {
       p_bar: barId, p_produto_id: produtoId,
@@ -232,7 +279,12 @@ export async function POST(request: NextRequest) {
   const itensBrutos = validarItens(body?.itens);
   if (itensBrutos.length === 0) return NextResponse.json({ success: false, error: 'Informe pelo menos 1 item (insumo + qtd)' }, { status: 400 });
   // Produto do cardápio vira N linhas (blend, pão, queijo, molho...) ANTES de gravar.
-  const itens = await expandirItens(supabase, bar_id, itensBrutos);
+  let itens: Item[];
+  try {
+    itens = await expandirItens(supabase, bar_id, itensBrutos);
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: e?.message || 'Falha ao expandir a ficha' }, { status: 400 });
+  }
   if (itens.length === 0) return NextResponse.json({ success: false, error: 'Nenhum item com ficha técnica pra debitar — confira a ficha do produto escolhido' }, { status: 400 });
 
   const fotos = validarFotos(body?.fotos);
@@ -347,7 +399,12 @@ export async function PUT(request: NextRequest) {
 
   // Se veio itens[] no body, SUBSTITUI o conjunto de itens (delete + insert) — trigger sincroniza.
   if (body?.itens !== undefined) {
-    const itens = await expandirItens(supabase, bar_id, validarItens(body.itens));
+    let itens: Item[];
+    try {
+      itens = await expandirItens(supabase, bar_id, validarItens(body.itens));
+    } catch (e: any) {
+      return NextResponse.json({ success: false, error: e?.message || 'Falha ao expandir a ficha' }, { status: 400 });
+    }
     if (itens.length === 0) return NextResponse.json({ success: false, error: 'Pelo menos 1 item obrigatório' }, { status: 400 });
     const { error: errDel } = await ops(supabase).from('desperdicio_registro_item').delete().eq('registro_id', id);
     if (errDel) return NextResponse.json({ success: false, error: errDel.message }, { status: 500 });

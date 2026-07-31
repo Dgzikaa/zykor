@@ -57,6 +57,8 @@ type Item = {
   // origem = o que a pessoa escolheu (o produto), quando a linha veio de explosão de ficha
   origem_tipo?: 'insumo' | 'preparo' | 'produto';
   origem_codigo?: string; origem_nome?: string; origem_qtd?: number;
+  /** Linha carregada do banco na edição: já é resultado da explosão, o servidor não deve reexplodir. */
+  ja_expandido?: boolean;
 };
 type Registro = {
   id: number; bar_id: number; data: string; observacao: string | null;
@@ -172,32 +174,21 @@ export default function DesperdicioPage() {
     if (!barId) return;
     setLoading(true);
     try {
-      // Produtos do cardápio entram na MESMA lista de busca dos insumos. Jogar fora um
-      // hambúrguer é jogar fora tudo que vai nele — o servidor explode a ficha na hora de
-      // gravar (ver expandirItens na API). Só entram produtos QUE TÊM ficha; sem ficha não há
-      // o que debitar, e apareceriam como opção que falha ao salvar.
-      const [reg, ins, prod, resp] = await Promise.all([
+      // A busca lista SÓ insumos. Produto do cardápio ("prato pronto", que baixaria a ficha
+      // inteira) saiu em 30/07/2026: a ficha está em g/ml e o desperdício conta em unidade/kg,
+      // então a explosão baixaria 330x-1000x a mais. O servidor também recusa — ver
+      // EXPLOSAO_PRODUTO_BLOQUEADA na API. Quando a conversão por embalagem existir, volta
+      // a busca de /api/operacional/produtos aqui.
+      const [reg, ins, resp] = await Promise.all([
         api.get(`/api/operacional/desperdicio?ini=${semana.ini}&fim=${semana.fim}&secao=${secaoAtiva}`),
         api.get(`/api/operacional/insumos?bar_id=${barId}`),
-        api.get(`/api/operacional/produtos?bar_id=${barId}`).catch(() => ({ success: false })),
         // Responsáveis JÁ filtrados pela seção no servidor (quem tem secao null vem nas duas).
         api.get(`/api/operacional/pessoas-responsaveis?bar_id=${barId}&secao=${secaoAtiva}`).catch(() => ({ success: false })),
       ]);
       if (reg.success) setRegistros(reg.registros || []);
       if ((resp as any)?.success) setResponsaveis((resp as any).data || []);
 
-      const listaInsumos: Insumo[] = ins.success ? (ins.insumos || []) : [];
-      const listaProdutos: Insumo[] = ((prod as any)?.success ? ((prod as any).produtos || []) : [])
-        .filter((p: any) => p.ativo !== false && Number(p.qtd_componentes || 0) > 0)
-        .map((p: any) => ({
-          // `codigo` carrega o ID do cardápio: é ele que a API usa pra explodir a ficha.
-          codigo: String(p.id),
-          nome: p.nome,
-          unidade_medida: 'un',
-          categoria: p.categoria || 'Cardápio',
-          origem_tipo: 'produto' as const,
-        }));
-      setInsumos([...listaInsumos, ...listaProdutos]);
+      setInsumos(ins.success ? (ins.insumos || []) : []);
     } catch (e: any) {
       toast({ title: 'Erro ao carregar', description: e?.message, variant: 'destructive' });
     } finally { setLoading(false); }
@@ -495,7 +486,8 @@ function RegistroDialog({
   const [fotos, setFotos] = useState<Foto[]>(registroExistente?.fotos || []);
   const [itens, setItens] = useState<Item[]>(
     registroExistente?.itens.length
-      ? registroExistente.itens.map(i => ({ ...i }))
+      // Veio do banco = já explodido. A marca impede que o servidor tente explodir de novo.
+      ? registroExistente.itens.map(i => ({ ...i, ja_expandido: true }))
       : [{ insumo_codigo: '', qtd: 0, motivo: '', observacao: '' }],
   );
   const [subindoFoto, setSubindoFoto] = useState(false);
@@ -545,7 +537,21 @@ function RegistroDialog({
         secao,
         responsavel_id: responsavelId ? Number(responsavelId) : null,
         observacao: observacao.trim() || undefined,
-        itens: itens.map(it => ({ insumo_codigo: it.insumo_codigo, qtd: it.qtd, motivo: it.motivo || undefined, observacao: it.observacao || undefined, area: it.area || undefined })),
+        // A origem TEM que ir junto: sem `origem_tipo: 'produto'` o servidor não explode a ficha e
+        // grava o id do cardápio como se fosse código de insumo — não bate com insumo nenhum, fica
+        // sem nome e sem preço, e o desperdício nunca chega no /operacional/desvios.
+        itens: itens.map(it => ({
+          insumo_codigo: it.insumo_codigo,
+          qtd: it.qtd,
+          motivo: it.motivo || undefined,
+          observacao: it.observacao || undefined,
+          area: it.area || undefined,
+          origem_tipo: it.origem_tipo,
+          origem_codigo: it.origem_codigo,
+          origem_nome: it.origem_nome,
+          origem_qtd: it.origem_qtd,
+          ja_expandido: it.ja_expandido || undefined,
+        })),
         fotos,
       };
       if (modo === 'editar' && registroExistente) {
@@ -573,6 +579,12 @@ function RegistroDialog({
         <DialogHeader className="pb-3 border-b">
           <DialogTitle>{modo === 'editar' ? 'Editar registro' : 'Novo registro de desperdício'}</DialogTitle>
           <DialogDescription>Anexe pelo menos 1 foto e adicione os itens da caixa. A soma alimenta o /operacional/desvios.</DialogDescription>
+          {/* Aviso explícito em vez de a opção simplesmente sumir da busca sem explicação. */}
+          <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
+            Prato pronto (baixar a ficha inteira) está fora no momento: a parte de produção da ficha
+            está certa, mas os insumos crus dela estão em g/ml e a contagem é em unidade/kg — sairia
+            80 kg de limão no lugar de 80 g. Lance os itens direto por enquanto.
+          </p>
         </DialogHeader>
 
         <div className="px-6 py-4 space-y-5 overflow-y-auto flex-1">
