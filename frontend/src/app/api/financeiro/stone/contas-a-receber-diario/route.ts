@@ -26,7 +26,7 @@ export const maxDuration = 300; // PIX é 1 lançamento por transação → pode
  *  - GET  : preview do dia (não escreve no CA).
  *  - POST : cria os lançamentos (idempotente por financial.stone_ca_lancamento_log: bar,dia,chave,natureza).
  *
- * Bar 3 primeiro. Estender CONFIG pro bar 4 depois de validar.
+ * Bares 3 e 4 configurados (o cron roda os dois desde 03/08/2026).
  */
 
 const CONTA_AZUL_API_URL = 'https://api-v2.contaazul.com';

@@ -18,7 +18,7 @@ export const maxDuration = 120;
  *
  *  - GET  : preview do dia (não escreve no CA).
  *  - POST : cria + baixa (admin/financeiro).
- * Cron chama executarEntradaDiaria (12:00 BRT, dia anterior). Bar 3 primeiro; bar 4 depois.
+ * Cron chama executarEntradaDiaria (12:00 BRT, dia anterior). Bares 3 e 4.
  */
 
 const CONTA_AZUL_API_URL = 'https://api-v2.contaazul.com';
@@ -34,7 +34,7 @@ const CONFIG: Record<number, BarEntradaConfig> = {
     categoria_id: '324eebcf-1241-4a4d-92da-a3422fa21fb4',
     conta_financeira: '5a6f513e-1002-4d8e-af1c-3a5f53c404dc',
   },
-  // Bar 4 (Deboche) — IDs prontos; habilitar no cron depois de validar o bar 3.
+  // Bar 4 (Deboche) — ligado no cron em 03/08/2026 (o toggle já estava ativo desde 07/07).
   4: {
     cliente_id: 'cfc43a92-1ae9-47a0-9c22-36dab7e703f8',
     categoria_id: 'ffd6d24c-6947-4cc9-afde-7abf6b510a88',

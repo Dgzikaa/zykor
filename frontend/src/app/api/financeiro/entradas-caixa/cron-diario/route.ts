@@ -8,7 +8,7 @@ export const maxDuration = 120;
 /**
  * Cron diário Entradas de Caixa (dinheiro) → CA — 12:00 BRT (15:00 UTC). Lança sempre o DIA
  * ANTERIOR (ontemBRT): soma o dinheiro recebido do dia e cria 1 conta a receber já baixada.
- * Idempotente (log impede duplicar). Bar 3 primeiro; estender BARES p/ o 4 depois de validar.
+ * Idempotente (log impede duplicar). Bares 3 (Ordinário) e 4 (Deboche).
  * Protegido pelo CRON_SECRET.
  */
 export async function GET(request: NextRequest) {
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   }
 
   const data = ontemBRT();
-  const BARES = [3]; // estender p/ [3, 4] quando o bar 4 estiver validado
+  const BARES = [3, 4]; // o toggle (default off) decide de verdade quem roda
   const resultados: any[] = [];
   for (const barId of BARES) {
     // Gate do toggle "Lançamento automático" (financial.lancamento_auto_config).
