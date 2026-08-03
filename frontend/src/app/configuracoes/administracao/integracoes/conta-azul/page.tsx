@@ -5,6 +5,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import ContaAzulIntegrationCard from '@/components/configuracoes/ContaAzulIntegrationCard';
+import ContasPagadorasCard from '@/components/configuracoes/ContasPagadorasCard';
 import { Wallet } from 'lucide-react';
 
 // Lar da tela de conexão do Conta Azul (por bar): configurar credenciais + OAuth + sincronizar.
@@ -36,6 +37,7 @@ export default function ContaAzulIntegracaoPage() {
         </div>
 
         <ContaAzulIntegrationCard selectedBar={selectedBar} />
+        <ContasPagadorasCard barId={selectedBar?.id ?? null} />
       </div>
     </ProtectedRoute>
   );

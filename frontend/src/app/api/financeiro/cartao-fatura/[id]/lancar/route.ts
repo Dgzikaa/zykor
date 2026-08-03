@@ -49,11 +49,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   // Conta pagadora: se não veio, usa a pagadora_padrao do bar (Ordinário Inter / Descubra Inter).
+  // Bar SEM nenhuma pagadora configurada é falha de CONFIGURAÇÃO, não campo esquecido na tela —
+  // separamos as duas coisas pra mensagem não mandar o financeiro procurar um campo que não existe
+  // (o seletor vem vazio, porque ele lista só as contas com pagadora=true). Ver bar 6/PREFS, 03/08/2026.
+  let barSemPagadora = false;
   if (!conta_financeira_id && Number.isFinite(barId)) {
     const { data: cp } = await (supabase.schema('bronze' as any) as any)
       .from('bronze_contaazul_contas_financeiras')
       .select('contaazul_id').eq('bar_id', barId).eq('pagadora_padrao', true).maybeSingle();
     if (cp?.contaazul_id) conta_financeira_id = cp.contaazul_id;
+    else {
+      const { count } = await (supabase.schema('bronze' as any) as any)
+        .from('bronze_contaazul_contas_financeiras')
+        .select('contaazul_id', { count: 'exact', head: true })
+        .eq('bar_id', barId).eq('ativo', true).eq('pagadora', true);
+      barSemPagadora = !count;
+    }
   }
   // Fornecedor = TITULAR do cartão (de-para por cartao_final). Se não veio no body, resolve pelo mapa.
   if (!pessoa_id && Number.isFinite(barId) && linha.cartao_final) {
@@ -67,7 +78,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!Number.isFinite(barId)) faltando.push('bar');
   if (!categoria_id) faltando.push('categoria');
   if (!pessoa_id) faltando.push(`fornecedor (titular) do cartão${linha.cartao_final ? ` ••${linha.cartao_final}` : ''} — vincule o titular na seção "Fornecedor por cartão"`);
-  if (!conta_financeira_id) faltando.push('conta pagadora');
+  if (!conta_financeira_id) {
+    faltando.push(
+      barSemPagadora
+        ? `conta pagadora — o bar ${barId} não tem NENHUMA conta configurada como pagadora. Um admin precisa marcar em Configurações › Integrações › Conta Azul › "Contas pagadoras"`
+        : 'conta pagadora',
+    );
+  }
   if (!data_vencimento || !/^\d{4}-\d{2}-\d{2}$/.test(String(data_vencimento))) faltando.push('vencimento da fatura');
   if (faltando.length) {
     return NextResponse.json({ success: false, error: `Complete antes de lançar: ${faltando.join(', ')}.` }, { status: 400 });
