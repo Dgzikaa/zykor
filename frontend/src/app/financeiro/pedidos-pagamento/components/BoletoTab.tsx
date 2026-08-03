@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -125,15 +125,54 @@ export function BoletoTab({
       setD({ ...VAZIO, valor: dados.valor, linha_digitavel: dados.linha_digitavel });
       setAvisos([!dados.valor && 'valor', 'vencimento', 'beneficiário'].filter(Boolean) as string[]);
       showToast({ type: 'warning', title: 'Boleto de concessionária', message: 'Li o código e o valor; o vencimento você confere/preenche.' });
+      void identificar(dados.linha_digitavel);
       return;
     }
     setD({ ...VAZIO, valor: dados.valor, vencimento: dados.vencimento, linha_digitavel: dados.linha_digitavel });
-    setAvisos([!dados.valor && 'valor', !dados.vencimento && 'vencimento'].filter(Boolean) as string[]);
+    setAvisos([!dados.valor && 'valor', !dados.vencimento && 'vencimento', 'beneficiário'].filter(Boolean) as string[]);
     showToast({ type: 'success', title: `Boleto lido pelo ${origem}`, message: 'Confira e informe a competência.' });
+    void identificar(dados.linha_digitavel);
   };
 
   const onScan = (dados: BoletoDecodificado) => { setScannerOpen(false); aplicarLeitura(dados, 'câmera'); };
   const onLeitor = (dados: BoletoDecodificado) => { setLeitorOpen(false); aplicarLeitura(dados, 'leitor'); };
+
+  // O código de barras NÃO tem nome/CNPJ do beneficiário (não existe esse campo nos 44 díg.).
+  // O que dá é reconhecer o CEDENTE (banco + agência/conta/carteira no campo livre) e puxar o
+  // fornecedor de um boleto anterior do mesmo emissor. Também avisa se a linha já foi lançada.
+  // É sugestão: só preenche o que está vazio e nunca trava o fluxo se falhar.
+  const ultimaIdentificada = useRef('');
+  const identificar = async (linha: string | null) => {
+    const dig = (linha || '').replace(/\D/g, '');
+    if (![44, 47, 48].includes(dig.length) || ultimaIdentificada.current === dig) return;
+    ultimaIdentificada.current = dig;
+    try {
+      const r = await api.get(`/api/financeiro/boleto/identificar?linha=${dig}`);
+      const dup = r?.duplicado;
+      if (dup) {
+        showToast({
+          type: 'warning', title: 'Esse boleto já foi lançado',
+          message: `${dup.descricao || 'pedido'} — ${fmtBRL(Number(dup.valor) || 0)}, status "${dup.status}". Confira antes de criar de novo.`,
+        });
+      }
+      const s = r?.sugestao;
+      if (!s) return;
+      setD((p) => (p ? {
+        ...p,
+        beneficiario: p.beneficiario || s.beneficiario_nome || null,
+        cpf_cnpj: p.cpf_cnpj || s.cpf_cnpj || null,
+      } : p));
+      if (s.contaazul_pessoa_id) setFornId((prev) => prev || s.contaazul_pessoa_id);
+      if (s.categoria_id) setCatId((prev) => prev || s.categoria_id);
+      setAvisos((prev) => prev.filter((a) => a !== 'beneficiário'));
+      showToast({
+        type: 'success', title: 'Fornecedor puxado do histórico',
+        message: `${s.beneficiario_nome || 'Fornecedor'} — mesmo emissor de um boleto anterior. Confira antes de criar.`,
+      });
+    } catch {
+      // Sugestão é bônus: se falhar, o operador preenche na mão. Sem barulho.
+    }
+  };
 
   // Bipar/colar a linha digitável direto no campo também preenche valor e vencimento (só o
   // que ainda estiver vazio — não sobrescreve o que a IA leu ou o operador digitou).
@@ -150,6 +189,7 @@ export function BoletoTab({
     });
     if (dec.valido) {
       setAvisos((prev) => prev.filter((a) => !(a === 'valor' && dec.valor != null) && !(a === 'vencimento' && dec.vencimento)));
+      void identificar(dec.linha_digitavel);
     }
   };
 
@@ -160,6 +200,7 @@ export function BoletoTab({
     setD(null); setArquivoNome(''); setAvisos([]); setCompetencia(''); setObservacao(''); setDescricao(null); setContaId('');
     setUsarRateio(false); setRateio([{ catId: '', valor: '' }, { catId: '', valor: '' }]);
     setCatId(''); setFornId('');
+    ultimaIdentificada.current = ''; // bipar o MESMO boleto de novo tem que reavisar o duplicado
   };
 
   const criar = async () => {
@@ -345,8 +386,18 @@ export function BoletoTab({
                 </div>
               )}
               <div>
-                <Label className="mb-1.5 block">Fornecedor <span className="text-muted-foreground text-xs">(sugestão)</span></Label>
-                <SearchableSelect value={fornId} onValueChange={(v) => setFornId(v || '')}
+                <Label className="mb-1.5 block">Fornecedor <span className="text-muted-foreground text-xs">(preenche beneficiário e CNPJ)</span></Label>
+                {/* O CNPJ não vem no código de barras — vem do cadastro do CA (searchHint = documento).
+                    Escolher o fornecedor completa beneficiário + CPF/CNPJ que estiverem em branco. */}
+                <SearchableSelect value={fornId} onValueChange={(v) => {
+                  setFornId(v || '');
+                  const f = fornecedores.find((o) => o.value === v);
+                  if (f) setD((p) => (p ? {
+                    ...p,
+                    beneficiario: p.beneficiario || f.label,
+                    cpf_cnpj: p.cpf_cnpj || (f.searchHint || '').replace(/\D/g, '') || null,
+                  } : p));
+                }}
                   placeholder="Fornecedor no Conta Azul" searchPlaceholder="Buscar…" emptyMessage="Nenhum" options={fornecedores} />
               </div>
             </div>

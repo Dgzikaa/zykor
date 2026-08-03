@@ -92,6 +92,83 @@ export function decodificarDigitos(digitos: string): BoletoDecodificado {
   return { valido: false, linha_digitavel: null, valor: null, vencimento: null, concessionaria: false };
 }
 
+/**
+ * ASSINATURA DO CEDENTE — como reconhecer "boleto do mesmo fornecedor".
+ *
+ * O código de barras NÃO carrega nome nem CNPJ do beneficiário (não existe campo pra isso nos
+ * 44 díg.). O que dá pra fazer é reconhecer o EMISSOR: o campo livre (25 díg.) é montado pelo
+ * banco com agência + conta + carteira/convênio do cedente + o "nosso número" do título. Entre
+ * dois boletos do MESMO cedente, só o nosso número muda — o resto repete. Então comparando
+ * posição a posição contra o histórico de boletos já pagos dá pra dizer "esse é da Ambev" e
+ * puxar fornecedor/CNPJ/categoria de lá.
+ *
+ * Na arrecadação (concessionária) é melhor ainda: os díg. 16-19 são o código da empresa/órgão
+ * atribuído pela Febraban → chave EXATA (a CEB é sempre a CEB).
+ */
+/**
+ * Onde ficam agência/conta/convênio do cedente dentro do campo livre (25 díg.), por banco.
+ * Cada layout é do manual do próprio banco; o que sobra do campo livre é o "nosso número"
+ * (muda a cada título) e por isso fica de fora da chave.
+ *
+ * NÃO tentar heurística genérica aqui: contar dígitos iguais posição-a-posição parece funcionar
+ * mas os zeros à esquerda do nosso número inflam o placar e cedentes DIFERENTES casam (testado).
+ * Banco fora desta lista → sem chave → não sugerimos nada (o operador preenche, como hoje).
+ */
+const LAYOUT_CEDENTE: Record<string, Array<[number, number]>> = {
+  '341': [[12, 21]],           // Itaú: carteira(3) nossoNum(8) DAC(1) [agência(4) conta(5)] DAC(1) 000
+  '237': [[0, 4], [17, 24]],   // Bradesco: [agência(4)] carteira(2) nossoNum(11) [conta(7)] 0
+  '033': [[1, 10]],            // Santander: 9 [conta(9)] nossoNum(13) …
+  '001': [[0, 7]],             // BB: convênio nos primeiros dígitos
+  '104': [[0, 6]],             // Caixa: [código do beneficiário(6)] DV nossoNum…
+  '756': [[1, 10]],            // Sicoob: carteira(1) [cliente(9)] nossoNum(7) …
+  '748': [[11, 22]],           // Sicredi: tipo(2) nossoNum(9) [agência(4) posto(2) conta(5)]
+};
+
+export interface AssinaturaCedente {
+  banco: string;
+  /** Identifica o EMISSOR (não o título). null = banco sem layout conhecido → não dá pra afirmar. */
+  chave: string | null;
+}
+
+/**
+ * Assinatura do cedente a partir de qualquer formato lido (44/47/48).
+ * Boleto bancário: banco + agência/conta/convênio extraídos do campo livre.
+ * Arrecadação: díg. 16-19 são o código da empresa/órgão pela Febraban → chave exata e estável.
+ */
+export function assinaturaCedente(digitos: string): AssinaturaCedente | null {
+  const d = (digitos || '').replace(/\D/g, '');
+  let banco: string;
+  let campoLivre: string;
+
+  if (d.length === 47) {
+    banco = d.slice(0, 3);
+    campoLivre = d.slice(4, 9) + d.slice(10, 20) + d.slice(21, 31);
+  } else if (d.length === 44) {
+    banco = d.slice(0, 3);
+    campoLivre = d.slice(19, 44);
+  } else if (d.length === 48) {
+    const bc = d.slice(0, 11) + d.slice(12, 23) + d.slice(24, 35) + d.slice(36, 47);
+    return { banco: '8', chave: `ARR:${bc[1]}:${bc.slice(15, 19)}` };
+  } else {
+    return null;
+  }
+
+  if (banco === '' || campoLivre.length !== 25) return null;
+  if (d.length === 44 && d[0] === '8') return { banco: '8', chave: `ARR:${d[1]}:${d.slice(15, 19)}` };
+
+  const faixas = LAYOUT_CEDENTE[banco];
+  if (!faixas) return { banco, chave: null };
+  const chave = faixas.map(([i, f]) => campoLivre.slice(i, f)).join('');
+  // Guarda contra casar por zeros: chave quase toda zerada não identifica ninguém.
+  const naoZero = chave.split('').filter((c) => c !== '0').length;
+  return { banco, chave: naoZero >= 4 ? `${banco}:${chave}` : null };
+}
+
+/** Mesmo emissor? Só afirma quando os dois lados têm chave conhecida e idêntica. */
+export function mesmoCedente(a: AssinaturaCedente | null, b: AssinaturaCedente | null): boolean {
+  return !!a?.chave && !!b?.chave && a.chave === b.chave;
+}
+
 /** Linha digitável bancária (47): fator de vencimento nos díg. 34-37, valor nos 38-47. */
 function decodificarLinhaBancaria(d: string): BoletoDecodificado {
   const valorNum = Number(d.slice(37, 47)) / 100;
