@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+import { getCAValidToken } from '@/lib/contaazul/token';
+
 export const dynamic = 'force-dynamic';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -43,23 +45,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ contas_financeiras: data || [] });
     }
 
-    // Sync com CA
-    const { data: credentials, error: credError } = await supabase
-      .from('api_credentials')
-      .select('access_token, expires_at')
-      .eq('sistema', 'conta_azul')
-      .eq('bar_id', parseInt(barId))
-      .single();
-
-    if (credError || !credentials?.access_token) {
-      return NextResponse.json(
-        { error: 'Credenciais CA não encontradas' },
-        { status: 404 }
-      );
+    // Sync com CA — token renovado on-demand (não desiste no "expirado").
+    const tokenResult = await getCAValidToken(supabase, parseInt(barId));
+    if ('error' in tokenResult) {
+      return NextResponse.json({ error: tokenResult.error }, { status: tokenResult.status });
     }
-    if (credentials.expires_at && new Date(credentials.expires_at) < new Date()) {
-      return NextResponse.json({ error: 'Token CA expirado' }, { status: 401 });
-    }
+    const credentials = { access_token: tokenResult.token };
 
     const url = new URL(`${CONTA_AZUL_API_URL}/v1/conta-financeira`);
     url.searchParams.set('pagina', '1');

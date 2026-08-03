@@ -9,6 +9,7 @@
  * exige os dois. Retorna o protocolId (async) ou lança Error com a mensagem do CA.
  */
 import { createClient } from '@supabase/supabase-js';
+import { getCAValidToken } from './token';
 
 const CONTA_AZUL_API_URL = 'https://api-v2.contaazul.com';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -20,18 +21,23 @@ function admin() {
   });
 }
 
+/**
+ * Token do CA pro bar, RENOVANDO na hora se preciso.
+ *
+ * Antes esta função só LIA `api_credentials` e desistia: `access_token` vazio virava "Conta Azul
+ * não conectado", e `expires_at` no passado virava "Token expirado. Reconecte" — mesmo havendo um
+ * refresh_token válido guardado. O access_token do CA dura ~1h e só os bares 3 e 4 têm o
+ * orquestrador de 6 min renovando; os demais chegam aqui vencidos quase sempre. Era o caso do
+ * bar 6 em 03/08/2026: refresh_token na mão, token vencido às 08:50, e o lançamento da fatura de
+ * cartão recusando a tarde inteira.
+ *
+ * `getCAValidToken` renova com o refresh_token e trata a rotação concorrente. Continua lançando
+ * Error (o contrato desta função), mas agora só quando realmente não dá pra recuperar.
+ */
 async function getCAToken(barId: number): Promise<string> {
-  const { data: cred, error } = await admin()
-    .from('api_credentials')
-    .select('access_token, expires_at')
-    .eq('sistema', 'conta_azul')
-    .eq('bar_id', barId)
-    .single();
-  if (error || !cred?.access_token) throw new Error(`Conta Azul não conectado no bar ${barId}`);
-  if (cred.expires_at && new Date(cred.expires_at) < new Date()) {
-    throw new Error(`Token do Conta Azul expirado no bar ${barId}. Reconecte.`);
-  }
-  return cred.access_token;
+  const r = await getCAValidToken(admin(), barId);
+  if ('error' in r) throw new Error(`Conta Azul (bar ${barId}): ${r.error}`);
+  return r.token;
 }
 
 export interface CriarContaPagarParams {

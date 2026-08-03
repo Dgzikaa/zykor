@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 
+import { getCAValidToken } from '@/lib/contaazul/token';
+
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
@@ -22,13 +24,12 @@ export async function GET(request: NextRequest) {
   if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
 
   const supabase = sb();
-  const { data: cred } = await supabase.from('api_credentials')
-    .select('access_token, expires_at').eq('sistema', 'conta_azul').eq('bar_id', user.bar_id).single();
-  if (!cred?.access_token) return NextResponse.json({ success: false, error: 'Conta Azul não conectado' }, { status: 404 });
-  if (cred.expires_at && new Date(cred.expires_at) < new Date()) {
-    return NextResponse.json({ success: false, error: 'Token CA expirado — reconecte o Conta Azul' }, { status: 401 });
+  // Renova on-demand (o access_token do CA dura ~1h) em vez de responder "expirado".
+  const tokenResult = await getCAValidToken(supabase, user.bar_id);
+  if ('error' in tokenResult) {
+    return NextResponse.json({ success: false, error: tokenResult.error }, { status: tokenResult.status });
   }
-  const token = cred.access_token;
+  const token = tokenResult.token;
 
   const { data: contas } = await (supabase.schema('bronze' as any) as any)
     .from('bronze_contaazul_contas_financeiras')

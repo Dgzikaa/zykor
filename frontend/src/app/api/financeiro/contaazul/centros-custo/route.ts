@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getCAValidToken } from '@/lib/contaazul/token';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY!;
@@ -50,28 +51,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ centros_custo: todos });
     }
 
-    // Buscar credenciais do Conta Azul
-    const { data: credentials, error: credError } = await supabase
-      .from('api_credentials')
-      .select('access_token, expires_at')
-      .eq('sistema', 'conta_azul')
-      .eq('bar_id', parseInt(barId))
-      .single();
-
-    if (credError || !credentials?.access_token) {
-      return NextResponse.json(
-        { error: 'Credenciais do Conta Azul não encontradas' },
-        { status: 404 }
-      );
+    // Token do CA com RENOVAÇÃO on-demand. Ler o access_token direto fazia esta rota devolver
+    // 401/404 sempre que ele vencia (~1h de vida; só os bares 3 e 4 têm o orquestrador de 6 min),
+    // e o efeito na tela era pior que um erro: o seletor simplesmente vinha VAZIO.
+    const tokenResult = await getCAValidToken(supabase, parseInt(barId));
+    if ('error' in tokenResult) {
+      return NextResponse.json({ error: tokenResult.error }, { status: tokenResult.status });
     }
+    const credentials = { access_token: tokenResult.token };
 
-    // Verificar se token expirou
-    if (credentials.expires_at && new Date(credentials.expires_at) < new Date()) {
-      return NextResponse.json(
-        { error: 'Token expirado. Reconecte o Conta Azul.' },
-        { status: 401 }
-      );
-    }
 
     // Buscar centros de custo da API do Conta Azul (CA v2 usa pagina + tamanho_pagina)
     const url = new URL(`${CONTA_AZUL_API_URL}/v1/centro-de-custo`);

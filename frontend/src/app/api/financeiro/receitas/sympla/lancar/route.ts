@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
 import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
+import { getCAValidToken } from '@/lib/contaazul/token';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -42,13 +43,8 @@ const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function getCAToken(barId: number): Promise<{ token: string } | { error: string; status: number }> {
-  const supabase = getSupabaseAdmin();
-  const { data: cred, error } = await supabase
-    .from('api_credentials').select('access_token, expires_at')
-    .eq('sistema', 'conta_azul').eq('bar_id', barId).single();
-  if (error || !cred?.access_token) return { error: 'Credenciais do Conta Azul não encontradas', status: 404 };
-  if (cred.expires_at && new Date(cred.expires_at) < new Date()) return { error: 'Token CA expirado. Reconecte o Conta Azul.', status: 401 };
-  return { token: cred.access_token };
+  // Helper central: RENOVA com o refresh_token em vez de desistir no "expirado".
+  return getCAValidToken(getSupabaseAdmin(), barId);
 }
 
 async function getFeriados(): Promise<Set<string>> {
