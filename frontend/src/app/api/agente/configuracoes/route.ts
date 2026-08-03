@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase-server'
-import { cookies } from 'next/headers'
-import { authenticateUser } from '@/middleware/auth';
+import { autenticarEValidarBar } from '@/lib/auth/acesso-bar'
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = createServerClient()
-    
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-    }
 
     const { searchParams } = new URL(request.url)
     const bar_id = searchParams.get('bar_id')
@@ -18,6 +12,9 @@ export async function GET(request: NextRequest) {
     if (!bar_id) {
       return NextResponse.json({ error: 'bar_id é obrigatório' }, { status: 400 })
     }
+
+    const nega = await autenticarEValidarBar(request, bar_id)
+    if (nega) return nega
 
     const { data: configs, error } = await supabase
       .from('agente_configuracoes')
@@ -38,14 +35,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
   try {
     const supabase = createServerClient()
-    
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-    }
 
     const body = await request.json()
     const { bar_id, tipo_agente, ativo, frequencia_scan, metricas_monitoradas, thresholds, notificacoes_ativas } = body
@@ -54,17 +45,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'bar_id e tipo_agente são obrigatórios' }, { status: 400 })
     }
 
-    // Verificar se usuário tem acesso ao bar
-    const { data: userBar } = await supabase
-      .from('usuarios_bar')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .eq('bar_id', bar_id)
-      .single()
-
-    if (!userBar) {
-      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
-    }
+    const nega = await autenticarEValidarBar(request, bar_id)
+    if (nega) return nega
 
     const { data, error } = await supabase
       .from('agente_configuracoes')
@@ -94,14 +76,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  await authenticateUser(request);
   try {
     const supabase = createServerClient()
-    
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-    }
 
     const body = await request.json()
     const { id, ...updates } = body
@@ -109,6 +85,21 @@ export async function PATCH(request: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: 'id é obrigatório' }, { status: 400 })
     }
+
+    // O PATCH recebe só o id, então o bar sai da própria config — sem isso não dá pra validar
+    // acesso e qualquer usuário logado editaria a config de qualquer bar.
+    const { data: alvo } = await supabase
+      .from('agente_configuracoes')
+      .select('bar_id')
+      .eq('id', id)
+      .single()
+
+    if (!alvo) {
+      return NextResponse.json({ error: 'Configuração não encontrada' }, { status: 404 })
+    }
+
+    const nega = await autenticarEValidarBar(request, (alvo as { bar_id: number }).bar_id)
+    if (nega) return nega
 
     const { data, error } = await supabase
       .from('agente_configuracoes')

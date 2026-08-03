@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase-server'
-import { cookies } from 'next/headers'
-import { authenticateUser } from '@/middleware/auth';
+import { autenticarEValidarBar } from '@/lib/auth/acesso-bar'
 
 const SUPABASE_FUNCTIONS_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(
   'https://',
@@ -9,18 +7,7 @@ const SUPABASE_FUNCTIONS_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(
 ).replace('.supabase.co', '.supabase.co/functions/v1')
 
 export async function POST(request: NextRequest) {
-  await authenticateUser(request);
   try {
-    const supabase = createServerClient()
-    
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Não autenticado' },
-        { status: 401 }
-      )
-    }
-
     const body = await request.json()
     const { bar_id, dias_analisar = 365 } = body
 
@@ -31,27 +18,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verificar acesso
-    const { data: acesso } = await supabase
-      .from('usuarios_bar')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .eq('bar_id', bar_id)
-      .single()
+    const nega = await autenticarEValidarBar(request, bar_id)
+    if (nega) return nega
 
-    if (!acesso) {
-      return NextResponse.json(
-        { error: 'Sem acesso a este bar' },
-        { status: 403 }
-      )
-    }
-
-    // Chamar Edge Function
+    // Chamar Edge Function. Autoriza com a service role (padrão do projeto p/ chamada
+    // servidor→edge): não existe mais um access_token de sessão Supabase aqui.
     const response = await fetch(`${SUPABASE_FUNCTIONS_URL}/agente-analise-periodos`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`
+        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY}`
       },
       body: JSON.stringify({
         bar_id,

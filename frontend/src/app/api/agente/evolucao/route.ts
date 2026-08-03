@@ -1,18 +1,10 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase-server'
-import { cookies } from 'next/headers'
+import { autenticarEValidarBar } from '@/lib/auth/acesso-bar'
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     const supabase = createServerClient()
-    
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Não autenticado' },
-        { status: 401 }
-      )
-    }
 
     const { searchParams } = new URL(request.url)
     const bar_id = searchParams.get('bar_id')
@@ -24,20 +16,8 @@ export async function GET(request: Request) {
       )
     }
 
-    // Verificar acesso
-    const { data: acesso } = await supabase
-      .from('usuarios_bar')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .eq('bar_id', parseInt(bar_id))
-      .single()
-
-    if (!acesso) {
-      return NextResponse.json(
-        { error: 'Sem acesso a este bar' },
-        { status: 403 }
-      )
-    }
+    const nega = await autenticarEValidarBar(request, bar_id)
+    if (nega) return nega
 
     // 1. Total de regras criadas
     const { data: regras, count: totalRegras } = await supabase

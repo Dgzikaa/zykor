@@ -41,20 +41,13 @@ export async function POST(request: NextRequest) {
       .eq('ativo', true)
       .limit(1);
 
-    // 2) Fallback schema legado: usuarios_bar
-    const { data: usuariosBarData, error: usuariosBarError } = await supabase
-      .from('usuarios_bar')
-      .select('id, user_id, email, nome, reset_token, reset_token_expiry, ativo')
-      .ilike('email', emailNormalizado)
-      .eq('ativo', true)
-      .order('reset_token', { ascending: false, nullsFirst: false })
-      .limit(1);
-
+    // O fallback pro schema legado (`usuarios_bar`) foi removido em 03/08/2026: a tabela não
+    // existe mais, então a consulta só devolvia PGRST205 e o resultado era sempre vazio —
+    // código morto que ainda poluía o log de erro a cada redefinição de senha.
     const usuarioAtual = usuariosData?.[0];
-    const usuarioLegado = usuariosBarData?.[0];
 
-    // Nenhuma linha encontrada em nenhum schema → usuário não existe (não é falta de vínculo).
-    if (!usuarioAtual && !usuarioLegado) {
+    // Nenhuma linha encontrada → usuário não existe (não é falta de vínculo).
+    if (!usuarioAtual) {
       console.error('❌ Usuário não encontrado com email:', emailNormalizado);
       return NextResponse.json(
         { success: false, error: 'Usuário não encontrado' },
@@ -62,10 +55,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const resetTokenBanco = usuarioAtual?.reset_token || usuarioLegado?.reset_token;
-    const resetTokenExpiryBanco =
-      usuarioAtual?.reset_token_expiry || usuarioLegado?.reset_token_expiry;
-    const authUserId = usuarioAtual?.auth_id || usuarioLegado?.user_id;
+    const resetTokenBanco = usuarioAtual?.reset_token;
+    const resetTokenExpiryBanco = usuarioAtual?.reset_token_expiry;
+    const authUserId = usuarioAtual?.auth_id;
 
     // Linha existe mas sem auth_id/user_id → aí sim é falta de vínculo de autenticação real.
     if (!authUserId) {
@@ -142,20 +134,8 @@ export async function POST(request: NextRequest) {
       console.error('⚠️ Erro ao atualizar usuarios:', updateUsuariosError);
     }
 
-    // Compatibilidade com schema legado
-    const { error: updateUsuariosBarError } = await supabase
-      .from('usuarios_bar')
-      .update({
-        senha_redefinida: true,
-        reset_token: null,
-        reset_token_expiry: null,
-        atualizado_em: new Date().toISOString(),
-      })
-      .eq('user_id', authUserId);
-
-    if (updateUsuariosBarError) {
-      console.error('⚠️ Erro ao atualizar usuarios_bar:', updateUsuariosBarError);
-    }
+    // (o UPDATE espelho no schema legado `usuarios_bar` foi removido — tabela inexistente,
+    // só gerava "⚠️ Erro ao atualizar usuarios_bar: PGRST205" a cada redefinição de senha)
 
     return NextResponse.json({
       success: true,

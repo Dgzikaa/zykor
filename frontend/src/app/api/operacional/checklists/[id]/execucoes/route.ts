@@ -33,8 +33,9 @@ interface Checklist {
 }
 
 interface Funcionario {
-  id: string;
+  auth_id: string;
   nome: string;
+  email: string;
   role: string;
 }
 
@@ -156,13 +157,17 @@ export async function POST(
 
     const checklistData = checklist as Checklist;
 
-    // Verificar se funcionário existe (se especificado)
+    // Verificar se funcionário existe (se especificado). A tabela `usuarios_bar` do login
+    // antigo não existe mais: a consulta voltava PGRST205 e TODA execução era barrada com
+    // "Funcionário não encontrado". Modelo atual: auth_custom.usuarios (dados) + o vínculo
+    // com o bar em auth_custom.usuarios_bares, checado logo abaixo.
     const funcionarioId = data.funcionario_responsavel || user.auth_id;
-    const { data: funcionario, error: funcionarioError } = await supabase
-      .from('usuarios_bar')
-      .select('id, nome, role')
-      .eq('id', funcionarioId)
-      .eq('bar_id', user.bar_id)
+    const { data: funcionario, error: funcionarioError } = await (supabase as any)
+      .schema('auth_custom')
+      .from('usuarios')
+      .select('auth_id, nome, email, role')
+      .eq('auth_id', funcionarioId)
+      .eq('ativo', true)
       .single();
 
     if (funcionarioError || !funcionario) {
@@ -223,12 +228,13 @@ export async function POST(
     const { data: execucao, error: execucaoError } = await supabase
       .from('checklist_execucoes')
       .insert(novaExecucao)
+      // Sem embed de usuário: o join era `usuarios_bar!funcionario_id`, e como a tabela não
+      // existe o PostgREST derrubava o SELECT INTEIRO — ou seja, nem criar execução funcionava.
+      // Os nomes são anexados abaixo, a partir de auth_custom.usuarios.
       .select(
         `
         *,
-        checklist:checklists!checklist_id (nome, setor, tipo),
-        funcionario:usuarios_bar!funcionario_id (nome, email),
-        iniciado_por_usuario:usuarios_bar!iniciado_por (nome, email)
+        checklist:checklists!checklist_id (nome, setor, tipo)
       `
       )
       .single();
@@ -243,7 +249,13 @@ export async function POST(
       );
     }
 
-    const execucaoData = execucao as ExecucaoCompleta;
+    // Anexa os usuários que o embed trazia. `funcionarioData` já veio de auth_custom.usuarios;
+    // `iniciado_por` é sempre o usuário logado desta request.
+    const execucaoData = {
+      ...(execucao as object),
+      funcionario: { nome: funcionarioData.nome, email: funcionarioData.email },
+      iniciado_por_usuario: { nome: user.nome, email: user.email },
+    } as ExecucaoCompleta;
 
     return NextResponse.json({
       success: true,
@@ -325,12 +337,12 @@ export async function GET(
     // Construir query
     let query = supabase
       .from('checklist_execucoes')
+      // Idem ao POST: sem embed de usuário (a tabela do join não existe e derruba o SELECT).
+      // Os nomes são resolvidos em lote logo depois de paginar.
       .select(
         `
         *,
-        checklist:checklists!checklist_id (nome, setor, tipo),
-        funcionario:usuarios_bar!funcionario_id (nome, email),
-        iniciado_por_usuario:usuarios_bar!iniciado_por (nome, email)
+        checklist:checklists!checklist_id (nome, setor, tipo)
       `
       )
       .eq('checklist_id', checklistId);
@@ -370,6 +382,33 @@ export async function GET(
       );
     }
 
+    // Resolve nome/email dos usuários das execuções desta página (substitui o embed removido).
+    const idsUsuarios = [
+      ...new Set(
+        ((execucoes as any[]) || [])
+          .flatMap((e) => [e.funcionario_id, e.iniciado_por])
+          .filter(Boolean)
+          .map(String),
+      ),
+    ];
+    const mapaUsuarios = new Map<string, { nome: string; email: string }>();
+    if (idsUsuarios.length) {
+      const { data: pessoas } = await (supabase as any)
+        .schema('auth_custom')
+        .from('usuarios')
+        .select('auth_id, nome, email')
+        .in('auth_id', idsUsuarios);
+      for (const p of ((pessoas as any[]) || [])) {
+        mapaUsuarios.set(String(p.auth_id), { nome: String(p.nome), email: String(p.email) });
+      }
+    }
+    const vazio = { nome: '—', email: '' };
+    const execucoesComUsuarios = ((execucoes as any[]) || []).map((e) => ({
+      ...e,
+      funcionario: mapaUsuarios.get(String(e.funcionario_id)) ?? vazio,
+      iniciado_por_usuario: mapaUsuarios.get(String(e.iniciado_por)) ?? vazio,
+    }));
+
     // Calcular estatísticas
     const { data: stats } = await supabase
       .from('checklist_execucoes')
@@ -383,7 +422,7 @@ export async function GET(
     return NextResponse.json({
       success: true,
       data: {
-        execucoes: (execucoes as ExecucaoCompleta[]) || [],
+        execucoes: (execucoesComUsuarios as ExecucaoCompleta[]) || [],
         checklist: {
           nome: checklistData.nome,
           setor: checklistData.setor,

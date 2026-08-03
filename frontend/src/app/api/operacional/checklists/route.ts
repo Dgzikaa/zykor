@@ -126,12 +126,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Buscar usuário admin
-    const { data: adminUser } = await supabase
-      .from('usuarios_bar')
-      .select('id')
-      .eq('email', 'admin@ordinario.com')
-      .single();
+    // Autoria do checklist = quem está criando. Antes buscava o id de um 'admin@ordinario.com'
+    // fixo numa tabela que não existe mais (usuarios_bar), então `criado_por` gravava sempre
+    // null — além de ser errado atribuir a autoria a um e-mail hardcoded de um dos bares.
+    const criadoPor = user?.auth_id ?? null;
 
     // bar_id pode vir do body ou do header x-selected-bar-id
     let barId = body.bar_id;
@@ -155,7 +153,7 @@ export async function POST(req: NextRequest) {
       tempo_estimado: body.tempo_estimado || 30,
       responsavel_padrao: body.responsavel_padrao || '',
       bar_id: barId,
-      criado_por: adminUser?.id || null,
+      criado_por: criadoPor,
       status: 'ativo',
     };
 
