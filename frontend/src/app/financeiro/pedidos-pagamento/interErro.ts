@@ -74,7 +74,11 @@ const PADROES: Array<{ re: RegExp; out: ErroAmigavel }> = [
     out: { titulo: 'Acesso negado no Inter (credencial/permissão)', acao: 'Verifique a credencial/conta pagadora do bar.' },
   },
   {
-    re: /hor[áa]rio|indispon[íi]vel|manuten[çc][ãa]o|timeout|comunica[çc][ãa]o|rede/i,
+    // ATENÇÃO ao mexer aqui: /rede/ SEM \b casa dentro de "c-rede-ncial" — qualquer erro de
+    // credencial virava "Inter indisponível, tente de novo em instantes", mandando o financeiro
+    // re-tentar pra sempre um problema que retry nenhum resolve. Mesma armadilha em "manutenção"
+    // vs "manutençãozinha"? não — mas mantenha os termos curtos SEMPRE com \b.
+    re: /hor[áa]rio|indispon[íi]vel|manuten[çc][ãa]o|timeout|comunica[çc][ãa]o|\brede\b|resposta\s+vazia|HTTP\s+5\d\d|HTTP\s+429/i,
     out: { titulo: 'Inter indisponível no momento', acao: 'Foi problema de comunicação; tente de novo em instantes.' },
   },
   {
