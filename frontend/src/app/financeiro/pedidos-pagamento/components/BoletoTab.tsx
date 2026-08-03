@@ -11,13 +11,14 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DateInputBR } from '@/components/ui/date-input-br';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { Loader2, FileScan, Sparkles, Send, AlertTriangle, PencilLine, ScanLine, Receipt, X, Plus, RefreshCw } from 'lucide-react';
+import { Loader2, FileScan, Sparkles, Send, AlertTriangle, PencilLine, ScanLine, Receipt, X, Plus, RefreshCw, Barcode } from 'lucide-react';
 import { BoletoScanner } from './BoletoScanner';
+import { BoletoLeitorDialog } from './BoletoLeitorDialog';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { PedidoCard, type Opcao } from './PedidoCard';
 import { type Pedido } from '../types';
 import { type TabKey, TAB_STATUS } from '../statusTabs';
-import { type BoletoDecodificado, linhaDigitavelValida } from '../boletoBarcode';
+import { type BoletoDecodificado, linhaDigitavelValida, decodificarDigitos } from '../boletoBarcode';
 import { getSelectedBarId } from '@/lib/selected-bar';
 
 type DadosBoleto = {
@@ -53,6 +54,7 @@ export function BoletoTab({
   const [d, setD] = useState<DadosBoleto | null>(null);
   const [avisos, setAvisos] = useState<string[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [leitorOpen, setLeitorOpen] = useState(false);
   // Competência e observação NÃO vêm do boleto — quem sobe preenche.
   const [competencia, setCompetencia] = useState('');
   const [observacao, setObservacao] = useState('');
@@ -114,19 +116,41 @@ export function BoletoTab({
     setD({ ...VAZIO });
   };
 
-  // Câmera: leu o código de barras → preenche valor/vencimento/linha digitável (determinístico).
-  const onScan = (dados: BoletoDecodificado) => {
-    setScannerOpen(false);
+  // Código de barras lido (câmera ou leitor USB) → preenche valor/vencimento/linha digitável.
+  // É determinístico: sai do próprio código, sem IA.
+  const aplicarLeitura = (dados: BoletoDecodificado, origem: 'câmera' | 'leitor') => {
     setArquivoNome('');
     if (dados.concessionaria) {
-      setD({ ...VAZIO, linha_digitavel: dados.linha_digitavel });
-      setAvisos(['valor', 'vencimento', 'beneficiário']);
-      showToast({ type: 'warning', title: 'Boleto de concessionária', message: 'Li o código; valor e vencimento você confere/preenche.' });
+      // Arrecadação (água/luz/tributo): o código traz o valor, mas não o vencimento.
+      setD({ ...VAZIO, valor: dados.valor, linha_digitavel: dados.linha_digitavel });
+      setAvisos([!dados.valor && 'valor', 'vencimento', 'beneficiário'].filter(Boolean) as string[]);
+      showToast({ type: 'warning', title: 'Boleto de concessionária', message: 'Li o código e o valor; o vencimento você confere/preenche.' });
       return;
     }
     setD({ ...VAZIO, valor: dados.valor, vencimento: dados.vencimento, linha_digitavel: dados.linha_digitavel });
     setAvisos([!dados.valor && 'valor', !dados.vencimento && 'vencimento'].filter(Boolean) as string[]);
-    showToast({ type: 'success', title: 'Boleto lido pela câmera', message: 'Confira e informe a competência.' });
+    showToast({ type: 'success', title: `Boleto lido pelo ${origem}`, message: 'Confira e informe a competência.' });
+  };
+
+  const onScan = (dados: BoletoDecodificado) => { setScannerOpen(false); aplicarLeitura(dados, 'câmera'); };
+  const onLeitor = (dados: BoletoDecodificado) => { setLeitorOpen(false); aplicarLeitura(dados, 'leitor'); };
+
+  // Bipar/colar a linha digitável direto no campo também preenche valor e vencimento (só o
+  // que ainda estiver vazio — não sobrescreve o que a IA leu ou o operador digitou).
+  const onLinhaChange = (valor: string) => {
+    const dec = decodificarDigitos(valor);
+    setD((p) => {
+      if (!p) return p;
+      const prox = { ...p, linha_digitavel: valor };
+      if (dec.valido) {
+        if (prox.valor == null && dec.valor != null) prox.valor = dec.valor;
+        if (!prox.vencimento && dec.vencimento) prox.vencimento = dec.vencimento;
+      }
+      return prox;
+    });
+    if (dec.valido) {
+      setAvisos((prev) => prev.filter((a) => !(a === 'valor' && dec.valor != null) && !(a === 'vencimento' && dec.vencimento)));
+    }
   };
 
   const upd = (campo: keyof DadosBoleto, valor: string) =>
@@ -257,7 +281,12 @@ export function BoletoTab({
             onChange={(e) => { const f = e.target.files?.[0]; if (f) ler(f); e.currentTarget.value = ''; }} />
         </label>
         <div className="flex sm:flex-col gap-2">
-          <Button className="flex-1 sm:h-auto" onClick={() => setScannerOpen(true)} disabled={lendo}>
+          {/* Leitor USB do financeiro: bipa o boleto e os dados entram sozinhos. */}
+          <Button className="flex-1 sm:h-auto" onClick={() => setLeitorOpen(true)} disabled={lendo}
+            title="Use o leitor de código de barras conectado ao PC">
+            <Barcode className="w-4 h-4 mr-2" /> Usar leitor
+          </Button>
+          <Button variant="outline" className="flex-1 sm:h-auto" onClick={() => setScannerOpen(true)} disabled={lendo}>
             <ScanLine className="w-4 h-4 mr-2" /> Escanear c/ câmera
           </Button>
           <Button variant="outline" className="flex-1 sm:h-auto" onClick={preencherManual} disabled={lendo}>
@@ -267,6 +296,7 @@ export function BoletoTab({
       </div>
 
       {scannerOpen && <BoletoScanner onDetect={onScan} onFoto={(f) => { setScannerOpen(false); ler(f); }} onClose={() => setScannerOpen(false)} />}
+      {leitorOpen && <BoletoLeitorDialog onDetect={onLeitor} onClose={() => setLeitorOpen(false)} />}
 
       {/* Revisão dos dados */}
       {d && (
@@ -324,7 +354,7 @@ export function BoletoTab({
               <Label className="mb-1.5 block">Linha digitável {!d.linha_digitavel
                 ? <span className="text-amber-600 text-xs">— não lida, digite p/ pagar via Inter</span>
                 : !linhaDigitavelValida(d.linha_digitavel) && <span className="text-red-600 text-xs">— {String(d.linha_digitavel).replace(/\D/g, '').length} dígitos / DV não confere, confira (o Inter recusa)</span>}</Label>
-              <Input value={d.linha_digitavel || ''} onChange={(e) => upd('linha_digitavel', e.target.value)} placeholder="código de barras do boleto (47/48 dígitos)" inputMode="numeric"
+              <Input value={d.linha_digitavel || ''} onChange={(e) => onLinhaChange(e.target.value)} placeholder="bipe o leitor aqui, cole ou digite (44/47/48 dígitos)" inputMode="numeric"
                 className={!d.linha_digitavel ? 'border-amber-400' : !linhaDigitavelValida(d.linha_digitavel) ? 'border-red-400' : ''} />
             </div>
             <div>

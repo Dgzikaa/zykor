@@ -78,6 +78,50 @@ export function linhaDigitavelValida(digitos: string): boolean {
 }
 
 /**
+ * Aceita QUALQUER formato que saia de um leitor/câmera e devolve valor + vencimento +
+ * linha digitável:
+ *   44 díg. → código de barras (câmera/ITF)
+ *   47 díg. → linha digitável bancária (o que a maioria dos leitores USB de boleto entrega)
+ *   48 díg. → linha digitável de arrecadação/concessionária (água, luz, tributo)
+ */
+export function decodificarDigitos(digitos: string): BoletoDecodificado {
+  const d = (digitos || '').replace(/\D/g, '');
+  if (d.length === 44) return decodificarBoleto(d);
+  if (d.length === 47) return decodificarLinhaBancaria(d);
+  if (d.length === 48) return decodificarArrecadacao(d);
+  return { valido: false, linha_digitavel: null, valor: null, vencimento: null, concessionaria: false };
+}
+
+/** Linha digitável bancária (47): fator de vencimento nos díg. 34-37, valor nos 38-47. */
+function decodificarLinhaBancaria(d: string): BoletoDecodificado {
+  const valorNum = Number(d.slice(37, 47)) / 100;
+  return {
+    valido: linhaDigitavelValida(d),
+    linha_digitavel: d,
+    valor: valorNum > 0 ? Math.round(valorNum * 100) / 100 : null,
+    vencimento: fatorParaVencimento(Number(d.slice(33, 37))),
+    concessionaria: false,
+  };
+}
+
+/**
+ * Arrecadação/concessionária (48 = 4 blocos de 11 díg. + DV). Tirando os DVs sobra o código
+ * de barras (44), cujos díg. 5-15 são o valor. Não tem fator de vencimento padronizado —
+ * a data fica pro operador conferir.
+ */
+function decodificarArrecadacao(d: string): BoletoDecodificado {
+  const bc = d.slice(0, 11) + d.slice(12, 23) + d.slice(24, 35) + d.slice(36, 47); // 44
+  const valorNum = Number(bc.slice(4, 15)) / 100;
+  return {
+    valido: bc[0] === '8',
+    linha_digitavel: d,
+    valor: valorNum > 0 ? Math.round(valorNum * 100) / 100 : null,
+    vencimento: null,
+    concessionaria: true,
+  };
+}
+
+/**
  * Recebe os dígitos lidos do código de barras. Aceita 44 (boleto bancário) e devolve
  * a linha digitável + valor + vencimento. Se o DV geral não bater, `valido=false`
  * (leitura suja da câmera — o scanner continua tentando).
