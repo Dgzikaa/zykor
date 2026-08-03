@@ -114,11 +114,14 @@ export function fin(supabase: SupabaseClient) {
 
 /**
  * Pode aprovar/rejeitar/editar pedidos de outras pessoas?
- * Financeiro/admin por role, ou quem tem o módulo financeiro/agendamento.
- * Segue o resolver único (sem .includes cru em modulos_permitidos).
+ * Admin, ou quem tem o módulo de agendamento. Segue o resolver único (sem .includes cru).
+ *
+ * `role === 'financeiro'` removido em 03/08/2026 (RBAC por perfil; a coluna role é resquício).
+ * Sem impacto prático: o perfil "Financeiro" tem `ferramentas financeiro_agendamentos`, que o
+ * resolver mapeia para `ferramentas_agendamento` — quem aprovava continua aprovando.
  */
 export function podeAprovar(user: AuthenticatedUser): boolean {
-  if (user.role === 'admin' || user.role === 'financeiro') return true;
+  if (user.role === 'admin') return true;
   return userHasModule(user.modulos_permitidos, 'ferramentas_agendamento');
 }
 

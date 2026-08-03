@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { gunzipSync } from 'zlib';
 import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/middleware/auth';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 import { resolveStoneCredential, stoneBasicAuthHeader } from '@/lib/stone/resolveCredential';
 import { timingSafeEqual } from 'crypto';
 
@@ -12,8 +13,13 @@ import { timingSafeEqual } from 'crypto';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-function podeUsar(role?: string) {
-  return role === 'admin' || role === 'financeiro';
+// Critério = FERRAMENTA (perfil), não a coluna legada `role`. O acesso do Zykor é RBAC por
+// perfil: `authenticateUser` troca modulos_permitidos por usuarios_perfil.modulos. Guard por role
+// dava falso negativo — o financeiro (David) tem o perfil "Financeiro" completo mas role
+// 'funcionario'. Conferido com o resolver em 03/08/2026: conciliação = Admin, Financeiro e
+// Liderança (Sócio/agências, Operação, Marketing, Investidor e Administrativo seguem barrados).
+function podeUsar(user: any) {
+  return podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.conciliacao, 'editar');
 }
 
 export async function POST(req: NextRequest) {
@@ -30,7 +36,7 @@ export async function POST(req: NextRequest) {
   } else {
     const user = await authenticateUser(req);
     if (!user) return authErrorResponse('Usuário não autenticado');
-    if (!podeUsar(user.role)) return permissionErrorResponse('Apenas admin ou financeiro');
+    if (!podeUsar(user)) return permissionErrorResponse('Requer a ferramenta financeira de Conciliação (perfis Financeiro ou Liderança)');
     barId = user.bar_id ?? null;
   }
   if (!barId) return NextResponse.json({ error: 'bar_id ausente' }, { status: 400 });

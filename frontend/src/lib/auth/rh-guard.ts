@@ -18,6 +18,10 @@ const MODULOS_RH = [
  */
 export function podeRH(user: any): boolean {
   if (!user) return false;
-  if (user.role === 'admin' || user.role === 'rh' || user.role === 'financeiro') return true;
+  // Só `admin` segue como bypass. Os roles 'rh' e 'financeiro' foram REMOVIDOS em 03/08/2026:
+  // o acesso é RBAC por perfil e a coluna role é resquício. Medido com o resolver, os módulos
+  // de RH resolvem para Admin, Administrativo e Liderança — o perfil Financeiro NÃO tem RH, então
+  // quem só tinha acesso pelo role antigo (Katrinny, Pandolfi) deixa de ter, como manda o perfil.
+  if (user.role === 'admin') return true;
   return userHasAnyModule(user.modulos_permitidos, MODULOS_RH);
 }

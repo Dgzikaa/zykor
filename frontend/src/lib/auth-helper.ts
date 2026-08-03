@@ -74,10 +74,16 @@ export function isAdmin(user: UserAuth): boolean {
 }
 
 /**
- * Verificar se o usuário pode gerenciar dados financeiros
+ * Verificar se o usuário pode gerenciar dados financeiros.
+ *
+ * @deprecated NÃO USE. Decide por `role`, que é resquício do modelo antigo — o acesso do Zykor é
+ * RBAC por perfil (`usuarios_perfil.modulos`, resolvido em `authenticateUser`). Guard por role dá
+ * falso negativo (o financeiro David tem perfil "Financeiro" e role 'funcionario'). Use
+ * `podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.<ferramenta>)` de `lib/auth/financeiro-guard`.
+ * Mantido só porque é export público; hoje não tem nenhum chamador.
  */
 export function canManageFinancial(user: UserAuth): boolean {
-  return isAdmin(user) || user.role === 'financeiro';
+  return isAdmin(user);
 }
 
 /**

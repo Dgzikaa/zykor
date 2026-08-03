@@ -32,7 +32,11 @@ export async function POST(request: NextRequest) {
     user = await authenticateUser(request);
     if (!user) return authErrorResponse('Usuário não autenticado');
   }
-  const ehAdmin = isSystem || user.role === 'admin' || user.role === 'financeiro';
+  // Enviar push PRA OUTRO usuário/em massa é ação de admin. O `role === 'financeiro'` saiu em
+  // 03/08/2026 junto com o resto do guard-por-role (RBAC é por perfil, role é resquício); aqui a
+  // troca REDUZ privilégio de propósito — não existe módulo de "notificações" nos perfis, e
+  // disparar push pra base inteira não é rotina do financeiro.
+  const ehAdmin = isSystem || user.role === 'admin';
 
   let body: any;
   try { body = await request.json(); } catch { return NextResponse.json({ success: false, error: 'JSON inválido' }, { status: 400 }); }

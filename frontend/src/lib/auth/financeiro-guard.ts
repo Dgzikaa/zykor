@@ -34,7 +34,12 @@ export const FERRAMENTA_FINANCEIRA = {
  */
 export function podeFerramentaFinanceira(user: any, moduleId: string, action: PermAction = 'inserir'): boolean {
   if (!user) return false;
-  if (user.role === 'admin' || user.role === 'financeiro') return true;
+  // `role === 'admin'` segue como bypass (é o único role que ainda significa algo). O
+  // `role === 'financeiro'` FOI REMOVIDO em 03/08/2026: o acesso é RBAC por perfil, e a coluna
+  // role ficou congelada no cadastro antigo — dava falso negativo (David, perfil "Financeiro"
+  // completo, role 'funcionario') e falso positivo (quem manteve o role velho). Quem tem o perfil
+  // Financeiro continua passando pelos MÓDULOS, que é o certo.
+  if (user.role === 'admin') return true;
   return userCan(user.modulos_permitidos, moduleId, action);
 }
 
@@ -63,11 +68,16 @@ export function podeAlgumaFerramentaFinanceira(
  * Antes as rotas exigiam `role === 'admin' || 'financeiro'`, o que BARRAVA funcionário
  * COM o módulo financeiro (ex.: David, role=funcionario, módulos financeiro+agendamento):
  * a lista de credenciais Inter, o envio de PIX e a baixa no CA voltavam 403 e a seção
- * "API Inter" nem aparecia. Como o acesso agora é por MÓDULO, liberamos quem tem o
- * módulo — mantendo os roles legados (admin/financeiro) por compatibilidade.
+ * "API Inter" nem aparecia. O acesso é por MÓDULO (RBAC por perfil).
+ *
+ * CUIDADO ao usar como guard de ESCRITA sensível: MODULOS_FINANCEIRO é AMPLO. Medido com o
+ * resolver em 03/08/2026, `podeFinanceiro` passa para 8 dos 9 perfis — inclusive **Sócio
+ * (contas de agências)** e Operação, via generics (`financeiro_relatorios` concede o genérico
+ * `financeiro`). Para ação restrita, use `podeFerramentaFinanceira` com a ferramenta específica
+ * (ex.: conciliação = só Admin, Financeiro e Liderança).
  */
 export function podeFinanceiro(user: any): boolean {
   if (!user) return false;
-  if (user.role === 'admin' || user.role === 'financeiro') return true;
+  if (user.role === 'admin') return true; // `role === 'financeiro'` removido (RBAC por perfil)
   return userHasAnyModule(user.modulos_permitidos, MODULOS_FINANCEIRO);
 }
