@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
+import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -51,21 +52,28 @@ export async function POST(request: NextRequest) {
   if (mesaNorm === '—') return NextResponse.json({ success: false, error: 'mesa obrigatória' }, { status: 400 });
   const tipo = body.tipo ? String(body.tipo) : null;
 
-  // Reclassificar a CATEGORIA é restrito a ADMIN e ao FINANCEIRO (28/07/2026: reclassificar
-  // consumação é rotina do financeiro, e a trava só-admin o impedia de trabalhar). Só bloqueia
-  // quem está MUDANDO o categoria_override — quem edita a tag da mesa (mesma categoria) segue
-  // liberado, como antes.
+  // Reclassificar a CATEGORIA é restrito ao time financeiro (28/07/2026: é rotina dele, e a
+  // trava só-admin o impedia de trabalhar). Só bloqueia quem está MUDANDO o categoria_override —
+  // quem edita a tag da mesa (mesma categoria) segue liberado, como antes.
   //
-  // De propósito NÃO usa `podeFinanceiro()`: aquele helper também aceita o MÓDULO financeiro,
-  // o que liberaria mais 9 funcionários — incluindo contas de agências parceiras. Aqui o
-  // critério é o papel na empresa (role), que é o que o dono pediu.
-  const podeReclassificar = ['admin', 'financeiro'].includes(String((user as any).role));
+  // O critério é a FERRAMENTA (módulo), não a coluna legada `role`. A versão anterior usava
+  // `['admin','financeiro'].includes(user.role)` e barrava o David (financeiro@grupobizu), que
+  // tem o PERFIL "Financeiro" completo mas ficou com `role='funcionario'` — o sistema migrou pra
+  // RBAC por perfil e o role virou resquício.
+  //
+  // O comentário antigo evitava `podeFerramentaFinanceira` com medo de liberar as agências via
+  // módulo genérico. Isso não vale mais: `authenticateUser` sobrescreve `modulos_permitidos` com
+  // `usuarios_perfil.modulos`, e NENHUM perfil tem os genéricos `financeiro`/`financeiro_ferramentas`
+  // (só existiam na coluna legada do usuário, hoje ignorada). Conferido em 03/08/2026:
+  // `financeiro_conciliacao` está apenas nos perfis Financeiro e Liderança — Sócio (agências),
+  // Operação, Marketing, Investidor e Administrativo NÃO têm.
+  const podeReclassificar = podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.conciliacao, 'editar');
   const novaCat = body.categoria_override ? String(body.categoria_override) : null;
   if (!podeReclassificar) {
     const { data: prev } = await fin.from('consumo_mesa_vinculo')
       .select('categoria_override').eq('bar_id', barId).eq('mesa_norm', mesaNorm).maybeSingle();
     if (novaCat !== ((prev?.categoria_override as string | null) ?? null)) {
-      return NextResponse.json({ success: false, error: 'Só admin ou financeiro pode alterar a categoria da consumação.' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'Reclassificar a categoria da consumação exige a ferramenta financeira de Conciliação (perfis Financeiro ou Liderança).' }, { status: 403 });
     }
   }
 
