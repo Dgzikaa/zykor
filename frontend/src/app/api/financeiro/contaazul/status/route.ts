@@ -74,11 +74,26 @@ export async function GET(request: NextRequest) {
         .maybeSingle(),
     ]);
 
+    // O access_token do CA vive ~2h e é renovado SOB DEMANDA (lib/contaazul/token.ts) — ficar
+    // com expires_at no passado é o normal depois de um tempo sem uso, não um defeito. Sem esta
+    // flag a tela mostrava "token expirado" em vermelho com o refresh_token são no banco, e o
+    // financeiro achava que a integração tinha caído (David, 04/08). Só é problema DE VERDADE
+    // quando não há refresh_token: aí precisa reconectar na mão.
+    const { data: credCA } = await supabase
+      .from('api_credentials')
+      .select('refresh_token')
+      .eq('bar_id', parseInt(barId))
+      .eq('sistema', 'conta_azul')
+      .eq('ativo', true)
+      .maybeSingle();
+    const pode_renovar = !!credCA?.refresh_token;
+
     return NextResponse.json({
       connected: authData.connected || false,
       has_credentials: authData.has_credentials || false,
       needs_refresh: authData.needs_refresh || false,
       expires_at: authData.expires_at || null,
+      pode_renovar,
       stats: {
         lancamentos: lancamentosCount.count || 0,
         categorias: categoriasCount.count || 0,

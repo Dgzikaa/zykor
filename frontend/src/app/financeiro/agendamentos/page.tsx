@@ -523,10 +523,15 @@ export default function AgendamentoPage() {
         // ID local pra correlação com pix_enviados via webhook
         agendamento_id: pagamento.id,
       };
+      // x-selected-bar-id é OBRIGATÓRIO aqui: a rota resolve a credencial do Inter pelo
+      // user.bar_id (ignora o bar_id do corpo, de propósito). Sem o header, o bar cai no
+      // PADRÃO DO USUÁRIO e o PIX sai pela conta do outro bar — foi o que aconteceu em
+      // 04/08: folha do Deboche subiu no Inter do Ordinário com o Deboche selecionado.
+      const barDoPagamento = Number(pagamento.bar_id || barId);
       const enviarPix = (extra?: Record<string, unknown>) =>
         fetch('/api/financeiro/inter/pix', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-selected-bar-id': String(barDoPagamento) },
           body: JSON.stringify({ ...pixBody, ...extra }),
         });
       try {

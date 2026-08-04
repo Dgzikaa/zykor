@@ -21,8 +21,14 @@ function idempotenciaDeterministica(seed: string): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
-// Função para obter credenciais do Inter do banco
-async function getInterCredentials(barId: number = 3, credentialId?: number) {
+// Função para obter credenciais do Inter do banco.
+// SEM default de bar: um default (era `= 3`) transforma "bar não informado" em "paga pelo
+// Ordinário" — exatamente o tipo de fallback que manda dinheiro pra conta errada calado.
+async function getInterCredentials(barId: number, credentialId?: number) {
+  if (!Number.isFinite(Number(barId))) {
+    console.error('[INTER-PIX] getInterCredentials chamado sem bar — recusando.');
+    return null;
+  }
   // 1ª tentativa: credencial específica pedida (se houver), SEMPRE amarrada ao bar.
   // Nunca usamos uma credencial de outro bar — o filtro .eq('bar_id') garante isso.
   if (credentialId) {
@@ -193,6 +199,24 @@ export async function POST(request: NextRequest) {
       inter_credencial_id,
       agendamento_id // ID da tabela de agendamentos (legado) para atualizar com o código de solicitação
     } = body;
+
+    // TRAVA ANTI-BAR-ERRADO (04/08/2026): o corpo diz de qual bar é o pagamento; o bar EFETIVO
+    // (que escolhe a credencial do Inter) vem do usuário/header. Se divergirem, alguém esqueceu
+    // o x-selected-bar-id e o dinheiro sairia pela conta do outro bar — foi assim que a folha do
+    // Deboche subiu no Inter do Ordinário. Aqui isso vira ERRO, nunca um pagamento silencioso.
+    const barDoCorpo = Number(body?.bar_id);
+    if (Number.isFinite(barDoCorpo) && barDoCorpo !== Number(bar_id)) {
+      console.error(`[INTER-PIX] BLOQUEADO: pagamento do bar ${barDoCorpo} chegou com sessão do bar ${bar_id}.`);
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'bar_divergente',
+          error: `Este pagamento é do bar ${barDoCorpo}, mas a sessão está no bar ${bar_id}. `
+            + 'Troque o bar no topo da tela e envie de novo — nada foi pago.',
+        },
+        { status: 409 }
+      );
+    }
 
     // Validações
     if (!chave || !valor) {
@@ -574,7 +598,11 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const codigoSolicitacao = searchParams.get('codigo');
-    const barId = parseInt(searchParams.get('bar_id') || '3');
+    // sem default de bar: consulta sem bar mostraria PIX do Ordinário pra quem está em outro bar
+    const barId = parseInt(searchParams.get('bar_id') || '');
+    if (!Number.isFinite(barId)) {
+      return NextResponse.json({ success: false, error: 'bar_id é obrigatório' }, { status: 400 });
+    }
 
     if (codigoSolicitacao) {
       // Buscar PIX específico

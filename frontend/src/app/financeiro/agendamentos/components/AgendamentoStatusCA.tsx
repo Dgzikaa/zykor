@@ -10,6 +10,8 @@ interface CAStatus {
   has_credentials: boolean;
   needs_refresh: boolean;
   expires_at: string | null;
+  /** Tem refresh_token salvo → o access_token se renova sozinho ao usar; vencido não é problema. */
+  pode_renovar?: boolean;
   stats: {
     lancamentos: number;
     categorias: number;
@@ -100,8 +102,12 @@ export function AgendamentoStatusCA({ barId, onSyncComplete }: AgendamentoStatus
   }
   if (!status) return null;
 
-  const expirado =
-    status.expires_at && new Date(status.expires_at) < new Date();
+  // access_token do CA dura ~2h e é renovado SOZINHO na hora de usar (refresh_token). Expirado
+  // COM refresh não é problema — era o que fazia a tela gritar "token expirado" à toa e o
+  // financeiro achar que a integração caiu (David, 04/08). Só alerta quando não há refresh:
+  // aí sim precisa reconectar na mão.
+  const venceu = !!status.expires_at && new Date(status.expires_at) < new Date();
+  const expirado = venceu && status.pode_renovar === false;
   const ok = status.connected && status.has_credentials && !expirado;
   const stats = status.stats;
 
