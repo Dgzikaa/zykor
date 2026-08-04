@@ -122,3 +122,45 @@ $$;
 
 REVOKE ALL ON FUNCTION operations.fn_dia_noite(int, date, date, int, text, int) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION operations.fn_dia_noite(int, date, date, int, text, int) TO service_role;
+
+-- Quebra por PRODUTO do prato âncora.
+-- Motivo (04/08/2026): o KPI mostrava só o número agregado, então "0 vendidos" não dizia se o
+-- produto não existe naquele bar, se o texto não casou, ou se realmente não vendeu — o Rodrigo
+-- bateu nisso ("pq 0 vendidos? não dá pra puxar a quantidade da feijoada?"). Com a lista, a tela
+-- mostra exatamente quais produtos entraram: no bar 3 "feijoada" casa 4 itens (Feijoada Sábado,
+-- [Banda] Feijoada, [PF] Feijoada, Feijoada Sábado De 5 a 12 anos); no bar 4 não casa nenhum,
+-- porque o Deboche não vende feijoada.
+CREATE OR REPLACE FUNCTION operations.fn_dia_noite_produtos(
+  p_bar_id  int,
+  p_ini     date,
+  p_fim     date,
+  p_produto text
+)
+RETURNS TABLE (
+  data      date,
+  prd_desc  text,
+  qtd       numeric,
+  valor     numeric
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT
+    a.trn_dtgerencial::date AS data,
+    a.prd_desc,
+    SUM(a.qtd)        AS qtd,
+    SUM(a.valorfinal) AS valor
+  FROM bronze.bronze_contahub_avendas_porproduto_analitico a
+  WHERE p_produto IS NOT NULL
+    AND btrim(p_produto) <> ''
+    AND a.bar_id = p_bar_id
+    AND a.trn_dtgerencial::date BETWEEN p_ini AND p_fim
+    AND a.prd_desc ILIKE '%' || p_produto || '%'
+  GROUP BY 1, 2
+  ORDER BY 1, 4 DESC;
+$$;
+
+REVOKE ALL ON FUNCTION operations.fn_dia_noite_produtos(int, date, date, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION operations.fn_dia_noite_produtos(int, date, date, text) TO service_role;

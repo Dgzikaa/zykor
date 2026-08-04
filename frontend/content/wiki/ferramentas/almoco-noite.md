@@ -14,7 +14,9 @@ icon: Sun
 
 Um sábado do Ordinário são dois negócios no mesmo dia: a **feijoada** e a **noite**. O faturamento total não distingue os dois, e a curva horária (em Ferramentas → Insights) tinha blocos que só começavam às 17h — o almoço não tinha bloco nenhum.
 
-Esta tela parte o dia em dois por uma **janela de almoço ajustável** (padrão **11h–18h**) e mostra, por data: faturamento de cada turno, quantas pessoas, ticket médio de cada um e quanto saiu do **prato âncora** (por padrão, "feijoada"). O filtro já abre em **sábado** — é o único dia com almoço no Ordinário.
+Esta tela é, na prática, a **análise do sábado**: parte o dia em dois por uma **janela de almoço ajustável** (padrão **10h–18h**) e mostra, por data: faturamento de cada turno, quantas pessoas, ticket médio de cada um e quanto saiu do **prato âncora** (por padrão, "feijoada"). O filtro já abre em **sábado**.
+
+Nos outros dias a casa abre 16h/17h e roda direto até fechar — não existem dois turnos ali. Por isso, **dia sem almoço aparece como turno único**, com o faturamento do dia inteiro numa coluna só.
 
 Quem usa: **dono, sócios e operação** — para saber se o almoço está crescendo, quanto ele pesa no sábado e se vale reforçar equipe/compra para o turno.
 
@@ -22,11 +24,13 @@ Quem usa: **dono, sócios e operação** — para saber se o almoço está cresc
 
 **Os números do topo** — faturamento do almoço e da noite no período (com a média por dia), o **% do faturamento que vem do almoço**, pessoas e ticket médio de cada turno, e a quantidade/valor do prato âncora.
 
-**Dia sem almoço** — quando o dia escolhido não tem operação de almoço, a tela avisa e troca o rótulo de "Almoço" por "Antes das 18h". O critério é objetivo, e não uma regra chumbada em sábado: **houve venda entre 11h e 15h?** No sábado sim (a feijoada vende de 12h em diante); no domingo e na quinta a primeira venda é 16h/17h — é a **abertura da casa**, não almoço. Sem esse cuidado a tela mentia: domingo aparecia com R$ 2 a 4 mil de "almoço" sem ninguém ter almoçado.
+**Dia sem almoço = turno único** — quando o dia escolhido não tem operação de almoço, a tela avisa e mostra o **dia inteiro numa coluna só**, sem dividir. O critério é objetivo, e não uma regra chumbada em sábado: **houve venda entre a abertura da janela e 15h?** No sábado sim (a feijoada vende de 12h em diante); no domingo e na quinta a primeira venda é 16h/17h — é a abertura da casa. Sem esse cuidado a tela mentia: domingo aparecia com R$ 2 a 4 mil de "almoço" sem ninguém ter almoçado.
+
+**Quantas feijoadas venderam** — abaixo dos KPIs, a tela lista **cada produto que casa com o texto do prato âncora**, com quantidade e faturamento. Nos últimos sábados do Ordinário: Feijoada Sábado 826 un (R$ 47.482), infantil 15 un (R$ 440) e [Banda] Feijoada 62 un a R$ 0 — a cortesia da banda aparece separada, sem inflar a receita. Se a lista vier vazia, é porque nenhum produto com esse nome foi vendido **naquele bar** (o Deboche não vende feijoada) ou o texto do filtro não casou.
 
 **Almoço × Noite por dia** — as duas barras por data, com a linha do % do almoço. É onde se vê o sábado de feijoada forte contra o sábado fraco.
 
-**Média por dia da semana** — quanto cada dia da semana rende, em média, de almoço e de noite. Responde "o almoço só existe no sábado ou a quinta também puxa?".
+**Média por dia da semana** — quanto cada dia rende em média. Só o sábado tem as duas barras (almoço + noite); nos demais o dia inteiro é uma barra só.
 
 **Dia a dia** — a tabela com tudo aberto por data, incluindo pessoas e ticket de cada turno.
 
@@ -34,7 +38,7 @@ Quem usa: **dono, sócios e operação** — para saber se o almoço está cresc
 
 - **Período** — 30 / 90 / 180 dias ou ano corrente.
 - **Dia da semana** — abre em **sábado**; dá para trocar para qualquer outro dia (ou ver todos).
-- **Abre** — a hora em que a janela do almoço começa (10h/11h/12h; padrão **11h**). O que vender antes disso vai para a coluna "fora da janela" e continua somando no total.
+- **Abre** — a hora em que a janela do almoço começa (10h/11h/12h; padrão **10h**). O que vender antes disso vai para a coluna "fora da janela" e continua somando no total.
 - **Corte** — a hora que separa almoço de noite (16h a 20h; padrão **18h**). Vale ajustar conforme a operação de cada casa.
 - **Prato âncora** — texto livre que casa com o nome do produto (padrão "feijoada"). Serve para acompanhar o carro-chefe do turno; trocando o texto dá para acompanhar qualquer outro prato.
 
@@ -48,6 +52,7 @@ Quem usa: **dono, sócios e operação** — para saber se o almoço está cresc
 ## Cuidado
 
 - **A madrugada (0h–6h) conta como noite**, não como almoço do dia seguinte — ela pertence ao dia gerencial anterior.
-- **Antes das 18h não é sinônimo de almoço.** Em dia que abre 16h/17h, o pré-corte é o começo da noite. A tela sinaliza isso, mas ao comparar dias diferentes vale olhar o aviso.
+- **Antes das 18h não é sinônimo de almoço.** Em dia que abre 16h/17h, o pré-corte é o começo da noite — por isso esse dia vem como turno único.
+- **Cortesia entra na quantidade, não na receita.** [Banda] Feijoada sai a R$ 0: conta como prato servido (custo real de cozinha), mas não como faturamento.
 - **Só ContaHub**: venda de ingresso via Yuzer ou Sympla **não** entra aqui. Em evento com bilheteria forte, o total desta tela fica abaixo do faturamento real do dia.
 - Ticket médio do turno usa as pessoas das comandas abertas naquele turno; em dia de virada (mesa que senta 17h50 e consome a noite toda) o ticket do almoço aparece inflado. O corte por hora do item corrige o faturamento, não a atribuição da pessoa.

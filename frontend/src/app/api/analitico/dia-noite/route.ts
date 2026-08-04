@@ -14,10 +14,13 @@ export const dynamic = 'force-dynamic';
  *         almoço, 6-14 — default 11), dow (0=dom..6=sáb, opcional), produto (ILIKE em prd_desc pra
  *         isolar o prato âncora do almoço — default 'feijoada').
  *
- * A janela do almoço começa às 11h de propósito: sem esse piso, a ABERTURA da casa (16h/17h) nos
- * dias que não têm almoço virava "almoço" — domingo aparecia com R$ 2,5k e quinta com R$ 370 sem
- * ninguém ter almoçado. No Ordinário só o sábado tem almoço de verdade (feijoada, 12h-17h).
- * O que fica antes das 11h volta em `fat_fora` — nada some da conta do dia.
+ * A tela é a ANÁLISE DO SÁBADO: é o único dia que a casa opera em dois turnos (feijoada + noite).
+ * Nos demais dias a casa abre 16h/17h e roda direto — lá o dia inteiro volta como TURNO ÚNICO
+ * (fat_noite = dia inteiro, fat_dia = 0). Partir o dia de quinta em "antes/depois das 18h" só
+ * inventava um almoço que não existe: domingo aparecia com R$ 2,5k e quinta com R$ 370 de "almoço".
+ *
+ * O detector de almoço é o `fat_almoco_cedo` da fn (venda entre a abertura da janela e 15h), não
+ * uma regra chumbada em sábado. O que fica antes de `inicio` volta em `fat_fora` — nada some.
  */
 
 interface DiaRow {
@@ -53,7 +56,8 @@ export async function GET(request: NextRequest) {
   const de = sp.get('de');
   const ate = sp.get('ate');
   const corte = Math.min(Math.max(Number(sp.get('corte')) || 18, 12), 23);
-  const inicio = Math.min(Math.max(Number(sp.get('inicio')) || 11, 6), Math.min(corte - 1, 14));
+  // Janela do almoço abre às 10h por padrão (pedido do Rodrigo: "pode até pegar 10h-18h").
+  const inicio = Math.min(Math.max(Number(sp.get('inicio')) || 10, 6), Math.min(corte - 1, 14));
   const dowParam = sp.get('dow');
   const dow = dowParam === null || dowParam === '' ? null : Number(dowParam);
   const produto = (sp.get('produto') ?? 'feijoada').trim() || null;
@@ -62,45 +66,73 @@ export async function GET(request: NextRequest) {
   if (!de || !ate) return NextResponse.json({ success: false, error: 'de e ate são obrigatórios' }, { status: 400 });
 
   const supabase = await getAdminClient();
-  const { data, error } = await (supabase as any)
-    .schema('operations')
-    .rpc('fn_dia_noite', {
+  const [{ data, error }, { data: prodRows, error: prodError }] = await Promise.all([
+    (supabase as any).schema('operations').rpc('fn_dia_noite', {
       p_bar_id: barId,
       p_ini: de,
       p_fim: ate,
       p_corte: corte,
       p_produto: produto,
       p_ini_almoco: inicio,
-    });
+    }),
+    // Quebra por produto: sem ela, "0 vendidos" no KPI não diz se o produto não existe no bar,
+    // se o texto não casou, ou se realmente não vendeu.
+    produto
+      ? (supabase as any).schema('operations').rpc('fn_dia_noite_produtos', {
+          p_bar_id: barId,
+          p_ini: de,
+          p_fim: ate,
+          p_produto: produto,
+        })
+      : Promise.resolve({ data: [], error: null }),
+  ]);
 
   if (error) {
     console.error('[analitico/dia-noite] erro:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
+  if (prodError) console.error('[analitico/dia-noite] erro na quebra por produto:', prodError);
 
   const brutos = ((data || []) as DiaRow[])
     .map((r) => {
-      const fatDia = num(r.fat_dia);
-      const fatNoite = num(r.fat_noite);
-      const fatFora = num(r.fat_fora);
-      const total = fatDia + fatNoite + fatFora;
+      // Teve almoço de verdade? Só se vendeu no miolo do almoço (janela → 15h). Dia que abre
+      // 16h/17h (domingo, quinta) não tem almoço — o pré-corte dele é abertura da casa.
+      const temAlmoco = num(r.fat_almoco_cedo) > 0;
+
+      const dia = num(r.fat_dia);
+      const noite = num(r.fat_noite);
+      const fora = num(r.fat_fora);
+      const total = dia + noite + fora;
+
+      const pDia = num(r.pessoas_dia);
+      const pNoite = num(r.pessoas_noite);
+      const cDia = num(r.comandas_dia);
+      const cNoite = num(r.comandas_noite);
+
+      // TURNO ÚNICO: só o sábado (dia com almoço) é dividido em dois. Nos outros dias a casa abre
+      // 16h/17h e roda direto até fechar — partir isso em "antes/depois das 18h" inventa dois turnos
+      // que não existem na operação. Então tudo entra como turno principal.
+      const fatDia = temAlmoco ? dia : 0;
+      const fatNoite = temAlmoco ? noite : total;
+      const fatFora = temAlmoco ? fora : 0;
+      const pessoasDia = temAlmoco ? pDia : 0;
+      const pessoasNoite = temAlmoco ? pNoite : pDia + pNoite;
+
       return {
         data: r.data,
         dow: dowDe(r.data),
+        tem_almoco: temAlmoco,
         fat_dia: fatDia,
         fat_noite: fatNoite,
         fat_fora: fatFora,
         fat_total: total,
-        pct_dia: pct(fatDia, total),
-        // Teve almoço de verdade? Só se vendeu no miolo do almoço (janela → 15h). Dia que abre
-        // 16h/17h (domingo, quinta) não tem almoço — o pré-corte dele é abertura da casa.
-        tem_almoco: num(r.fat_almoco_cedo) > 0,
-        pessoas_dia: num(r.pessoas_dia),
-        pessoas_noite: num(r.pessoas_noite),
-        comandas_dia: num(r.comandas_dia),
-        comandas_noite: num(r.comandas_noite),
-        ticket_dia: div(fatDia, num(r.pessoas_dia)),
-        ticket_noite: div(fatNoite, num(r.pessoas_noite)),
+        pct_dia: temAlmoco ? pct(fatDia, total) : null,
+        pessoas_dia: pessoasDia,
+        pessoas_noite: pessoasNoite,
+        comandas_dia: temAlmoco ? cDia : 0,
+        comandas_noite: temAlmoco ? cNoite : cDia + cNoite,
+        ticket_dia: div(fatDia, pessoasDia),
+        ticket_noite: div(fatNoite, pessoasNoite),
         prod_qtd: num(r.prod_qtd),
         prod_valor: num(r.prod_valor),
       };
@@ -157,11 +189,26 @@ export async function GET(request: NextRequest) {
       pct_dia: pct(a.fat_dia, a.fat_dia + a.fat_noite),
     }));
 
+  // Produtos que casaram com o texto do prato âncora, respeitando o filtro de dia da semana.
+  const datasNoFiltro = new Set(dias.map((d) => d.data));
+  const prodMap = new Map<string, { qtd: number; valor: number }>();
+  for (const r of (prodRows || []) as { data: string; prd_desc: string; qtd: number; valor: number }[]) {
+    if (!datasNoFiltro.has(r.data)) continue;
+    const acc = prodMap.get(r.prd_desc) || { qtd: 0, valor: 0 };
+    acc.qtd += num(r.qtd);
+    acc.valor += num(r.valor);
+    prodMap.set(r.prd_desc, acc);
+  }
+  const produtos = [...prodMap.entries()]
+    .map(([prd_desc, a]) => ({ produto: prd_desc, qtd: a.qtd, valor: a.valor }))
+    .sort((a, b) => b.valor - a.valor);
+
   return NextResponse.json({
     success: true,
     corte,
     inicio,
     produto,
+    produtos,
     periodo: { de, ate, dow },
     resumo,
     dias: dias.slice().sort((a, b) => b.data.localeCompare(a.data)),
