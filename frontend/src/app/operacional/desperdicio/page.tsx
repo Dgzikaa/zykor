@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { PageShell } from '@/components/layout/PageShell';
+import { FiltroBarra, BuscaInput, SelectFiltro, OrdemFiltro, cmpNome } from '@/components/filtros/FiltroBarra';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
@@ -169,6 +170,11 @@ export default function DesperdicioPage() {
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [loading, setLoading] = useState(false);
   const [dialogAberto, setDialogAberto] = useState<false | { modo: 'novo' | 'editar'; registro?: Registro }>(false);
+  // Filtros da lista da semana (padrão da aba CMV): busca por insumo/responsável/motivo,
+  // recorte por área e ordem. Antes só dava pra rolar a semana inteira no olho.
+  const [buscaReg, setBuscaReg] = useState('');
+  const [filtroArea, setFiltroArea] = useState('');
+  const [ordem, setOrdem] = useState<'data' | 'valor' | 'az'>('data');
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -224,18 +230,45 @@ export default function DesperdicioPage() {
     }
   };
 
-  const totalRegistros = registros.length;
-  const totalItens = registros.reduce((s, r) => s + r.itens.length, 0);
-  const totalFotos = registros.reduce((s, r) => s + r.fotos.length, 0);
+  // Lista visível = registros da semana passados pelos filtros. A busca casa em QUALQUER item do
+  // registro (nome/código/motivo) ou no responsável — é assim que se acha "onde lancei a picanha".
+  // O filtro de área também PODA os itens do card, senão o card aparece mas mostra tudo.
+  const registrosView = useMemo(() => {
+    const s = norm(buscaReg);
+    const casaItem = (it: Item) => !s || norm(it.insumo_nome).includes(s) || norm(it.insumo_codigo).includes(s)
+      || norm(it.origem_nome).includes(s) || norm(it.motivo).includes(s);
+    // lookup próprio (não usa nomeResponsavel) pra não invalidar o memo a cada render
+    const nomeDe = (id: number | null) => id == null ? '' : (responsaveis.find(p => p.id === id)?.nome || '');
+    const rows = registros
+      .map((r) => {
+        const casaResp = !!s && norm(nomeDe(r.responsavel_id)).includes(s);
+        const itens = r.itens.filter((it) => (!filtroArea || it.area === filtroArea) && (casaItem(it) || casaResp));
+        return { ...r, itens };
+      })
+      .filter((r) => r.itens.length > 0);
+    const valorDe = (r: Registro) => r.itens.reduce((a, it) => a + (Number(it.valor_rs) || 0), 0);
+    if (ordem === 'valor') return [...rows].sort((a, b) => valorDe(b) - valorDe(a));
+    // A–Z pelo item mais "alfabeticamente primeiro" do registro — é o nome que a pessoa lê no card.
+    if (ordem === 'az') return [...rows].sort((a, b) => cmpNome(
+      [...a.itens].sort((x, y) => cmpNome(x.insumo_nome, y.insumo_nome))[0]?.insumo_nome,
+      [...b.itens].sort((x, y) => cmpNome(x.insumo_nome, y.insumo_nome))[0]?.insumo_nome));
+    return rows; // 'data': mantém a ordem do servidor (mais recente primeiro)
+  }, [registros, buscaReg, filtroArea, ordem, responsaveis]);
+
+  const totalRegistros = registrosView.length;
+  const totalItens = registrosView.reduce((s, r) => s + r.itens.length, 0);
+  const totalFotos = registrosView.reduce((s, r) => s + r.fotos.length, 0);
   // Total em R$ da semana (soma valor_rs de todos os itens; item sem preço = null → não soma).
-  const totalRs = registros.reduce(
+  // Acompanha o filtro (mesma regra dos headline cards de /operacional/desvios): filtrou por área
+  // ou buscou um insumo, o total é DAQUILO — senão o número da tela não bate com a lista.
+  const totalRs = registrosView.reduce(
     (s, r) => s + r.itens.reduce((si, it) => si + (Number(it.valor_rs) || 0), 0),
     0,
   );
   // Rollup por dia × área — pra tabela resumo (o que o Diogo pediu: "valor por dia lançado").
   const rollupPorDia = useMemo(() => {
     const map = new Map<string, { data: string; total: number; porArea: Record<string, number> }>();
-    for (const r of registros) {
+    for (const r of registrosView) {
       const dia = r.data;
       let row = map.get(dia);
       if (!row) { row = { data: dia, total: 0, porArea: {} }; map.set(dia, row); }
@@ -247,11 +280,11 @@ export default function DesperdicioPage() {
       }
     }
     return Array.from(map.values()).sort((a, b) => (a.data < b.data ? 1 : -1));
-  }, [registros]);
+  }, [registrosView]);
   // Rollup só por área (total da semana).
   const rollupPorArea = useMemo(() => {
     const acc: Record<string, number> = {};
-    for (const r of registros) for (const it of r.itens) {
+    for (const r of registrosView) for (const it of r.itens) {
       const k = it.area || 'SemArea';
       acc[k] = (acc[k] || 0) + (Number(it.valor_rs) || 0);
     }
@@ -306,6 +339,15 @@ export default function DesperdicioPage() {
           </span>
         )}
       </div>
+
+      {/* Filtros da semana (padrão da aba CMV): busca, área e ordem. */}
+      {!loading && registros.length > 0 && (
+        <FiltroBarra>
+          <BuscaInput value={buscaReg} onChange={setBuscaReg} placeholder="Buscar insumo, motivo ou responsável…" />
+          <SelectFiltro value={filtroArea} onChange={setFiltroArea} options={AREAS.map(a => ({ value: a.v, label: a.l }))} todos="Todas as áreas" />
+          <OrdemFiltro value={ordem} onChange={setOrdem} cor="rose" options={[['data', 'Mais recente'], ['valor', 'Maior valor'], ['az', 'A–Z']] as const} />
+        </FiltroBarra>
+      )}
 
       {/* Resumo dia × área — o que Diogo pediu: valor por dia lançado + separação por área. */}
       {!loading && registros.length > 0 && (
@@ -365,14 +407,16 @@ export default function DesperdicioPage() {
 
       {loading ? (
         <div className="py-12 text-center"><Loader2 className="w-7 h-7 animate-spin mx-auto text-muted-foreground" /></div>
-      ) : registros.length === 0 ? (
+      ) : registrosView.length === 0 ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground text-sm">
           <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          Nenhum registro na semana.{podeInserir && <> Clique em <b>Novo registro</b> pra lançar o desperdício da caixa.</>}
+          {registros.length === 0
+            ? <>Nenhum registro na semana.{podeInserir && <> Clique em <b>Novo registro</b> pra lançar o desperdício da caixa.</>}</>
+            : <>Nenhum registro bate com o filtro. <button onClick={() => { setBuscaReg(''); setFiltroArea(''); }} className="underline">Limpar filtros</button></>}
         </CardContent></Card>
       ) : (
         <div className="space-y-3">
-          {registros.map(r => (
+          {registrosView.map(r => (
             <Card key={r.id} className="overflow-hidden">
               <CardContent className="py-3 space-y-3">
                 <div className="flex items-start justify-between gap-3 flex-wrap">

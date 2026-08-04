@@ -11,6 +11,7 @@ import { useApiSWR } from '@/hooks/useApiSWR';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut, Search, Loader2, Download, ChevronDown, ChevronRight } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
+import { OrdemFiltro, cmpNome } from '@/components/filtros/FiltroBarra';
 
 const fmtNum = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 // mostra a quantidade com unidade, arredondando g→kg e ml→L quando grande (5542 g → 5,54 kg)
@@ -76,6 +77,7 @@ export default function SaidasPage() {
 
   const [busca, setBusca] = useState('');
   const [cat, setCat] = useState<string | null>(null);
+  const [ordem, setOrdem] = useState<'saida' | 'az'>('saida'); // ordem da lista (padrão da aba CMV)
   const [aberto, setAberto] = useState<string | null>(null);
   const [breakdown, setBreakdown] = useState<any[] | null>(null);
   const [breakPorDia, setBreakPorDia] = useState(false);
@@ -115,9 +117,11 @@ export default function SaidasPage() {
   const abertoUnidade = rows.find((r: any) => r.codigo === aberto)?.unidade ?? null; // unidade do item expandido (pro drill)
   const view = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    return rows.filter(i => (!cat || (i.categoria || 'Outros') === cat)
+    const out = rows.filter(i => (!cat || (i.categoria || 'Outros') === cat)
       && (!q || (i.nome || '').toLowerCase().includes(q) || (i.codigo || '').toLowerCase().includes(q)));
-  }, [rows, busca, cat]);
+    // 'saida' = ordem do servidor (maior saída primeiro); 'az' pra procurar um item pelo nome.
+    return ordem === 'az' ? [...out].sort((a, b) => cmpNome(a.nome, b.nome)) : out;
+  }, [rows, busca, cat, ordem]);
 
   const exportCsv = () => {
     if (!view.length) return;
@@ -175,6 +179,7 @@ export default function SaidasPage() {
           </div>
           <span className="text-sm text-gray-500 dark:text-gray-400">{range.ini === range.fim ? fmtDataBR(range.ini) : `${fmtDataBR(range.ini)} → ${fmtDataBR(range.fim)}`}</span>
           <div className="relative ml-auto"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9 h-8 w-56" /></div>
+          <OrdemFiltro value={ordem} onChange={setOrdem} cor="violet" options={[['saida', 'Maior saída'], ['az', 'A–Z']] as const} />
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={!view.length}><Download className="w-4 h-4 mr-1.5" />CSV</Button>
         </div>
 

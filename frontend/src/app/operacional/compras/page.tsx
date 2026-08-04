@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { OrdemFiltro, cmpNome } from '@/components/filtros/FiltroBarra';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
@@ -79,6 +80,9 @@ export default function ComprasPage() {
   const [buscaProduto, setBuscaProduto] = useState('');
   const [produtoQ, setProdutoQ] = useState('');
   const [fornFiltro, setFornFiltro] = useState<string | null>(null);
+  // Ordem da lista de pedidos: padrão continua cronológico (o que chegou por último);
+  // A–Z por fornecedor e maior valor entram como opção (padrão da aba CMV).
+  const [ordem, setOrdem] = useState<'data' | 'az' | 'valor'>('data');
   const [statusFiltro, setStatusFiltro] = useState<number | null>(null);
   const [aberto, setAberto] = useState<number | null>(null);
   const [itens, setItens] = useState<Record<number, any[]>>({});
@@ -176,8 +180,12 @@ export default function ComprasPage() {
       if (statusFiltro != null && p.id_pedido_status !== statusFiltro) return false;
       if (!q) return true;
       return (p.fornecedor || '').toLowerCase().includes(q) || (p.cnpj || '').includes(q) || String(p.id_pedido).includes(q);
+    }).sort((a, b) => {
+      if (ordem === 'az') return cmpNome(a.fornecedor, b.fornecedor);           // fornecedor A–Z
+      if (ordem === 'valor') return (Number(b.valor_total) || 0) - (Number(a.valor_total) || 0);
+      return 0; // 'data': ordem do servidor (mais recente primeiro)
     });
-  }, [pedidos, busca, fornFiltro, statusFiltro]);
+  }, [pedidos, busca, fornFiltro, statusFiltro, ordem]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
@@ -259,6 +267,8 @@ export default function ComprasPage() {
                 <Input value={buscaProduto} onChange={(e) => setBuscaProduto(e.target.value)} placeholder="Buscar por produto (ex.: abacaxi)…" className="pl-9 pr-8" />
                 {buscaProduto !== produtoQ && <Loader2 className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" />}
               </div>
+              <OrdemFiltro value={ordem} onChange={setOrdem} cor="indigo" className="self-center"
+                options={[['data', 'Mais recente'], ['az', 'Fornecedor A–Z'], ['valor', 'Maior valor']] as const} />
             </div>
             {produtoQ && !loading && <p className="text-xs text-gray-500">Mostrando {pedidosView.length} pedido(s) com &ldquo;{produtoQ}&rdquo;.</p>}
 

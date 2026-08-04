@@ -3,15 +3,15 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { PageShell } from '@/components/layout/PageShell';
+import { FiltroBarra, BuscaInput, SegFiltro, ChipFiltro, OrdemFiltro, cmpNome } from '@/components/filtros/FiltroBarra';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { useApiSWR } from '@/hooks/useApiSWR';
 import { api } from '@/lib/api-client';
-import { ChefHat, Search, Loader2, CalendarDays, Sparkles, RefreshCw, Play, Lock, Unlock, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Beer, X, HelpCircle } from 'lucide-react';
+import { ChefHat, Loader2, CalendarDays, Sparkles, RefreshCw, Play, Lock, Unlock, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Beer, X, HelpCircle } from 'lucide-react';
 
 const fmtN = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const comUni = (v: any, un?: string) => v == null ? '—' : `${fmtN(v)}${un ? ` ${un}` : ''}`; // número com unidade de medida
@@ -60,6 +60,10 @@ export default function PlanoProducaoPage() {
   const [aba, setAba] = useState<'Cozinha' | 'Bar'>('Cozinha'); // planejamento separado Cozinha × Bar
   const [filtroProd, setFiltroProd] = useState<'todos' | 'produzir' | 'nao'>('todos');
   const [soSemDia, setSoSemDia] = useState(false); // toggle independente: só itens sem dia cadastrado (combina com Produzir)
+  const [soCurvaA, setSoCurvaA] = useState(false); // curva A = o que se conta todo dia
+  // Ordem: padrão continua "maior sugestão" (o que a reunião ataca primeiro); A–Z pra PROCURAR
+  // uma produção específica na lista (pedido do Isaías, 04/08).
+  const [ordem, setOrdem] = useState<'sugestao' | 'az'>('sugestao');
   const [aberto, setAberto] = useState<number | null>(null); // linha expandida (6 semanas)
   const [semanaSel, setSemanaSel] = useState<string | null>(null); // semana escolhida (null = mais recente)
   const [salvando, setSalvando] = useState(false);
@@ -221,9 +225,10 @@ export default function PlanoProducaoPage() {
           || (filtroProd === 'produzir' && !i.naoProduzir)
           || (filtroProd === 'nao' && i.naoProduzir))
         && (!soSemDia || !(i.dias?.length || i.decisao?.dia_producao))       // sem dia cadastrado (multi-dia ou legado)
+        && (!soCurvaA || i.curva_a)
         && (!s || (i.nome || '').toLowerCase().includes(s) || (i.codigo || '').toLowerCase().includes(s)))
-      .sort((a, b) => b.sugestaoQtd - a.sugestaoQtd);
-  }, [itens, busca, aba, filtroProd, soSemDia, consumoMap]);
+      .sort((a, b) => ordem === 'az' ? cmpNome(a.nome, b.nome) : b.sugestaoQtd - a.sugestaoQtd);
+  }, [itens, busca, aba, filtroProd, soSemDia, soCurvaA, ordem, consumoMap]);
 
   const totProduzir = useMemo(() => linhas.filter((i) => !i.naoProduzir).length, [linhas]);
   const totReceitas = useMemo(() => linhas.reduce((s, i) => s + (emRascunho || encerrado ? Number(i.decisao?.decidido_receitas ?? i.receitas) : i.receitas), 0), [linhas, emRascunho, encerrado]);
@@ -290,15 +295,13 @@ export default function PlanoProducaoPage() {
         </div>
 
         {/* Filtros */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[200px]"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar produção…" className="pl-9" /></div>
-          <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
-            {([['todos', 'Todos'], ['produzir', 'Produzir'], ['nao', 'Não produzir']] as const).map(([v, label]) => (
-              <button key={v} onClick={() => setFiltroProd(v)} className={`px-3 py-1.5 ${filtroProd === v ? 'bg-violet-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>{label}</button>
-            ))}
-          </div>
-          <button onClick={() => setSoSemDia(v => !v)} title="Combina com o filtro ao lado (ex.: Produzir + Sem dia)" className={`text-xs rounded-lg border px-3 py-1.5 ${soSemDia ? 'bg-violet-600 text-white border-violet-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>Sem dia</button>
-        </div>
+        <FiltroBarra>
+          <BuscaInput value={busca} onChange={setBusca} placeholder="Buscar produção…" />
+          <SegFiltro value={filtroProd} onChange={setFiltroProd} cor="violet" options={[['todos', 'Todos'], ['produzir', 'Produzir'], ['nao', 'Não produzir']] as const} />
+          <ChipFiltro ativo={soCurvaA} onClick={() => setSoCurvaA(v => !v)}>Só Curva A</ChipFiltro>
+          <ChipFiltro ativo={soSemDia} onClick={() => setSoSemDia(v => !v)} cor="violet" title="Combina com o filtro ao lado (ex.: Produzir + Sem dia)">Sem dia</ChipFiltro>
+          <OrdemFiltro value={ordem} onChange={setOrdem} cor="violet" options={[['sugestao', 'Maior sugestão'], ['az', 'A–Z']] as const} />
+        </FiltroBarra>
 
         {/* Tabela */}
         <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">

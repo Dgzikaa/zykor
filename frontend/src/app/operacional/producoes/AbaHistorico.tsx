@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { OrdemFiltro, cmpNome } from '@/components/filtros/FiltroBarra';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
@@ -30,6 +31,7 @@ export function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, pod
   const [fProd, setFProd] = useState<number | null>(null);
   const [fResp, setFResp] = useState<number | null>(null);
   const [buscaProd, setBuscaProd] = useState(''); // busca por texto no histórico (ex.: "pastel")
+  const [ordem, setOrdem] = useState<'data' | 'az'>('data'); // ordem da lista (padrão da aba CMV)
   const [detalhe, setDetalhe] = useState<any | null>(null);
   const [detInsumos, setDetInsumos] = useState<any[]>([]);
   // filtro de semana — mesmo time-frame do Planejamento da Produção (null = todas)
@@ -183,9 +185,10 @@ export function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, pod
       return rendFiltro === 'abaixo' ? r < 0.95 : rendFiltro === 'acima' ? r > 1.05 : (r >= 0.95 && r <= 1.05);
     });
     const s = buscaProd.trim().toLowerCase();
-    if (!s) return base;
-    return base.filter((e: any) => (e.producao_nome || '').toLowerCase().includes(s) || (e.producao_codigo || '').toLowerCase().includes(s));
-  }, [execsSecao, buscaProd, diaSel, soFora, soAcimaPlano, rendFiltro, foraDoPlano, acimaDoPlano]);
+    if (s) base = base.filter((e: any) => (e.producao_nome || '').toLowerCase().includes(s) || (e.producao_codigo || '').toLowerCase().includes(s));
+    // 'data' = ordem do servidor (execução mais recente primeiro); 'az' pra agrupar por produção.
+    return ordem === 'az' ? [...base].sort((a: any, b: any) => cmpNome(a.producao_nome, b.producao_nome)) : base;
+  }, [execsSecao, buscaProd, diaSel, soFora, soAcimaPlano, rendFiltro, foraDoPlano, acimaDoPlano, ordem]);
 
   const abrirDetalhe = async (e: any) => {
     setDetalhe(e); setDetInsumos([]);
@@ -283,6 +286,7 @@ export function AbaHistorico({ fichas, responsaveis, secaoAtiva, podeEditar, pod
           <option value="dentro">✅ Dentro (±5%)</option>
           <option value="acima">🔺 Acima do rendimento</option>
         </select>
+        <OrdemFiltro value={ordem} onChange={setOrdem} cor="indigo" options={[['data', 'Mais recente'], ['az', 'A–Z']] as const} />
         {(fProd || fResp || semanaSel || buscaProd || diaSel || soFora || soAcimaPlano || rendFiltro !== 'todos') && <button onClick={() => { setFProd(null); setFResp(null); setSemanaSel(null); setBuscaProd(''); setDiaSel(''); setSoFora(false); setSoAcimaPlano(false); setRendFiltro('todos'); }} className="text-xs text-gray-400 underline">limpar</button>}
         <span className="text-xs text-gray-400 ml-auto">{execsView.length} execuç{execsView.length === 1 ? 'ão' : 'ões'}</span>
       </div>

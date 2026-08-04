@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { cmpNome } from '@/components/filtros/FiltroBarra';
 import { useBar } from '@/contexts/BarContext';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api-client';
@@ -401,12 +402,13 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
   const semDia = useMemo(() => itensSecao.filter((it: any) => !it.dia_producao), [itensSecao]);
 
   const fichasControle = useMemo(() => fichas.filter(f => f.controle_producao), [fichas]);
+  // A lista do picker é o que a cozinha percorre pra achar a produção: sempre A–Z (pt-BR).
   const fichasView = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return fichasControle.filter(f => {
       if (secaoDeCodigo(f.codigo) !== secaoAtiva) return false;
       return !q || (f.nome || '').toLowerCase().includes(q) || (f.codigo || '').toLowerCase().includes(q);
-    });
+    }).sort((a, b) => cmpNome(a.nome, b.nome));
   }, [fichasControle, busca, secaoAtiva]);
 
   const patch = useCallback((id: string, p: Partial<ActiveProd>) =>

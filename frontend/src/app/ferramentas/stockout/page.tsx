@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FiltroBarra, BuscaInput, OrdemFiltro, cmpNome } from '@/components/filtros/FiltroBarra';
 import { Calendar, Package, TrendingDown, TrendingUp, RefreshCw, AlertTriangle, CheckCircle, MapPin, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { LoadingState } from '@/components/ui/loading-state';
@@ -184,6 +185,9 @@ export default function StockoutPage() {
   
   // Estado para local selecionado
   const [localSelecionado, setLocalSelecionado] = useState<string>('');
+  // Filtros das listas de produto do local selecionado (padrão da aba CMV)
+  const [buscaProd, setBuscaProd] = useState('');
+  const [ordemProd, setOrdemProd] = useState<'az' | 'padrao'>('az');
   
   // Estado para dia selecionado dentro de uma categoria (modo período)
   const [diaSelecionado, setDiaSelecionado] = useState<string>('');
@@ -517,7 +521,7 @@ export default function StockoutPage() {
 
   const agruparLocaisPorCategoria = useCallback(() => gruposLocais, [gruposLocais]);
 
-  const produtosPorLocal = useMemo(() => {
+  const produtosPorLocalRaw = useMemo(() => {
     if (!localSelecionado || !stockoutData) {
       return { disponiveis: [] as any[], indisponiveis: [] as any[] };
     }
@@ -566,6 +570,18 @@ export default function StockoutPage() {
 
     return { disponiveis, indisponiveis };
   }, [localSelecionado, stockoutData, modoAnalise, diaSelecionado, gruposLocais]);
+
+  // Busca + ordem (padrão da aba CMV). As duas colunas (em stockout / disponíveis) são listas
+  // longas de produto: sem procurar pelo nome, achar um item era rolar no olho.
+  const produtosPorLocal = useMemo(() => {
+    const q = buscaProd.trim().toLowerCase();
+    const nomeDe = (p: any) => p.prd_desc || p.produto_descricao || '';
+    const prep = (arr: any[]) => {
+      const rows = arr.filter((p) => !q || nomeDe(p).toLowerCase().includes(q) || String(p.prd || '').toLowerCase().includes(q));
+      return ordemProd === 'az' ? [...rows].sort((a, b) => cmpNome(nomeDe(a), nomeDe(b))) : rows;
+    };
+    return { disponiveis: prep(produtosPorLocalRaw.disponiveis), indisponiveis: prep(produtosPorLocalRaw.indisponiveis) };
+  }, [produtosPorLocalRaw, buscaProd, ordemProd]);
 
   const getProdutosPorLocal = useCallback(() => produtosPorLocal, [produtosPorLocal]);
 
@@ -1032,6 +1048,12 @@ export default function StockoutPage() {
                                 </div>
                               )}
                               
+                              {/* Busca + ordem das duas listas (padrão da aba CMV) */}
+                              <FiltroBarra className="mb-3">
+                                <BuscaInput value={buscaProd} onChange={setBuscaProd} placeholder="Buscar produto…" />
+                                <OrdemFiltro value={ordemProd} onChange={setOrdemProd} cor="amber" options={[['az', 'A–Z'], ['padrao', 'Padrão']] as const} />
+                              </FiltroBarra>
+
                               {/* Layout em Duas Colunas: Stockout (Esquerda) | Disponíveis (Direita) */}
                               {(getProdutosPorLocal().indisponiveis.length > 0 || getProdutosPorLocal().disponiveis.length > 0) ? (
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

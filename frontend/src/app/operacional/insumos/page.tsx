@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Package, RefreshCw, Search, Boxes, TrendingUp, TrendingDown, Loader2, ChevronDown, BarChart3, Zap, Utensils, Pencil, Plus, Trash2, Filter, Check, Download } from 'lucide-react';
 import { exportarCSV } from '@/lib/utils/export-csv';
 import { PageShell } from '@/components/layout/PageShell';
+import { OrdemFiltro, cmpNome } from '@/components/filtros/FiltroBarra';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { usePageTitle } from '@/contexts/PageTitleContext';
@@ -135,6 +136,7 @@ export default function InsumosPage() {
   const [busca, setBusca] = useState('');
   const [catSel, setCatSel] = useState('todas');
   const [filtro, setFiltro] = useState<'sem_ficha' | 'sem_cadastro' | 'curva_a' | 'curva_a_proteina' | null>(null);
+  const [ordem, setOrdem] = useState<'az' | 'cod'>('az'); // ordem da lista (padrão da aba CMV)
   const [tab, setTab] = useState('insumos');
   // expandir compras de um item sem cadastro
   const [compraAberto, setCompraAberto] = useState<number | null>(null);
@@ -242,9 +244,17 @@ export default function InsumosPage() {
     return out;
   }, [insumosBase, colFilter]);
 
-  const insumosView = useMemo(() => insumosBase.filter(i => COLS.every(c => {
-    const sel = colFilter[c.id]; if (!sel || !sel.size) return true; return sel.has(c.get(i));
-  })), [insumosBase, colFilter]);
+  // A–Z é o padrão (a rota já traz por nome, mas a ordem do Postgres não é a do pt-BR:
+  // localeCompare põe acento/Ç no lugar certo). 'cod' ordena pelo i0XXX, que é como o
+  // Isaías bate a lista com a planilha do VMarket.
+  const insumosView = useMemo(() => {
+    const rows = insumosBase.filter(i => COLS.every(c => {
+      const sel = colFilter[c.id]; if (!sel || !sel.size) return true; return sel.has(c.get(i));
+    }));
+    return [...rows].sort((a, b) => ordem === 'cod'
+      ? String(a.codigo || '').localeCompare(String(b.codigo || ''), 'pt-BR', { numeric: true })
+      : cmpNome(a.nome, b.nome));
+  }, [insumosBase, colFilter, ordem]);
 
   // Exporta a lista ATUAL em CSV (respeita busca + filtros de coluna). Contextual:
   //  - visão normal: insumos cadastrados no Zykor (código i0XXX = codigo_planilha do VMarket).
@@ -440,6 +450,7 @@ export default function InsumosPage() {
                 <option value="todas">Todas as seções ({insumos.length})</option>
                 {catList.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+              <OrdemFiltro value={ordem} onChange={setOrdem} options={[['az', 'A–Z'], ['cod', 'Código']] as const} className="self-center" />
               <Button
                 variant="outline"
                 onClick={exportar}

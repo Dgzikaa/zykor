@@ -11,6 +11,7 @@ import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { Calculator, RefreshCw, Search, Loader2, TrendingUp, TrendingDown, CalendarDays, ListChecks, Download, ChevronRight, ChevronDown } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
+import { OrdemFiltro, cmpNome } from '@/components/filtros/FiltroBarra';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { usePageTitle } from '@/contexts/PageTitleContext';
@@ -51,6 +52,7 @@ export default function CmvTeoricoPage() {
   const [loading, setLoading] = useState(false);
   const [recalc, setRecalc] = useState(false);
   const [busca, setBusca] = useState('');
+  const [ordemCad, setOrdemCad] = useState<'az' | 'cmv'>('az'); // cadastro: A–Z é o padrão (lista de consulta)
   const [cat, setCat] = useState<string | null>(null);
   const [flag, setFlag] = useState<'sem_ficha' | 'ficha_sem_preco' | 'sem_preco' | null>(null);
   const [dataAnterior, setDataAnterior] = useState<string | null>(null);
@@ -74,6 +76,7 @@ export default function CmvTeoricoPage() {
   const [periodo, setPeriodo] = useState<any>(null);
   const [loadingPer, setLoadingPer] = useState(false);
   const [buscaPer, setBuscaPer] = useState('');
+  const [ordemPer, setOrdemPer] = useState<'fat' | 'az'>('fat'); // período: faturamento é o que manda na análise
   const [catPer, setCatPer] = useState<string | null>(null);
   const [soSemFicha, setSoSemFicha] = useState(false);
   const [mostrarForaDp, setMostrarForaDp] = useState(false);
@@ -196,11 +199,15 @@ export default function CmvTeoricoPage() {
   const fichaSemPrecoFn = (p: any) => (p.itens_ficha ?? 0) > 0 && (!p.custo || Number(p.custo) === 0);
   const semPrecoFn = (p: any) => !p.preco_venda;
   const view = useMemo(() => {
-    if (flag === 'sem_ficha') return escopo.filter(semFichaFn);
-    if (flag === 'ficha_sem_preco') return escopo.filter(fichaSemPrecoFn);
-    if (flag === 'sem_preco') return escopo.filter(semPrecoFn);
-    return escopo;
-  }, [escopo, flag]);
+    const rows = flag === 'sem_ficha' ? escopo.filter(semFichaFn)
+      : flag === 'ficha_sem_preco' ? escopo.filter(fichaSemPrecoFn)
+      : flag === 'sem_preco' ? escopo.filter(semPrecoFn)
+      : escopo;
+    // 'az' = nome; 'cmv' = pior CMV primeiro (produto sem CMV vai pro fim, senão lidera a lista).
+    return ordemCad === 'cmv'
+      ? [...rows].sort((a: any, b: any) => (b.cmv_pct ?? -1) - (a.cmv_pct ?? -1))
+      : [...rows].sort((a: any, b: any) => cmpNome(a.nome, b.nome));
+  }, [escopo, flag, ordemCad]);
   const comCmv = escopo.filter(p => p.cmv_pct != null);
   const cmvMedio = comCmv.length ? comCmv.reduce((s, p) => s + Number(p.cmv_pct), 0) / comCmv.length : null;
   const semFicha = escopo.filter(semFichaFn).length;
@@ -245,9 +252,9 @@ export default function CmvTeoricoPage() {
       && (!soSemFicha || !p.custo_unit || Number(p.custo_unit) === 0)
       && (!s || (p.nome || '').toLowerCase().includes(s) || (p.codigo || '').toLowerCase().includes(s)
         || (p.origens || []).some((o: any) => (o.nome_origem || '').toLowerCase().includes(s) || (o.cod_origem || '').toLowerCase().includes(s))));
-    arr.sort((a: any, b: any) => b.faturamento - a.faturamento);
+    arr.sort((a: any, b: any) => ordemPer === 'az' ? cmpNome(a.nome, b.nome) : b.faturamento - a.faturamento);
     return arr;
-  }, [periodo, buscaPer, catPer, soSemFicha, origensByCod]);
+  }, [periodo, buscaPer, catPer, soSemFicha, origensByCod, ordemPer]);
 
   // expandir/recolher produto no período (mostra as origens CH/Yuzer)
   const [expPer, setExpPer] = useState<Set<string>>(new Set());
@@ -318,6 +325,7 @@ export default function CmvTeoricoPage() {
               <button onClick={() => setCat(null)} className={`text-xs rounded px-2.5 py-1 border ${!cat ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>Todas</button>
               {cats.map(c => <button key={c} onClick={() => setCat(c)} className={`text-xs rounded px-2.5 py-1 border ${cat === c ? 'bg-amber-500 text-white border-amber-500' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>{c}</button>)}
             </div>
+            <OrdemFiltro value={ordemCad} onChange={setOrdemCad} cor="amber" className="self-center" options={[['az', 'A–Z'], ['cmv', 'Pior CMV']] as const} />
           </div>
 
           <div className="flex items-center justify-between gap-2">
@@ -630,6 +638,7 @@ export default function CmvTeoricoPage() {
                 <Input value={buscaPer} onChange={e => setBuscaPer(e.target.value)} placeholder="Buscar produto…" className="pl-9" />
               </div>
               {catPer && <button onClick={() => setCatPer(null)} className="text-xs text-amber-600 underline">limpar categoria: {catPer}</button>}
+              <OrdemFiltro value={ordemPer} onChange={setOrdemPer} cor="amber" options={[['fat', 'Maior faturamento'], ['az', 'A–Z']] as const} />
               <Button variant="outline" size="sm" onClick={exportarCSV}><Download className="w-4 h-4 mr-1.5" />Exportar CSV</Button>
             </div>
             <div className="flex items-center justify-between gap-2">

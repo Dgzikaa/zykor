@@ -3,12 +3,12 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { PageShell } from '@/components/layout/PageShell';
+import { FiltroBarra, BuscaInput, SegFiltro, OrdemFiltro, ChipFiltro, SelectFiltro, cmpNome, opcoesDe } from '@/components/filtros/FiltroBarra';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
-import { ShoppingCart, Search, Loader2, CalendarDays, RefreshCw, ChevronDown, ChevronRight, AlertTriangle, Eye, EyeOff, RotateCcw, HelpCircle } from 'lucide-react';
+import { ShoppingCart, Loader2, CalendarDays, RefreshCw, ChevronDown, ChevronRight, AlertTriangle, Eye, EyeOff, RotateCcw, HelpCircle } from 'lucide-react';
 
 const fmtN = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtI = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
@@ -47,6 +47,9 @@ export default function PlanoComprasPage() {
   const [soProteina, setSoProteina] = useState(false);
   const [filtro, setFiltro] = useState<'todos' | 'comprar' | 'nao'>('todos');
   const [secao, setSecao] = useState('');
+  // Ordem da lista. Padrão A–Z (pedido do Isaías, 04/08): quem compra procura o insumo PELO NOME,
+  // e a lista é longa demais pra caçar. 'sugestao' = ordem antiga (maior sugestão primeiro).
+  const [ordem, setOrdem] = useState<'az' | 'sugestao'>('az');
   const [aberto, setAberto] = useState<string | null>(null);
   const [semanaSel, setSemanaSel] = useState<string | null>(null);
 
@@ -61,7 +64,7 @@ export default function PlanoComprasPage() {
   useEffect(() => { carregar(); }, [carregar]);
 
   const semanaAtual = semanaSel ?? res?.semana_sel ?? null;
-  const secoes = useMemo(() => Array.from(new Set(((res?.itens || []) as any[]).map((i) => i.secao_vmarket).filter(Boolean))).sort(), [res]);
+  const secoes = useMemo(() => opcoesDe((res?.itens || []) as any[], (i) => i.secao_vmarket), [res]);
 
   const linhas = useMemo(() => {
     const s = busca.trim().toLowerCase();
@@ -71,9 +74,11 @@ export default function PlanoComprasPage() {
       && (filtro === 'todos' || (filtro === 'comprar' ? !i.nao_comprar : i.nao_comprar))
       && (!secao || i.secao_vmarket === secao)
       && (!s || (i.nome || '').toLowerCase().includes(s) || (i.codigo || '').toLowerCase().includes(s)))
-      // insumo marcado como "acabou" sobe pro topo (o resto mantém a ordem de sugestão do servidor)
-      .sort((a, b) => (b.falta ? 1 : 0) - (a.falta ? 1 : 0));
-  }, [res, busca, soCurvaA, soProteina, filtro, secao]);
+      // A–Z: ordem pura pelo nome (localeCompare pt-BR p/ acento/Ç cair no lugar certo).
+      // Sugestão: mantém a ordem do servidor (maior sugestão primeiro) com o insumo marcado
+      // como "acabou" no topo — ali o topo é prioridade, no A–Z seria furo na ordem.
+      .sort((a, b) => ordem === 'az' ? cmpNome(a.nome, b.nome) : (b.falta ? 1 : 0) - (a.falta ? 1 : 0));
+  }, [res, busca, soCurvaA, soProteina, filtro, secao, ordem]);
 
   // muda o nível de serviço do insumo: recalcula PR/sugestão ao vivo (PR = Média6s + DesvPad × z)
   // e persiste. Tudo em unidade-base (mesma dos campos da linha).
@@ -169,20 +174,14 @@ export default function PlanoComprasPage() {
         </div>
 
         {/* Filtros */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[180px]"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar insumo…" className="pl-9" /></div>
-          <select value={secao} onChange={e => setSecao(e.target.value)} className="text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent px-2 py-1.5 cursor-pointer max-w-[220px]">
-            <option value="" className="text-gray-900">Todas as seções (VMarket)</option>
-            {secoes.map((s) => <option key={s as string} value={s as string} className="text-gray-900">{s as string}</option>)}
-          </select>
-          <button onClick={() => setSoCurvaA(v => !v)}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${soCurvaA ? 'ring-1 ring-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>Só Curva A</Badge></button>
-          <button onClick={() => setSoProteina(v => !v)}><Badge variant="outline" className={`cursor-pointer text-rose-600 border-rose-300 ${soProteina ? 'ring-1 ring-rose-400 bg-rose-50 dark:bg-rose-900/20' : ''}`}>Só Proteínas (P)</Badge></button>
-          <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
-            {([['todos', 'Todos'], ['comprar', 'Comprar'], ['nao', 'Não comprar']] as const).map(([v, label]) => (
-              <button key={v} onClick={() => setFiltro(v)} className={`px-3 py-1.5 ${filtro === v ? 'bg-emerald-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>{label}</button>
-            ))}
-          </div>
-        </div>
+        <FiltroBarra>
+          <BuscaInput value={busca} onChange={setBusca} placeholder="Buscar insumo…" />
+          <SelectFiltro value={secao} onChange={setSecao} options={secoes} todos="Todas as seções (VMarket)" />
+          <ChipFiltro ativo={soCurvaA} onClick={() => setSoCurvaA(v => !v)}>Só Curva A</ChipFiltro>
+          <ChipFiltro ativo={soProteina} onClick={() => setSoProteina(v => !v)} cor="rose">Só Proteínas (P)</ChipFiltro>
+          <SegFiltro value={filtro} onChange={setFiltro} options={[['todos', 'Todos'], ['comprar', 'Comprar'], ['nao', 'Não comprar']] as const} />
+          <OrdemFiltro value={ordem} onChange={setOrdem} options={[['az', 'A–Z'], ['sugestao', 'Maior sugestão']] as const} />
+        </FiltroBarra>
 
         {/* Tabela */}
         <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">

@@ -11,6 +11,7 @@ import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { ChefHat, Trash2, Search, Utensils, Star, Loader2, Pencil, Plus, Boxes, Download, RefreshCw, TrendingUp, TrendingDown, Link2, Eye, Layers } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
+import { OrdemFiltro, cmpNome } from '@/components/filtros/FiltroBarra';
 import { usePermissions } from '@/hooks/usePermissions';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { getModuleIdForPath } from '@/lib/permissions/modules';
@@ -132,6 +133,7 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
     return (p.codigo || '').toLowerCase().startsWith('pd') ? 'Bar' : 'Cozinha';
   };
   const [catFiltro, setCatFiltro] = useState<string | null>(null);
+  const [ordem, setOrdem] = useState<'az' | 'cod'>('az'); // ordem da lista lateral (padrão da aba CMV)
   // contadores dos badges respeitam os outros filtros (categoria + ativo/inativo) pra combinarem entre si
   const baseCat = useMemo(() => catFiltro ? lista.filter(p => catDe(p) === catFiltro) : lista, [lista, catFiltro]); // eslint-disable-line react-hooks/exhaustive-deps
   const baseStat = useMemo(() => baseCat.filter(p => kind !== 'produto' || statusFiltro === 'todos' || (statusFiltro === 'ativo' ? !!p.ativo : !p.ativo)), [baseCat, statusFiltro, kind]);
@@ -157,8 +159,10 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
       if (kind === 'produto' && statusFiltro !== 'todos' && (statusFiltro === 'ativo' ? !p.ativo : !!p.ativo)) return false;
       return !q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q)
         || (p.cods_ch || []).some((c: any) => String(c).toLowerCase().includes(q));
-    });
-  }, [lista, buscaLista, filtroLista, catFiltro, statusFiltro, kind, zeradoCods]); // eslint-disable-line react-hooks/exhaustive-deps
+    }).sort((a: any, b: any) => ordem === 'cod'
+      ? String(a.codigo || '').localeCompare(String(b.codigo || ''), 'pt-BR', { numeric: true })
+      : cmpNome(a.nome, b.nome));
+  }, [lista, buscaLista, filtroLista, catFiltro, statusFiltro, kind, zeradoCods, ordem]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selObj = lista.find(p => p.id === sel) || null;
 
@@ -492,6 +496,9 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input value={buscaLista} onChange={e => setBuscaLista(e.target.value)} placeholder={kind === 'producao' ? 'Buscar produção…' : 'Buscar produto…'} className="pl-9 h-9" />
+            </div>
+            <div className="mt-2">
+              <OrdemFiltro value={ordem} onChange={setOrdem} options={[['az', 'A–Z'], ['cod', 'Código']] as const} className="w-full [&>button]:flex-1" />
             </div>
             {(nZero > 0 || nSemMestre > 0 || nSemCh > 0 || nItemZero > 0 || (kind === 'produto' && (vendasSemCadastro?.length ?? 0) > 0)) && (
               <div className="flex flex-wrap gap-1 mt-2">

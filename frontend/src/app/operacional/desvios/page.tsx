@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageShell } from '@/components/layout/PageShell';
+import { OrdemFiltro, cmpNome } from '@/components/filtros/FiltroBarra';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { usePageTitle } from '@/contexts/PageTitleContext';
@@ -244,6 +245,9 @@ export default function DesviosPage() {
   const { toast } = useToast();
   const [res, setRes] = useState<any | null>(null);
   const [busca, setBusca] = useState('');
+  // Ordem das 3 abas. Padrão segue o servidor (maior desvio primeiro — é como se analisa);
+  // A–Z entra pra quem está PROCURANDO um item específico (pedido do Isaías, 04/08).
+  const [ordem, setOrdem] = useState<'desvio' | 'az'>('desvio');
   const [aba, setAba] = useState('insumos');
   const [soCurvaA, setSoCurvaA] = useState(false);
   // Itens que o time não controla (olhinho). 'ativos' é o padrão pedido: a tela abre mostrando
@@ -321,6 +325,11 @@ export default function DesviosPage() {
   // após salvar (res muda), recarrega a aba Proteínas pra refletir utilizado/desperdício
   useEffect(() => { if (aba === 'proteinas' && res) carregarAba(); }, [res]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Ordenação das listas: 'desvio' mantém a ordem do servidor (|desvio R$| desc); 'az' ordena
+  // pelo nome com localeCompare pt-BR (acento/Ç no lugar certo). Vale pras 3 abas.
+  const aplicarOrdem = useCallback((rows: any[]) =>
+    ordem === 'az' ? [...rows].sort((a, b) => cmpNome(a.insumo_nome, b.insumo_nome)) : rows, [ordem]);
+
   // Produções = linhas is_producao do fn_desvios (balanço ancorado no estoque, com Produzido)
   // prodBase = antes do filtro Comida/Drinks (alimenta os contadores dos chips); prodView = já filtrado.
   const prodBase = useMemo(() => {
@@ -333,11 +342,11 @@ export default function DesviosPage() {
   }, [res, busca, tipo, soCurvaA, andamento, numF]);
   const cntProdComida = useMemo(() => prodBase.filter((i: any) => i.secao_prod === 'Comida').length, [prodBase]);
   const cntProdDrinks = useMemo(() => prodBase.filter((i: any) => i.secao_prod === 'Drinks').length, [prodBase]);
-  const prodView = useMemo(() => prodBase.filter((i: any) => !filtroSecaoProd || i.secao_prod === filtroSecaoProd), [prodBase, filtroSecaoProd]);
+  const prodView = useMemo(() => aplicarOrdem(prodBase.filter((i: any) => !filtroSecaoProd || i.secao_prod === filtroSecaoProd)), [prodBase, filtroSecaoProd, aplicarOrdem]);
   const protView = useMemo(() => {
     const s = busca.trim().toLowerCase();
-    return rowsProt.filter((i: any) => passNum(i, numF) && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_cod || '').toLowerCase().includes(s)));
-  }, [rowsProt, busca, numF]);
+    return aplicarOrdem(rowsProt.filter((i: any) => passNum(i, numF) && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_cod || '').toLowerCase().includes(s))));
+  }, [rowsProt, busca, numF, aplicarOrdem]);
 
   // edita em qualquer granularidade (lápis); salva no dia de início do período
   const editavel = !!ini; // edita em qualquer granularidade; salva no dia de início do período
@@ -399,7 +408,7 @@ export default function DesviosPage() {
   // desperdício — nunca tem saída teórica). Filtro "Só Curva A" separado.
   const itensView = useMemo(() => {
     const s = busca.trim().toLowerCase();
-    return (res?.itens || []).filter((i: any) => !i.is_producao && !i.is_proteina
+    const rows = (res?.itens || []).filter((i: any) => !i.is_producao && !i.is_proteina
       && (tipo === 'diaria' || andamento || i.tem_ficha)
       // Ignorados ficam FORA por padrão — e como os cards de headline somam a partir desta
       // view, sair daqui já tira do Desvio total/Perdas/Sobras, que é o pedido.
@@ -409,7 +418,8 @@ export default function DesviosPage() {
       && (!filtroArea || i.area === filtroArea)
       && passNum(i, numF)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
-  }, [res, busca, tipo, andamento, soCurvaA, filtroDado, filtroArea, numF, modoIgnorados]);
+    return aplicarOrdem(rows);
+  }, [res, busca, tipo, andamento, soCurvaA, filtroDado, filtroArea, numF, modoIgnorados, aplicarOrdem]);
 
   // contadores dos chips de filtro (igual /operacional/insumos) — base = aba ativa sem o filtro Curva A
   const baseRows = useMemo(() => {
@@ -507,16 +517,19 @@ export default function DesviosPage() {
             <TabsTrigger value="proteinas"><Drumstick className="w-4 h-4 mr-1.5" />Proteínas</TabsTrigger>
           </TabsList>
 
-          {/* Busca */}
-          <div className="relative mt-3">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9" />
-            {numAtivo(numF) && (
-              <button onClick={() => setNumF({})}
-                className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100">
-                <Filter className="w-3 h-3" />Limpar filtros<X className="w-3 h-3" />
-              </button>
-            )}
+          {/* Busca + ordem da lista */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9" />
+              {numAtivo(numF) && (
+                <button onClick={() => setNumF({})}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100">
+                  <Filter className="w-3 h-3" />Limpar filtros<X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            <OrdemFiltro value={ordem} onChange={setOrdem} cor="rose" options={[['desvio', 'Maior desvio'], ['az', 'A–Z']] as const} />
           </div>
           {/* Filtros (contadores clicáveis, igual /operacional/insumos): total, Curva A, área, dado faltando */}
           {(aba === 'insumos' || (aba === 'producoes' && tipo !== 'diaria')) && (

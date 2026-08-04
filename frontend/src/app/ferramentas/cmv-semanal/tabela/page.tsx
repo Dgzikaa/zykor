@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FiltroBarra, BuscaInput, OrdemFiltro, cmpNome } from '@/components/filtros/FiltroBarra';
 import {
   ChevronDown,
   ChevronRight,
@@ -442,6 +443,21 @@ export default function CMVSemanalTabelaPage() {
     loading: false,
     dados: []
   });
+
+  // Drill-down: busca + ordem. A tabela em si é matriz (linhas fixas × semanas) e não tem o que
+  // ordenar, mas o detalhamento abre listas de centenas de lançamentos — ali procurar pelo nome
+  // é o que o Isaías pediu (04/08).
+  const [buscaDrill, setBuscaDrill] = useState('');
+  const [ordemDrill, setOrdemDrill] = useState<'valor' | 'az'>('valor');
+  const drillView = useMemo(() => {
+    const q = buscaDrill.trim().toLowerCase();
+    const rows = modalDrillDown.dados.filter((i: any) => !q
+      || String(i.label || '').toLowerCase().includes(q)
+      || String(i.categoria || '').toLowerCase().includes(q));
+    return ordemDrill === 'az'
+      ? [...rows].sort((a: any, b: any) => cmpNome(a.label, b.label))
+      : [...rows].sort((a: any, b: any) => (Number(b.valor) || 0) - (Number(a.valor) || 0));
+  }, [modalDrillDown.dados, buscaDrill, ordemDrill]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const semanaAtualRef = useRef<HTMLDivElement>(null);
@@ -1977,14 +1993,20 @@ export default function CMVSemanalTabelaPage() {
               </div>
             ) : modalDrillDown.dados.length > 0 ? (
               <div className="space-y-2">
+                <FiltroBarra className="mb-3">
+                  <BuscaInput value={buscaDrill} onChange={setBuscaDrill} placeholder="Buscar lançamento…" />
+                  <OrdemFiltro value={ordemDrill} onChange={setOrdemDrill} cor="blue" options={[['valor', 'Maior valor'], ['az', 'A–Z']] as const} />
+                </FiltroBarra>
+
                 <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                   <p className="text-sm text-blue-900 dark:text-blue-200">
-                    <strong>{modalDrillDown.dados.length}</strong> {modalDrillDown.dados.length === 1 ? 'registro encontrado' : 'registros encontrados'}
+                    <strong>{drillView.length}</strong> {drillView.length === 1 ? 'registro encontrado' : 'registros encontrados'}
+                    {drillView.length !== modalDrillDown.dados.length && <span className="opacity-70"> (de {modalDrillDown.dados.length})</span>}
                   </p>
                 </div>
 
                 <div className="max-h-[400px] overflow-y-auto space-y-2">
-                  {modalDrillDown.dados.map((item, idx) => (
+                  {drillView.map((item, idx) => (
                     <div
                       key={idx}
                       className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"
@@ -2033,9 +2055,9 @@ export default function CMVSemanalTabelaPage() {
                 </div>
                 
                 <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-900/20 rounded-lg border-2 border-blue-500 mt-4">
-                  <span className="text-lg font-bold text-blue-900 dark:text-blue-200">TOTAL</span>
+                  <span className="text-lg font-bold text-blue-900 dark:text-blue-200">TOTAL{buscaDrill && ' (filtrado)'}</span>
                   <span className="text-lg font-mono font-bold text-blue-900 dark:text-blue-200">
-                    {formatarValor(modalDrillDown.dados.reduce((sum, item) => sum + (item.valor || 0), 0), 'moeda')}
+                    {formatarValor(drillView.reduce((sum, item) => sum + (item.valor || 0), 0), 'moeda')}
                   </span>
                 </div>
               </div>

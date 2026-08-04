@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { FazerContagem } from '@/components/estoque/FazerContagem';
 import { PageShell } from '@/components/layout/PageShell';
+import { cmpNome } from '@/components/filtros/FiltroBarra';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { CadastrarItemModal } from './GerenciarItensModal';
@@ -181,7 +182,7 @@ export default function EstoqueHistoricoPage() {
   const itensView = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1;
     return [...colFiltrados].sort((a, b) => {
-      if (sortBy === 'nome') return dir * String(a.insumo_nome || '').localeCompare(String(b.insumo_nome || ''), 'pt-BR');
+      if (sortBy === 'nome') return dir * cmpNome(a.insumo_nome, b.insumo_nome); // A–Z pt-BR (mesmo comparador da aba CMV)
       if (sortBy === 'qtd') return dir * (Number(a.estoque_final || 0) - Number(b.estoque_final || 0));
       return dir * (Number(a.valor || 0) - Number(b.valor || 0));
     });
