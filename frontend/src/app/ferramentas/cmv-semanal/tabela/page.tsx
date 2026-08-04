@@ -39,6 +39,7 @@ import {
   Save,
   Undo2,
   History,
+  Download,
 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -515,6 +516,74 @@ export default function CMVSemanalTabelaPage() {
     () => Array.from(new Set(histRows.map((h) => String(h.semana)))).sort((a, b) => Number(b) - Number(a)),
     [histRows],
   );
+
+  // ===== Exportar planilha (Isaías, 04/08: "exportar como xls, tanto os antigos ou como tá agora") =====
+  // Duas abas: os números como estão hoje e a composição do Faturamento Limpo com as 3 leituras
+  // do CMV% (hoje × regra até 30/06 × corrigida), que é o que ele precisa pra bater a conta.
+  const [exportando, setExportando] = useState(false);
+  const exportarXls = useCallback(async () => {
+    if (!selectedBar?.id || exportando) return;
+    setExportando(true);
+    try {
+      const ano = anoFiltro !== 'todos' ? anoFiltro : String(new Date().getFullYear());
+      const r = await fetch(`/api/cmv-semanal/exportar?bar_id=${selectedBar.id}&ano=${ano}`, {
+        headers: { 'x-selected-bar-id': String(selectedBar.id) },
+      });
+      const j = await r.json();
+      const linhas: any[] = j.semanas || [];
+      if (!linhas.length) { toast({ title: 'Nada para exportar', description: `Sem semanas em ${ano}.` }); return; }
+
+      const per = (l: any) => `${String(l.data_inicio).split('-').reverse().slice(0, 2).join('/')} a ${String(l.data_fim).split('-').reverse().slice(0, 2).join('/')}`;
+
+      const abaAtual = linhas.map((l) => ({
+        'Semana': l.semana,
+        'Período': per(l),
+        'Faturamento Bruto': Number(l.faturamento_bruto),
+        'Faturamento Limpo (base do CMV%)': Number(l.fat_limpo_hoje),
+        'Estoque Inicial': Number(l.estoque_inicial),
+        '(+) Compras': Number(l.compras_periodo),
+        '(-) Estoque Final': Number(l.estoque_final),
+        '(-) Consumações': Number(l.consumacoes),
+        '(+) Bonificações': Number(l.bonificacoes),
+        'CMA': Number(l.cma_total),
+        'CMV (R$)': Number(l.cmv_calculado),
+        'CMV Real (R$)': Number(l.cmv_real),
+        'CMV %': Number(l.cmv_pct_hoje),
+        'CMV Limpo %': Number(l.cmv_limpo_pct),
+        'CMV Teórico %': l.cmv_teorico_pct == null ? '' : Number(l.cmv_teorico_pct),
+        'Atualizado em': l.atualizado_em ? new Date(l.atualizado_em).toLocaleString('pt-BR') : '',
+      }));
+
+      const abaComparativo = linhas.map((l) => ({
+        'Semana': l.semana,
+        'Período': per(l),
+        'Faturamento Bruto': Number(l.faturamento_bruto),
+        '(-) Comissão': Number(l.comissao),
+        '(-) Couvert': Number(l.couvert),
+        '(-) Yuzer lançado como entrada': Number(l.yuzer_entrada),
+        'sendo consumo de BAR do evento': Number(l.yuzer_bar),
+        '(-) Sympla': Number(l.sympla),
+        'Fat. Limpo HOJE': Number(l.fat_limpo_hoje),
+        'Fat. Limpo REGRA ANTIGA (até 30/06)': Number(l.fat_limpo_regra_antiga),
+        'Fat. Limpo CORRIGIDO (só ingresso)': Number(l.fat_limpo_corrigido),
+        'CMV (R$)': Number(l.cmv_calculado),
+        'CMV % HOJE': Number(l.cmv_pct_hoje),
+        'CMV % REGRA ANTIGA': Number(l.cmv_pct_regra_antiga),
+        'CMV % CORRIGIDO': Number(l.cmv_pct_corrigido),
+      }));
+
+      // import dinâmico: a lib de planilha não entra no bundle de quem só abre a tela
+      const XLSX = await import('xlsx');
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(abaAtual), 'CMV Semanal (hoje)');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(abaComparativo), 'Faturamento Limpo');
+      XLSX.writeFile(wb, `cmv-semanal_${(selectedBar.nome || 'bar').replace(/\s+/g, '-').toLowerCase()}_${ano}.xlsx`);
+    } catch (e: any) {
+      toast({ title: 'Erro ao exportar', description: e?.message, variant: 'destructive' });
+    } finally {
+      setExportando(false);
+    }
+  }, [selectedBar?.id, selectedBar?.nome, anoFiltro, exportando, toast]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const semanaAtualRef = useRef<HTMLDivElement>(null);
@@ -1399,6 +1468,18 @@ export default function CMVSemanalTabelaPage() {
                 >
                   <History className="w-3.5 h-3.5" />
                   Histórico de alterações
+                </button>
+              )}
+
+              {visao === 'semanal' && (
+                <button
+                  onClick={exportarXls}
+                  disabled={exportando}
+                  title="Baixa a planilha do ano: aba 1 = números como estão hoje; aba 2 = composição do Faturamento Limpo com o CMV% de hoje, o da regra antiga e o corrigido"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-3 h-9 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {exportando ? 'Gerando…' : 'Exportar planilha'}
                 </button>
               )}
 
