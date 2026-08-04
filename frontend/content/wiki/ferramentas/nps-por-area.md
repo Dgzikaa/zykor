@@ -29,6 +29,8 @@ Quem usa: **marketing, operação e sócios** — na reunião semanal, para tran
 
 **Nota por área** — média de 1 a 5 por área, **com o gargalo em primeiro**. Verde ≥ 4,5, âmbar ≥ 4,0, vermelho abaixo disso.
 
+**Reclamações por área** — logo abaixo dos números do topo, um chip por área com **quantas pessoas deram nota 3 ou menos** ali (3 é o meio da escala; quem gostou dá 4 ou 5). Clicar no chip filtra a lista para exatamente essas respostas, e a tela inteira passa a falar daquela reclamação: o gráfico mensal troca a barra para "quantas reclamaram por mês" e a tabela de dias mostra as reclamações de cada dia. É o caminho de *"o tempo de espera piorou"* até *"foram 5 pessoas no dia 01/08, na Feijuca do Ordi, e olha o que escreveram"*.
+
 **Dia a dia** — a tabela lista cada dia com o número de respostas, o NPS do dia, a nota média e a **pior área daquele dia**. Clicar numa linha filtra a lista de respostas para aquele dia — é o caminho de "a nota caiu" até "foi isso que escreveram".
 
 ## Filtros
@@ -37,7 +39,9 @@ Quem usa: **marketing, operação e sócios** — na reunião semanal, para tran
 - **Data da visita × Data da resposta** — muda qual data define o recorte. *Data da visita* é o padrão e é o que responde "em que noite foi ruim". *Data da resposta* reproduz o corte do Falaê e o do Desempenho semanal.
 - **Dia da semana** — isola sábado, quarta etc.
 - **Área** — ao escolher uma área, os gráficos de evolução mensal e dia a dia passam a mostrar a nota **daquela** área, e a tabela troca "pior área do dia" pela nota dela.
-- Na lista de respostas ainda dá pra filtrar por promotor / neutro / detrator e buscar dentro do comentário, do nome do cliente ou do evento.
+- Na lista de respostas ainda dá pra filtrar por promotor / neutro / detrator, por **"só quem reclamou"** (nota ≤ 3 na área escolhida, ou em qualquer área se nenhuma estiver escolhida) e buscar dentro do comentário, do nome do cliente ou do evento.
+
+> **Reclamou de área ≠ detrator.** Uma pessoa pode dar NPS 9 (promotor) e mesmo assim nota 2 em "tempo de espera" — e é justamente esse cliente que vale ouvir. Os dois filtros são independentes de propósito.
 
 ## De onde vem o dado
 

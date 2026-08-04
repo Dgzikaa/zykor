@@ -44,6 +44,12 @@ interface AreaRow {
 
 const media = (soma: number, n: number) => (n > 0 ? Math.round((soma / n) * 100) / 100 : null);
 
+/**
+ * Nota (1-5) a partir da qual a área conta como MAL AVALIADA. 3 é o meio da escala do Falae e já
+ * significa "não foi bom" — quem gostou dá 4 ou 5. É o corte usado nas contagens de reclamação.
+ */
+const NOTA_BAIXA = 3;
+
 /** NPS score clássico: %promotores − %detratores, 1 casa. */
 function npsScore(promotores: number, detratores: number, total: number): number | null {
   if (!total) return null;
@@ -160,7 +166,7 @@ export async function GET(request: NextRequest) {
       const acc = porArea.get(area) || { soma: 0, n: 0, baixas: 0 };
       acc.soma += Number(a.nota) || 0;
       acc.n += 1;
-      if (Number(a.nota) <= 3) acc.baixas += 1;
+      if (Number(a.nota) <= NOTA_BAIXA) acc.baixas += 1;
       porArea.set(area, acc);
     }
     const areasAgg = [...porArea.entries()]
@@ -174,7 +180,9 @@ export async function GET(request: NextRequest) {
       .sort((x, y) => x.nota_media - y.nota_media); // pior primeiro: o gargalo lidera
 
     // ---- evolução mensal (NPS + nota por área) -----------------------------
-    const porMes = new Map<string, { prom: number; det: number; n: number; areas: Map<string, { soma: number; n: number }> }>();
+    // `areas_baixas` = quantas respostas deram nota ≤ 3 naquela área. É o que responde
+    // "quantas pessoas nesse mês falaram mal do tempo de espera?".
+    const porMes = new Map<string, { prom: number; det: number; n: number; areas: Map<string, { soma: number; n: number; baixas: number }> }>();
     const mesDe = (iso: string) => iso.slice(0, 7);
     for (const r of resp) {
       const d = dataDe(r)!;
@@ -192,9 +200,10 @@ export async function GET(request: NextRequest) {
       if (!m) continue;
       const area = dimensaoDe(a.area_raw);
       if (!area) continue;
-      const acc = m.areas.get(area) || { soma: 0, n: 0 };
+      const acc = m.areas.get(area) || { soma: 0, n: 0, baixas: 0 };
       acc.soma += Number(a.nota) || 0;
       acc.n += 1;
+      if (Number(a.nota) <= NOTA_BAIXA) acc.baixas += 1;
       m.areas.set(area, acc);
     }
     const evolucao = [...porMes.entries()]
@@ -204,10 +213,11 @@ export async function GET(request: NextRequest) {
         n: m.n,
         nps_score: npsScore(m.prom, m.det, m.n),
         areas: Object.fromEntries([...m.areas.entries()].map(([k, v]) => [k, media(v.soma, v.n)])),
+        areas_baixas: Object.fromEntries([...m.areas.entries()].map(([k, v]) => [k, v.baixas])),
       }));
 
     // ---- por DIA (o corte que o Cadu pediu) --------------------------------
-    const porDia = new Map<string, { prom: number; det: number; n: number; soma: number; areas: Map<string, { soma: number; n: number }> }>();
+    const porDia = new Map<string, { prom: number; det: number; n: number; soma: number; areas: Map<string, { soma: number; n: number; baixas: number }> }>();
     for (const r of resp) {
       const d = dataDe(r)!;
       const dia = porDia.get(d) || { prom: 0, det: 0, n: 0, soma: 0, areas: new Map() };
@@ -224,16 +234,17 @@ export async function GET(request: NextRequest) {
       if (!dia) continue;
       const area = dimensaoDe(a.area_raw);
       if (!area) continue;
-      const acc = dia.areas.get(area) || { soma: 0, n: 0 };
+      const acc = dia.areas.get(area) || { soma: 0, n: 0, baixas: 0 };
       acc.soma += Number(a.nota) || 0;
       acc.n += 1;
+      if (Number(a.nota) <= NOTA_BAIXA) acc.baixas += 1;
       dia.areas.set(area, acc);
     }
     const dias = [...porDia.entries()]
       .sort((x, y) => y[0].localeCompare(x[0])) // mais recente primeiro
       .map(([data, d]) => {
         const areasDia = [...d.areas.entries()]
-          .map(([area, v]) => ({ area, nota: media(v.soma, v.n) ?? 0, n: v.n }))
+          .map(([area, v]) => ({ area, nota: media(v.soma, v.n) ?? 0, n: v.n, baixas: v.baixas }))
           .sort((x, y) => x.nota - y.nota);
         return {
           data,
@@ -245,6 +256,9 @@ export async function GET(request: NextRequest) {
           pior_area: areasDia[0]?.area || null,
           pior_nota: areasDia[0]?.nota ?? null,
           areas: Object.fromEntries(areasDia.map((a) => [a.area, a.nota])),
+          // Quantas respostas reclamaram (nota ≤ 3) de cada área naquele dia.
+          areas_baixas: Object.fromEntries(areasDia.map((a) => [a.area, a.baixas])),
+          reclamacoes: areasDia.reduce((s, a) => s + a.baixas, 0),
         };
       });
 
@@ -277,6 +291,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       base,
+      nota_baixa: NOTA_BAIXA,
       periodo: { de: de || null, ate: ate || null, dow },
       resumo,
       areas: areasAgg,

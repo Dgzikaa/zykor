@@ -27,6 +27,7 @@ interface DiaAgg {
   data: string; dow: number; evento: string | null; respostas: number;
   nps_score: number | null; nps_medio: number | null;
   pior_area: string | null; pior_nota: number | null; areas: Record<string, number>;
+  areas_baixas: Record<string, number>; reclamacoes: number;
 }
 interface RespostaItem {
   falae_id: string; pesquisa: string | null; data_visita: string | null; data_resposta: string;
@@ -39,8 +40,14 @@ interface Resp {
     respostas: number; nps_score: number | null; nps_medio: number | null;
     promotores: number; neutros: number; detratores: number; comentarios: number; sem_data_visita: number;
   };
+  /** Nota (1-5) a partir da qual a área conta como mal avaliada. */
+  nota_baixa?: number;
   areas?: AreaAgg[];
-  evolucao?: { mes: string; n: number; nps_score: number | null; areas: Record<string, number | null> }[];
+  evolucao?: {
+    mes: string; n: number; nps_score: number | null;
+    areas: Record<string, number | null>;
+    areas_baixas: Record<string, number>;
+  }[];
   dias?: DiaAgg[];
   respostas?: RespostaItem[];
 }
@@ -54,6 +61,8 @@ const fmtNota = (n: number | null | undefined) =>
   n == null ? '—' : Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtScore = (n: number | null | undefined) =>
   n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+const fmtPct = (n: number | null | undefined) =>
+  n == null ? '—' : `${Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const mesLabel = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]}/${m.slice(2, 4)}`;
 
@@ -90,6 +99,9 @@ export default function NpsPorAreaPage() {
   const [base, setBase] = useState<'visita' | 'resposta'>('visita');
   const [dow, setDow] = useState('');
   const [areaSel, setAreaSel] = useState('');
+  // "Só quem reclamou": mantém na lista apenas as respostas que deram nota baixa na área — é o
+  // corte que responde "quantas pessoas falaram mal do tempo de espera nesse mês, e em que dias".
+  const [soBaixas, setSoBaixas] = useState(false);
   const [categoria, setCategoria] = useState('');
   const [busca, setBusca] = useState('');
   const [diaSel, setDiaSel] = useState<string | null>(null);
@@ -135,6 +147,8 @@ export default function NpsPorAreaPage() {
         ...e,
         label: mesLabel(e.mes),
         nota_area: areaSel ? (e.areas?.[areaSel] ?? null) : null,
+        // Quantas pessoas reclamaram da área naquele mês — a barra quando o corte é "só quem reclamou".
+        baixas_area: areaSel ? (e.areas_baixas?.[areaSel] ?? 0) : 0,
       })),
     [data?.evolucao, areaSel]
   );
@@ -156,19 +170,23 @@ export default function NpsPorAreaPage() {
 
   const opcoesArea = useMemo(() => areas.map((a) => a.area).sort((a, b) => a.localeCompare(b, 'pt-BR')), [areas]);
 
+  const notaBaixa = data?.nota_baixa ?? 3;
+
   const respostasFiltradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     return (data?.respostas || []).filter((r) => {
       if (categoria && r.categoria !== categoria) return false;
       if (diaSel && (base === 'visita' ? r.data_visita : r.data_resposta) !== diaSel) return false;
       if (areaSel && !r.areas.some((a) => a.area === areaSel)) return false;
+      // Só quem reclamou: nota baixa na área escolhida (ou em qualquer área, se nenhuma escolhida).
+      if (soBaixas && !r.areas.some((a) => (!areaSel || a.area === areaSel) && a.nota <= notaBaixa)) return false;
       if (termo) {
         const alvo = `${r.comentario || ''} ${r.cliente || ''} ${r.evento || ''}`.toLowerCase();
         if (!alvo.includes(termo)) return false;
       }
       return true;
     });
-  }, [data?.respostas, categoria, diaSel, areaSel, busca, base]);
+  }, [data?.respostas, categoria, diaSel, areaSel, soBaixas, notaBaixa, busca, base]);
 
   if (!selectedBar?.id) return <div className="p-6 text-sm text-gray-500">Selecione um bar.</div>;
 
@@ -203,6 +221,52 @@ export default function NpsPorAreaPage() {
         <>
           <HeroRow kpis={kpis} cols={6} />
 
+          {/* Quem foi mal avaliado, e quantas pessoas reclamaram. Clicar leva direto às respostas
+              daquela área — é o caminho de "área ruim" até "o que escreveram e em que dia". */}
+          {areas.some((a) => a.notas_baixas > 0) && (
+            <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
+              <div className="mb-2.5 flex flex-wrap items-baseline gap-2">
+                <h3 className="text-sm font-semibold">Reclamações por área</h3>
+                <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                  quantas respostas deram nota {notaBaixa} ou menos · clique para ler
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {areas
+                  .filter((a) => a.notas_baixas > 0)
+                  .slice()
+                  .sort((a, b) => b.notas_baixas - a.notas_baixas)
+                  .map((a) => {
+                    const ativo = areaSel === a.area && soBaixas;
+                    return (
+                      <button
+                        key={a.area}
+                        type="button"
+                        onClick={() => {
+                          if (ativo) { setAreaSel(''); setSoBaixas(false); }
+                          else { setAreaSel(a.area); setSoBaixas(true); }
+                        }}
+                        title={`${a.notas_baixas} de ${a.n} avaliações de ${a.area} vieram com nota ≤ ${notaBaixa}`}
+                        className={`rounded-full border px-3 py-1 text-xs transition ${
+                          ativo
+                            ? 'border-rose-400 bg-rose-500 text-white'
+                            : 'border-[hsl(var(--border))] text-[hsl(var(--foreground))] hover:border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20'
+                        }`}
+                      >
+                        {a.area}{' '}
+                        <span className={ativo ? 'font-semibold' : 'font-semibold text-rose-600 dark:text-rose-400'}>
+                          {fmtN(a.notas_baixas)}
+                        </span>
+                        <span className={`ml-1 ${ativo ? 'opacity-80' : 'text-[hsl(var(--muted-foreground))]'}`}>
+                          ({fmtPct(a.pct_baixas)})
+                        </span>
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
           <ChartGrid cols={2}>
             <ChartCard titulo="Nota por área" subtitulo="média de 1 a 5 · o gargalo vem primeiro">
               <GraficoBarraH
@@ -217,18 +281,26 @@ export default function NpsPorAreaPage() {
 
             <ChartCard
               titulo={areaSel ? `${areaSel} — evolução mensal` : 'NPS por mês'}
-              subtitulo={areaSel ? 'barra = respostas no mês · linha = nota da área' : 'barra = respostas no mês · linha = NPS'}
+              subtitulo={
+                areaSel && soBaixas
+                  ? `barra = quantas reclamaram (nota ≤ ${notaBaixa}) · linha = nota da área`
+                  : areaSel
+                    ? 'barra = respostas no mês · linha = nota da área'
+                    : 'barra = respostas no mês · linha = NPS'
+              }
             >
               <GraficoBarra
                 data={evolucao}
                 xKey="label"
-                valueKey="n"
+                valueKey={areaSel && soBaixas ? 'baixas_area' : 'n'}
                 lineKey={areaSel ? 'nota_area' : 'nps_score'}
                 formatV={fmtN}
                 formatLine={areaSel ? fmtNota : fmtScore}
-                nomeBarra="Respostas"
+                nomeBarra={areaSel && soBaixas ? 'Reclamações' : 'Respostas'}
                 nomeLinha={areaSel ? 'Nota' : 'NPS'}
+                cor={areaSel && soBaixas ? '#f43f5e' : undefined}
                 corLinha={areaSel ? '#8b5cf6' : '#10b981'}
+                mostrarRotulo={!!(areaSel && soBaixas)}
               />
             </ChartCard>
 
@@ -271,6 +343,9 @@ export default function NpsPorAreaPage() {
                     <th className="py-2 px-3 font-medium text-right">Respostas</th>
                     <th className="py-2 px-3 font-medium text-right">NPS</th>
                     <th className="py-2 px-3 font-medium text-right">Nota média</th>
+                    <th className="py-2 px-3 font-medium text-right" title={`Respostas com nota ≤ ${notaBaixa}${areaSel ? ` em ${areaSel}` : ' em alguma área'}`}>
+                      {areaSel ? `Reclamações de ${areaSel}` : 'Reclamações'}
+                    </th>
                     <th className="py-2 pl-3 font-medium">{areaSel ? `Nota de ${areaSel}` : 'Pior área do dia'}</th>
                   </tr>
                 </thead>
@@ -294,6 +369,16 @@ export default function NpsPorAreaPage() {
                           {fmtScore(d.nps_score)}
                         </td>
                         <td className="py-2 px-3 text-right tabular-nums">{fmtNota(d.nps_medio)}</td>
+                        <td className="py-2 px-3 text-right tabular-nums">
+                          {(() => {
+                            const rec = areaSel ? (d.areas_baixas?.[areaSel] ?? 0) : d.reclamacoes;
+                            return rec ? (
+                              <span className="font-medium text-rose-600 dark:text-rose-400">{fmtN(rec)}</span>
+                            ) : (
+                              <span className="text-[hsl(var(--muted-foreground))]">—</span>
+                            );
+                          })()}
+                        </td>
                         <td className="py-2 pl-3 whitespace-nowrap">
                           {notaArea == null ? (
                             <span className="text-[hsl(var(--muted-foreground))]">—</span>
@@ -318,6 +403,14 @@ export default function NpsPorAreaPage() {
               <h3 className="text-sm font-semibold mr-1">
                 Respostas <span className="font-normal text-[hsl(var(--muted-foreground))]">({fmtN(respostasFiltradas.length)})</span>
               </h3>
+              <ChipFiltro
+                ativo={soBaixas}
+                onClick={() => setSoBaixas(!soBaixas)}
+                cor="rose"
+                title={`Só respostas com nota ≤ ${notaBaixa}${areaSel ? ` em ${areaSel}` : ' em alguma área'}`}
+              >
+                {areaSel ? `Reclamou de ${areaSel}` : 'Só quem reclamou'}
+              </ChipFiltro>
               {(['promotor', 'neutro', 'detrator'] as const).map((c) => (
                 <ChipFiltro
                   key={c}
@@ -376,6 +469,8 @@ export default function NpsPorAreaPage() {
 
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
             Notas de área são de 1 a 5 (o Falae coleta uma por área em cada resposta); o NPS é de 0 a 10.
+            &ldquo;Reclamação&rdquo; = nota {notaBaixa} ou menos naquela área — 3 é o meio da escala e quem
+            gostou dá 4 ou 5. Cuidado com dia de poucas respostas: a coluna de respostas do dia está ali pra isso.
             Rótulos diferentes da mesma coisa (&ldquo;Tempo de Espera&rdquo;, &ldquo;TEMPO DE ENTREGA&rdquo;,
             &ldquo;TEMPO DE ESPERA DOS PEDIDOS&rdquo;) são unificados numa área só.
             {resumo.sem_data_visita > 0 && ` ${fmtN(resumo.sem_data_visita)} resposta(s) do período não informaram a data da visita e ficam fora dos cortes por dia.`}
