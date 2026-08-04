@@ -253,7 +253,12 @@ export async function GET(request: NextRequest) {
     })
     .filter((r: any) => (secao === 'Bar' || secao === 'Cozinha') ? r.secao_efetiva.includes(secao) : true);
 
-  return NextResponse.json({ success: true, registros: enriched });
+  // Referência por insumo (preço + última contagem) pro lançamento avisar na hora quando a
+  // quantidade está em ordem de grandeza errada. Ver fn_desperdicio_referencias: o rótulo de
+  // unidade do cadastro não é confiável, então a âncora é o que o item costuma ter em estoque.
+  const { data: refs } = await ops(supabase).rpc('fn_desperdicio_referencias', { p_bar_id: bar_id });
+
+  return NextResponse.json({ success: true, registros: enriched, referencias: refs || [] });
 }
 
 export async function POST(request: NextRequest) {

@@ -50,6 +50,8 @@ type Insumo = {
   origem_tipo?: 'produto';
 };
 type Foto = { storage_path: string; url: string; size_bytes?: number; mime?: string };
+/** Âncora do item: quanto costuma ter em estoque e quanto custa (fn_desperdicio_referencias). */
+type Referencia = { codigo: string; preco: number | null; ultima_qtd: number | null; ultima_data: string | null };
 type Item = {
   insumo_codigo: string; insumo_nome?: string; unidade?: string;
   qtd: number; motivo?: string; observacao?: string;
@@ -74,6 +76,27 @@ type Registro = {
 
 const fmtBRL = (v: number | null | undefined) =>
   v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+/**
+ * Quantidade legível (pedido do Isaías, 04/08): a quantidade é gravada na unidade de CONTAGEM
+ * (kg / L / garrafa / bandeja…), então 0,67 kg aparecia como "0.67 g" — confuso, porque o rótulo
+ * do cadastro diz 'g'. Agora: abaixo de 1, mostra na subunidade (670 g); de 1 pra cima, na
+ * unidade cheia (1,2 kg). Item que não é peso/volume mantém a unidade dele.
+ */
+const fmtQtdItem = (qtd: number | null | undefined, unidade?: string | null) => {
+  if (qtd == null) return '—';
+  const v = Number(qtd);
+  const u = String(unidade || '').toLowerCase();
+  const peso = u === 'g' || u === 'kg';
+  const volume = u === 'ml' || u === 'l';
+  if (peso || volume) {
+    const sub = peso ? 'g' : 'ml';
+    const base = peso ? 'kg' : 'L';
+    if (Math.abs(v) < 1) return `${(v * 1000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} ${sub}`;
+    return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${base}`;
+  }
+  return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}${u ? ` ${u}` : ''}`;
+};
 
 const toISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const parseISO = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
@@ -168,6 +191,7 @@ export default function DesperdicioPage() {
 
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
+  const [referencias, setReferencias] = useState<Map<string, Referencia>>(new Map());
   const [loading, setLoading] = useState(false);
   const [dialogAberto, setDialogAberto] = useState<false | { modo: 'novo' | 'editar'; registro?: Registro }>(false);
   // Filtros da lista da semana (padrão da aba CMV): busca por insumo/responsável/motivo,
@@ -191,7 +215,13 @@ export default function DesperdicioPage() {
         // Responsáveis JÁ filtrados pela seção no servidor (quem tem secao null vem nas duas).
         api.get(`/api/operacional/pessoas-responsaveis?bar_id=${barId}&secao=${secaoAtiva}`).catch(() => ({ success: false })),
       ]);
-      if (reg.success) setRegistros(reg.registros || []);
+      if (reg.success) {
+        setRegistros(reg.registros || []);
+        // preço + última contagem por insumo: âncora do aviso de ordem de grandeza no lançamento
+        const m = new Map<string, Referencia>();
+        for (const r of ((reg as any).referencias || []) as Referencia[]) m.set(String(r.codigo).toUpperCase(), r);
+        setReferencias(m);
+      }
       if ((resp as any)?.success) setResponsaveis((resp as any).data || []);
 
       const listaInsumos: Insumo[] = ins.success ? (ins.insumos || []) : [];
@@ -289,7 +319,7 @@ export default function DesperdicioPage() {
       acc[k] = (acc[k] || 0) + (Number(it.valor_rs) || 0);
     }
     return acc;
-  }, [registros]);
+  }, [registrosView]);
 
   return (
     <PageShell width="wide">
@@ -466,7 +496,7 @@ export default function DesperdicioPage() {
                       <span className="font-medium">{it.insumo_nome || it.insumo_codigo}</span>
                       <span className="text-muted-foreground text-xs">{it.insumo_codigo}</span>
                       <span className={`text-xs px-1.5 py-0.5 rounded ${areaBadgeCor(it.area)}`}>{areaLabel(it.area)}</span>
-                      <span className="ml-auto tabular-nums">{it.qtd} {it.unidade || ''}</span>
+                      <span className="ml-auto tabular-nums">{fmtQtdItem(it.qtd, it.unidade)}</span>
                       <span className="tabular-nums font-semibold text-red-700 dark:text-red-400 min-w-[80px] text-right">{fmtBRL(it.valor_rs)}</span>
                       {it.motivo && <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 basis-full">{it.motivo}</span>}
                     </div>
@@ -487,6 +517,7 @@ export default function DesperdicioPage() {
           modo={dialogAberto.modo}
           registroExistente={dialogAberto.registro}
           insumos={insumos}
+          referencias={referencias}
           semana={semana}
           secao={secaoAtiva}
           responsaveis={responsaveis}
@@ -515,11 +546,12 @@ export default function DesperdicioPage() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function RegistroDialog({
-  modo, registroExistente, insumos, semana, secao, responsaveis, onFechar, onSalvo,
+  modo, registroExistente, insumos, referencias, semana, secao, responsaveis, onFechar, onSalvo,
 }: {
   modo: 'novo' | 'editar';
   registroExistente?: Registro;
   insumos: Insumo[];
+  referencias: Map<string, Referencia>;
   semana: { ini: string; fim: string };
   /** Seção da aba ativa — grava no registro e define quais responsáveis aparecem. */
   secao: Secao;
@@ -723,7 +755,7 @@ function RegistroDialog({
             </div>
             <div className="space-y-2">
               {itens.map((it, idx) => (
-                <ItemRow key={idx} insumos={insumos} item={it}
+                <ItemRow key={idx} insumos={insumos} item={it} referencias={referencias}
                   onChange={p => setItem(idx, p)}
                   onRemover={itens.length > 1 ? () => removerItem(idx) : undefined} />
               ))}
@@ -762,9 +794,10 @@ function RegistroDialog({
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ItemRow({
-  insumos, item, onChange, onRemover,
+  insumos, item, onChange, onRemover, referencias,
 }: {
   insumos: Insumo[]; item: Item; onChange: (p: Partial<Item>) => void; onRemover?: () => void;
+  referencias: Map<string, Referencia>;
 }) {
   const [busca, setBusca] = useState('');
   const [abertoBusca, setAbertoBusca] = useState(false);
@@ -789,6 +822,18 @@ function ItemRow({
     return () => document.removeEventListener('mousedown', h);
   }, [abertoBusca]);
   const selecionado = useMemo(() => insumos.find(i => i.codigo === item.insumo_codigo), [insumos, item.insumo_codigo]);
+
+  // Âncora do item: preço e quanto ele costuma ter em estoque. Não dá pra confiar no rótulo de
+  // unidade do cadastro (o "Limão taiti (kg)" está como 'g'), então o que orienta a pessoa é o
+  // R$ na hora + a comparação com a última contagem.
+  const ref = referencias.get(String(item.insumo_codigo || '').toUpperCase());
+  const valorPrevisto = ref?.preco && item.qtd ? Math.round(Number(item.qtd) * Number(ref.preco) * 100) / 100 : null;
+  // Suspeito = quantidade muito acima do estoque real do item (típico de digitar g onde é kg,
+  // que erra por 1000) ou valor alto demais pra um lançamento de desperdício.
+  const excedeEstoque = !!(ref?.ultima_qtd && Number(ref.ultima_qtd) > 0 && Number(item.qtd || 0) > Number(ref.ultima_qtd) * 10);
+  const suspeito = !!(valorPrevisto != null && (valorPrevisto > 300 || excedeEstoque));
+  // sugestão de correção: quase sempre a pessoa digitou na subunidade (g/ml)
+  const sugestao = item.qtd ? Number(item.qtd) / 1000 : null;
 
   // Lista completa (sem corte em 8): no iPad a barra de rolagem não aparece e o time
   // achava que só existiam os primeiros itens. Ranking: nome que começa com o termo
@@ -876,7 +921,9 @@ function ItemRow({
           )}
         </div>
 
-        {/* Qtd */}
+        {/* Qtd + o R$ que ela vale AO VIVO. Antes o campo era um número solto: a pessoa só
+            descobria o estrago depois de salvar. Foi assim que 1500 (ml de chopp) virou 1.500
+            barris = R$ 521.925 no teste do Deboche em 02/08. */}
         <div className="w-28">
           <Input type="text" inputMode="decimal" placeholder="Qtd" className="h-9 text-right"
             value={qtdTexto}
@@ -887,6 +934,11 @@ function ItemRow({
               setQtdTexto(limpo);
               onChange({ qtd: parseQtd(limpo) });
             }} />
+          {valorPrevisto != null && (
+            <div className={`mt-0.5 text-[11px] text-right tabular-nums ${suspeito ? 'text-red-600 font-semibold' : 'text-muted-foreground'}`}>
+              {fmtBRL(valorPrevisto)}
+            </div>
+          )}
         </div>
 
         {onRemover && (
@@ -895,6 +947,28 @@ function ItemRow({
           </Button>
         )}
       </div>
+
+      {/* Aviso de ordem de grandeza — o campo não tem como dizer a unidade certa (o cadastro
+          mente), então a checagem é contra a REALIDADE do item: o que ele custa e o que costuma
+          ter em estoque. Um clique corrige pra subunidade, que é o erro de 99% dos casos. */}
+      {suspeito && (
+        <div className="rounded-md border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-2.5 py-1.5 text-[11px] text-red-800 dark:text-red-300">
+          <div className="font-semibold">Confere essa quantidade?</div>
+          <div className="mt-0.5">
+            {item.qtd} × {fmtBRL(Number(ref?.preco))} = <b>{fmtBRL(valorPrevisto)}</b>
+            {excedeEstoque && ref?.ultima_qtd != null && (
+              <> — e é {Math.round(Number(item.qtd) / Number(ref.ultima_qtd))}× o que tinha na última contagem ({fmtQtdItem(Number(ref.ultima_qtd), selecionado?.unidade_medida)}{ref.ultima_data ? `, ${fmtDate(ref.ultima_data)}` : ''}).</>
+            )}
+          </div>
+          {sugestao != null && (
+            <button type="button"
+              onClick={() => { const t = String(sugestao).replace('.', ','); setQtdTexto(t); onChange({ qtd: sugestao }); }}
+              className="mt-1 underline font-medium">
+              Se você digitou em {String(selecionado?.unidade_medida || '').toLowerCase() === 'ml' ? 'ml' : 'gramas'}, clique aqui pra usar {String(sugestao).replace('.', ',')}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Área — onde ocorreu o desperdício (finalização vs produção, por setor). Obrigatório. */}
       <div>
