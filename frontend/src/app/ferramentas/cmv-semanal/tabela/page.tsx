@@ -38,6 +38,7 @@ import {
   Settings,
   Save,
   Undo2,
+  History,
 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -458,6 +459,62 @@ export default function CMVSemanalTabelaPage() {
       ? [...rows].sort((a: any, b: any) => cmpNome(a.label, b.label))
       : [...rows].sort((a: any, b: any) => (Number(b.valor) || 0) - (Number(a.valor) || 0));
   }, [modalDrillDown.dados, buscaDrill, ordemDrill]);
+
+  // ===== Histórico de alterações (financial.cmv_semanal_historico) =====
+  // Isaías, 04/08: "ter um histórico igual nas planilhas, pra quando mudar a gente ver o que mudou".
+  // Pega inclusive o recálculo automático (edge/cron), que não passa pela auditoria da tela.
+  const [histOpen, setHistOpen] = useState(false);
+  const [histLoading, setHistLoading] = useState(false);
+  const [histRows, setHistRows] = useState<any[]>([]);
+  const [histSemana, setHistSemana] = useState<string>('todas');
+
+  const abrirHistorico = useCallback(async () => {
+    if (!selectedBar?.id) return;
+    setHistOpen(true);
+    setHistLoading(true);
+    try {
+      const ano = anoFiltro !== 'todos' ? anoFiltro : String(new Date().getFullYear());
+      const r = await fetch(`/api/cmv-semanal/historico?bar_id=${selectedBar.id}&ano=${ano}&limite=300`, {
+        headers: { 'x-selected-bar-id': String(selectedBar.id) },
+      });
+      const j = await r.json();
+      setHistRows(j.historico || []);
+    } catch {
+      setHistRows([]);
+    } finally {
+      setHistLoading(false);
+    }
+  }, [selectedBar?.id, anoFiltro]);
+
+  // nome bonito da coluna do banco: reaproveita os labels das métricas da própria tela
+  const labelDoCampo = useCallback((key: string) => {
+    for (const s of getSecoes(fatorCmv)) {
+      for (const g of s.grupos) {
+        const m = g.metricas.find((x) => x.key === key);
+        if (m) return m.label;
+      }
+    }
+    const extras: Record<string, string> = {
+      faturamento_cmvivel: 'Faturamento Limpo (base do CMV%)',
+      faturamento_bruto: 'Faturamento Bruto',
+      cmv_calculado: 'CMV (R$)',
+      cmv_real: 'CMV Real (R$)',
+      cmv_percentual: 'CMV %',
+      cmv_limpo_percentual: 'CMV Limpo %',
+      cmv_teorico_percentual: 'CMV Teórico %',
+      consumacoes_9: 'Consumações (detalhe)',
+    };
+    return extras[key] || key;
+  }, [fatorCmv]);
+
+  const histFiltrado = useMemo(
+    () => histSemana === 'todas' ? histRows : histRows.filter((h) => String(h.semana) === histSemana),
+    [histRows, histSemana],
+  );
+  const histSemanas = useMemo(
+    () => Array.from(new Set(histRows.map((h) => String(h.semana)))).sort((a, b) => Number(b) - Number(a)),
+    [histRows],
+  );
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const semanaAtualRef = useRef<HTMLDivElement>(null);
@@ -1332,6 +1389,19 @@ export default function CMVSemanalTabelaPage() {
                 )}
               </div>
 
+              {/* Histórico de alterações — pedido do Isaías (04/08): quando o número muda sozinho
+                  (recálculo automático), dá pra ver O QUE mudou, de quanto pra quanto e quando. */}
+              {visao === 'semanal' && (
+                <button
+                  onClick={abrirHistorico}
+                  title="Ver o que mudou nos números desta tela (inclusive recálculo automático)"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-3 h-9 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  Histórico de alterações
+                </button>
+              )}
+
               {/* Forçar atualização do mês corrente (sync CA + soft-delete + re-agrega) — só na visão mensal */}
               {visao === 'mensal' && (
                 <button
@@ -2066,6 +2136,78 @@ export default function CMVSemanalTabelaPage() {
                 <Eye className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
                 <p className="font-semibold mb-2">Nenhum registro encontrado</p>
                 <p className="text-sm">Não há dados disponíveis para este item no período selecionado.</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Histórico de alterações — o que mudou, de quanto pra quanto, quando e por quem */}
+      <Dialog open={histOpen} onOpenChange={setHistOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-white dark:bg-gray-800">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 dark:text-white flex items-center gap-2">
+              <History className="w-5 h-5 text-blue-500" />Histórico de alterações
+            </DialogTitle>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Toda mudança nos números desta tela — <b>inclusive recálculo automático</b>. Registra a partir de 04/08/2026.
+            </p>
+          </DialogHeader>
+
+          <div className="mt-3">
+            {histSemanas.length > 0 && (
+              <FiltroBarra className="mb-3">
+                <select value={histSemana} onChange={(e) => setHistSemana(e.target.value)}
+                  className="text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent px-2 py-1.5 cursor-pointer">
+                  <option value="todas" className="text-gray-900">Todas as semanas</option>
+                  {histSemanas.map((s) => <option key={s} value={s} className="text-gray-900">Semana {s}</option>)}
+                </select>
+                <span className="text-xs text-gray-500">{histFiltrado.length} alteraç{histFiltrado.length === 1 ? 'ão' : 'ões'}</span>
+              </FiltroBarra>
+            )}
+
+            {histLoading ? (
+              <div className="py-12 text-center text-gray-500">Carregando…</div>
+            ) : histFiltrado.length === 0 ? (
+              <div className="py-12 text-center text-gray-500 dark:text-gray-400 text-sm">
+                Nenhuma alteração registrada ainda.<br />
+                <span className="text-xs">O histórico começou a ser gravado em 04/08/2026 — mudanças anteriores a isso não foram capturadas.</span>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {histFiltrado.map((h) => (
+                  <div key={h.id} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">Semana {h.semana}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {new Date(h.alterado_em).toLocaleString('pt-BR')} ·{' '}
+                        {h.origem === 'manual'
+                          ? <span className="text-blue-600 dark:text-blue-400">edição de {h.autor || 'usuário'}</span>
+                          : <span className="text-amber-600 dark:text-amber-400">recálculo automático</span>}
+                      </span>
+                    </div>
+                    <table className="w-full text-xs">
+                      <tbody className="text-gray-600 dark:text-gray-300">
+                        {Object.entries(h.mudancas || {}).map(([campo, v]: [string, any]) => {
+                          const de = v?.de, para = v?.para;
+                          const num = typeof de === 'number' || typeof para === 'number';
+                          const fmt = (x: any) => x == null ? '—'
+                            : typeof x === 'number' ? formatarValor(x, /percentual|_pct/.test(campo) ? 'percentual' : 'moeda')
+                            : typeof x === 'object' ? '(detalhe)' : String(x);
+                          const subiu = num && Number(para || 0) > Number(de || 0);
+                          return (
+                            <tr key={campo}>
+                              <td className="py-0.5 pr-2">{labelDoCampo(campo)}</td>
+                              <td className="py-0.5 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmt(de)}</td>
+                              <td className="py-0.5 px-2 text-gray-400">→</td>
+                              <td className={`py-0.5 text-right tabular-nums font-medium whitespace-nowrap ${num ? (subiu ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400') : ''}`}>{fmt(para)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
               </div>
             )}
           </div>
