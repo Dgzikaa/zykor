@@ -96,6 +96,9 @@ export function ImportarFolhaForm({
 
   const [textoFolha, setTextoFolha] = useState('');
   const [previewFolha, setPreviewFolha] = useState<FolhaPreviewItem[]>([]);
+  // Trava anti-bar-errado: linha sem coluna Empresa vai pro bar ABERTO, então a pessoa precisa
+  // confirmar que é isso mesmo. Reseta a cada nova prévia (não herda confirmação de outra folha).
+  const [destinoConfirmado, setDestinoConfirmado] = useState(false);
   const [matchResults, setMatchResults] = useState<MatchResultado[]>([]);
   const [verificandoFornecedores, setVerificandoFornecedores] = useState(false);
   const [categoriaFolhaId, setCategoriaFolhaId] = useState('');
@@ -404,6 +407,7 @@ export function ImportarFolhaForm({
 
     setPreviewFolha(preview);
     setMatchResults([]);
+    setDestinoConfirmado(false); // folha nova = confirma o destino de novo
 
     if (preview.length === 0) {
       toast({
@@ -492,6 +496,20 @@ export function ImportarFolhaForm({
         ? resolverBarDaEmpresa(item.empresa, availableBars)
         : barId
     );
+    // Linha SEM a coluna empresa cai no bar ABERTO NA TELA. Isso é o caminho que manda a folha
+    // inteira pro bar errado sem avisar ninguém (David, 04/08: "a folha do debas foi pro
+    // ordinario... ja aconteceu outra vez"). Não dá pra adivinhar o destino, então: exige
+    // confirmação explícita do bar antes de gravar. Nunca mais em silêncio.
+    const semEmpresa = previewFolha.filter(item => !item.empresa?.trim()).length;
+    if (semEmpresa > 0 && !destinoConfirmado) {
+      toast({
+        title: `Confirme o destino: ${semEmpresa} linha(s) sem empresa`,
+        description: `Essas linhas não dizem de qual empresa são e iriam para "${barNome || `bar ${barId}`}" — o bar aberto agora. Marque a confirmação abaixo do botão se é isso mesmo, ou inclua a coluna Empresa na folha.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const naoResolvidas = previewFolha
       .map((item, i) => ({ item, bar: barPorLinha[i] }))
       .filter(x => x.bar == null);
@@ -766,6 +784,21 @@ export function ImportarFolhaForm({
             : 'Folha'}
         </Button>
       </div>
+
+      {/* Destino das linhas sem Empresa — o ponto onde a folha ia pro bar errado calada. */}
+      {previewFolha.length > 0 && previewFolha.some(i => !i.empresa?.trim()) && (
+        <label className="flex items-start gap-2 rounded-lg border-2 border-amber-400 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 cursor-pointer">
+          <input type="checkbox" checked={destinoConfirmado} onChange={e => setDestinoConfirmado(e.target.checked)}
+            className="mt-0.5 w-4 h-4 accent-amber-600" />
+          <span className="text-sm text-amber-900 dark:text-amber-200">
+            <b>{previewFolha.filter(i => !i.empresa?.trim()).length} linha(s) sem a coluna Empresa</b> — vão para{' '}
+            <b>{barNome || `bar ${barId}`}</b>, que é o bar aberto agora. Confirmo que é esse o destino.
+            <span className="block text-[11px] opacity-80 mt-0.5">
+              Para não depender disso, inclua a coluna <b>Empresa</b> na folha: cada linha vai sozinha pro bar certo.
+            </span>
+          </span>
+        </label>
+      )}
 
       {previewFolha.length > 0 && (
         <div className="rounded-lg border border-gray-200 dark:border-gray-600 overflow-x-auto">
