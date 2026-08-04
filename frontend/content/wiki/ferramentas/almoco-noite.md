@@ -18,6 +18,8 @@ Esta tela é, na prática, a **análise do sábado**: parte o dia em dois por um
 
 Nos outros dias a casa abre 16h/17h e roda direto até fechar — não existem dois turnos ali. Por isso, **dia sem almoço aparece como turno único**, com o faturamento do dia inteiro numa coluna só.
 
+**Em bar que não opera em dois turnos, a tela não abre**: mostra só um aviso de "não se aplica" e manda para as telas de faturamento (Desempenho, Visão Geral, Gráficos). Hoje isso vale para todo bar que não seja o Ordinário. O critério é o dado, não o `bar_id`: o bar precisa ter almoço **recorrente** — em pelo menos metade das ocorrências de algum dia da semana. O Ordinário tem 12 de 13 sábados (92%); o Deboche tem no máximo 1 de 13 em qualquer dia (eventos avulsos, um deles de R$ 7,95). Se um bar passar a servir almoço de verdade, a tela liga sozinha.
+
 Quem usa: **dono, sócios e operação** — para saber se o almoço está crescendo, quanto ele pesa no sábado e se vale reforçar equipe/compra para o turno.
 
 ## Como ler

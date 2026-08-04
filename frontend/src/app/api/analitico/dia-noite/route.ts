@@ -189,6 +189,18 @@ export async function GET(request: NextRequest) {
       pct_dia: pct(a.fat_dia, a.fat_dia + a.fat_noite),
     }));
 
+  // A tela só faz sentido em bar que opera em DOIS turnos — hoje, só o Ordinário (feijoada de
+  // sábado). Nos demais o front mostra apenas o aviso de "não se aplica": faturamento por dia já
+  // existe no Desempenho, na Visão Geral e nos Gráficos.
+  //
+  // O veredito vem do DADO, não de `bar_id = 3` chumbado — se um bar novo passar a servir almoço,
+  // a tela liga sozinha. Mas exige RECORRÊNCIA (metade das ocorrências de algum dia da semana, com
+  // amostra mínima), senão um evento avulso ligaria a tela no bar errado: no Deboche existem 3 dias
+  // soltos com venda de manhã em 90 dias (um deles de R$ 7,95), contra 12 de 13 sábados no
+  // Ordinário. Avaliado sobre TODO o período, ignorando o filtro de dia da semana — filtrar
+  // "quinta" no Ordinário não pode dar o mesmo veredito que abrir a tela no Deboche.
+  const barTemAlmoco = por_dow.some((d) => d.dias >= 3 && d.dias_com_almoco / d.dias >= 0.5);
+
   // Produtos que casaram com o texto do prato âncora, respeitando o filtro de dia da semana.
   const datasNoFiltro = new Set(dias.map((d) => d.data));
   const prodMap = new Map<string, { qtd: number; valor: number }>();
@@ -209,6 +221,7 @@ export async function GET(request: NextRequest) {
     inicio,
     produto,
     produtos,
+    bar_tem_almoco: barTemAlmoco,
     periodo: { de, ate, dow },
     resumo,
     dias: dias.slice().sort((a, b) => b.data.localeCompare(a.data)),

@@ -48,6 +48,8 @@ interface Resp {
   };
   dias?: DiaRow[];
   produtos?: { produto: string; qtd: number; valor: number }[];
+  /** false = bar não opera em dois turnos; a tela inteira não se aplica. */
+  bar_tem_almoco?: boolean;
   por_dow?: { dow: number; dias: number; dias_com_almoco: number; media_dia: number; media_noite: number; pct_dia: number | null }[];
 }
 
@@ -168,6 +170,29 @@ export default function AlmocoNoitePage() {
   );
 
   if (!selectedBar?.id) return <div className="p-6 text-sm text-gray-500">Selecione um bar.</div>;
+
+  // Bar que não opera em dois turnos: a tela inteira não se aplica. Mostrar faturamento por dia
+  // aqui só duplicaria o que já existe no Desempenho, na Visão Geral e nos Gráficos.
+  if (data?.success && data.bar_tem_almoco === false) {
+    return (
+      <div className="p-4 md:p-6">
+        <div className="mx-auto max-w-2xl rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-8 text-center">
+          <Sun className="mx-auto mb-3 h-8 w-8 text-[hsl(var(--muted-foreground))]" />
+          <h2 className="text-base font-semibold">Não se aplica ao {selectedBar.nome}</h2>
+          <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">
+            Esta tela separa o faturamento do <strong>almoço</strong> do da <strong>noite</strong> — e só faz
+            sentido em casa que opera em dois turnos. Hoje é o caso apenas do <strong>Ordinário</strong>, por
+            causa da feijoada de sábado. Aqui a casa abre no fim da tarde e roda em turno único, então não há
+            o que dividir.
+          </p>
+          <p className="mt-3 text-xs text-[hsl(var(--muted-foreground))]">
+            Para faturamento por dia, use <strong>Desempenho</strong>, <strong>Visão Geral</strong> ou{' '}
+            <strong>Gráficos</strong>. Se este bar passar a servir almoço, a tela liga sozinha.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-4">
