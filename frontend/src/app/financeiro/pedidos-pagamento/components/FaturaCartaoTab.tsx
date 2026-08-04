@@ -79,6 +79,7 @@ export function FaturaCartaoTab() {
 
   // Modais
   const [cartoesOpen, setCartoesOpen] = useState(false);
+  const [novaOpen, setNovaOpen] = useState(false); // modal "Nova fatura" (importa por cartão)
 
   const faturaSel = useMemo(() => [...faturas, ...encerradas].find(f => f.id === faturaSelId) || null, [faturas, encerradas, faturaSelId]);
 
@@ -192,13 +193,21 @@ export function FaturaCartaoTab() {
     return out;
   }, [linhas, mapaCategoria, opcoesBar, faturaSel, selectedBar]);
 
-  const importar = async (file: File) => {
-    if (!faturaSelId) return;
+  /**
+   * Importa o extrato. Dois modos:
+   *  - dentro de uma fatura ABERTA (fatura_id) — acrescenta linhas na fatura selecionada;
+   *  - por CARTÃO (cartao_id) — a API cria a fatura com o vencimento lido do arquivo.
+   * O 2º existia só no backend: quem encerrava a fatura do mês ficava sem caminho pra subir a
+   * seguinte, porque o dropzone só aparece dentro de fatura aberta (David, 04/08).
+   */
+  const importar = async (file: File, cartaoIdNovo?: string) => {
+    if (!faturaSelId && !cartaoIdNovo) return;
     setLendo(true);
     try {
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('fatura_id', faturaSelId);
+      if (cartaoIdNovo) fd.append('cartao_id', cartaoIdNovo);
+      else fd.append('fatura_id', faturaSelId!);
       const barId = getSelectedBarId();
       const res = await fetch('/api/financeiro/cartao-fatura/importar', { method: 'POST', headers: barId ? { 'x-selected-bar-id': barId } : {}, body: fd });
       const json = await res.json();
@@ -206,7 +215,14 @@ export function FaturaCartaoTab() {
       setLinhas(json.linhas || []);
       // #23 — o arquivo do Itaú traz vencimento/valor no cabeçalho; avisa que foi puxado.
       const extra = json.vencimento_arquivo ? ` · vencimento ${fmtDataBR(json.vencimento_arquivo)} e valor do arquivo` : '';
-      showToast({ type: 'success', title: `${BANCO_LABEL[json.banco] || json.banco} · ${json.importadas} linhas`, message: `${json.novos} novas, ${json.ja_vistos} já na fatura${extra}.` });
+      showToast({
+        type: 'success',
+        title: `${BANCO_LABEL[json.banco] || json.banco} · ${json.importadas} linhas`,
+        message: `${json.fatura_criada ? 'Fatura nova criada · ' : ''}${json.novos} novas, ${json.ja_vistos} já na fatura${extra}.`,
+      });
+      // fatura recém-criada: já entra selecionada, senão o time não vê onde caiu
+      if (json.fatura_id) setFaturaSelId(json.fatura_id);
+      setNovaOpen(false);
       carregarBase();
     } catch (e: any) {
       showToast({ type: 'error', title: 'Erro ao importar', message: e?.message });
@@ -477,6 +493,10 @@ export function FaturaCartaoTab() {
             </button>
           );
         })}
+        {/* Sobe a fatura do mês seguinte sem depender de ter fatura aberta: a API cria a fatura
+            com o vencimento que vem no arquivo. Antes, quem encerrava a fatura ficava sem caminho
+            (o dropzone só existe DENTRO de fatura aberta) — reportado pelo David em 04/08. */}
+        <Button size="sm" variant="outline" onClick={() => setNovaOpen(true)}><Plus className="w-4 h-4 mr-1" />Nova fatura</Button>
         <Button size="sm" variant="ghost" onClick={() => setCartoesOpen(true)}><CreditCard className="w-4 h-4 mr-1" />Cartões</Button>
         <Button size="sm" variant={verEncerradas ? 'default' : 'ghost'} onClick={() => setVerEncerradas(v => !v)}><Archive className="w-4 h-4 mr-1" />Encerradas</Button>
       </div>
@@ -754,11 +774,64 @@ export function FaturaCartaoTab() {
         </>
       )}
 
+      <NovaFaturaDialog open={novaOpen} onOpenChange={setNovaOpen} cartoes={cartoes} lendo={lendo}
+        onImportar={(file, cartaoId) => importar(file, cartaoId)} />
+
       <CartoesDialog open={cartoesOpen} onOpenChange={setCartoesOpen} cartoes={cartoes} onMudou={carregarBase}
         barId={barFatura} fornecedores={barFatura ? (opcoesBar[barFatura]?.fornecedores || []) : []}
         onVincular={(final, pid, nome) => vincularCartao({ cartao_final: final, titular_nome: null, banco: null }, pid, nome)}
         onCadastrarEVincular={cadastrarEVincular} onDesvincular={desvincularCartao} />
     </div>
+  );
+}
+
+// ---------- Modal: nova fatura (importa por CARTÃO, a API cria a fatura) ----------
+// A fatura do mês seguinte não precisa ser criada na mão: o vencimento vem no cabeçalho do
+// arquivo do banco. Só o Itaú traz esse cabeçalho — por isso o aviso no rodapé do modal.
+function NovaFaturaDialog({ open, onOpenChange, cartoes, lendo, onImportar }: {
+  open: boolean; onOpenChange: (v: boolean) => void; cartoes: Cartao[]; lendo: boolean;
+  onImportar: (file: File, cartaoId: string) => void;
+}) {
+  const [cartaoId, setCartaoId] = useState('');
+  useEffect(() => { if (open && cartoes.length === 1) setCartaoId(cartoes[0].id); }, [open, cartoes]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Nova fatura</DialogTitle>
+          <DialogDescription>
+            Escolha o cartão e suba o arquivo do banco. A fatura é criada com o vencimento que vem no próprio arquivo.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Cartão</Label>
+            {cartoes.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Nenhum cartão cadastrado — use o botão &ldquo;Cartões&rdquo; primeiro.</p>
+            ) : (
+              <select value={cartaoId} onChange={e => setCartaoId(e.target.value)}
+                className="w-full h-9 rounded-md border border-[hsl(var(--border))] bg-transparent px-2 text-sm">
+                <option value="">Selecione…</option>
+                {cartoes.map(c => <option key={c.id} value={c.id} className="text-gray-900">{cartaoNome(c)}</option>)}
+              </select>
+            )}
+          </div>
+
+          <label className={`flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[hsl(var(--border))] py-6 text-sm ${cartaoId && !lendo ? 'cursor-pointer hover:bg-muted/40' : 'opacity-50 cursor-not-allowed'}`}>
+            {lendo ? <><Loader2 className="w-4 h-4 animate-spin text-blue-500" />Lendo…</> : <><Upload className="w-4 h-4 text-muted-foreground" />Escolher Excel/OFX/CSV</>}
+            <input type="file" accept=".xls,.xlsx,.csv,.ofx" className="hidden" disabled={!cartaoId || lendo}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f && cartaoId) onImportar(f, cartaoId); e.currentTarget.value = ''; }} />
+          </label>
+
+          <p className="text-[11px] text-muted-foreground">
+            Se já existir fatura aberta desse cartão com o mesmo vencimento, as linhas entram nela em vez de criar outra —
+            reimportar o mesmo arquivo não duplica lançamento.
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
