@@ -29,7 +29,11 @@ Quem usa: **marketing, operação e sócios** — na reunião semanal, para tran
 
 **Nota por área** — média de 1 a 5 por área, **com o gargalo em primeiro**. Verde ≥ 4,5, âmbar ≥ 4,0, vermelho abaixo disso.
 
-**Reclamações por área** — logo abaixo dos números do topo, um chip por área com **quantas pessoas deram nota 3 ou menos** ali (3 é o meio da escala; quem gostou dá 4 ou 5). Clicar no chip filtra a lista para exatamente essas respostas, e a tela inteira passa a falar daquela reclamação: o gráfico mensal troca a barra para "quantas reclamaram por mês" e a tabela de dias mostra as reclamações de cada dia. É o caminho de *"o tempo de espera piorou"* até *"foram 5 pessoas no dia 01/08, na Feijuca do Ordi, e olha o que escreveram"*.
+**Reclamações por área** — logo abaixo dos números do topo, um chip por área com **quantas pessoas deram nota 3 ou menos** ali (3 é o meio da escala; quem gostou dá 4 ou 5).
+
+Clicar no chip **abre o dia a dia daquela reclamação**: um bloco por dia, com data, evento, quantas pessoas reclamaram, a nota média do dia e — o que interessa de verdade — **o comentário de cada uma**. Cada pessoa aparece com a nota que deu naquela área, o NPS dela e as **outras áreas de que também reclamou** (é assim que se descobre que "custo-benefício ruim" naquele dia vinha junto de "tempo de espera ruim"). Quem não escreveu nada aparece como "sem comentário", para o total continuar batendo.
+
+Ao fechar o modal, a tela continua filtrada naquela reclamação: o gráfico mensal mostra "quantas reclamaram por mês" e a tabela de dias, as reclamações de cada dia. É o caminho completo de *"o custo-benefício piorou"* até *"foram 5 pessoas no Pé no Ordi de 14/05, nota média 2,2, e olha o que 3 delas escreveram"*.
 
 **Dia a dia** — a tabela lista cada dia com o número de respostas, o NPS do dia, a nota média e a **pior área daquele dia**. Clicar numa linha filtra a lista de respostas para aquele dia — é o caminho de "a nota caiu" até "foi isso que escreveram".
 

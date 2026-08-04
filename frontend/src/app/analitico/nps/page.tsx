@@ -19,6 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Star, Users, MessageSquare, ThumbsDown, CalendarOff } from 'lucide-react';
 import { HeroRow, ChartCard, ChartGrid, GraficoBarraH, GraficoBarra, GraficoLinha, type Kpi } from '@/components/graficos/Charts';
 import { FiltroBarra, SegFiltro, SelectFiltro, BuscaInput, ChipFiltro } from '@/components/filtros/FiltroBarra';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 // ---------------------------------------------------------------------------
 
@@ -105,6 +106,8 @@ export default function NpsPorAreaPage() {
   const [categoria, setCategoria] = useState('');
   const [busca, setBusca] = useState('');
   const [diaSel, setDiaSel] = useState<string | null>(null);
+  /** Área aberta no modal "dia a dia das reclamações" (null = fechado). */
+  const [modalArea, setModalArea] = useState<string | null>(null);
 
   useEffect(() => {
     setPageTitle('⭐ NPS por Área');
@@ -172,6 +175,37 @@ export default function NpsPorAreaPage() {
 
   const notaBaixa = data?.nota_baixa ?? 3;
 
+  /**
+   * Reclamações da área aberta no modal, agrupadas por DIA DA VISITA: cada dia traz quem deu nota
+   * baixa ali, com nota, NPS e o comentário — que é o que explica o número ("o que aconteceu nesse
+   * dia?"). Respostas sem data da visita caem num grupo próprio em vez de sumirem.
+   */
+  const reclamacoesPorDia = useMemo(() => {
+    if (!modalArea) return [];
+    const porDia = new Map<string, { data: string | null; evento: string | null; dow: number | null; itens: RespostaItem[]; somaNota: number }>();
+    for (const r of data?.respostas || []) {
+      const nota = r.areas.find((a) => a.area === modalArea)?.nota;
+      if (nota == null || nota > notaBaixa) continue;
+      const chave = (base === 'visita' ? r.data_visita : r.data_resposta) || 'sem-data';
+      const g = porDia.get(chave) || {
+        data: chave === 'sem-data' ? null : chave,
+        evento: r.evento,
+        dow: r.dow,
+        itens: [] as RespostaItem[],
+        somaNota: 0,
+      };
+      g.itens.push(r);
+      g.somaNota += nota;
+      porDia.set(chave, g);
+    }
+    return [...porDia.values()]
+      .map((g) => ({ ...g, nota_media: g.itens.length ? g.somaNota / g.itens.length : null }))
+      .sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+  }, [modalArea, data?.respostas, notaBaixa, base]);
+
+  const totalReclamacoesModal = reclamacoesPorDia.reduce((s, g) => s + g.itens.length, 0);
+  const comentariosModal = reclamacoesPorDia.reduce((s, g) => s + g.itens.filter((i) => i.comentario).length, 0);
+
   const respostasFiltradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     return (data?.respostas || []).filter((r) => {
@@ -227,8 +261,16 @@ export default function NpsPorAreaPage() {
             <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4">
               <div className="mb-2.5 flex flex-wrap items-baseline gap-2">
                 <h3 className="text-sm font-semibold">Reclamações por área</h3>
+                {areaSel && soBaixas && (
+                  <button
+                    onClick={() => { setAreaSel(''); setSoBaixas(false); }}
+                    className="text-xs text-indigo-600 hover:underline"
+                  >
+                    limpar filtro ({areaSel})
+                  </button>
+                )}
                 <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                  quantas respostas deram nota {notaBaixa} ou menos · clique para ler
+                  quantas respostas deram nota {notaBaixa} ou menos · clique para ver os dias e os comentários
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -243,10 +285,13 @@ export default function NpsPorAreaPage() {
                         key={a.area}
                         type="button"
                         onClick={() => {
-                          if (ativo) { setAreaSel(''); setSoBaixas(false); }
-                          else { setAreaSel(a.area); setSoBaixas(true); }
+                          // Abre o detalhamento por dia E deixa a tela filtrada naquela reclamação,
+                          // pra quem fechar o modal continuar no contexto.
+                          setAreaSel(a.area);
+                          setSoBaixas(true);
+                          setModalArea(a.area);
                         }}
-                        title={`${a.notas_baixas} de ${a.n} avaliações de ${a.area} vieram com nota ≤ ${notaBaixa}`}
+                        title={`${a.notas_baixas} de ${a.n} avaliações de ${a.area} vieram com nota ≤ ${notaBaixa} — clique para ver dia a dia`}
                         className={`rounded-full border px-3 py-1 text-xs transition ${
                           ativo
                             ? 'border-rose-400 bg-rose-500 text-white'
@@ -477,6 +522,98 @@ export default function NpsPorAreaPage() {
           </p>
         </>
       )}
+
+      {/* Dia a dia de uma reclamação: em que dias a área foi mal avaliada e o que escreveram. */}
+      <Dialog open={!!modalArea} onOpenChange={(aberto) => !aberto && setModalArea(null)}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {modalArea} — quem avaliou mal
+              <span className="ml-2 text-sm font-normal text-[hsl(var(--muted-foreground))]">
+                nota {notaBaixa} ou menos
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <p className="-mt-2 text-xs text-[hsl(var(--muted-foreground))]">
+            {fmtN(totalReclamacoesModal)} {totalReclamacoesModal === 1 ? 'reclamação' : 'reclamações'} em{' '}
+            {fmtN(reclamacoesPorDia.length)} {reclamacoesPorDia.length === 1 ? 'dia' : 'dias'} ·{' '}
+            {fmtN(comentariosModal)} com comentário · por {base === 'visita' ? 'data da visita' : 'data da resposta'}
+          </p>
+
+          <div className="space-y-3">
+            {reclamacoesPorDia.map((g) => (
+              <div key={g.data || 'sem-data'} className="rounded-lg border border-[hsl(var(--border))]">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]/40 px-3 py-2">
+                  <div className="text-sm font-medium">
+                    {g.data ? (
+                      <>
+                        {ddmm(g.data)}
+                        {g.dow != null && <span className="ml-1 text-[hsl(var(--muted-foreground))]">{DIAS_CURTO[g.dow]}</span>}
+                        {g.evento && <span className="ml-2 font-normal text-[hsl(var(--muted-foreground))]">{g.evento}</span>}
+                      </>
+                    ) : (
+                      <span className="text-[hsl(var(--muted-foreground))]">Sem data da visita</span>
+                    )}
+                  </div>
+                  <div className="text-xs">
+                    <span className="font-semibold text-rose-600 dark:text-rose-400">
+                      {fmtN(g.itens.length)} {g.itens.length === 1 ? 'reclamação' : 'reclamações'}
+                    </span>
+                    <span className="ml-2 text-[hsl(var(--muted-foreground))]">
+                      nota média {fmtNota(g.nota_media)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="divide-y divide-[hsl(var(--border))]/60">
+                  {g.itens.map((r) => {
+                    const notaArea = r.areas.find((a) => a.area === modalArea)?.nota ?? null;
+                    const outrasBaixas = r.areas.filter((a) => a.area !== modalArea && a.nota <= notaBaixa);
+                    return (
+                      <div key={r.falae_id} className="px-3 py-2.5">
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="rounded-md border border-rose-300 bg-rose-50 px-1.5 py-0.5 font-semibold text-rose-600 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400">
+                            {modalArea} {notaArea}
+                          </span>
+                          <span className={`rounded-full border px-2 py-0.5 font-medium ${corCategoria[r.categoria]}`}>
+                            NPS {r.nps}
+                          </span>
+                          {r.cliente && <span className="truncate max-w-[180px] text-[hsl(var(--muted-foreground))]">{r.cliente}</span>}
+                          <span className="text-[hsl(var(--muted-foreground))]">respondeu {ddmm(r.data_resposta)}</span>
+                        </div>
+
+                        {outrasBaixas.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            <span className="text-[11px] text-[hsl(var(--muted-foreground))]">também reclamou de:</span>
+                            {outrasBaixas.map((a) => (
+                              <span key={a.area} className="rounded border border-[hsl(var(--border))] px-1.5 text-[11px]" style={{ color: corNota(a.nota) }}>
+                                {a.area} {a.nota}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {r.comentario ? (
+                          <p className="mt-1.5 text-sm">{r.comentario}</p>
+                        ) : (
+                          <p className="mt-1.5 text-xs italic text-[hsl(var(--muted-foreground))]">sem comentário</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {!reclamacoesPorDia.length && (
+              <div className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                Ninguém avaliou essa área com nota {notaBaixa} ou menos no período.
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
