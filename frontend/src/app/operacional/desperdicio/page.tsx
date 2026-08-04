@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { PageShell } from '@/components/layout/PageShell';
 import { FiltroBarra, BuscaInput, SelectFiltro, OrdemFiltro, cmpNome } from '@/components/filtros/FiltroBarra';
+import { deriveUnid } from '@/lib/insumo-unidade';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
@@ -47,6 +48,10 @@ const areaBadgeCor = (a: Area | null | undefined): string => {
 // do produto e o servidor explode a ficha ao gravar. Ausente = insumo/preparo, debitado direto.
 type Insumo = {
   codigo: string; nome: string; categoria: string | null; unidade_medida: string | null;
+  /** base (g|ml|un) + embalagem = a unidade REAL em que o item é contado e precificado.
+   *  Vem resolvido de /api/operacional/insumos (silver.insumo_catalogo, com fallback deriveUnid).
+   *  `unidade_medida` sozinho não serve: "Limão taiti (kg)" tem unidade_medida='g' e embalagem=1000. */
+  base?: string | null; embalagem?: number | null;
   origem_tipo?: 'produto';
 };
 type Foto = { storage_path: string; url: string; size_bytes?: number; mime?: string };
@@ -78,22 +83,44 @@ const fmtBRL = (v: number | null | undefined) =>
   v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 /**
- * Quantidade legível (pedido do Isaías, 04/08): a quantidade é gravada na unidade de CONTAGEM
- * (kg / L / garrafa / bandeja…), então 0,67 kg aparecia como "0.67 g" — confuso, porque o rótulo
- * do cadastro diz 'g'. Agora: abaixo de 1, mostra na subunidade (670 g); de 1 pra cima, na
- * unidade cheia (1,2 kg). Item que não é peso/volume mantém a unidade dele.
+ * Rótulo da unidade em que o item é CONTADO (e precificado) — a partir de base + embalagem,
+ * que é a fonte única do sistema (lib/insumo-unidade). Ex.: base 'g' + embalagem 1000 → "kg";
+ * base 'ml' + embalagem 30000 → "un (30 L)"; embalagem 1 → a própria base.
+ * NÃO usar `unidade_medida` como rótulo: "Limão taiti (kg)" tem unidade_medida='g' mas é contado
+ * em kg — foi o que fez o time digitar 670 (g) e virar 670 kg (Isaías, 04/08).
  */
-const fmtQtdItem = (qtd: number | null | undefined, unidade?: string | null) => {
+const rotuloUnidade = (ins?: Insumo | null): string => {
+  if (!ins) return '';
+  const { base, embalagem } = (ins.base && Number(ins.embalagem) > 0)
+    ? { base: String(ins.base), embalagem: Number(ins.embalagem) }
+    : deriveUnid(ins.nome, ins.unidade_medida);
+  if (embalagem === 1) return base === 'un' ? 'un' : base;
+  if (base === 'g' && embalagem === 1000) return 'kg';
+  if (base === 'ml' && embalagem === 1000) return 'L';
+  // embalagem "fechada" (garrafa 330ml, barril 30L): conta em unidades, com o tamanho no rótulo
+  const tam = base === 'ml' && embalagem >= 1000 ? `${(embalagem / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} L`
+    : base === 'g' && embalagem >= 1000 ? `${(embalagem / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg`
+    : `${embalagem.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} ${base}`;
+  return `un (${tam})`;
+};
+
+/**
+ * Quantidade legível (pedido do Isaías, 04/08): a quantidade é gravada na unidade de CONTAGEM
+ * (kg / L / garrafa / barril…), então 0,67 kg aparecia como "0.67 g". Agora: em item de peso ou
+ * volume, abaixo de 1 mostra na subunidade (670 g) e de 1 pra cima na unidade cheia (1,2 kg).
+ * Item contado em embalagem fechada (garrafa/barril) mantém o número e o rótulo dele.
+ */
+const fmtQtdItem = (qtd: number | null | undefined, rotulo?: string | null) => {
   if (qtd == null) return '—';
   const v = Number(qtd);
-  const u = String(unidade || '').toLowerCase();
-  const peso = u === 'g' || u === 'kg';
-  const volume = u === 'ml' || u === 'l';
-  if (peso || volume) {
-    const sub = peso ? 'g' : 'ml';
-    const base = peso ? 'kg' : 'L';
-    if (Math.abs(v) < 1) return `${(v * 1000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} ${sub}`;
-    return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${base}`;
+  const u = String(rotulo || '').trim();
+  if (u === 'kg' || u === 'g') {
+    if (u === 'kg' && Math.abs(v) < 1) return `${(v * 1000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} g`;
+    return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${u}`;
+  }
+  if (u === 'L' || u === 'ml') {
+    if (u === 'L' && Math.abs(v) < 1) return `${(v * 1000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} ml`;
+    return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${u}`;
   }
   return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}${u ? ` ${u}` : ''}`;
 };
@@ -192,6 +219,11 @@ export default function DesperdicioPage() {
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [referencias, setReferencias] = useState<Map<string, Referencia>>(new Map());
+  // código → rótulo da unidade contada (kg / L / un (30 L)…), pra lista e cards mostrarem certo
+  const rotuloPorCodigo = useMemo(
+    () => new Map(insumos.map(i => [String(i.codigo).toUpperCase(), rotuloUnidade(i)])),
+    [insumos],
+  );
   const [loading, setLoading] = useState(false);
   const [dialogAberto, setDialogAberto] = useState<false | { modo: 'novo' | 'editar'; registro?: Registro }>(false);
   // Filtros da lista da semana (padrão da aba CMV): busca por insumo/responsável/motivo,
@@ -496,7 +528,7 @@ export default function DesperdicioPage() {
                       <span className="font-medium">{it.insumo_nome || it.insumo_codigo}</span>
                       <span className="text-muted-foreground text-xs">{it.insumo_codigo}</span>
                       <span className={`text-xs px-1.5 py-0.5 rounded ${areaBadgeCor(it.area)}`}>{areaLabel(it.area)}</span>
-                      <span className="ml-auto tabular-nums">{fmtQtdItem(it.qtd, it.unidade)}</span>
+                      <span className="ml-auto tabular-nums">{fmtQtdItem(it.qtd, rotuloPorCodigo.get(String(it.insumo_codigo).toUpperCase()) || it.unidade)}</span>
                       <span className="tabular-nums font-semibold text-red-700 dark:text-red-400 min-w-[80px] text-right">{fmtBRL(it.valor_rs)}</span>
                       {it.motivo && <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 basis-full">{it.motivo}</span>}
                     </div>
@@ -925,6 +957,14 @@ function ItemRow({
             descobria o estrago depois de salvar. Foi assim que 1500 (ml de chopp) virou 1.500
             barris = R$ 521.925 no teste do Deboche em 02/08. */}
         <div className="w-28">
+          {/* Rótulo da unidade REAL (base+embalagem), não o unidade_medida do cadastro: é o que
+              o Isaías pediu — "tá para g mas o preço tá em kg". Limão vira "kg", barril vira
+              "un (30 L)". Sem isso ninguém sabe em que unidade digitar. */}
+          {selecionado && (
+            <div className="text-[10px] text-muted-foreground text-right mb-0.5 truncate" title="Unidade em que este item é contado e precificado">
+              em <b>{rotuloUnidade(selecionado)}</b>
+            </div>
+          )}
           <Input type="text" inputMode="decimal" placeholder="Qtd" className="h-9 text-right"
             value={qtdTexto}
             onChange={e => {
@@ -957,14 +997,14 @@ function ItemRow({
           <div className="mt-0.5">
             {item.qtd} × {fmtBRL(Number(ref?.preco))} = <b>{fmtBRL(valorPrevisto)}</b>
             {excedeEstoque && ref?.ultima_qtd != null && (
-              <> — e é {Math.round(Number(item.qtd) / Number(ref.ultima_qtd))}× o que tinha na última contagem ({fmtQtdItem(Number(ref.ultima_qtd), selecionado?.unidade_medida)}{ref.ultima_data ? `, ${fmtDate(ref.ultima_data)}` : ''}).</>
+              <> — e é {Math.round(Number(item.qtd) / Number(ref.ultima_qtd))}× o que tinha na última contagem ({fmtQtdItem(Number(ref.ultima_qtd), rotuloUnidade(selecionado))}{ref.ultima_data ? `, ${fmtDate(ref.ultima_data)}` : ''}).</>
             )}
           </div>
           {sugestao != null && (
             <button type="button"
               onClick={() => { const t = String(sugestao).replace('.', ','); setQtdTexto(t); onChange({ qtd: sugestao }); }}
               className="mt-1 underline font-medium">
-              Se você digitou em {String(selecionado?.unidade_medida || '').toLowerCase() === 'ml' ? 'ml' : 'gramas'}, clique aqui pra usar {String(sugestao).replace('.', ',')}
+              Se você digitou em {rotuloUnidade(selecionado) === 'L' ? 'ml' : 'gramas'}, clique aqui pra usar {String(sugestao).replace('.', ',')} {rotuloUnidade(selecionado)}
             </button>
           )}
         </div>
