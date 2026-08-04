@@ -61,6 +61,7 @@ import {
   Compass,
   BookOpen,
   Gift,
+  Sun,
 } from 'lucide-react';
 
 export type MenuIcon = ComponentType<{ className?: string }>;
@@ -120,6 +121,7 @@ export const MENU_ICONS: Record<string, MenuIcon> = {
   Compass,
   BookOpen,
   Gift,
+  Sun,
 };
 
 /** Componente do ícone pelo nome; fallback em Activity se faltar. */

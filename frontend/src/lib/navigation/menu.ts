@@ -176,6 +176,8 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'AlertTriangle', label: 'Cancelamentos', href: '/ferramentas/cancelamentos', permission: 'ferramentas_cancelamentos' },
       { icon: 'PieChart', label: 'Mix & Margem', href: '/ferramentas/mix-categoria', permission: 'ferramentas_mix_margem' },
       { icon: 'Music', label: 'Artistas (visão da casa)', href: '/ferramentas/artistas', permission: 'ferramentas_artistas_visao_da_casa' },
+      { icon: 'Star', label: 'NPS por Área', href: '/analitico/nps', permission: 'ferramentas_nps_por_area', beta: true },
+      { icon: 'Sun', label: 'Almoço × Noite', href: '/analitico/dia-noite', permission: 'ferramentas_almoco_noite', beta: true },
       { icon: 'Clock', label: 'Gargalo de Cozinha', href: '/operacional/gargalo-cozinha', permission: 'ferramentas_gargalo_de_cozinha' },
       { icon: 'UserCheck', label: 'Raio-x por Garçom', href: '/operacional/raio-x-garcom', permission: 'ferramentas_raio_x_por_garcom' },
       { icon: 'PackageX', label: 'Venda Perdida (ruptura)', href: '/operacional/venda-perdida-ruptura', permission: 'ferramentas_venda_perdida_ruptura' },

@@ -9,10 +9,16 @@ export function dimensaoDe(criterioRaw: string): string | null {
   const s = String(criterioRaw || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   if (/atendimento|garcom|garcon/.test(s)) return 'Atendimento';
   if (/musica|som\b|dj\b|banda/.test(s)) return 'Música';
+  if (/opcoes|variedade/.test(s)) return 'Opções e variedade';
   if (/cardapio|comida|prato|petisco/.test(s)) return 'Comida';
   if (/drink|bebida|chopp|cerveja/.test(s)) return 'Drinks';
-  if (/ambiente|clima|espaco|estrutura/.test(s)) return 'Ambiente';
+  // Depois de comida/drinks: "qualidade da comida" é Comida; "Qualidade do Produto" (pesquisa
+  // do Salão, genérica) é dimensão própria — não dá pra saber se o cliente falou de prato ou copo.
+  if (/qualidade/.test(s)) return 'Qualidade do produto';
+  // ANTES de Ambiente, senão "Limpeza do espaço" casa em `espaco` e vira Ambiente (era o caso
+  // de 445 respostas até 04/08/2026 — a nota de limpeza estava sendo contada como ambiente).
   if (/limpeza|banheiro|higiene/.test(s)) return 'Limpeza';
+  if (/ambiente|clima|espaco|estrutura/.test(s)) return 'Ambiente';
   if (/custo|benef|preco/.test(s)) return 'Custo-benefício';
   if (/entrada|saida|fila\b|acesso/.test(s)) return 'Entrada/Saída';
   if (/espera|entrega|pedido|tempo/.test(s)) return 'Tempo de espera';
