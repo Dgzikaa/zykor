@@ -5,7 +5,12 @@
  *
  * Pergunta do Rodrigo (04/08/2026): "no sábado, quanto de faturamento foi feijuca e quanto foi a
  * noite?". A curva horária já existia, mas os blocos prontos começavam às 17h — o almoço não tinha
- * bloco. Aqui o dia é partido por uma hora de corte ajustável, com pessoas, ticket e o prato âncora.
+ * bloco. Aqui o dia é partido numa janela de almoço ajustável (padrão 11h-18h), com pessoas, ticket
+ * e o prato âncora.
+ *
+ * O filtro já abre em SÁBADO: no Ordinário é o único dia com almoço (feijoada). Nos outros dias o
+ * que aparece antes das 18h é a abertura da casa (16h/17h), não almoço — por isso a janela começa
+ * às 11h e a tela avisa quando o dia escolhido não tem operação de almoço.
  *
  * Fonte: /api/analitico/dia-noite (operations.fn_dia_noite). Só ContaHub — evento com bilheteria
  * Yuzer/Sympla não entra.
@@ -23,7 +28,8 @@ import { Input } from '@/components/ui/input';
 
 interface DiaRow {
   data: string; dow: number;
-  fat_dia: number; fat_noite: number; fat_total: number; pct_dia: number | null;
+  fat_dia: number; fat_noite: number; fat_fora: number; fat_total: number; pct_dia: number | null;
+  tem_almoco: boolean;
   pessoas_dia: number; pessoas_noite: number; comandas_dia: number; comandas_noite: number;
   ticket_dia: number | null; ticket_noite: number | null;
   prod_qtd: number; prod_valor: number;
@@ -31,15 +37,17 @@ interface DiaRow {
 interface Resp {
   success: boolean;
   corte?: number;
+  inicio?: number;
   produto?: string | null;
   resumo?: {
-    dias: number; fat_dia: number; fat_noite: number; fat_total: number; pct_dia: number | null;
+    dias: number; dias_com_almoco: number;
+    fat_dia: number; fat_noite: number; fat_fora: number; fat_total: number; pct_dia: number | null;
     media_fat_dia: number | null; media_fat_noite: number | null;
     pessoas_dia: number; pessoas_noite: number; ticket_dia: number | null; ticket_noite: number | null;
     prod_qtd: number; prod_valor: number;
   };
   dias?: DiaRow[];
-  por_dow?: { dow: number; dias: number; media_dia: number; media_noite: number; pct_dia: number | null }[];
+  por_dow?: { dow: number; dias: number; dias_com_almoco: number; media_dia: number; media_noite: number; pct_dia: number | null }[];
 }
 
 const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
@@ -72,6 +80,8 @@ const PRESETS = [
 type Preset = (typeof PRESETS)[number][0];
 
 const CORTES = ['16', '17', '18', '19', '20'] as const;
+/** Hora em que a janela do almoço abre. 11h é o padrão: antes disso não há operação. */
+const INICIOS = ['10', '11', '12'] as const;
 
 const COR_DIA = '#f59e0b';
 const COR_NOITE = '#6366f1';
@@ -81,8 +91,10 @@ export default function AlmocoNoitePage() {
   const { setPageTitle } = usePageTitle();
 
   const [preset, setPreset] = useState<Preset>('90');
-  const [dow, setDow] = useState('');
+  // Sábado é o único dia com almoço no Ordinário — a tela abre já no corte que interessa.
+  const [dow, setDow] = useState('6');
   const [corte, setCorte] = useState('18');
+  const [inicio, setInicio] = useState('11');
   const [produtoInput, setProdutoInput] = useState('feijoada');
   const [produto, setProduto] = useState('feijoada');
 
@@ -96,7 +108,7 @@ export default function AlmocoNoitePage() {
     return { de: isoHoje(-Number(preset)), ate: isoHoje() };
   }, [preset]);
 
-  const qs = new URLSearchParams({ bar_id: String(selectedBar?.id || ''), de, ate, corte, produto });
+  const qs = new URLSearchParams({ bar_id: String(selectedBar?.id || ''), de, ate, corte, inicio, produto });
   if (dow) qs.set('dow', dow);
 
   const { data, isLoading } = useApiSWR<Resp>(selectedBar?.id ? `/api/analitico/dia-noite?${qs.toString()}` : null);
@@ -104,12 +116,25 @@ export default function AlmocoNoitePage() {
   const resumo = data?.resumo;
   const dias = useMemo(() => data?.dias || [], [data?.dias]);
 
+  // Dia sem operação de almoço: o que entra antes do corte é a abertura da casa (16h/17h) — chamar
+  // isso de "almoço" foi o erro que o Rodrigo pegou na 1ª versão. O detector é objetivo: teve venda
+  // no miolo do almoço (até 15h)? Sábado sim (12h em diante), domingo/quinta não.
+  const semAlmoco = !!resumo && resumo.dias > 0 && resumo.dias_com_almoco === 0;
+  const rotuloDia = semAlmoco ? `Antes das ${corte}h` : `Almoço (${inicio}h–${corte}h)`;
+  /** Só mostra a coluna "fora da janela" quando existe faturamento antes da abertura do almoço. */
+  const temFora = dias.some((d) => d.fat_fora > 0);
+
   const kpis: Kpi[] = useMemo(() => {
     if (!resumo) return [];
     return [
-      { label: `Almoço (até ${corte}h)`, valor: fmtBRL(resumo.fat_dia), icon: Sun, cor: COR_DIA, sub: `${fmtBRL(resumo.media_fat_dia)}/dia` },
+      { label: rotuloDia, valor: fmtBRL(resumo.fat_dia), icon: Sun, cor: COR_DIA, sub: `${fmtBRL(resumo.media_fat_dia)}/dia` },
       { label: `Noite (${corte}h+)`, valor: fmtBRL(resumo.fat_noite), icon: Moon, cor: COR_NOITE, sub: `${fmtBRL(resumo.media_fat_noite)}/dia` },
-      { label: '% do fat. no almoço', valor: fmtPct(resumo.pct_dia), icon: Percent, sub: `${fmtN(resumo.dias)} dias` },
+      {
+        label: semAlmoco ? '% antes do corte' : '% do fat. no almoço',
+        valor: fmtPct(resumo.pct_dia),
+        icon: Percent,
+        sub: semAlmoco ? `${fmtN(resumo.dias)} dias · sem almoço` : `${fmtN(resumo.dias_com_almoco)} de ${fmtN(resumo.dias)} dias com almoço`,
+      },
       { label: 'Pessoas almoço', valor: fmtN(resumo.pessoas_dia), icon: Users, sub: `ticket ${fmtBRL(resumo.ticket_dia)}` },
       { label: 'Pessoas noite', valor: fmtN(resumo.pessoas_noite), icon: Users, sub: `ticket ${fmtBRL(resumo.ticket_noite)}` },
       {
@@ -119,7 +144,7 @@ export default function AlmocoNoitePage() {
         sub: `${fmtBRL(resumo.prod_valor)} vendidos`,
       },
     ];
-  }, [resumo, corte, produto]);
+  }, [resumo, corte, produto, rotuloDia, semAlmoco]);
 
   const serie = useMemo(() => dias.slice().reverse().map((d) => ({ ...d, label: ddmm(d.data) })), [dias]);
   const porDow = useMemo(
@@ -134,6 +159,13 @@ export default function AlmocoNoitePage() {
       <FiltroBarra>
         <SegFiltro value={preset} onChange={(v) => setPreset(v)} options={PRESETS} cor="indigo" title="Período" />
         <SelectFiltro value={dow} onChange={setDow} options={DIAS_SEMANA.map((d, i) => ({ value: String(i), label: d }))} todos="Todo dia da semana" />
+        <SegFiltro
+          value={inicio}
+          onChange={(v) => setInicio(v)}
+          options={INICIOS.map((c) => [c, `abre ${c}h`] as const)}
+          cor="amber"
+          title="Hora em que a janela do almoço começa"
+        />
         <SegFiltro
           value={corte}
           onChange={(v) => setCorte(v)}
@@ -165,32 +197,50 @@ export default function AlmocoNoitePage() {
         </div>
       ) : (
         <>
+          {semAlmoco && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-3 text-sm text-amber-800 dark:text-amber-200">
+              <strong>{dow ? DIAS_SEMANA[Number(dow)] : 'O período selecionado'}</strong> não tem operação de
+              almoço: em nenhum dos {fmtN(resumo.dias)} dias houve venda entre {inicio}h e 15h. O que aparece
+              antes das {corte}h é a <strong>abertura da casa</strong> (16h/17h), não almoço — por isso a
+              coluna está rotulada como &ldquo;antes das {corte}h&rdquo;. No Ordinário, o único dia com almoço
+              é o <strong>sábado</strong> (feijoada).
+            </div>
+          )}
+
           <HeroRow kpis={kpis} cols={6} />
 
           <ChartGrid cols={2}>
-            <ChartCard titulo="Almoço × Noite por dia" subtitulo={`corte às ${corte}h · madrugada conta como noite`} span={2}>
+            <ChartCard
+              titulo={semAlmoco ? `Antes × depois das ${corte}h` : 'Almoço × Noite por dia'}
+              subtitulo={`almoço ${inicio}h–${corte}h · madrugada conta como noite`}
+              span={2}
+            >
               <GraficoBarrasAgrupadas
                 data={serie}
                 xKey="label"
                 series={[
-                  { key: 'fat_dia', nome: `Almoço (até ${corte}h)`, cor: COR_DIA },
+                  { key: 'fat_dia', nome: rotuloDia, cor: COR_DIA },
                   { key: 'fat_noite', nome: `Noite (${corte}h+)`, cor: COR_NOITE },
                 ]}
                 lineKey="pct_dia"
                 formatV={fmtBRLk}
                 formatLine={fmtPct}
-                nomeLinha="% almoço"
+                nomeLinha={semAlmoco ? `% antes das ${corte}h` : '% almoço'}
                 rotacaoX={45}
               />
             </ChartCard>
 
-            <ChartCard titulo="Média por dia da semana" subtitulo="quanto cada dia rende de almoço e de noite" span={2}>
+            <ChartCard
+              titulo="Média por dia da semana"
+              subtitulo={`quanto cada dia rende antes e depois das ${corte}h · só o sábado tem almoço de verdade; nos outros dias a barra clara é a abertura da casa`}
+              span={2}
+            >
               <GraficoBarrasAgrupadasH
                 data={porDow}
                 yKey="dia"
                 series={[
-                  { key: 'media_dia', nome: 'Almoço', cor: COR_DIA },
-                  { key: 'media_noite', nome: 'Noite', cor: COR_NOITE },
+                  { key: 'media_dia', nome: `Antes das ${corte}h`, cor: COR_DIA },
+                  { key: 'media_noite', nome: `Depois das ${corte}h`, cor: COR_NOITE },
                 ]}
                 formatV={fmtBRLk}
                 height={300}
@@ -205,12 +255,13 @@ export default function AlmocoNoitePage() {
                 <thead className="sticky top-0 bg-[hsl(var(--card))]">
                   <tr className="text-left text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
                     <th className="py-2 pr-3 font-medium">Dia</th>
-                    <th className="py-2 px-3 font-medium text-right">Almoço</th>
-                    <th className="py-2 px-3 font-medium text-right">Noite</th>
+                    <th className="py-2 px-3 font-medium text-right">{rotuloDia}</th>
+                    <th className="py-2 px-3 font-medium text-right">Noite ({corte}h+)</th>
+                    {temFora && <th className="py-2 px-3 font-medium text-right" title={`Faturamento antes das ${inicio}h`}>Fora da janela</th>}
                     <th className="py-2 px-3 font-medium text-right">Total</th>
-                    <th className="py-2 px-3 font-medium text-right">% almoço</th>
-                    <th className="py-2 px-3 font-medium text-right">Pessoas (alm/noite)</th>
-                    <th className="py-2 px-3 font-medium text-right">Ticket (alm/noite)</th>
+                    <th className="py-2 px-3 font-medium text-right">{semAlmoco ? `% pré-${corte}h` : '% almoço'}</th>
+                    <th className="py-2 px-3 font-medium text-right">Pessoas (antes/depois)</th>
+                    <th className="py-2 px-3 font-medium text-right">Ticket (antes/depois)</th>
                     {produto && <th className="py-2 pl-3 font-medium text-right">{produto}</th>}
                   </tr>
                 </thead>
@@ -222,6 +273,11 @@ export default function AlmocoNoitePage() {
                       </td>
                       <td className="py-2 px-3 text-right tabular-nums font-medium" style={{ color: COR_DIA }}>{fmtBRL(d.fat_dia)}</td>
                       <td className="py-2 px-3 text-right tabular-nums font-medium" style={{ color: COR_NOITE }}>{fmtBRL(d.fat_noite)}</td>
+                      {temFora && (
+                        <td className="py-2 px-3 text-right tabular-nums text-[hsl(var(--muted-foreground))]">
+                          {d.fat_fora ? fmtBRL(d.fat_fora) : '—'}
+                        </td>
+                      )}
                       <td className="py-2 px-3 text-right tabular-nums">{fmtBRL(d.fat_total)}</td>
                       <td className="py-2 px-3 text-right tabular-nums">{fmtPct(d.pct_dia)}</td>
                       <td className="py-2 px-3 text-right tabular-nums text-[hsl(var(--muted-foreground))]">
@@ -243,9 +299,11 @@ export default function AlmocoNoitePage() {
           </div>
 
           <p className="text-xs text-[hsl(var(--muted-foreground))]">
-            Faturamento pela hora do lançamento do item (comanda aberta às 14h que fecha às 22h fica
-            distribuída no turno certo); pessoas pela hora de abertura da comanda. Madrugada (0h–6h) conta
-            como noite. Só ContaHub — venda de ingresso Yuzer/Sympla não entra.
+            Almoço = {inicio}h às {corte}h; noite = {corte}h em diante, com a madrugada (0h–6h) contando como
+            noite do dia anterior. O que houver antes das {inicio}h fica em &ldquo;fora da janela&rdquo; e continua
+            somando no total. Faturamento pela hora do lançamento do item (comanda aberta às 14h que fecha às
+            22h fica distribuída no turno certo); pessoas pela hora de abertura da comanda — mesa que senta
+            17h50 e vira a noite infla o ticket do almoço. Só ContaHub — venda de ingresso Yuzer/Sympla não entra.
           </p>
         </>
       )}
