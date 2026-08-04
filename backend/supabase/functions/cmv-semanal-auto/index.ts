@@ -299,19 +299,49 @@ serve(async (req) => {
         // (consolidado, do gold.desempenho) inclui os ingressos/entrada, e nesses dias o
         // couvert do ContaHub é 0 -> os ingressos NÃO são removidos pela subtração de couvert.
         // Como são venda de ingresso (não F&B), saem do Faturamento Limpo (denominador do CMV%).
-        // Só a entrada/ingresso é subtraída; o consumo de bar no Yuzer é F&B e permanece.
+        // Só a entrada/ingresso sai; o consumo de bar no Yuzer é F&B e PERMANECE no denominador.
+        //
+        // ⚠️ 04/08/2026 — o ingresso vem dos PRODUTOS (silver.yuzer_produtos_evento, eh_ingresso),
+        // não mais de gold.planejamento.faturamento_entrada_yuzer. Aquela coluna, apesar do nome,
+        // carrega o Yuzer INTEIRO (em 12 dos 18 dias com Yuzer de 2026 ela é igual ao yuzer_liquido),
+        // ou seja: o consumo de bar do evento estava saindo do denominador junto com o ingresso,
+        // enquanto o CMV desse mesmo bar continuava no numerador. Resultado: CMV% estourava só nas
+        // semanas com evento (Deboche S27/2026 = 158%). Ex. 13/06 bar 4: ingresso real R$ 10.135
+        // (746 un) e bar R$ 50.698 — a conta antiga descontava os R$ 62.530 cheios.
         let ingressosYuzer = 0;
         let ingressosSympla = 0;
         const { data: yzr } = await supabase
           .schema('gold')
           .from('planejamento')
-          .select('faturamento_entrada_yuzer, sympla_liquido')
+          .select('data_evento, faturamento_entrada_yuzer, faturamento_bar_yuzer, sympla_liquido')
           .eq('bar_id', barId)
           .gte('data_evento', weekRange.start)
           .lte('data_evento', weekRange.end);
+        // ingresso por dia direto do produto vendido (é o número que a operação confere no Yuzer)
+        const { data: prodYzr } = await supabase
+          .schema('silver')
+          .from('yuzer_produtos_evento')
+          .select('data_evento, valor_total, eh_ingresso')
+          .eq('bar_id', barId)
+          .gte('data_evento', weekRange.start)
+          .lte('data_evento', weekRange.end);
+        const ingressoPorDia = new Map<string, number>();
+        for (const p of (prodYzr || [])) {
+          const dia = String(p.data_evento);
+          // registra o dia mesmo sem ingresso (0) — a presença da chave diz "tem detalhe deste dia"
+          ingressoPorDia.set(dia, (ingressoPorDia.get(dia) || 0) + (p.eh_ingresso ? (parseFloat(p.valor_total) || 0) : 0));
+        }
         if (Array.isArray(yzr)) {
-          ingressosYuzer = yzr.reduce((s, r) => s + (parseFloat(r.faturamento_entrada_yuzer) || 0), 0);
-          ingressosSympla = yzr.reduce((s, r) => s + (parseFloat(r.sympla_liquido) || 0), 0);
+          for (const r of yzr) {
+            const dia = String(r.data_evento);
+            const detalhe = ingressoPorDia.get(dia);
+            // Sem detalhe de produto no dia (silver atrasada/furo), cai no melhor palpite:
+            // Yuzer lançado como "entrada" MENOS o bar do evento. Nunca descontar o valor cheio.
+            ingressosYuzer += detalhe != null
+              ? detalhe
+              : Math.max((parseFloat(r.faturamento_entrada_yuzer) || 0) - (parseFloat(r.faturamento_bar_yuzer) || 0), 0);
+            ingressosSympla += parseFloat(r.sympla_liquido) || 0;
+          }
         }
         const bilheteria = ingressosYuzer + ingressosSympla;
 

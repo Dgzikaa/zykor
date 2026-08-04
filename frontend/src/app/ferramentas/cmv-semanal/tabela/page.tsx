@@ -224,7 +224,7 @@ const getSecoes = (fatorCmv: number): SecaoConfig[] => [
         semCollapse: true,
         metricas: [
           { key: 'vendas_brutas', label: 'Faturamento Bruto', status: 'auto', fonte: 'ContaHub', calculo: 'SUM(valor) excluindo Conta Assinada', formato: 'moeda', drilldown: true },
-          { key: 'vendas_liquidas', label: 'Faturamento Limpo', status: 'calculado', fonte: 'Calculado', calculo: 'Fat. Bruto - Gorjeta (vd_vrrepique) - Couvert (vd_vrcouvert) - Ingressos Yuzer + Sympla (bilheteria)', formato: 'moeda' },
+          { key: 'vendas_liquidas', label: 'Faturamento Limpo', status: 'calculado', fonte: 'Calculado', calculo: 'Fat. Bruto − Gorjeta (vd_vrrepique) − Couvert (vd_vrcouvert) − bilheteria. Bilheteria = INGRESSO do Yuzer (produtos marcados como ingresso) + Sympla. O consumo de bar do evento é F&B e permanece no faturamento — até 04/08/2026 ele saía junto com o ingresso e estourava o CMV% das semanas com evento.', formato: 'moeda' },
         ]
       }
     ]
@@ -554,22 +554,25 @@ export default function CMVSemanalTabelaPage() {
         'Atualizado em': l.atualizado_em ? new Date(l.atualizado_em).toLocaleString('pt-BR') : '',
       }));
 
+      // As TRÊS eras do Faturamento Limpo, pra qualquer print antigo ser explicável:
+      // hoje (só ingresso) × até 30/06 (sem bilheteria) × 01/07–04/08 (descontava o Yuzer inteiro).
       const abaComparativo = linhas.map((l) => ({
         'Semana': l.semana,
         'Período': per(l),
         'Faturamento Bruto': Number(l.faturamento_bruto),
         '(-) Comissão': Number(l.comissao),
         '(-) Couvert': Number(l.couvert),
-        '(-) Yuzer lançado como entrada': Number(l.yuzer_entrada),
-        'sendo consumo de BAR do evento': Number(l.yuzer_bar),
+        '(-) Ingresso Yuzer': Number(l.yuzer_ingresso),
         '(-) Sympla': Number(l.sympla),
+        'Bar do evento (FICA no faturamento)': Number(l.yuzer_bar),
+        'Yuzer lançado como entrada (regra 01/07)': Number(l.yuzer_lancado_como_entrada),
         'Fat. Limpo HOJE': Number(l.fat_limpo_hoje),
-        'Fat. Limpo REGRA ANTIGA (até 30/06)': Number(l.fat_limpo_regra_antiga),
-        'Fat. Limpo CORRIGIDO (só ingresso)': Number(l.fat_limpo_corrigido),
+        'Fat. Limpo até 30/06': Number(l.fat_limpo_regra_antiga),
+        'Fat. Limpo 01/07 a 04/08': Number(l.fat_limpo_regra_0107),
         'CMV (R$)': Number(l.cmv_calculado),
         'CMV % HOJE': Number(l.cmv_pct_hoje),
-        'CMV % REGRA ANTIGA': Number(l.cmv_pct_regra_antiga),
-        'CMV % CORRIGIDO': Number(l.cmv_pct_corrigido),
+        'CMV % até 30/06': Number(l.cmv_pct_regra_antiga),
+        'CMV % 01/07 a 04/08': Number(l.cmv_pct_regra_0107),
       }));
 
       // import dinâmico: a lib de planilha não entra no bundle de quem só abre a tela
@@ -1292,7 +1295,9 @@ export default function CMVSemanalTabelaPage() {
         const partes: { label: string; valor: number }[] = [];
         if (comissao > 0) partes.push({ label: '(-) Comissão', valor: -comissao });
         if (couvert > 0) partes.push({ label: '(-) Couvert', valor: -couvert });
-        if (yuzer > 0) partes.push({ label: '(-) Ingressos Yuzer', valor: -yuzer });
+        // 04/08/2026: sai só o INGRESSO do Yuzer (produtos eh_ingresso). O consumo de bar do
+        // evento é F&B e FICA no faturamento — antes saía junto e estourava o CMV% da semana.
+        if (yuzer > 0) partes.push({ label: '(-) Ingressos Yuzer (bar do evento fica)', valor: -yuzer });
         if (sympla > 0) partes.push({ label: '(-) Sympla', valor: -sympla });
         if (partes.length > 0) {
           return [
