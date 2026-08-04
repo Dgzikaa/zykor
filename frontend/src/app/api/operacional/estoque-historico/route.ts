@@ -210,7 +210,33 @@ export async function GET(request: NextRequest) {
   const ordem = ['Comidas', 'Salão', 'Drinks', 'Alimentação', 'Produção Cozinha', 'Produção Drinks'];
   const totais_area = Object.values(areaMap).sort((a, b) => (ordem.indexOf(a.area) - ordem.indexOf(b.area)));
 
-  return NextResponse.json({ success: true, tipo, classe, datas, data: dataSel, itens, totais_area, total_geral, anomalos_n });
+  // Ponte com a Gestão CMV (dúvida do Isaías, 04/08: "o Total em estoque não deveria bater com o
+  // estoque inicial da semana?"). Não bate porque a tela mostra UMA aba por vez, e o CMV usa
+  // Insumo + Produção da contagem que fecha a semana — a Alimentação (F) fica de fora (vira CMA).
+  // Aqui devolvemos os 3 totais da MESMA data pra tela conseguir mostrar a conta fechando.
+  const { data: todasLinhas } = await silver
+    .from('estoque_contagem')
+    .select('classe, categoria, valor')
+    .eq('bar_id', user.bar_id).eq('data_contagem', dataSel).eq('tipo_contagem', tipo === 'diaria' ? 'semanal' : tipo);
+  const ponte = { insumo: 0, producao: 0, alimentacao: 0 };
+  for (const l of (todasLinhas || []) as any[]) {
+    const v = Number(l.valor || 0);
+    if (/\(F\)/.test(String(l.categoria || '').toUpperCase())) ponte.alimentacao += v;
+    else if (l.classe === 'insumo') ponte.insumo += v;
+    else if (l.classe === 'producao') ponte.producao += v;
+  }
+  const r2n = (v: number) => Math.round(v * 100) / 100;
+
+  return NextResponse.json({
+    success: true, tipo, classe, datas, data: dataSel, itens, totais_area, total_geral, anomalos_n,
+    ponte_cmv: {
+      insumo: r2n(ponte.insumo),
+      producao: r2n(ponte.producao),
+      alimentacao: r2n(ponte.alimentacao),
+      estoque_do_cmv: r2n(ponte.insumo + ponte.producao),
+      total_contado: r2n(ponte.insumo + ponte.producao + ponte.alimentacao),
+    },
+  });
 }
 
 /**

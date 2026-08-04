@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
-import { Boxes, Loader2, Search, CalendarDays, RefreshCw, Plus, Pencil, AlertTriangle } from 'lucide-react';
+import { Boxes, Loader2, Search, CalendarDays, RefreshCw, Plus, Pencil, AlertTriangle, HelpCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -61,6 +61,10 @@ export default function EstoqueHistoricoPage() {
   const [itens, setItens] = useState<any[]>([]);
   const [totaisArea, setTotaisArea] = useState<any[]>([]);
   const [totalGeral, setTotalGeral] = useState(0);
+  // Composição da contagem do dia (Insumo / Produção / Alimentação) — alimenta o "como chega
+  // nesse número", que reconcilia esta tela com o Estoque Final da Gestão CMV.
+  const [ponte, setPonte] = useState<{ insumo: number; producao: number; alimentacao: number; estoque_do_cmv: number; total_contado: number } | null>(null);
+  const [verConta, setVerConta] = useState(false);
   const [anomalosN, setAnomalosN] = useState(0);
   const [soAnomalos, setSoAnomalos] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -124,6 +128,7 @@ export default function EstoqueHistoricoPage() {
         setItens(r.itens || []);
         setTotaisArea(r.totais_area || []);
         setTotalGeral(r.total_geral || 0);
+        setPonte(r.ponte_cmv || null);
         setAnomalosN(r.anomalos_n || 0);
       }
     } finally { setLoading(false); }
@@ -248,7 +253,15 @@ export default function EstoqueHistoricoPage() {
         {/* Cards de total */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <Card className="card-dark"><CardContent className="py-3">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">{classe === 'utensilio' ? 'Valor de quebra (semana)' : 'Total em estoque'}</div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+              {classe === 'utensilio' ? 'Valor de quebra (semana)' : 'Total em estoque'}
+              {ponte && classe !== 'utensilio' && (
+                <button onClick={() => setVerConta(v => !v)} title="Entender como chega nesse total (e por que difere da Gestão CMV)"
+                  className="inline-flex items-center gap-0.5 normal-case text-[11px] text-amber-700 dark:text-amber-400 hover:underline">
+                  <HelpCircle className="w-3.5 h-3.5" />como chega nesse número
+                </button>
+              )}
+            </div>
             <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{fmtBRL(totalGeral)}</div>
           </CardContent></Card>
           {totaisArea.map((a: any) => (
@@ -258,6 +271,59 @@ export default function EstoqueHistoricoPage() {
             </CardContent></Card>
           ))}
         </div>
+
+        {/* COMO CHEGA NESSE NÚMERO — pedido do Isaías (04/08): "o Total em estoque não deveria
+            bater com o estoque inicial da semana na Gestão CMV?". Não bate por dois motivos que
+            ninguém adivinha olhando a tela: (1) aqui é UMA aba por vez, o CMV soma Insumo +
+            Produção; (2) a Alimentação (F) fica fora do CMV (vira CMA). Aqui a conta fecha. */}
+        {verConta && ponte && classe !== 'utensilio' && (
+          <Card className="card-dark"><CardContent className="py-3">
+            <div className="text-xs font-semibold text-gray-800 dark:text-gray-100 mb-2">
+              Contagem de {fmtData(data || '')} — o que foi contado
+            </div>
+            <table className="w-full text-[11px] max-w-2xl">
+              <tbody className="text-gray-600 dark:text-gray-300">
+                <tr className={classe === 'insumo' ? 'font-semibold text-gray-900 dark:text-gray-100' : ''}>
+                  <td className="py-0.5 w-4 text-gray-400"></td>
+                  <td className="py-0.5">Insumos{classe === 'insumo' && ' ← aba aberta'}</td>
+                  <td className="py-0.5 text-right tabular-nums whitespace-nowrap">{fmtBRL(ponte.insumo)}</td>
+                  <td className="py-0.5 pl-2 text-gray-400">o que está no estoque pra usar</td>
+                </tr>
+                <tr className={classe === 'producao' ? 'font-semibold text-gray-900 dark:text-gray-100' : ''}>
+                  <td className="py-0.5 text-gray-400">+</td>
+                  <td className="py-0.5">Produções{classe === 'producao' && ' ← aba aberta'}</td>
+                  <td className="py-0.5 text-right tabular-nums whitespace-nowrap">{fmtBRL(ponte.producao)}</td>
+                  <td className="py-0.5 pl-2 text-gray-400">preparos prontos (molho, massa…)</td>
+                </tr>
+                <tr className="border-t border-gray-200 dark:border-gray-700">
+                  <td className="py-1 text-gray-400">=</td>
+                  <td className="py-1 font-semibold text-gray-800 dark:text-gray-100">Estoque que o CMV usa</td>
+                  <td className="py-1 text-right tabular-nums font-semibold whitespace-nowrap">{fmtBRL(ponte.estoque_do_cmv)}</td>
+                  <td className="py-1 pl-2 text-emerald-700 dark:text-emerald-300">
+                    é este que aparece na Gestão CMV como Estoque Final da semana que fecha nesta contagem (e inicial da seguinte)
+                  </td>
+                </tr>
+                <tr className={classe === 'alimentacao' ? 'font-semibold text-gray-900 dark:text-gray-100' : ''}>
+                  <td className="py-0.5 text-gray-400">+</td>
+                  <td className="py-0.5">Alimentação (F){classe === 'alimentacao' && ' ← aba aberta'}</td>
+                  <td className="py-0.5 text-right tabular-nums whitespace-nowrap">{fmtBRL(ponte.alimentacao)}</td>
+                  <td className="py-0.5 pl-2 text-gray-400">comida da equipe — <b>fora do CMV</b>, entra no CMA</td>
+                </tr>
+                <tr className="border-t border-gray-200 dark:border-gray-700">
+                  <td className="py-0.5 text-gray-400">=</td>
+                  <td className="py-0.5">Tudo que foi contado no dia</td>
+                  <td className="py-0.5 text-right tabular-nums whitespace-nowrap">{fmtBRL(ponte.total_contado)}</td>
+                  <td className="py-0.5 pl-2 text-gray-400">soma das 3 abas</td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="mt-2 text-[10px] text-gray-400 max-w-2xl">
+              O card &ldquo;Total em estoque&rdquo; mostra <b>só a aba aberta</b>. Comparando com a Gestão CMV, confira duas coisas:
+              a <b>data</b> (esta tela abre na contagem mais recente; o CMV usa a que fecha a semana) e o <b>escopo</b>
+              (Insumos + Produções, sem a Alimentação).
+            </p>
+          </CardContent></Card>
+        )}
 
         {/* Seletor de data + comparar + busca */}
         <div className="flex flex-col sm:flex-row gap-2">
