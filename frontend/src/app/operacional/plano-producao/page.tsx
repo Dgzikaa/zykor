@@ -11,7 +11,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { useApiSWR } from '@/hooks/useApiSWR';
 import { api } from '@/lib/api-client';
-import { ChefHat, Search, Loader2, CalendarDays, Sparkles, RefreshCw, Play, Lock, Unlock, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Beer, X } from 'lucide-react';
+import { ChefHat, Search, Loader2, CalendarDays, Sparkles, RefreshCw, Play, Lock, Unlock, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Beer, X, HelpCircle } from 'lucide-react';
 
 const fmtN = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const comUni = (v: any, un?: string) => v == null ? '—' : `${fmtN(v)}${un ? ` ${un}` : ''}`; // número com unidade de medida
@@ -25,15 +25,27 @@ const zDe = (n: number) => NIVEL_Z[n] ?? 1.645;
 const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
 // Ponto de Ressuprimento + Sugestão (fórmulas exatas da planilha do sócio).
+// Devolve também as PARCELAS (margem/gap/extra/ae) — são elas que a explicação
+// "por que essa quantidade" mostra linha a linha p/ a cozinha.
 function calcular(it: any) {
-  const pr = it.media6 + it.desvpad * zDe(it.nivel_servico); // média já vem ponderada do servidor
+  const margem = it.desvpad * zDe(it.nivel_servico); // folga de segurança do PR
+  const pr = it.media6 + margem; // média já vem ponderada do servidor
   const gap = pr - it.estoque;
-  const ae = gap < 0 ? gap : gap + it.media6 * ((it.semanas_receita || 1) - 1); // cada semana extra repõe a Média6s (não o PR cheio)
+  const extra = gap < 0 ? 0 : it.media6 * ((it.semanas_receita || 1) - 1); // cada semana extra repõe a Média6s (não o PR cheio)
+  const ae = gap + extra;
   const naoProduzir = ae <= 0;
   const receitas = !naoProduzir && it.rend_contagem > 0 ? Math.ceil(ae / it.rend_contagem) : 0;
   const sugestaoQtd = receitas * it.rend_contagem;
   const diasEstoque = it.media6 > 0 ? it.estoque / (it.media6 / 6) : null; // ÷6, igual à planilha
-  return { pr, naoProduzir, receitas, sugestaoQtd, diasEstoque };
+  return { pr, margem, gap, extra, ae, naoProduzir, receitas, sugestaoQtd, diasEstoque };
+}
+// Mesmas parcelas p/ a semana ENCERRADA (snapshot): não recalcula nada, só reabre
+// os números congelados na conta que os gerou.
+function parcelasFrozen(it: any) {
+  const margem = it.pr - it.media6;
+  const gap = it.pr - it.estoque;
+  const extra = gap < 0 ? 0 : it.media6 * ((it.semanas_receita || 1) - 1);
+  return { margem, gap, extra, ae: gap + extra };
 }
 
 export default function PlanoProducaoPage() {
@@ -165,8 +177,12 @@ export default function PlanoProducaoPage() {
   // consumo planejado de cada preparo = Σ (receitas planejadas do pai × qtd do filho por receita).
   // Receitas do pai = o que foi decidido (senão a sugestão). Um nível por vez — recalcula
   // ao vivo conforme as decisões mudam, então a cadeia croquete→massa→carne converge na reunião.
+  // Guarda também o DETALHE (quais produções-pai puxam este preparo, e quanto cada uma),
+  // que é o que permite achar ficha técnica errada olhando a explicação da sugestão.
   const consumoMap = useMemo(() => {
     const m = new Map<number, number>();
+    const det = new Map<number, { pai: string; receitas: number; qtd_receita: number; total: number }[]>();
+    const nomeById = new Map<number, string>(itens.map((it) => [it.producao_id, it.nome]));
     const recById = new Map<number, number>(itens.map((it) => {
       const dec = it.decisao?.decidido_receitas;
       const base = it.frozen ? it.sugestao_receitas : calcular(it).receitas;
@@ -174,9 +190,14 @@ export default function PlanoProducaoPage() {
     }));
     (res?.bom || []).forEach((b: any) => {
       const rec = recById.get(b.pai) || 0;
-      if (rec > 0) m.set(b.filho, (m.get(b.filho) || 0) + rec * b.qtd_receita);
+      if (rec <= 0) return;
+      const total = rec * b.qtd_receita;
+      m.set(b.filho, (m.get(b.filho) || 0) + total);
+      const arr = det.get(b.filho) || [];
+      arr.push({ pai: nomeById.get(b.pai) || `#${b.pai}`, receitas: rec, qtd_receita: b.qtd_receita, total });
+      det.set(b.filho, arr);
     });
-    return m;
+    return { total: m, detalhe: det };
   }, [itens, res]);
 
   // recalcula derivados + aplica filtros/ordenação
@@ -186,12 +207,13 @@ export default function PlanoProducaoPage() {
       .map((it) => {
         // semana congelada (encerrada): usa os valores do snapshot, não recalcula
         const calc = it.frozen
-          ? { pr: it.pr, naoProduzir: it.nao_produzir, receitas: it.sugestao_receitas, sugestaoQtd: it.sugestao_qtd, diasEstoque: it.media6 > 0 ? it.estoque / (it.media6 / 6) : null }
+          ? { pr: it.pr, ...parcelasFrozen(it), naoProduzir: it.nao_produzir, receitas: it.sugestao_receitas, sugestaoQtd: it.sugestao_qtd, diasEstoque: it.media6 > 0 ? it.estoque / (it.media6 / 6) : null }
           : calcular(it);
-        const consumo = it.frozen ? (it.consumo || 0) : (consumoMap.get(it.producao_id) || 0);
+        const consumo = it.frozen ? (it.consumo || 0) : (consumoMap.total.get(it.producao_id) || 0);
+        const consumoDet = consumoMap.detalhe.get(it.producao_id) || [];
         const planejadoQtd = it.decisao?.decidido_receitas != null ? Number(it.decisao.decidido_receitas) * it.rend_contagem : calc.sugestaoQtd;
         const falta = consumo > 0 ? Math.max(0, consumo - (it.estoque + planejadoQtd)) : 0; // não cobre a produção dos pais
-        return { ...it, ...calc, consumo, falta };
+        return { ...it, ...calc, consumo, consumoDet, falta };
       })
       .filter((i) => i.controle_producao                                  // a tela só mostra o que está no Controle de Produção
         && secaoDe(i) === aba                                             // aba Cozinha × Bar
@@ -341,10 +363,18 @@ export default function PlanoProducaoPage() {
                       ? <span className={it.falta > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'} title={it.falta > 0 ? `Faltam ${comUni(it.falta, it.unidade)} p/ cobrir a produção planejada dos pais` : 'Coberto pelo estoque + plano'}>{comUni(it.consumo, it.unidade)}{it.falta > 0 ? ' ⚠' : ''}</span>
                       : <span className="text-gray-300 dark:text-gray-600">—</span>}
                   </td>
+                  {/* A dúvida nasce OLHANDO a sugestão ("por que produzir 4 receitas?"), então é ela
+                      que abre a explicação — mesmo padrão do Planejamento de Compras. Pedido do
+                      Isaías: mostrar pras meninas por que está pedindo aquela quantidade. */}
                   <td className="px-2 py-2 text-right">
-                    {it.naoProduzir
-                      ? <span className="text-emerald-600 dark:text-emerald-400 text-xs">Não produzir</span>
-                      : <span className="inline-flex flex-col items-end"><span className="font-bold text-violet-700 dark:text-violet-300 tabular-nums">{it.receitas} rec.</span><span className="text-[10px] text-gray-400 whitespace-nowrap">≈ {comUni(it.sugestaoQtd, it.unidade)}</span></span>}
+                    <button onClick={() => setAberto(expandido ? null : it.producao_id)}
+                      title={expandido ? 'Fechar explicação' : 'Entender por que essa quantidade'}
+                      className="inline-flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-violet-50 dark:hover:bg-violet-900/20">
+                      {it.naoProduzir
+                        ? <span className="text-emerald-600 dark:text-emerald-400 text-xs">Não produzir</span>
+                        : <span className="inline-flex flex-col items-end"><span className="font-bold text-violet-700 dark:text-violet-300 tabular-nums">{it.receitas} rec.</span><span className="text-[10px] text-gray-400 whitespace-nowrap">≈ {comUni(it.sugestaoQtd, it.unidade)}</span></span>}
+                      <HelpCircle className={`w-3.5 h-3.5 shrink-0 ${expandido ? 'text-violet-600' : 'text-gray-400'}`} />
+                    </button>
                   </td>
                   {planejando && <td className="px-2 py-2 text-right">
                     <input disabled={encerrado || (it.dias?.length > 0)} type="number" min={0} step={1}
@@ -381,6 +411,102 @@ export default function PlanoProducaoPage() {
                         return <span key={wk} className={`inline-flex items-center gap-1 rounded px-2 py-0.5 ${v > 0 ? 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 line-through'}`} title={v > 0 ? `peso ${i + 1}` : 'Semana em branco — desconsiderada na média'}>{fmtDM(wk)}: <b>{comUni(v, it.unidade)}</b> <span className="opacity-60">×{i + 1}</span></span>;
                       })}
                       <span className="text-gray-600 dark:text-gray-300">= média <b>{comUni(it.media6, it.unidade)}</b></span>
+                    </div>
+
+                    {/* POR QUE ESSA SUGESTÃO — espelho do Planejamento de Compras. Os números já
+                        existiam espalhados nas colunas; aqui viram a CONTA, com o nome de cada
+                        parcela em português, pra explicar pra quem produz. */}
+                    <div className="mt-2.5 ml-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/50 p-3 max-w-3xl">
+                      <div className="text-xs font-semibold text-gray-800 dark:text-gray-100 mb-2">
+                        Por que {it.naoProduzir ? 'não precisa produzir' : `produzir ${it.receitas} ${it.receitas === 1 ? 'receita' : 'receitas'}`}?
+                      </div>
+
+                      <table className="w-full text-[11px]">
+                        <tbody className="text-gray-600 dark:text-gray-300">
+                          <tr>
+                            <td className="py-0.5 w-4 text-gray-400"></td>
+                            <td className="py-0.5">Sai por semana, na média</td>
+                            <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap">{comUni(it.media6, it.unidade)}</td>
+                            <td className="py-0.5 pl-2 text-gray-400">média das 6 últimas semanas (as mais recentes pesam mais)</td>
+                          </tr>
+                          <tr>
+                            <td className="py-0.5 text-gray-400">+</td>
+                            <td className="py-0.5">Folga de segurança</td>
+                            <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap">{comUni(it.margem ?? 0, it.unidade)}</td>
+                            <td className="py-0.5 pl-2 text-gray-400">porque tem semana que sai bem mais — cobre {it.nivel_servico}% das semanas</td>
+                          </tr>
+                          <tr className="border-t border-gray-200 dark:border-gray-700">
+                            <td className="py-0.5 text-gray-400">=</td>
+                            <td className="py-0.5 font-medium text-gray-800 dark:text-gray-100">Quanto precisa ter pra semana</td>
+                            <td className="py-0.5 text-right tabular-nums font-semibold whitespace-nowrap">{comUni(it.pr, it.unidade)}</td>
+                            <td className="py-0.5 pl-2 text-gray-400">é o &ldquo;PR&rdquo; da tabela (ponto de reposição)</td>
+                          </tr>
+                          <tr>
+                            <td className="py-0.5 text-gray-400">−</td>
+                            <td className="py-0.5">Já tem pronto em estoque</td>
+                            <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap">{comUni(it.estoque, it.unidade)}</td>
+                            <td className="py-0.5 pl-2 text-gray-400">{res?.contagem?.data ? `contagem de ${fmtDM(res.contagem.data)}` : 'última contagem'}</td>
+                          </tr>
+                          {/* "Qtde x Semanas": produzir de uma vez pra mais de uma semana. Só aparece
+                              quando está configurado > 1 — senão vira linha de zero sem sentido. */}
+                          {(it.extra ?? 0) > 0 && <tr>
+                            <td className="py-0.5 text-gray-400">+</td>
+                            <td className="py-0.5">Pra durar {fmtN(it.semanas_receita)} semanas</td>
+                            <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap">{comUni(it.extra, it.unidade)}</td>
+                            <td className="py-0.5 pl-2 text-gray-400">cada semana a mais repõe uma média de saída (campo &ldquo;Qtde x Semanas&rdquo;)</td>
+                          </tr>}
+                          <tr className="border-t border-gray-200 dark:border-gray-700">
+                            <td className="py-1 text-gray-400">=</td>
+                            <td className="py-1 font-semibold text-gray-800 dark:text-gray-100">Falta produzir</td>
+                            <td className="py-1 text-right tabular-nums font-semibold text-violet-700 dark:text-violet-300 whitespace-nowrap">{comUni(it.ae, it.unidade)}</td>
+                            <td className="py-1 pl-2 text-violet-700 dark:text-violet-300">
+                              {it.naoProduzir
+                                ? 'já tem o suficiente — não precisa produzir'
+                                : it.rend_contagem > 0
+                                  ? <>÷ {comUni(it.rend_contagem, it.unidade)} que rende cada receita, arredondando pra cima = <b>{it.receitas} rec.</b> (≈ {comUni(it.sugestaoQtd, it.unidade)})</>
+                                  : 'sem rendimento cadastrado na receita — não dá pra converter em nº de receitas'}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                      {/* Consumo dos pais: NÃO entra na conta acima (é aviso), então fica separado —
+                          senão parece parcela e a soma não fecha. */}
+                      {it.consumo > 0 && (
+                        <div className="mt-2.5 pt-2 border-t border-dashed border-gray-200 dark:border-gray-700">
+                          <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200 mb-1">
+                            Além disso, a produção planejada da semana vai consumir {comUni(it.consumo, it.unidade)} deste preparo
+                          </div>
+                          {it.consumoDet.length > 0 && <table className="w-full text-[11px]">
+                            <tbody className="text-gray-600 dark:text-gray-300">
+                              {it.consumoDet.map((d: any, i: number) => (
+                                <tr key={`${d.pai}-${i}`}>
+                                  <td className="py-0.5 pr-2">{d.pai}</td>
+                                  <td className="py-0.5 text-right tabular-nums whitespace-nowrap text-gray-500">
+                                    {fmtN(d.receitas)} {d.receitas === 1 ? 'receita' : 'receitas'} × {comUni(d.qtd_receita, it.unidade)}
+                                  </td>
+                                  <td className="py-0.5 pl-2 text-right tabular-nums font-medium whitespace-nowrap">{comUni(d.total, it.unidade)}</td>
+                                </tr>
+                              ))}
+                              <tr className="border-t border-gray-200 dark:border-gray-700">
+                                <td className="py-0.5 font-medium text-gray-800 dark:text-gray-100" colSpan={2}>Total pros pais</td>
+                                <td className="py-0.5 pl-2 text-right tabular-nums font-semibold whitespace-nowrap">{comUni(it.consumo, it.unidade)}</td>
+                              </tr>
+                            </tbody>
+                          </table>}
+                          <p className={`mt-1.5 text-[10px] ${it.falta > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-400'}`}>
+                            {it.falta > 0
+                              ? <>Isso <b>não cabe</b> no estoque + o que está planejado: faltam <b>{comUni(it.falta, it.unidade)}</b>. Aumente as receitas no &ldquo;Decidido&rdquo;.</>
+                              : <>Está coberto pelo estoque + o que já foi planejado. Este aviso <b>não muda</b> a sugestão acima. Quantidade estranha em alguma linha costuma ser <b>ficha técnica errada</b>.</>}
+                          </p>
+                        </div>
+                      )}
+
+                      {decidido != null && Number(decidido) !== it.receitas && (
+                        <p className="mt-2 pt-2 border-t border-dashed border-gray-200 dark:border-gray-700 text-[11px] text-amber-600 dark:text-amber-400">
+                          A reunião decidiu <b>{fmtN(decidido)} rec.</b> em vez de {it.receitas}{it.decisao?.motivo_override ? ` — ${it.decisao.motivo_override}` : ''}.
+                        </p>
+                      )}
                     </div>
                   </td>
                 </tr>}
