@@ -282,7 +282,7 @@ serve(async (req) => {
 
       const claude = await chamarClaude(prompt);
 
-      const { data: rel } = await supabase.schema('gold').from('relatorios_executivos').insert({
+      const payload = {
         bar_id: bar.id, tipo: 'semanal',
         periodo_ini: di, periodo_fim: df,
         resumo_executivo: claude.text,
@@ -290,7 +290,22 @@ serve(async (req) => {
         modelo_usado: MODELO,
         tokens_input: claude.tokensIn,
         tokens_output: claude.tokensOut,
-      }).select('id').single();
+      };
+
+      // Regerar a MESMA semana substitui a linha, nao empilha outra. Sem isso cada
+      // clique em "Gerar agora" criava um card repetido na tela (a semana 27/07 a
+      // 02/08 chegou a ter 15 linhas pra 5 bares). Nao ha unique constraint na
+      // tabela, entao a checagem e' feita aqui.
+      const { data: existente } = await supabase.schema('gold').from('relatorios_executivos')
+        .select('id').eq('bar_id', bar.id).eq('tipo', 'semanal')
+        .eq('periodo_ini', di).eq('periodo_fim', df)
+        .order('id', { ascending: false }).limit(1).maybeSingle();
+
+      const { data: rel } = existente?.id
+        ? await supabase.schema('gold').from('relatorios_executivos')
+            .update(payload).eq('id', existente.id).select('id').single()
+        : await supabase.schema('gold').from('relatorios_executivos')
+            .insert(payload).select('id').single();
 
       resultados.push({
         bar_id: bar.id, nome: bar.nome, relatorio_id: rel?.id,

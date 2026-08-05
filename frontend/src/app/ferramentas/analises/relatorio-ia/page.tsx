@@ -70,8 +70,8 @@ export default function RelatorioSemanalPage() {
   const carregar = async () => {
     setCarregando(true);
     const url = barFilter === 'todos'
-      ? '/api/relatorio-executivo?limit=12'
-      : `/api/relatorio-executivo?limit=12&bar_id=${barFilter}`;
+      ? '/api/relatorio-executivo?limit=30'
+      : `/api/relatorio-executivo?limit=30&bar_id=${barFilter}`;
     const r = await fetch(url);
     const j = await r.json();
     setRels(j?.relatorios ?? []);
