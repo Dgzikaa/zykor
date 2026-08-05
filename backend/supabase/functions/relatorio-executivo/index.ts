@@ -104,11 +104,31 @@ async function chamarClaude(prompt: string): Promise<{ text: string; tokensIn: n
   const r = await fetch(ANTHROPIC_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: MODELO, max_tokens: 3500, messages: [{ role: 'user', content: prompt }] }),
+    body: JSON.stringify({
+      model: MODELO,
+      // No Sonnet 5 o thinking conta dentro do max_tokens: 3500 (o valor antigo, de
+      // quando nao havia thinking) corta o relatorio no meio. Effort medium ja da
+      // conta de um resumo de 800 palavras sem gastar demais.
+      max_tokens: 12000,
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'medium' },
+      messages: [{ role: 'user', content: prompt }],
+    }),
   });
   if (!r.ok) throw new Error(`Anthropic: ${await r.text()}`);
   const j = await r.json();
-  return { text: j.content?.[0]?.text || '', tokensIn: j.usage?.input_tokens || 0, tokensOut: j.usage?.output_tokens || 0 };
+  // A resposta vem em BLOCOS. No Sonnet 5 o thinking eh ligado por padrao, entao
+  // content[0] eh o bloco de raciocinio (texto vazio) e nao o relatorio — era isso
+  // que gravava resumo_executivo vazio desde a migracao pro Sonnet 5 (06/07/2026).
+  const text = (j.content ?? [])
+    .filter((b: any) => b?.type === 'text')
+    .map((b: any) => b.text ?? '')
+    .join('\n')
+    .trim();
+  if (!text) {
+    throw new Error(`Claude nao retornou texto (stop_reason=${j.stop_reason ?? '?'})`);
+  }
+  return { text, tokensIn: j.usage?.input_tokens || 0, tokensOut: j.usage?.output_tokens || 0 };
 }
 
 serve(async (req) => {
@@ -137,6 +157,7 @@ serve(async (req) => {
     const resultados: any[] = [];
 
     for (const bar of (bares ?? [])) {
+      try {
       const snap = await coletarSnapshot(supabase, bar.id, di, df);
 
       const prompt = `Você é o **Diretor de BI** dos bares Grupo Menos e Mais. Gere um RELATÓRIO EXECUTIVO SEMANAL pro **${bar.nome}** com base em DADOS REAIS.
@@ -197,6 +218,12 @@ Tom: direto, números reais, sem floreio, máximo 800 palavras. Pt-BR.`;
         bar_id: bar.id, nome: bar.nome, relatorio_id: rel?.id,
         tokens: { in: claude.tokensIn, out: claude.tokensOut },
       });
+      } catch (err: any) {
+        // Um bar que falha nao derruba os outros — antes o erro subia e nenhum
+        // relatorio da rodada era gravado.
+        console.error(`[relatorio-executivo] bar ${bar.id} (${bar.nome}):`, err);
+        resultados.push({ bar_id: bar.id, nome: bar.nome, erro: err?.message ?? String(err) });
+      }
     }
 
     return new Response(JSON.stringify({ success: true, periodo: { ini: di, fim: df }, resultados }), {

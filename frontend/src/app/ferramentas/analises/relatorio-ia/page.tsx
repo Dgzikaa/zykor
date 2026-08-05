@@ -170,7 +170,14 @@ export default function RelatorioSemanalPage() {
 
             {aberto && (
               <div className="px-6 pb-6 pt-2 border-t border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
-                <ResumoMarkdown texto={rel.resumo_executivo} />
+                {rel.resumo_executivo?.trim() ? (
+                  <ResumoMarkdown texto={rel.resumo_executivo} />
+                ) : (
+                  <p className="text-sm text-amber-700 dark:text-amber-400">
+                    Este relatório foi gravado sem conteúdo (falha na geração). Clique em
+                    &ldquo;Gerar agora&rdquo; para refazer o da última semana.
+                  </p>
+                )}
                 <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-800 flex justify-between text-xs text-gray-400">
                   <span>Modelo: {rel.modelo_usado}</span>
                   <span>
