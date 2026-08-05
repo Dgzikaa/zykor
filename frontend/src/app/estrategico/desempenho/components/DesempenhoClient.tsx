@@ -1892,12 +1892,11 @@ export function DesempenhoClient({
         return { chave: `${h.titulo} (${h.subtitulo})`, semana: s };
       });
 
-      const linhas = SECOES.flatMap((secao) =>
+      const linhasDaSecao = (secao: SecaoConfig) =>
         secao.grupos.flatMap((grupo) =>
           grupo.metricas.map((metrica) => {
             const meta = metas[metrica.key];
             const linha: Record<string, string | number> = {
-              'Seção': secao.titulo,
               'Indicador': (metrica.indentado ? '— ' : '') + metrica.label,
               'Unidade': UNIDADE[metrica.formato] ?? '',
               'Meta': meta?.valor ?? '',
@@ -1910,16 +1909,24 @@ export function DesempenhoClient({
             }
             return linha;
           }),
-        ),
-      );
+        );
+
+      // Excel: nome de aba tem limite de 31 chars e nao aceita : \ / ? * [ ]
+      const nomeAba = (titulo: string) =>
+        titulo.replace(/[:\\/?*[\]]/g, '-').slice(0, 31).trim();
 
       // import dinamico: a lib de planilha nao entra no bundle de quem so abre a tela
       const XLSX = await import('xlsx');
-      const ws = XLSX.utils.json_to_sheet(linhas);
-      ws['!cols'] = [{ wch: 26 }, { wch: 30 }, { wch: 8 }, { wch: 10 },
-        ...colunas.map(() => ({ wch: 16 }))];
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, visao === 'semanal' ? 'Desempenho Semanal' : 'Desempenho Mensal');
+      // UMA ABA POR SECAO: o pedido foi "so a parte do cockpit". Em vez de decidir
+      // por ela qual recorte e' o cockpit, cada secao vira uma aba — ela usa a aba
+      // "Cockpit Produtos" e quem precisa do resto continua tendo tudo no arquivo.
+      for (const secao of SECOES) {
+        const ws = XLSX.utils.json_to_sheet(linhasDaSecao(secao));
+        ws['!cols'] = [{ wch: 30 }, { wch: 8 }, { wch: 10 },
+          ...colunas.map(() => ({ wch: 16 }))];
+        XLSX.utils.book_append_sheet(wb, ws, nomeAba(secao.titulo));
+      }
       const bar = (selectedBar?.nome || 'bar').replace(/\s+/g, '-').toLowerCase();
       XLSX.writeFile(wb, `desempenho-${visao}_${bar}_${new Date().toISOString().slice(0, 10)}.xlsx`);
     } catch (e: unknown) {
