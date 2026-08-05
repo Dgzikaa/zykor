@@ -814,6 +814,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
     const colTeReal = mediar(e => e.te_real);
     const colTbReal = mediar(e => e.tb_real);
     const colTMedio = mediar(e => e.t_medio);
+    // $ Porta e $ Bar são faturamento → soma (e não média, como os tickets ao lado)
+    const colFatEntrada = somar(e => e.fat_entrada);
+    const colFatBar = somar(e => e.fat_bar);
     // ARTÍSTICO
     const colCArt = somar(e => e.c_art);
     const colCProd = somar(e => e.c_prod);
@@ -843,7 +846,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
 
     return {
       colClientesReais, colResTot, colResP,
-      colTeReal, colTbReal, colTMedio,
+      colTeReal, colTbReal, colTMedio, colFatEntrada, colFatBar,
       colCArt, colCProd, colCouvert, colPercentArtFat, colCouvArt, colConsumacao,
       colQtdItens, colQtdBebida, colQtdDrink, colQtdCozinha,
       colPercentB, colPercentD, colPercentC, colAtrasaoCoz, colAtrasaoBar,
@@ -990,7 +993,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                         
                         {/* Grupo TICKET */}
                         <th
-                          colSpan={gruposAbertos.ticket ? 3 : 1}
+                          colSpan={gruposAbertos.ticket ? 5 : 1}
                           className="px-3 py-2 text-center font-semibold text-[11px] border-r-2 border-[hsl(var(--border))] cursor-pointer hover:bg-[hsl(var(--muted))] transition-colors"
                           onClick={() => toggleGrupo('ticket')}
                         >
@@ -1055,7 +1058,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                         {gruposAbertos.ticket ? (
                           <>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Entrada Real</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}} title="Faturamento de porta: couvert (ContaHub) + entrada Yuzer + Sympla">$ Porta</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '100px', minWidth: '100px', maxWidth: '100px'}}>Bar Real</th>
+                            <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}} title="Faturamento de bar: ContaHub (sem couvert) + bar Yuzer">$ Bar</th>
                             <th className="px-2 py-2 text-center text-[10px] font-medium text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}>Ticket Médio</th>
                           </>
                         ) : (
@@ -1239,7 +1244,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                           // Calcular total de colunas visíveis para o separador de semana
                           const totalColunas = 5
                             + (gruposAbertos.clientes ? 3 : 1)
-                            + (gruposAbertos.ticket ? 3 : 1)
+                            + (gruposAbertos.ticket ? 5 : 1)
                             + (gruposAbertos.artistico ? 6 : 1)
                             + (gruposAbertos.producao ? 12 : 1)
                             + 1; // Ações
@@ -1482,14 +1487,34 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                   }}
                                   className={`px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'te_real' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.te_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.te_real > 0 ? formatarMoeda(evento.te_real) : '-'}</span></td>
-                                <td 
-                                  onClick={(e) => { 
-                                    e.stopPropagation(); 
-                                    setLinhaHighlight(idx); 
+                                {/* $ Porta — mesma quebra do TE, em R$ */}
+                                <td
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLinhaHighlight(idx);
+                                    setColunaHighlight(prev => prev === 'fat_entrada' ? null : 'fat_entrada');
+                                  }}
+                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'fat_entrada' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
+                                  style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}
+                                  title="Faturamento de porta: couvert (ContaHub) + entrada Yuzer + Sympla">{(evento.fat_entrada || 0) > 0 ? formatarMoeda(evento.fat_entrada) : '-'}</td>
+                                <td
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLinhaHighlight(idx);
                                     setColunaHighlight(prev => prev === 'tb_real' ? null : 'tb_real');
                                   }}
-                                  className={`px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'tb_real' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`} 
+                                  className={`px-2 py-1.5 text-right text-[11px] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'tb_real' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
                                   style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}><span className={`font-semibold ${evento.tb_real_vs_plan_green ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{evento.tb_real > 0 ? formatarMoeda(evento.tb_real) : '-'}</span></td>
+                                {/* $ Bar — mesma quebra do TB, em R$ */}
+                                <td
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLinhaHighlight(idx);
+                                    setColunaHighlight(prev => prev === 'fat_bar' ? null : 'fat_bar');
+                                  }}
+                                  className={`px-2 py-1.5 text-right text-[11px] text-[hsl(var(--foreground))] border-r border-[hsl(var(--border))] cursor-pointer transition-colors ${colunaHighlight === 'fat_bar' ? 'bg-blue-500/15 dark:bg-blue-400/20' : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'}`}
+                                  style={{width: '110px', minWidth: '110px', maxWidth: '110px'}}
+                                  title="Faturamento de bar: ContaHub (sem couvert) + bar Yuzer">{(evento.fat_bar || 0) > 0 ? formatarMoeda(evento.fat_bar) : '-'}</td>
                                 <td 
                                   onClick={(e) => { 
                                     e.stopPropagation(); 
@@ -1726,7 +1751,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                         {gruposAbertos.ticket ? (
                           <>
                             <td className={`${tfCls} text-center border-r`} title="Média da entrada real">{formatarMoeda(totaisAgregados.colTeReal)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Total do faturamento de porta no período">{formatarMoeda(totaisAgregados.colFatEntrada)}</td>
                             <td className={`${tfCls} text-center border-r`} title="Média do bar real">{formatarMoeda(totaisAgregados.colTbReal)}</td>
+                            <td className={`${tfCls} text-center border-r`} title="Total do faturamento de bar no período">{formatarMoeda(totaisAgregados.colFatBar)}</td>
                             <td className={`${tfCls} text-center border-r-2`} title="Ticket médio">{formatarMoeda(totaisAgregados.colTMedio)}</td>
                           </>
                         ) : (

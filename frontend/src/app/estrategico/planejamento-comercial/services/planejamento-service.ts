@@ -101,6 +101,10 @@ export interface PlanejamentoData {
   tb_plan: number;
   tb_real: number;
   t_medio: number;
+  /** Faturamento de porta em R$ (couvert ContaHub + entrada Yuzer + Sympla) = te_real × público */
+  fat_entrada: number;
+  /** Faturamento de bar em R$ (ContaHub − couvert + bar Yuzer) = tb_real × público */
+  fat_bar: number;
 
   // Custos
   c_art: number;
@@ -561,6 +565,10 @@ export async function getPlanejamentoComercial(
       tb_plan: manual?.tb_plan ?? evento.tb_plan ?? 0,
       tb_real: tbRealCalc,
       t_medio: tMedioCalc,
+      // Mesma quebra que gera te_real/tb_real, só que em R$ (não por pessoa) — porta + bar
+      // fecha com o faturamento consolidado do dia, por construção.
+      fat_entrada: _entradaCons,
+      fat_bar: _barCons,
 
       // Pré-lançado: usa o real do Conta Azul se existir; senão a projeção (amarelo/⚠️).
       // Item 4.2: real do CA > override manual (c_artistico_plan) > projeção auto (média 4 sem).
