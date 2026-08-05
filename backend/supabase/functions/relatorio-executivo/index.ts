@@ -1,22 +1,18 @@
 ﻿/**
- * 📋 Relatório Executivo Cross-Área (H1)
+ * 📋 Relatório Executivo Semanal (tela /ferramentas/analises/relatorio-ia)
  *
- * Coleta de cada bar ativo, na semana indicada:
- *   - Vendas (gold.desempenho)
- *   - CMV semanal + comparativo
- *   - CMO (mão de obra)
- *   - IG snapshot (followers, reach, engagement)
- *   - NPS médio (salao, digital, reservas, geral)
- *   - Quality Scorecard
- *   - Stockout médio
- *   - Alertas IG ativos
- *   - Clube Ordi (VIPs dormindo)
- *   - Previsões próximas
+ * QUEM entra: bares com `config.relatorio_ia` em operations.bares —
+ *   'completo' → vendas (gold.desempenho), CMV (financial.cmv_semanal), NPS,
+ *                Quality Score, stockout, atrasos, Instagram, clube, previsões
+ *   'midia'    → só Instagram (bar que ainda não abriu)
+ *   ausente    → não gera
  *
- * Manda pro Claude Sonnet 4.6 → 5-7 paragrafos executivos.
+ * Manda pro Claude Sonnet 5 → relatório em markdown, salvo em
+ * gold.relatorios_executivos (uma linha por bar/semana: regerar faz UPDATE).
  *
- * Salva em gold.relatorios_executivos.
- * Body: { bar_id?, semana_ini?, semana_fim?, enviar_discord? }
+ * Body:
+ *   { bar_id?, semana_ini?, semana_fim? }        gera a semana (default: a passada)
+ *   { regerar_vazios: true, limite? }            refaz texto dos gravados vazios
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -50,7 +46,12 @@ async function coletarSnapshotMidia(supabase: any, barId: number, di: string, df
   const { data: ig } = await supabase
     .schema('integrations').from('instagram_conta_metricas')
     .select('data_snapshot, followers_count, reach, impressions, profile_views, total_interactions, accounts_engaged')
-    .eq('bar_id', barId).order('data_snapshot', { ascending: false }).limit(2);
+    // `.lte(data_snapshot, df)`: sem isso, relatorio de semana passada vinha com o
+    // numero de seguidores de HOJE (a busca pegava os 2 snapshots mais recentes da
+    // conta, sem olhar o periodo) — as 7 semanas do Primo Pobre saiam todas com
+    // "78.623 (+7)". Cada semana tem que ver a conta como ela estava naquela data.
+    .eq('bar_id', barId).lte('data_snapshot', df)
+    .order('data_snapshot', { ascending: false }).limit(2);
 
   const { data: posts } = await supabase
     .schema('integrations').from('instagram_posts')
@@ -91,7 +92,9 @@ async function coletarSnapshotCompleto(supabase: any, barId: number, di: string,
   const dfAnt = new Date(new Date(df).getTime() - 7 * 86400000).toISOString().split('T')[0];
   const { data: anteriorArr } = await supabase
     .schema('gold').from('desempenho')
-    .select('faturamento_total, clientes_atendidos, ticket_medio, nps_geral, stockout_total_perc, cmv_global_real')
+    // sem cmv_global_real aqui tambem: coluna morta, ia virar "CMV da semana
+    // anterior = 0" no comparativo
+    .select('faturamento_total, clientes_atendidos, ticket_medio, nps_geral, stockout_total_perc')
     .eq('bar_id', barId).eq('granularidade', 'semanal')
     .gte('data_inicio', diAnt).lte('data_fim', dfAnt).limit(1);
   const anterior = anteriorArr?.[0] ?? null;
@@ -106,7 +109,12 @@ async function coletarSnapshotCompleto(supabase: any, barId: number, di: string,
   const { data: ig } = await supabase
     .schema('integrations').from('instagram_conta_metricas')
     .select('data_snapshot, followers_count, reach, impressions, profile_views, total_interactions, accounts_engaged')
-    .eq('bar_id', barId).order('data_snapshot', { ascending: false }).limit(2);
+    // `.lte(data_snapshot, df)`: sem isso, relatorio de semana passada vinha com o
+    // numero de seguidores de HOJE (a busca pegava os 2 snapshots mais recentes da
+    // conta, sem olhar o periodo) — as 7 semanas do Primo Pobre saiam todas com
+    // "78.623 (+7)". Cada semana tem que ver a conta como ela estava naquela data.
+    .eq('bar_id', barId).lte('data_snapshot', df)
+    .order('data_snapshot', { ascending: false }).limit(2);
 
   // 5) Top posts da semana
   const { data: posts } = await supabase
