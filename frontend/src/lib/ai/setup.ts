@@ -1,6 +1,7 @@
 // Setup e configuração do Zykor AI Assistant
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { extrairTextoAnthropic } from './anthropic-texto';
 
 // Configuração dos provedores de IA
 export interface AIConfig {
@@ -353,15 +354,17 @@ export class ZykorAI {
       fullPrompt = `Contexto: ${JSON.stringify(context, null, 2)}\n\nConsulta: ${query}`;
     }
 
+    // Sem `temperature`: do Sonnet 5 / Opus 5 em diante a API REJEITA parametro de
+    // sampling (erro 400). O campo segue no config porque o caminho da OpenAI usa.
     const message = await this.anthropic.messages.create({
       model: this.config.anthropic.model,
       max_tokens: this.config.anthropic.maxTokens,
-      temperature: this.config.anthropic.temperature,
       system: systemPrompt || 'Você é um assistente especializado em análise de dados para gestão de bares.',
       messages: [{ role: 'user', content: fullPrompt }]
     });
 
-    const response = message.content[0]?.type === 'text' ? message.content[0].text : '';
+    // content[0] eh o bloco de thinking nos modelos novos — ver anthropic-texto.ts
+    const response = extrairTextoAnthropic(message);
     const tokensUsed = message.usage.input_tokens + message.usage.output_tokens;
 
     return {

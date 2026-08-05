@@ -3,6 +3,7 @@ import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { fin } from '@/lib/financeiro/pedidos-pagamento';
 import Anthropic from '@anthropic-ai/sdk';
+import { extrairTextoAnthropic } from '@/lib/ai/anthropic-texto';
 import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
@@ -76,7 +77,9 @@ Ignore linhas de pagamento da fatura anterior, juros, IOF e saldo. Some parcelam
       max_tokens: 8000,
       messages: [{ role: 'user', content: [block, { type: 'text', text: prompt }] }],
     });
-    const texto = msg.content[0]?.type === 'text' ? msg.content[0].text : '';
+    // content[0] no Sonnet 5 eh o bloco de thinking (texto vazio) — ler so ele fazia
+    // a leitura de fatura responder "nao consegui ler a fatura" em toda chamada.
+    const texto = extrairTextoAnthropic(msg);
     const m = texto.match(/\{[\s\S]*\}/);
     if (!m) return NextResponse.json({ success: false, error: 'não consegui ler a fatura', bruto: texto.slice(0, 500) }, { status: 422 });
     const parsed = JSON.parse(m[0]);
