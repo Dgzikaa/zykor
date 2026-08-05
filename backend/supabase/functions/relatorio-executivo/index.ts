@@ -27,11 +27,60 @@ import { getCorsHeaders } from '../_shared/cors.ts';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const MODELO = 'claude-sonnet-5';
 
-async function coletarSnapshot(supabase: any, barId: number, di: string, df: string) {
+/**
+ * Quem entra no relatorio, e em que profundidade, vem de `config.relatorio_ia`
+ * no operations.bares:
+ *   'completo' → bar em operacao: vendas + operacao + satisfacao + midia (3, 4)
+ *   'midia'    → bar que ainda NAO abriu e so tem Instagram rodando (5)
+ *   ausente    → nao gera relatorio (6 Prefeitura, 7 Escritorio Central)
+ *
+ * Ficar de fora e' o default de proposito: bar sem operacao gerava um relatorio
+ * com tudo zerado e a IA gritava "CRITICO: falha de integracao" — ruido puro.
+ * Quando o Primo Pobre abrir, e' so trocar pra 'completo' — sem deploy.
+ */
+type ModoRelatorio = 'completo' | 'midia';
+
+async function coletarSnapshot(supabase: any, barId: number, di: string, df: string, modo: ModoRelatorio = 'completo') {
+  if (modo === 'midia') return await coletarSnapshotMidia(supabase, barId, di, df);
+  return await coletarSnapshotCompleto(supabase, barId, di, df);
+}
+
+/** Bar que ainda nao abriu: so o que existe de verdade — Instagram. */
+async function coletarSnapshotMidia(supabase: any, barId: number, di: string, df: string) {
+  const { data: ig } = await supabase
+    .schema('integrations').from('instagram_conta_metricas')
+    .select('data_snapshot, followers_count, reach, impressions, profile_views, total_interactions, accounts_engaged')
+    .eq('bar_id', barId).order('data_snapshot', { ascending: false }).limit(2);
+
+  const { data: posts } = await supabase
+    .schema('integrations').from('instagram_posts')
+    .select('ig_media_id, media_type, media_product_type, caption, like_count, comments_count')
+    .eq('bar_id', barId).gte('timestamp_post', `${di}T00:00:00`).lte('timestamp_post', `${df}T23:59:59`)
+    .order('like_count', { ascending: false });
+
+  const { data: alertas } = await supabase
+    .schema('integrations').from('instagram_alertas')
+    .select('tipo, severidade, titulo').eq('bar_id', barId).eq('resolvido', false)
+    .gte('criado_em', `${di}T00:00:00`).order('criado_em', { ascending: false }).limit(10);
+
+  return {
+    modo: 'midia',
+    periodo: { ini: di, fim: df },
+    instagram_ultimo_snapshot: ig?.[0] ?? null,
+    instagram_snapshot_anterior: ig?.[1] ?? null,
+    posts_da_semana: posts ?? [],
+    posts_semana_total: posts?.length ?? 0,
+    alertas_ig_ativos: alertas ?? [],
+  };
+}
+
+async function coletarSnapshotCompleto(supabase: any, barId: number, di: string, df: string) {
   // 1) Desempenho semanal (atual + anterior)
   const { data: desempenho } = await supabase
     .schema('gold').from('desempenho')
-    .select('numero_semana, ano, data_inicio, data_fim, faturamento_total, clientes_atendidos, ticket_medio, nps_geral, nps_salao, nps_digital, nps_reservas, stockout_total_perc, atrasos_comida_perc, atrasos_drinks_perc, cmv_global_real, cmo, reservas_quebra_pct, nota_felicidade_equipe, tempo_cozinha, tempo_drinks')
+    // NAO usar cmv_global_real: coluna MORTA (0,00 em 31/31 semanas de 2026, em
+    // todos os bares). O CMV de verdade vem de financial.cmv_semanal, igual a tela.
+    .select('numero_semana, ano, data_inicio, data_fim, faturamento_total, clientes_atendidos, ticket_medio, nps_geral, nps_salao, nps_digital, nps_reservas, stockout_total_perc, atrasos_comida_perc, atrasos_drinks_perc, cmo, reservas_quebra_pct, nota_felicidade_equipe, tempo_cozinha, tempo_drinks')
     .eq('bar_id', barId).eq('granularidade', 'semanal')
     .gte('data_inicio', di).lte('data_fim', df).order('data_fim');
 
@@ -84,10 +133,43 @@ async function coletarSnapshot(supabase: any, barId: number, di: string, df: str
     .select('data_evento, fat_previsto, publico_previsto').eq('bar_id', barId)
     .gte('data_evento', df).order('data_evento').limit(7);
 
+  // 9) CMV semanal — MESMA fonte da tela /estrategico/desempenho.
+  // O gold.desempenho.cmv_global_real esta morto (sempre 0); quem tem o numero
+  // e' financial.cmv_semanal, e o % global e' calculado na hora (cmv_real / fat).
+  let cmvBloco: any = null;
+  if (atual?.ano && atual?.numero_semana) {
+    const { data: cmvSem } = await supabase
+      .schema('financial').from('cmv_semanal')
+      .select('cmv_real, cmv_limpo_percentual, faturamento_cmvivel')
+      .eq('bar_id', barId).eq('ano', atual.ano).eq('semana', atual.numero_semana)
+      .maybeSingle();
+    const fat = Number(atual.faturamento_total) || 0;
+    const cmvReal = Number(cmvSem?.cmv_real) || 0;
+    cmvBloco = cmvSem ? {
+      cmv_real_rs: cmvReal,
+      cmv_global_percent: fat > 0 && cmvReal > 0 ? Number(((cmvReal / fat) * 100).toFixed(2)) : null,
+      cmv_limpo_percent: cmvSem.cmv_limpo_percentual ?? null,
+      faturamento_cmvivel: cmvSem.faturamento_cmvivel ?? null,
+    } : null;
+  }
+
+  // Folha: o ETL soma lancamentos do Conta Azul de salario/vale-transporte POR DATA
+  // DE PAGAMENTO. Semanalmente isso e' desembolso, nao custo de mao de obra da
+  // semana (semana sem data de pagamento da 0). Vai com nome que nao deixa duvida.
+  const folhaPaga = Number(atual?.cmo) || 0;
+  const fatSemana = Number(atual?.faturamento_total) || 0;
+
   return {
     periodo: { ini: di, fim: df },
     desempenho_atual: atual,
     desempenho_anterior: anterior,
+    cmv_semanal: cmvBloco,
+    folha_paga_na_semana: {
+      valor_rs: folhaPaga,
+      percent_do_faturamento: fatSemana > 0 && folhaPaga > 0
+        ? Number(((folhaPaga / fatSemana) * 100).toFixed(2)) : null,
+      observacao: 'Desembolso de folha lancado no periodo (salario/vale-transporte por data de pagamento). NAO e o custo de mao de obra da semana.',
+    },
     quality_score: quality?.score ?? null,
     instagram_d_anterior: ig?.[0] ?? null,
     instagram_d_anterior_minus_1: ig?.[1] ?? null,
@@ -102,8 +184,10 @@ async function coletarSnapshot(supabase: any, barId: number, di: string, df: str
  * Prompt unico do relatorio. Usado tanto pela geracao semanal quanto pelo
  * reprocessamento dos vazios — os dois PRECISAM sair no mesmo formato.
  */
-function montarPrompt(nomeBar: string, di: string, df: string, snap: any): string {
-  return `Você é o **Diretor de BI** dos bares Grupo Menos e Mais. Gere um RELATÓRIO EXECUTIVO SEMANAL pro **${nomeBar}** com base em DADOS REAIS.
+function montarPrompt(nomeBar: string, di: string, df: string, snap: any, modo: ModoRelatorio = 'completo'): string {
+  if (modo === 'midia') return montarPromptMidia(nomeBar, di, df, snap);
+
+  return `Você é o **Diretor de BI**. Gere um RELATÓRIO EXECUTIVO SEMANAL pro **${nomeBar}** com base em DADOS REAIS.
 
 Período: **${di} a ${df}**
 
@@ -111,7 +195,9 @@ Período: **${di} a ${df}**
 - **tempo_cozinha** e **tempo_drinks** estão em **SEGUNDOS** (não minutos). Ex: 546 = ~9 minutos, 153 = ~2,5 minutos.
 - **NPS Geral está MORTO** (não existe mais). Não cite "NPS Geral sem dado". Use **NPS Digital** como NPS principal (peso 25% no Quality Score).
 - **NPS Salão** tem volume pequeno (poucas respostas) — se for menos de 5 respostas, mencione amostra pequena, evite afirmar "100" como verdade.
-- Faturamento em R$. Atrasos/stockout em %. CMV global real em decimal (0.32 = 32%).
+- Faturamento em R$. Atrasos/stockout em %.
+- **CMV**: use APENAS o bloco \`cmv_semanal\` (\`cmv_global_percent\` e \`cmv_limpo_percent\` já vêm em %, ex.: 32.09 = 32,09%). Se \`cmv_semanal\` vier null, o CMV da semana ainda não fechou — diga isso, e NÃO conclua "CMV zerado".
+- **folha_paga_na_semana** é DESEMBOLSO de folha lançado no período (salário/vale-transporte por data de pagamento), NÃO o custo de mão de obra da semana. Semana sem data de pagamento vem 0 — isso é normal e **não é** economia nem falha. Cite no máximo como "folha paga na semana"; se quiser falar de CMO de verdade, diga que é indicador mensal.
 - Se métrica está NULL no snapshot, diga "não medido nesta semana" e NÃO use no peso do score.
 
 DADOS BRUTOS (snapshot da semana do relatório):
@@ -126,7 +212,7 @@ Frase única com o headline da semana (subiu/caiu, melhor/pior).
 Número absoluto + comparativo % vs semana anterior. Ticket médio. Público.
 
 ## 🍔 Eficiência Operacional
-CMV real vs teórico. CMO. Stockout. Atrasos cozinha + drinks.
+CMV do bloco cmv_semanal (global % e limpo %). Stockout. Atrasos cozinha + drinks. Folha paga na semana só se houver valor, com a ressalva de que é desembolso.
 
 ## 😊 Satisfação e Qualidade
 NPS geral + por canal. Quality Score atual. Felicidade equipe.
@@ -144,6 +230,43 @@ Liste 2-4 problemas reais com gravidade. Use dados específicos.
 Use as previsões pros próximos dias.
 
 Tom: direto, números reais, sem floreio, máximo 800 palavras. Pt-BR.`;
+}
+
+/**
+ * Bar que ainda NAO abriu (hoje: Primo Pobre). So existe Instagram — pedir
+ * vendas/CMV/NPS aqui produzia um relatorio de tudo zerado com alarme falso de
+ * "CRITICO: falha de integracao". Aqui o assunto e' so a construcao de audiencia.
+ */
+function montarPromptMidia(nomeBar: string, di: string, df: string, snap: any): string {
+  return `Você é o **Diretor de BI**. Gere um RELATÓRIO SEMANAL DE MÍDIA pro **${nomeBar}** com base em DADOS REAIS.
+
+Período: **${di} a ${df}**
+
+⚠️ CONTEXTO OBRIGATÓRIO — leia antes de escrever:
+- Este bar **AINDA NÃO ABRIU**. Não existe operação, faturamento, CMV, NPS, cozinha ou reservas.
+- **NÃO** mencione vendas, faturamento, ticket médio, CMV, CMO, NPS, stockout ou atrasos — nem para dizer que estão zerados. Não é falha de integração: simplesmente não existe ainda.
+- O objetivo da fase é **construir audiência antes da inauguração**. Avalie por esse critério.
+- \`instagram_ultimo_snapshot\` é a foto mais recente da conta e \`instagram_snapshot_anterior\` a anterior — use as duas para variação. Se só houver uma, diga que ainda não há base de comparação.
+- Se não houve post na semana, isso É o achado principal.
+
+DADOS BRUTOS (snapshot da semana do relatório):
+${JSON.stringify(snap, null, 2)}
+
+ESTRUTURA OBRIGATÓRIA (markdown, parágrafos curtos):
+
+## 📊 Resumo da Semana
+Uma frase: a audiência avançou, ficou parada ou recuou?
+
+## 📱 Instagram
+Seguidores e variação vs snapshot anterior. Alcance, contas engajadas, visitas ao perfil. Quantos posts saíram e quais performaram melhor (cite a legenda encurtada e os números).
+
+## 🚨 Atenções
+1-3 pontos reais desta fase (ex.: semana sem post, alcance caindo, engajamento concentrado em um único conteúdo). Se estiver tudo bem, diga que está tudo bem — não invente problema.
+
+## 🎯 Recomendações da Semana
+3 ações concretas de conteúdo/audiência para a próxima semana, pensando na inauguração.
+
+Tom: direto, números reais, sem floreio, máximo 400 palavras. Pt-BR.`;
 }
 
 async function chamarClaude(prompt: string): Promise<{ text: string; tokensIn: number; tokensOut: number }> {
@@ -225,8 +348,11 @@ serve(async (req) => {
         .select('id, bar_id, periodo_ini, periodo_fim, dados_brutos')
         .in('id', alvo.map((r: any) => r.id));
 
-      const { data: todosBares } = await supabase.schema('operations').from('bares').select('id, nome');
+      const { data: todosBares } = await supabase.schema('operations').from('bares').select('id, nome, config');
       const nomePorBar = new Map<number, string>((todosBares ?? []).map((b: any) => [b.id, b.nome]));
+      const modoPorBar = new Map<number, ModoRelatorio>(
+        (todosBares ?? []).map((b: any) => [b.id, (b?.config?.relatorio_ia === 'midia' ? 'midia' : 'completo') as ModoRelatorio])
+      );
 
       const feitos: any[] = [];
 
@@ -240,7 +366,9 @@ serve(async (req) => {
           const snap = row.dados_brutos;
           if (!snap) throw new Error('sem dados_brutos — nao da pra refazer o texto');
           const nome = nomePorBar.get(row.bar_id) ?? `Bar ${row.bar_id}`;
-          const claude = await chamarClaude(montarPrompt(nome, row.periodo_ini, row.periodo_fim, snap));
+          const claude = await chamarClaude(
+            montarPrompt(nome, row.periodo_ini, row.periodo_fim, snap, modoPorBar.get(row.bar_id) ?? 'completo')
+          );
           const { error } = await supabase.schema('gold').from('relatorios_executivos').update({
             resumo_executivo: claude.text,
             modelo_usado: MODELO,
@@ -268,17 +396,31 @@ serve(async (req) => {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    let q = supabase.schema('operations').from('bares').select('id, nome').eq('ativo', true);
+    let q = supabase.schema('operations').from('bares').select('id, nome, config').eq('ativo', true);
     if (filterBarId) q = q.eq('id', filterBarId);
-    const { data: bares } = await q;
+    const { data: baresAtivos } = await q;
+
+    // So entram os bares marcados em config.relatorio_ia (ver ModoRelatorio no topo).
+    // Bar ativo != bar com operacao: Prefeitura e Escritorio Central sao ativos no
+    // sistema e geravam relatorio de tudo zerado.
+    const bares = (baresAtivos ?? [])
+      .map((b: any) => ({ id: b.id, nome: b.nome, modo: b?.config?.relatorio_ia as ModoRelatorio | undefined }))
+      .filter((b: any) => b.modo === 'completo' || b.modo === 'midia');
+
+    if (bares.length === 0) {
+      return new Response(JSON.stringify({
+        success: true, periodo: { ini: di, fim: df }, resultados: [],
+        aviso: 'Nenhum bar com config.relatorio_ia = completo|midia',
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
 
     const resultados: any[] = [];
 
     for (const bar of (bares ?? [])) {
       try {
-      const snap = await coletarSnapshot(supabase, bar.id, di, df);
+      const snap = await coletarSnapshot(supabase, bar.id, di, df, bar.modo);
 
-      const prompt = montarPrompt(bar.nome, di, df, snap);
+      const prompt = montarPrompt(bar.nome, di, df, snap, bar.modo);
 
       const claude = await chamarClaude(prompt);
 
