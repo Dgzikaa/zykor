@@ -148,17 +148,44 @@ async function coletarSnapshotCompleto(supabase: any, barId: number, di: string,
   if (atual?.ano && atual?.numero_semana) {
     const { data: cmvSem } = await supabase
       .schema('financial').from('cmv_semanal')
-      .select('cmv_real, cmv_limpo_percentual, faturamento_cmvivel')
+      .select('cmv_real, cmv_limpo_percentual, faturamento_cmvivel, status, estoque_inicial, compras_periodo, estoque_final')
       .eq('bar_id', barId).eq('ano', atual.ano).eq('semana', atual.numero_semana)
       .maybeSingle();
     const fat = Number(atual.faturamento_total) || 0;
     const cmvReal = Number(cmvSem?.cmv_real) || 0;
+    // `status` vai junto de proposito: semana em 'rascunho' ainda nao fechou o
+    // estoque, e o CMV sai distorcido (27/07 do Deboche deu 11,77% porque o
+    // estoque final ficou 8,3k ACIMA do inicial). Sem esse aviso a IA apresenta
+    // numero provisorio como fato.
     cmvBloco = cmvSem ? {
       cmv_real_rs: cmvReal,
       cmv_global_percent: fat > 0 && cmvReal > 0 ? Number(((cmvReal / fat) * 100).toFixed(2)) : null,
       cmv_limpo_percent: cmvSem.cmv_limpo_percentual ?? null,
       faturamento_cmvivel: cmvSem.faturamento_cmvivel ?? null,
+      status: cmvSem.status ?? null,
+      fechado: cmvSem.status === 'fechado',
+      composicao: {
+        estoque_inicial: cmvSem.estoque_inicial ?? null,
+        compras_periodo: cmvSem.compras_periodo ?? null,
+        estoque_final: cmvSem.estoque_final ?? null,
+      },
     } : null;
+  }
+
+  // CMO informado na tela de desempenho (meta.desempenho_manual.cmo, em %).
+  // Hoje esta 0 em todas as semanas nos dois bares — ninguem preenche — e por
+  // isso a tela cai no calculo automatico. Quando alguem preencher, o relatorio
+  // passa a usar o numero oficial sozinho.
+  let cmoInformado: number | null = null;
+  if (atual?.ano && atual?.numero_semana) {
+    const { data: manualSem } = await supabase
+      .schema('meta').from('desempenho_manual')
+      .select('cmo')
+      .eq('bar_id', barId).eq('granularidade', 'semanal')
+      .eq('ano', atual.ano).eq('numero_semana', atual.numero_semana)
+      .maybeSingle();
+    const v = Number(manualSem?.cmo) || 0;
+    cmoInformado = v > 0 ? v : null;
   }
 
   // Folha: o ETL soma lancamentos do Conta Azul de salario/vale-transporte POR DATA
@@ -172,6 +199,7 @@ async function coletarSnapshotCompleto(supabase: any, barId: number, di: string,
     desempenho_atual: atual,
     desempenho_anterior: anterior,
     cmv_semanal: cmvBloco,
+    cmo_informado_percent: cmoInformado,
     folha_paga_na_semana: {
       valor_rs: folhaPaga,
       percent_do_faturamento: fatSemana > 0 && folhaPaga > 0
@@ -204,8 +232,9 @@ Período: **${di} a ${df}**
 - **NPS Geral está MORTO** (não existe mais). Não cite "NPS Geral sem dado". Use **NPS Digital** como NPS principal (peso 25% no Quality Score).
 - **NPS Salão** tem volume pequeno (poucas respostas) — se for menos de 5 respostas, mencione amostra pequena, evite afirmar "100" como verdade.
 - Faturamento em R$. Atrasos/stockout em %.
-- **CMV**: use APENAS o bloco \`cmv_semanal\` (\`cmv_global_percent\` e \`cmv_limpo_percent\` já vêm em %, ex.: 32.09 = 32,09%). Se \`cmv_semanal\` vier null, o CMV da semana ainda não fechou — diga isso, e NÃO conclua "CMV zerado".
-- **folha_paga_na_semana** é DESEMBOLSO de folha lançado no período (salário/vale-transporte por data de pagamento), NÃO o custo de mão de obra da semana. Semana sem data de pagamento vem 0 — isso é normal e **não é** economia nem falha. Cite no máximo como "folha paga na semana"; se quiser falar de CMO de verdade, diga que é indicador mensal.
+- **CMV**: use APENAS o bloco \`cmv_semanal\` (\`cmv_global_percent\` e \`cmv_limpo_percent\` já vêm em %, ex.: 32.09 = 32,09%). Se vier null, o CMV da semana ainda não fechou — diga isso, e NÃO conclua "CMV zerado".
+- ⚠️ **Se \`cmv_semanal.fechado\` for false (status "rascunho"), o número é PROVISÓRIO**: o estoque da semana ainda não foi fechado. Diga isso na mesma frase em que citar o CMV, e **não** trate CMV baixo como conquista nem alto como crise. Confira \`composicao\` — se o \`estoque_final\` estiver acima do \`estoque_inicial\` numa semana de venda normal, é contagem pendente, e vale citar como pendência operacional (não como resultado).
+- **CMO**: se \`cmo_informado_percent\` tiver valor, é o CMO oficial (%) preenchido na tela de desempenho — use esse. Se vier null, ninguém preencheu: aí use \`folha_paga_na_semana\`, que é DESEMBOLSO de folha lançado no período (salário/vale-transporte por data de pagamento) e **não** o custo de mão de obra da semana. Semana sem data de pagamento vem 0 — normal, não é economia nem falha.
 - Se métrica está NULL no snapshot, diga "não medido nesta semana" e NÃO use no peso do score.
 
 DADOS BRUTOS (snapshot da semana do relatório):
