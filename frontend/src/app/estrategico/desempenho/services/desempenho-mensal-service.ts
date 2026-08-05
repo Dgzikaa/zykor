@@ -59,6 +59,29 @@ export async function getMeses(
     manuaisMap.set(key, m);
   });
 
+  // Reservas lançadas na MÃO na tela semanal (Deboche não tem GetIn). O gold mensal
+  // vem 0 nessas colunas, e a linha manual de granularidade='mensal' nunca é preenchida
+  // — por isso o mês exibia zero enquanto a semana mostrava os números certos.
+  // Somamos as semanas manuais no mês (mesma regra de quinta-feira ISO do marketing).
+  const { data: manuaisSemanaisData } = await supabase
+    .schema('meta' as never)
+    .from('desempenho_manual')
+    .select('ano, numero_semana, reservas_totais, reservas_presentes, mesas_totais, mesas_presentes')
+    .eq('bar_id', barId)
+    .eq('granularidade', 'semanal')
+    .gte('ano', anoInicio)
+    .lte('ano', anoFim);
+
+  // Modo da integração GetIn: 'manual' = o lançamento na mão é a fonte (bar 4).
+  const { data: integConfig } = await supabase
+    .schema('operations' as never)
+    .from('integracoes_bar')
+    .select('integracao, modo')
+    .eq('bar_id', barId)
+    .eq('integracao', 'getin')
+    .single();
+  const getinManual = integConfig?.modo === 'manual';
+
   // Buscar meta.marketing_semanal pra agregar campos g_* e gmn_*
   // (gold.desempenho so tem m_*, mas o front exibe Google Ads e Google Meu Negocio)
   const { data: marketingData } = await supabase
@@ -196,6 +219,23 @@ export async function getMeses(
     marketingMensalMap.set(key, agg);
   });
 
+  // Soma das reservas manuais semanais por mês (quinta-feira ISO decide o mês da semana,
+  // mesma regra do marketing acima — cada semana entra em um mês só, sem double counting).
+  type ReservasAgg = { totais: number; presentes: number; mesas_totais: number; mesas_presentes: number };
+  const reservasManuaisMes = new Map<string, ReservasAgg>();
+  (manuaisSemanaisData || []).forEach((m: any) => {
+    const start = isoWeekStart(m.ano, m.numero_semana);
+    const thursday = new Date(start);
+    thursday.setUTCDate(start.getUTCDate() + 3);
+    const key = `${thursday.getUTCFullYear()}-${String(thursday.getUTCMonth() + 1).padStart(2, '0')}`;
+    const agg = reservasManuaisMes.get(key) ?? { totais: 0, presentes: 0, mesas_totais: 0, mesas_presentes: 0 };
+    agg.totais += Number(m.reservas_totais) || 0;
+    agg.presentes += Number(m.reservas_presentes) || 0;
+    agg.mesas_totais += Number(m.mesas_totais) || 0;
+    agg.mesas_presentes += Number(m.mesas_presentes) || 0;
+    reservasManuaisMes.set(key, agg);
+  });
+
   // Mix de Vendas — % (por VALOR) e QUANTIDADES por mes (BEBIDA/DRINK/COMIDA).
   // get_mix_por_mes combina ContaHub (dias sem Yuzer) + Yuzer (dias de evento) —
   // meses sem Yuzer ficam idênticos ao gold. Sobrescreve o perc_* do gold.
@@ -318,13 +358,41 @@ export async function getMeses(
       descontos_valor: descontoTotal,
       descontos_perc: faturamentoTotal > 0 ? (descontoTotal / faturamentoTotal) * 100 : 0,
 
-      // Quebra de reservas: (reservas_totais - reservas_presentes) / reservas_totais * 100
-      // (mesma formula do desempenho-service.ts semanal)
-      quebra_reservas: (toNum(g.reservas_totais) ?? 0) > 0
-        ? (((toNum(g.reservas_totais) ?? 0) - (toNum(g.reservas_presentes) ?? 0)) / (toNum(g.reservas_totais) ?? 1)) * 100
-        : 0,
-      reservas_totais: toNum(g.reservas_totais) ?? 0,
-      reservas_presentes: toNum(g.reservas_presentes) ?? 0,
+      // Reservas: mesma cascata do semanal (desempenho-service.ts). Em bar de GetIn
+      // manual (Deboche) a fonte é o lançamento na mão — aqui somado das semanas, porque
+      // a linha manual mensal existe mas nunca é preenchida (fica 0, e 0 = "não preenchido",
+      // não "nenhuma reserva"). Em bar com API o gold ganha e nada muda.
+      ...(() => {
+        const rm = reservasManuaisMes.get(g.periodo);
+        const mm = manuaisMap.get(g.periodo) || {};
+        // > 0 e não `?? `: em meta.desempenho_manual o não preenchido é 0, não null.
+        const pos = (v: unknown): number | null => {
+          const n = toNum(v);
+          return n !== null && n > 0 ? n : null;
+        };
+        const goldTotais = pos(g.reservas_totais_pessoas) ?? pos(g.reservas_totais);
+        const goldPresentes = pos(g.reservas_presentes_pessoas) ?? pos(g.reservas_presentes);
+        const goldMesasTotais = pos(g.reservas_totais_quantidade) ?? pos(g.mesas_totais);
+        const goldMesasPresentes = pos(g.reservas_presentes_quantidade) ?? pos(g.mesas_presentes);
+        const manualTotais = pos(mm.reservas_totais) ?? pos(rm?.totais);
+        const manualPresentes = pos(mm.reservas_presentes) ?? pos(rm?.presentes);
+        const manualMesasTotais = pos(mm.mesas_totais) ?? pos(rm?.mesas_totais);
+        const manualMesasPresentes = pos(mm.mesas_presentes) ?? pos(rm?.mesas_presentes);
+
+        const reservasTotais = (getinManual ? manualTotais ?? goldTotais : goldTotais ?? manualTotais) ?? 0;
+        const reservasPresentes = (getinManual ? manualPresentes ?? goldPresentes : goldPresentes ?? manualPresentes) ?? 0;
+
+        return {
+          reservas_totais: reservasTotais,
+          reservas_presentes: reservasPresentes,
+          mesas_totais: (getinManual ? manualMesasTotais ?? goldMesasTotais : goldMesasTotais ?? manualMesasTotais) ?? 0,
+          mesas_presentes: (getinManual ? manualMesasPresentes ?? goldMesasPresentes : goldMesasPresentes ?? manualMesasPresentes) ?? 0,
+          // Quebra de reservas: (totais - presentes) / totais * 100 (fórmula do semanal)
+          quebra_reservas: reservasTotais > 0
+            ? ((reservasTotais - reservasPresentes) / reservasTotais) * 100
+            : 0,
+        };
+      })(),
 
       // Cancelamentos: gold cancelamentos_total -> front cancelamentos
       cancelamentos: toNum(g.cancelamentos_total) ?? toNum(g.cancelamentos),
