@@ -41,7 +41,8 @@ import {
   Calculator,
   ArrowUp,
   ArrowDown,
-  Loader2
+  Loader2,
+  Download
 } from 'lucide-react';
 import { useBar } from '@/contexts/BarContext';
 import { useUser } from '@/contexts/UserContext';
@@ -447,6 +448,8 @@ const FMT_MOEDA = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 
 const FMT_MOEDA_DECIMAL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const FMT_NUM_INTEIRO = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const FMT_NUM_DECIMAL = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 const formatarValor = (valor: unknown, formato: string, sufixo?: string): string => {
   if (valor !== null && typeof valor === 'object') return '-';
@@ -1019,8 +1022,10 @@ export function DesempenhoClient({
     setSecoesAbertas(prev => ({ ...prev, [id]: !prev[id] }));
   }, []);
 
-  const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-  const formatarHeaderColuna = (item: DadosSemana): { titulo: string; subtitulo: string } => {
+  // useCallback: usado no render E no exportarPlanilha — sem memo, o callback do
+  // export mudaria a cada render. (NOMES_MESES foi pro escopo do modulo pelo
+  // mesmo motivo: array recriado a cada render invalidaria o memo.)
+  const formatarHeaderColuna = useCallback((item: DadosSemana): { titulo: string; subtitulo: string } => {
     if (visao === 'mensal') {
       return {
         titulo: `${NOMES_MESES[item.numero_semana - 1]}/${item.ano.toString().slice(-2)}`,
@@ -1031,12 +1036,13 @@ export function DesempenhoClient({
       titulo: `S${item.numero_semana.toString().padStart(2, '0')}/${item.ano.toString().slice(-2)}`,
       subtitulo: `${formatarDataCurta(item.data_inicio)} - ${formatarDataCurta(item.data_fim)}`
     };
-  };
+  }, [visao]);
 
   const abrirModalMetas = useCallback(() => {
     // Inicializacao dos values e' feita pelo MetasModal quando `open` vira true.
     setMetasModalAberto(true);
   }, []);
+
 
   const salvarMetasDesempenho = useCallback(async (editValues: Record<string, string>) => {
     if (!selectedBar?.id) {
@@ -1826,8 +1832,10 @@ export function DesempenhoClient({
     }
   };
 
-  // Helper para obter valor considerando override local
-  const getValorComOverride = (semana: DadosSemana, key: string): unknown => {
+  // Helper para obter valor considerando override local.
+  // useCallback porque o exportarPlanilha depende dele — sem memo, o callback do
+  // export seria recriado a cada render.
+  const getValorComOverride = useCallback((semana: DadosSemana, key: string): unknown => {
     const semanaId = semana.id?.toString() || '';
 
     // Override otimista local — sempre vence
@@ -1856,7 +1864,74 @@ export function DesempenhoClient({
       return semana[key as keyof DadosSemana];
     }
     return undefined;
-  };
+  }, [valoresLocais, visao, cmoDetalheMeses, cmoDetalheSemanas]);
+
+  // ===== Exportar planilha =====
+  // Pedido de quem monta controle proprio ("no zykor ja ta tudo mastigadinho"):
+  // levar o cockpit da semana pra planilha dele. Sai a MESMA tabela da tela —
+  // indicador por linha, periodo por coluna, na ordem das secoes — mas com
+  // NUMERO CRU (sem R$/%/formatacao), senao nao da pra somar nem fazer grafico
+  // do outro lado. A unidade vai em coluna separada, e a meta junto, que e' o
+  // que transforma a planilha em lista de prioridade da semana.
+  const [exportando, setExportando] = useState(false);
+  const exportarPlanilha = useCallback(async () => {
+    if (exportando || semanasProcessadas.length === 0) return;
+    setExportando(true);
+    try {
+      const UNIDADE: Record<string, string> = {
+        moeda: 'R$', moeda_decimal: 'R$', moeda_com_percentual: 'R$',
+        percentual: '%', decimal: '', numero: '', reservas: '',
+      };
+      const num = (v: unknown): number | '' => {
+        const n = typeof v === 'string' ? parseFloat(v) : typeof v === 'number' ? v : NaN;
+        return Number.isFinite(n) ? n : '';
+      };
+
+      const colunas = semanasProcessadas.map((s) => {
+        const h = formatarHeaderColuna(s);
+        return { chave: `${h.titulo} (${h.subtitulo})`, semana: s };
+      });
+
+      const linhas = SECOES.flatMap((secao) =>
+        secao.grupos.flatMap((grupo) =>
+          grupo.metricas.map((metrica) => {
+            const meta = metas[metrica.key];
+            const linha: Record<string, string | number> = {
+              'Seção': secao.titulo,
+              'Indicador': (metrica.indentado ? '— ' : '') + metrica.label,
+              'Unidade': UNIDADE[metrica.formato] ?? '',
+              'Meta': meta?.valor ?? '',
+            };
+            for (const col of colunas) {
+              // getValorComOverride: MESMO acessor da tela — resolve as linhas de CMO
+              // detalhado (que vem de outra API, nao da linha) e edicoes locais ainda
+              // nao refetchadas. Ler a linha crua deixava 7 dos 75 indicadores vazios.
+              linha[col.chave] = num(getValorComOverride(col.semana, metrica.key));
+            }
+            return linha;
+          }),
+        ),
+      );
+
+      // import dinamico: a lib de planilha nao entra no bundle de quem so abre a tela
+      const XLSX = await import('xlsx');
+      const ws = XLSX.utils.json_to_sheet(linhas);
+      ws['!cols'] = [{ wch: 26 }, { wch: 30 }, { wch: 8 }, { wch: 10 },
+        ...colunas.map(() => ({ wch: 16 }))];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, visao === 'semanal' ? 'Desempenho Semanal' : 'Desempenho Mensal');
+      const bar = (selectedBar?.nome || 'bar').replace(/\s+/g, '-').toLowerCase();
+      XLSX.writeFile(wb, `desempenho-${visao}_${bar}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (e: unknown) {
+      toast({
+        title: 'Erro ao exportar',
+        description: e instanceof Error ? e.message : 'Não consegui gerar a planilha.',
+        variant: 'destructive',
+      });
+    } finally {
+      setExportando(false);
+    }
+  }, [exportando, semanasProcessadas, SECOES, metas, visao, selectedBar?.nome, formatarHeaderColuna, getValorComOverride, toast]);
 
   // Se não houver dados e não estiver carregando (mas loading é false inicialmente)
   if (initialData.length === 0 && visao === 'mensal') {
@@ -1901,6 +1976,20 @@ export function DesempenhoClient({
                  <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-amber-500" /><span className="text-gray-600 dark:text-gray-400">Verificar</span></div>
               </div>
               
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportarPlanilha}
+                disabled={exportando || semanasProcessadas.length === 0}
+                className="gap-2"
+                title={`Baixa a tabela ${visao === 'semanal' ? 'semanal' : 'mensal'} em .xlsx (números crus, prontos pra planilha)`}
+              >
+                {exportando
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Download className="h-4 w-4" />}
+                {exportando ? 'Gerando…' : 'Exportar'}
+              </Button>
+
               <Button variant="outline" size="sm" onClick={abrirModalMetas} className="gap-2">
                 <Target className="h-4 w-4" />
                 Metas
