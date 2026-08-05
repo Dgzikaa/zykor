@@ -21,7 +21,9 @@ type Relatorio = {
   criado_em: string;
 };
 
-const NOMES_BAR: Record<number, string> = { 3: 'Ordinário', 4: 'Deboche' };
+// Quem gera relatório vem de config.relatorio_ia no banco (3 e 4 completo,
+// 5 só mídia). Prefeitura e Escritório Central não geram.
+const NOMES_BAR: Record<number, string> = { 3: 'Ordinário', 4: 'Deboche', 5: 'Primo Pobre' };
 
 function fmtData(s: string) {
   const d = new Date(s);
@@ -124,6 +126,7 @@ export default function RelatorioSemanalPage() {
             <option value="todos">Todos os bares</option>
             <option value="3">Ordinário</option>
             <option value="4">Deboche</option>
+            <option value="5">Primo Pobre</option>
           </select>
           <Button onClick={gerar} disabled={gerando} className="bg-pink-600 hover:bg-pink-700">
             {gerando ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
