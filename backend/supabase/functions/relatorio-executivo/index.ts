@@ -98,6 +98,54 @@ async function coletarSnapshot(supabase: any, barId: number, di: string, df: str
   };
 }
 
+/**
+ * Prompt unico do relatorio. Usado tanto pela geracao semanal quanto pelo
+ * reprocessamento dos vazios — os dois PRECISAM sair no mesmo formato.
+ */
+function montarPrompt(nomeBar: string, di: string, df: string, snap: any): string {
+  return `Você é o **Diretor de BI** dos bares Grupo Menos e Mais. Gere um RELATÓRIO EXECUTIVO SEMANAL pro **${nomeBar}** com base em DADOS REAIS.
+
+Período: **${di} a ${df}**
+
+⚠️ UNIDADES E CONVENÇÕES IMPORTANTES (não interpretar errado):
+- **tempo_cozinha** e **tempo_drinks** estão em **SEGUNDOS** (não minutos). Ex: 546 = ~9 minutos, 153 = ~2,5 minutos.
+- **NPS Geral está MORTO** (não existe mais). Não cite "NPS Geral sem dado". Use **NPS Digital** como NPS principal (peso 25% no Quality Score).
+- **NPS Salão** tem volume pequeno (poucas respostas) — se for menos de 5 respostas, mencione amostra pequena, evite afirmar "100" como verdade.
+- Faturamento em R$. Atrasos/stockout em %. CMV global real em decimal (0.32 = 32%).
+- Se métrica está NULL no snapshot, diga "não medido nesta semana" e NÃO use no peso do score.
+
+DADOS BRUTOS (snapshot da semana do relatório):
+${JSON.stringify(snap, null, 2)}
+
+ESTRUTURA OBRIGATÓRIA do relatório (markdown, parágrafos curtos):
+
+## 📊 Resumo do Período
+Frase única com o headline da semana (subiu/caiu, melhor/pior).
+
+## 💰 Vendas e Faturamento
+Número absoluto + comparativo % vs semana anterior. Ticket médio. Público.
+
+## 🍔 Eficiência Operacional
+CMV real vs teórico. CMO. Stockout. Atrasos cozinha + drinks.
+
+## 😊 Satisfação e Qualidade
+NPS geral + por canal. Quality Score atual. Felicidade equipe.
+
+## 📱 Instagram e Marketing
+Followers, reach, engagement, top posts. Alertas se houver.
+
+## 🚨 Atenções e Riscos
+Liste 2-4 problemas reais com gravidade. Use dados específicos.
+
+## 🎯 Recomendações da Semana
+3 ações concretas, mensuráveis, pra esta semana. Aponte responsável quando possível.
+
+## 🔮 O que esperar
+Use as previsões pros próximos dias.
+
+Tom: direto, números reais, sem floreio, máximo 800 palavras. Pt-BR.`;
+}
+
 async function chamarClaude(prompt: string): Promise<{ text: string; tokensIn: number; tokensOut: number }> {
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY ausente');
@@ -150,6 +198,76 @@ serve(async (req) => {
 
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
+    // ── Modo reprocessamento ──────────────────────────────────────────────
+    // Refaz o TEXTO dos relatorios que ficaram gravados vazios (bug do Sonnet 5,
+    // 06/07 a 03/08/2026) reaproveitando o dados_brutos ja salvo na linha — ou
+    // seja, os numeros REAIS daquela semana, e nao os de hoje. Nao cria linha
+    // nova: faz UPDATE na existente. Rode quantas vezes precisar; a cada rodada
+    // ele pega os que ainda estao vazios e devolve quantos sobraram.
+    if (body?.regerar_vazios) {
+      const limite = Math.min(Number(body?.limite) || 10, 30);
+      const inicioMs = Date.now();
+
+      const { data: todos } = await supabase.schema('gold').from('relatorios_executivos')
+        .select('id, bar_id, periodo_ini, periodo_fim, resumo_executivo')
+        .order('periodo_fim', { ascending: false });
+
+      const vazios = (todos ?? []).filter((r: any) => !(r.resumo_executivo ?? '').trim());
+      const alvo = vazios.slice(0, limite);
+
+      if (alvo.length === 0) {
+        return new Response(JSON.stringify({ success: true, modo: 'regerar_vazios', processados: 0, restantes: 0 }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: linhas } = await supabase.schema('gold').from('relatorios_executivos')
+        .select('id, bar_id, periodo_ini, periodo_fim, dados_brutos')
+        .in('id', alvo.map((r: any) => r.id));
+
+      const { data: todosBares } = await supabase.schema('operations').from('bares').select('id, nome');
+      const nomePorBar = new Map<number, string>((todosBares ?? []).map((b: any) => [b.id, b.nome]));
+
+      const feitos: any[] = [];
+
+      // Em lotes de 5 em paralelo: um relatorio leva ~40s, entao serial estouraria
+      // o tempo maximo da edge function. O guarda de tempo para antes do limite e
+      // devolve o que faltou, pra proxima chamada continuar.
+      for (let i = 0; i < (linhas ?? []).length; i += 5) {
+        if (Date.now() - inicioMs > 240_000) break;
+        const lote = (linhas ?? []).slice(i, i + 5);
+        const saidas = await Promise.allSettled(lote.map(async (row: any) => {
+          const snap = row.dados_brutos;
+          if (!snap) throw new Error('sem dados_brutos — nao da pra refazer o texto');
+          const nome = nomePorBar.get(row.bar_id) ?? `Bar ${row.bar_id}`;
+          const claude = await chamarClaude(montarPrompt(nome, row.periodo_ini, row.periodo_fim, snap));
+          const { error } = await supabase.schema('gold').from('relatorios_executivos').update({
+            resumo_executivo: claude.text,
+            modelo_usado: MODELO,
+            tokens_input: claude.tokensIn,
+            tokens_output: claude.tokensOut,
+          }).eq('id', row.id);
+          if (error) throw new Error(`update falhou: ${error.message}`);
+          return { id: row.id, bar_id: row.bar_id, periodo: row.periodo_fim, chars: claude.text.length };
+        }));
+        saidas.forEach((s, idx) => {
+          if (s.status === 'fulfilled') feitos.push(s.value);
+          else {
+            console.error('[relatorio-executivo][regerar]', lote[idx]?.id, s.reason);
+            feitos.push({ id: lote[idx]?.id, erro: String(s.reason?.message ?? s.reason) });
+          }
+        });
+      }
+
+      const ok = feitos.filter((f) => !f.erro).length;
+      return new Response(JSON.stringify({
+        success: true, modo: 'regerar_vazios',
+        processados: ok, falhas: feitos.length - ok,
+        restantes: Math.max(0, vazios.length - ok),
+        detalhe: feitos,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     let q = supabase.schema('operations').from('bares').select('id, nome').eq('ativo', true);
     if (filterBarId) q = q.eq('id', filterBarId);
     const { data: bares } = await q;
@@ -160,47 +278,7 @@ serve(async (req) => {
       try {
       const snap = await coletarSnapshot(supabase, bar.id, di, df);
 
-      const prompt = `Você é o **Diretor de BI** dos bares Grupo Menos e Mais. Gere um RELATÓRIO EXECUTIVO SEMANAL pro **${bar.nome}** com base em DADOS REAIS.
-
-Período: **${di} a ${df}**
-
-⚠️ UNIDADES E CONVENÇÕES IMPORTANTES (não interpretar errado):
-- **tempo_cozinha** e **tempo_drinks** estão em **SEGUNDOS** (não minutos). Ex: 546 = ~9 minutos, 153 = ~2,5 minutos.
-- **NPS Geral está MORTO** (não existe mais). Não cite "NPS Geral sem dado". Use **NPS Digital** como NPS principal (peso 25% no Quality Score).
-- **NPS Salão** tem volume pequeno (poucas respostas) — se for menos de 5 respostas, mencione amostra pequena, evite afirmar "100" como verdade.
-- Faturamento em R$. Atrasos/stockout em %. CMV global real em decimal (0.32 = 32%).
-- Se métrica está NULL no snapshot, diga "não medido nesta semana" e NÃO use no peso do score.
-
-DADOS BRUTOS (snapshot agora):
-${JSON.stringify(snap, null, 2)}
-
-ESTRUTURA OBRIGATÓRIA do relatório (markdown, parágrafos curtos):
-
-## 📊 Resumo do Período
-Frase única com o headline da semana (subiu/caiu, melhor/pior).
-
-## 💰 Vendas e Faturamento
-Número absoluto + comparativo % vs semana anterior. Ticket médio. Público.
-
-## 🍔 Eficiência Operacional
-CMV real vs teórico. CMO. Stockout. Atrasos cozinha + drinks.
-
-## 😊 Satisfação e Qualidade
-NPS geral + por canal. Quality Score atual. Felicidade equipe.
-
-## 📱 Instagram e Marketing
-Followers, reach, engagement, top posts. Alertas se houver.
-
-## 🚨 Atenções e Riscos
-Liste 2-4 problemas reais com gravidade. Use dados específicos.
-
-## 🎯 Recomendações da Semana
-3 ações concretas, mensuráveis, pra esta semana. Aponte responsável quando possível.
-
-## 🔮 O que esperar
-Use as previsões pros próximos dias.
-
-Tom: direto, números reais, sem floreio, máximo 800 palavras. Pt-BR.`;
+      const prompt = montarPrompt(bar.nome, di, df, snap);
 
       const claude = await chamarClaude(prompt);
 
