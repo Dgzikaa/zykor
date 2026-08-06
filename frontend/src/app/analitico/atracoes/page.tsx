@@ -8,7 +8,7 @@ import { GraficoLinha } from '@/components/graficos/Charts';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import { Music, Users, DollarSign, Calendar, Award, TrendingUp, TrendingDown, Star, Trophy, Ticket, ArrowUpRight, ArrowDownRight, Sparkles, Handshake, Share2, Camera, X, Tag, FolderOpen } from 'lucide-react';
 import { NpsArtistaBadge } from '@/components/nps/NpsCasa';
 
@@ -29,6 +29,10 @@ const haQuanto = (s?: string) => {
   if (meses < 24) return `há ${meses} meses`;
   return `há ${(dias / 365).toFixed(1).replace('.', ',')} anos`;
 };
+
+/** minúsculo e sem acento, pros dois lados da busca de artista. */
+const semAcento = (s: string) =>
+  s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 interface ArtistaLista { artista_id: number; nome: string; tipo: string; foto_url?: string | null; presskit_url?: string | null; shows: number; primeiro: string; ultimo: string }
 interface Marco { data: string; cache?: number; publico?: number; fat?: number; dow?: string; valor?: number }
@@ -194,20 +198,11 @@ export default function AtracoesPage() {
               </CardContent>
             </Card>
 
-            {/* Dropdown de artista */}
+            {/* Busca de artista (digitável) */}
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-sm text-gray-500">Artista:</span>
               {loadingLista ? <Skeleton className="h-10 w-72" /> : (
-                <Select value={artistaId} onValueChange={setArtistaId}>
-                  <SelectTrigger className="w-full sm:w-80 h-10"><SelectValue placeholder="Selecione um artista" /></SelectTrigger>
-                  <SelectContent className="max-h-80">
-                    {lista.map(a => (
-                      <SelectItem key={a.artista_id} value={String(a.artista_id)}>
-                        {a.nome} <span className="text-gray-400">· {a.shows} shows</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SeletorArtista lista={lista} valor={artistaId} onChange={setArtistaId} />
               )}
               {artistaSel && <Badge variant="outline" className="capitalize">{artistaSel.tipo}</Badge>}
             </div>
@@ -226,6 +221,77 @@ export default function AtracoesPage() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Seletor de artista digitável.
+ *
+ * Era um <Select>: com 166 artistas cadastrados, achar alguém virava rolagem infinita.
+ * Segue o padrão de digitável que já existe no projeto (Input + lista filtrada +
+ * onMouseDown pra selecionar antes do blur) — ver ArtistaField no PlanejamentoClient.
+ * Aqui NÃO cria artista novo: é só escolha do que já existe.
+ */
+function SeletorArtista({
+  lista, valor, onChange,
+}: { lista: ArtistaLista[]; valor: string; onChange: (id: string) => void }) {
+  const [busca, setBusca] = useState('');
+  const [aberto, setAberto] = useState(false);
+  const selecionado = lista.find(a => String(a.artista_id) === valor);
+
+  // Fora de edição, o campo mostra quem está selecionado (inclusive quando a página
+  // escolhe sozinha o 1º artista ou vem ?artista= na URL).
+  const texto = aberto ? busca : (selecionado?.nome ?? '');
+
+  // Sem acento dos dois lados: "pe no chao" tem que achar "Pé no Chão" — metade dos
+  // nomes da casa tem acento, e ninguém digita acento em campo de busca.
+  const q = semAcento(busca);
+  const filtrados = (aberto && q
+    ? lista.filter(a => semAcento(a.nome).includes(q))
+    : lista
+  ).slice(0, 60);
+
+  const escolher = (a: ArtistaLista) => {
+    onChange(String(a.artista_id));
+    setBusca('');
+    setAberto(false);
+  };
+
+  return (
+    <div className="relative w-full sm:w-80">
+      <input
+        value={texto}
+        placeholder="Digite o nome do artista…"
+        onChange={(e) => { setBusca(e.target.value); setAberto(true); }}
+        onFocus={() => { setBusca(''); setAberto(true); }}
+        onBlur={() => setTimeout(() => setAberto(false), 150)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && filtrados[0]) { e.preventDefault(); escolher(filtrados[0]); }
+          if (e.key === 'Escape') setAberto(false);
+        }}
+        className="h-10 w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
+      />
+      {aberto && (
+        <ul className="absolute z-50 mt-1 max-h-80 w-full overflow-auto rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg text-sm">
+          {filtrados.length === 0 ? (
+            <li className="px-3 py-2 text-gray-500">Nenhum artista com esse nome.</li>
+          ) : filtrados.map((a) => (
+            <li key={a.artista_id}>
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); escolher(a); }}
+                className={cn(
+                  'block w-full truncate px-3 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-gray-800',
+                  String(a.artista_id) === valor && 'bg-violet-50 dark:bg-violet-900/30 font-medium',
+                )}
+              >
+                {a.nome} <span className="text-gray-400">· {a.shows} shows</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
