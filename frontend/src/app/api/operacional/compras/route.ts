@@ -158,6 +158,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, removido: true });
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dt)) return NextResponse.json({ success: false, error: 'dt_entrega inválida (YYYY-MM-DD)' }, { status: 400 });
+
+  // Entrega ANTES do pedido é impossível e joga a compra pra semana errada no Desvio de Consumo
+  // (caso 06/08/2026: pedido 4083342 feito 03/08 com entrega digitada 01/08 → 720 Originais entraram
+  // na semana 27/07–03/08 e viraram perda falsa de R$3,8k). Barra na origem.
+  const { data: ped } = await (supabase as any).schema('gold').from('vmarket_pedido')
+    .select('data').eq('bar_id', user.bar_id).eq('id_pedido', idPedido).maybeSingle();
+  const dataPedido = ped?.data ? String(ped.data).slice(0, 10) : null;
+  if (dataPedido && dt < dataPedido) {
+    return NextResponse.json({
+      success: false,
+      error: `Entrega (${dt.split('-').reverse().join('/')}) não pode ser anterior à data do pedido (${dataPedido.split('-').reverse().join('/')}).`,
+    }, { status: 400 });
+  }
+
   const { error } = await ops.from('pedido_entrega_manual').upsert({
     bar_id: user.bar_id, id_pedido: idPedido, dt_entrega: dt, usuario: user.email || 'app', atualizado_em: new Date().toISOString(),
   }, { onConflict: 'bar_id,id_pedido' });

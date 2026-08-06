@@ -42,7 +42,10 @@ function EntregaCell({ p, onSave }: { p: any; onSave: (id: number, dt: string | 
   if (editing) {
     return (
       <span className="inline-flex items-center gap-1" onClick={stop}>
-        <input type="date" value={v} onChange={(e) => setV(e.target.value)}
+        {/* min = data do pedido: entrega anterior ao pedido é impossível e jogaria a compra pra semana
+            errada no Desvio de Consumo (a API também barra) */}
+        <input type="date" value={v} min={p.data ? String(p.data).slice(0, 10) : undefined}
+          onChange={(e) => setV(e.target.value)}
           className="h-7 rounded border border-indigo-400 bg-transparent px-1 text-xs" />
         <button onClick={() => { setEditing(false); onSave(p.id_pedido, v || null); }} className="text-emerald-600 hover:text-emerald-700"><Check className="w-3.5 h-3.5" /></button>
         <button onClick={() => setEditing(false)} className="text-red-500 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
