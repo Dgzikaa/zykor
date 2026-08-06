@@ -9,7 +9,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Music, Users, DollarSign, Calendar, Award, TrendingUp, TrendingDown, Star, Trophy, Ticket, ArrowUpRight, ArrowDownRight, Sparkles, Handshake, Share2, Camera, X, Tag } from 'lucide-react';
+import { Music, Users, DollarSign, Calendar, Award, TrendingUp, TrendingDown, Star, Trophy, Ticket, ArrowUpRight, ArrowDownRight, Sparkles, Handshake, Share2, Camera, X, Tag, FolderOpen } from 'lucide-react';
 import { NpsArtistaBadge } from '@/components/nps/NpsCasa';
 
 // ---- formatação ----
@@ -30,7 +30,7 @@ const haQuanto = (s?: string) => {
   return `há ${(dias / 365).toFixed(1).replace('.', ',')} anos`;
 };
 
-interface ArtistaLista { artista_id: number; nome: string; tipo: string; foto_url?: string | null; shows: number; primeiro: string; ultimo: string }
+interface ArtistaLista { artista_id: number; nome: string; tipo: string; foto_url?: string | null; presskit_url?: string | null; shows: number; primeiro: string; ultimo: string }
 interface Marco { data: string; cache?: number; publico?: number; fat?: number; dow?: string; valor?: number }
 interface Trajetoria {
   total_shows: number; primeiro: Marco; atual: Marco;
@@ -221,7 +221,7 @@ export default function AtracoesPage() {
               ) : loadingTraj || !traj ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>
               ) : (
-                <TrajetoriaView traj={traj} nome={artistaSel?.nome || ''} tipo={artistaSel?.tipo || ''} foto={artistaSel?.foto_url || null} artistaId={artistaSel?.artista_id || 0} onFotoSalva={carregarLista} evolChart={evolChart} crescPublico={crescPublico} barNome={selectedBar?.nome || 'a casa'} barId={barId} de={de} ate={ate} dow={dow} />
+                <TrajetoriaView traj={traj} nome={artistaSel?.nome || ''} tipo={artistaSel?.tipo || ''} foto={artistaSel?.foto_url || null} presskit={artistaSel?.presskit_url || null} artistaId={artistaSel?.artista_id || 0} onFotoSalva={carregarLista} evolChart={evolChart} crescPublico={crescPublico} barNome={selectedBar?.nome || 'a casa'} barId={barId} de={de} ate={ate} dow={dow} />
               )}
           </>
         )}
@@ -231,13 +231,31 @@ export default function AtracoesPage() {
 }
 
 // ---- Trajetória ----
-function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolChart, crescPublico, barNome, barId, de, ate, dow }: { traj: Trajetoria; nome: string; tipo: string; foto: string | null; artistaId: number; onFotoSalva: () => void; evolChart: any[]; crescPublico: number | null; barNome: string; barId?: number; de: string; ate: string; dow: string }) {
+function TrajetoriaView({ traj, nome, tipo, foto, presskit, artistaId, onFotoSalva, evolChart, crescPublico, barNome, barId, de, ate, dow }: { traj: Trajetoria; nome: string; tipo: string; foto: string | null; presskit: string | null; artistaId: number; onFotoSalva: () => void; evolChart: any[]; crescPublico: number | null; barNome: string; barId?: number; de: string; ate: string; dow: string }) {
   const [share, setShare] = useState(false);
+  // Um PATCH só pro cadastro (antes era uma rota por campo, /api/artistas/foto).
+  const salvarCampo = async (campo: 'foto_url' | 'presskit_url', valor: string) => {
+    try {
+      await fetch('/api/artistas', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(barId ? { 'x-selected-bar-id': String(barId) } : {}) },
+        body: JSON.stringify({ artista_id: artistaId, [campo]: valor }),
+      });
+      onFotoSalva();
+    } catch { /* noop */ }
+  };
   const salvarFoto = async () => {
     const url = window.prompt('Cole a URL da foto do artista:', foto || '');
     if (url === null) return;
-    try { await fetch('/api/artistas/foto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ artista_id: artistaId, foto_url: url }) }); onFotoSalva(); }
-    catch { /* noop */ }
+    await salvarCampo('foto_url', url);
+  };
+  // Presskit: pedido da Ana Paula — o link das fotos/material do artista fica no cadastro,
+  // pra quem faz os cards achar sozinho em vez de pedir no grupo toda semana. Aceita pasta do
+  // Drive ou da tela de Arquivos; apagar o texto limpa o campo.
+  const salvarPresskit = async () => {
+    const url = window.prompt('Link do presskit do artista (pasta do Drive, Arquivos do Zykor ou site).\nDeixe em branco para remover:', presskit || '');
+    if (url === null) return;
+    await salvarCampo('presskit_url', url);
   };
   const Avatar = ({ size }: { size: number }) => (
     foto
@@ -286,7 +304,27 @@ function TrajetoriaView({ traj, nome, tipo, foto, artistaId, onFotoSalva, evolCh
             <button onClick={salvarFoto} title="Adicionar/trocar foto" className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-500 hover:text-violet-600 shadow"><Camera className="h-3.5 w-3.5" /></button>
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">{nome} <Badge variant="outline" className="capitalize text-xs">{tipo}</Badge></div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              {nome} <Badge variant="outline" className="capitalize text-xs">{tipo}</Badge>
+              {presskit ? (
+                <a
+                  href={presskit}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Abrir presskit (fotos e material do artista)"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/40 rounded-full px-2 py-0.5 hover:bg-violet-200 dark:hover:bg-violet-900/60"
+                >
+                  <FolderOpen className="h-3.5 w-3.5" /> Presskit
+                </a>
+              ) : null}
+              <button
+                onClick={salvarPresskit}
+                title={presskit ? 'Trocar o link do presskit' : 'Adicionar link do presskit'}
+                className="text-xs font-normal text-gray-400 hover:text-violet-600 underline decoration-dotted"
+              >
+                {presskit ? 'trocar link' : '+ presskit'}
+              </button>
+            </div>
             <div className="text-sm text-gray-500 dark:text-gray-400">{num(traj.total_shows)} shows em {barNome} · desde {fmtMesAno(traj.primeiro?.data)} · toca mais às <b className="text-gray-700 dark:text-gray-200">{traj.dia_favorito || '—'}</b>{diasEntre != null && <> · em média <b className="text-gray-700 dark:text-gray-200">1 show a cada {diasEntre} dias</b>{showsMes != null && ` (~${showsMes.toFixed(1).replace('.', ',')}/mês)`}</>}</div>
           </div>
           <button onClick={() => setShare(true)} className="inline-flex items-center gap-1.5 rounded-md bg-violet-600 hover:bg-violet-700 text-white px-3 h-9 text-sm shrink-0"><Share2 className="h-4 w-4" />Compartilhar</button>
