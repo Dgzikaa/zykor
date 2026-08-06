@@ -176,6 +176,7 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'AlertTriangle', label: 'Cancelamentos', href: '/ferramentas/cancelamentos', permission: 'ferramentas_cancelamentos' },
       { icon: 'PieChart', label: 'Mix & Margem', href: '/ferramentas/mix-categoria', permission: 'ferramentas_mix_margem' },
       { icon: 'Music', label: 'Artistas (visão da casa)', href: '/ferramentas/artistas', permission: 'ferramentas_artistas_visao_da_casa' },
+      { icon: 'Folder', label: 'Arquivos', href: '/ferramentas/arquivos', permission: 'ferramentas_arquivos' },
       { icon: 'Star', label: 'NPS por Área', href: '/analitico/nps', permission: 'ferramentas_nps_por_area', beta: true },
       { icon: 'Sun', label: 'Almoço × Noite', href: '/analitico/dia-noite', permission: 'ferramentas_almoco_noite', beta: true },
       { icon: 'Clock', label: 'Gargalo de Cozinha', href: '/operacional/gargalo-cozinha', permission: 'ferramentas_gargalo_de_cozinha' },
