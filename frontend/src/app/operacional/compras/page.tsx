@@ -35,19 +35,16 @@ const corStatus = (id: number): string => {
 // Célula da data de Entrega editável: mostra a data (azul quando alterada na mão + selo "manual"),
 // clica → date input com ✓/✕; se manual, botão "VMarket" volta pro valor original. stopPropagation
 // pra não abrir/fechar a linha do pedido.
-function EntregaCell({ p, onSave }: { p: any; onSave: (id: number, dt: string | null) => void }) {
+function EntregaCell({ p, onSave }: { p: any; onSave: (id: number, dt: string | null, dataPedido?: string | null) => void }) {
   const [editing, setEditing] = useState(false);
   const [v, setV] = useState('');
   const stop = (e: any) => e.stopPropagation();
   if (editing) {
     return (
       <span className="inline-flex items-center gap-1" onClick={stop}>
-        {/* min = data do pedido: entrega anterior ao pedido é impossível e jogaria a compra pra semana
-            errada no Desvio de Consumo (a API também barra) */}
-        <input type="date" value={v} min={p.data ? String(p.data).slice(0, 10) : undefined}
-          onChange={(e) => setV(e.target.value)}
+        <input type="date" value={v} onChange={(e) => setV(e.target.value)}
           className="h-7 rounded border border-indigo-400 bg-transparent px-1 text-xs" />
-        <button onClick={() => { setEditing(false); onSave(p.id_pedido, v || null); }} className="text-emerald-600 hover:text-emerald-700"><Check className="w-3.5 h-3.5" /></button>
+        <button onClick={() => { setEditing(false); onSave(p.id_pedido, v || null, p.data); }} className="text-emerald-600 hover:text-emerald-700"><Check className="w-3.5 h-3.5" /></button>
         <button onClick={() => setEditing(false)} className="text-red-500 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
         {p.dt_entrega_manual && <button title="Voltar para a data do VMarket" onClick={() => { setEditing(false); onSave(p.id_pedido, null); }} className="text-[10px] text-gray-400 underline ml-0.5">VMarket</button>}
       </span>
@@ -60,6 +57,12 @@ function EntregaCell({ p, onSave }: { p: any; onSave: (id: number, dt: string | 
       {p.dt_entrega ? <span className={p.dt_entrega_manual ? 'text-indigo-600 dark:text-indigo-400 font-medium' : ''}>{fmtData(p.dt_entrega)}</span>
         : (p.dt_prazo_entrega ? <span className="italic text-gray-400" title="Previsão de entrega (dt_prazo_entrega)">prev. {fmtPrazo(p.dt_prazo_entrega)}</span> : <span className="text-gray-400">—</span>)}
       {p.dt_entrega_manual && <span className="text-[9px] rounded bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-1 leading-4">manual</span>}
+      {/* entrega antes do pedido: pode ser legítimo (pedido lançado depois da entrega), mas é onde mora
+          o erro de digitação que joga a compra pra semana errada no Desvio — fica visível pra auditoria */}
+      {p.dt_entrega && p.data && String(p.dt_entrega).slice(0, 10) < String(p.data).slice(0, 10) && (
+        <span className="text-[9px] rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-1 leading-4"
+          title={`Entrega anterior à data do pedido (${fmtData(p.data)}). Confira se a data está certa.`}>antes do pedido</span>
+      )}
       <Pencil className="w-3 h-3 text-indigo-400 opacity-0 group-hover/ent:opacity-100" />
     </span>
   );
@@ -128,9 +131,17 @@ export default function ComprasPage() {
   useEffect(() => { if (tab === 'analises') carregarAnalises(); }, [tab, carregarAnalises]);
 
   // altera na mão a data de entrega do pedido (item 4). Atualiza a linha localmente sem reload cheio.
-  const salvarEntrega = useCallback(async (idPedido: number, dt: string | null) => {
+  // Entrega antes da data do pedido acontece de verdade (pedido lançado no VMarket depois da mercadoria
+  // chegar), mas também é o erro de digitação que joga a compra pra semana errada no Desvio — confirma.
+  const salvarEntrega = useCallback(async (idPedido: number, dt: string | null, dataPedido?: string | null) => {
+    const dp = dataPedido ? String(dataPedido).slice(0, 10) : null;
+    const br = (d: string) => d.split('-').reverse().join('/');
+    if (dt && dp && dt < dp && !window.confirm(
+      `A entrega (${br(dt)}) ficou ANTES da data do pedido (${br(dp)}).\n\n` +
+      `Só confirme se a mercadoria chegou antes do pedido ser lançado no VMarket — ` +
+      `senão essa compra vai cair na semana errada no Desvio de Consumo.`)) return;
     try {
-      const r = await api.post('/api/operacional/compras', { id_pedido: idPedido, dt_entrega: dt });
+      const r = await api.post('/api/operacional/compras', { id_pedido: idPedido, dt_entrega: dt, confirmar: true });
       if (!r.success) throw new Error(r.error);
       setPedidos((ps) => ps.map((p) => p.id_pedido === idPedido
         ? { ...p, dt_entrega: dt ?? p.dt_entrega_vmarket ?? null, dt_entrega_manual: dt != null }

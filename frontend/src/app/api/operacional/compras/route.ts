@@ -159,17 +159,21 @@ export async function POST(request: NextRequest) {
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dt)) return NextResponse.json({ success: false, error: 'dt_entrega inválida (YYYY-MM-DD)' }, { status: 400 });
 
-  // Entrega ANTES do pedido é impossível e joga a compra pra semana errada no Desvio de Consumo
-  // (caso 06/08/2026: pedido 4083342 feito 03/08 com entrega digitada 01/08 → 720 Originais entraram
-  // na semana 27/07–03/08 e viraram perda falsa de R$3,8k). Barra na origem.
+  // Entrega ANTES da data do pedido pede confirmação: às vezes é legítimo (o pedido foi lançado no
+  // VMarket depois da mercadoria chegar — ex. 4017008/Deboche, entrega 22/07 lançada em 23/07), mas
+  // também é o erro de digitação que joga a compra pra semana errada no Desvio de Consumo
+  // (06/08/2026: pedido 4083342 feito 03/08 com entrega digitada 01/08 → 720 Originais caíram na
+  // semana 27/07–03/08 = perda falsa de R$3,8k). Só passa com { confirmar: true }.
   const { data: ped } = await (supabase as any).schema('gold').from('vmarket_pedido')
     .select('data').eq('bar_id', user.bar_id).eq('id_pedido', idPedido).maybeSingle();
   const dataPedido = ped?.data ? String(ped.data).slice(0, 10) : null;
-  if (dataPedido && dt < dataPedido) {
+  const br = (d: string) => d.split('-').reverse().join('/');
+  if (dataPedido && dt < dataPedido && body.confirmar !== true) {
     return NextResponse.json({
       success: false,
-      error: `Entrega (${dt.split('-').reverse().join('/')}) não pode ser anterior à data do pedido (${dataPedido.split('-').reverse().join('/')}).`,
-    }, { status: 400 });
+      precisa_confirmar: true,
+      error: `A entrega (${br(dt)}) ficou ANTES da data do pedido (${br(dataPedido)}). Só confirme se a mercadoria chegou antes do pedido ser lançado no VMarket — senão a compra vai cair na semana errada no Desvio.`,
+    }, { status: 409 });
   }
 
   const { error } = await ops.from('pedido_entrega_manual').upsert({
