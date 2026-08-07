@@ -4,6 +4,7 @@ import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/
 import { podeFerramentaFinanceira, FERRAMENTA_FINANCEIRA } from '@/lib/auth/financeiro-guard';
 import { negarPorRota } from '@/lib/permissions/guard';
 import { getCAValidToken } from '@/lib/contaazul/token';
+import { timingSafeEqual } from 'crypto';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // PIX é 1 lançamento por transação → pode ter muitas chamadas
@@ -685,18 +686,40 @@ export async function executarStoneDiario(
   };
 }
 
-/** POST: cria os lançamentos no CA (usuário admin/financeiro). */
+/**
+ * POST: cria os lançamentos no CA.
+ * Auth: sessão admin/financeiro (navegador) OU service-role bearer — mesmo padrão da rota irmã
+ * /api/stone/conciliacao/sync. O service-role é para conserto operacional de um dia específico
+ * (backfill/complemento) disparado do banco; exige bar_id e data explícitos no corpo.
+ */
 export async function POST(request: NextRequest) {
-  const user = await authenticateUser(request);
-  if (!user) return authErrorResponse('Usuário não autenticado');
-  const nega = negarPorRota(user, request); if (nega) return nega;
-  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.conciliacao, 'inserir')) return permissionErrorResponse('Sem permissão para criar lançamentos');
   const body = await request.json().catch(() => ({} as any));
-  const barId = Number(body?.bar_id) || Number(user.bar_id);
+
+  const bearer = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  const sr = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const viaServiceRole = !!bearer && !!sr && bearer.length === sr.length &&
+    timingSafeEqual(Buffer.from(bearer), Buffer.from(sr));
+
+  let barId: number;
+  let criadoPor: string | null;
+  if (viaServiceRole) {
+    if (body?.bar_id == null || !body?.data) {
+      return NextResponse.json({ error: 'service-role exige bar_id e data explícitos no corpo' }, { status: 400 });
+    }
+    barId = Number(body.bar_id);
+    criadoPor = 'service-role';
+  } else {
+    const user = await authenticateUser(request);
+    if (!user) return authErrorResponse('Usuário não autenticado');
+    const nega = negarPorRota(user, request); if (nega) return nega;
+    if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.conciliacao, 'inserir')) return permissionErrorResponse('Sem permissão para criar lançamentos');
+    barId = Number(body?.bar_id) || Number(user.bar_id);
+    criadoPor = user.email ?? user.nome ?? null;
+  }
   const data: string = body?.data || ontemBRT();
   // complemento=true: conserta dia lançado a MENOS (arquivo Stone incompleto no D-2, reprocessado
   // depois). Lança só a diferença por chave. Manual de propósito — o cron nunca usa este modo.
   const complemento = body?.complemento === true;
-  const r = await executarStoneDiario(barId, data, user.email ?? user.nome ?? null, { complemento });
+  const r = await executarStoneDiario(barId, data, criadoPor, { complemento });
   return NextResponse.json(r.body, { status: r.status });
 }
