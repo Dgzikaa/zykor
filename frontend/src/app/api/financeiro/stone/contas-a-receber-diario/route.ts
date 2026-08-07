@@ -148,8 +148,17 @@ const brDate = (d: string) => d.split('-').reverse().join('/');
 const PREFIXO_ZYKOR = '[Zykor] ';
 // Descrições da taxa levam o nome do CNPJ p/ (a) distinguir os 2 CNPJs no CA e (b) a baixa achar
 // o lançamento certo pelo match exato de descrição (baixarTaxa busca por descrição).
-const descTaxaDia = (nome: string, dataVenda: string) => `${PREFIXO_ZYKOR}Taxa maquininha Stone ${nome} ${brDate(dataVenda)}`;
-const descCompensacao = (nome: string) => `${PREFIXO_ZYKOR}Compensação taxa maquininha ${nome}`;
+const descTaxaDia = (nome: string, dataVenda: string, compl = false) =>
+  `${PREFIXO_ZYKOR}Taxa maquininha Stone ${nome} ${brDate(dataVenda)}${compl ? SUFIXO_COMPLEMENTO : ''}`;
+const descCompensacao = (nome: string, dataVenda?: string, compl = false) =>
+  `${PREFIXO_ZYKOR}Compensação taxa maquininha ${nome}${compl ? ` ${brDate(dataVenda!)}${SUFIXO_COMPLEMENTO}` : ''}`;
+// Modo complemento (ver executarStoneDiario): marca na descrição + sufixo na chave do log, pra
+// distinguir no CA o lançamento parcial original do complemento e manter a idempotência.
+const SUFIXO_COMPLEMENTO = ' · complemento reproc.';
+const SUFIXO_CHAVE_COMPL = '#compl';
+/** Chave-base do log: um complemento soma no MESMO acumulado da chave original. Sem isso,
+ *  rodar o complemento duas vezes lançaria a diferença de novo. */
+const chaveBase = (c: string) => c.split(SUFIXO_CHAVE_COMPL)[0];
 // nome curto do CNPJ (StoneCode) p/ descrição; fallback no próprio code se não mapeado.
 const nomeCnpj = (cfg: BarStoneConfig, stoneCode: string) => cfg.contasPorCnpj[stoneCode]?.nome ?? stoneCode;
 // Rate limit do CA: espaça as requisições e faz retry no 429 pra não deixar lançamento pendente.
@@ -259,17 +268,22 @@ function descricaoDe(cfg: BarStoneConfig, l: LinhaDia): string {
   return `${PREFIXO_ZYKOR}${nome} · ${bandeiraLabel(l.brand_id)} ${tipoLabel}`;
 }
 
-/** Conta a receber pelo LÍQUIDO (bruto − taxa), na conta financeira do CNPJ×tipo. */
-function payloadReceita(cfg: BarStoneConfig, l: LinhaDia, dataVenda: string) {
-  const valor = round2(l.bruto - l.taxa); // LÍQUIDO
+/** Conta a receber pelo LÍQUIDO (bruto − taxa), na conta financeira do CNPJ×tipo.
+ *  `valorOverride` só é usado no modo complemento (lança a diferença, não o total). */
+function payloadReceita(cfg: BarStoneConfig, l: LinhaDia, dataVenda: string, valorOverride?: number) {
+  const ehComplemento = valorOverride != null;
+  const valor = round2(valorOverride ?? l.bruto - l.taxa); // LÍQUIDO
   const contas = cfg.contasPorCnpj[l.stone_code];
   const contaFin = contas[l.tipo];
   const categoriaId = cfg.categorias[l.tipo].categoria_id;
-  const descricao = descricaoDe(cfg, l);
+  const descricao = descricaoDe(cfg, l) + (ehComplemento ? SUFIXO_COMPLEMENTO : '');
   return {
     data_competencia: dataVenda,
     valor,
-    observacao: `Recebível Stone líquido (${l.transacoes} transação(ões); bruto ${round2(l.bruto)} − taxa ${round2(l.taxa)}) via Zykor`,
+    observacao: ehComplemento
+      ? `Complemento Stone→CA: o arquivo de conciliação do dia veio incompleto no D-2 e foi reprocessado. ` +
+        `Total correto ${round2(l.bruto - l.taxa)}; esta linha lança só a diferença que faltava. Via Zykor`
+      : `Recebível Stone líquido (${l.transacoes} transação(ões); bruto ${round2(l.bruto)} − taxa ${round2(l.taxa)}) via Zykor`,
     descricao,
     contato: cfg.cliente_id,
     conta_financeira: contaFin,
@@ -509,7 +523,9 @@ export async function executarStoneDiario(
   barId: number,
   data: string,
   criadoPor: string | null,
+  opts?: { complemento?: boolean },
 ): Promise<{ status: number; body: any }> {
+  const modoComplemento = opts?.complemento === true;
   const cfgBase = CONFIG[barId];
   if (!cfgBase) return { status: 400, body: { error: `Bar ${barId} ainda não configurado para Stone->CA` } };
   // Resolve o contato Stone certo pelo CNPJ (fallback no UUID do CONFIG) — reflete mudanças no CA.
@@ -541,33 +557,65 @@ export async function executarStoneDiario(
 
   const { data: log } = await (supabase.schema('financial' as any) as any)
     .from('stone_ca_lancamento_log')
-    .select('chave, natureza')
+    .select('chave, natureza, valor')
     .eq('bar_id', barId)
     .eq('data_venda', data);
   const feito = new Set(((log as any[]) || []).map((l) => `${l.chave}::${l.natureza}`));
+  // Quanto já foi lançado por chave-BASE (original + complementos anteriores somam no mesmo balde).
+  const lancadoPorChave = new Map<string, number>();
+  for (const l of ((log as any[]) || [])) {
+    const k = `${chaveBase(String(l.chave))}::${l.natureza}`;
+    lancadoPorChave.set(k, round2((lancadoPorChave.get(k) ?? 0) + (Number(l.valor) || 0)));
+  }
 
   const resultados: any[] = [];
+  // O que ESTA execução criou no CA (chave-base::natureza → valor). A baixa da taxa precisa do
+  // valor efetivamente lançado, que no modo complemento é o delta, não o total do dia.
+  const enviadoAgora = new Map<string, number>();
 
+  /**
+   * `valor` é sempre o total CORRETO da chave. No modo normal a chave é tudo-ou-nada (pula se já
+   * existe). No modo complemento lança só (correto − já lançado): é o conserto para quando a Stone
+   * entregou o arquivo de conciliação incompleto no D-2, o dia foi lançado curto no CA e o arquivo
+   * completo só apareceu depois. A API v2 do CA não deleta lançamento, então corrigir = somar a
+   * diferença, nunca reescrever o original.
+   */
   async function enviar(
     chave: string,
     natureza: 'RECEITA' | 'TAXA' | 'COMPENSACAO',
     valor: number,
     endpoint: 'contas-a-receber' | 'contas-a-pagar',
-    payload: unknown,
+    // Construtor: recebe o valor EFETIVO (total no modo normal, delta no complemento). Precisa ser
+    // função porque no complemento o valor só é conhecido depois de consultar o log.
+    montarPayload: (valorEfetivo: number, ehComplemento: boolean) => unknown,
     meta: { tipo?: TipoStone | null; brand_id?: number | null; vencimento?: string | null; stone_code?: string | null },
   ) {
     if (valor <= 0) return;
-    if (feito.has(`${chave}::${natureza}`)) {
+    if (!modoComplemento && feito.has(`${chave}::${natureza}`)) {
       resultados.push({ chave, natureza, skipped: true, motivo: 'já lançado' });
       return;
     }
-    const r = await postCA(token, endpoint, payload);
+    let chaveLog = chave;
+    if (modoComplemento) {
+      const ja = lancadoPorChave.get(`${chaveBase(chave)}::${natureza}`) ?? 0;
+      const delta = round2(valor - ja);
+      if (delta <= 0.01) {
+        resultados.push({ chave, natureza, skipped: true, motivo: `já completo (lançado ${ja} de ${valor})` });
+        return;
+      }
+      chaveLog = `${chaveBase(chave)}${SUFIXO_CHAVE_COMPL}`;
+      // Se já houve um complemento antes, a chave colidiria no log — desambigua por contagem.
+      if (feito.has(`${chaveLog}::${natureza}`)) chaveLog = `${chaveLog}${Date.now()}`;
+      resultados.push({ chave: chaveLog, natureza, complemento: true, ja_lancado: ja, total_correto: valor, delta });
+      valor = delta;
+    }
+    const r = await postCA(token, endpoint, montarPayload(round2(valor), modoComplemento));
     await sleep(DELAY_MS); // espaça o próximo POST (respeita o rate limit do CA)
     if (r.ok) {
       await (supabase.schema('financial' as any) as any).from('stone_ca_lancamento_log').insert({
         bar_id: barId,
         data_venda: data,
-        chave,
+        chave: chaveLog,
         natureza,
         stone_code: meta.stone_code ?? null,
         tipo: meta.tipo ?? null,
@@ -579,7 +627,8 @@ export async function executarStoneDiario(
         criado_por: criadoPor,
       });
     }
-    resultados.push({ chave, natureza, ok: r.ok, valor: round2(valor), protocolId: r.protocolId, erro: r.erro });
+    if (r.ok) enviadoAgora.set(`${chaveBase(chave)}::${natureza}`, round2(valor));
+    resultados.push({ chave: chaveLog, natureza, ok: r.ok, valor: round2(valor), protocolId: r.protocolId, erro: r.erro });
   }
 
   // Trava anti-mis-book: se aparecer um StoneCode sem conta no CONFIG do bar, NÃO lança (sinaliza).
@@ -599,12 +648,15 @@ export async function executarStoneDiario(
     if (valor <= 0) continue;
     const nome = nomeCnpj(cfg, sc);
     const contaTaxa = cfg.contasPorCnpj[sc].taxa;
-    await enviar(`TAXA_DIA|${sc}`, 'TAXA', valor, 'contas-a-pagar', payloadTaxaTotal(cfg, data, valor, contaTaxa, descTaxaDia(nome, data)), { vencimento: data, stone_code: sc });
-    await enviar(`COMPENSACAO_DIA|${sc}`, 'COMPENSACAO', valor, 'contas-a-receber', payloadCompensacao(cfg, data, valor, contaTaxa, descCompensacao(nome)), { vencimento: data, stone_code: sc });
+    await enviar(`TAXA_DIA|${sc}`, 'TAXA', valor, 'contas-a-pagar',
+      (v, compl) => payloadTaxaTotal(cfg, data, v, contaTaxa, descTaxaDia(nome, data, compl)), { vencimento: data, stone_code: sc });
+    await enviar(`COMPENSACAO_DIA|${sc}`, 'COMPENSACAO', valor, 'contas-a-receber',
+      (v, compl) => payloadCompensacao(cfg, data, v, contaTaxa, descCompensacao(nome, data, compl)), { vencimento: data, stone_code: sc });
   }
   // 2) Recebíveis pelo LÍQUIDO (bruto − taxa), na conta do CNPJ×tipo.
   for (const l of linhasOk) {
-    await enviar(l.chave, 'RECEITA', round2(l.bruto - l.taxa), 'contas-a-receber', payloadReceita(cfg, l, data), { tipo: l.tipo, brand_id: l.brand_id, vencimento: l.vencimento, stone_code: l.stone_code });
+    await enviar(l.chave, 'RECEITA', round2(l.bruto - l.taxa), 'contas-a-receber',
+      (v, compl) => payloadReceita(cfg, l, data, compl ? v : undefined), { tipo: l.tipo, brand_id: l.brand_id, vencimento: l.vencimento, stone_code: l.stone_code });
   }
   // 3) Baixa das taxas por CNPJ (marca despesa PAGA e compensação RECEBIDA). Por último de propósito:
   //    a criação é assíncrona e o lote de receitas acima já deu o tempo do evento aparecer no CA.
@@ -612,10 +664,18 @@ export async function executarStoneDiario(
     if (valor <= 0) continue;
     const nome = nomeCnpj(cfg, sc);
     const contaTaxa = cfg.contasPorCnpj[sc].taxa;
-    const bDesp = await baixarTaxa(token, 'contas-a-pagar', descTaxaDia(nome, data), data, valor, contaTaxa);
-    resultados.push({ chave: `TAXA_DIA|${sc}`, natureza: 'BAIXA', ok: bDesp.ok, erro: bDesp.motivo });
-    const bComp = await baixarTaxa(token, 'contas-a-receber', descCompensacao(nome), data, valor, contaTaxa);
-    resultados.push({ chave: `COMPENSACAO_DIA|${sc}`, natureza: 'BAIXA', ok: bComp.ok, erro: bComp.motivo });
+    // No complemento a baixa é do lançamento COMPLEMENTAR (descrição e valor próprios). Se nada
+    // foi criado nesta execução, não há o que baixar — o original já foi baixado quando nasceu.
+    const vDesp = modoComplemento ? enviadoAgora.get(`TAXA_DIA|${sc}::TAXA`) : valor;
+    const vComp = modoComplemento ? enviadoAgora.get(`COMPENSACAO_DIA|${sc}::COMPENSACAO`) : valor;
+    if (vDesp && vDesp > 0) {
+      const bDesp = await baixarTaxa(token, 'contas-a-pagar', descTaxaDia(nome, data, modoComplemento), data, vDesp, contaTaxa);
+      resultados.push({ chave: `TAXA_DIA|${sc}`, natureza: 'BAIXA', ok: bDesp.ok, erro: bDesp.motivo });
+    }
+    if (vComp && vComp > 0) {
+      const bComp = await baixarTaxa(token, 'contas-a-receber', descCompensacao(nome, data, modoComplemento), data, vComp, contaTaxa);
+      resultados.push({ chave: `COMPENSACAO_DIA|${sc}`, natureza: 'BAIXA', ok: bComp.ok, erro: bComp.motivo });
+    }
   }
 
   const houveErro = resultados.some((r) => r.ok === false);
@@ -634,6 +694,9 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({} as any));
   const barId = Number(body?.bar_id) || Number(user.bar_id);
   const data: string = body?.data || ontemBRT();
-  const r = await executarStoneDiario(barId, data, user.email ?? user.nome ?? null);
+  // complemento=true: conserta dia lançado a MENOS (arquivo Stone incompleto no D-2, reprocessado
+  // depois). Lança só a diferença por chave. Manual de propósito — o cron nunca usa este modo.
+  const complemento = body?.complemento === true;
+  const r = await executarStoneDiario(barId, data, user.email ?? user.nome ?? null, { complemento });
   return NextResponse.json(r.body, { status: r.status });
 }
