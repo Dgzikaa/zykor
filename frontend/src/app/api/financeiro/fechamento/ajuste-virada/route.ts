@@ -5,6 +5,7 @@ import {
   getLancadorAdmin, getCAToken, resolveCategoriaId, resolveContaPadrao, criarLancamentoCA,
   round2, brDate, ultimoDiaMes, primeiroDiaMes, mesAnteriorBRT, mesSeguinte, parseChaves, type SinalLanc,
 } from '@/lib/financeiro/contaazul-lancador';
+import { timingSafeEqual } from 'crypto';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -125,15 +126,46 @@ export async function GET(request: NextRequest) {
   });
 }
 
-/** POST: cria os lançamentos que faltam (admin/financeiro). Body: { bar_id?, ano?, mes? }. */
+/**
+ * POST: cria os lançamentos que faltam. Body: { bar_id?, ano?, mes? }.
+ * Auth: sessão admin/financeiro OU service-role bearer (mesmo padrão do lançador Stone→CA), para
+ * fechar mês esquecido sem depender do navegador. No service-role, bar_id/ano/mes são obrigatórios
+ * — nunca cai no default "mês anterior", que num backfill lançaria o mês errado.
+ *
+ * ATENÇÃO: a idempotência é o financial.lancamento_manual_ca_log. Os ajustes de jan–jun/2026 foram
+ * feitos À MÃO direto no Conta Azul e NÃO estão nesse log — rodar um mês desses DUPLICARIA. Antes
+ * de disparar um mês antigo, conferir no bronze_contaazul_lancamentos se o par já existe.
+ */
 export async function POST(request: NextRequest) {
-  const user = await authenticateUser(request);
-  if (!user) return authErrorResponse('Usuário não autenticado');
-  if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.despesas, 'inserir')) return permissionErrorResponse('Sem permissão para criar lançamentos');
   const body = await request.json().catch(() => ({} as any));
-  const barId = Number(body?.bar_id) || Number(user.bar_id);
-  const { ano, mes } = (Number.isFinite(Number(body?.ano)) && Number.isFinite(Number(body?.mes)))
-    ? { ano: Number(body.ano), mes: Number(body.mes) } : mesAnteriorBRT();
-  const r = await executarAjusteVirada(barId, ano, mes, user.email ?? user.nome ?? null, parseChaves(body));
+
+  const bearer = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  const sr = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const viaServiceRole = !!bearer && !!sr && bearer.length === sr.length &&
+    timingSafeEqual(Buffer.from(bearer), Buffer.from(sr));
+
+  let barId: number;
+  let criadoPor: string | null;
+  let ano: number;
+  let mes: number;
+  if (viaServiceRole) {
+    if (body?.bar_id == null || !Number.isFinite(Number(body?.ano)) || !Number.isFinite(Number(body?.mes))) {
+      return NextResponse.json({ error: 'service-role exige bar_id, ano e mes explícitos no corpo' }, { status: 400 });
+    }
+    barId = Number(body.bar_id);
+    ano = Number(body.ano);
+    mes = Number(body.mes);
+    criadoPor = 'service-role';
+  } else {
+    const user = await authenticateUser(request);
+    if (!user) return authErrorResponse('Usuário não autenticado');
+    if (!podeFerramentaFinanceira(user, FERRAMENTA_FINANCEIRA.despesas, 'inserir')) return permissionErrorResponse('Sem permissão para criar lançamentos');
+    barId = Number(body?.bar_id) || Number(user.bar_id);
+    const alvo = (Number.isFinite(Number(body?.ano)) && Number.isFinite(Number(body?.mes)))
+      ? { ano: Number(body.ano), mes: Number(body.mes) } : mesAnteriorBRT();
+    ano = alvo.ano; mes = alvo.mes;
+    criadoPor = user.email ?? user.nome ?? null;
+  }
+  const r = await executarAjusteVirada(barId, ano, mes, criadoPor, parseChaves(body));
   return NextResponse.json(r.body, { status: r.status });
 }
