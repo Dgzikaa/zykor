@@ -105,10 +105,39 @@ export async function GET(request: NextRequest) {
     canais: ['whatsapp', 'in_app'],
   });
 
-  // 4. Marca como avisado só depois de o envio ter saído — se falhar, tenta de novo
-  //    na próxima execução em vez de silenciar o buraco.
+  // 4. Discord SEMPRE, em paralelo ao WhatsApp.
+  //    O WhatsApp não é confiável hoje: o canal Zykor aceita a chamada (a Umbler devolve
+  //    HTTP 200 e o dispatcher conta como "enviado") mas a mensagem morre depois em
+  //    messageState='Failed'. Enquanto isso não se resolve no painel da Umbler, o Discord
+  //    é o único canal que comprovadamente entrega. Ver
+  //    database/migrations/20260810_alerta_zykor_dois_canais.sql.
+  let discord = false;
+  try {
+    const resp = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/discord-dispatcher`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({
+          action: 'notification',
+          canal: 'alertas_criticos',
+          title: 'ContaHub sem dados',
+          custom_message: mensagem,
+        }),
+      }
+    );
+    discord = resp.ok;
+  } catch (e) {
+    console.error('[contahub-watchdog] discord falhou (ignorado):', e);
+  }
+
+  // 5. Marca como avisado só depois de algum canal ter saído — se todos falharem, tenta
+  //    de novo na próxima execução em vez de silenciar o buraco.
   let marcados = 0;
-  if (r.whatsapp.enviados > 0 || r.enviadas > 0) {
+  if (discord || r.enviadas > 0 || r.whatsapp.enviados > 0) {
     const { data } = await supabase.rpc('contahub_watchdog_marcar_alertado');
     marcados = (data as number) ?? 0;
   }
@@ -118,8 +147,11 @@ export async function GET(request: NextRequest) {
     resumo,
     alertou: true,
     mensagem,
+    // ATENÇÃO: whatsapp.enviados conta CHAMADAS ACEITAS pela Umbler, não entregas.
+    // Para saber se chegou: GET /api/v1/messages/{id}/ e olhar messageState.
     whatsapp: r.whatsapp,
     in_app: r.enviadas,
+    discord,
     marcados,
   });
 }
