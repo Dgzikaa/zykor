@@ -53,6 +53,10 @@
       "schedule": "0 12 * * *"
     },
     {
+      "path": "/api/cron/contahub-watchdog",
+      "schedule": "40 12,18 * * *"
+    },
+    {
       "path": "/api/financeiro/inter/boleto/reconciliar",
       "schedule": "0 15,21 * * *"
     },
