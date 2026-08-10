@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { dispatchNotification } from '@/lib/notifications/dispatch';
+import { timingSafeEqual } from 'crypto';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -20,9 +21,11 @@ export const maxDuration = 120;
  * `messageState: 'Failed'`. Mandando pelo dispatcher reusamos o caminho comprovado.
  *
  * Só avisa depois de o retry automático ter falhado 2 vezes, e uma vez por dia furado.
- * Protegido pelo CRON_SECRET; agendado em frontend/vercel.json.
+ * Agendada em frontend/vercel.json. Aceita CRON_SECRET (o cron da Vercel) ou a
+ * service-role key — mesmo padrão das rotas Stone, para dar pra rodar sob demanda a
+ * partir do banco (`net.http_post` + get_service_role_key()) sem sessão de navegador.
  *
- * `?dry=1` (com o mesmo Bearer) roda a detecção e mostra o que alertaria, sem disparar.
+ * `?dry=1` roda a detecção e mostra o que alertaria, sem disparar.
  */
 const DESTINATARIOS = [
   'ba36f97d-1c1f-4795-8a8a-85b9b494de5d', // Rodrigo Oliveira
@@ -39,9 +42,22 @@ interface Pendente {
 /** "04/08" a partir de "2026-08-04" (sem passar por Date, que puxaria fuso). */
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
+/** Compara sem vazar tempo; exige mesmo tamanho (timingSafeEqual lança se diferir). */
+function bateSegredo(recebido: string, esperado: string): boolean {
+  return (
+    !!recebido &&
+    !!esperado &&
+    recebido.length === esperado.length &&
+    timingSafeEqual(Buffer.from(recebido), Buffer.from(esperado))
+  );
+}
+
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const bearer = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  const autorizado =
+    bateSegredo(bearer, process.env.CRON_SECRET || '') ||
+    bateSegredo(bearer, process.env.SUPABASE_SERVICE_ROLE_KEY || '');
+  if (!autorizado) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
