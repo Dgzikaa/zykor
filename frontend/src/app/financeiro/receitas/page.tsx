@@ -3,15 +3,18 @@
 import { useEffect, useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { usePageTitle } from '@/contexts/PageTitleContext';
-import { TrendingUp, CreditCard, Banknote, Ticket, Music } from 'lucide-react';
+import { TrendingUp, CreditCard, Banknote, Ticket, Music, ArrowLeftRight } from 'lucide-react';
 import { StoneRecebiveisConteudo } from '@/app/financeiro/stone-recebiveis/page';
 import { FluxoContaHub } from '@/app/financeiro/saidas-caixa/page';
 import { SymplaRecebiveis, YuzerEmConstrucao } from './SymplaRecebiveis';
+import { VendaXLiquidacao } from './VendaXLiquidacao';
 import { AutoToggle } from '@/components/financeiro/AutoToggle';
 
-type ReceitaAba = 'stone' | 'sympla' | 'yuzer' | 'dinheiro';
+type ReceitaAba = 'stone' | 'venda-recebimento' | 'sympla' | 'yuzer' | 'dinheiro';
 const AUTO: Record<ReceitaAba, { tipo: string; disponivel: boolean }> = {
   stone: { tipo: 'stone', disponivel: true },
+  // aba explicativa/conferência: não tem automação própria pra ligar/desligar
+  'venda-recebimento': { tipo: 'stone', disponivel: false },
   sympla: { tipo: 'sympla', disponivel: true },
   yuzer: { tipo: 'yuzer', disponivel: false },
   dinheiro: { tipo: 'entrada_dinheiro', disponivel: true },
@@ -26,6 +29,7 @@ function ReceitasInner() {
   }, [setPageTitle]);
   const tabs = [
     { id: 'stone', label: 'Stone', Icon: CreditCard },
+    { id: 'venda-recebimento', label: 'Venda × Recebimento', Icon: ArrowLeftRight },
     { id: 'sympla', label: 'Sympla', Icon: Ticket },
     { id: 'yuzer', label: 'Yuzer', Icon: Music },
     { id: 'dinheiro', label: 'Dinheiro (ContaHub)', Icon: Banknote },
@@ -53,6 +57,7 @@ function ReceitasInner() {
       </div>
 
       {aba === 'stone' && <StoneRecebiveisConteudo />}
+      {aba === 'venda-recebimento' && <VendaXLiquidacao />}
       {aba === 'sympla' && <SymplaRecebiveis />}
       {aba === 'yuzer' && <YuzerEmConstrucao />}
       {aba === 'dinheiro' && <FluxoContaHub only="entradas" />}
