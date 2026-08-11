@@ -11,6 +11,26 @@ export const dynamic = 'force-dynamic';
  * GET ?bar_id → lista + Δ vs o snapshot anterior (gold.produto_cmv_historico).
  * POST { action:'recalcular' } → roda gold.fn_cmv_teorico + grava snapshot do dia.
  */
+
+/**
+ * Quantas vezes a ficha sai do estoque numa venda. `silver.insumo_por_produto` multiplica a
+ * receita por `produto_cardapio.multiplicador`, então dose dupla cadastrada com 1 debita
+ * METADE do que saiu de verdade — e a diferença vira desvio.
+ *
+ * Cada bar escreve de um jeito no ContaHub (o nome aqui vem de lá): o bar 3 usa o prefixo
+ * "[DD]", o bar 4 escreve "Dose Dupla" no fim do nome — e há vários digitados "Dose Dulpa".
+ * Em 11/08/2026 achamos 10 produtos debitando pela metade, incluindo dois criados por esta
+ * própria rota, que inseria sem multiplicador (default 1).
+ */
+export function multiplicadorPorNome(nome: string): number {
+  const n = (nome || '').toLowerCase();
+  const doseDupla =
+    n.includes('[dd]') ||
+    n.includes('dose dupla') ||
+    n.includes('dose dulpa') || // erro de digitação recorrente no cadastro do bar 4
+    n.includes('dobrada');
+  return doseDupla ? 2 : 1;
+}
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
@@ -298,6 +318,7 @@ export async function POST(request: NextRequest) {
   // ----- CADASTRAR: o item vendido NÃO existe no cardápio (nome parecido é outro produto,
   //        já mapeado) → cria o produto novo + mapeia o prd + refresca. -----
   if (body.action === 'cadastrar_depara') {
+    // NOTA: multiplicadorPorNome está definido no topo do arquivo.
     const prd = Number(body.prd);
     const nome = String(body.prd_desc || body.nome || '').trim();
     const prefixo = ['b', 'c', 'd', 'o'].includes(String(body.prefixo)) ? String(body.prefixo) : null;
@@ -310,7 +331,10 @@ export async function POST(request: NextRequest) {
     const maxn = (existts || []).reduce((m: number, r: any) => Math.max(m, Number(String(r.codigo).replace(/\D/g, '')) || 0), 0);
     const codigo = `${prefixo}${String(maxn + 1).padStart(4, '0')}`;
     const { data: novo, error: eNovo } = await admin.from('produto_cardapio')
-      .insert({ bar_id: barId, codigo, nome, categoria: catDe[prefixo], ativo: true, origem: 'contahub' }).select().single();
+      .insert({
+        bar_id: barId, codigo, nome, categoria: catDe[prefixo], ativo: true, origem: 'contahub',
+        multiplicador: multiplicadorPorNome(nome),
+      }).select().single();
     if (eNovo) return NextResponse.json({ success: false, error: eNovo.message }, { status: 500 });
     const { error: eMap } = await admin.from('produto_contahub_map').upsert({ bar_id: barId, prd, cod_interno: codigo }, { onConflict: 'bar_id,prd' });
     if (eMap) return NextResponse.json({ success: false, error: eMap.message }, { status: 500 });
