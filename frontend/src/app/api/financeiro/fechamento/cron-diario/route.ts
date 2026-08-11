@@ -23,6 +23,10 @@ function enumerarDias(de: string, ate: string): string[] {
  * backfill: como `executarConsumacaoDia` agora detecta desbalanço entre despesas e contrapartida
  * e emite o complemento, reprocessar um intervalo conserta a soma-zero dos dias em que uma
  * despesa entrou depois da receita. Dias já corretos não geram nada (idempotente pelo valor).
+ *
+ * `&ignorar_cutoff=1` (só com de/ate) processa também dias anteriores ao corte do bar. O corte
+ * existe para o automático não sair lançando histórico sozinho; num backfill pedido de propósito
+ * ele atrapalha — o bar 3 tem corte em 03/07 e o furo do Programa de Pontos começa em 01/07.
  */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -35,6 +39,7 @@ export async function GET(request: NextRequest) {
   const ate = url.searchParams.get('ate');
   const barFiltro = Number(url.searchParams.get('bar_id')) || null;
   const dias = de && ate ? enumerarDias(de, ate) : [ontemBRT()];
+  const ignorarCutoff = Boolean(de && ate) && url.searchParams.get('ignorar_cutoff') === '1';
   const BARES = (barFiltro ? [barFiltro] : [3, 4]); // o toggle (default off) decide de verdade quem roda
 
   const resultados: any[] = [];
@@ -42,7 +47,7 @@ export async function GET(request: NextRequest) {
     const cfg = await getAutoConfig(barId, 'consumacao');
     if (!cfg.ativo) { resultados.push({ bar_id: barId, skipped: true, motivo: 'automático desligado' }); continue; }
     for (const dia of dias) {
-      if (!autoDeveLancarData(cfg.cutoff, dia)) { resultados.push({ bar_id: barId, dia, skipped: true, motivo: 'antes do corte' }); continue; }
+      if (!ignorarCutoff && !autoDeveLancarData(cfg.cutoff, dia)) { resultados.push({ bar_id: barId, dia, skipped: true, motivo: 'antes do corte' }); continue; }
       try {
         const r = await executarConsumacaoDia(barId, dia, 'cron diário fechamento');
         resultados.push({ bar_id: barId, dia, status: r.status, ...r.body });
