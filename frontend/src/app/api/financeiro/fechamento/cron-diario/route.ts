@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { executarConsumacaoDia } from '../consumacao/route';
 import { getAutoConfig, autoDeveLancarData, ontemBRT } from '@/lib/financeiro/contaazul-lancador';
 
@@ -28,9 +29,23 @@ function enumerarDias(de: string, ate: string): string[] {
  * existe para o automático não sair lançando histórico sozinho; num backfill pedido de propósito
  * ele atrapalha — o bar 3 tem corte em 03/07 e o furo do Programa de Pontos começa em 01/07.
  */
+/** Compara sem vazar tempo; exige mesmo tamanho (timingSafeEqual lança se diferir). */
+function bateSegredo(recebido: string, esperado: string): boolean {
+  return (
+    !!recebido && !!esperado && recebido.length === esperado.length &&
+    timingSafeEqual(Buffer.from(recebido), Buffer.from(esperado))
+  );
+}
+
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Aceita o CRON_SECRET (cron da Vercel) ou a service-role, mesmo padrão das rotas Stone e do
+  // vigia do ContaHub. Sem a service-role o backfill só seria disparável pelo agendador — não dava
+  // para rodar sob demanda a partir do banco (net.http_post + get_service_role_key()).
+  const bearer = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  const autorizado =
+    bateSegredo(bearer, process.env.CRON_SECRET || '') ||
+    bateSegredo(bearer, process.env.SUPABASE_SERVICE_ROLE_KEY || '');
+  if (!autorizado) {
     return NextResponse.json({ error: 'não autorizado' }, { status: 401 });
   }
 
