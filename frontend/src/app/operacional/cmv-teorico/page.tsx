@@ -142,7 +142,15 @@ export default function CmvTeoricoPage() {
     try {
       const r = await api.post('/api/operacional/cmv-teorico', { bar_id: barId, action: 'vincular_depara', pares });
       if (!r.success) throw new Error(r.error);
-      toast({ title: pares.length > 1 ? `${r.vinculados} vinculados` : 'Vinculado', description: 'Já entra no CMV.' });
+      // O vínculo já está gravado, mas CMV/saídas/desvios leem matview. O refresh inline
+      // leva ~13s e o PostgREST corta em 8 — na prática quase sempre cai no cron (10 min).
+      // Prometer "já entra no CMV" fazia parecer que o botão não funcionou.
+      toast({
+        title: pares.length > 1 ? `${r.vinculados} vinculados` : 'Vinculado',
+        description: r.refresh_ok
+          ? 'Já entra no CMV, nas saídas e nos desvios.'
+          : 'Vínculo salvo. O CMV, as saídas e os desvios atualizam em até 10 min.',
+      });
       marcarResolvidos(pares.map(x => x.prd));
       await carregarPeriodo();
     } catch (e: any) { toast({ title: 'Erro ao vincular', description: e?.message, variant: 'destructive' }); }
