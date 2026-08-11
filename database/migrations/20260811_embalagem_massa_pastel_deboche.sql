@@ -18,17 +18,21 @@
 --   preço da caixa ............ R$ 206,40
 --   custo unitário ............ 206,40 / 24 = R$ 8,60  ← uma massa de pastel a R$ 8,60
 --
--- Corrigido para 32, que é o que o próprio nome do insumo afirma: R$ 6,45/un.
+-- O NÚMERO CERTO É 768. Confirmado pelo Isaías (11/08/2026): a caixa tem **32 PACOTES**
+-- e cada pacote traz **24 massas** — 32 × 24 = 768. O "24" que estava cadastrado era o
+-- conteúdo do PACOTE, não da caixa: quem preencheu usou o divisor de um nível acima.
+--   206,40 / 768 = R$ 0,2688 por massa (era R$ 8,60 — 32x mais caro).
+--
 -- Varredura feita: são os ÚNICOS 2 insumos dos bares 3 e 4 em que a embalagem manual
 -- contradiz o número escrito no nome.
 --
--- Efeito no CMV teórico do bar 4: junho 32,55→31,63 · julho 32,85→31,78 · agosto 34,07→32,39
+-- Efeito no CMV teórico do bar 4:
+--   junho 32,55 → 28,99 · julho 32,85 → 28,67 · agosto 34,07 → 27,57
+-- E a família pastel saiu de "acima de 100%" para a faixa real (11% a 37%).
 --
--- ⚠️ AINDA PARECE ALTO — confirmar com a operação quantos discos vêm na caixa.
--- Um prato de 4 pastéis a R$ 29,95 fica com R$ 25,80 só de massa. Se a "cx com 32 un"
--- forem 32 PACOTES (e não 32 discos), o divisor real é ~320 e o CMV de agosto cai para
--- 28,32%. Medido com 541 massas vendidas em agosto:
---   embalagem  24 (era) → 34,52%  |  32 (agora) → 32,84%  |  320 → 28,32%
+-- ⚠️ O nome do insumo continua enganoso ("cx com 32 un" para 768 massas) — foi ele que
+-- induziu o erro. Renomear para algo como "Pastel Grande - cx 32 pct x 24 un" evitaria
+-- a repetição. Não renomeado aqui porque o nome casa com o de-para do VMarket.
 -- =============================================================================
 
 create table if not exists system.bkp_insumo_unidade_pastel_20260811 as
@@ -37,7 +41,7 @@ from public.insumo_unidade iu
 where iu.bar_id=4 and iu.id_prod in (select -i.id from operations.insumos i where i.bar_id=4 and i.codigo in ('i0259','i0368'));
 
 update public.insumo_unidade iu
-   set embalagem = 32
+   set embalagem = 768   -- 32 pacotes x 24 massas
   from operations.insumos i
  where i.bar_id=4 and i.codigo in ('i0259','i0368')
    and iu.bar_id=4 and iu.id_prod = -i.id;
