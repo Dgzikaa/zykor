@@ -214,7 +214,9 @@ export async function POST(request: NextRequest) {
     for (const prd of chAdd) {
       const row: any = { bar_id: barId, prd, cod_interno: codInterno };
       if (chDescs[prd]) row.prd_desc = chDescs[prd]; // grava o nome do ContaHub (evita "—")
-      await supabase.from('produto_contahub_map').upsert(row, { onConflict: 'bar_id,prd' });
+      const { error } = await supabase.from('produto_contahub_map').upsert(row, { onConflict: 'bar_id,prd' });
+      // sem isto, um upsert que falha vira "Códigos atualizados" na tela e o vínculo não existe
+      if (error) return NextResponse.json({ success: false, error: `código ContaHub ${prd}: ${error.message}` }, { status: 500 });
     }
     // Yuzer
     const { data: curYz } = await supabase.from('produto_yuzer_map').select('yuzer_produto_id').eq('bar_id', barId).eq('cod_interno', codInterno);
@@ -223,7 +225,12 @@ export async function POST(request: NextRequest) {
     if (yzRemove.length) await supabase.from('produto_yuzer_map').delete().eq('bar_id', barId).eq('cod_interno', codInterno).in('yuzer_produto_id', yzRemove);
     // onConflict em (bar_id, yuzer_produto_id) faz o upsert ROUBAR o mapeamento de outro cod_interno
     // (mesmo comportamento do ContaHub). Antes usava (bar_id, cod_yuzer, cod_interno) e duplicava.
-    for (const yid of yzArr) if (!curYzSet.has(yid)) await supabase.from('produto_yuzer_map').upsert({ bar_id: barId, cod_yuzer: String(yid), yuzer_produto_id: yid, nome: nomeProd, cod_interno: codInterno }, { onConflict: 'bar_id,yuzer_produto_id' });
+    for (const yid of yzArr) {
+      if (curYzSet.has(yid)) continue;
+      const { error } = await supabase.from('produto_yuzer_map').upsert({ bar_id: barId, cod_yuzer: String(yid), yuzer_produto_id: yid, nome: nomeProd, cod_interno: codInterno }, { onConflict: 'bar_id,yuzer_produto_id' });
+      // sem isto, um upsert que falha vira "Códigos atualizados" na tela e o vínculo não existe
+      if (error) return NextResponse.json({ success: false, error: `ID Yuzer ${yid}: ${error.message}` }, { status: 500 });
+    }
     // refresca o matview de vendas p/ o vínculo refletir na hora (senão só no cron horário);
     // falha do refresh não derruba o salvamento (o cron é backstop)
     try { await (supabase as any).schema('silver').rpc('fn_refresh_vendas_depara'); } catch { /* backstop: cron horário */ }

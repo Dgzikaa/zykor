@@ -45,6 +45,11 @@ export async function apiCall(endpoint: string, options: ApiOptions = {}) {
       method: options.method || 'GET',
       headers,
       credentials: 'include', // Incluir cookies (httpOnly)
+      // Dado de app nunca sai do cache do navegador: sem isto, um GET repetido logo após
+      // um POST pode ser servido da resposta anterior e a tela mostra o valor VELHO — só o
+      // F5 (que revalida) corrige. Foi o que acontecia ao adicionar código Yuzer na ficha
+      // técnica: gravava certo, mas o reload seguinte trazia a lista de antes.
+      cache: 'no-store',
     };
 
     // Adicionar body se necessário
