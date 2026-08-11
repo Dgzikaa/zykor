@@ -36,8 +36,11 @@ as $function$
     -- ContaHub = preço de tabela do cardápio (gold.produto_cmv).
     case when v.fonte = 'yuzer' then round(sum(v.valor) / nullif(sum(v.qtd_venda), 0), 2)
          else max(pcmv.preco_venda) end preco_venda,
-    -- custo unitário DO PERÍODO: as-of do fim dele (não o de hoje)
-    max(cfim.custo) custo_unit,
+    -- custo unitário DO PERÍODO: as-of do fim dele, COM FALLBACK no custo atual.
+    -- O fallback é obrigatório: produto criado depois do último snapshot não tem as-of, e
+    -- sem ele a tela o acusa de "ficha sem preço" — regressão corrigida em
+    -- 20260811_cmv_periodo_custo_unit_fallback.sql, no mesmo dia.
+    max(coalesce(cfim.custo, pcmv.custo)) custo_unit,
     sum(v.valor) faturamento,
     round(sum(v.qtd_venda * coalesce(hc.custo, pcmv.custo, 0)),2) custo_total,
     round(sum(v.valor) - sum(v.qtd_venda * coalesce(hc.custo, pcmv.custo, 0)),2) margem,
