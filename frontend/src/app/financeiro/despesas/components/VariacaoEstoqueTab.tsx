@@ -17,9 +17,10 @@ type Linha = {
   ja_lancado: boolean;
   valor_lancado: number | null;
 };
-type Preview = { bar_id: number; ano: number; mes: number; competencia: string; semanaIni: string; semanaFim: string; linhas: Linha[] };
+type Preview = { bar_id: number; ano: number; mes: number; competencia: string; dataIni: string | null; dataFim: string | null; erro: string | null; linhas: Linha[] };
 
 const fmtBRL = (v: any) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v || 0));
+const fmtData = (iso?: string | null) => (iso ? iso.split('-').reverse().join('/') : '—');
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 /** Últimos N meses como {ano, mes, label}, começando pelo mês anterior. */
@@ -177,7 +178,9 @@ export function VariacaoEstoqueTab() {
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin inline" /> : `Fonte: contagem de estoque (semanas ${data?.semanaIni} → ${data?.semanaFim}). Competência ${data?.competencia || '—'}.`}
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin inline" />
+            : data?.erro ? <span className="text-amber-600 dark:text-amber-500">{data.erro}</span>
+            : `Fonte: contagens mensais de ${fmtData(data?.dataIni)} → ${fmtData(data?.dataFim)}. Competência ${data?.competencia || '—'}.`}
         </p>
         {confirmando ? (
           <div className="flex items-center gap-2">

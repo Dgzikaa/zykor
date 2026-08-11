@@ -16,6 +16,8 @@ export const maxDuration = 120;
  * DESPESA em cada categoria "[Consumação] X"; o total entra como RECEITA em "[Consumação] Ajuste CMV".
  * Despesas − Receita(Ajuste) = 0. Competência = o dia. Sem baixa.
  * Idempotente por financial.lancamento_manual_ca_log (tipo='consumacao', chave=categoria_key).
+ * Se uma despesa entra num dia cuja contrapartida JÁ foi lançada (retroativo), a soma-zero é
+ * restaurada por um lançamento complementar — ver `montarComplemento`.
  *
  *  - GET  : preview do dia (não escreve).
  *  - POST : cria os lançamentos que faltam (admin/financeiro).
@@ -97,20 +99,62 @@ export async function montarConsumacaoDia(barId: number, dia: string, fatorPre?:
   return { itens, ignorado, totalDespesas };
 }
 
+/**
+ * Lançamento que reequilibra a soma-zero de um dia já lançado, ou null se não há furo.
+ *
+ * POR QUE PRECISA EXISTIR. O lançamento é idempotente por `chave`: uma chave já no log nunca é
+ * reprocessada. Isso vale também para `ajuste_cmv_receita`, a contrapartida que espelha o TOTAL
+ * das despesas do dia. Então quando uma despesa entra DEPOIS — lançamento retroativo, categoria
+ * que passou a ser reconhecida, correção de vínculo de mesa — a despesa entra sozinha e a receita
+ * fica com o valor antigo. A soma-zero quebra e ninguém percebe.
+ *
+ * Foi o que aconteceu com o Programa de Pontos no Ordinário/julho-2026 (Gonza, 11/08): as receitas
+ * de 01–18/07 foram criadas em 15–16/07, e as despesas de pontos desses mesmos dias só entraram
+ * depois (parte em 27/07 pela Katrinny, parte em 11/08 pelo próprio Gonza). O furo do dia ficou
+ * sendo exatamente o valor dos pontos daquele dia — R$ 2.868,58 no mês.
+ *
+ * Não dá para editar o lançamento no Conta Azul: a API v2 só CRIA
+ * [[feedback_contaazul_api_sem_delete_lancamento]]. Então a correção é um lançamento complementar
+ * pela diferença. É auto-idempotente pelo próprio valor: depois que o complemento entra, o
+ * desbalanço passa a ser zero e nenhum outro é criado.
+ */
+function montarComplemento(desbalanco: number, jaFeitos: number, dia: string): ItemConsumacao | null {
+  if (Math.abs(desbalanco) < 0.01) return null;
+  const sobrouDespesa = desbalanco > 0; // despesa a mais → falta RECEITA de contrapartida
+  return {
+    chave: `ajuste_cmv_compl${jaFeitos + 1}`,
+    label: `Ajuste CMV (complemento ${brDate(dia)})`,
+    categoria: sobrouDespesa ? CAT_AJUSTE_RECEITA : KEY_CAT.ajuste_cmv,
+    sinal: sobrouDespesa ? 'RECEITA' : 'DESPESA',
+    valor: Math.abs(desbalanco),
+  };
+}
+
 /** Executa (idempotente) os lançamentos de consumação de um dia. `chaves` (opcional) limita a categorias específicas. Sem auth — quem chama garante. */
 export async function executarConsumacaoDia(barId: number, dia: string, criadoPor: string | null, chaves?: string[]): Promise<{ status: number; body: any }> {
   const supabase = getLancadorAdmin();
   const { itens, ignorado, totalDespesas } = await montarConsumacaoDia(barId, dia);
 
   const log = () => (supabase.schema('financial' as any) as any).from('lancamento_manual_ca_log');
-  const { data: jaLogs } = await log().select('chave').eq('bar_id', barId).eq('tipo', TIPO).eq('competencia', dia);
-  const feitos = new Set(((jaLogs as any[]) || []).map((r) => r.chave));
+  const { data: jaLogs } = await log().select('chave, sinal, valor').eq('bar_id', barId).eq('tipo', TIPO).eq('competencia', dia);
+  const logRows = (jaLogs as any[]) || [];
+  const feitos = new Set(logRows.map((r) => r.chave));
 
   const filtro = chaves?.length ? new Set(chaves) : null;
   const pendentes = itens.filter((i) => !feitos.has(i.chave) && (!filtro || filtro.has(i.chave)));
-  if (pendentes.length === 0) {
+
+  // Furo da soma-zero: despesas lançadas − receitas lançadas, considerando o que os pendentes
+  // ainda vão somar. Ver `montarComplemento` para o porquê disto existir.
+  const somaLog = (sinal: SinalLanc) => logRows.filter((r) => r.sinal === sinal).reduce((s, r) => s + Number(r.valor || 0), 0);
+  const somaPend = (sinal: SinalLanc) => pendentes.filter((i) => i.sinal === sinal).reduce((s, i) => s + i.valor, 0);
+  const desbalanco = round2((somaLog('DESPESA') + somaPend('DESPESA')) - (somaLog('RECEITA') + somaPend('RECEITA')));
+  const nCompl = logRows.filter((r) => String(r.chave).startsWith('ajuste_cmv_compl')).length;
+  const complemento = montarComplemento(desbalanco, nCompl, dia);
+
+  if (pendentes.length === 0 && !complemento) {
     return { status: 200, body: { bar_id: barId, dia, skipped: true, motivo: feitos.size ? 'já lançado' : 'sem consumação no dia', itens, ignorado, totalDespesas } };
   }
+  if (complemento) pendentes.push(complemento);
 
   const tokenResult = await getCAToken(barId);
   if ('error' in tokenResult) return { status: tokenResult.status, body: { error: tokenResult.error } };
@@ -241,12 +285,17 @@ export async function GET(request: NextRequest) {
   const { itens, ignorado, totalDespesas } = await montarConsumacaoDia(barId, dia);
   const supabase = getLancadorAdmin();
   const { data: logs } = await (supabase.schema('financial' as any) as any)
-    .from('lancamento_manual_ca_log').select('chave, valor').eq('bar_id', barId).eq('tipo', TIPO).eq('competencia', dia);
-  const feitos = new Set(((logs as any[]) || []).map((r) => r.chave));
+    .from('lancamento_manual_ca_log').select('chave, valor, sinal').eq('bar_id', barId).eq('tipo', TIPO).eq('competencia', dia);
+  const logRows = (logs as any[]) || [];
+  const feitos = new Set(logRows.map((r) => r.chave));
+  // Desbalanço REAL do que está no Conta Azul (não do que foi calculado agora): despesas
+  // lançadas − receitas lançadas. > 0 significa despesa sem contrapartida.
+  const soma = (s: SinalLanc) => logRows.filter((r) => r.sinal === s).reduce((acc, r) => acc + Number(r.valor || 0), 0);
+  const desbalanco = round2(soma('DESPESA') - soma('RECEITA'));
 
   return NextResponse.json({
     modo: 'dia', bar_id: barId, dia, totalDespesas, ignorado,
-    soma_zero: round2(totalDespesas - (itens.find((i) => i.chave === 'ajuste_cmv_receita')?.valor || 0)),
+    soma_zero: desbalanco,
     itens: itens.map((i) => ({ ...i, ja_lancado: feitos.has(i.chave) })),
   });
 }
