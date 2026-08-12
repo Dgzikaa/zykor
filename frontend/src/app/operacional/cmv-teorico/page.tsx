@@ -239,17 +239,27 @@ export default function CmvTeoricoPage() {
     const lista: any[] = periodo?.produtos || [];
     const m = new Map<string, any>();
     for (const p of lista) {
-      const e = m.get(p.codigo) || { codigo: p.codigo, nome: p.nome, categoria: p.categoria, qtd: 0, faturamento: 0, custo_total: 0, custo_unit: null as number | null, itens_ficha: 0, tem_yuzer: false };
+      const e = m.get(p.codigo) || { codigo: p.codigo, nome: p.nome, categoria: p.categoria, qtd: 0, faturamento: 0, custo_total: 0, custo_unit: null as number | null, itens_ficha: 0, tem_yuzer: false, preco_tabela: null as number | null };
       e.qtd += Number(p.qtd || 0);
       e.faturamento += Number(p.faturamento || 0);
       e.custo_total += Number(p.custo_total || 0);
       if (p.custo_unit != null) e.custo_unit = Number(p.custo_unit);
       e.itens_ficha = Math.max(e.itens_ficha, Number(p.itens_ficha || 0));
       if (p.fonte === 'yuzer') e.tem_yuzer = true;
+      // preço de TABELA (cardápio do ContaHub). Só da fonte contahub: no Yuzer a fn já devolve o
+      // preço efetivo do evento nesse campo, então usá-lo aqui compararia coisas diferentes.
+      if (p.fonte !== 'yuzer' && p.preco_venda != null)
+        e.preco_tabela = Math.max(Number(e.preco_tabela ?? 0), Number(p.preco_venda));
       m.set(p.codigo, e);
     }
     let arr = Array.from(m.values()).map((e: any) => ({
       ...e,
+      // Preço MÉDIO PRATICADO, não o de tabela: é faturamento ÷ quantidade, então já vem com os
+      // descontos, happy hour e preço promocional do período embutidos. É o número certo para o
+      // CMV (o percentual tem que bater com a receita real), mas confunde quem compara com o
+      // cardápio — daí a coluna `preco_tabela` ao lado. Ex. que gerou o ajuste (Isaías, 12/08/2026):
+      // Baldinho Original 4Un., Ordinário, julho — 807 un., R$ 60.087,25 → média 74,46 contra
+      // tabela de 75,80. A diferença de R$ 1,34/un. é desconto dado no período, não erro.
       preco_venda: e.qtd > 0 ? e.faturamento / e.qtd : null,
       margem: e.faturamento - e.custo_total,
       cmv_pct: e.faturamento > 0 ? e.custo_total / e.faturamento * 100 : null,
@@ -274,14 +284,16 @@ export default function CmvTeoricoPage() {
   const exportarCSV = () => {
     if (!perProdView.length) return;
     // exporta o produto + uma linha por origem (código CH/Yuzer) quando houver mais de uma
-    const head = ['Codigo', 'Produto', 'Categoria', 'Origem', 'Cod origem', 'Nome origem', 'Qtd', 'Preco venda', 'Custo unit', 'Faturamento', 'Custo total', 'Margem', 'CMV %'];
+    // "Preco medio praticado" em vez de "Preco venda": era exatamente esse rótulo que fazia o
+    // número parecer errado ao ser comparado com o cardápio. Vai junto o preço de tabela.
+    const head = ['Codigo', 'Produto', 'Categoria', 'Origem', 'Cod origem', 'Nome origem', 'Qtd', 'Preco tabela', 'Preco medio praticado', 'Custo unit', 'Faturamento', 'Custo total', 'Margem', 'CMV %'];
     const linhas: string[] = [];
     const push = (cols: any[]) => linhas.push(cols.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';'));
     for (const p of perProdView as any[]) {
-      push([p.codigo, p.nome, p.categoria || '', '', '', '', p.qtd, p.preco_venda ?? '', p.custo_unit ?? '', p.faturamento ?? '', p.custo_total ?? '', p.margem ?? '', p.cmv_pct ?? '']);
+      push([p.codigo, p.nome, p.categoria || '', '', '', '', p.qtd, p.preco_tabela ?? '', p.preco_venda ?? '', p.custo_unit ?? '', p.faturamento ?? '', p.custo_total ?? '', p.margem ?? '', p.cmv_pct ?? '']);
       if ((p.origens || []).length > 1)
         for (const o of p.origens as any[])
-          push([p.codigo, p.nome, p.categoria || '', o.fonte === 'yuzer' ? 'Yuzer' : 'ContaHub', o.cod_origem, o.nome_origem || '', o.qtd, o.preco_efetivo ?? '', o.custo_unit ?? '', o.faturamento ?? '', o.custo_total ?? '', o.margem ?? '', o.cmv_pct ?? '']);
+          push([p.codigo, p.nome, p.categoria || '', o.fonte === 'yuzer' ? 'Yuzer' : 'ContaHub', o.cod_origem, o.nome_origem || '', o.qtd, '', o.preco_efetivo ?? '', o.custo_unit ?? '', o.faturamento ?? '', o.custo_total ?? '', o.margem ?? '', o.cmv_pct ?? '']);
     }
     const csv = '﻿' + [head.join(';'), ...linhas].join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
@@ -660,7 +672,8 @@ export default function CmvTeoricoPage() {
                   <th className="text-left font-medium px-3 py-2">Produto</th>
                   <th className="text-left font-medium px-3 py-2">Categoria</th>
                   <th className="text-right font-medium px-3 py-2">Qtd</th>
-                  <th className="text-right font-medium px-3 py-2">Preço venda</th>
+                  <th className="text-right font-medium px-3 py-2" title="Preço de tabela do cardápio (ContaHub)">Preço tabela</th>
+                  <th className="text-right font-medium px-3 py-2" title="Faturamento ÷ quantidade — já com descontos e happy hour do período. É este que o CMV usa.">Preço médio</th>
                   <th className="text-right font-medium px-3 py-2">Custo unit.</th>
                   <th className="text-right font-medium px-3 py-2">Faturamento</th>
                   <th className="text-right font-medium px-3 py-2">Custo total</th>
@@ -688,7 +701,18 @@ export default function CmvTeoricoPage() {
                         </td>
                         <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{p.categoria || 'Outros'}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{fmtNum(p.qtd)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(p.preco_venda)}{expandivel && <span className="text-gray-400 text-[10px]" title="preço médio ponderado (varia por código — expanda)"> méd</span>}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-gray-500 dark:text-gray-400">{p.preco_tabela ? fmtBRL(p.preco_tabela) : <span className="text-gray-300" title="Sem preço de tabela (produto só Yuzer)">—</span>}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">
+                          {fmtBRL(p.preco_venda)}
+                          {/* desconto médio do período: explica na hora por que o número não bate com o cardápio */}
+                          {p.preco_tabela && p.preco_venda && p.preco_tabela - p.preco_venda > 0.005 && (
+                            <span className="ml-1 text-[10px] text-amber-600 dark:text-amber-400"
+                              title={`Preço médio ${fmtBRL(p.preco_venda)} contra tabela de ${fmtBRL(p.preco_tabela)} — a diferença é desconto/happy hour dado no período, não erro de cálculo.`}>
+                              −{fmtPct((p.preco_tabela - p.preco_venda) / p.preco_tabela * 100)}
+                            </span>
+                          )}
+                          {expandivel && <span className="text-gray-400 text-[10px]" title="preço médio ponderado (varia por código — expanda)"> méd</span>}
+                        </td>
                         <td className="px-3 py-2 text-right tabular-nums">{p.custo_unit ? fmtBRL(p.custo_unit) : <span className="text-amber-500" title="Sem ficha/custo">—</span>}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{fmtBRL(p.faturamento)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{fmtBRL(p.custo_total)}</td>
@@ -708,6 +732,9 @@ export default function CmvTeoricoPage() {
                           <td className="px-3 py-1.5 text-gray-600 dark:text-gray-300">{o.nome_origem || '—'}</td>
                           <td className="px-3 py-1.5" />
                           <td className="px-3 py-1.5 text-right tabular-nums">{fmtNum(o.qtd)}</td>
+                          {/* coluna "Preço tabela" fica vazia na origem: o preço de tabela é do
+                              produto interno, não de cada código de PDV */}
+                          <td className="px-3 py-1.5" />
                           <td className="px-3 py-1.5 text-right tabular-nums text-blue-600 dark:text-blue-400">{fmtBRL(o.preco_efetivo)}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums">{o.custo_unit ? fmtBRL(o.custo_unit) : '—'}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums">{fmtBRL(o.faturamento)}</td>
