@@ -14,7 +14,7 @@ import { ColumnFilterHeader, useColumnFilters, type FilterCol } from '@/componen
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { getSelectedBarId } from '@/lib/selected-bar';
-import { Loader2, Upload, Send, EyeOff, RotateCcw, CheckCircle2, Plus, CreditCard, Lock, Archive, Trash2 } from 'lucide-react';
+import { Loader2, Upload, Send, EyeOff, RotateCcw, CheckCircle2, Plus, CreditCard, Lock, Archive, Trash2, History, ArrowRightLeft } from 'lucide-react';
 
 interface Cartao { id: string; banco: string; tipo: string; dono: string }
 interface Fatura {
@@ -30,6 +30,11 @@ interface Linha {
 }
 interface Opcao { value: string; label: string }
 interface OpcoesBar { categorias: Opcao[]; fornecedores: Opcao[]; contas: Opcao[] }
+/** Um upload de arquivo dentro da fatura (agrupado por minuto + quem importou). */
+interface Lote {
+  importado_em: string | null; importado_por: string | null; importado_por_nome: string;
+  linhas: number; total: number; lancadas: number; finais: string[];
+}
 
 // Colunas com filtro tipo Excel no cabeçalho (substitui o antigo dropdown "Todos os cartões").
 const CARTAO_SEM = '— sem —';
@@ -80,6 +85,7 @@ export function FaturaCartaoTab() {
   // Modais
   const [cartoesOpen, setCartoesOpen] = useState(false);
   const [novaOpen, setNovaOpen] = useState(false); // modal "Nova fatura" (importa por cartão)
+  const [importacoesOpen, setImportacoesOpen] = useState(false); // modal "Importações" (desfazer/mover upload)
 
   const faturaSel = useMemo(() => [...faturas, ...encerradas].find(f => f.id === faturaSelId) || null, [faturas, encerradas, faturaSelId]);
 
@@ -561,12 +567,18 @@ export function FaturaCartaoTab() {
               </div>
             </div>
             {editavelFatura && (
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2 items-stretch">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-2 items-stretch">
                 <label className="flex items-center justify-center gap-2 cursor-pointer rounded-lg border-2 border-dashed border-[hsl(var(--border))] py-3 hover:bg-muted/40 text-sm">
                   {lendo ? <><Loader2 className="w-4 h-4 animate-spin text-blue-500" />Lendo…</> : <><Upload className="w-4 h-4 text-muted-foreground" />Importar Excel/OFX/CSV nesta fatura</>}
                   <input type="file" accept=".xls,.xlsx,.csv,.ofx" className="hidden" disabled={lendo}
                     onChange={(e) => { const f = e.target.files?.[0]; if (f) importar(f); e.currentTarget.value = ''; }} />
                 </label>
+                {/* Subiu no cartão errado? Aqui dá pra mover ou desfazer só AQUELE upload,
+                    sem excluir a fatura inteira (que levaria junto os outros uploads). */}
+                <Button variant="outline" onClick={() => setImportacoesOpen(true)}
+                  title="Ver os uploads desta fatura — mover pra outro cartão ou desfazer">
+                  <History className="w-4 h-4 mr-2" />Importações
+                </Button>
                 <Button variant="outline" onClick={encerrarFatura} disabled={encerrando}>
                   {encerrando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lock className="w-4 h-4 mr-2" />}Encerrar fatura
                 </Button>
@@ -777,11 +789,160 @@ export function FaturaCartaoTab() {
       <NovaFaturaDialog open={novaOpen} onOpenChange={setNovaOpen} cartoes={cartoes} lendo={lendo}
         onImportar={(file, cartaoId) => importar(file, cartaoId)} />
 
+      {faturaSel && (
+        <ImportacoesDialog open={importacoesOpen} onOpenChange={setImportacoesOpen} fatura={faturaSel}
+          destinos={faturas.filter(f => f.id !== faturaSel.id)}
+          onMudou={async () => { await carregarBase(); await carregarLinhas(faturaSel.id); }} />
+      )}
+
       <CartoesDialog open={cartoesOpen} onOpenChange={setCartoesOpen} cartoes={cartoes} onMudou={carregarBase}
         barId={barFatura} fornecedores={barFatura ? (opcoesBar[barFatura]?.fornecedores || []) : []}
         onVincular={(final, pid, nome) => vincularCartao({ cartao_final: final, titular_nome: null, banco: null }, pid, nome)}
         onCadastrarEVincular={cadastrarEVincular} onDesvincular={desvincularCartao} />
     </div>
+  );
+}
+
+// ---------- Modal: importações da fatura (desfazer / mover um upload) ----------
+// Existe porque subir o arquivo no cartão errado acontece, e "Excluir fatura" era o único
+// caminho — levava junto os uploads certos. Aqui a ação é por LOTE (um upload).
+function ImportacoesDialog({ open, onOpenChange, fatura, destinos, onMudou }: {
+  open: boolean; onOpenChange: (v: boolean) => void; fatura: Fatura;
+  destinos: Fatura[]; onMudou: () => Promise<void>;
+}) {
+  const { showToast } = useToast();
+  const [lotes, setLotes] = useState<Lote[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  // Fatura de destino escolhida por lote (o select fica na própria linha do lote).
+  const [destinoPorLote, setDestinoPorLote] = useState<Record<string, string>>({});
+
+  const chave = (l: Lote) => `${l.importado_em || ''}|${l.importado_por || ''}`;
+
+  const carregar = useCallback(async () => {
+    setCarregando(true);
+    try {
+      const res = await api.get(`/api/financeiro/cartao-fatura/faturas/${fatura.id}/importacoes`);
+      setLotes(res.lotes || []);
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Erro ao carregar importações', message: e?.message });
+    } finally {
+      setCarregando(false);
+    }
+  }, [fatura.id, showToast]);
+
+  useEffect(() => { if (open) carregar(); }, [open, carregar]);
+
+  const fmtQuando = (iso: string | null) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(iso || '');
+    return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : '—';
+  };
+
+  const agir = async (lote: Lote, acao: 'excluir' | 'mover', force = false) => {
+    const destinoId = destinoPorLote[chave(lote)] || '';
+    if (acao === 'mover' && !destinoId) {
+      return showToast({ type: 'warning', title: 'Escolha a fatura de destino' });
+    }
+    if (!force) {
+      const resumo = `${lote.linhas} linha(s) · ${fmtBRL(lote.total)} · importadas em ${fmtQuando(lote.importado_em)} por ${lote.importado_por_nome}`;
+      const msg = acao === 'excluir'
+        ? `Desfazer esta importação?\n\n${resumo}\n\nAs linhas serão apagadas desta fatura. Não dá pra desfazer.`
+        : `Mover esta importação para outra fatura?\n\n${resumo}\n\nLinhas que já existirem no destino são descartadas (é a mesma transação).`;
+      if (!window.confirm(msg)) return;
+    }
+    setOcupado(chave(lote));
+    try {
+      const res = await api.post(
+        `/api/financeiro/cartao-fatura/faturas/${fatura.id}/importacoes${force ? '?force=1' : ''}`,
+        { importado_em: lote.importado_em, importado_por: lote.importado_por, acao, fatura_destino_id: destinoId || undefined },
+      );
+      if (acao === 'excluir') {
+        showToast({ type: 'success', title: 'Importação desfeita', message: `${res.excluidas} linha(s) removidas.` });
+      } else {
+        const extra = res.descartadas_por_duplicidade > 0
+          ? ` ${res.descartadas_por_duplicidade} já existiam no destino e foram descartadas.` : '';
+        showToast({ type: 'success', title: 'Importação movida', message: `${res.movidas} linha(s) movidas.${extra}` });
+      }
+      await carregar();
+      await onMudou();
+    } catch (e: any) {
+      // 409 requer_force: há linhas já lançadas no Conta Azul — confirma e repete.
+      const msg = String(e?.message || '');
+      if (!force && /Conta Azul/i.test(msg)) {
+        if (window.confirm(`${msg}\n\nProsseguir mesmo assim?`)) { setOcupado(null); return agir(lote, acao, true); }
+      } else {
+        showToast({ type: 'error', title: 'Não deu', message: msg });
+      }
+    } finally {
+      setOcupado(null);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><History className="w-4 h-4" />Importações desta fatura</DialogTitle>
+          <DialogDescription>
+            {cartaoNome(fatura.cartao)} · vence {fmtDataBR(fatura.vencimento)}. Cada linha abaixo é um upload de
+            arquivo. Subiu no cartão errado? Mova o upload pra fatura certa ou desfaça — sem excluir a fatura inteira.
+          </DialogDescription>
+        </DialogHeader>
+
+        {carregando ? (
+          <div className="py-8 text-center text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Carregando…</div>
+        ) : lotes.length === 0 ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">Nenhuma importação nesta fatura.</div>
+        ) : (
+          <div className="space-y-2 max-h-[55vh] overflow-y-auto">
+            {lotes.map((l) => {
+              const k = chave(l);
+              const busy = ocupado === k;
+              return (
+                <div key={k} className="rounded-lg border border-[hsl(var(--border))] p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div className="text-sm">
+                      <div className="font-medium">{fmtQuando(l.importado_em)} · {l.importado_por_nome}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {l.linhas} linha(s) · <b className="tabular-nums">{fmtBRL(l.total)}</b>
+                        {l.finais.length > 0 && <> · finais {l.finais.map(f => `••${f}`).join(', ')}</>}
+                      </div>
+                      {l.lancadas > 0 && (
+                        <div className="text-xs text-amber-600 mt-0.5">⚠ {l.lancadas} já lançada(s) no Conta Azul — mexer aqui não remove de lá.</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                      value={destinoPorLote[k] || ''}
+                      onChange={(e) => setDestinoPorLote(p => ({ ...p, [k]: e.target.value }))}
+                      className="h-8 rounded-md border border-[hsl(var(--border))] bg-transparent px-2 text-xs min-w-[220px]"
+                      disabled={busy || destinos.length === 0}
+                    >
+                      <option value="">{destinos.length ? 'Mover para…' : 'Nenhuma outra fatura aberta'}</option>
+                      {destinos.map(d => (
+                        <option key={d.id} value={d.id}>{cartaoNome(d.cartao)} · vence {fmtDataBR(d.vencimento)}</option>
+                      ))}
+                    </select>
+                    <Button size="sm" variant="outline" disabled={busy || !destinoPorLote[k]} onClick={() => agir(l, 'mover')}>
+                      {busy ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" />}Mover
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => agir(l, 'excluir')}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 border-red-200 dark:border-red-800">
+                      {busy ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-1.5" />}Desfazer import
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
