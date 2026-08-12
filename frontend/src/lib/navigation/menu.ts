@@ -216,12 +216,33 @@ export const MENU_TREE: MenuSection[] = [
     // sem migrar os tokens junto.
     subItems: [
       { icon: 'Users', label: 'Funcionários', href: '/rh/funcionarios', permission: 'rh_funcionarios' },
-      { icon: 'CalendarRange', label: 'Escala', href: '/rh/escala', permission: 'rh_escala' },
+      // RH → Escala saiu do menu em 12/08/2026: não era usada. A escala de verdade (a que o
+      // time mantém na planilha "ESCALA ORDI!") virou a seção Operação abaixo. A rota
+      // /rh/escala continua existindo, mas órfã do menu = admin-only pelo guard.
       { icon: 'HandCoins', label: 'Freelas', href: '/rh/freelas', permission: 'rh_freelas' },
       { icon: 'Clock', label: 'Ponto', href: '/rh/ponto', permission: 'rh_ponto' },
       { icon: 'Briefcase', label: 'Recrutamento', href: '/rh/recrutamento', permission: 'rh_recrutamento' },
       { icon: 'Coins', label: 'Custo de MO', href: '/rh/custo-mo', permission: 'rh_custo_de_mo' },
       { icon: 'Star', label: 'NPS Funcionários', href: '/operacional/nps', permission: 'rh_nps_funcionarios' },
+    ],
+  },
+  {
+    icon: 'CalendarRange',
+    label: 'Operação',
+    // Sem página raiz — a seção aponta pro primeiro item, mesmo padrão de RH e Produção - CMV.
+    href: '/operacao/plano',
+    permission: 'operacao',
+    beta: true,
+    // Substitui as duas planilhas que hoje são a fonte da verdade da operação do Ordinário:
+    // "Plano Operacional Semanal" e "ESCALA ORDI!". Decisão (Rodrigo, 12/08/2026): o Zykor
+    // vira a fonte, o histórico de 2026 entra por backfill e setembro já é desenhado aqui.
+    //
+    // As `permission` abaixo são os ids GERADOS por gerarIdModulo('Operação', label) —
+    // `operacao_plano_operacional` e `operacao_escala`. Mexer nos labels muda o id e
+    // derruba o grant de quem já tiver o módulo.
+    subItems: [
+      { icon: 'ClipboardList', label: 'Plano Operacional', href: '/operacao/plano', permission: 'operacao_plano_operacional' },
+      { icon: 'CalendarRange', label: 'Escala', href: '/operacao/escala', permission: 'operacao_escala' },
     ],
   },
   {
