@@ -14,7 +14,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick, Pencil, Check, X, RefreshCw, Filter, Eye, EyeOff } from 'lucide-react';
+import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick, Pencil, Check, X, RefreshCw, Filter, Eye, EyeOff, Download } from 'lucide-react';
 
 // célula com lápis (padrão Orçamentação): mostra valor + lápis no hover; clica → input com ✓/✕; salva e recalcula.
 // kg/L têm sub-unidade prática (g/ml). O desperdício quase sempre é pequeno (ex.: 32 g),
@@ -516,6 +516,55 @@ export default function DesviosPage() {
   const hProd = useMemo(() => headFrom(prodView), [prodView]); // eslint-disable-line react-hooks/exhaustive-deps
   const hProt = useMemo(() => headFrom(protView), [protView]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Linhas da aba ativa — é o que a tela mostra e o que o CSV exporta.
+  const rowsAtivas = aba === 'insumos' ? itensView : aba === 'producoes' ? prodView : protView;
+
+  // Exporta a aba ATIVA exatamente como está na tela: filtros, ordem e itens fora do desvio
+  // já aplicados (pedido do Isaías, 12/08/2026 — "é para apresentar nas reuniões dos sócios").
+  // Números saem com vírgula decimal e separador ';' pro Excel pt-BR abrir já como número, e o
+  // arquivo leva BOM pra não quebrar acento. Fecha com uma linha TOTAL (soma do que está filtrado).
+  const exportarCSV = () => {
+    if (!rowsAtivas.length) return;
+    const q = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const n = (v: any, dec = 3) => (v == null || v === '' || Number.isNaN(Number(v)) ? '' : Number(v).toFixed(dec).replace('.', ','));
+    const sim = (v: any) => (v ? 'Sim' : '');
+    let head: string[];
+    let linhas: string[];
+    if (aba === 'insumos') {
+      head = ['Insumo', 'Codigo', 'Unidade', 'Area', 'Curva A', 'Fora do desvio', 'Estoque ini', 'Compras', 'Troca', 'Saida teorica', 'Desperdicio', 'Estoque fim teorico', 'Estoque real', 'Desvio (qtd)', 'Desvio (R$)'];
+      linhas = rowsAtivas.map((i: any) => [
+        q(i.insumo_nome), q(i.insumo_codigo), q(i.unidade || ''), q(i.area || ''), q(sim(i.curva_a)), q(sim(i.ignorado)),
+        n(i.estoque_ini), n(i.compra), n(i.troca), n(i.saida_teorica), n(i.desperdicio),
+        n(i.estoque_fim_teorico), n(i.estoque_fim_real), n(i.desvio_qtd), n(i.desvio_rs, 2),
+      ].join(';'));
+    } else if (aba === 'producoes') {
+      head = ['Producao', 'Codigo', 'Unidade', 'Secao', 'Curva A', 'Fora do desvio', 'Estoque ini', 'Produzido', 'Saida teorica', 'Desperdicio', 'Estoque fim teorico', 'Estoque real', 'Desvio (qtd)', 'Desvio (R$)'];
+      linhas = rowsAtivas.map((i: any) => [
+        q(i.insumo_nome), q(i.insumo_codigo), q(i.unidade || ''), q(i.secao_prod || ''), q(sim(i.curva_a)), q(sim(i.ignorado)),
+        n(i.estoque_ini), n(i.produzido), n(i.saida_teorica), n(i.desperdicio),
+        n(i.estoque_fim_teorico), n(i.estoque_fim_real), n(i.desvio_qtd), n(i.desvio_rs, 2),
+      ].join(';'));
+    } else {
+      head = ['Proteina', 'Codigo', 'Fora do desvio', 'Estoque ini', 'Compras', 'Troca', 'Utilizado Producao', 'Saida Direta', 'Desperdicio', 'Estoque fim teorico', 'Estoque real', 'Desvio (qtd)', 'Desvio (R$)'];
+      linhas = rowsAtivas.map((i: any) => [
+        q(i.insumo_nome), q(i.insumo_cod), q(sim(i.ignorado)),
+        n(i.estoque_ini), n(i.comprou), n(i.troca), n(i.utilizado_producao), n(i.saida_direta), n(i.desperdicio),
+        n(i.estoque_fim_teorico), n(i.estoque_fim_real), n(i.desvio_qtd), n(i.desvio_rs, 2),
+      ].join(';'));
+    }
+    const tot = headFrom(rowsAtivas);
+    linhas.push([q('TOTAL'), ...Array(head.length - 2).fill(''), n(tot.desvio_total, 2)].join(';'));
+    linhas.push([q('PERDAS'), ...Array(head.length - 2).fill(''), n(tot.perdas, 2)].join(';'));
+    linhas.push([q('SOBRAS'), ...Array(head.length - 2).fill(''), n(tot.sobras, 2)].join(';'));
+    const csv = '﻿' + [head.join(';'), ...linhas].join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `desvios_${aba}_${tipo}${andamento ? '-andamento' : ''}_${ini}_${fim}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <PageShell width="wide">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -526,11 +575,18 @@ export default function DesviosPage() {
               <p className="text-sm text-gray-500 dark:text-gray-400">Estoque real × teórico (ini + compras + produzido − vendas×ficha − desperdício) · {selectedBar?.nome || ''}</p>
             </div>
           </div>
-          <button onClick={sincronizarEstoque} disabled={sincronizando || !barId}
-            title="Puxa a contagem da planilha (últimos 14 dias) e recarrega os desvios"
-            className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 shrink-0">
-            <RefreshCw className={`w-4 h-4 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Atualizando…' : 'Atualizar estoque'}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={exportarCSV} disabled={!rowsAtivas.length}
+              title="Baixa a aba atual em CSV (Excel), com os filtros que estão aplicados na tela"
+              className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50">
+              <Download className="w-4 h-4" />Exportar CSV
+            </button>
+            <button onClick={sincronizarEstoque} disabled={sincronizando || !barId}
+              title="Puxa a contagem da planilha (últimos 14 dias) e recarrega os desvios"
+              className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50">
+              <RefreshCw className={`w-4 h-4 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Atualizando…' : 'Atualizar estoque'}
+            </button>
+          </div>
         </div>
 
         {/* Tipo + Período */}
