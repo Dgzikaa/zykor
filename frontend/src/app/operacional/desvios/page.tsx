@@ -78,7 +78,12 @@ function PencilCell({ value, fmt, onSave, disabled, unidade }: { value: number |
 
 // Filtro por coluna numérica (estilo Excel): ≥ mín / ≤ máx + atalhos. `abs` = filtra pelo módulo
 // do valor (usado nas colunas de Desvio, p/ "desvio ≥ R$1000" pegar tanto perda quanto sobra).
-type NumCond = { min: number | null; max: number | null };
+//
+// `sinal` existe porque min/max sozinhos NÃO conseguem responder "só os negativos" nas colunas de
+// Desvio: elas filtram pelo módulo, que joga fora justamente o sinal ("esse mín e máx fica um pouco
+// confuso… como eu filtro somente os negativos?" — Isaías, 12/08/2026). Ele é avaliado sobre o
+// valor REAL, e combina com min/max: sinal 'neg' + mín 1000 = perdas acima de R$ 1.000.
+type NumCond = { min: number | null; max: number | null; sinal?: 'neg' | 'pos' | null };
 const NUM_ABS = new Set(['desvio_qtd', 'desvio_rs']); // colunas filtradas pelo módulo
 function NumHeader({ label, title, cond, onChange, abs }: {
   label: string; title?: string; cond: NumCond; onChange: (c: NumCond) => void; abs?: boolean;
@@ -87,7 +92,7 @@ function NumHeader({ label, title, cond, onChange, abs }: {
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
-  const active = cond.min != null || cond.max != null;
+  const active = cond.min != null || cond.max != null || !!cond.sinal;
   const openMenu = () => {
     const r = btnRef.current?.getBoundingClientRect();
     if (r) setPos({ left: Math.max(8, Math.min(r.right - 224, window.innerWidth - 232)), top: r.bottom + 4 });
@@ -128,10 +133,24 @@ function NumHeader({ label, title, cond, onChange, abs }: {
             <input value={cond.max ?? ''} inputMode="decimal" onChange={e => set('max', e.target.value)} placeholder="máx"
               className="flex-1 h-8 text-xs text-right tabular-nums rounded border border-gray-300 dark:border-gray-600 bg-transparent px-2" />
           </div>
+          {/* Só perdas / só sobras vêm PRIMEIRO e maiores: é o filtro que o time usa de fato.
+              Preservam o mín/máx já digitado, então dá pra compor "perdas ≥ 1.000". */}
+          {abs && (
+            <div className="flex items-center gap-1 mb-2">
+              <button onClick={() => onChange({ ...cond, sinal: cond.sinal === 'neg' ? null : 'neg' })}
+                className={`flex-1 text-[11px] px-1.5 py-1 rounded border ${cond.sinal === 'neg' ? 'border-red-400 bg-red-50 dark:bg-red-900/25 text-red-700 dark:text-red-300 font-medium' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                − só perdas
+              </button>
+              <button onClick={() => onChange({ ...cond, sinal: cond.sinal === 'pos' ? null : 'pos' })}
+                className={`flex-1 text-[11px] px-1.5 py-1 rounded border ${cond.sinal === 'pos' ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/25 text-emerald-700 dark:text-emerald-300 font-medium' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                + só sobras
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-1 flex-wrap">
-            <button onClick={() => onChange({ min: 0.0001, max: null })} className="text-[11px] px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">&gt; 0</button>
-            {abs && <button onClick={() => onChange({ min: 1000, max: null })} className="text-[11px] px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">≥ 1.000</button>}
-            <button onClick={() => onChange({ min: null, max: null })} className="text-[11px] px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400">limpar</button>
+            <button onClick={() => onChange({ ...cond, min: 0.0001, max: null })} className="text-[11px] px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">&gt; 0</button>
+            {abs && <button onClick={() => onChange({ ...cond, min: 1000, max: null })} className="text-[11px] px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">≥ 1.000</button>}
+            <button onClick={() => onChange({ min: null, max: null, sinal: null })} className="text-[11px] px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400">limpar</button>
           </div>
         </div>, document.body)}
     </th>
@@ -140,15 +159,19 @@ function NumHeader({ label, title, cond, onChange, abs }: {
 
 // aplica os filtros numéricos de coluna a uma linha (só as colunas presentes na aba são consideradas)
 const passNum = (row: any, numF: Record<string, NumCond>) => Object.entries(numF).every(([id, c]) => {
-  if (!c || (c.min == null && c.max == null)) return true;
+  if (!c || (c.min == null && c.max == null && !c.sinal)) return true;
   const raw = row[id];
   if (raw === undefined) return true; // coluna não existe nesta aba
-  const v = NUM_ABS.has(id) ? Math.abs(Number(raw) || 0) : (Number(raw) || 0);
+  const real = Number(raw) || 0;
+  // sinal olha o valor REAL; min/max seguem no módulo nas colunas de desvio (ver NumCond)
+  if (c.sinal === 'neg' && !(real < 0)) return false;
+  if (c.sinal === 'pos' && !(real > 0)) return false;
+  const v = NUM_ABS.has(id) ? Math.abs(real) : real;
   if (c.min != null && v < c.min) return false;
   if (c.max != null && v > c.max) return false;
   return true;
 });
-const numAtivo = (numF: Record<string, NumCond>) => Object.values(numF).some(c => c && (c.min != null || c.max != null));
+const numAtivo = (numF: Record<string, NumCond>) => Object.values(numF).some(c => c && (c.min != null || c.max != null || !!c.sinal));
 
 const fmtBRL = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtQtd = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
@@ -174,6 +197,23 @@ function EstoqueCell({ valor, comp, tipo }: { valor: number; comp: any; tipo: 'i
     </span>
   );
 }
+// Olhinho "não controlamos este item" — usado nas TRÊS abas (Insumos, Produções, Proteínas).
+// É flag do CADASTRO do insumo (operations.insumos.ignorar_desvio), então vale para qualquer
+// período e granularidade: marcar na diária já reflete no semanal e no mensal.
+function BotaoOlho({ it, onToggle }: { it: any; onToggle: (it: any) => void }) {
+  return (
+    <button
+      onClick={() => onToggle(it)}
+      title={it.ignorado
+        ? 'Item fora do desvio — clique pra voltar a contabilizar'
+        : 'Não controlamos este item: tirar do desvio (some da lista e do total)'}
+      className={`mr-1.5 align-middle ${it.ignorado ? 'text-amber-600 dark:text-amber-400' : 'text-gray-300 hover:text-gray-500 dark:hover:text-gray-300'}`}
+    >
+      {it.ignorado ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
+
 // dd/mm do dia anterior a `d` (fim da semana = contagem de fechamento − 1 = domingo)
 const ddmmPrev = (d: string) => { const dt = new Date(d + 'T00:00:00'); dt.setDate(dt.getDate() - 1); return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`; };
 
@@ -254,6 +294,8 @@ export default function DesviosPage() {
   // só o que é acompanhado de fato. Mesma convenção da tela de Consumação.
   const [modoIgnorados, setModoIgnorados] = useState<'ativos' | 'todos' | 'so_ignorados'>('ativos');
   const [filtroDado, setFiltroDado] = useState<'sem_contagem' | 'sem_ficha' | null>(null);
+  // "só linhas com desperdício lançado" — vale nas 3 abas e em qualquer granularidade
+  const [soDesperdicio, setSoDesperdicio] = useState(false);
   const [filtroArea, setFiltroArea] = useState<string | null>(null);
   const [filtroSecaoProd, setFiltroSecaoProd] = useState<'Comida' | 'Drinks' | null>(null);
   // filtros por coluna numérica (estilo Excel) — compartilhados entre as 3 abas por id de coluna
@@ -337,16 +379,22 @@ export default function DesviosPage() {
     return (res?.itens || []).filter((i: any) => i.is_producao
       && ((tipo !== 'diaria' && !andamento) || i.curva_a === true) // diária / semana em andamento: só Curva A
       && (!soCurvaA || i.curva_a === true)         // filtro Só Curva A (semanal/mensal)
+      && (modoIgnorados === 'todos' || (modoIgnorados === 'so_ignorados' ? i.ignorado : !i.ignorado))
+      && (!soDesperdicio || Number(i.desperdicio || 0) !== 0)
       && passNum(i, numF)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
-  }, [res, busca, tipo, soCurvaA, andamento, numF]);
+  }, [res, busca, tipo, soCurvaA, andamento, numF, modoIgnorados, soDesperdicio]);
   const cntProdComida = useMemo(() => prodBase.filter((i: any) => i.secao_prod === 'Comida').length, [prodBase]);
   const cntProdDrinks = useMemo(() => prodBase.filter((i: any) => i.secao_prod === 'Drinks').length, [prodBase]);
   const prodView = useMemo(() => aplicarOrdem(prodBase.filter((i: any) => !filtroSecaoProd || i.secao_prod === filtroSecaoProd)), [prodBase, filtroSecaoProd, aplicarOrdem]);
   const protView = useMemo(() => {
     const s = busca.trim().toLowerCase();
-    return aplicarOrdem(rowsProt.filter((i: any) => passNum(i, numF) && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_cod || '').toLowerCase().includes(s))));
-  }, [rowsProt, busca, numF, aplicarOrdem]);
+    return aplicarOrdem(rowsProt.filter((i: any) =>
+      (modoIgnorados === 'todos' || (modoIgnorados === 'so_ignorados' ? i.ignorado : !i.ignorado))
+      && (!soDesperdicio || Number(i.desperdicio || 0) !== 0)
+      && passNum(i, numF)
+      && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_cod || '').toLowerCase().includes(s))));
+  }, [rowsProt, busca, numF, aplicarOrdem, modoIgnorados, soDesperdicio]);
 
   // edita em qualquer granularidade (lápis); salva no dia de início do período
   const editavel = !!ini; // edita em qualquer granularidade; salva no dia de início do período
@@ -387,8 +435,10 @@ export default function DesviosPage() {
   const alternarIgnorado = useCallback(async (it: any) => {
     try {
       const novo = !it.ignorado;
+      // `insumo_cod` é o nome da coluna na fn de proteína; as outras duas abas usam `insumo_codigo`.
+      const codigo = it.insumo_codigo ?? it.insumo_cod;
       const r = await api.post('/api/operacional/desvios', {
-        tipo: 'ignorar', codigo: it.insumo_codigo, ignorar: novo,
+        tipo: 'ignorar', codigo, ignorar: novo,
       });
       if (!r.success) throw new Error(r.error);
       toast({
@@ -406,34 +456,48 @@ export default function DesviosPage() {
   // Insumos = só insumos (exclui produção e proteína, que têm aba própria).
   // Semanal/mensal: esconde item fora de ficha (Gonza: sem ficha não entra no desvio nem tem
   // desperdício — nunca tem saída teórica). Filtro "Só Curva A" separado.
+  //
+  // EXCEÇÃO: linha com desperdício lançado no período NUNCA some. Sem isso, quem lançava
+  // desperdício num item sem ficha via o valor sumir ao trocar pra semanal/mensal — a fn_desvios
+  // somava certo, mas a linha era filtrada aqui, então parecia que "não entrou" (Isaías,
+  // 12/08/2026: "quando a galera lança desperdício, consegue deixar entrar no semanal e mensal
+  // também? só ir somando"). Ex. bar 4, semana 03–10/08: Laranja Pera, 0,084 kg, sem ficha.
   const itensView = useMemo(() => {
     const s = busca.trim().toLowerCase();
     const rows = (res?.itens || []).filter((i: any) => !i.is_producao && !i.is_proteina
-      && (tipo === 'diaria' || andamento || i.tem_ficha)
+      && (tipo === 'diaria' || andamento || i.tem_ficha || Number(i.desperdicio || 0) !== 0)
       // Ignorados ficam FORA por padrão — e como os cards de headline somam a partir desta
       // view, sair daqui já tira do Desvio total/Perdas/Sobras, que é o pedido.
       && (modoIgnorados === 'todos' || (modoIgnorados === 'so_ignorados' ? i.ignorado : !i.ignorado))
+      && (!soDesperdicio || Number(i.desperdicio || 0) !== 0)
       && (!soCurvaA || i.curva_a === true)
       && (!filtroDado || i.dado_faltando === filtroDado)
       && (!filtroArea || i.area === filtroArea)
       && passNum(i, numF)
       && (!s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s)));
     return aplicarOrdem(rows);
-  }, [res, busca, tipo, andamento, soCurvaA, filtroDado, filtroArea, numF, modoIgnorados, aplicarOrdem]);
+  }, [res, busca, tipo, andamento, soCurvaA, filtroDado, filtroArea, numF, modoIgnorados, soDesperdicio, aplicarOrdem]);
 
   // contadores dos chips de filtro (igual /operacional/insumos) — base = aba ativa sem o filtro Curva A
   const baseRows = useMemo(() => {
     const s = busca.trim().toLowerCase();
     const items = (res?.itens || []) as any[];
-    const match = (i: any) => !s || (i.insumo_nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s);
+    const match = (i: any) => !s || (i.insumo_nome || '').toLowerCase().includes(s)
+      || (i.insumo_codigo || i.insumo_cod || '').toLowerCase().includes(s);
+    if (aba === 'proteinas') return rowsProt.filter(match);
     if (aba === 'producoes') return items.filter((i) => i.is_producao && match(i));
-    return items.filter((i) => !i.is_producao && !i.is_proteina && i.tem_ficha && match(i));
-  }, [res, busca, aba]);
+    // mesma exceção da itensView: item com desperdício conta, mesmo sem ficha
+    return items.filter((i) => !i.is_producao && !i.is_proteina
+      && (i.tem_ficha || Number(i.desperdicio || 0) !== 0) && match(i));
+  }, [res, busca, aba, rowsProt]);
   const cntTotal = baseRows.length;
   const cntCurvaA = baseRows.filter((i: any) => i.curva_a === true).length;
   // Conta sobre TODOS os itens da aba (baseRows já ignora o filtro de modo), senão o chip
   // "fora do desvio" zeraria justamente quando eles estão escondidos — que é o padrão.
   const cntIgnorados = baseRows.filter((i: any) => i.ignorado).length;
+  // Quantos itens tiveram desperdício lançado no período — atalho pra conferir o que a equipe
+  // registrou, em qualquer granularidade (na semanal/mensal os valores são a soma dos dias).
+  const cntDesperdicio = baseRows.filter((i: any) => Number(i.desperdicio || 0) !== 0).length;
   const cntSemContagem = baseRows.filter((i: any) => i.dado_faltando === 'sem_contagem').length;
   const cntSemFicha = baseRows.filter((i: any) => i.dado_faltando === 'sem_ficha').length;
   // contagem por área (chips de filtro por área) — só Insumos
@@ -529,29 +593,55 @@ export default function DesviosPage() {
                 </button>
               )}
             </div>
+            {/* Atalho de 1 clique pro filtro mais usado. O popover da coluna continua lá pra quem
+                quer combinar com faixa de valor; isto aqui é pra "só quero ver o que faltou". */}
+            <div className="flex gap-1 shrink-0">
+              <button onClick={() => setNum('desvio_rs', { ...condOf('desvio_rs'), sinal: condOf('desvio_rs').sinal === 'neg' ? null : 'neg' })}
+                title="Mostra só as linhas com desvio negativo (faltou estoque)"
+                className={`inline-flex items-center gap-1 h-10 px-3 rounded-md border text-sm ${condOf('desvio_rs').sinal === 'neg' ? 'border-red-400 bg-red-50 dark:bg-red-900/25 text-red-700 dark:text-red-300 font-medium' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                <TrendingDown className="w-4 h-4" />Só perdas
+              </button>
+              <button onClick={() => setNum('desvio_rs', { ...condOf('desvio_rs'), sinal: condOf('desvio_rs').sinal === 'pos' ? null : 'pos' })}
+                title="Mostra só as linhas com desvio positivo (sobrou estoque)"
+                className={`inline-flex items-center gap-1 h-10 px-3 rounded-md border text-sm ${condOf('desvio_rs').sinal === 'pos' ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-900/25 text-emerald-700 dark:text-emerald-300 font-medium' : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                <TrendingUp className="w-4 h-4" />Só sobras
+              </button>
+            </div>
             <OrdemFiltro value={ordem} onChange={setOrdem} cor="rose" options={[['desvio', 'Maior desvio'], ['az', 'A–Z']] as const} />
           </div>
-          {/* Filtros (contadores clicáveis, igual /operacional/insumos): total, Curva A, área, dado faltando */}
-          {(aba === 'insumos' || (aba === 'producoes' && tipo !== 'diaria')) && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button onClick={() => { setSoCurvaA(false); setFiltroDado(null); setFiltroArea(null); }}><Badge variant="outline" className={`cursor-pointer ${!soCurvaA && !filtroDado && !filtroArea ? 'ring-1 ring-emerald-400' : ''}`}>{cntTotal} {aba === 'producoes' ? 'produções' : 'insumos'}</Badge></button>
-              {tipo !== 'diaria' && cntCurvaA > 0 && <button onClick={() => { setSoCurvaA(true); setFiltroDado(null); setFiltroArea(null); }}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${soCurvaA ? 'ring-1 ring-indigo-400' : ''}`}>{cntCurvaA} curva A</Badge></button>}
-              {aba === 'insumos' && areaList.length > 1 && areaList.map(([a, n]) => (
-                <button key={a} onClick={() => setFiltroArea(f => f === a ? null : a)}><Badge variant="outline" className={`cursor-pointer ${filtroArea === a ? 'ring-1 ring-violet-400 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300' : 'text-gray-600 dark:text-gray-300'}`}>{n} {a}</Badge></button>
-              ))}
-              {aba === 'insumos' && cntSemContagem > 0 && <button onClick={() => setFiltroDado(f => f === 'sem_contagem' ? null : 'sem_contagem')}><Badge variant="outline" className={`cursor-pointer text-amber-700 dark:text-amber-400 border-amber-300 ${filtroDado === 'sem_contagem' ? 'ring-1 ring-amber-400 bg-amber-50 dark:bg-amber-900/20' : ''}`}>⚠ {cntSemContagem} sem contagem final</Badge></button>}
-              {aba === 'insumos' && cntSemFicha > 0 && <button onClick={() => setFiltroDado(f => f === 'sem_ficha' ? null : 'sem_ficha')}><Badge variant="outline" className={`cursor-pointer text-amber-700 dark:text-amber-400 border-amber-300 ${filtroDado === 'sem_ficha' ? 'ring-1 ring-amber-400 bg-amber-50 dark:bg-amber-900/20' : ''}`}>⚠ {cntSemFicha} sem ficha</Badge></button>}
-              {/* Ignorados: só aparece se existir algum marcado — senão é ruído numa tela que já
-                  tem muitos chips. Clique alterna entre esconder (padrão) e ver só os ignorados. */}
-              {aba === 'insumos' && cntIgnorados > 0 && (
-                <button onClick={() => setModoIgnorados(m => m === 'so_ignorados' ? 'ativos' : 'so_ignorados')}>
-                  <Badge variant="outline" className={`cursor-pointer text-gray-600 dark:text-gray-300 ${modoIgnorados === 'so_ignorados' ? 'ring-1 ring-amber-400 bg-amber-50 dark:bg-amber-900/20' : ''}`}>
-                    <EyeOff className="w-3 h-3 mr-1 inline" />{cntIgnorados} fora do desvio
-                  </Badge>
-                </button>
-              )}
-            </div>
-          )}
+          {/* Filtros (contadores clicáveis, igual /operacional/insumos): total, Curva A, área, dado faltando.
+              Antes o bloco inteiro só existia em Insumos (e Produções fora da diária); agora aparece nas
+              três abas, porque "fora do desvio" e "com desperdício" valem para todas. */}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {(aba === 'insumos' || (aba === 'producoes' && tipo !== 'diaria')) && (
+              <button onClick={() => { setSoCurvaA(false); setFiltroDado(null); setFiltroArea(null); setSoDesperdicio(false); }}><Badge variant="outline" className={`cursor-pointer ${!soCurvaA && !filtroDado && !filtroArea && !soDesperdicio ? 'ring-1 ring-emerald-400' : ''}`}>{cntTotal} {aba === 'producoes' ? 'produções' : 'insumos'}</Badge></button>
+            )}
+            {(aba === 'insumos' || aba === 'producoes') && tipo !== 'diaria' && cntCurvaA > 0 && <button onClick={() => { setSoCurvaA(true); setFiltroDado(null); setFiltroArea(null); }}><Badge variant="outline" className={`cursor-pointer text-indigo-600 border-indigo-300 ${soCurvaA ? 'ring-1 ring-indigo-400' : ''}`}>{cntCurvaA} curva A</Badge></button>}
+            {aba === 'insumos' && areaList.length > 1 && areaList.map(([a, n]) => (
+              <button key={a} onClick={() => setFiltroArea(f => f === a ? null : a)}><Badge variant="outline" className={`cursor-pointer ${filtroArea === a ? 'ring-1 ring-violet-400 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300' : 'text-gray-600 dark:text-gray-300'}`}>{n} {a}</Badge></button>
+            ))}
+            {aba === 'insumos' && cntSemContagem > 0 && <button onClick={() => setFiltroDado(f => f === 'sem_contagem' ? null : 'sem_contagem')}><Badge variant="outline" className={`cursor-pointer text-amber-700 dark:text-amber-400 border-amber-300 ${filtroDado === 'sem_contagem' ? 'ring-1 ring-amber-400 bg-amber-50 dark:bg-amber-900/20' : ''}`}>⚠ {cntSemContagem} sem contagem final</Badge></button>}
+            {aba === 'insumos' && cntSemFicha > 0 && <button onClick={() => setFiltroDado(f => f === 'sem_ficha' ? null : 'sem_ficha')}><Badge variant="outline" className={`cursor-pointer text-amber-700 dark:text-amber-400 border-amber-300 ${filtroDado === 'sem_ficha' ? 'ring-1 ring-amber-400 bg-amber-50 dark:bg-amber-900/20' : ''}`}>⚠ {cntSemFicha} sem ficha</Badge></button>}
+            {/* Desperdício lançado no período. Vale nas 3 abas e em qualquer granularidade — na
+                semanal/mensal o valor da coluna já é a SOMA dos dias, então este chip é o caminho
+                pra conferir o que a equipe registrou sem caçar linha por linha. */}
+            {cntDesperdicio > 0 && (
+              <button onClick={() => setSoDesperdicio(v => !v)}>
+                <Badge variant="outline" className={`cursor-pointer text-rose-700 dark:text-rose-400 border-rose-300 ${soDesperdicio ? 'ring-1 ring-rose-400 bg-rose-50 dark:bg-rose-900/20' : ''}`}>
+                  🗑 {cntDesperdicio} com desperdício
+                </Badge>
+              </button>
+            )}
+            {/* Ignorados: só aparece se existir algum marcado — senão é ruído numa tela que já
+                tem muitos chips. Clique alterna entre esconder (padrão) e ver só os ignorados. */}
+            {cntIgnorados > 0 && (
+              <button onClick={() => setModoIgnorados(m => m === 'so_ignorados' ? 'ativos' : 'so_ignorados')}>
+                <Badge variant="outline" className={`cursor-pointer text-gray-600 dark:text-gray-300 ${modoIgnorados === 'so_ignorados' ? 'ring-1 ring-amber-400 bg-amber-50 dark:bg-amber-900/20' : ''}`}>
+                  <EyeOff className="w-3 h-3 mr-1 inline" />{cntIgnorados} fora do desvio
+                </Badge>
+              </button>
+            )}
+          </div>
 
           {/* ===== INSUMOS (VMarket → ContaHub, estoque âncora) ===== */}
           <TabsContent value="insumos" className="space-y-4 mt-3">
@@ -581,17 +671,7 @@ export default function DesviosPage() {
               : itensView.map((it: any, i: number) => (
                 <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${it.sem_producao ? 'bg-amber-50/60 dark:bg-amber-900/15' : it.suspeita ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}`}>
                   <td className={`px-3 py-2 text-gray-900 dark:text-gray-100 ${it.ignorado ? 'opacity-60' : ''}`}>
-                    {!it.is_producao && (
-                      <button
-                        onClick={() => alternarIgnorado(it)}
-                        title={it.ignorado
-                          ? 'Item fora do desvio — clique pra voltar a contabilizar'
-                          : 'Não controlamos este item: tirar do desvio (some da lista e do total)'}
-                        className={`mr-1.5 align-middle ${it.ignorado ? 'text-amber-600 dark:text-amber-400' : 'text-gray-300 hover:text-gray-500 dark:hover:text-gray-300'}`}
-                      >
-                        {it.ignorado ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    )}
+                    <BotaoOlho it={it} onToggle={alternarIgnorado} />
                     {it.sem_producao && <span title="Produção sem 'produzido' informado — desvio vem do balanço bruto (est_ini + compras − vendas × ficha). Sobra grande pode ser produção não registrada."><AlertTriangle className="w-3.5 h-3.5 inline text-amber-500 mr-1" /></span>}
                     <span className={it.ignorado ? 'line-through decoration-amber-400/60' : ''}>{it.insumo_nome}</span>
                     {it.insumo_nome !== it.insumo_codigo && <span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_codigo}</span>}
@@ -648,7 +728,13 @@ export default function DesviosPage() {
                   : prodView.length === 0 ? <tr><td colSpan={9} className="px-3 py-10 text-center text-gray-400">Sem produção nesse período.</td></tr>
                   : prodView.map((it: any, i: number) => (
                     <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${it.sem_producao ? 'bg-amber-50/60 dark:bg-amber-900/15' : ''}`}>
-                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.sem_producao && <span title="Produção sem 'produzido' informado — desvio vem do balanço bruto. Sobra grande pode ser produção não registrada."><AlertTriangle className="w-3.5 h-3.5 inline text-amber-500 mr-1" /></span>}{it.insumo_nome}<span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_codigo}</span>{it.unidade && <span className="ml-1.5 text-[10px] text-gray-400" title="Quantidades desta linha estão nesta unidade de contagem">· {it.unidade}</span>}</td>
+                      <td className={`px-3 py-2 text-gray-900 dark:text-gray-100 ${it.ignorado ? 'opacity-60' : ''}`}>
+                        <BotaoOlho it={it} onToggle={alternarIgnorado} />
+                        {it.sem_producao && <span title="Produção sem 'produzido' informado — desvio vem do balanço bruto. Sobra grande pode ser produção não registrada."><AlertTriangle className="w-3.5 h-3.5 inline text-amber-500 mr-1" /></span>}
+                        <span className={it.ignorado ? 'line-through decoration-amber-400/60' : ''}>{it.insumo_nome}</span>
+                        <span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_codigo}</span>
+                        {it.unidade && <span className="ml-1.5 text-[10px] text-gray-400" title="Quantidades desta linha estão nesta unidade de contagem">· {it.unidade}</span>}
+                      </td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{<EstoqueCell valor={it.estoque_ini} comp={it.composicao} tipo="ini" />}</td>
                       <td className="px-3 py-2 text-right"><PencilCell value={it.produzido} fmt={fmtQtd} disabled={!editavel} onSave={(v) => salvar('produzido', it.insumo_codigo, { qtd: v })} /></td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
@@ -689,7 +775,11 @@ export default function DesviosPage() {
                   : protView.length === 0 ? <tr><td colSpan={11} className="px-3 py-10 text-center text-gray-400">Sem proteína (marque com o badge P em Insumos) comprada/contada nesse período.</td></tr>
                   : protView.map((it: any, i: number) => (
                     <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{it.insumo_nome}<span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_cod}</span></td>
+                      <td className={`px-3 py-2 text-gray-900 dark:text-gray-100 ${it.ignorado ? 'opacity-60' : ''}`}>
+                        <BotaoOlho it={it} onToggle={alternarIgnorado} />
+                        <span className={it.ignorado ? 'line-through decoration-amber-400/60' : ''}>{it.insumo_nome}</span>
+                        <span className="text-xs text-gray-400 font-mono ml-1">{it.insumo_cod}</span>
+                      </td>
                       <td className="px-3 py-2 text-right tabular-nums text-gray-500">{<EstoqueCell valor={it.estoque_ini} comp={it.composicao} tipo="ini" />}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.comprou)}</td>
                       <td className={`px-3 py-2 text-right tabular-nums ${it.troca ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-300'}`} title={it.troca ? (it.troca > 0 ? 'Recebeu por troca' : 'Enviou por troca') : undefined}>{it.troca ? `${it.troca > 0 ? '+' : ''}${fmtQtd(it.troca)}` : '—'}</td>

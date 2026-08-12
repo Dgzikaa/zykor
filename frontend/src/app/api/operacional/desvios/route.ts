@@ -163,7 +163,19 @@ export async function GET(request: NextRequest) {
   if (sp.get('aba') === 'proteina') {
     const { data, error } = await (sb() as any).schema('gold').rpc('fn_desvios_proteina', { p_bar: user.bar_id, p_ini: ini, p_fim: fim });
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    const rows = (data || []) as any[];
+    const rowsRaw = (data || []) as any[];
+    // Flag do olhinho também aqui: antes só a aba Insumos recebia `ignorado`, então não dava pra
+    // tirar uma proteína do desvio pela tela (pedido do Isaías, 12/08). `insumo_codigo` é
+    // preenchido junto porque esta fn devolve a coluna como `insumo_cod` — assim o front trata
+    // as três abas com um campo só.
+    const { data: ignProt } = await (sb() as any).schema('operations')
+      .from('insumos').select('codigo').eq('bar_id', user.bar_id).eq('ignorar_desvio', true);
+    const ignProtSet = new Set<string>((ignProt || []).map((i: any) => String(i.codigo).toUpperCase()));
+    const rows = rowsRaw.map((r: any) => ({
+      ...r,
+      insumo_codigo: r.insumo_cod ?? r.insumo_codigo,
+      ignorado: ignProtSet.has(String(r.insumo_cod ?? r.insumo_codigo ?? '').toUpperCase()),
+    }));
     const headline = {
       desvio_total: rows.reduce((s, i) => s + Number(i.desvio_rs || 0), 0),
       perdas: rows.reduce((s, i) => s + (Number(i.desvio_rs || 0) < 0 ? Number(i.desvio_rs) : 0), 0),
@@ -226,12 +238,19 @@ export async function GET(request: NextRequest) {
 
   // Insumos marcados como "não controlamos" (olhinho). Vêm como FLAG na linha, não como filtro
   // na origem: a tela precisa poder mostrar os ignorados pra revisar/desfazer a marcação.
-  const { data: ignorados } = await (sb() as any).schema('operations')
-    .from('insumos')
-    .select('codigo')
-    .eq('bar_id', user.bar_id)
-    .eq('ignorar_desvio', true);
-  const ignoradosSet = new Set<string>((ignorados || []).map((i: any) => String(i.codigo).toUpperCase()));
+  // DUAS fontes: insumo comum vive em operations.insumos; parte das produções só existe em
+  // public.producao_base (ver 20260812_producao_base_ignorar_desvio.sql). Ler só a primeira faria
+  // a produção marcada voltar a aparecer no reload, como se o clique não tivesse pegado.
+  const [{ data: ignorados }, { data: ignoradosProd }] = await Promise.all([
+    (sb() as any).schema('operations').from('insumos')
+      .select('codigo').eq('bar_id', user.bar_id).eq('ignorar_desvio', true),
+    (sb() as any).from('producao_base')
+      .select('codigo').eq('bar_id', user.bar_id).eq('ignorar_desvio', true),
+  ]);
+  const ignoradosSet = new Set<string>([
+    ...((ignorados || []) as any[]).map((i) => String(i.codigo).toUpperCase()),
+    ...((ignoradosProd || []) as any[]).map((i) => String(i.codigo).toUpperCase()),
+  ]);
 
   const itens = base.map((r: any) => {
     const estoque_ini = Number(r.estoque_ini || 0);
@@ -412,13 +431,24 @@ export async function POST(request: NextRequest) {
       .ilike('codigo', codigo)
       .select('codigo');
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    if (!afetados?.length) {
-      return NextResponse.json(
-        { success: false, error: `Insumo ${codigo} não encontrado no cadastro deste bar — não dá pra marcar.` },
-        { status: 404 },
-      );
-    }
-    return NextResponse.json({ success: true, codigo, ignorar_desvio: ignorar });
+    if (afetados?.length) return NextResponse.json({ success: true, codigo, ignorar_desvio: ignorar, onde: 'insumos' });
+
+    // Nem toda PRODUÇÃO tem cadastro em operations.insumos — no bar 4 eram 12 das 69 linhas da aba
+    // (Arroz Branco Cozido, Molho Rose, os xaropes…). Sem este segundo alvo o olhinho respondia 404
+    // justamente nelas. Ver 20260812_producao_base_ignorar_desvio.sql.
+    const { data: afetadosProd, error: errProd } = await (sb() as any)
+      .from('producao_base')
+      .update({ ignorar_desvio: ignorar })
+      .eq('bar_id', user.bar_id)
+      .ilike('codigo', codigo)
+      .select('codigo');
+    if (errProd) return NextResponse.json({ success: false, error: errProd.message }, { status: 500 });
+    if (afetadosProd?.length) return NextResponse.json({ success: true, codigo, ignorar_desvio: ignorar, onde: 'producao_base' });
+
+    return NextResponse.json(
+      { success: false, error: `${codigo} não encontrado no cadastro deste bar (nem insumo, nem produção) — não dá pra marcar.` },
+      { status: 404 },
+    );
   }
 
   if (!codigo || !/^\d{4}-\d{2}-\d{2}$/.test(data)) {
