@@ -14,12 +14,13 @@ icon: Star
 
 A tela reúne, em um só lugar, as pesquisas de clima e satisfação ligadas à operação do bar. Ela tem duas frentes:
 
-- **Pesquisa da Felicidade** — mede como a equipe se sente em cinco dimensões (engajamento, pertencimento, relacionamento, liderança e reconhecimento), com nota de 0 a 5. É a pesquisa interna de RH, respondida pelos próprios funcionários.
 - **NPS Categorizado** — mostra o NPS (Net Promoter Score) por categoria de experiência (ambiente, atendimento, limpeza, música, comida, drink, preço e reservas), agregado por semana ou por dia, com os comentários deixados junto de cada avaliação.
 
-Serve para o dono/gestor e para o RH acompanharem o clima do time e a qualidade percebida da operação ao longo do tempo, identificando semanas fora da meta e lendo o que foi comentado. Os dados chegam de forma automática (sincronização com Google Sheets), mas também podem ser lançados manualmente pela própria tela.
+Serve para o dono/gestor e para o RH acompanharem a qualidade percebida da operação ao longo do tempo, identificando semanas fora da meta e lendo o que foi comentado. Os dados chegam de forma automática (sincronização com Google Sheets), mas também podem ser lançados manualmente pela própria tela.
 
-> Observação: apesar do nome "NPS Funcionários" no menu, a aba **NPS Categorizado** exibe o NPS de experiência (mais próximo do cliente/operação), enquanto a aba **Pesquisa da Felicidade** é a de clima interno da equipe. As duas convivem na mesma tela.
+> **A Pesquisa da Felicidade saiu desta tela em 13/08/2026** e virou página própria em **RH → Pesquisa da Felicidade** (`/rh/pesquisa-felicidade`). A aba aqui só aponta para lá.
+>
+> Motivo: a pesquisa é **anônima e agregada por setor**, e as dimensões são **percentual** (escala tipo eNPS, `% favorável − % desfavorável`, podendo ser negativa) — não a nota de 0 a 5 que esta tela mostrava. A escala 0-5 era inventada pelo sync antigo, que convertia o percentual da planilha e destruía o dado. O formulário manual de Felicidade também saiu: o dado vem da planilha "Indicadores - RH" de cada bar, e digitar resposta individual criaria um número que não existe na fonte.
 
 ## Como acessar
 
