@@ -91,7 +91,18 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   { path: '/operacional/checklists', requiredModules: ['operacoes', 'checklists', 'operacoes_checklist_abertura'] },
   { path: '/operacional/producao', requiredModules: ['operacoes', 'terminal_producao', 'producao'] },
   { path: '/operacional', requiredModules: ['operacoes'] },
-  
+
+  // ========================================
+  // OPERAÇÃO (plano operacional + escala) — seção nova, 12/08/2026
+  // ========================================
+  // Precisa estar AQUI, e não só no menu: esta lista é mantida à mão e rota que não
+  // aparece nela fica órfã do guard — o time não entraria nas telas.
+  // Os módulos são os ids gerados por gerarIdModulo('Operação', <label do item>).
+  { path: '/operacao/plano', requiredModules: ['operacao', 'operacao_plano_operacional'] },
+  { path: '/operacao/escala', requiredModules: ['operacao', 'operacao_escala'] },
+  { path: '/operacao/comparativo', requiredModules: ['operacao', 'operacao_planejado_realizado'] },
+  { path: '/operacao', requiredModules: ['operacao'] },
+
   // ========================================
   // FINANCEIRO
   // ========================================

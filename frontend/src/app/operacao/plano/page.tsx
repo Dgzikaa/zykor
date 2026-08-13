@@ -39,6 +39,9 @@ const LINHAS_TEXTO: Array<{ campo: keyof Dia; label: string; multilinha?: boolea
 const LINHAS_TEXTO_PLANO: Array<{ campo: keyof Dia; label: string; multilinha?: boolean }> = [
   { campo: 'plano_chao', label: 'Plano de Chão', multilinha: true },
 ];
+/** A planilha separa o bloco de operação do de segurança, cada um com o seu Headcount. */
+const COD_SEGURANCA = ['seguranca', 'brigadista'];
+
 const LINHAS_TEXTO_FIM: Array<{ campo: keyof Dia; label: string; multilinha?: boolean }> = [
   { campo: 'pilula_treinamento', label: 'Pílula de Treinamento', multilinha: true },
   { campo: 'observacoes', label: 'Observações', multilinha: true },
@@ -248,10 +251,8 @@ export default function PlanoOperacionalPage() {
 
   const dias = useMemo(() => data?.dias || [], [data]);
   const funcoes = useMemo(() => (data?.funcoes || []).filter(f => f.entra_no_custo), [data]);
-  // A planilha separa o bloco de operação do de segurança, cada um com seu Headcount.
-  const SEG = ['seguranca', 'brigadista'];
-  const funcoesOps = useMemo(() => funcoes.filter(f => !SEG.includes(f.codigo)), [funcoes]);
-  const funcoesSeg = useMemo(() => funcoes.filter(f => SEG.includes(f.codigo)), [funcoes]);
+  const funcoesOps = useMemo(() => funcoes.filter(f => !COD_SEGURANCA.includes(f.codigo)), [funcoes]);
+  const funcoesSeg = useMemo(() => funcoes.filter(f => COD_SEGURANCA.includes(f.codigo)), [funcoes]);
 
   const salvarDia = useCallback(async (dia: Dia | null, dataISO: string, turno: string, campo: string, valor: unknown) => {
     try {
