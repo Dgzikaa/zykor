@@ -77,32 +77,57 @@ export async function GET(request: NextRequest) {
 
   // ── Felicidade (pesquisa real) ──
   //
-  // Só o recorte 'TODOS'. A tabela guarda uma linha por setor MAIS uma linha
-  // 'TODOS' que já é o consolidado da própria planilha — mediar tudo junto
-  // contava o agregado como se fosse mais um setor e ainda dava peso igual a
-  // um setor de 2 pessoas e a outro de 30.
-  //
   // As dimensões são PERCENTUAL (escala tipo eNPS, pode ser negativo), não a
   // antiga nota de 0 a 5.
-  const feliz = (felizRes.data || []).filter((r: any) => r.setor === 'TODOS');
   const dimsCols = ['eu_comigo_engajamento', 'eu_com_empresa_pertencimento', 'eu_com_colega_relacionamento', 'eu_com_gestor_lideranca', 'justica_reconhecimento'];
   const dimsLabels = ['Engajamento', 'Pertencimento', 'Relacionamento', 'Liderança', 'Reconhecimento'];
 
-  const ordenadas = [...feliz].sort((a: any, b: any) => String(a.data_pesquisa).localeCompare(String(b.data_pesquisa)));
-  const trend = ordenadas
-    .filter((r: any) => r.resultado_percentual != null)
-    .map((r: any) => ({ data: r.data_pesquisa, pct: Math.round(Number(r.resultado_percentual) * 10) / 10, respostas: r.quorum ?? 0 }));
-  const ult = ordenadas.length ? ordenadas[ordenadas.length - 1] : null;
+  // A tabela guarda uma linha por setor. O Ordinário ainda traz uma linha
+  // 'TODOS', que é o consolidado feito na própria planilha — quando ela existe é
+  // a resposta certa. O Deboche NÃO tem (só Operacional e Administrativo), então
+  // ali o consolidado é calculado aqui, ponderado por quórum: média simples daria
+  // o mesmo peso a um setor de 2 pessoas e a outro de 30.
+  const felizTodas = felizRes.data || [];
+  const temTodos = felizTodas.some((r: any) => r.setor === 'TODOS');
 
-  const felicidade = ult ? {
-    data: ult.data_pesquisa,
-    pct: ult.resultado_percentual == null ? null : Math.round(Number(ult.resultado_percentual) * 10) / 10,
-    media: ult.media_geral == null ? null : Math.round(Number(ult.media_geral) * 100) / 100,
-    respostas: ult.quorum ?? 0,
-    dimensoes: dimsLabels.map((label, i) => ({
-      label,
-      valor: ult[dimsCols[i]] == null ? null : Math.round(Number(ult[dimsCols[i]]) * 10) / 10,
-    })),
+  const porData = new Map<string, any[]>();
+  for (const r of felizTodas) {
+    if (temTodos && r.setor !== 'TODOS') continue;
+    const k = String(r.data_pesquisa);
+    porData.set(k, [...(porData.get(k) || []), r]);
+  }
+
+  const ponderar = (linhas: any[], campo: string): number | null => {
+    const validas = linhas.filter((r) => r[campo] != null);
+    if (!validas.length) return null;
+    const pesoTotal = validas.reduce((s, r) => s + (Number(r.quorum) || 0), 0);
+    // Sem quórum registrado não dá pra ponderar; cai na média simples.
+    if (!pesoTotal) return validas.reduce((s, r) => s + Number(r[campo]), 0) / validas.length;
+    return validas.reduce((s, r) => s + Number(r[campo]) * (Number(r.quorum) || 0), 0) / pesoTotal;
+  };
+  const arred = (v: number | null, casas = 1) => (v == null ? null : Math.round(v * 10 ** casas) / 10 ** casas);
+
+  const datas = [...porData.keys()].sort();
+  const trend = datas
+    .map((d) => {
+      const linhas = porData.get(d)!;
+      return {
+        data: d,
+        pct: arred(ponderar(linhas, 'resultado_percentual')),
+        respostas: linhas.reduce((s, r) => s + (Number(r.quorum) || 0), 0),
+      };
+    })
+    .filter((p) => p.pct != null) as { data: string; pct: number; respostas: number }[];
+
+  const ultimaData = datas.length ? datas[datas.length - 1] : null;
+  const ultLinhas = ultimaData ? porData.get(ultimaData)! : [];
+
+  const felicidade = ultimaData ? {
+    data: ultimaData,
+    pct: arred(ponderar(ultLinhas, 'resultado_percentual')),
+    media: arred(ponderar(ultLinhas, 'media_geral'), 2),
+    respostas: ultLinhas.reduce((s, r) => s + (Number(r.quorum) || 0), 0),
+    dimensoes: dimsLabels.map((label, i) => ({ label, valor: arred(ponderar(ultLinhas, dimsCols[i])) })),
     trend: trend.slice(-12),
   } : null;
 

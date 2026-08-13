@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   if (!user.bar_id) return NextResponse.json({ error: 'Nenhum bar selecionado' }, { status: 400 });
 
   const sp = new URL(request.url).searchParams;
-  const setorFiltro = (sp.get('setor') || '').trim();
+  const setorPedido = (sp.get('setor') || '').trim();
   const meses = Math.min(Math.max(Number(sp.get('meses')) || 12, 1), 60);
 
   const desde = new Date();
@@ -46,16 +46,38 @@ export async function GET(request: NextRequest) {
   const supabase = await getAdminClient();
   const hr = (t: string) => (supabase as any).schema('hr').from(t);
 
+  // Os setores disponíveis vêm ANTES de montar a query, porque o setor padrão
+  // muda por bar: o Ordinário tem a linha consolidada "TODOS" na planilha, o
+  // Deboche não (usa só Operacional e Administrativo). Fixar 'TODOS' aqui abria
+  // a tela vazia no Deboche.
+  const { data: setoresRaw } = await hr('pesquisa_felicidade')
+    .select('setor').eq('bar_id', user.bar_id);
+
+  const contagem = new Map<string, number>();
+  for (const r of setoresRaw || []) contagem.set(r.setor, (contagem.get(r.setor) || 0) + 1);
+
+  const setores = Array.from(contagem.keys())
+    .sort((a, b) => (a === 'TODOS' ? -1 : b === 'TODOS' ? 1 : a.localeCompare(b, 'pt-BR')));
+
+  // Sem 'TODOS', o padrão é o setor com mais pesquisas — o que melhor representa
+  // a série do bar.
+  const setorPadrao = contagem.has('TODOS')
+    ? 'TODOS'
+    : [...contagem.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+
+  // Setor pedido que não existe neste bar (ex.: trocar de bar mantendo o filtro)
+  // cai no padrão em vez de devolver lista vazia.
+  const setorFiltro = setorPedido && contagem.has(setorPedido) ? setorPedido : setorPadrao;
+
   let qSemanal = hr('pesquisa_felicidade').select('*').eq('bar_id', user.bar_id).gte('data_pesquisa', desdeISO);
   if (setorFiltro) qSemanal = qSemanal.eq('setor', setorFiltro);
 
-  const [semanalRes, mensalRes, marcaRes, setoresRes] = await Promise.all([
+  const [semanalRes, mensalRes, marcaRes] = await Promise.all([
     qSemanal.order('data_pesquisa', { ascending: true }),
     hr('pesquisa_felicidade_mensal').select('*').eq('bar_id', user.bar_id)
       .order('ano', { ascending: true }).order('mes', { ascending: true }),
     hr('marca_empregadora').select('*').eq('bar_id', user.bar_id)
       .order('ano', { ascending: true }).order('mes', { ascending: true }),
-    hr('pesquisa_felicidade').select('setor').eq('bar_id', user.bar_id),
   ]);
 
   if (semanalRes.error) {
@@ -90,19 +112,15 @@ export async function GET(request: NextRequest) {
     resultado_percentual: num(r.resultado_percentual),
   }));
 
-  // Setores disponíveis pro filtro. "TODOS" é o agregado da própria planilha —
-  // não é um setor, e por isso encabeça a lista em vez de ficar na ordem alfabética.
-  const setores = Array.from(new Set<string>((setoresRes.data || []).map((r: any) => String(r.setor))))
-    .sort((a, b) => (a === 'TODOS' ? -1 : b === 'TODOS' ? 1 : a.localeCompare(b, 'pt-BR')));
-
-  // Últimas pesquisas do recorte "TODOS" — é o número que a diretoria olha.
-  const serieTodos = semanal.filter((r: any) => r.setor === 'TODOS');
-  const ultima = serieTodos.length ? serieTodos[serieTodos.length - 1] : null;
-  const penultima = serieTodos.length > 1 ? serieTodos[serieTodos.length - 2] : null;
+  // A série já está filtrada pelo setor aplicado, então as duas últimas linhas
+  // são as duas últimas pesquisas daquele recorte.
+  const ultima = semanal.length ? semanal[semanal.length - 1] : null;
+  const penultima = semanal.length > 1 ? semanal[semanal.length - 2] : null;
 
   return NextResponse.json({
     dimensoes: DIMENSOES,
     setores,
+    setor_aplicado: setorFiltro,
     semanal,
     mensal,
     marca_empregadora,
@@ -111,7 +129,7 @@ export async function GET(request: NextRequest) {
       variacao: ultima?.resultado_percentual != null && penultima?.resultado_percentual != null
         ? Number((ultima.resultado_percentual - penultima.resultado_percentual).toFixed(2))
         : null,
-      total_pesquisas: serieTodos.length,
+      total_pesquisas: semanal.length,
     },
   });
 }

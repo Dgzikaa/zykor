@@ -18,6 +18,8 @@ type LinhaMarca = { periodo: string; quorum: number | null; resultado_percentual
 type Resposta = {
   dimensoes: Dimensao[];
   setores: string[];
+  /** Setor que o servidor realmente usou — nem todo bar tem o recorte "TODOS". */
+  setor_aplicado: string;
   semanal: LinhaSemanal[];
   mensal: LinhaMensal[];
   marca_empregadora: LinhaMarca[];
@@ -40,7 +42,10 @@ const corBarra = (v: number) => (v < 0 ? '#e11d48' : v < 50 ? '#f59e0b' : v < 75
 export default function PesquisaFelicidadePage() {
   const { selectedBar } = useBar();
   const { setPageTitle } = usePageTitle();
-  const [setor, setSetor] = useState('TODOS');
+  // Vazio = "deixa o servidor escolher". O Ordinário tem a linha consolidada
+  // "TODOS" na planilha, o Deboche não (só Operacional/Administrativo) — chutar
+  // 'TODOS' aqui abriria a tela vazia num dos bares.
+  const [setor, setSetor] = useState('');
   const [meses, setMeses] = useState(12);
 
   useEffect(() => {
@@ -55,6 +60,8 @@ export default function PesquisaFelicidadePage() {
 
   const dimensoes = data?.dimensoes || [];
   const semanal = useMemo(() => data?.semanal || [], [data]);
+  // O que aparece no seletor e nos títulos é o setor que o servidor aplicou.
+  const setorAtual = data?.setor_aplicado || setor;
 
   // Série do setor escolhido, na ordem em que as pesquisas aconteceram.
   const evolucao = useMemo(
@@ -112,11 +119,13 @@ export default function PesquisaFelicidadePage() {
             </div>
             <div className="flex items-center gap-2">
               <select
-                value={setor}
+                value={setorAtual}
                 onChange={(e) => setSetor(e.target.value)}
                 className="h-9 rounded-md border-0 bg-white/15 backdrop-blur px-2 text-sm text-white [&>option]:text-foreground"
               >
-                {(data?.setores || ['TODOS']).map((s) => <option key={s} value={s}>{s}</option>)}
+                {(data?.setores?.length ? data.setores : [setorAtual].filter(Boolean)).map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
               </select>
               <select
                 value={meses}
@@ -179,7 +188,7 @@ export default function PesquisaFelicidadePage() {
               </TabsList>
 
               <TabsContent value="semanal" className="space-y-4">
-                <Bloco titulo={`Evolução do resultado — ${setor}`} legenda="Escala tipo eNPS: % favorável menos % desfavorável. Abaixo de zero, o desfavorável é maioria.">
+                <Bloco titulo={`Evolução do resultado — ${setorAtual}`} legenda="Escala tipo eNPS: % favorável menos % desfavorável. Abaixo de zero, o desfavorável é maioria.">
                   <GraficoLinha
                     data={evolucao}
                     xKey="label"
@@ -220,7 +229,7 @@ export default function PesquisaFelicidadePage() {
 
               <TabsContent value="mensal" className="space-y-4">
                 <Bloco
-                  titulo={`Consolidado mensal — ${setor}`}
+                  titulo={`Consolidado mensal — ${setorAtual}`}
                   legenda="Fechamento do mês feito na planilha, ponderado por quórum — não é a média simples das semanas."
                 >
                   <GraficoLinha
