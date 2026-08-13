@@ -10,11 +10,17 @@ import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitur
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Plus, X } from 'lucide-react';
+import { VinculoRHDialog } from './VinculoRHDialog';
+import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Plus, X, Link2 } from 'lucide-react';
 
 type Funcao = { id: string; codigo: string; nome: string; entra_no_custo: boolean; ordem: number };
 type Celula = { id: string; entra: string | null; sai: string | null; horas: number | null; marcador: string | null; turno: string };
-type Pessoa = { chave: string; funcao_id: string; slot: number; nome: string; dias: Record<string, Celula> };
+type Pessoa = {
+  chave: string; funcao_id: string; slot: number; nome: string;
+  /** vínculo com hr.funcionarios — nulo enquanto o de-para não for feito */
+  funcionario_id: number | null;
+  dias: Record<string, Celula>;
+};
 
 /** Marcadores que a operação usa. Digitar qualquer um deles no lugar do horário grava o marcador. */
 const MARCADORES = ['FOLGA', 'FÉRIAS', 'ATESTADO', 'BANCO', 'ABRE', 'FECHA', 'INTERMEDIÁRIO'];
@@ -257,6 +263,10 @@ export default function EscalaPage() {
   /** Célula com o painel aberto — um por vez na página inteira. */
   const [editando, setEditando] = useState<{ pessoa: Pessoa; data: string; rect: DOMRect } | null>(null);
 
+  const [vinculoAberto, setVinculoAberto] = useState(false);
+  // quantas pessoas DESTA semana ainda não apontam pro RH — o número que o botão mostra
+  const semVinculo = pessoas.filter(p => !p.funcionario_id).length;
+
   // contagem de escalados por dia — é exatamente o FIXOS que o Plano Operacional consome
   const escaladosNoDia = (dataISO: string, funcaoId?: string) =>
     pessoas.filter(p => (!funcaoId || p.funcao_id === funcaoId) && p.dias[dataISO]?.entra).length;
@@ -306,7 +316,21 @@ export default function EscalaPage() {
           <Button variant="outline" size="sm" onClick={() => setSegunda(s => somaDias(s, 7))}><ChevronRight className="w-4 h-4" /></Button>
           <Button variant="ghost" size="sm" onClick={() => setSegunda(segundaDa(new Date()))}>hoje</Button>
         </div>
-        {soLeitura && <BadgeSomenteLeitura />}
+        <div className="flex items-center gap-2">
+          {soLeitura && <BadgeSomenteLeitura />}
+          {/* De-para com o RH: não virou tela própria porque é manutenção que se faz olhando
+              a escala. O contador mostra o que falta sem precisar abrir. */}
+          <Button variant="outline" size="sm" onClick={() => setVinculoAberto(true)}
+            title="Ligar cada pessoa da escala ao cadastro do RH — traz gênero, dias por semana e ponto">
+            <Link2 className="w-4 h-4 mr-1.5" />
+            Vincular ao RH
+            {semVinculo > 0 && (
+              <span className="ml-1.5 text-[10px] rounded-full px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                {semVinculo}
+              </span>
+            )}
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -409,6 +433,9 @@ export default function EscalaPage() {
           </table>
         </CardContent></Card>
       )}
+
+      <VinculoRHDialog open={vinculoAberto} onOpenChange={setVinculoAberto}
+        soLeitura={soLeitura} onSalvo={async () => { await mutate(); }} />
 
       {editando && (
         <PainelHorario
