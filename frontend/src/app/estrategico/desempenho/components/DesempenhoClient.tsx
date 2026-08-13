@@ -324,9 +324,14 @@ return [
           // repost/collab, que é justamente boa parte do story do bar.
           ...(igAuto ? [
             { key: 'o_num_posts', label: '[O] Nº de Posts', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Contagem de posts Feed + Reels da semana (integrations.instagram_posts)', formato: 'numero' as const, editavel: true },
-            { key: 'o_alcance', label: '[O] Alcance', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Soma do alcance dos posts Feed + Reels (último snapshot por mídia)', formato: 'numero' as const, editavel: true },
-            { key: 'o_interacao', label: '[O] Interação', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Curtidas + comentários + compartilhamentos + salvamentos', formato: 'numero' as const, editavel: true },
-            { key: 'o_compartilhamento', label: '[O] Compartilhamento', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Soma de compartilhamentos dos posts Feed + Reels', formato: 'numero' as const, editavel: true },
+            // Por que pode não bater com a aba Comunicação (pergunta do Diogo, 13/08/2026):
+            //  · aqui a linha é SEMANA ISO (segunda a domingo) e a Comunicação usa o período que você
+            //    escolhe — um mês-calendário nunca cai nas mesmas bordas que 4 ou 5 semanas ISO;
+            //  · semanas anteriores a 20/07/2026 foram digitadas à mão do Reportei, que conta
+            //    diferente do "Feed + Reels somados" daqui, e por isso não são recalculadas.
+            { key: 'o_alcance', label: '[O] Alcance', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Soma do alcance dos posts Feed + Reels (último snapshot por mídia) na SEMANA ISO. A aba Comunicação usa o período escolhido lá — um mês-calendário não bate com a soma das semanas.', formato: 'numero' as const, editavel: true },
+            { key: 'o_interacao', label: '[O] Interação', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Curtidas + comentários + compartilhamentos + salvamentos dos posts da SEMANA ISO', formato: 'numero' as const, editavel: true },
+            { key: 'o_compartilhamento', label: '[O] Compartilhamento', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Soma de compartilhamentos dos posts Feed + Reels da SEMANA ISO', formato: 'numero' as const, editavel: true },
             { key: 'o_engajamento', label: '[O] Engajamento', status: 'auto' as const, fonte: 'Instagram (sync diário)', calculo: 'Interações ÷ alcance × 100', formato: 'percentual' as const, editavel: true },
           ] : [
             { key: 'o_num_posts', label: '[O] Nº de Posts', status: 'manual' as const, fonte: 'Instagram', calculo: 'Manual — este bar não tem Instagram conectado (conecte em Configurações › Integrações)', formato: 'numero' as const, editavel: true },

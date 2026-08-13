@@ -191,6 +191,32 @@ async function computeGmn(supabase: any, barId: number, inicio: string, fim: str
  */
 const GMN_JANELA_DIAS = Number(process.env.GMN_JANELA_DIAS || 70);
 
+/**
+ * Janela móvel do [O] orgânico, em semanas. Mesmo princípio do GMN acima: o alcance de um post
+ * continua subindo semanas depois de publicado (bar 3, semana 26: 69.963 gravados contra 79.487
+ * reais), e post atrasado ainda entra no sync do Instagram depois da semana fechar. Recalcular é
+ * só leitura de banco, então sai barato.
+ */
+const ORGANICO_JANELA_SEMANAS = Number(process.env.ORGANICO_JANELA_SEMANAS || 12);
+
+/**
+ * Piso da janela: a recontagem NUNCA passa dessa data.
+ *
+ * Antes de 21/07/2026 o marketing semanal era DIGITADO À MÃO a partir do Reportei — dá pra ver no
+ * created_at das linhas (segunda/terça depois de cada semana, uma a uma) contra as linhas do cron
+ * (11:00 em ponto). Reportei conta de um jeito e o "jeito Zykor" (Feed + Reels somados) conta de
+ * outro, então recalcular aquelas semanas não corrigiria nada: apagaria o histórico que a equipe
+ * validou, contra a regra de nunca sobrescrever campo manual.
+ *
+ * Por isso julho continua sem bater com a aba Comunicação nas semanas 27–29: são de fonte diferente.
+ * Quem quiser passar o histórico para o cálculo automático faz de propósito, movendo esta data.
+ */
+const ORGANICO_DESDE = process.env.ORGANICO_DESDE || '2026-07-20';
+
+/** Janela do [M] mídia. Menor porque cada semana é uma chamada à API da Meta e a atribuição
+ *  assenta em ~28 dias — reprocessar 12 semanas todo dia seria gasto sem retorno. */
+const MIDIA_JANELA_SEMANAS = Number(process.env.MIDIA_JANELA_SEMANAS || 5);
+
 /** Segunda-feira da semana ISO de uma data (YYYY-MM-DD). */
 function segundaDa(dataISO: string): string {
   const d = new Date(`${dataISO}T00:00:00Z`);
@@ -402,14 +428,34 @@ export async function syncMarketingTodos() {
   const bars = new Set<number>([...igBars, ...adsBars, ...googleBars]);
 
   const hoje = new Date();
-  const semanas = [isoWeekOf(new Date(hoje.getTime() - 7 * 86400000)), isoWeekOf(hoje)];
+  // Janela móvel também no [O]/[M] — mesma razão do [GMN] logo abaixo: reprocessar só a semana
+  // atual + a anterior congelava o passado num momento em que o número ainda não estava pronto.
+  //
+  // Diogo, 13/08/2026: "o alcance tá maior na de comunicação". A aba Comunicação lê ao vivo e a
+  // Desempenho lia a linha congelada. Bar 3, semana 28: a tabela tinha 15.018 de alcance e 4 posts;
+  // ao vivo eram 27.793 e 5 posts. Duas coisas mudam depois da semana fechar — o alcance do post
+  // segue crescendo por semanas, e post atrasado ainda entra no sync do Instagram.
+  const semanasAtras = (n: number) => isoWeekOf(new Date(hoje.getTime() - n * 7 * 86400000));
+  const janelaOrganico = Array.from({ length: ORGANICO_JANELA_SEMANAS }, (_, i) => semanasAtras(i))
+    // não passa do piso: semana anterior à automação foi digitada à mão (ver ORGANICO_DESDE)
+    .filter((w) => isoWeekRange(w.ano, w.semana).inicio >= ORGANICO_DESDE)
+    .reverse();
 
   const resultados: any[] = [];
   for (const barId of bars) {
     // gmn: false — o Google não vai mais por semana aqui embaixo, e sim pela janela móvel
     // logo adiante (uma chamada cobre várias semanas e ainda corrige as passadas).
-    const opts = { organico: igBars.has(barId), midia: adsBars.has(barId), gmn: false };
-    for (const w of semanas) {
+    for (let i = janelaOrganico.length - 1; i >= 0; i--) {
+      const w = janelaOrganico[i];
+      const idade = janelaOrganico.length - 1 - i; // 0 = semana atual
+      const opts = {
+        organico: igBars.has(barId),
+        // [M] tem custo de chamada na API da Meta e a atribuição assenta em ~28 dias — não vale
+        // reprocessar 12 semanas todo dia.
+        midia: adsBars.has(barId) && idade < MIDIA_JANELA_SEMANAS,
+        gmn: false,
+      };
+      if (!opts.organico && !opts.midia) continue;
       try {
         resultados.push(await syncMarketingSemana(barId, w.ano, w.semana, opts));
       } catch (e: any) {
