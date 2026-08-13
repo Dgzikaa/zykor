@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { computarAlertas } from '@/lib/rh/alertas';
+import { fimDaExperiencia } from '@/lib/rh/experiencia';
 import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,7 @@ const CAMPOS_EDITAVEIS = [
   'nome', 'cpf', 'telefone', 'email', 'data_admissao', 'data_demissao', 'data_nascimento',
   'cargo_id', 'area_id', 'tipo_contratacao', 'genero', 'salario_base', 'valor_diaria',
   'vale_transporte_diaria', 'dias_trabalho_semana', 'chave_pix', 'tipo_chave_pix',
-  'observacoes', 'foto_url', 'ativo', 'rg', 'ctps',
+  'observacoes', 'foto_url', 'ativo', 'rg', 'ctps', 'data_fim_experiencia',
 ] as const;
 
 function limparPayload(body: any) {
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   if (!f) return NextResponse.json({ success: false, error: 'Funcionário não encontrado' }, { status: 404 });
 
-  const [cargoRes, areaRes, docsRes, ocorrRes, fotoRes, salRes] = await Promise.all([
+  const [cargoRes, areaRes, docsRes, ocorrRes, fotoRes, salRes, onbRes, treinoRes] = await Promise.all([
     f.cargo_id ? (supabase as any).schema('hr').from('cargos').select('nome').eq('id', f.cargo_id).maybeSingle() : Promise.resolve({ data: null }),
     f.area_id ? (supabase as any).schema('hr').from('areas').select('nome').eq('id', f.area_id).maybeSingle() : Promise.resolve({ data: null }),
     (supabase as any).schema('hr').from('documentos_funcionario').select('id, tipo, descricao, nome_arquivo, mime, tamanho_bytes, validade, criado_em').eq('funcionario_id', Number(id)).order('criado_em', { ascending: false }),
@@ -45,11 +46,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     (supabase as any).schema('hr').from('ponto_registro').select('foto_in_url').eq('funcionario_id', Number(id)).not('foto_in_url', 'is', null).order('data', { ascending: false }).limit(1),
     // salário real pago via Conta Azul (match por nome) — últimos meses
     (supabase as any).schema('hr').from('v_funcionario_salario').select('valor_pago, data_pagamento, data_competencia, descricao, tipo').eq('funcionario_id', Number(id)).eq('tipo', 'salario').order('data_pagamento', { ascending: false }).limit(8),
+    // onboarding e treinamentos entram no cálculo dos alertas (prazo estourado / validade vencida)
+    (supabase as any).schema('hr').from('onboarding_itens').select('item, concluido, prazo').eq('funcionario_id', Number(id)),
+    (supabase as any).schema('hr').from('treinamentos').select('nome, validade').eq('funcionario_id', Number(id)),
   ]);
 
   const documentos = docsRes.data || [];
   const ocorrencias = ocorrRes.data || [];
-  const alertas = computarAlertas(f, documentos, ocorrencias);
+  const alertas = computarAlertas(f, documentos, ocorrencias, treinoRes.data || [], onbRes.data || []);
 
   // A Pesquisa da Felicidade NÃO entra aqui: ela é anônima e agregada por setor.
   // O que existia era um match por nome contra uma coluna que sempre valia a
@@ -78,6 +82,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
   const payload = limparPayload(body);
+  // Corrigir a admissão tem que arrastar o fim da experiência junto — senão o aviso dos 15 dias
+  // continua contando a partir de uma data que já não existe. Só quando não veio explícito.
+  if (payload.data_admissao && payload.data_fim_experiencia === undefined) {
+    payload.data_fim_experiencia = fimDaExperiencia(payload.data_admissao);
+  }
   if (Object.keys(payload).length === 0) {
     return NextResponse.json({ success: false, error: 'Nada para atualizar' }, { status: 400 });
   }

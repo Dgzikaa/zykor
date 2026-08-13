@@ -6,20 +6,32 @@ import { negarPorRota } from '@/lib/permissions/guard';
 export const dynamic = 'force-dynamic';
 
 // Checklist padrão de admissão (semeado no 1º acesso).
-const PADRAO = [
-  'Documentos pessoais (RG/CPF) recebidos',
-  'Carteira de trabalho',
-  'Exame admissional',
-  'Contrato assinado',
-  'Dados bancários / chave PIX',
-  'Treinamento de integração',
-  'Uniforme entregue',
-  'Acesso aos sistemas / ponto',
+// `dias` = prazo em dias após a admissão. Só a integração tem prazo por enquanto (ata de
+// 13/08/2026: "em tese 15 dias da data de admissão o treinamento de integração"); é dela que sai o
+// bloco "Onboard (fazer até)" da mensagem de segunda.
+const PADRAO: Array<{ item: string; dias?: number }> = [
+  { item: 'Documentos pessoais (RG/CPF) recebidos' },
+  { item: 'Carteira de trabalho' },
+  { item: 'Exame admissional' },
+  { item: 'Contrato assinado' },
+  { item: 'Dados bancários / chave PIX' },
+  { item: 'Treinamento de integração', dias: 15 },
+  { item: 'Uniforme entregue' },
+  { item: 'Termo de recebimento de uniforme' },
+  { item: 'Acesso aos sistemas / ponto' },
 ];
 
+/** Data de admissão + N dias, em ISO. */
+function prazoDe(admissao: string | null, dias?: number): string | null {
+  if (!admissao || dias == null) return null;
+  const d = new Date(`${String(admissao).slice(0, 10)}T00:00:00`);
+  d.setDate(d.getDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
 async function checaFuncionario(supabase: any, id: number, barId: number) {
-  const { data } = await supabase.schema('hr').from('funcionarios').select('id').eq('id', id).eq('bar_id', barId).maybeSingle();
-  return !!data;
+  const { data } = await supabase.schema('hr').from('funcionarios').select('id, data_admissao').eq('id', id).eq('bar_id', barId).maybeSingle();
+  return data || null;
 }
 
 /** GET -> itens de onboarding (semeia os padrão se ainda não houver nenhum). */
@@ -30,7 +42,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { id } = await params;
   const supabase = await getAdminClient();
-  if (!(await checaFuncionario(supabase, Number(id), user.bar_id))) {
+  const func = await checaFuncionario(supabase, Number(id), user.bar_id);
+  if (!func) {
     return NextResponse.json({ success: false, error: 'Funcionário não encontrado' }, { status: 404 });
   }
 
@@ -38,7 +51,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .select('*').eq('funcionario_id', Number(id)).order('ordem');
   if (!data || data.length === 0) {
     await (supabase as any).schema('hr').from('onboarding_itens').insert(
-      PADRAO.map((item, i) => ({ bar_id: user.bar_id, funcionario_id: Number(id), item, ordem: i }))
+      PADRAO.map((p, i) => ({
+        bar_id: user.bar_id, funcionario_id: Number(id), item: p.item, ordem: i,
+        prazo: prazoDe(func.data_admissao, p.dias),
+      }))
     ).then(() => {});
     const r = await (supabase as any).schema('hr').from('onboarding_itens')
       .select('*').eq('funcionario_id', Number(id)).order('ordem');

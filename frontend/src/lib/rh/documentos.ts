@@ -16,6 +16,34 @@
 export const BUCKET_DOCS_RH = 'rh-documentos';
 
 /**
+ * Catálogo dos tipos de documento — fonte única do seletor de upload e dos alertas.
+ *
+ * Estavam separados: o dossiê oferecia 7 tipos e `lib/rh/alertas.ts` conhecia 5, mas só avisava a
+ * falta de DOIS. Era a queixa da ata de 13/08/2026: "aviso de todos os tipos de documentos faltando
+ * hoje ele ta so mostrando: Sem exame admissional / Sem contrato anexado — teria que mostrar os
+ * outros". Quem é `obrigatorio` alerta enquanto não houver arquivo daquele tipo anexado.
+ */
+export type TipoDocumento = { id: string; label: string; obrigatorio: boolean };
+
+export const TIPOS_DOCUMENTO: TipoDocumento[] = [
+  { id: 'carteira_trabalho', label: 'Carteira de Trabalho', obrigatorio: true },
+  { id: 'rg_cpf', label: 'RG / CPF', obrigatorio: true },
+  { id: 'exame_admissional', label: 'Exame Admissional', obrigatorio: true },
+  { id: 'contrato', label: 'Contrato', obrigatorio: true },
+  // pedido da ata: o termo assinado é outra coisa que "uniforme entregue" no checklist
+  { id: 'termo_uniforme', label: 'Termo de Recebimento de Uniforme', obrigatorio: true },
+  { id: 'certidao_nascimento', label: 'Certidão de Nascimento', obrigatorio: false },
+  { id: 'titulo_eleitoral', label: 'Título Eleitoral', obrigatorio: false },
+  { id: 'outro', label: 'Outro', obrigatorio: false },
+];
+
+export const LABEL_DOC: Record<string, string> = Object.fromEntries(
+  TIPOS_DOCUMENTO.map((t) => [t.id, t.label]),
+);
+
+export const DOCS_OBRIGATORIOS = TIPOS_DOCUMENTO.filter((t) => t.obrigatorio);
+
+/**
  * Teto do bucket (storage.buckets.file_size_limit). Manter em sincronia com a migration.
  *
  * 40 MB, não 50: o teto DURO do projeto Supabase é 50 MB por arquivo (testado — 49 MB sobe,

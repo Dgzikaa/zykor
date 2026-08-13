@@ -3,6 +3,7 @@ import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
 import { computarAlertas } from '@/lib/rh/alertas';
+import { fimDaExperiencia } from '@/lib/rh/experiencia';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,7 @@ const CAMPOS_EDITAVEIS = [
   'nome', 'cpf', 'telefone', 'email', 'data_admissao', 'data_demissao', 'data_nascimento',
   'cargo_id', 'area_id', 'tipo_contratacao', 'genero', 'salario_base', 'valor_diaria',
   'vale_transporte_diaria', 'dias_trabalho_semana', 'chave_pix', 'tipo_chave_pix',
-  'observacoes', 'foto_url', 'ativo',
+  'observacoes', 'foto_url', 'ativo', 'data_fim_experiencia',
 ] as const;
 
 function limparPayload(body: any) {
@@ -114,6 +115,11 @@ export async function POST(request: NextRequest) {
   }
   const payload: Record<string, any> = { ...limparPayload(body), bar_id: user.bar_id };
   if (payload.ativo === undefined) payload.ativo = true;
+  // Já nasce com o fim da experiência gravado — a ata pede isso justamente para não depender de
+  // alguém lembrar de calcular depois, já que é daqui que sai o aviso dos 15 dias.
+  if (!payload.data_fim_experiencia && payload.data_admissao) {
+    payload.data_fim_experiencia = fimDaExperiencia(payload.data_admissao);
+  }
 
   const supabase = await getAdminClient();
   const { data: f, error } = await (supabase as any).schema('hr').from('funcionarios').insert(payload).select().single();

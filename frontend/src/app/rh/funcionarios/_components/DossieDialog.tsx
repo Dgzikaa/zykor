@@ -31,13 +31,11 @@ import {
 import type { Funcionario } from '../page';
 import { CartaoIcon } from './CartoesBadge';
 import { EspelhoPontoTab } from './EspelhoPontoTab';
+import { LABEL_DOC } from '@/lib/rh/documentos';
 
-const TIPO_DOC: Record<string, string> = {
-  carteira_trabalho: 'Carteira de Trabalho', exame_admissional: 'Exame Admissional',
-  contrato: 'Contrato', rg_cpf: 'RG / CPF',
-  certidao_nascimento: 'Certidão de Nascimento', titulo_eleitoral: 'Título Eleitoral',
-  outro: 'Outro',
-};
+// Catálogo único (mesma lista que gera os alertas de documento faltando) — antes esta tela
+// conhecia 7 tipos e os alertas conheciam 5, avisando a falta de só 2.
+const TIPO_DOC: Record<string, string> = LABEL_DOC;
 const TIPO_OCORR: Record<string, string> = {
   advertencia: 'Advertência', falta: 'Falta', atestado: 'Atestado', ferias: 'Férias', observacao: 'Observação',
 };
