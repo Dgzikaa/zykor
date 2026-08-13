@@ -40,17 +40,30 @@ async function getCAToken(barId: number): Promise<string> {
   return r.token;
 }
 
+export interface ParcelaContaPagar {
+  data_vencimento: string;    // YYYY-MM-DD
+  valor: number;
+  descricao?: string;         // default: a descrição do lançamento
+}
+
 export interface CriarContaPagarParams {
   barId: number;
   data_competencia: string;   // YYYY-MM-DD
-  data_vencimento: string;    // YYYY-MM-DD
-  valor: number;
+  data_vencimento: string;    // YYYY-MM-DD — vencimento da 1ª parcela (ignorado se vier `parcelas`)
+  valor: number;              // valor da 1ª parcela (ignorado se vier `parcelas`)
   descricao: string;
   categoria_id: string;
   pessoa_id: string;          // contato/fornecedor CA (obrigatório)
   conta_financeira_id: string;
   observacao?: string;
   centro_custo_id?: string;
+  /**
+   * Parcelamento: o CA aceita N parcelas num evento financeiro só — mesma competência, vencimentos
+   * diferentes. É o que resolve a compra parcelada "à vista" (competência na data da compra, mas
+   * paga em 6x): um lançamento com as 6 parcelas em vez de 6 lançamentos caindo na mesma competência
+   * conforme a fatura chega. Quando `parcelas` vem, `valor` do evento = soma das parcelas.
+   */
+  parcelas?: ParcelaContaPagar[];
 }
 
 export async function criarContaPagarCA(params: CriarContaPagarParams): Promise<{ contaazul_id: string | null }> {
@@ -59,8 +72,14 @@ export async function criarContaPagarCA(params: CriarContaPagarParams): Promise<
     categoria_id, pessoa_id, conta_financeira_id, observacao, centro_custo_id,
   } = params;
 
-  const valorRound = Math.round(Number(valor) * 100) / 100;
-  if (!Number.isFinite(valorRound) || valorRound <= 0) throw new Error('valor inválido');
+  const cents = (v: number) => Math.round(Number(v) * 100) / 100;
+  const parcelas: ParcelaContaPagar[] = params.parcelas?.length
+    ? params.parcelas.map((p) => ({ ...p, valor: cents(p.valor) }))
+    : [{ data_vencimento, valor: cents(valor) }];
+
+  if (parcelas.some((p) => !Number.isFinite(p.valor) || p.valor <= 0)) throw new Error('valor inválido');
+  if (parcelas.some((p) => !/^\d{4}-\d{2}-\d{2}$/.test(String(p.data_vencimento)))) throw new Error('vencimento inválido');
+  const valorRound = cents(parcelas.reduce((s, p) => s + p.valor, 0));
   if (!categoria_id) throw new Error('categoria_id é obrigatório');
   if (!pessoa_id) throw new Error('fornecedor (pessoa_id) é obrigatório');
   if (!conta_financeira_id) throw new Error('conta pagadora é obrigatória');
@@ -82,15 +101,13 @@ export async function criarContaPagarCA(params: CriarContaPagarParams): Promise<
       },
     ],
     condicao_pagamento: {
-      parcelas: [
-        {
-          descricao,
-          data_vencimento,
-          nota: 'Despesa de cartão lançada via Zykor',
-          conta_financeira: String(conta_financeira_id),
-          detalhe_valor: { valor_bruto: valorRound, valor_liquido: valorRound, juros: 0, multa: 0, desconto: 0, taxa: 0 },
-        },
-      ],
+      parcelas: parcelas.map((p) => ({
+        descricao: p.descricao || descricao,
+        data_vencimento: p.data_vencimento,
+        nota: 'Despesa de cartão lançada via Zykor',
+        conta_financeira: String(conta_financeira_id),
+        detalhe_valor: { valor_bruto: p.valor, valor_liquido: p.valor, juros: 0, multa: 0, desconto: 0, taxa: 0 },
+      })),
     },
   };
 

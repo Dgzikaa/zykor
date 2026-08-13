@@ -14,6 +14,7 @@ import { ColumnFilterHeader, useColumnFilters, type FilterCol } from '@/componen
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { getSelectedBarId } from '@/lib/selected-bar';
+import { parseParcela, planejarParcelas, type ModoCompetencia } from '@/lib/financeiro/cartaoParcelas';
 import { Loader2, Upload, Send, EyeOff, RotateCcw, CheckCircle2, Plus, CreditCard, Lock, Archive, Trash2, History, ArrowRightLeft } from 'lucide-react';
 
 interface Cartao { id: string; banco: string; tipo: string; dono: string }
@@ -86,6 +87,8 @@ export function FaturaCartaoTab() {
   const [cartoesOpen, setCartoesOpen] = useState(false);
   const [novaOpen, setNovaOpen] = useState(false); // modal "Nova fatura" (importa por cartão)
   const [importacoesOpen, setImportacoesOpen] = useState(false); // modal "Importações" (desfazer/mover upload)
+  // Linha parcelada esperando a escolha de competência/parcelas antes de ir pro Conta Azul
+  const [parceladaAlvo, setParceladaAlvo] = useState<Linha | null>(null);
 
   const faturaSel = useMemo(() => [...faturas, ...encerradas].find(f => f.id === faturaSelId) || null, [faturas, encerradas, faturaSelId]);
 
@@ -243,12 +246,19 @@ export function FaturaCartaoTab() {
     catch (e: any) { showToast({ type: 'error', title: 'Erro ao salvar', message: e?.message }); if (faturaSelId) carregarLinhas(faturaSelId); }
   };
 
+  // Linha parcelada abre o diálogo antes de ir pro CA (gerar as restantes? competência na compra ou
+  // mês a mês?). Linha normal continua indo direto — um clique, como sempre foi.
   const lancar = async (l: Linha) => {
+    if (parseParcela(l.parcela)) { setParceladaAlvo(l); return; }
+    await enviarLancamento(l);
+  };
+
+  const enviarLancamento = async (l: Linha, extra?: Record<string, unknown>) => {
     const bar = l.bar_id || faturaSel?.bar_id || selectedBar?.id || null;
-    if (!bar) return showToast({ type: 'error', title: 'Escolha o bar da linha' });
+    if (!bar) { showToast({ type: 'error', title: 'Escolha o bar da linha' }); return false; }
     const catId = l.categoria_id || sugestoes[l.id]?.categoria_id || null;
     const catNome = l.categoria_nome || sugestoes[l.id]?.categoria_nome || null;
-    if (!catId) return showToast({ type: 'error', title: 'Escolha a categoria' });
+    if (!catId) { showToast({ type: 'error', title: 'Escolha a categoria' }); return false; }
     const cfg = config[bar];
     setLancandoId(l.id);
     try {
@@ -257,12 +267,19 @@ export function FaturaCartaoTab() {
         conta_financeira_id: cfg?.contaId || undefined,
         pessoa_id: fornOverride[l.id] || undefined, // vazio → backend usa o titular do cartão
         data_vencimento: faturaSel?.vencimento || undefined,
+        ...(extra || {}),
       });
       setLinhas(prev => prev.map(x => (x.id === l.id ? res.linha : x)));
-      showToast({ type: 'success', title: 'Lançado no Conta Azul' });
+      showToast({
+        type: 'success',
+        title: res.vinculado ? 'Parcela vinculada (sem duplicar)' : 'Lançado no Conta Azul',
+        message: res.mensagem || undefined,
+      });
       carregarBase();
+      return true;
     } catch (e: any) {
       showToast({ type: 'error', title: 'Falha ao lançar', message: e?.message });
+      return false;
     } finally {
       setLancandoId(null);
     }
@@ -276,7 +293,10 @@ export function FaturaCartaoTab() {
     if (!prontos.length) return showToast({ type: 'warning', title: 'Nada pronto pra lançar', message: 'Faltam bar/categoria nas linhas selecionadas.' });
     if (!window.confirm(`Lançar ${prontos.length} linha(s) no Conta Azul?${semDados ? `\n${semDados} sem bar/categoria ficam de fora.` : ''}`)) return;
     setLancandoLote(true);
-    let ok = 0, err = 0;
+    // Em lote vai sempre no modo conservador: só a parcela que veio na fatura, competência na data
+    // da compra. Gerar as restantes é decisão de uma linha só (cria lançamento no CA que não volta),
+    // então fica no diálogo do botão "Lançar". Parcela já coberta o backend vincula sozinho.
+    let ok = 0, err = 0, vinc = 0;
     for (const l of prontos) {
       const bar = (l.bar_id ?? faturaSel?.bar_id ?? selectedBar?.id) as number;
       const cfg = config[bar];
@@ -288,12 +308,20 @@ export function FaturaCartaoTab() {
           data_vencimento: faturaSel?.vencimento || undefined,
         });
         setLinhas(prev => prev.map(x => (x.id === l.id ? res.linha : x)));
-        ok++;
+        if (res.vinculado) vinc++; else ok++;
       } catch { err++; }
     }
     setLancandoLote(false);
     setSelecionadas(new Set());
-    showToast({ type: err ? 'warning' : 'success', title: `${ok} lançada(s)`, message: [err ? `${err} com erro` : '', semDados ? `${semDados} puladas (dados faltando)` : ''].filter(Boolean).join(' · ') || undefined });
+    showToast({
+      type: err ? 'warning' : 'success',
+      title: `${ok} lançada(s)`,
+      message: [
+        vinc ? `${vinc} parcela(s) já lançada(s) antes — só vinculadas` : '',
+        err ? `${err} com erro` : '',
+        semDados ? `${semDados} puladas (dados faltando)` : '',
+      ].filter(Boolean).join(' · ') || undefined,
+    });
     carregarBase();
   };
 
@@ -799,7 +827,135 @@ export function FaturaCartaoTab() {
         barId={barFatura} fornecedores={barFatura ? (opcoesBar[barFatura]?.fornecedores || []) : []}
         onVincular={(final, pid, nome) => vincularCartao({ cartao_final: final, titular_nome: null, banco: null }, pid, nome)}
         onCadastrarEVincular={cadastrarEVincular} onDesvincular={desvincularCartao} />
+
+      <ParceladaDialog
+        linha={parceladaAlvo}
+        vencimentoFatura={faturaSel?.vencimento || null}
+        lancando={!!parceladaAlvo && lancandoId === parceladaAlvo.id}
+        onFechar={() => setParceladaAlvo(null)}
+        onConfirmar={async (extra) => {
+          if (!parceladaAlvo) return;
+          const ok = await enviarLancamento(parceladaAlvo, extra);
+          if (ok) setParceladaAlvo(null);
+        }} />
     </div>
+  );
+}
+
+// ---------- Modal: compra parcelada ----------
+// A fatura traz uma linha por parcela e toda parcela carrega a data da COMPRA. Lançando uma por uma,
+// o mês da compra crescia pra trás a cada fatura nova (o 1/6 de junho ganhava companhia em julho,
+// agosto…) e a DRE de junho nunca fechava. Aqui quem lança escolhe:
+//   · gerar junto as parcelas que faltam → o mês fecha de uma vez e as próximas faturas só vinculam;
+//   · competência na data da compra (parcelamento à vista, Mercado Livre) ou mês a mês (contrato
+//     12x tipo SKY, que hoje cai inteiro no mês da assinatura).
+function ParceladaDialog({ linha, vencimentoFatura, lancando, onFechar, onConfirmar }: {
+  linha: Linha | null;
+  vencimentoFatura: string | null;
+  lancando: boolean;
+  onFechar: () => void;
+  onConfirmar: (extra: Record<string, unknown>) => void | Promise<void>;
+}) {
+  const [gerarRestantes, setGerarRestantes] = useState(false);
+  const [modo, setModo] = useState<ModoCompetencia>('compra');
+  const [competenciaInicial, setCompetenciaInicial] = useState('');
+
+  const p = parseParcela(linha?.parcela);
+  const restantes = p ? p.total - p.n : 0;
+
+  // reabre sempre no padrão seguro: só esta parcela, competência na data da compra
+  useEffect(() => {
+    if (!linha) return;
+    setGerarRestantes(false);
+    setModo('compra');
+    setCompetenciaInicial(String(linha.data_transacao || '').slice(0, 7));
+  }, [linha]);
+
+  const plano = (linha && p && vencimentoFatura)
+    ? planejarParcelas({
+        de: p.n, ate: gerarRestantes ? p.total : p.n, total: p.total,
+        valorParcela: Number(linha.valor), dataTransacao: linha.data_transacao,
+        vencimentoAtual: vencimentoFatura, modo,
+        competenciaInicial: competenciaInicial ? `${competenciaInicial}-01` : null,
+      })
+    : [];
+
+  return (
+    <Dialog open={!!linha} onOpenChange={(v) => { if (!v) onFechar(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Compra parcelada</DialogTitle>
+          <DialogDescription>
+            {linha?.descricao} · {linha?.parcela} · {fmtBRL(Number(linha?.valor || 0))} por parcela ·
+            {' '}compra em {fmtDataBR(String(linha?.data_transacao || ''))}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 text-sm">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Competência</Label>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input type="radio" checked={modo === 'compra'} onChange={() => setModo('compra')} className="mt-1" />
+              <span>Na data da compra — <strong>{fmtDataBR(String(linha?.data_transacao || ''))}</strong>
+                <span className="block text-xs text-muted-foreground">Compra à vista paga parcelada (Mercado Livre). O custo é todo do mês da compra.</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input type="radio" checked={modo === 'mensal'} onChange={() => setModo('mensal')} className="mt-1" />
+              <span className="flex-1">Mês a mês, a partir de{' '}
+                <Input type="month" value={competenciaInicial} onChange={(e) => setCompetenciaInicial(e.target.value)}
+                  onClick={() => setModo('mensal')} className="inline-block h-7 w-36 align-middle text-xs" />
+                <span className="block text-xs text-muted-foreground">Contrato dividido em parcelas mensais (SKY). Cada parcela é custo do seu mês.</span>
+              </span>
+            </label>
+          </div>
+
+          {restantes > 0 && (
+            <label className="flex items-start gap-2 cursor-pointer rounded-md border p-2">
+              <input type="checkbox" checked={gerarRestantes} onChange={(e) => setGerarRestantes(e.target.checked)} className="mt-1" />
+              <span>Gerar também as <strong>{restantes}</strong> parcela(s) restante(s)
+                <span className="block text-xs text-muted-foreground">
+                  Fecha o mês de uma vez e as próximas faturas passam a só vincular, sem lançar de novo.
+                  Atenção: lançamento criado no Conta Azul não dá pra apagar por API.
+                </span>
+              </span>
+            </label>
+          )}
+
+          <div className="rounded-md bg-muted/50 p-2 max-h-48 overflow-y-auto">
+            <div className="text-xs text-muted-foreground mb-1">
+              Vai pro Conta Azul ({plano.length} parcela{plano.length > 1 ? 's' : ''}):
+            </div>
+            <table className="w-full text-xs tabular-nums">
+              <tbody>
+                {plano.map((x) => (
+                  <tr key={x.n}>
+                    <td className="py-0.5">{x.n}/{p?.total}</td>
+                    <td className="py-0.5 text-muted-foreground">comp. {fmtDataBR(x.data_competencia)}</td>
+                    <td className="py-0.5 text-muted-foreground">vence {fmtDataBR(x.data_vencimento)}</td>
+                    <td className="py-0.5 text-right font-medium">{fmtBRL(x.valor)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!vencimentoFatura && <div className="text-xs text-amber-600">Fatura sem vencimento — defina antes de lançar.</div>}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onFechar} disabled={lancando}>Cancelar</Button>
+          <Button
+            disabled={lancando || !plano.length}
+            onClick={() => onConfirmar({
+              gerar_restantes: gerarRestantes,
+              modo_competencia: modo,
+              competencia_inicial: modo === 'mensal' ? competenciaInicial : undefined,
+            })}>
+            {lancando ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4 mr-1" />Lançar</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
