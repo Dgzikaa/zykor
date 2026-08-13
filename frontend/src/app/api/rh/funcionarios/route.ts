@@ -7,9 +7,12 @@ import { computarAlertas } from '@/lib/rh/alertas';
 export const dynamic = 'force-dynamic';
 
 // hr.funcionarios é schema de domínio (operacional), NÃO medallion. Sempre .schema('hr').
+// `genero` entrou em 13/08/2026: até então só a sync do Tangerino escrevia esse campo, então
+// quem é PJ (não vem do Tangerino) nascia sem gênero e não tinha onde digitar. A escala do
+// módulo Operação depende dele. A lista IRMÃ está em [id]/route.ts — mexeu aqui, mexe lá.
 const CAMPOS_EDITAVEIS = [
   'nome', 'cpf', 'telefone', 'email', 'data_admissao', 'data_demissao', 'data_nascimento',
-  'cargo_id', 'area_id', 'tipo_contratacao', 'salario_base', 'valor_diaria',
+  'cargo_id', 'area_id', 'tipo_contratacao', 'genero', 'salario_base', 'valor_diaria',
   'vale_transporte_diaria', 'dias_trabalho_semana', 'chave_pix', 'tipo_chave_pix',
   'observacoes', 'foto_url', 'ativo',
 ] as const;

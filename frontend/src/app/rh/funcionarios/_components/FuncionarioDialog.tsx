@@ -14,7 +14,7 @@ import { Loader2, User, Briefcase, Wallet, FileText } from 'lucide-react';
 import type { Funcionario, Opcao } from '../page';
 
 const VAZIO: Record<string, any> = {
-  nome: '', cpf: '', telefone: '', email: '', tipo_contratacao: 'CLT',
+  nome: '', cpf: '', telefone: '', email: '', tipo_contratacao: 'CLT', genero: '',
   cargo_id: '', area_id: '', data_admissao: '', data_nascimento: '', data_demissao: '',
   salario_base: '', valor_diaria: '', vale_transporte_diaria: '', dias_trabalho_semana: '',
   chave_pix: '', tipo_chave_pix: '', observacoes: '', ativo: true,
@@ -91,6 +91,17 @@ export function FuncionarioDialog({ open, onClose, onSalvo, cargos, areas, funci
               <div className="space-y-1.5">
                 <Label className="text-xs">Data de nascimento</Label>
                 <Input type="date" value={form.data_nascimento || ''} onChange={(e) => set('data_nascimento', e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                {/* Só a sync do Tangerino preenchia este campo (payload.gender), então quem é PJ
+                    — que não vem do Tangerino — nascia sem gênero e não tinha onde digitar.
+                    F/M é a convenção que a própria sync grava; manter igual evita dois padrões. */}
+                <Label className="text-xs">Gênero</Label>
+                <select className={sel} value={form.genero || ''} onChange={(e) => set('genero', e.target.value)}>
+                  <option value="">—</option>
+                  <option value="F">Feminino</option>
+                  <option value="M">Masculino</option>
+                </select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Telefone</Label>
