@@ -17,6 +17,18 @@ const fmtData = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString(
 const primeiroDiaMes = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; };
 const hojeISO = () => new Date().toISOString().slice(0, 10);
 const fmtPrazo = (d: string) => { const iso = String(d).slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso.split('-').reverse().join('/') : String(d); };
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const MESES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const fmtMes = (m: string) => { const [a, b] = String(m).split('-'); return `${MESES_CURTO[Number(b) - 1] || b}/${String(a).slice(2)}`; };
+
+// Atalhos de período: "mês passado" e "no ano" eram a pergunta do Gonza e davam dois cliques de
+// calendário cada um.
+const PERIODOS: Array<{ id: string; txt: string; range: () => [string, string] }> = [
+  { id: 'mes', txt: 'Este mês', range: () => { const d = new Date(); return [iso(new Date(d.getFullYear(), d.getMonth(), 1)), iso(d)]; } },
+  { id: 'ant', txt: 'Mês passado', range: () => { const d = new Date(); return [iso(new Date(d.getFullYear(), d.getMonth() - 1, 1)), iso(new Date(d.getFullYear(), d.getMonth(), 0))]; } },
+  { id: '90d', txt: '90 dias', range: () => { const d = new Date(); const i = new Date(); i.setDate(i.getDate() - 89); return [iso(i), iso(d)]; } },
+  { id: 'ano', txt: 'No ano', range: () => { const d = new Date(); return [iso(new Date(d.getFullYear(), 0, 1)), iso(d)]; } },
+];
 
 const ORIGEM: Record<string, { txt: string; cls: string }> = {
   cotacao: { txt: 'Cotação', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
@@ -97,6 +109,8 @@ export default function ComprasPage() {
   const [analises, setAnalises] = useState<any>(null);
   const [loadingAn, setLoadingAn] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
+  const [produtos, setProdutos] = useState<any[] | null>(null);
+  const [loadingProd, setLoadingProd] = useState(false);
 
   const carregar = useCallback(async () => {
     if (!barId) return;
@@ -129,6 +143,19 @@ export default function ComprasPage() {
     } finally { setLoadingAn(false); }
   }, [barId, de, ate, toast]);
   useEffect(() => { if (tab === 'analises') carregarAnalises(); }, [tab, carregarAnalises]);
+
+  // Produtos (compras agregadas por item) — sob demanda, igual às análises
+  const carregarProdutos = useCallback(async () => {
+    if (!barId) return;
+    setLoadingProd(true);
+    try {
+      const r = await api.get(`/api/operacional/compras?bar_id=${barId}&produtos=1&de=${de}&ate=${ate}`);
+      if (r.success) setProdutos(r.produtos || []);
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e?.message || 'Falha ao carregar produtos', variant: 'destructive' });
+    } finally { setLoadingProd(false); }
+  }, [barId, de, ate, toast]);
+  useEffect(() => { if (tab === 'produtos') carregarProdutos(); }, [tab, carregarProdutos]);
 
   // altera na mão a data de entrega do pedido (item 4). Atualiza a linha localmente sem reload cheio.
   // Entrega antes da data do pedido acontece de verdade (pedido lançado no VMarket depois da mercadoria
@@ -225,6 +252,19 @@ export default function ComprasPage() {
           </div>
         </div>
 
+        <div className="flex flex-wrap gap-1.5">
+          {PERIODOS.map((p) => {
+            const [i, f] = p.range();
+            const ativo = de === i && ate === f;
+            return (
+              <button key={p.id} onClick={() => { setDe(i); setAte(f); }}
+                className={`text-xs rounded-full px-2.5 py-1 border transition ${ativo ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                {p.txt}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Resumo */}
         {resumo && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
@@ -238,9 +278,16 @@ export default function ComprasPage() {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="pedidos"><ShoppingCart className="w-4 h-4 mr-1.5" />Pedidos ({pedidos.length})</TabsTrigger>
+            <TabsTrigger value="produtos"><Package className="w-4 h-4 mr-1.5" />Produtos{produtos ? ` (${produtos.length})` : ''}</TabsTrigger>
             <TabsTrigger value="cotacoes"><Tag className="w-4 h-4 mr-1.5" />Cotações ({cotacoes.length})</TabsTrigger>
             <TabsTrigger value="analises"><BarChart3 className="w-4 h-4 mr-1.5" />Análises</TabsTrigger>
           </TabsList>
+
+          {/* ===== PRODUTOS ===== */}
+          <TabsContent value="produtos">
+            {loadingProd ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+            : <ProdutosCompras produtos={produtos || []} />}
+          </TabsContent>
 
           {/* ===== ANÁLISES ===== */}
           <TabsContent value="analises" className="space-y-4">
@@ -319,7 +366,13 @@ export default function ComprasPage() {
                               <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{p.fornecedor}</td>
                               <td className="px-3 py-2"><span className={`text-[10px] rounded px-1.5 py-0.5 ${corStatus(p.id_pedido_status)}`}>{p.nm_status || '—'}</span></td>
                               <td className="px-3 py-2"><span className={`text-[10px] rounded px-1.5 py-0.5 ${o.cls}`}>{o.txt}</span></td>
-                              <td className="px-3 py-2 text-right tabular-nums text-gray-500">{p.qtd_itens}</td>
+                              <td className="px-3 py-2 text-right tabular-nums text-gray-500">
+                                {p.qtd_itens}
+                                {Number(p.qtd_itens_recusados) > 0 && (
+                                  <span title={`${p.qtd_itens_recusados} item(ns) recusado(s) no VMarket — não contam como compra`}
+                                    className="ml-1 text-[9px] rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-1 py-0.5">-{p.qtd_itens_recusados}</span>
+                                )}
+                              </td>
                               <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtBRL(p.valor_total)}</td>
                               <td className="px-3 py-2 text-center">{p.url_nfe && <a href={p.url_nfe} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-indigo-500 hover:text-indigo-600"><ExternalLink className="w-3.5 h-3.5" /></a>}</td>
                             </tr>
@@ -340,13 +393,19 @@ export default function ComprasPage() {
                                       </tr></thead>
                                       <tbody>
                                         {(itens[p.id_pedido] || []).map((it) => (
-                                          <tr key={it.id_pedido_item} className="border-t border-gray-100 dark:border-gray-800">
+                                          // item recusado/cancelado aparece riscado: ele NÃO entra como compra
+                                          // (nem no Desvio, nem no total do pedido), mas some da tela dá a impressão
+                                          // de que o pedido veio errado — então fica visível e explicado.
+                                          <tr key={it.id_pedido_item} className={`border-t border-gray-100 dark:border-gray-800 ${it.recusado ? 'opacity-60' : ''}`}>
                                             <td className="px-2 py-1 font-mono">{it.cod_interno || <span className="text-amber-500">—</span>}</td>
-                                            <td className="px-2 py-1">{it.nome || it.nome_cotacao || '—'}{it.marca_cotacao ? <span className="text-gray-400"> · {it.marca_cotacao}</span> : ''}</td>
+                                            <td className={`px-2 py-1 ${it.recusado ? 'line-through' : ''}`}>{it.nome || it.nome_cotacao || '—'}{it.marca_cotacao ? <span className="text-gray-400"> · {it.marca_cotacao}</span> : ''}
+                                              {it.recusado && <span title={`${it.nome_status_item || 'Recusado'} — não entrou como compra`}
+                                                className="ml-1.5 no-underline text-[9px] rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-1 py-0.5">não veio</span>}
+                                            </td>
                                             <td className="px-2 py-1 text-gray-500">{it.nome_secao || '—'}</td>
-                                            <td className="px-2 py-1 text-right tabular-nums">{Number(it.quantidade || 0).toLocaleString('pt-BR')}{it.gramatura_cotacao ? ` ${it.gramatura_cotacao}` : ''}</td>
+                                            <td className={`px-2 py-1 text-right tabular-nums ${it.recusado ? 'line-through' : ''}`}>{Number(it.quantidade || 0).toLocaleString('pt-BR')}{it.gramatura_cotacao ? ` ${it.gramatura_cotacao}` : ''}</td>
                                             <td className="px-2 py-1 text-right tabular-nums">{fmtBRL(it.preco)}</td>
-                                            <td className="px-2 py-1 text-right tabular-nums font-medium">{fmtBRL(it.total)}</td>
+                                            <td className="px-2 py-1 text-right tabular-nums font-medium">{it.recusado ? <span className="text-gray-400">—</span> : fmtBRL(it.total)}</td>
                                           </tr>
                                         ))}
                                       </tbody>
@@ -417,6 +476,153 @@ function BadgeCurva({ curva, cadastrado, ficha }: { curva?: boolean; cadastrado?
         : cadastrado ? <span title="Insumo cadastrado, mas FORA da Curva A — avaliar incluir" className="text-[9px] text-amber-700 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 rounded px-1 py-0.5">fora curva A</span>
           : <span title="Não está cadastrado como insumo Zykor" className="text-[9px] text-gray-500 bg-gray-100 dark:bg-gray-800 rounded px-1 py-0.5">sem cadastro</span>}
     </span>
+  );
+}
+
+// Aba Produtos: "quanto de X a gente comprou no período?" — qtd e R$ de CADA produto, lista inteira
+// (o Top 50 das Análises escondia item pequeno: o Old Parr do Ordinário são R$ 237 no ano).
+// A busca é local porque a lista toda já veio: digitar filtra na hora, sem esperar o servidor.
+function ProdutosCompras({ produtos }: { produtos: any[] }) {
+  const [q, setQ] = useState('');
+  const [ordem, setOrdem] = useState<'valor' | 'qtd' | 'az' | 'recente'>('valor');
+  const [soCurvaA, setSoCurvaA] = useState(false);
+  const [aberto, setAberto] = useState<string | null>(null);
+
+  const view = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return produtos.filter((p) => {
+      if (soCurvaA && !p.curva_a) return false;
+      if (!t) return true;
+      // busca pelo nome, pelo código do cadastro e pela seção do VMarket
+      return `${p.nome || ''} ${p.cod || ''} ${p.secao || ''}`.toLowerCase().includes(t);
+    }).sort((a, b) => {
+      if (ordem === 'az') return cmpNome(a.nome, b.nome);
+      if (ordem === 'qtd') return (Number(b.qtd) || 0) - (Number(a.qtd) || 0);
+      if (ordem === 'recente') return String(b.ultima_compra || '').localeCompare(String(a.ultima_compra || ''));
+      return (Number(b.valor) || 0) - (Number(a.valor) || 0);
+    });
+  }, [produtos, q, ordem, soCurvaA]);
+
+  // total do que está filtrado. Só soma a quantidade quando todos os itens estão na MESMA unidade —
+  // somar 40 kg com 300 garrafas daria um número que não quer dizer nada.
+  const tot = useMemo(() => {
+    const valor = view.reduce((s, p) => s + (Number(p.valor) || 0), 0);
+    const qtd = view.reduce((s, p) => s + (Number(p.qtd) || 0), 0);
+    const uns = new Set(view.map((p) => p.unidade || '?'));
+    return { valor, qtd, unidade: uns.size === 1 ? [...uns][0] : null };
+  }, [view]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off"
+            placeholder="Buscar produto (ex.: Smirnoff, Old Parr, i0025)…" className="pl-9" />
+        </div>
+        <button onClick={() => setSoCurvaA((v) => !v)} title="Mostrar só insumos da Curva A"
+          className={`shrink-0 text-xs rounded-full border px-3 py-1 font-medium ${soCurvaA ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>Só Curva A</button>
+        <OrdemFiltro value={ordem} onChange={setOrdem} cor="indigo" className="self-center"
+          options={[['valor', 'Maior valor'], ['qtd', 'Maior quantidade'], ['az', 'Nome A–Z'], ['recente', 'Compra mais recente']] as const} />
+      </div>
+
+      <Card><CardContent className="py-2.5 px-4 flex flex-wrap items-center gap-x-5 gap-y-1">
+        <span className="text-sm"><span className="font-semibold">{view.length}</span> <span className="text-gray-500">produto(s)</span></span>
+        <span className="text-sm"><span className="font-semibold text-blue-600 dark:text-blue-400">{fmtBRL(tot.valor)}</span> <span className="text-gray-500">comprado</span></span>
+        {tot.unidade !== null && view.length > 0 && (
+          <span className="text-sm"><span className="font-semibold">{fmtNum(tot.qtd)}</span> <span className="text-gray-500">{tot.unidade || 'un. de compra'}</span></span>
+        )}
+        {q && <span className="text-xs text-gray-400">filtrando por &ldquo;{q}&rdquo;</span>}
+      </CardContent></Card>
+
+      <Card className="card-dark overflow-hidden"><CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase">
+              <tr>
+                <th className="w-8 px-3 py-2"></th>
+                <th className="text-left font-medium px-3 py-2">Produto</th>
+                <th className="text-left font-medium px-3 py-2">Código</th>
+                <th className="text-right font-medium px-3 py-2" title="Quantidade na unidade de compra do VMarket">Qtd</th>
+                <th className="text-right font-medium px-3 py-2" title="Valor total ÷ quantidade total no período">Preço médio</th>
+                <th className="text-right font-medium px-3 py-2">Compras</th>
+                <th className="text-right font-medium px-3 py-2">Última</th>
+                <th className="text-right font-medium px-3 py-2">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {view.length === 0 ? (
+                <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400">
+                  {produtos.length === 0 ? 'Sem compras no período.' : 'Nenhum produto com esse filtro.'}
+                </td></tr>
+              ) : view.map((p) => {
+                const chave = p.cod || p.nome;
+                return (
+                  <Fragment key={chave}>
+                    <tr onClick={() => setAberto((x) => x === chave ? null : chave)} className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer">
+                      <td className="px-3 py-2"><ChevronDown className={`w-4 h-4 transition-transform ${aberto === chave ? 'rotate-180' : ''}`} /></td>
+                      <td className="px-3 py-2">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="text-gray-900 dark:text-gray-100">{p.nome}</span>
+                          <BadgeCurva curva={p.curva_a} cadastrado={p.cadastrado} ficha={p.tem_ficha} />
+                        </span>
+                        {p.secao && <span className="block text-[11px] text-gray-400">{p.secao}</span>}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs text-gray-500">{p.cod || <span className="text-amber-500">—</span>}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmtNum(p.qtd)}<span className="text-gray-400 text-xs"> {p.unidade || p.unidade_cadastro || ''}</span></td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-600 dark:text-gray-300">{p.preco_medio != null ? fmtBRL(p.preco_medio) : '—'}
+                        {p.preco_min != null && p.preco_max != null && Number(p.preco_max) > Number(p.preco_min) && (
+                          <span className="block text-[11px] text-gray-400">{fmtBRL(p.preco_min)}–{fmtBRL(p.preco_max)}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-500">{p.n_compras}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-500 whitespace-nowrap">{fmtData(p.ultima_compra)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtBRL(p.valor)}</td>
+                    </tr>
+                    {aberto === chave && (
+                      <tr className="bg-gray-50/60 dark:bg-gray-800/30">
+                        <td colSpan={8} className="px-3 py-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <div className="text-xs font-semibold text-gray-500 mb-1.5">Mês a mês</div>
+                              <table className="w-full text-xs">
+                                <tbody>
+                                  {(p.meses || []).map((m: any) => (
+                                    <tr key={m.mes} className="border-t border-gray-100 dark:border-gray-800">
+                                      <td className="py-1">{fmtMes(m.mes)}</td>
+                                      <td className="py-1 text-right tabular-nums text-gray-500">{fmtNum(m.qtd)} {p.unidade || ''}</td>
+                                      <td className="py-1 text-right tabular-nums font-medium">{fmtBRL(m.valor)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <div>
+                              <div className="text-xs font-semibold text-gray-500 mb-1.5">Por fornecedor</div>
+                              <table className="w-full text-xs">
+                                <tbody>
+                                  {(p.fornecedores || []).map((f: any) => (
+                                    <tr key={f.fornecedor} className="border-t border-gray-100 dark:border-gray-800">
+                                      <td className="py-1 truncate max-w-[220px]">{f.fornecedor}</td>
+                                      <td className="py-1 text-right tabular-nums text-gray-500">{fmtNum(f.qtd)} {p.unidade || ''}</td>
+                                      <td className="py-1 text-right tabular-nums font-medium">{fmtBRL(f.valor)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </CardContent></Card>
+    </div>
   );
 }
 

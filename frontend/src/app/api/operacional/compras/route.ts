@@ -23,12 +23,15 @@ export async function GET(request: NextRequest) {
   const gold = (supabase as any).schema('gold');
 
   // --- itens de um pedido ---
+  // lê da view _todos (inclui recusado/cancelado) porque na tela o item recusado precisa APARECER
+  // riscado — o que não pode é entrar na conta. Quem calcula usa gold.vmarket_pedido_item, que já
+  // vem sem eles.
   const idPedido = sp.get('id_pedido');
   if (idPedido) {
-    const { data, error } = await gold.from('vmarket_pedido_item')
-      .select('id_pedido_item,id_produto_sisfood_cotacao,nome_cotacao,marca_cotacao,gramatura_cotacao,preco,quantidade,total,cod_interno,nome_secao')
+    const { data, error } = await gold.from('vmarket_pedido_item_todos')
+      .select('id_pedido_item,id_produto_sisfood_cotacao,nome_cotacao,marca_cotacao,gramatura_cotacao,preco,quantidade,total,cod_interno,nome_secao,nome_status_item,recusado')
       .eq('bar_id', barId).eq('id_pedido', Number(idPedido))
-      .order('total', { ascending: false });
+      .order('recusado', { ascending: true }).order('total', { ascending: false });
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
     // o VMarket manda nome_cotacao em branco em ~70% dos itens — resolve pelo código do cadastro (cod_interno → insumo)
@@ -45,6 +48,16 @@ export async function GET(request: NextRequest) {
       nome: (i.nome_cotacao && String(i.nome_cotacao).trim()) || nomeMap.get((i.cod_interno || '').toUpperCase()) || i.cod_interno || '—',
     }));
     return NextResponse.json({ success: true, itens: out });
+  }
+
+  // --- compras agregadas por PRODUTO no período (aba Produtos) ---
+  // lista completa, sem corte de top N: é o que permite achar item pequeno (ex.: Old Parr) na busca.
+  if (sp.get('produtos')) {
+    const de = sp.get('de'); const ate = sp.get('ate');
+    if (!de || !ate) return NextResponse.json({ success: false, error: 'de e ate obrigatórios' }, { status: 400 });
+    const { data, error } = await gold.rpc('fn_compras_produtos', { p_bar: barId, p_ini: de, p_fim: ate });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, produtos: data ?? [] });
   }
 
   // --- análises do período (insights de compras) ---
@@ -64,7 +77,7 @@ export async function GET(request: NextRequest) {
   // paginado (selectAll): bar movimentado pode passar de 1000 pedidos/cotações no período → truncava
   const [pedidosAll, cotacoes] = await Promise.all([
     selectAll<any>((from, to) => gold.from('vmarket_pedido')
-      .select('id_pedido,data,fornecedor,cnpj,origem,id_pedido_status,nm_status,dt_entrega,dt_entrega_vmarket,dt_entrega_manual,dt_prazo_entrega,qtd_itens,valor_total,url_nfe,id_cotacao_sisfood')
+      .select('id_pedido,data,fornecedor,cnpj,origem,id_pedido_status,nm_status,dt_entrega,dt_entrega_vmarket,dt_entrega_manual,dt_prazo_entrega,qtd_itens,qtd_itens_recusados,valor_total,url_nfe,id_cotacao_sisfood')
       .eq('bar_id', barId).gte('data', de).lte('data', ate)
       .order('data', { ascending: false }).order('valor_total', { ascending: false }).range(from, to)),
     selectAll<any>((from, to) => gold.from('vmarket_cotacao')
