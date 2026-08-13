@@ -101,7 +101,9 @@ export default function FuncionariosPage() {
   const [q, setQ] = useState('');
   const [filtroArea, setFiltroArea] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
-  const [filtroAtivo, setFiltroAtivo] = useState('1');
+  // A lista desta tela é a dos INATIVOS (os ativos vivem no Organograma), então o filtro é fixo.
+  // Continua sendo estado porque o endpoint da lista é montado a partir dele.
+  const [filtroAtivo] = useState('0');
 
   const [formAberto, setFormAberto] = useState(false);
   const [editando, setEditando] = useState<Funcionario | null>(null);
@@ -191,8 +193,10 @@ export default function FuncionariosPage() {
         <Tabs defaultValue="visao" className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="visao"><LayoutDashboard className="w-4 h-4 mr-1.5" />Visão geral</TabsTrigger>
-            <TabsTrigger value="equipe"><Users className="w-4 h-4 mr-1.5" />Equipe</TabsTrigger>
+            {/* A "Equipe" virou o Organograma: quem está na casa aparece na cadeira que ocupa, e
+                clicar abre o dossiê. Sobrou uma aba só para os INATIVOS, que a árvore não mostra. */}
             <TabsTrigger value="organograma"><Network className="w-4 h-4 mr-1.5" />Organograma</TabsTrigger>
+            <TabsTrigger value="inativos"><Users className="w-4 h-4 mr-1.5" />Inativos</TabsTrigger>
             <TabsTrigger value="desligados"><UserMinus className="w-4 h-4 mr-1.5" />Histórico</TabsTrigger>
             <TabsTrigger value="ocorrencias"><ScrollText className="w-4 h-4 mr-1.5" />Ocorrências</TabsTrigger>
             <TabsTrigger value="indicadores"><TrendingUp className="w-4 h-4 mr-1.5" />Indicadores</TabsTrigger>
@@ -206,7 +210,12 @@ export default function FuncionariosPage() {
             <IndicadoresRH />
           </TabsContent>
 
-          <TabsContent value="equipe">
+          <TabsContent value="inativos">
+            <p className="text-xs text-muted-foreground mb-2">
+              Quem não está mais na operação. Quem está aparece no <strong>Organograma</strong>, na cadeira
+              que ocupa. Inativo <em>sem</em> desligamento registrado costuma ser cadastro duplicado do
+              tempo antigo — vale limpar, senão ele volta a aparecer em contagem e importação.
+            </p>
             <div className="flex items-center gap-2 mb-3 flex-wrap">
               <div className="relative flex-1 min-w-[180px]">
                 <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-muted-foreground" />
@@ -219,9 +228,6 @@ export default function FuncionariosPage() {
               <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
                 <option value="">Todos os tipos</option>
                 <option value="CLT">CLT</option><option value="PJ">PJ</option><option value="Freela">Freela</option>
-              </select>
-              <select value={filtroAtivo} onChange={(e) => setFiltroAtivo(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
-                <option value="1">Ativos</option><option value="0">Inativos</option><option value="">Todos</option>
               </select>
               <div className="flex items-center rounded-md border border-input overflow-hidden h-9">
                 <button onClick={() => setVista('cards')} className={`px-2 h-full ${vista === 'cards' ? 'bg-indigo-600 text-white' : 'hover:bg-muted'}`} title="Cards"><LayoutGrid className="w-4 h-4" /></button>
