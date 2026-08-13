@@ -236,6 +236,52 @@ export async function getMeses(
     reservasManuaisMes.set(key, agg);
   });
 
+  // [O] Orgânico do MÊS-CALENDÁRIO (01 a 31), sobrescrevendo a soma de semanas do gold.
+  //
+  // Rodrigo, 13/08/2026: "mas julho não deveria só pegar os dias em julho?". Deveria. A
+  // marketing_semanal só tem granularidade de SEMANA, então o ETL montava o mês com semanas
+  // inteiras (cada uma no mês da sua quinta-feira, pra não contar duas vezes) e julho virava
+  // 29/06 a 02/08 — 35 dias. O resto da tela mensal é mês-calendário (gold.desempenho de julho é
+  // 01/07 a 31/07), então o alcance saía de um período e o faturamento de outro. No bar 3, os 3
+  // posts de 29–30/06 e 01–02/08 respondiam por 22.153 de alcance que não eram de julho.
+  //
+  // Aqui o cálculo vai direto ao post, pela DATA — a mesma fonte e a mesma conta da aba
+  // Comunicação, que passa a bater exatamente.
+  //
+  // Só de 08/2026 em diante: antes disso os números eram digitados à mão do Reportei (o mês de
+  // julho é híbrido — semanas 27–29 manuais, 30–31 automáticas), e recalcular apagaria histórico
+  // validado. Mês sem post no período também não sobrescreve nada: cai no valor do gold, que é
+  // onde vive o manual do bar sem Instagram.
+  const ORGANICO_MES_CALENDARIO_DESDE = '2026-08';
+  type OrgMes = { posts: number; alcance: number; interacao: number; shares: number };
+  const organicoMes = new Map<string, OrgMes>();
+  const periodosAuto = mesesGold
+    .map((m: any) => m.periodo as string)
+    .filter((p: string) => p >= ORGANICO_MES_CALENDARIO_DESDE);
+
+  if (periodosAuto.length) {
+    const de = `${periodosAuto[0]}-01`;
+    const ultimo = periodosAuto[periodosAuto.length - 1];
+    const [ua, um] = ultimo.split('-').map(Number);
+    const ate = new Date(Date.UTC(ua, um, 0)).toISOString().slice(0, 10); // último dia do mês
+
+    // A agregação é no banco (gold.fn_organico_mes) porque são ~61 snapshots por mídia — 15.924
+    // linhas para 260 mídias no bar 3. Puxar isso pelo PostgREST bateria no teto de 1000 linhas e
+    // devolveria alcance a menos, calado.
+    const { data: orgRows } = await (supabase as any)
+      .schema('gold')
+      .rpc('fn_organico_mes', { p_bar: barId, p_ini: de, p_fim: ate });
+
+    for (const r of (orgRows || []) as any[]) {
+      organicoMes.set(String(r.mes), {
+        posts: Number(r.posts) || 0,
+        alcance: Number(r.alcance) || 0,
+        interacao: Number(r.interacao) || 0,
+        shares: Number(r.shares) || 0,
+      });
+    }
+  }
+
   // Mix de Vendas — % (por VALOR) e QUANTIDADES por mes (BEBIDA/DRINK/COMIDA).
   // get_mix_por_mes combina ContaHub (dias sem Yuzer) + Yuzer (dias de evento) —
   // meses sem Yuzer ficam idênticos ao gold. Sobrescreve o perc_* do gold.
@@ -283,8 +329,18 @@ export async function getMeses(
     const manual = manuaisMap.get(g.periodo) || {};
 
     const mixQtd = mixPorMes.get(g.periodo);
+    // [O] do mês-calendário quando existe (ver bloco acima); senão fica o do gold (soma de semanas
+    // até 07/2026, e o manual do bar sem Instagram).
+    const org = organicoMes.get(g.periodo);
     return {
       ...g,
+      ...(org ? {
+        o_num_posts: org.posts,
+        o_alcance: org.alcance,
+        o_interacao: org.interacao,
+        o_compartilhamento: org.shares,
+        o_engajamento: org.alcance > 0 ? Number(((org.interacao / org.alcance) * 100).toFixed(2)) : 0,
+      } : {}),
       numero_semana: parseInt(g.periodo.split('-')[1]),
       atualizado_em: manual.atualizado_em ?? g.calculado_em,
       atualizado_por_nome: manual.id ? 'Manual' : 'Sistema ETL',
