@@ -71,6 +71,9 @@ type Resumo = {
   escopo: 'semana' | 'mes';
   custo_freelas: number; cmo_fixo: number; publico_proj: number; fat_proj: number;
   cmo_pct: number | null;
+  /** de onde saiu a folha: já paga, projetada pela média, ou digitada no parâmetro */
+  cmo_fixo_origem: 'realizado' | 'projecao' | 'manual' | 'sem_dado';
+  cmo_fixo_projecao_mensal: number | null;
   por_funcao: Array<{ label: string; qtde: number; custo: number }>;
   semanas: Array<{ inicio: string; fim: string; dias_no_periodo: number; faturamento: number; custo: number; cmo_pct: number | null; parcial: boolean }>;
   limite_cmo_pct: number;
@@ -80,6 +83,30 @@ const fmtBRL = (v: number | null) =>
   v == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v);
 const fmtNum = (v: number | null, casas = 0) =>
   v == null ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: casas });
+
+/**
+ * De onde saiu a folha do mês. Antes era uma constante digitada (R$ 172.000, a folha de
+ * janeiro) e o mês "sempre ficava errado" — hoje vem do financeiro, e o rótulo diz se o
+ * número já foi pago ou é projeção.
+ */
+const ORIGEM_FOLHA: Record<string, { rotulo: string; cor: string; ajuda: string }> = {
+  realizado: {
+    rotulo: 'realizado', cor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+    ajuda: 'Folha que já foi lançada no financeiro neste mês (sem pró-labore), rateada pelos dias do período.',
+  },
+  projecao: {
+    rotulo: 'projeção', cor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    ajuda: 'O mês ainda não fechou: usa a média da folha dos 3 últimos meses fechados, rateada pelos dias do período.',
+  },
+  manual: {
+    rotulo: 'digitado', cor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    ajuda: 'Alguém digitou a folha nos Parâmetros — o financeiro está sendo ignorado. Limpe o campo para voltar ao automático.',
+  },
+  sem_dado: {
+    rotulo: 'sem folha', cor: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+    ajuda: 'Não há folha lançada no financeiro para calcular. O CMO abaixo está incompleto.',
+  },
+};
 
 const DIA_CURTO = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
@@ -187,7 +214,13 @@ function CelulaTexto({ valor, multilinha, disabled, expandido, clamp = '3', onSa
   );
 }
 
-/** As 4 sub-colunas de uma função num dia: TOTAL | FIXOS | FREELAS | Custo. */
+/**
+ * As 3 sub-colunas de uma função num dia: Precisa | Escala | Freelas.
+ *
+ * O custo POR FUNÇÃO saiu em 13/08/2026 (pedido do Rodrigo: "esse custo individual aqui pode
+ * ocultar"). Ele era derivável na cabeça (freelas × diária) e ocupava 1/4 da largura de cada
+ * dia sem responder nada que o "Custo Proj do Dia" e o resumo já não respondam.
+ */
 function CelulasFuncao({ dia, funcao, linha, soLeitura, onSalvar }: {
   dia: Dia; funcao: Funcao; linha: LinhaFuncao | undefined; soLeitura: boolean;
   onSalvar: (d: Dia, funcaoId: string, campo: 'total_manual' | 'fixos_manual', v: number | null) => void;
@@ -205,13 +238,11 @@ function CelulasFuncao({ dia, funcao, linha, soLeitura, onSalvar }: {
           titulo={`Da Escala: ${linha?.fixos_escala ?? 0}. Editar aqui sobrepõe só neste dia.`}
           onSalvar={(v) => onSalvar(dia, funcao.id, 'fixos_manual', v)} />
       </td>
-      {/* Freelas e custo sao o que sai do bolso — ganham destaque. Zero fica apagado pra
-          a vista bater direto nos dias que exigem contratacao. */}
-      <td className={`px-0.5 py-0.5 text-center tabular-nums ${linha?.freelas ? 'font-semibold text-amber-700 dark:text-amber-400' : 'text-gray-300'}`}>
+      {/* Freelas e o que sai do bolso — ganha destaque. Zero fica apagado pra a vista bater
+          direto nos dias que exigem contratacao. O custo em R$ vive no total do dia. */}
+      <td className={`px-0.5 py-0.5 text-center tabular-nums ${linha?.freelas ? 'font-semibold text-amber-700 dark:text-amber-400' : 'text-gray-300'}`}
+        title={linha?.custo ? `Custo projetado: ${fmtBRL(linha.custo)}` : undefined}>
         {linha?.freelas || '—'}
-      </td>
-      <td className={`px-0.5 py-0.5 text-center tabular-nums ${linha?.custo ? '' : 'text-gray-300'}`}>
-        {linha?.custo ? fmtBRL(linha.custo) : '—'}
       </td>
     </Fragment>
   );
@@ -233,7 +264,6 @@ function LinhaHeadcount({ rotulo, dias, funcoes, linhaDe }: {
             <td className="px-0.5 py-1 text-center tabular-nums border-l border-[hsl(var(--border))]">{soma('total')}</td>
             <td className="px-0.5 py-1 text-center tabular-nums">{soma('fixos')}</td>
             <td className="px-0.5 py-1 text-center tabular-nums">{soma('freelas')}</td>
-            <td className="px-0.5 py-1" />
           </Fragment>
         );
       })}
@@ -448,7 +478,7 @@ export default function PlanoOperacionalPage() {
               <col style={{ width: '132px' }} />
               {dias.map(d => (
                 <Fragment key={d.id}>
-                  <col /><col /><col /><col />
+                  <col /><col /><col />
                 </Fragment>
               ))}
             </colgroup>
@@ -456,7 +486,7 @@ export default function PlanoOperacionalPage() {
               <tr className="border-b border-[hsl(var(--border))]">
                 <th className="text-left px-2 py-2 font-medium sticky left-0 bg-[hsl(var(--card))] z-20">&nbsp;</th>
                 {dias.map(d => (
-                  <th key={d.id} colSpan={4}
+                  <th key={d.id} colSpan={3}
                     className="px-1 py-1.5 font-medium text-center whitespace-nowrap border-l border-[hsl(var(--border))] text-[11px]">
                     {/* Clicar abre o painel do dia — é lá que fica o "dia atípico"
                         (festival/feriado com ticket e giro próprios), que não cabe na grade. */}
@@ -479,7 +509,7 @@ export default function PlanoOperacionalPage() {
                 <tr key={lt.campo} className="border-b border-[hsl(var(--border))] align-top">
                   <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-muted-foreground text-[10px]">{lt.label}</td>
                   {dias.map(d => (
-                    <td key={d.id} colSpan={4} className="p-0 border-l border-[hsl(var(--border))]">
+                    <td key={d.id} colSpan={3} className="p-0 border-l border-[hsl(var(--border))]">
                       <CelulaTexto
                         valor={(d[lt.campo] as string) || ''}
                         multilinha={!!lt.multilinha}
@@ -496,7 +526,7 @@ export default function PlanoOperacionalPage() {
               <tr className="border-b border-[hsl(var(--border))]">
                 <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-[11px]">Expect Faturamento</td>
                 {dias.map(d => (
-                  <td key={d.id} colSpan={4} className="px-1 py-1 border-l border-[hsl(var(--border))]">
+                  <td key={d.id} colSpan={3} className="px-1 py-1 border-l border-[hsl(var(--border))]">
                     {/* Verde = veio do M1 do comercial; amarelo = digitado por cima dele;
                         branco = digitado sem M1 por trás. Apagar a célula volta pro M1. */}
                     <CelulaNum valor={d.faturamento_previsto} disabled={soLeitura} moeda
@@ -511,7 +541,7 @@ export default function PlanoOperacionalPage() {
               <tr className="border-b border-[hsl(var(--border))]">
                 <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-[11px]">Expectativa de Público</td>
                 {dias.map(d => (
-                  <td key={d.id} colSpan={4} className="px-1 py-1 border-l border-[hsl(var(--border))]">
+                  <td key={d.id} colSpan={3} className="px-1 py-1 border-l border-[hsl(var(--border))]">
                     <CelulaNum valor={d.publico} origem={d.publico_manual != null ? 'amarelo' : 'verde'} disabled={soLeitura}
                       titulo="Faturamento ÷ ticket médio do dia da semana"
                       onSalvar={(v) => salvarDia(d, d.data, d.turno, 'publico_manual', v)} />
@@ -535,7 +565,7 @@ export default function PlanoOperacionalPage() {
                   const publicoDoDia = publicoPorData.get(d.data) || 0;
                   const pct = d.reservas_pessoas != null && publicoDoDia ? (d.reservas_pessoas / publicoDoDia) * 100 : null;
                   return (
-                    <td key={d.id} colSpan={4}
+                    <td key={d.id} colSpan={3}
                       className="px-1 py-1 text-center text-[11px] tabular-nums border-l border-[hsl(var(--border))]"
                       title={d.reservas != null
                         ? `${d.reservas} reservas no GetIn${pct != null ? ` — ${pct.toFixed(0)}% do público esperado do dia` : ''}${d.turno !== 'unico' ? '. O GetIn não separa dia e noite: é a reserva do sábado inteiro, comparada com o público dos dois turnos.' : ''}`
@@ -558,7 +588,7 @@ export default function PlanoOperacionalPage() {
               <tr className="border-b border-[hsl(var(--border))]">
                 <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-[11px]">Pico/Lugares</td>
                 {dias.map(d => (
-                  <td key={d.id} colSpan={4} className="px-1 py-1 border-l border-[hsl(var(--border))]">
+                  <td key={d.id} colSpan={3} className="px-1 py-1 border-l border-[hsl(var(--border))]">
                     <CelulaNum valor={d.pico} origem={d.pico_manual != null ? 'amarelo' : 'verde'} disabled={soLeitura}
                       titulo="Público ÷ giro de lotação"
                       onSalvar={(v) => salvarDia(d, d.data, d.turno, 'pico_manual', v)} />
@@ -571,7 +601,7 @@ export default function PlanoOperacionalPage() {
                 <tr key={lt.campo} className="border-b-2 border-[hsl(var(--border))] align-top">
                   <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-muted-foreground text-[10px]">{lt.label}</td>
                   {dias.map(d => (
-                    <td key={d.id} colSpan={4} className="p-0 border-l border-[hsl(var(--border))]">
+                    <td key={d.id} colSpan={3} className="p-0 border-l border-[hsl(var(--border))]">
                       {/* Plano de chão sem corte: é a instrução de montagem do salão, lida
                           inteira antes do serviço. Cortar em 3 linhas escondia justamente
                           o que a operação precisa. */}
@@ -592,8 +622,7 @@ export default function PlanoOperacionalPage() {
                   <Fragment key={d.id}>
                     <td className="px-1 py-1 text-center border-l border-[hsl(var(--border))]" title="Quantos a operação precisa: pico ÷ nível de serviço">Precisa</td>
                     <td className="px-1 py-1 text-center" title="Quantos já estão escalados (vem da Escala)">Escala</td>
-                    <td className="px-1 py-1 text-center font-semibold" title="Quanto falta contratar — é o que custa">Freelas</td>
-                    <td className="px-1 py-1 text-center">Custo</td>
+                    <td className="px-1 py-1 text-center font-semibold" title="Quanto falta contratar — é o que custa. O valor em R$ está no Custo Proj do Dia e no resumo.">Freelas</td>
                   </Fragment>
                 ))}
               </tr>
@@ -622,7 +651,7 @@ export default function PlanoOperacionalPage() {
               <tr className="border-t-2 border-[hsl(var(--border))] font-semibold bg-muted/40">
                 <td className="px-2 py-1.5 sticky left-0 bg-muted/40 z-10 text-[11px]">Custo Proj do Dia</td>
                 {dias.map(d => (
-                  <td key={d.id} colSpan={4} className="px-1 py-1.5 text-center tabular-nums border-l border-[hsl(var(--border))] text-[11px]">
+                  <td key={d.id} colSpan={3} className="px-1 py-1.5 text-center tabular-nums border-l border-[hsl(var(--border))] text-[11px]">
                     {fmtBRL(d.custo_dia)}
                   </td>
                 ))}
@@ -650,10 +679,13 @@ export default function PlanoOperacionalPage() {
                     <td className="py-1.5 text-right tabular-nums font-medium">{fmtBRL(resumo.custo_freelas)}</td>
                   </tr>
                   <tr className="border-b border-[hsl(var(--border))]">
-                    <td className="py-1.5 text-muted-foreground"
-                      title="Folha CLT do mês rateada pelos dias do período. É a mesma régua na semana e no mês.">
+                    <td className="py-1.5 text-muted-foreground" title={ORIGEM_FOLHA[resumo.cmo_fixo_origem]?.ajuda}>
                       CMO Fixo
                       <span className="ml-1 text-[10px]">rateado</span>
+                      {/* Quem olha um CMO precisa saber se a folha já foi paga ou é projeção */}
+                      <span className={`ml-1.5 text-[10px] rounded px-1 py-0.5 ${ORIGEM_FOLHA[resumo.cmo_fixo_origem]?.cor}`}>
+                        {ORIGEM_FOLHA[resumo.cmo_fixo_origem]?.rotulo}
+                      </span>
                     </td>
                     <td className="py-1.5 text-right tabular-nums font-medium">{fmtBRL(resumo.cmo_fixo)}</td>
                   </tr>

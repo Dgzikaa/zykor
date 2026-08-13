@@ -109,13 +109,13 @@ export function ParametrosDialog({ open, onOpenChange, soLeitura, onSalvo }: {
                 <p className="text-[11px] text-muted-foreground mt-1">Pico = público ÷ giro.</p>
               </div>
               <div>
-                <Label className="text-xs">Folha CLT do mês (CMO Fixo)</Label>
-                <Input value={folha} disabled={soLeitura} inputMode="decimal"
+                <Label className="text-xs">Folha do mês — deixe vazio</Label>
+                <Input value={folha} disabled={soLeitura} inputMode="decimal" placeholder="automático"
                   onChange={(e) => setFolha(e.target.value)} className="h-8 text-sm" />
-                {/* Um valor só. Existia também um "fixo semanal" digitado à parte que media
-                    outra régua e fazia toda semana estourar o teto enquanto o mês passava. */}
+                {/* Era digitado e ficava velho: guardava 172.000 (a folha de janeiro) enquanto a
+                    real já estava em 199.000 em julho. Agora vem do financeiro. */}
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Semana e mês saem daqui, rateado por dia.
+                  Vazio = vem do financeiro (sem pró-labore). Preencher ignora o financeiro.
                 </p>
               </div>
               <div>

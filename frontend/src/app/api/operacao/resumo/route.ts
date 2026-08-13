@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
-import { cmoFixoDoPeriodo, interseccao } from '@/lib/operacao/cmo';
+import { cmoFixoDoPeriodo, interseccao, montarFolhaDoMes } from '@/lib/operacao/cmo';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +23,13 @@ const LINHAS_RESUMO: Array<{ label: string; codigos: string[] }> = [
   { label: 'cozinha', codigos: ['cozinha'] },
   { label: 'seg/bri', codigos: ['seguranca', 'brigadista'] },
 ];
+
+/** Primeiro dia do mês N meses antes — janela de histórico da folha. */
+const mesesAtras = (dataISO: string, n: number) => {
+  const [a, m] = dataISO.split('-').map(Number);
+  const d = new Date(Date.UTC(a, m - 1 - n, 1));
+  return d.toISOString().slice(0, 10);
+};
 
 const segundaDe = (dataISO: string) => {
   const [a, m, d] = dataISO.split('-').map(Number);
@@ -62,7 +69,7 @@ export async function GET(request: NextRequest) {
   }
 
   const c = sb();
-  const [{ data: dias }, { data: linhas }, { data: param }] = await Promise.all([
+  const [{ data: dias }, { data: linhas }, { data: param }, { data: folhaMeses }] = await Promise.all([
     ops(c).from('operacao_dia').select('id, data, turno, faturamento_previsto, publico_calculado, publico_manual')
       .eq('bar_id', user.bar_id).gte('data', de).lte('data', ate),
     ops(c).from('v_operacao_dia_funcao').select('operacao_dia_id, data, funcao_codigo, freelas, custo, entra_no_custo')
@@ -71,6 +78,13 @@ export async function GET(request: NextRequest) {
       .eq('bar_id', user.bar_id).lte('vigencia_inicio', ate)
       .or(`vigencia_fim.is.null,vigencia_fim.gte.${ate}`)
       .order('vigencia_inicio', { ascending: false }).limit(1).maybeSingle(),
+    // A folha vem do FINANCEIRO, não digitada: o Cadu pediu ("o ideal era conseguir puxar de
+    // algum relatório financeiro") e o motivo é que ela muda — no bar 3 saiu de 170.721 em
+    // janeiro para 198.990 em julho, enquanto o parâmetro guardava 172.000 de janeiro.
+    (c as any).schema('gold').from('cmo_produtividade_mensal')
+      .select('mes, cmo_fixo_operacao')
+      .eq('bar_id', user.bar_id).gte('mes', mesesAtras(de, 14)).lte('mes', ate)
+      .order('mes'),
   ]);
 
   const custoFreelas = (linhas || []).reduce((s: number, l: any) => s + Number(l.custo || 0), 0);
@@ -79,9 +93,18 @@ export async function GET(request: NextRequest) {
     (s: number, d: any) => s + Number(d.publico_manual ?? d.publico_calculado ?? 0), 0);
 
   // mesma conta para semana e mês: a folha do mês rateada pelos dias do período
-  const folhaMensal = param?.cmo_fixo_mensal == null ? null : Number(param.cmo_fixo_mensal);
-  const cmoFixo = cmoFixoDoPeriodo(de, ate, folhaMensal);
+  const { folha, origem, projecao } = montarFolhaDoMes({
+    meses: folhaMeses || [],
+    override: param?.cmo_fixo_mensal == null ? null : Number(param.cmo_fixo_mensal),
+    hojeISO: new Date().toISOString().slice(0, 10),
+  });
+  const cmoFixo = cmoFixoDoPeriodo(de, ate, folha);
   const cmoPct = fatProj > 0 ? ((custoFreelas + cmoFixo) / fatProj) * 100 : null;
+  // origem do período: se os meses divergem, vale a mais fraca (projeção sobre realizado)
+  const origensNoPeriodo = [...new Set([de.slice(0, 7), ate.slice(0, 7)])].map(origem);
+  const origemFolha = origensNoPeriodo.includes('sem_dado') ? 'sem_dado'
+    : origensNoPeriodo.includes('projecao') ? 'projecao'
+    : origensNoPeriodo.includes('manual') ? 'manual' : 'realizado';
 
   // por função, com seg/bri agrupado
   const porCodigo = new Map<string, { qtde: number; custo: number }>();
@@ -128,6 +151,8 @@ export async function GET(request: NextRequest) {
     periodo: { de, ate },
     custo_freelas: custoFreelas,
     cmo_fixo: cmoFixo,
+    cmo_fixo_origem: origemFolha,
+    cmo_fixo_projecao_mensal: projecao,
     publico_proj: Math.round(publicoProj),
     fat_proj: fatProj,
     cmo_pct: cmoPct,
@@ -138,7 +163,7 @@ export async function GET(request: NextRequest) {
     // aparecia com 60% — número que não quer dizer nada.
     semanas: [...semanas.values()].sort((a, b) => a.inicio.localeCompare(b.inicio)).map(s => {
       const corte = interseccao(s.inicio, s.fim, de, ate);
-      const fixoRateado = corte ? cmoFixoDoPeriodo(corte.de, corte.ate, folhaMensal) : 0;
+      const fixoRateado = corte ? cmoFixoDoPeriodo(corte.de, corte.ate, folha) : 0;
       return {
         ...s,
         cmo_fixo_rateado: fixoRateado,
