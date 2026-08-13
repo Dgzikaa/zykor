@@ -24,7 +24,19 @@ export async function GET(req: NextRequest) {
     });
     if (error) throw error;
 
-    return NextResponse.json({ categorias: data ?? [], ano });
+    // Bar com plano de contas próprio (Escritório Central) tem outros blocos — devolve a
+    // lista dele pro dropdown. Os demais seguem com a lista padrão fixa no componente
+    // (o vocabulário do bar não é idêntico ao da DRE: "Despesas de Ocupação" vs "… (Contas)").
+    const { data: proprio } = await (supabase as any).schema('financial').from('bar_plano_proprio')
+      .select('bar_id').eq('bar_id', barId).maybeSingle();
+    let blocos: string[] | null = null;
+    if (proprio) {
+      const { data: macros } = await (supabase as any).schema('financial')
+        .rpc('get_dre_macros', { p_bar_id: barId });
+      blocos = (macros ?? []).map((m: any) => m.categoria_macro).filter((m: string) => m !== 'IGNORAR');
+    }
+
+    return NextResponse.json({ categorias: data ?? [], ano, blocos });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message }, { status: 500 });
   }

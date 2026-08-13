@@ -53,6 +53,14 @@ export async function GET(req: NextRequest) {
       .eq('bar_id', barId).eq('ano', ano);
     if (error) throw error;
 
+    // Bar com plano de contas próprio (Escritório Central) não usa o esqueleto fixo da DRE
+    // de bar: os macros vêm do próprio plano e o frontend monta o layout pela ordem_macro.
+    // Os modos bar/eventos (dedução de couvert/ingresso) não fazem sentido nesse caso.
+    const { data: proprio } = await (supabase as any).schema('financial').from('bar_plano_proprio')
+      .select('bar_id').eq('bar_id', barId).maybeSingle();
+    const planoProprio = !!proprio;
+    if (planoProprio) return NextResponse.json({ linhas: data ?? [], ano, plano_proprio: true });
+
     // modo=eventos ("DRE Eventos"): o COMPLEMENTO exato da DRE Bar — mostra só a economia do show.
     //   Receita        = entrada (couvert ContaHub + ingresso Yuzer + Sympla), da v_dre_bar_deducao_entrada.
     //   Custo Variável = imposto (2% da entrada) + taxa maquininha (proporcional à queda de receita

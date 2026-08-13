@@ -37,18 +37,6 @@ const LINHAS_SINTETICAS_BAR = new Set([
   '(+) Taxa/Imposto s/ entrada',
 ]);
 
-const MACRO_ORDEM = [
-  'Receita',
-  'Custos Variáveis',
-  'Custo insumos (CMV)',
-  'Mão-de-Obra',
-  'Despesas Comerciais',
-  'Despesas Administrativas',
-  'Despesas Operacionais',
-  'Despesas de Ocupação (Contas)',
-  'Não Operacionais',
-];
-
 const MES_LABEL = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 const fmtBRL = (n: number) => {
@@ -112,9 +100,13 @@ export function DreTab({ barId, anoInicial, onDrill, modoBar }: Props) {
 
   // Só lê a DRE (view financial.dre_excel agrega o bronze direto).
   // Cache via SWR: chave = endpoint (bar_id + ano). Trocar bar/ano re-busca.
-  const { data: dreData, isLoading: loading, mutate } = useApiSWR<{ linhas?: any[] }>(
+  const { data: dreData, isLoading: loading, mutate } = useApiSWR<{ linhas?: any[]; plano_proprio?: boolean }>(
     barId ? `/api/estrategico/orcamentacao/dre-excel?bar_id=${barId}&ano=${ano}${modoBar ? '&modo=bar' : ''}` : null,
   );
+  // Bar com plano de contas próprio (ex.: Escritório Central): o esqueleto fixo da DRE de bar
+  // não se aplica — os macros e a ordem vêm do de-para do próprio bar (ver
+  // financial.bar_plano_proprio). Layout montado pela ordem_macro, sem Margem/CMV.
+  const planoProprio = !!dreData?.plano_proprio;
   const linhas = useMemo<DreRow[]>(
     () => (dreData?.linhas || []).map((l: any) => ({
       ...l,
@@ -187,10 +179,23 @@ export function DreTab({ barId, anoInicial, onDrill, modoBar }: Props) {
       subMap.get(l.categoria)!.set(mes, l);
     }
 
+    // Macros presentes e sua posição no plano (menor ordem_macro visto em cada macro).
+    // ordem_macro 1 = bloco de receita; >= 90 = não operacional (entra depois do resultado).
+    const ordemPorMacro = new Map<string, number>();
+    for (const l of linhas) {
+      const o = Number(l.ordem_macro) || 99;
+      const atual = ordemPorMacro.get(l.categoria_macro);
+      if (atual == null || o < atual) ordemPorMacro.set(l.categoria_macro, o);
+    }
+    const macrosPorOrdem = Array.from(ordemPorMacro.entries())
+      .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]));
+    const macrosReceita = macrosPorOrdem.filter(([, o]) => o === 1).map(([m]) => m);
+
     // Receita total por mês (pra calcular % das outras macros)
     const receitaTotalMes: number[] = Array(12).fill(0);
-    const subRec = macroMap.get('Receita');
-    if (subRec) {
+    for (const nomeRec of macrosReceita) {
+      const subRec = macroMap.get(nomeRec);
+      if (!subRec) continue;
       for (const [, mesMap] of subRec) {
         for (const [mes, row] of mesMap) {
           receitaTotalMes[mes] += row.valor_com_sinal;
@@ -349,6 +354,27 @@ export function DreTab({ barId, anoInicial, onDrill, modoBar }: Props) {
       }
     };
 
+    if (planoProprio) {
+      // Plano próprio: a estrutura sai do de-para do bar, não de uma lista fixa.
+      //   Receitas (ordem 1)                       = Total de Receitas
+      //   − despesas (ordem 2..89)                 = Resultado Operacional
+      //   ± não operacionais (ordem >= 90)         = Resultado Líquido
+      // Sem Margem de Contribuição: o Escritório não tem custo variável nem CMV.
+      const naoOperacionais = macrosPorOrdem.filter(([, o]) => o >= 90).map(([m]) => m);
+      const despesas = macrosPorOrdem.filter(([, o]) => o > 1 && o < 90).map(([m]) => m);
+
+      for (const m of macrosReceita) pushMacroComSubs(m, 'resultado', 'text-emerald-700');
+      pushSubtotal('Total de Receitas', macrosReceita, { parcial: true });
+
+      for (const m of despesas) pushMacroComSubs(m, 'resultado');
+      pushSubtotal('Resultado Operacional', [...macrosReceita, ...despesas], { parcial: true });
+
+      for (const m of naoOperacionais) pushMacroComSubs(m, 'resultado');
+      pushSubtotal('Resultado Líquido', [...macrosReceita, ...despesas, ...naoOperacionais], { forte: true });
+
+      return { rows: out, receitaTotalMes, receitaYTD };
+    }
+
     // Estrutura em blocos com resultados parciais:
     //   Receita − Variáveis − CMV                              = Margem de Contribuição
     //   Margem − MãoObra − Comercial − Admin − Operac − Ocup   = Lucro Operacional
@@ -400,7 +426,7 @@ export function DreTab({ barId, anoInicial, onDrill, modoBar }: Props) {
     }
 
     return { rows: out, receitaTotalMes, receitaYTD };
-  }, [linhas, ano]);
+  }, [linhas, ano, planoProprio]);
 
   // Aplica colapso: uma linha some se qualquer um dos seus ancestrais estiver fechado
   // (macro colapsado esconde subgrupos e subs; subgrupo colapsado esconde só suas subs).

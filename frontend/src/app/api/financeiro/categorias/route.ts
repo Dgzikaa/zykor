@@ -7,12 +7,14 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 // Macros da DRE oferecidas no dropdown (ordem = posição na DRE). 'IGNORAR' = não entra.
-const MACROS_DRE = [
-  'Receita', 'Custos Variáveis', 'Custo insumos (CMV)', 'Mão-de-Obra',
-  'Despesas Comerciais', 'Despesas Administrativas', 'Despesas Operacionais',
-  'Despesas de Ocupação (Contas)', 'Não Operacionais', 'Investimentos', 'Dividendos',
-  'IGNORAR',
-];
+// Vêm do de-para do próprio bar (financial.get_dre_macros): bar com plano de contas próprio
+// — Escritório Central — tem outro conjunto de macros, e oferecer os do bar aqui deixaria
+// mapear categoria pra macro que a DRE dele nem renderiza.
+async function macrosDoBar(supabase: any, barId: number): Promise<string[]> {
+  const { data } = await supabase.schema('financial').rpc('get_dre_macros', { p_bar_id: barId });
+  const macros = (data ?? []).map((m: any) => m.categoria_macro as string);
+  return macros.includes('IGNORAR') ? macros : [...macros, 'IGNORAR'];
+}
 
 /**
  * GET /api/financeiro/categorias?bar_id=3&ano=2026
@@ -30,7 +32,7 @@ export async function GET(req: NextRequest) {
       .rpc('get_categorias_arvore', { p_bar: barId, p_ano: ano });
     if (error) throw error;
 
-    return NextResponse.json({ categorias: data ?? [], macros: MACROS_DRE });
+    return NextResponse.json({ categorias: data ?? [], macros: await macrosDoBar(supabase, barId) });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message }, { status: 500 });
   }
@@ -52,9 +54,11 @@ export async function POST(req: NextRequest) {
     const nome = String(body.nome_grupo || '').trim();
     const macro = String(body.dre_macro || '').trim();
     if (!barId || !pai) return NextResponse.json({ error: 'bar_id e categoria_pai_id obrigatorios' }, { status: 400 });
-    if (macro && !MACROS_DRE.includes(macro)) return NextResponse.json({ error: 'dre_macro invalido' }, { status: 400 });
 
     const supabase = await getAdminClient();
+    if (macro && !(await macrosDoBar(supabase, barId)).includes(macro)) {
+      return NextResponse.json({ error: 'dre_macro invalido' }, { status: 400 });
+    }
     const { data, error } = await (supabase as any).schema('meta')
       .rpc('set_categoria_grupo', { p_bar: barId, p_pai: pai, p_nome: nome, p_macro: macro });
     if (error) throw error;

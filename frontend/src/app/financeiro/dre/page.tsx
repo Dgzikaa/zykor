@@ -1,4 +1,5 @@
 import { getBarIdServer } from '@/lib/auth-server';
+import { getAdminClient } from '@/lib/supabase-admin';
 import { BarSyncCheck } from '@/components/BarSyncCheck';
 import { Card } from '@/components/ui/card';
 import { BarChart3 } from 'lucide-react';
@@ -29,6 +30,12 @@ export default async function Page() {
 
   const anoAtual = new Date().getFullYear();
 
+  // Bar com plano de contas próprio (Escritório Central) esconde as abas DRE Bar / DRE
+  // Eventos — não tem couvert/ingresso nem artístico pra separar.
+  const supabase = await getAdminClient();
+  const { data: proprio } = await (supabase as any).schema('financial').from('bar_plano_proprio')
+    .select('bar_id').eq('bar_id', barId).maybeSingle();
+
   return (
     <div className="flex flex-col min-h-screen">
       <BarSyncCheck />
@@ -36,7 +43,7 @@ export default async function Page() {
           arrastar lateral neste wrapper aninhado e não repassa pro scroll horizontal da
           tabela (o <Card overflow-x-auto>). O vertical fica por conta de overflow-y-auto. */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
-        <DreComparativo barId={barId} anoAtual={anoAtual} />
+        <DreComparativo barId={barId} anoAtual={anoAtual} planoProprio={!!proprio} />
       </div>
     </div>
   );

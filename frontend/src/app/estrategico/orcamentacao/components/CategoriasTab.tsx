@@ -52,7 +52,7 @@ export function CategoriasTab({ barId }: { barId: number }) {
   const [edits, setEdits] = useState<Record<string, Edicao>>({});
 
   // Cache via SWR: chave = endpoint (bar_id + ano). Trocar bar/ano re-busca.
-  const { data, isLoading: loading, mutate } = useApiSWR<{ categorias?: CategoriaRow[] }>(
+  const { data, isLoading: loading, mutate } = useApiSWR<{ categorias?: CategoriaRow[]; blocos?: string[] | null }>(
     barId ? `/api/estrategico/orcamentacao/categorias?bar_id=${barId}&ano=${ano}` : null,
     {
       shouldRetryOnError: false,
@@ -61,6 +61,8 @@ export function CategoriasTab({ barId }: { barId: number }) {
     },
   );
   const rows = useMemo(() => (data?.categorias || []) as CategoriaRow[], [data]);
+  // Bar com plano de contas próprio (Escritório Central) manda os blocos dele pela API.
+  const blocos = useMemo<readonly string[]>(() => data?.blocos?.length ? data.blocos : BLOCOS, [data]);
 
   // Ao trocar bar/ano, descarta edições pendentes (equivalente ao setEdits({}) do
   // antigo carregar()). Salvar também reseta (ver abaixo).
@@ -198,7 +200,7 @@ export function CategoriasTab({ barId }: { barId: number }) {
                         className="h-8 min-w-[170px] rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm disabled:opacity-50"
                       >
                         <option value="">— não mapeada —</option>
-                        {BLOCOS.map(b => <option key={b} value={b}>{b}</option>)}
+                        {blocos.map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
                     </td>
                     <td className="px-3 py-2">

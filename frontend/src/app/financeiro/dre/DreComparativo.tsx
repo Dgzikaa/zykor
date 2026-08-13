@@ -17,7 +17,12 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
  * sub-linha abre o popup com os lançamentos daquela categoria/mês (drill-down).
  * A aba "Categorias" é a Central de Categorias (config das macros da DRE).
  */
-export function DreComparativo({ barId, anoAtual }: { barId: number; anoAtual: number }) {
+export function DreComparativo({ barId, anoAtual, planoProprio = false }: {
+  barId: number; anoAtual: number;
+  /** Bar com plano de contas próprio (Escritório Central): não tem couvert/ingresso nem
+   *  artístico, então as abas DRE Bar / DRE Eventos não fazem sentido e ficam ocultas. */
+  planoProprio?: boolean;
+}) {
   const { setPageTitle } = usePageTitle();
   useEffect(() => {
     setPageTitle('📊 DRE');
@@ -49,8 +54,8 @@ export function DreComparativo({ barId, anoAtual }: { barId: number; anoAtual: n
     <Tabs defaultValue="dre" className="space-y-2">
       <TabsList>
         <TabsTrigger value="dre">DRE</TabsTrigger>
-        <TabsTrigger value="dre-bar">DRE Bar</TabsTrigger>
-        <TabsTrigger value="dre-eventos">DRE Eventos</TabsTrigger>
+        {!planoProprio && <TabsTrigger value="dre-bar">DRE Bar</TabsTrigger>}
+        {!planoProprio && <TabsTrigger value="dre-eventos">DRE Eventos</TabsTrigger>}
         <TabsTrigger value="categorias">Categorias</TabsTrigger>
       </TabsList>
 
@@ -72,22 +77,26 @@ export function DreComparativo({ barId, anoAtual }: { barId: number; anoAtual: n
         />
       </TabsContent>
 
-      <TabsContent value="dre-bar" className="space-y-2 mt-2">
-        {/* Espelho da DRE isolando a operação de bar: deduz entrada (couvert+ingresso+Sympla)
-            da Receita e remove o grupo Atrações & Eventos. Drill-down da dedução é bloqueado
-            no DreTab (linha sintética, sem lançamentos no ContaAzul). */}
-        <DreTab barId={barId} anoInicial={anoAtual} onDrill={abrirDrill} modoBar />
-      </TabsContent>
+      {!planoProprio && (
+        <TabsContent value="dre-bar" className="space-y-2 mt-2">
+          {/* Espelho da DRE isolando a operação de bar: deduz entrada (couvert+ingresso+Sympla)
+              da Receita e remove o grupo Atrações & Eventos. Drill-down da dedução é bloqueado
+              no DreTab (linha sintética, sem lançamentos no ContaAzul). */}
+          <DreTab barId={barId} anoInicial={anoAtual} onDrill={abrirDrill} modoBar />
+        </TabsContent>
+      )}
 
-      <TabsContent value="dre-eventos" className="space-y-2 mt-2">
-        {/* Complemento da DRE Bar: só a economia do show (entrada − imposto/taxa − artístico).
-            As linhas artísticas são drilláveis (macro real 'Despesas Comerciais' no CA). */}
-        <DreEventosTab barId={barId} anoInicial={anoAtual} onDrill={abrirDrill} />
-        <DreLancamentosModal
-          open={drill.open} onClose={fecharDrill} titulo={drill.titulo}
-          loading={drill.loading} lancamentos={drill.lancamentos} total={drill.total} erro={drill.erro}
-        />
-      </TabsContent>
+      {!planoProprio && (
+        <TabsContent value="dre-eventos" className="space-y-2 mt-2">
+          {/* Complemento da DRE Bar: só a economia do show (entrada − imposto/taxa − artístico).
+              As linhas artísticas são drilláveis (macro real 'Despesas Comerciais' no CA). */}
+          <DreEventosTab barId={barId} anoInicial={anoAtual} onDrill={abrirDrill} />
+          <DreLancamentosModal
+            open={drill.open} onClose={fecharDrill} titulo={drill.titulo}
+            loading={drill.loading} lancamentos={drill.lancamentos} total={drill.total} erro={drill.erro}
+          />
+        </TabsContent>
+      )}
 
       <TabsContent value="categorias" className="mt-2">
         <CategoriasTab />
