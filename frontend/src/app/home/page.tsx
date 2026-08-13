@@ -13,6 +13,7 @@ import {
   Smile, Star, Timer, Heart, Repeat, CalendarX2, PackageX,
 } from 'lucide-react';
 import type { DestaquesHome, IndicadorCalculado } from '@/lib/home/indicadores';
+import { MetasPeriodo } from './MetasPeriodo';
 
 // Ícone (string em indicadores.ts) -> componente lucide.
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -161,6 +162,9 @@ export default function HomePage() {
             </div>
           </div>
         </header>
+
+        {/* Metas do período — logo abaixo do banner, é a primeira coisa que se vê ao entrar. */}
+        <MetasPeriodo barId={selectedBar?.id} accent={accent} />
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* MURAL — coluna principal */}
