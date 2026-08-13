@@ -353,6 +353,13 @@ export default function PlanoOperacionalPage() {
 
   const linhaDe = (d: Dia, fid: string) => d.funcoes.find(f => f.funcao_id === fid);
 
+  /** Público somado dos turnos da mesma data — o sábado partido tem dois. */
+  const publicoPorData = useMemo(() => {
+    const m = new Map<string, number>();
+    dias.forEach(d => m.set(d.data, (m.get(d.data) || 0) + Number(d.publico || 0)));
+    return m;
+  }, [dias]);
+
   return (
     <PageShell width="wide">
       {/* Navegação da semana */}
@@ -522,12 +529,16 @@ export default function PlanoOperacionalPage() {
                   </span>
                 </td>
                 {dias.map(d => {
-                  const pct = d.reservas_pessoas != null && d.publico ? (d.reservas_pessoas / d.publico) * 100 : null;
+                  // O % é sobre o público do DIA INTEIRO, não do turno: a reserva do GetIn é da
+                  // data, e no sábado partido comparar as 389 pessoas com o público só do turno
+                  // dia dava 549% — lia como erro na tela.
+                  const publicoDoDia = publicoPorData.get(d.data) || 0;
+                  const pct = d.reservas_pessoas != null && publicoDoDia ? (d.reservas_pessoas / publicoDoDia) * 100 : null;
                   return (
                     <td key={d.id} colSpan={4}
                       className="px-1 py-1 text-center text-[11px] tabular-nums border-l border-[hsl(var(--border))]"
                       title={d.reservas != null
-                        ? `${d.reservas} reservas no GetIn${pct != null ? ` — ${pct.toFixed(0)}% do público esperado` : ''}${d.turno !== 'unico' ? '. O GetIn não separa dia e noite: é a reserva do sábado inteiro.' : ''}`
+                        ? `${d.reservas} reservas no GetIn${pct != null ? ` — ${pct.toFixed(0)}% do público esperado do dia` : ''}${d.turno !== 'unico' ? '. O GetIn não separa dia e noite: é a reserva do sábado inteiro, comparada com o público dos dois turnos.' : ''}`
                         : 'Nenhuma reserva registrada no GetIn para este dia'}>
                       {d.reservas_pessoas == null ? (
                         <span className="text-gray-300">—</span>
