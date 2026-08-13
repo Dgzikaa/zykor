@@ -28,21 +28,6 @@ interface NPSData {
   resultado_percentual: number;
 }
 
-interface FelicidadeData {
-  id: number;
-  data_pesquisa: string;
-  funcionario_nome: string;
-  setor: string;
-  quorum: number;
-  eu_comigo_engajamento: number;
-  eu_com_empresa_pertencimento: number;
-  eu_com_colega_relacionamento: number;
-  eu_com_gestor_lideranca: number;
-  justica_reconhecimento: number;
-  media_geral: number;
-  resultado_percentual: number;
-}
-
 interface NPSMetrica {
   media: number;
   classificacao: 'verde' | 'amarelo' | 'vermelho';
@@ -432,13 +417,11 @@ export default function NPSPage() {
 
   const [loading, setLoading] = useState(false);
   const [dadosNPS, setDadosNPS] = useState<NPSData[]>([]);
-  const [dadosFelicidade, setDadosFelicidade] = useState<FelicidadeData[]>([]);
   const [dadosCategorizados, setDadosCategorizados] = useState<any[]>([]);
   const [loadingCategorizado, setLoadingCategorizado] = useState(false);
   
   // Estados para formulário de pesquisa
   const [modalFormulario, setModalFormulario] = useState(false);
-  const [tipoPesquisa, setTipoPesquisa] = useState<'nps' | 'felicidade'>('felicidade');
   const [salvando, setSalvando] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
   const [syncRetroativo, setSyncRetroativo] = useState(false);
@@ -491,17 +474,8 @@ export default function NPSPage() {
       );
       const dataNPS = await responseNPS.json();
 
-      // Buscar Felicidade
-      const responseFelicidade = await fetch(
-        `/api/pesquisa-felicidade?bar_id=${selectedBar?.id}&data_inicio=${dataInicio}&data_fim=${dataFim}&setor=${setorFiltro}`
-      );
-      const dataFelicidade = await responseFelicidade.json();
-
       if (dataNPS.success) {
         setDadosNPS(dataNPS.data);
-      }
-      if (dataFelicidade.success) {
-        setDadosFelicidade(dataFelicidade.data);
       }
 
     } catch (error) {
@@ -539,29 +513,16 @@ export default function NPSPage() {
         quorum: formData.quorum,
       };
 
-      // Adicionar campos específicos baseado no tipo
-      if (tipoPesquisa === 'nps') {
-        Object.assign(registro, {
-          qual_sua_area_atuacao: formData.qual_sua_area_atuacao,
-          sinto_me_motivado: formData.sinto_me_motivado,
-          empresa_se_preocupa: formData.empresa_se_preocupa,
-          conectado_colegas: formData.conectado_colegas,
-          relacionamento_positivo: formData.relacionamento_positivo,
-          quando_identifico: formData.quando_identifico,
-        });
-      } else {
-        Object.assign(registro, {
-          eu_comigo_engajamento: formData.eu_comigo_engajamento,
-          eu_com_empresa_pertencimento: formData.eu_com_empresa_pertencimento,
-          eu_com_colega_relacionamento: formData.eu_com_colega_relacionamento,
-          eu_com_gestor_lideranca: formData.eu_com_gestor_lideranca,
-          justica_reconhecimento: formData.justica_reconhecimento,
-        });
-      }
+      Object.assign(registro, {
+        qual_sua_area_atuacao: formData.qual_sua_area_atuacao,
+        sinto_me_motivado: formData.sinto_me_motivado,
+        empresa_se_preocupa: formData.empresa_se_preocupa,
+        conectado_colegas: formData.conectado_colegas,
+        relacionamento_positivo: formData.relacionamento_positivo,
+        quando_identifico: formData.quando_identifico,
+      });
 
-      // Enviar para API
-      const endpoint = tipoPesquisa === 'nps' ? '/api/nps' : '/api/pesquisa-felicidade';
-      const response = await fetch(endpoint, {
+      const response = await fetch('/api/nps', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -689,26 +650,6 @@ export default function NPSPage() {
     }
   };
 
-  const calcularMediaPorSetor = (dados: any[], campo?: string) => {
-    const setores = new Map<string, { total: number; count: number }>();
-    
-    dados.forEach(item => {
-      const valor = campo ? item[campo] : item.media_geral;
-      if (!setores.has(item.setor)) {
-        setores.set(item.setor, { total: 0, count: 0 });
-      }
-      const stats = setores.get(item.setor)!;
-      stats.total += valor || 0;
-      stats.count++;
-    });
-
-    return Array.from(setores.entries()).map(([setor, stats]) => ({
-      setor,
-      media: stats.count > 0 ? (stats.total / stats.count).toFixed(2) : '0.00',
-      count: stats.count
-    }));
-  };
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
@@ -827,75 +768,29 @@ export default function NPSPage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Pesquisa da Felicidade */}
+          {/* Pesquisa da Felicidade — mudou de casa.
+              Esta aba mostrava as dimensões como nota de 0 a 5, escala que o sync
+              antigo inventava. O dado real da planilha é PERCENTUAL (tipo eNPS,
+              pode ser negativo) e agregado por setor; a tela em RH trata isso.
+              Manter uma segunda leitura aqui só criaria dois números diferentes
+              para o mesmo indicador. */}
           <TabsContent value="felicidade" className="space-y-4">
-            {/* Resumo por Setor */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {calcularMediaPorSetor(dadosFelicidade).map((item) => (
-                <Card key={item.setor} className="bg-white dark:bg-gray-800">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {item.setor}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {item.media}
-                      <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">/ 5.0</span>
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {item.count} respostas
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {/* Tabela Detalhada */}
             <Card className="bg-white dark:bg-gray-800">
-              <CardHeader>
-                <CardTitle className="text-gray-900 dark:text-white">Respostas Detalhadas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200 dark:border-gray-700">
-                        <th className="text-left p-2 text-gray-700 dark:text-gray-300">Data</th>
-                        <th className="text-left p-2 text-gray-700 dark:text-gray-300">Setor</th>
-                        <th className="text-center p-2 text-gray-700 dark:text-gray-300">Engajamento</th>
-                        <th className="text-center p-2 text-gray-700 dark:text-gray-300">Pertencimento</th>
-                        <th className="text-center p-2 text-gray-700 dark:text-gray-300">Relacionamento</th>
-                        <th className="text-center p-2 text-gray-700 dark:text-gray-300">Liderança</th>
-                        <th className="text-center p-2 text-gray-700 dark:text-gray-300">Justiça</th>
-                        <th className="text-center p-2 text-gray-700 dark:text-gray-300">Média</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dadosFelicidade.map((item) => (
-                        <tr key={item.id} className="border-b border-gray-100 dark:border-gray-800">
-                          <td className="p-2 text-gray-900 dark:text-white">{formatDate(item.data_pesquisa)}</td>
-                          <td className="p-2">
-                            <Badge variant="outline">{item.setor}</Badge>
-                          </td>
-                          <td className="text-center p-2 text-gray-900 dark:text-white">{item.eu_comigo_engajamento}</td>
-                          <td className="text-center p-2 text-gray-900 dark:text-white">{item.eu_com_empresa_pertencimento}</td>
-                          <td className="text-center p-2 text-gray-900 dark:text-white">{item.eu_com_colega_relacionamento}</td>
-                          <td className="text-center p-2 text-gray-900 dark:text-white">{item.eu_com_gestor_lideranca}</td>
-                          <td className="text-center p-2 text-gray-900 dark:text-white">{item.justica_reconhecimento}</td>
-                          <td className="text-center p-2 font-semibold text-gray-900 dark:text-white">
-                            {item.media_geral?.toFixed(2)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {dadosFelicidade.length === 0 && (
-                    <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-                      Nenhum dado encontrado para o período selecionado
-                    </p>
-                  )}
-                </div>
+              <CardContent className="py-10 text-center">
+                <Smile className="w-10 h-10 mx-auto mb-3 text-emerald-500 opacity-70" />
+                <p className="text-base font-semibold text-gray-900 dark:text-white mb-1">
+                  A Pesquisa da Felicidade agora tem tela própria
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 max-w-md mx-auto">
+                  Em RH → Pesquisa da Felicidade, com evolução semanal, consolidado mensal,
+                  as cinco dimensões e o NPS de Marca Empregadora.
+                </p>
+                <a
+                  href="/rh/pesquisa-felicidade"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                >
+                  Abrir Pesquisa da Felicidade
+                </a>
               </CardContent>
             </Card>
           </TabsContent>
@@ -926,30 +821,12 @@ export default function NPSPage() {
             </DialogHeader>
 
             <div className="flex-1 overflow-y-auto px-1 py-4 space-y-6">
-              {/* Seletor de Tipo de Pesquisa */}
-              <div className="bg-muted/40 border border-border rounded-xl p-5 shadow-sm">
-                <Label className="text-base font-semibold text-gray-900 dark:text-white mb-3 block flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-muted-foreground" />
-                  Tipo de Pesquisa *
-                </Label>
-                <Tabs value={tipoPesquisa} onValueChange={(v) => setTipoPesquisa(v as 'nps' | 'felicidade')}>
-                  <TabsList className="bg-muted/70 border border-border w-full grid grid-cols-2 p-1 h-auto shadow-sm">
-                    <TabsTrigger 
-                      value="felicidade" 
-                      className="data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:border data-[state=active]:border-border/70 py-3 px-4 rounded-lg transition-all"
-                    >
-                      <Smile className="w-5 h-5 mr-2" />
-                      <span className="font-medium">Pesquisa da Felicidade</span>
-                    </TabsTrigger>
-                    <TabsTrigger 
-                      value="nps" 
-                      className="data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:border data-[state=active]:border-border/70 py-3 px-4 rounded-lg transition-all"
-                    >
-                      <TrendingUp className="w-5 h-5 mr-2" />
-                      <span className="font-medium">NPS</span>
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+              {/* Só NPS. A Pesquisa da Felicidade vem da planilha "Indicadores - RH"
+                  pelo sync e é agregada por setor — digitar resposta individual aqui
+                  criaria um dado que não existe na fonte. */}
+              <div className="bg-muted/40 border border-border rounded-xl p-4 shadow-sm flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-muted-foreground shrink-0" />
+                <span className="text-sm font-medium text-gray-900 dark:text-white">Registro de NPS de funcionários</span>
               </div>
 
               {/* Dados Básicos */}
@@ -1018,104 +895,8 @@ export default function NPSPage() {
                 </div>
               </div>
 
-              {/* Perguntas - Felicidade */}
-              {tipoPesquisa === 'felicidade' && (
-                <div className="bg-muted/40 border border-border rounded-xl p-5">
-                  <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
-                    <Smile className="w-5 h-5 text-muted-foreground" />
-                    Perguntas da Pesquisa de Felicidade
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Avalie cada dimensão de 0 a 5 (0 = Muito Insatisfeito, 5 = Muito Satisfeito)
-                  </p>
-                  
-                  <div className="grid grid-cols-1 gap-5">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                      <Label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
-                        1️⃣ Eu comigo - Engajamento
-                      </Label>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Como você se sente em relação ao seu trabalho?</p>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="5"
-                        step="0.1"
-                        value={formData.eu_comigo_engajamento}
-                        onChange={(e) => setFormData({ ...formData, eu_comigo_engajamento: parseFloat(e.target.value) || 0 })}
-                        className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 h-11"
-                        placeholder="0.0"
-                      />
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                      <Label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
-                        2️⃣ Eu com empresa - Pertencimento
-                      </Label>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Você se sente parte da empresa?</p>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="5"
-                        step="0.1"
-                        value={formData.eu_com_empresa_pertencimento}
-                        onChange={(e) => setFormData({ ...formData, eu_com_empresa_pertencimento: parseFloat(e.target.value) || 0 })}
-                        className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 h-11"
-                        placeholder="0.0"
-                      />
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                      <Label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
-                        3️⃣ Eu com colega - Relacionamento
-                      </Label>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Como é o relacionamento com seus colegas?</p>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="5"
-                        step="0.1"
-                        value={formData.eu_com_colega_relacionamento}
-                        onChange={(e) => setFormData({ ...formData, eu_com_colega_relacionamento: parseFloat(e.target.value) || 0 })}
-                        className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 h-11"
-                        placeholder="0.0"
-                      />
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                      <Label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
-                        4️⃣ Eu com gestor - Liderança
-                      </Label>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Como você avalia a liderança?</p>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="5"
-                        step="0.1"
-                        value={formData.eu_com_gestor_lideranca}
-                        onChange={(e) => setFormData({ ...formData, eu_com_gestor_lideranca: parseFloat(e.target.value) || 0 })}
-                        className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 h-11"
-                        placeholder="0.0"
-                      />
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                      <Label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
-                        5️⃣ Justiça - Reconhecimento
-                      </Label>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Você se sente reconhecido pelo seu trabalho?</p>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="5"
-                        step="0.1"
-                        value={formData.justica_reconhecimento}
-                        onChange={(e) => setFormData({ ...formData, justica_reconhecimento: parseFloat(e.target.value) || 0 })}
-                        className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 h-11"
-                        placeholder="0.0"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Perguntas - NPS */}
-              {tipoPesquisa === 'nps' && (
+              {(
                 <div className="bg-muted/40 border border-border rounded-xl p-5">
                   <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
                     <TrendingUp className="w-5 h-5 text-muted-foreground" />

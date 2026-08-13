@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   const [docsRes, ocorrRes, felizRes] = await Promise.all([
     ids.length ? hr('documentos_funcionario').select('funcionario_id, tipo, validade').in('funcionario_id', ids) : Promise.resolve({ data: [] }),
     ids.length ? hr('funcionario_ocorrencias').select('funcionario_id, tipo, data_inicio, data_fim').in('funcionario_id', ids) : Promise.resolve({ data: [] }),
-    hr('pesquisa_felicidade').select('data_pesquisa, setor, media_geral, resultado_percentual, eu_comigo_engajamento, eu_com_empresa_pertencimento, eu_com_colega_relacionamento, eu_com_gestor_lideranca, justica_reconhecimento').eq('bar_id', bar),
+    hr('pesquisa_felicidade').select('data_pesquisa, setor, quorum, media_geral, resultado_percentual, eu_comigo_engajamento, eu_com_empresa_pertencimento, eu_com_colega_relacionamento, eu_com_gestor_lideranca, justica_reconhecimento').eq('bar_id', bar),
   ]);
 
   const docs = docsRes.data || [];
@@ -76,27 +76,33 @@ export async function GET(request: NextRequest) {
   const noMes = (t: string) => ocorr.filter((o: any) => o.tipo === t && o.data_inicio >= inicioMes).length;
 
   // ── Felicidade (pesquisa real) ──
-  const feliz = felizRes.data || [];
-  const porPesquisa = new Map<string, { n: number; pct: number; media: number; dims: number[] }>();
-  for (const r of feliz) {
-    const k = String(r.data_pesquisa);
-    const cur = porPesquisa.get(k) || { n: 0, pct: 0, media: 0, dims: [0, 0, 0, 0, 0] };
-    cur.n++; cur.pct += Number(r.resultado_percentual || 0); cur.media += Number(r.media_geral || 0);
-    cur.dims[0] += Number(r.eu_comigo_engajamento || 0); cur.dims[1] += Number(r.eu_com_empresa_pertencimento || 0);
-    cur.dims[2] += Number(r.eu_com_colega_relacionamento || 0); cur.dims[3] += Number(r.eu_com_gestor_lideranca || 0);
-    cur.dims[4] += Number(r.justica_reconhecimento || 0);
-    porPesquisa.set(k, cur);
-  }
-  const trend = [...porPesquisa.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([data, v]) => ({ data, pct: Math.round((v.pct / v.n) * 10) / 10, respostas: v.n }));
-  const ultima = trend.length ? [...porPesquisa.entries()].sort((a, b) => b[0].localeCompare(a[0]))[0] : null;
+  //
+  // Só o recorte 'TODOS'. A tabela guarda uma linha por setor MAIS uma linha
+  // 'TODOS' que já é o consolidado da própria planilha — mediar tudo junto
+  // contava o agregado como se fosse mais um setor e ainda dava peso igual a
+  // um setor de 2 pessoas e a outro de 30.
+  //
+  // As dimensões são PERCENTUAL (escala tipo eNPS, pode ser negativo), não a
+  // antiga nota de 0 a 5.
+  const feliz = (felizRes.data || []).filter((r: any) => r.setor === 'TODOS');
+  const dimsCols = ['eu_comigo_engajamento', 'eu_com_empresa_pertencimento', 'eu_com_colega_relacionamento', 'eu_com_gestor_lideranca', 'justica_reconhecimento'];
   const dimsLabels = ['Engajamento', 'Pertencimento', 'Relacionamento', 'Liderança', 'Reconhecimento'];
-  const felicidade = ultima ? {
-    data: ultima[0],
-    pct: Math.round((ultima[1].pct / ultima[1].n) * 10) / 10,
-    media: Math.round((ultima[1].media / ultima[1].n) * 100) / 100,
-    respostas: ultima[1].n,
-    dimensoes: dimsLabels.map((label, i) => ({ label, valor: Math.round((ultima[1].dims[i] / ultima[1].n) * 100) / 100 })),
+
+  const ordenadas = [...feliz].sort((a: any, b: any) => String(a.data_pesquisa).localeCompare(String(b.data_pesquisa)));
+  const trend = ordenadas
+    .filter((r: any) => r.resultado_percentual != null)
+    .map((r: any) => ({ data: r.data_pesquisa, pct: Math.round(Number(r.resultado_percentual) * 10) / 10, respostas: r.quorum ?? 0 }));
+  const ult = ordenadas.length ? ordenadas[ordenadas.length - 1] : null;
+
+  const felicidade = ult ? {
+    data: ult.data_pesquisa,
+    pct: ult.resultado_percentual == null ? null : Math.round(Number(ult.resultado_percentual) * 10) / 10,
+    media: ult.media_geral == null ? null : Math.round(Number(ult.media_geral) * 100) / 100,
+    respostas: ult.quorum ?? 0,
+    dimensoes: dimsLabels.map((label, i) => ({
+      label,
+      valor: ult[dimsCols[i]] == null ? null : Math.round(Number(ult[dimsCols[i]]) * 10) / 10,
+    })),
     trend: trend.slice(-12),
   } : null;
 

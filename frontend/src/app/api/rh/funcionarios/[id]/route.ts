@@ -6,9 +6,11 @@ import { negarPorRota } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 
+// Lista IRMÃ da de ../route.ts (criar). `genero` entrou nas duas em 13/08/2026 — sem ele aqui,
+// dava pra escolher o gênero ao criar e a edição descartava calada.
 const CAMPOS_EDITAVEIS = [
   'nome', 'cpf', 'telefone', 'email', 'data_admissao', 'data_demissao', 'data_nascimento',
-  'cargo_id', 'area_id', 'tipo_contratacao', 'salario_base', 'valor_diaria',
+  'cargo_id', 'area_id', 'tipo_contratacao', 'genero', 'salario_base', 'valor_diaria',
   'vale_transporte_diaria', 'dias_trabalho_semana', 'chave_pix', 'tipo_chave_pix',
   'observacoes', 'foto_url', 'ativo', 'rg', 'ctps',
 ] as const;
@@ -49,10 +51,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const ocorrencias = ocorrRes.data || [];
   const alertas = computarAlertas(f, documentos, ocorrencias);
 
-  // Felicidade da pessoa (match por nome na pesquisa) — pré-construído pro perfil.
-  const { data: pesq } = await (supabase as any).schema('hr').from('pesquisa_felicidade')
-    .select('data_pesquisa, media_geral, resultado_percentual, setor, eu_comigo_engajamento, eu_com_empresa_pertencimento, eu_com_colega_relacionamento, eu_com_gestor_lideranca, justica_reconhecimento')
-    .eq('bar_id', user.bar_id).ilike('funcionario_nome', f.nome).order('data_pesquisa', { ascending: false }).limit(1);
+  // A Pesquisa da Felicidade NÃO entra aqui: ela é anônima e agregada por setor.
+  // O que existia era um match por nome contra uma coluna que sempre valia a
+  // constante 'Equipe' — ou seja, nunca retornava nada. Agora vive em
+  // /rh/pesquisa-felicidade, que é a granularidade real do dado.
 
   const salHist = salRes.data || [];
   const funcionario = {
@@ -63,7 +65,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     salario_ca_data: salHist[0]?.data_pagamento || null,
     salario_ca_historico: salHist,
   };
-  return NextResponse.json({ success: true, funcionario, data: funcionario, documentos, ocorrencias, alertas, felicidade: pesq?.[0] || null });
+  return NextResponse.json({ success: true, funcionario, data: funcionario, documentos, ocorrencias, alertas });
 }
 
 /** PUT /api/rh/funcionarios/[id] -> atualiza (+ histórico de contrato se mudou salário/cargo). */

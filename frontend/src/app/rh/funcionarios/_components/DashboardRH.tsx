@@ -146,8 +146,12 @@ export function DashboardRH() {
             {fel ? (
               <>
                 <div className="flex items-end gap-3 mb-2">
-                  <div className="text-3xl font-bold text-emerald-600">{fel.pct}%</div>
-                  <div className="text-xs text-muted-foreground mb-1">satisfação · média {fel.media}</div>
+                  <div className={`text-3xl font-bold ${fel.pct == null ? 'text-muted-foreground' : fel.pct < 0 ? 'text-red-600' : fel.pct < 50 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    {fel.pct == null ? '—' : `${fel.pct}%`}
+                  </div>
+                  <div className="text-xs text-muted-foreground mb-1">
+                    resultado · média {fel.media ?? '—'} · {fel.respostas} resposta(s)
+                  </div>
                 </div>
                 <GraficoLinha
                   data={fel.trend}
@@ -157,14 +161,27 @@ export function DashboardRH() {
                   area
                   formatV={(v) => `${v}%`}
                 />
+                {/* Barra a partir do MEIO: a escala vai de -100% a +100% (tipo
+                    eNPS), então crescer pra esquerda do zero é informação, não erro. */}
                 <div className="space-y-1 mt-2">
-                  {fel.dimensoes.map((dim: any) => (
-                    <div key={dim.label} className="flex items-center gap-2">
-                      <span className="text-[11px] w-24 text-muted-foreground shrink-0">{dim.label}</span>
-                      <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, (dim.valor / 5) * 100)}%` }} /></div>
-                      <span className="text-[11px] w-8 text-right">{dim.valor}</span>
-                    </div>
-                  ))}
+                  {fel.dimensoes.map((dim: any) => {
+                    const v = dim.valor;
+                    const largura = v == null ? 0 : Math.min(50, Math.abs(v) / 2);
+                    return (
+                      <div key={dim.label} className="flex items-center gap-2">
+                        <span className="text-[11px] w-24 text-muted-foreground shrink-0">{dim.label}</span>
+                        <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden relative">
+                          <div
+                            className={`h-full absolute top-0 ${v != null && v < 0 ? 'bg-red-500' : 'bg-emerald-500'}`}
+                            style={v != null && v < 0
+                              ? { right: '50%', width: `${largura}%` }
+                              : { left: '50%', width: `${largura}%` }}
+                          />
+                        </div>
+                        <span className="text-[11px] w-10 text-right tabular-nums">{v == null ? '—' : `${v}%`}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             ) : <div className="text-sm text-muted-foreground py-8 text-center">Sem pesquisa de felicidade ainda.</div>}

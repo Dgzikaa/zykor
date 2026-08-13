@@ -10,7 +10,7 @@ import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { useApiSWR } from '@/hooks/useApiSWR';
-import { Users, Loader2, Search, Plus, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp, LayoutGrid, List, Download, Network, ScrollText } from 'lucide-react';
+import { Users, Loader2, Search, Plus, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp, LayoutGrid, List, Download, Network, ScrollText, UserMinus } from 'lucide-react';
 import { FuncionarioDialog } from './_components/FuncionarioDialog';
 import { DossieDialog } from './_components/DossieDialog';
 import { DashboardRH } from './_components/DashboardRH';
@@ -19,6 +19,8 @@ import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { CartoesBadge, type Cartoes } from './_components/CartoesBadge';
 import { HistoricoOcorrencias } from './_components/HistoricoOcorrencias';
+import { HistoricoDesligamentos } from './_components/HistoricoDesligamentos';
+import { Organograma } from './_components/Organograma';
 
 export type Funcionario = {
   id: number; nome: string; cpf: string | null; telefone: string | null; email: string | null;
@@ -28,6 +30,7 @@ export type Funcionario = {
   vale_transporte_diaria: number | null; dias_trabalho_semana: number | null;
   chave_pix: string | null; tipo_chave_pix: string | null; observacoes: string | null;
   rg?: string | null; ctps?: string | null;
+  tipo_desligamento?: string | null; motivo_desligamento?: string | null; gestor_id?: number | null;
   foto_url: string | null; ativo: boolean; portal_token?: string | null;
   alertas?: { tipo: string; label: string; nivel: string }[];
   cartoes?: Cartoes;
@@ -44,6 +47,36 @@ const AVATAR_CORES = [
 ];
 const iniciais = (nome: string) => nome.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
 const corAvatar = (nome: string) => { let h = 0; for (const c of nome) h = (h + c.charCodeAt(0)) % AVATAR_CORES.length; return AVATAR_CORES[h]; };
+const fmtDataCurta = (d: string | null) => {
+  if (!d) return null;
+  const [y, m, dd] = d.split('-');
+  return `${dd}/${m}/${y.slice(2)}`;
+};
+
+/**
+ * Situação da pessoa em uma etiqueta só.
+ *
+ * "Desligado" (com a data) é diferente de "inativo": inativo sem data de
+ * desligamento é cadastro antigo ou duplicado, não uma saída registrada — e
+ * misturar os dois faz o histórico mentir.
+ */
+function StatusBadge({ f }: { f: Funcionario }) {
+  if (f.data_demissao) {
+    return (
+      <span
+        className="text-[10px] rounded px-1.5 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 whitespace-nowrap"
+        title={f.motivo_desligamento || f.tipo_desligamento || undefined}
+      >
+        Desligado · {fmtDataCurta(f.data_demissao)}
+      </span>
+    );
+  }
+  if (!f.ativo) {
+    return <span className="text-[10px] rounded px-1.5 py-0.5 bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-400 whitespace-nowrap">Inativo</span>;
+  }
+  return <span className="text-[10px] rounded px-1.5 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 whitespace-nowrap">Ativo</span>;
+}
+
 const tempoDeCasa = (admissao: string | null) => {
   if (!admissao) return '—';
   const d = new Date(admissao); const now = new Date();
@@ -119,17 +152,14 @@ export default function FuncionariosPage() {
     return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
   }, []);
 
-  // Organograma: agrupa por área (e ordena por cargo dentro).
-  const porArea = useMemo(() => {
-    const m = new Map<string, Funcionario[]>();
-    for (const f of lista) { const k = f.area_nome || 'Sem área'; const a = m.get(k) || []; a.push(f); m.set(k, a); }
-    return Array.from(m.entries()).map(([area, fs]) => ({ area, fs: fs.sort((a, b) => (a.cargo_nome || '').localeCompare(b.cargo_nome || '')) }))
-      .sort((a, b) => b.fs.length - a.fs.length);
-  }, [lista]);
-
   const exportarCSV = () => {
-    const head = ['Nome', 'CPF', 'Cargo', 'Área', 'Tipo', 'Admissão', 'Tempo de casa', 'Ativo'];
-    const linhas = lista.map((f) => [f.nome, f.cpf || '', f.cargo_nome || '', f.area_nome || '', f.tipo_contratacao || '', f.data_admissao || '', tempoDeCasa(f.data_admissao), f.ativo ? 'Sim' : 'Não']);
+    const head = ['Nome', 'CPF', 'Cargo', 'Área', 'Tipo', 'Admissão', 'Tempo de casa', 'Situação', 'Desligamento', 'Motivo'];
+    const linhas = lista.map((f) => [
+      f.nome, f.cpf || '', f.cargo_nome || '', f.area_nome || '', f.tipo_contratacao || '',
+      f.data_admissao || '', tempoDeCasa(f.data_admissao),
+      f.data_demissao ? 'Desligado' : f.ativo ? 'Ativo' : 'Inativo',
+      f.data_demissao || '', f.motivo_desligamento || '',
+    ]);
     const csv = [head, ...linhas].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob); const a = document.createElement('a');
@@ -163,7 +193,8 @@ export default function FuncionariosPage() {
             <TabsTrigger value="visao"><LayoutDashboard className="w-4 h-4 mr-1.5" />Visão geral</TabsTrigger>
             <TabsTrigger value="equipe"><Users className="w-4 h-4 mr-1.5" />Equipe</TabsTrigger>
             <TabsTrigger value="organograma"><Network className="w-4 h-4 mr-1.5" />Organograma</TabsTrigger>
-            <TabsTrigger value="historico"><ScrollText className="w-4 h-4 mr-1.5" />Histórico</TabsTrigger>
+            <TabsTrigger value="desligados"><UserMinus className="w-4 h-4 mr-1.5" />Histórico</TabsTrigger>
+            <TabsTrigger value="ocorrencias"><ScrollText className="w-4 h-4 mr-1.5" />Ocorrências</TabsTrigger>
             <TabsTrigger value="indicadores"><TrendingUp className="w-4 h-4 mr-1.5" />Indicadores</TabsTrigger>
           </TabsList>
 
@@ -211,15 +242,18 @@ export default function FuncionariosPage() {
                       <div className="flex items-center gap-3">
                         <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${corAvatar(f.nome)}`}>{iniciais(f.nome)}</div>
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold truncate flex items-center gap-1">{f.nome}{!f.ativo && <span className="text-[10px] text-muted-foreground">(inativo)</span>}</div>
+                          <div className="font-semibold truncate">{f.nome}</div>
                           <div className="text-xs text-muted-foreground truncate">{[f.cargo_nome, f.area_nome].filter(Boolean).join(' · ') || 'Sem cargo'}</div>
                         </div>
                         <CartoesBadge {...f.cartoes} />
                         {!!f.alertas?.length && <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 inline-flex items-center gap-0.5 shrink-0" title={f.alertas.map((a) => a.label).join(', ')}><AlertTriangle className="w-2.5 h-2.5" />{f.alertas.length}</span>}
                       </div>
-                      <div className="flex items-center justify-between mt-3">
-                        <span className={`text-[10px] rounded px-1.5 py-0.5 ${tipoTag(f.tipo_contratacao)}`}>{f.tipo_contratacao || '—'}</span>
-                        <span className="text-[11px] text-muted-foreground">{tempoDeCasa(f.data_admissao)} de casa</span>
+                      <div className="flex items-center justify-between mt-3 gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className={`text-[10px] rounded px-1.5 py-0.5 shrink-0 ${tipoTag(f.tipo_contratacao)}`}>{f.tipo_contratacao || '—'}</span>
+                          <StatusBadge f={f} />
+                        </div>
+                        <span className="text-[11px] text-muted-foreground shrink-0">{tempoDeCasa(f.data_admissao)} de casa</span>
                       </div>
                     </CardContent>
                   </Card>
@@ -233,6 +267,7 @@ export default function FuncionariosPage() {
                     <th className="text-left px-3 py-2 whitespace-nowrap">Cargo</th>
                     <th className="text-left px-3 py-2 whitespace-nowrap">Área</th>
                     <th className="text-left px-3 py-2 whitespace-nowrap">Tipo</th>
+                    <th className="text-left px-3 py-2 whitespace-nowrap">Situação</th>
                     <th className="text-right px-3 py-2 whitespace-nowrap">Tempo de casa</th>
                   </tr></thead>
                   <tbody>
@@ -256,6 +291,7 @@ export default function FuncionariosPage() {
                         <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground">{f.cargo_nome || '—'}</td>
                         <td className="px-3 py-1.5 whitespace-nowrap text-muted-foreground">{f.area_nome || '—'}</td>
                         <td className="px-3 py-1.5 whitespace-nowrap"><span className={`text-[10px] rounded px-1.5 py-0.5 ${tipoTag(f.tipo_contratacao)}`}>{f.tipo_contratacao || '—'}</span></td>
+                        <td className="px-3 py-1.5 whitespace-nowrap"><StatusBadge f={f} /></td>
                         <td className="px-3 py-1.5 text-right whitespace-nowrap text-muted-foreground">{tempoDeCasa(f.data_admissao)}</td>
                       </tr>
                     ))}
@@ -266,37 +302,14 @@ export default function FuncionariosPage() {
           </TabsContent>
 
           <TabsContent value="organograma">
-            {loading ? (
-              <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {porArea.map(({ area, fs }) => (
-                  <Card key={area} className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm">
-                    <CardContent className="py-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm font-semibold">{area}</div>
-                        <span className="text-[11px] rounded-full bg-muted px-2 py-0.5">{fs.length}</span>
-                      </div>
-                      <div className="space-y-1">
-                        {fs.map((f) => (
-                          <div key={f.id} onClick={() => setDossieId(f.id)} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 cursor-pointer">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${corAvatar(f.nome)}`}>{iniciais(f.nome)}</div>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm font-medium truncate flex items-center gap-1.5">{f.nome}<CartoesBadge {...f.cartoes} /></div>
-                              <div className="text-[11px] text-muted-foreground truncate">{f.cargo_nome || '—'}</div>
-                            </div>
-                            <span className={`text-[9px] rounded px-1 py-0.5 shrink-0 ${tipoTag(f.tipo_contratacao)}`}>{f.tipo_contratacao || '—'}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+            <Organograma onAbrirDossie={setDossieId} />
           </TabsContent>
 
-          <TabsContent value="historico">
+          <TabsContent value="desligados">
+            <HistoricoDesligamentos onAbrirDossie={setDossieId} />
+          </TabsContent>
+
+          <TabsContent value="ocorrencias">
             <HistoricoOcorrencias />
           </TabsContent>
         </Tabs>

@@ -26,7 +26,9 @@ const EXATO_ABERTO = new Set<string>([
   // — era takeover anônimo (retornava senha temp p/ qualquer email). O 1º acesso usa
   // /api/configuracoes/auth/redefinir-senha (coberto pelo prefixo /api/configuracoes/auth/).
   '/api/nps', // submissão pública de NPS
-  '/api/pesquisa-felicidade', // pesquisa pública
+  // /api/pesquisa-felicidade saiu (13/08/2026): a rota era pública E escrevia na
+  // tabela. A Pesquisa da Felicidade agora só entra pelo sync da planilha, e a
+  // leitura é autenticada em /api/rh/pesquisa-felicidade.
 
   // --- crons do Vercel (vercel.json) protegidos por CRON_SECRET; allowlist redundante
   //     ao bypass de CRON_SECRET no middleware, como cinto-e-suspensório ---
