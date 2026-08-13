@@ -14,6 +14,29 @@ const hr = (c: ReturnType<typeof sb>) => (c as any).schema('hr');
 const norm = (s: string) =>
   (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toUpperCase();
 const primeiroNome = (s: string) => norm(s).split(/\s+/)[0] || '';
+const palavras = (s: string) => norm(s).split(/\s+/).filter(Boolean);
+
+/**
+ * Candidatos de um nome da escala dentro do RH, do casamento mais forte pro mais fraco.
+ *
+ * O primeiro nome sozinho não bastava — a escala usa como a operação chama a pessoa:
+ *   KLEY    -> KLEYDSON NATANAEL CARVALHO DA SILVA   (apelido encurtado)
+ *   LACERDA -> ANA CAROLINA GALDINO DE LACERDA       (chamam pelo SOBRENOME)
+ * Nos dois casos o funcionário estava lá e a tela mostrava "sem candidato".
+ *
+ * O corte de 4 letras no prefixo é o que separa "KLEY→KLEYDSON" de "ANA" casando com meio
+ * mundo. E a sugestão continua saindo só quando o resultado é ÚNICO — o de-para nunca chuta.
+ */
+function candidatosDe(nomeEscala: string, funcionarios: Array<{ id: number; nome: string }>) {
+  const t = norm(nomeEscala);
+  if (!t) return [];
+  const exatoPrimeiro = funcionarios.filter(f => primeiroNome(f.nome) === t);
+  if (exatoPrimeiro.length) return exatoPrimeiro;
+  const palavraExata = funcionarios.filter(f => palavras(f.nome).includes(t));
+  if (palavraExata.length) return palavraExata;
+  if (t.length < 4) return [];
+  return funcionarios.filter(f => palavras(f.nome).some(p => p.startsWith(t)));
+}
 
 // =====================================================
 // De-para pessoa da escala ↔ funcionário do RH.
@@ -67,16 +90,8 @@ export async function GET(request: NextRequest) {
   const porId = new Map<number, any>((funcionarios || []).map((f: any) => [f.id, f]));
   const nomeFuncao = new Map<string, string>((funcoes || []).map((f: any) => [String(f.id), f.nome]));
 
-  // índice por primeiro nome, pra sugerir só quando não houver ambiguidade
-  const porPrimeiroNome = new Map<string, any[]>();
-  (funcionarios || []).forEach((f: any) => {
-    const k = primeiroNome(f.nome);
-    if (!porPrimeiroNome.has(k)) porPrimeiroNome.set(k, []);
-    porPrimeiroNome.get(k)!.push(f);
-  });
-
   const lista = [...pessoas.values()].map(p => {
-    const candidatos = porPrimeiroNome.get(primeiroNome(p.nome)) || [];
+    const candidatos = candidatosDe(p.nome, funcionarios || []);
     const vinculado = p.funcionario_id ? porId.get(p.funcionario_id) : null;
     return {
       ...p,
