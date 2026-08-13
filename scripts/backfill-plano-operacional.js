@@ -199,6 +199,9 @@ function gerarSQL(dias) {
 -- =============================================================================
 
 -- 1) o dia planejado
+-- ATENÇÃO (13/08/2026): \`faturamento_previsto\` virou coluna GERADA
+-- (coalesce(faturamento_manual, faturamento_m1)). Este script é histórico e não roda mais
+-- como está — para reexecutar, troque as duas ocorrências por \`faturamento_manual\`.
 insert into operations.operacao_dia
   (bar_id, data, turno, faturamento_previsto, publico_calculado, pico_calculado,
    programacao_musical, programacao_esportiva, entrada, promocao, plano_chao,

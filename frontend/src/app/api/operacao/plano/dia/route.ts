@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
-import { recalcularDia } from '@/lib/operacao/calculo';
-import { parametrosVigentes } from '@/lib/operacao/parametros';
+import { recalcularDias } from '@/lib/operacao/recalcular';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +41,8 @@ export async function PATCH(request: NextRequest) {
 
   const patch: Record<string, unknown> = { atualizado_por: user.auth_id, atualizado_em: new Date().toISOString() };
   for (const campo of TEXTO) if (campo in body) patch[campo] = body[campo] || null;
-  for (const campo of ['faturamento_previsto', 'publico_manual', 'pico_manual', 'ticket_medio_manual', 'giro_manual']) {
+  // faturamento_previsto é coluna GERADA (coalesce(manual, m1)) — quem a tela edita é o manual
+  for (const campo of ['faturamento_manual', 'publico_manual', 'pico_manual', 'ticket_medio_manual', 'giro_manual']) {
     if (campo in body) {
       const v = body[campo];
       patch[campo] = v === null || v === '' ? null : Number(v);
@@ -55,58 +55,18 @@ export async function PATCH(request: NextRequest) {
     .select('*').single();
   if (eDia) return NextResponse.json({ error: eDia.message }, { status: 500 });
 
-  const parametros = await parametrosVigentes(c, user.bar_id, data);
-  if (!parametros) {
+  // o recálculo é compartilhado com a sincronização do M1 — uma cadeia só, dois gatilhos
+  const { sem_parametro } = await recalcularDias(c, user.bar_id, [dia]);
+  if (sem_parametro.length) {
     return NextResponse.json({ dia, aviso: 'Sem parâmetros vigentes nesta data — nada foi recalculado.' });
   }
 
-  // Funções ativas + o que já existe gravado para este dia
-  const [{ data: funcoes }, { data: existentes }] = await Promise.all([
-    ops(c).from('operacao_funcao').select('id').eq('bar_id', user.bar_id).eq('ativo', true),
-    ops(c).from('operacao_dia_funcao').select('*').eq('operacao_dia_id', dia.id),
-  ]);
-  const porFuncao = new Map((existentes || []).map((l: any) => [l.funcao_id, l]));
+  const { data: atualizado } = await ops(c).from('operacao_dia').select('*').eq('id', dia.id).single();
+  const { data: linhas } = await ops(c).from('v_operacao_dia_funcao').select('custo')
+    .eq('operacao_dia_id', dia.id);
 
-  const calc = recalcularDia({
-    dataISO: data,
-    faturamento: dia.faturamento_previsto === null ? null : Number(dia.faturamento_previsto),
-    ticketManual: dia.ticket_medio_manual === null ? null : Number(dia.ticket_medio_manual),
-    giroManual: dia.giro_manual === null ? null : Number(dia.giro_manual),
-    publicoManual: dia.publico_manual === null ? null : Number(dia.publico_manual),
-    picoManual: dia.pico_manual === null ? null : Number(dia.pico_manual),
-    funcoes: (funcoes || []).map((f: any) => {
-      const l: any = porFuncao.get(f.id);
-      return {
-        funcao_id: f.id,
-        total_manual: l?.total_manual ?? null,
-        fixos_escala: l?.fixos_escala ?? 0,
-        fixos_manual: l?.fixos_manual ?? null,
-      };
-    }),
-    parametros,
+  return NextResponse.json({
+    dia: atualizado || dia,
+    custo_dia: (linhas || []).reduce((s: number, l: any) => s + Number(l.custo || 0), 0),
   });
-
-  // grava público/pico calculados + o total_calculado de cada função
-  await ops(c).from('operacao_dia').update({
-    publico_calculado: calc.publico_calculado,
-    pico_calculado: calc.pico_calculado,
-  }).eq('id', dia.id);
-
-  const linhas = calc.funcoes.map(l => ({
-    operacao_dia_id: dia.id,
-    funcao_id: l.funcao_id,
-    total_calculado: l.total_calculado,
-    // preserva o que já existia — o upsert não pode zerar override nem fixo da escala
-    total_manual: (porFuncao.get(l.funcao_id) as any)?.total_manual ?? null,
-    fixos_escala: (porFuncao.get(l.funcao_id) as any)?.fixos_escala ?? 0,
-    fixos_manual: (porFuncao.get(l.funcao_id) as any)?.fixos_manual ?? null,
-    atualizado_em: new Date().toISOString(),
-  }));
-  if (linhas.length) {
-    const { error } = await ops(c).from('operacao_dia_funcao')
-      .upsert(linhas, { onConflict: 'operacao_dia_id,funcao_id' });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ dia: { ...dia, ...calc }, custo_dia: calc.custo_dia });
 }

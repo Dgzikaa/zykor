@@ -26,7 +26,8 @@ export async function parametrosVigentes(
 
   const [{ data: tickets }, { data: porFuncao }] = await Promise.all([
     ops.from('operacao_parametro_ticket').select('dia_semana, ticket_medio').eq('parametro_id', p.id),
-    ops.from('operacao_parametro_funcao').select('funcao_id, nivel_servico, diaria').eq('parametro_id', p.id),
+    ops.from('operacao_parametro_funcao')
+      .select('funcao_id, nivel_servico, diaria, custo_fechado_dia').eq('parametro_id', p.id),
   ]);
 
   return {
@@ -39,6 +40,7 @@ export async function parametrosVigentes(
       (porFuncao || []).map((f: any) => [f.funcao_id, {
         nivel_servico: f.nivel_servico === null ? null : Number(f.nivel_servico),
         diaria: f.diaria === null ? null : Number(f.diaria),
+        custo_fechado_dia: f.custo_fechado_dia == null ? null : Number(f.custo_fechado_dia),
       }]),
     ),
   };

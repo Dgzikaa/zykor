@@ -2,15 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
+import { sincronizarM1 } from '@/lib/operacao/m1';
 
 export const dynamic = 'force-dynamic';
 
 const sb = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 const ops = (c: ReturnType<typeof sb>) => (c as any).schema('operations');
 
-/** Campos de contexto que fazem sentido copiar de uma semana pra outra. */
+/**
+ * Campos de contexto que fazem sentido copiar de uma semana pra outra.
+ *
+ * O FATURAMENTO saiu daqui em 13/08/2026: ele agora vem do M1 do planejamento comercial
+ * (`sincronizarM1` logo abaixo). Copiar o número da semana passada era justamente o
+ * retrabalho que o M1 elimina — e pior, um valor copiado é "digitado" e ganharia do M1.
+ */
 const COPIAVEIS = [
-  'faturamento_previsto', 'programacao_musical', 'programacao_esportiva',
+  'programacao_musical', 'programacao_esportiva',
   'entrada', 'promocao', 'plano_chao', 'pilula_treinamento',
 ] as const;
 
@@ -103,5 +110,15 @@ export async function POST(request: NextRequest) {
       .upsert(linhas, { onConflict: 'operacao_dia_id,funcao_id', ignoreDuplicates: true });
   }
 
-  return NextResponse.json({ criados: novos.length, inicio, fim, copiado_de: copiarDe });
+  // puxa o faturamento do planejamento comercial e roda a cadeia por cima dele.
+  // Falhar aqui não pode derrubar a criação da semana — a semana existe, e o M1 se
+  // resolve no botão "Puxar M1" da tela.
+  let m1: unknown = null;
+  try {
+    m1 = await sincronizarM1(c, user.bar_id, inicio, fim);
+  } catch (e: any) {
+    m1 = { erro: e?.message || 'Não deu pra puxar o M1' };
+  }
+
+  return NextResponse.json({ criados: novos.length, inicio, fim, copiado_de: copiarDe, m1 });
 }

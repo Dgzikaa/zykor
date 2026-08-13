@@ -64,7 +64,10 @@ export async function PUT(request: NextRequest) {
   const body = await request.json().catch(() => ({} as any));
   const giro = Number(body.giro);
   const tickets: Array<{ dia_semana: number; ticket_medio: number }> = body.tickets || [];
-  const porFuncao: Array<{ funcao_id: string; nivel_servico: number | null; diaria: number | null }> = body.por_funcao || [];
+  const porFuncao: Array<{
+    funcao_id: string; nivel_servico: number | null; diaria: number | null;
+    custo_fechado_dia?: number | null;
+  }> = body.por_funcao || [];
   if (!Number.isFinite(giro) || giro <= 0) return NextResponse.json({ error: 'Giro inválido' }, { status: 400 });
 
   const c = sb();
@@ -72,9 +75,17 @@ export async function PUT(request: NextRequest) {
   const ontem = new Date(Date.parse(inicio + 'T00:00:00Z') - 86400000).toISOString().slice(0, 10);
 
   // fecha a vigência atual no dia anterior — o passado fica com os números do passado
-  const { data: atual } = await ops(c).from('operacao_parametro').select('id, vigencia_inicio')
+  const { data: atual } = await ops(c).from('operacao_parametro')
+    .select('id, vigencia_inicio, cmo_fixo_mensal, limite_cmo_pct')
     .eq('bar_id', user.bar_id).is('vigencia_fim', null)
     .order('vigencia_inicio', { ascending: false }).limit(1).maybeSingle();
+
+  // O CMO fixo e o teto HERDAM da vigência anterior quando não vierem no body. Sem isso a
+  // vigência nova nascia com folha nula e o CMO% despencava pra ~4% sem ninguém entender —
+  // a tela não mandava esses campos e o insert abaixo os deixava de fora.
+  const num = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
+  const cmoFixoMensal = 'cmo_fixo_mensal' in body ? num(body.cmo_fixo_mensal) : (atual?.cmo_fixo_mensal ?? null);
+  const limiteCmo = 'limite_cmo_pct' in body ? num(body.limite_cmo_pct) : (atual?.limite_cmo_pct ?? 20);
 
   if (atual) {
     if (atual.vigencia_inicio >= inicio) {
@@ -89,6 +100,7 @@ export async function PUT(request: NextRequest) {
 
   const { data: novo, error } = await ops(c).from('operacao_parametro').insert({
     bar_id: user.bar_id, vigencia_inicio: inicio, giro,
+    cmo_fixo_mensal: cmoFixoMensal, limite_cmo_pct: limiteCmo,
     observacao: body.observacao || null, criado_por: user.auth_id,
   }).select('id').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -104,6 +116,7 @@ export async function PUT(request: NextRequest) {
       porFuncao.map(f => ({
         parametro_id: novo.id, funcao_id: f.funcao_id,
         nivel_servico: f.nivel_servico, diaria: f.diaria,
+        custo_fechado_dia: f.custo_fechado_dia ?? null,
       })),
     );
     if (e) return NextResponse.json({ error: e.message }, { status: 500 });

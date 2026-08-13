@@ -19,6 +19,19 @@ type Pessoa = { chave: string; funcao_id: string; slot: number; nome: string; di
 /** Marcadores que a operação usa. Digitar qualquer um deles no lugar do horário grava o marcador. */
 const MARCADORES = ['FOLGA', 'FÉRIAS', 'ATESTADO', 'BANCO', 'ABRE', 'FECHA', 'INTERMEDIÁRIO'];
 
+/** Os que aparecem como botão no painel — o resto continua funcionando digitado. */
+const MARCADORES_RAPIDOS = ['FOLGA', 'FÉRIAS', 'ATESTADO', 'BANCO'];
+
+/**
+ * Turnos padrão da casa, na ordem de uso REAL (contagem em `escala_dia` desde 01/06):
+ * 367, 307, 162, 147, 95 lançamentos. Não são invenção — são os horários que a operação
+ * já usa, e cobrem a grande maioria dos dias. O 18:00-02:30 entra porque é o da segurança.
+ */
+const PRESETS = ['17:00-02:30', '15:00-01:00', '15:00-02:30', '17:00-03:00', '16:00-02:00', '18:00-02:30'];
+
+const HORAS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'));
+const MINUTOS = ['00', '15', '30', '45'];
+
 const COR_MARCADOR: Record<string, string> = {
   FOLGA: 'text-gray-400',
   'FÉRIAS': 'text-blue-500',
@@ -36,52 +49,156 @@ function segundaDa(d: Date) {
   return x;
 }
 const hhmm = (t: string | null) => (t ? t.slice(0, 5) : '');
+const rotuloCurto = (dataISO: string) => {
+  const [a, m, d] = dataISO.split('-').map(Number);
+  const dow = new Date(Date.UTC(a, m - 1, d)).getUTCDay();
+  return `${DIA_CURTO[dow]} ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+};
+
+/** Texto que a célula mostra: marcador, horário, ou vazio. */
+function textoDaCelula(cel: Celula | undefined): string {
+  if (!cel) return '';
+  if (cel.marcador) return cel.marcador;
+  if (cel.entra) return `${hhmm(cel.entra)}${cel.sai ? '-' + hhmm(cel.sai) : ''}`;
+  return '';
+}
 
 /**
- * Célula da escala. Aceita "15:00-01:00" (entra-sai) ou um marcador (FOLGA, FÉRIAS…).
- * Formato livre de propósito: quem preenche a escala hoje digita rápido na planilha e
- * um formulário com 3 campos por dia seria mais lento do que o Excel que estamos tirando.
+ * Célula da escala — só mostra e abre o painel. A edição toda vive no `PainelHorario`,
+ * um único painel por vez na página.
  */
-function CelulaEscala({ cel, onSalvar, disabled }: {
-  cel: Celula | undefined; onSalvar: (txt: string) => void; disabled?: boolean;
+function CelulaEscala({ cel, onAbrir, disabled }: {
+  cel: Celula | undefined; onAbrir: (rect: DOMRect) => void; disabled?: boolean;
 }) {
-  const [editando, setEditando] = useState(false);
-  const [txt, setTxt] = useState('');
-
-  const mostrar = () => {
-    if (!cel) return '';
-    if (cel.marcador) return cel.marcador;
-    if (cel.entra) return `${hhmm(cel.entra)}${cel.sai ? '-' + hhmm(cel.sai) : ''}`;
-    return '';
-  };
-  const atual = mostrar();
+  const atual = textoDaCelula(cel);
   const cor = cel?.marcador ? (COR_MARCADOR[cel.marcador] || 'text-amber-600') : '';
 
   if (disabled) return <span className={`block px-1 py-1 text-center text-[11px] ${cor}`}>{atual || '—'}</span>;
 
-  if (editando) {
-    return (
-      <input
-        value={txt}
-        onChange={(e) => setTxt(e.target.value)}
-        onBlur={() => { setEditando(false); if (txt !== atual) onSalvar(txt); }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-          if (e.key === 'Escape') { setTxt(atual); setEditando(false); }
-        }}
-        ref={(el) => el?.focus()}
-        placeholder="15:00-01:00"
-        className="w-full px-1 py-1 text-center text-[11px] border border-blue-400 rounded bg-white dark:bg-gray-900"
-      />
-    );
-  }
   return (
     <button
-      onClick={() => { setTxt(atual); setEditando(true); }}
+      onClick={(e) => onAbrir((e.currentTarget as HTMLElement).getBoundingClientRect())}
       className={`w-full px-1 py-1 text-center text-[11px] rounded hover:ring-1 hover:ring-blue-400 ${cor} ${!atual ? 'text-gray-300' : ''}`}
     >
       {atual || '·'}
     </button>
+  );
+}
+
+/**
+ * Painel de horário da célula.
+ *
+ * O campo era texto livre. Trocar por dois seletores de hora resolveria a validação e
+ * mataria a velocidade: são 7 dias × ~50 pessoas, e a graça de sair do Excel é preencher
+ * rápido. Então o painel tem os TRÊS caminhos, do mais rápido pro mais raro:
+ *
+ *   1. digitar (o campo já vem focado — "17-2:30" e Enter continua funcionando);
+ *   2. clicar num turno padrão da casa;
+ *   3. montar hora a hora nos selects, pro caso fora do padrão.
+ *
+ * `position: fixed` com as coordenadas da célula porque a grade vive dentro de um
+ * `overflow-x-auto` — um painel `absolute` seria cortado pela borda do card.
+ */
+function PainelHorario({ titulo, atual, rect, onSalvar, onFechar }: {
+  titulo: string; atual: string; rect: DOMRect;
+  onSalvar: (txt: string) => void; onFechar: () => void;
+}) {
+  const [txt, setTxt] = useState(atual);
+  const [entraH, entraM] = (/^(\d{2}):(\d{2})/.exec(atual)?.slice(1) ?? ['', '']);
+  const [saiH, saiM] = (/-\s*(\d{2}):(\d{2})/.exec(atual)?.slice(1) ?? ['', '']);
+  const [eh, setEh] = useState(entraH || '17');
+  const [em, setEm] = useState(entraM || '00');
+  const [sh, setSh] = useState(saiH || '02');
+  const [sm, setSm] = useState(saiM || '30');
+
+  const confirmar = (valor: string) => { onSalvar(valor); onFechar(); };
+
+  // 300px de largura; encosta na direita da tela quando a célula é de sábado/domingo
+  const largura = 300;
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - largura - 8));
+  const abaixo = rect.bottom + 4;
+  const acima = rect.top - 4;
+  const cabeAbaixo = window.innerHeight - rect.bottom > 300;
+
+  return (
+    <>
+      {/* clique fora fecha sem salvar */}
+      <div className="fixed inset-0 z-40" onClick={onFechar} />
+      <div
+        className="fixed z-50 rounded-lg border border-[hsl(var(--border))] bg-white dark:bg-gray-900 shadow-xl p-2.5 space-y-2"
+        style={{ left, width: largura, ...(cabeAbaixo ? { top: abaixo } : { bottom: window.innerHeight - acima }) }}
+      >
+        <div className="text-[11px] font-medium text-muted-foreground">{titulo}</div>
+
+        <input
+          value={txt}
+          onChange={(e) => setTxt(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') confirmar(txt);
+            if (e.key === 'Escape') onFechar();
+          }}
+          ref={(el) => el?.focus()}
+          placeholder="17:00-02:30 ou FOLGA"
+          className="w-full px-2 py-1 text-sm border border-blue-400 rounded bg-white dark:bg-gray-900"
+        />
+
+        <div>
+          <div className="text-[10px] text-muted-foreground mb-1">Turnos da casa</div>
+          <div className="grid grid-cols-2 gap-1">
+            {PRESETS.map(p => (
+              <button key={p} onClick={() => confirmar(p)}
+                className={`px-1.5 py-1 text-[11px] rounded border tabular-nums
+                  ${p === atual
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 font-medium'
+                    : 'border-[hsl(var(--border))] hover:bg-muted'}`}>
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground w-9">outro</span>
+          <SelectHora h={eh} m={em} onH={setEh} onM={setEm} />
+          <span className="text-muted-foreground">–</span>
+          <SelectHora h={sh} m={sm} onH={setSh} onM={setSm} />
+          <button onClick={() => confirmar(`${eh}:${em}-${sh}:${sm}`)}
+            className="ml-auto px-2 py-1 text-[11px] rounded bg-[hsl(var(--primary))] text-white">
+            ok
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-1 pt-1 border-t border-[hsl(var(--border))]">
+          {MARCADORES_RAPIDOS.map(m => (
+            <button key={m} onClick={() => confirmar(m)}
+              className={`px-1.5 py-0.5 text-[10px] rounded-full border border-[hsl(var(--border))] hover:bg-muted ${COR_MARCADOR[m] || ''}`}>
+              {m}
+            </button>
+          ))}
+          <button onClick={() => confirmar('')}
+            className="ml-auto px-1.5 py-0.5 text-[10px] rounded text-muted-foreground hover:text-red-500">
+            limpar
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function SelectHora({ h, m, onH, onM }: {
+  h: string; m: string; onH: (v: string) => void; onM: (v: string) => void;
+}) {
+  const cls = 'px-1 py-0.5 text-[11px] tabular-nums border border-[hsl(var(--border))] rounded bg-transparent';
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      <select value={h} onChange={(e) => onH(e.target.value)} className={cls} aria-label="hora">
+        {HORAS.map(x => <option key={x} value={x}>{x}</option>)}
+      </select>
+      <span className="text-muted-foreground text-[11px]">:</span>
+      <select value={m} onChange={(e) => onM(e.target.value)} className={cls} aria-label="minuto">
+        {MINUTOS.map(x => <option key={x} value={x}>{x}</option>)}
+      </select>
+    </span>
   );
 }
 
@@ -136,6 +253,9 @@ export default function EscalaPage() {
       showToast({ type: 'error', title: 'Não salvou', message: e?.message });
     }
   }, [mutate, showToast]);
+
+  /** Célula com o painel aberto — um por vez na página inteira. */
+  const [editando, setEditando] = useState<{ pessoa: Pessoa; data: string; rect: DOMRect } | null>(null);
 
   // contagem de escalados por dia — é exatamente o FIXOS que o Plano Operacional consome
   const escaladosNoDia = (dataISO: string, funcaoId?: string) =>
@@ -251,7 +371,7 @@ export default function EscalaPage() {
                         {datas.map(d => (
                           <td key={d} className="px-0.5 py-0.5">
                             <CelulaEscala cel={p.dias[d]} disabled={soLeitura}
-                              onSalvar={(txt) => salvar(p, d, txt)} />
+                              onAbrir={(rect) => setEditando({ pessoa: p, data: d, rect })} />
                           </td>
                         ))}
                       </tr>
@@ -290,11 +410,21 @@ export default function EscalaPage() {
         </CardContent></Card>
       )}
 
+      {editando && (
+        <PainelHorario
+          titulo={`${editando.pessoa.nome} · ${rotuloCurto(editando.data)}`}
+          atual={textoDaCelula(editando.pessoa.dias[editando.data])}
+          rect={editando.rect}
+          onFechar={() => setEditando(null)}
+          onSalvar={(txt) => salvar(editando.pessoa, editando.data, txt)}
+        />
+      )}
+
       <p className="text-xs text-muted-foreground">
-        Digite <b>15:00-01:00</b> para escalar, ou um marcador (<b>FOLGA</b>, <b>FÉRIAS</b>, <b>ATESTADO</b>,
-        <b> BANCO</b>). Apagar a célula remove o dia da pessoa. A contagem de escalados por dia é
-        exatamente o <b>FIXOS</b> que o Plano Operacional consome — mexeu aqui, o custo projetado
-        de lá se ajusta sozinho.
+        Clique na célula para escolher o turno, ou digite direto (<b>17-2:30</b>, <b>FOLGA</b>) e Enter.
+        <b> Limpar</b> remove o dia da pessoa. A contagem de escalados por dia é exatamente o{' '}
+        <b>FIXOS</b> que o Plano Operacional consome — mexeu aqui, o custo projetado de lá se
+        ajusta sozinho.
       </p>
     </PageShell>
   );

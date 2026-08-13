@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
+import { cmoFixoDoPeriodo, interseccao } from '@/lib/operacao/cmo';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,10 +38,12 @@ const segundaDe = (dataISO: string) => {
 //   + FUNÇÃO / QTDE / CUSTO
 //
 // O CMO% É (FREELA + FIXO) / FATURAMENTO, não só o freela. Sem a folha CLT o percentual
-// dava ~4% e o teto de 21% nunca disparava; com ela, a semana 03-09/08 fecha 28,79%.
+// dava ~4% e o teto nunca disparava.
 //
-// O CMO Fixo tem DUAS constantes independentes no parâmetro (semanal 59k, mensal 172k):
-// 172/59 = 2,9, não são 4,3 semanas. Derivar uma da outra daria percentual errado.
+// O CMO Fixo é UM valor só — a folha do mês — rateada por dia (ver lib/operacao/cmo.ts).
+// Até 13/08/2026 havia também um `cmo_fixo_semanal` digitado (59.000) que media outra
+// régua: a semana estourava (25–28%) enquanto o mês passava (19%), com o mesmo teto.
+// O Cadu fechou "é pra ser igual, sempre 20%" e o semanal saiu.
 //
 // GET /api/operacao/resumo?de=2026-08-01&ate=2026-08-31&escopo=mes|semana
 // =====================================================
@@ -64,7 +67,7 @@ export async function GET(request: NextRequest) {
       .eq('bar_id', user.bar_id).gte('data', de).lte('data', ate),
     ops(c).from('v_operacao_dia_funcao').select('operacao_dia_id, data, funcao_codigo, freelas, custo, entra_no_custo')
       .eq('bar_id', user.bar_id).gte('data', de).lte('data', ate),
-    ops(c).from('operacao_parametro').select('cmo_fixo_semanal, cmo_fixo_mensal')
+    ops(c).from('operacao_parametro').select('cmo_fixo_mensal, limite_cmo_pct')
       .eq('bar_id', user.bar_id).lte('vigencia_inicio', ate)
       .or(`vigencia_fim.is.null,vigencia_fim.gte.${ate}`)
       .order('vigencia_inicio', { ascending: false }).limit(1).maybeSingle(),
@@ -75,8 +78,9 @@ export async function GET(request: NextRequest) {
   const publicoProj = (dias || []).reduce(
     (s: number, d: any) => s + Number(d.publico_manual ?? d.publico_calculado ?? 0), 0);
 
-  const cmoFixo = Number(
-    (escopo === 'semana' ? param?.cmo_fixo_semanal : param?.cmo_fixo_mensal) ?? 0);
+  // mesma conta para semana e mês: a folha do mês rateada pelos dias do período
+  const folhaMensal = param?.cmo_fixo_mensal == null ? null : Number(param.cmo_fixo_mensal);
+  const cmoFixo = cmoFixoDoPeriodo(de, ate, folhaMensal);
   const cmoPct = fatProj > 0 ? ((custoFreelas + cmoFixo) / fatProj) * 100 : null;
 
   // por função, com seg/bri agrupado
@@ -119,8 +123,6 @@ export async function GET(request: NextRequest) {
     s.custo += custoPorDiaId.get(d.id) || 0;
   });
 
-  const cmoFixoSemana = Number(param?.cmo_fixo_semanal ?? 0);
-
   return NextResponse.json({
     escopo,
     periodo: { de, ate },
@@ -130,18 +132,20 @@ export async function GET(request: NextRequest) {
     fat_proj: fatProj,
     cmo_pct: cmoPct,
     por_funcao: porFuncao,
-    // O CMO Fixo da semana é RATEADO pelos dias que caem no período. A semana que entra
-    // parcial (27/07–02/08 entra em agosto com 2 dias) levava a folha inteira sobre o
-    // faturamento de 2 dias e aparecia com 60% — número que não quer dizer nada.
+    // O fixo da semana sai do mesmo rateio por dia, recortado pelo período pedido. A
+    // semana que entra parcial (27/07–02/08 entra em agosto com 2 dias) leva só a folha
+    // desses 2 dias; antes levava a folha inteira sobre o faturamento de 2 dias e
+    // aparecia com 60% — número que não quer dizer nada.
     semanas: [...semanas.values()].sort((a, b) => a.inicio.localeCompare(b.inicio)).map(s => {
-      const fixoRateado = cmoFixoSemana * (Math.min(s.dias_no_periodo, 7) / 7);
+      const corte = interseccao(s.inicio, s.fim, de, ate);
+      const fixoRateado = corte ? cmoFixoDoPeriodo(corte.de, corte.ate, folhaMensal) : 0;
       return {
         ...s,
         cmo_fixo_rateado: fixoRateado,
-        parcial: s.dias_no_periodo < 7,
+        parcial: !!corte && corte.dias < 7,
         cmo_pct: s.faturamento > 0 ? ((s.custo + fixoRateado) / s.faturamento) * 100 : null,
       };
     }),
-    limite_cmo_pct: 21,
+    limite_cmo_pct: Number(param?.limite_cmo_pct ?? 20),
   });
 }

@@ -34,13 +34,19 @@ export async function GET(request: NextRequest) {
 
   const c = sb();
 
-  const [{ data: dias }, { data: linhas }, { data: funcoes }, params] = await Promise.all([
+  const [{ data: dias }, { data: linhas }, { data: funcoes }, params, { data: reservas }] = await Promise.all([
     ops(c).from('operacao_dia').select('*').eq('bar_id', user.bar_id)
       .gte('data', de).lte('data', ate).order('data').order('turno'),
     ops(c).from('v_operacao_dia_funcao').select('*').eq('bar_id', user.bar_id)
       .gte('data', de).lte('data', ate).order('data').order('funcao_ordem'),
     ops(c).from('operacao_funcao').select('*').eq('bar_id', user.bar_id).eq('ativo', true).order('ordem'),
     parametrosVigentes(c, user.bar_id, ate),
+    // Reservas do GetIn — noção de quanto do público esperado já tem mesa marcada.
+    // É FOTO DE AGORA e sobe até o dia: reserva de terça para sábado ainda vai crescer,
+    // então a tela precisa dizer isso em vez de deixar parecer meta furada.
+    (c as any).schema('silver').from('getin_reservas_diarias')
+      .select('data_referencia, total_reservas, total_pessoas')
+      .eq('bar_id', user.bar_id).gte('data_referencia', de).lte('data_referencia', ate),
   ]);
 
   // agrupa as funções dentro do seu dia — a tela lê uma coluna por dia/turno
@@ -51,13 +57,23 @@ export async function GET(request: NextRequest) {
     porDia.get(k)!.push(l);
   });
 
-  const resultado = (dias || []).map((d: any) => ({
-    ...d,
-    publico: d.publico_manual ?? d.publico_calculado,
-    pico: d.pico_manual ?? d.pico_calculado,
-    funcoes: porDia.get(d.id) || [],
-    custo_dia: (porDia.get(d.id) || []).reduce((s: number, f: any) => s + Number(f.custo || 0), 0),
-  }));
+  // a reserva é do DIA, não do turno — o sábado partido mostra o mesmo número nos dois,
+  // porque o GetIn não separa quem reservou pro almoço e quem reservou pra noite
+  const porDataReserva = new Map<string, any>();
+  (reservas || []).forEach((r: any) => porDataReserva.set(r.data_referencia, r));
+
+  const resultado = (dias || []).map((d: any) => {
+    const r = porDataReserva.get(d.data);
+    return {
+      ...d,
+      publico: d.publico_manual ?? d.publico_calculado,
+      pico: d.pico_manual ?? d.pico_calculado,
+      reservas: r ? Number(r.total_reservas || 0) : null,
+      reservas_pessoas: r ? Number(r.total_pessoas || 0) : null,
+      funcoes: porDia.get(d.id) || [],
+      custo_dia: (porDia.get(d.id) || []).reduce((s: number, f: any) => s + Number(f.custo || 0), 0),
+    };
+  });
 
   const totais = {
     faturamento: resultado.reduce((s, d) => s + Number(d.faturamento_previsto || 0), 0),

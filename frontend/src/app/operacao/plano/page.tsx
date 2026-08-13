@@ -11,9 +11,10 @@ import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitur
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
+import { origemCelula } from '@/lib/operacao/calculo';
 import { DetalheDiaDialog } from './DetalheDiaDialog';
 import { ParametrosDialog } from './ParametrosDialog';
-import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Copy, Plus, Settings } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Copy, Plus, Settings, DownloadCloud, CalendarCheck } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Cores das células, herdadas da planilha que esta tela substitui:
@@ -42,10 +43,9 @@ const LINHAS_TEXTO_PLANO: Array<{ campo: keyof Dia; label: string; multilinha?: 
 /** A planilha separa o bloco de operação do de segurança, cada um com o seu Headcount. */
 const COD_SEGURANCA = ['seguranca', 'brigadista'];
 
-const LINHAS_TEXTO_FIM: Array<{ campo: keyof Dia; label: string; multilinha?: boolean }> = [
-  { campo: 'pilula_treinamento', label: 'Pílula de Treinamento', multilinha: true },
-  { campo: 'observacoes', label: 'Observações', multilinha: true },
-];
+// Pílula de Treinamento e Observações saíram da grade em 13/08/2026: estavam vazias em
+// TODAS as semanas (na planilha existiam e quase nunca eram preenchidas) e custavam duas
+// linhas de altura da grade. Continuam existindo no painel do dia, que é onde se escreve.
 
 type Funcao = { id: string; codigo: string; nome: string; entra_no_custo: boolean; ordem: number };
 type LinhaFuncao = {
@@ -56,8 +56,11 @@ type LinhaFuncao = {
 };
 type Dia = {
   id: string; data: string; turno: 'unico' | 'dia' | 'noite';
-  faturamento_previsto: number | null; publico: number | null; pico: number | null;
+  // faturamento_previsto = coalesce(manual, m1). O M1 vem do planejamento comercial.
+  faturamento_previsto: number | null; faturamento_manual: number | null; faturamento_m1: number | null;
+  publico: number | null; pico: number | null;
   publico_manual: number | null; pico_manual: number | null;
+  reservas: number | null; reservas_pessoas: number | null;
   programacao_musical: string | null; programacao_esportiva: string | null;
   entrada: string | null; promocao: string | null; plano_chao: string | null;
   pilula_treinamento: string | null; observacoes: string | null; data_especial: string | null;
@@ -308,6 +311,32 @@ export default function PlanoOperacionalPage() {
     }
   }, [segunda, mutate, showToast]);
 
+  /**
+   * Puxa o faturamento do M1 do planejamento comercial para o período aberto.
+   * É botão e não automático porque GET não escreve — e porque o M1 muda no comercial e a
+   * operação precisa ver QUANDO mudou, em vez do número virar sozinho debaixo do plano.
+   */
+  const [puxandoM1, setPuxandoM1] = useState(false);
+  const puxarM1 = useCallback(async () => {
+    setPuxandoM1(true);
+    try {
+      const r = await api.post('/api/operacao/plano/m1', { de, ate });
+      const semM1 = (r.sem_m1 || []).length;
+      showToast({
+        type: 'success',
+        title: r.dias_com_m1 ? `${r.dias_com_m1} dias atualizados` : 'Nada mudou',
+        message: semM1
+          ? `${semM1} dia(s) sem M1 no planejamento continuam como estavam.`
+          : 'Faturamento e cadeia de cálculo em dia com o planejamento comercial.',
+      });
+      await mutate();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Não puxou o M1', message: e?.message });
+    } finally {
+      setPuxandoM1(false);
+    }
+  }, [de, ate, mutate, showToast]);
+
   const [diaAberto, setDiaAberto] = useState<Dia | null>(null);
   const [parametrosAberto, setParametrosAberto] = useState(false);
   // As linhas de texto ficam em 3 linhas por padrão pra a semana inteira caber na tela sem
@@ -316,7 +345,11 @@ export default function PlanoOperacionalPage() {
 
   const custoSemana = dias.reduce((s, d) => s + Number(d.custo_dia || 0), 0);
   const fatSemana = dias.reduce((s, d) => s + Number(d.faturamento_previsto || 0), 0);
-  const pctCmo = fatSemana > 0 ? (custoSemana / fatSemana) * 100 : null;
+  // O CMO do cabeçalho é o MESMO do resumo — (freela + folha) / faturamento. Antes daqui
+  // saía só o freela sobre o faturamento (~4%) comparado com um teto de 21%: dois números
+  // diferentes com o mesmo nome na mesma tela.
+  const pctCmo = resumo?.cmo_pct ?? null;
+  const limiteCmo = resumo?.limite_cmo_pct ?? 20;
 
   const linhaDe = (d: Dia, fid: string) => d.funcoes.find(f => f.funcao_id === fid);
 
@@ -345,15 +378,23 @@ export default function PlanoOperacionalPage() {
             title="Mostrar o texto completo da programação, plano de chão e observações">
             {briefingAberto ? 'Compactar briefing' : 'Expandir briefing'}
           </Button>
+          {!soLeitura && (
+            <Button variant="outline" size="sm" onClick={puxarM1} disabled={puxandoM1}
+              title="Traz o faturamento planejado pelo comercial (M1) para os dias deste período">
+              {puxandoM1 ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <DownloadCloud className="w-4 h-4 mr-1.5" />}
+              Puxar M1
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setParametrosAberto(true)}
-            title="Giro, ticket médio por dia da semana, nível de serviço e diária">
+            title="Giro, ticket médio por dia da semana, nível de serviço, diária e folha">
             <Settings className="w-4 h-4 mr-1.5" />Parâmetros
           </Button>
           <span>Faturamento previsto <b className="tabular-nums">{fmtBRL(fatSemana)}</b></span>
           <span>Freela projetado <b className="tabular-nums">{fmtBRL(custoSemana)}</b></span>
           {pctCmo != null && (
-            <span className={pctCmo > 21 ? 'text-red-600 font-semibold' : 'text-muted-foreground'}>
-              {pctCmo.toFixed(1)}% {pctCmo > 21 && '⚠ acima de 21%'}
+            <span className={pctCmo > limiteCmo ? 'text-red-600 font-semibold' : 'text-muted-foreground'}
+              title="CMO = (freela projetado + folha rateada no período) ÷ faturamento previsto">
+              CMO {pctCmo.toFixed(1)}% {pctCmo > limiteCmo && `⚠ acima de ${limiteCmo}%`}
             </span>
           )}
         </div>
@@ -449,9 +490,14 @@ export default function PlanoOperacionalPage() {
                 <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-[11px]">Expect Faturamento</td>
                 {dias.map(d => (
                   <td key={d.id} colSpan={4} className="px-1 py-1 border-l border-[hsl(var(--border))]">
-                    <CelulaNum valor={d.faturamento_previsto} origem="branco" disabled={soLeitura} moeda
-                      titulo="Entrada manual — é daqui que a cadeia toda sai"
-                      onSalvar={(v) => salvarDia(d, d.data, d.turno, 'faturamento_previsto', v)} />
+                    {/* Verde = veio do M1 do comercial; amarelo = digitado por cima dele;
+                        branco = digitado sem M1 por trás. Apagar a célula volta pro M1. */}
+                    <CelulaNum valor={d.faturamento_previsto} disabled={soLeitura} moeda
+                      origem={origemCelula(d.faturamento_m1, d.faturamento_manual)}
+                      titulo={d.faturamento_m1 != null
+                        ? `M1 do planejamento: ${fmtBRL(d.faturamento_m1)}${d.faturamento_manual != null ? ' (sobrescrito — apague a célula para voltar)' : ''}`
+                        : 'Sem M1 para este dia — valor digitado'}
+                      onSalvar={(v) => salvarDia(d, d.data, d.turno, 'faturamento_manual', v)} />
                   </td>
                 ))}
               </tr>
@@ -465,6 +511,39 @@ export default function PlanoOperacionalPage() {
                   </td>
                 ))}
               </tr>
+              {/* Reservas do GetIn — quanto do público esperado já tem mesa marcada.
+                  Não entra em conta nenhuma: é leitura, pra decidir escala olhando o real.
+                  Sobe até o dia, então o rótulo diz "até agora" em vez de deixar parecer
+                  que a expectativa está furada quando a semana ainda está começando. */}
+              <tr className="border-b border-[hsl(var(--border))]">
+                <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-[11px] text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <CalendarCheck className="w-3 h-3" />Reservas até agora
+                  </span>
+                </td>
+                {dias.map(d => {
+                  const pct = d.reservas_pessoas != null && d.publico ? (d.reservas_pessoas / d.publico) * 100 : null;
+                  return (
+                    <td key={d.id} colSpan={4}
+                      className="px-1 py-1 text-center text-[11px] tabular-nums border-l border-[hsl(var(--border))]"
+                      title={d.reservas != null
+                        ? `${d.reservas} reservas no GetIn${pct != null ? ` — ${pct.toFixed(0)}% do público esperado` : ''}${d.turno !== 'unico' ? '. O GetIn não separa dia e noite: é a reserva do sábado inteiro.' : ''}`
+                        : 'Nenhuma reserva registrada no GetIn para este dia'}>
+                      {d.reservas_pessoas == null ? (
+                        <span className="text-gray-300">—</span>
+                      ) : (
+                        <>
+                          <span>{fmtNum(d.reservas_pessoas)} pes.</span>
+                          {pct != null && (
+                            <span className="ml-1 text-muted-foreground">({pct.toFixed(0)}%)</span>
+                          )}
+                        </>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+
               <tr className="border-b border-[hsl(var(--border))]">
                 <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-[11px]">Pico/Lugares</td>
                 {dias.map(d => (
@@ -538,30 +617,14 @@ export default function PlanoOperacionalPage() {
                 ))}
               </tr>
 
-              {/* ---- fecho: pílula e observações ---- */}
-              {LINHAS_TEXTO_FIM.map(lt => (
-                <tr key={lt.campo} className="border-b border-[hsl(var(--border))] align-top">
-                  <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-muted-foreground text-[10px]">{lt.label}</td>
-                  {dias.map(d => (
-                    <td key={d.id} colSpan={4} className="p-0 border-l border-[hsl(var(--border))]">
-                      <CelulaTexto
-                        valor={(d[lt.campo] as string) || ''}
-                        multilinha={!!lt.multilinha}
-                        disabled={soLeitura}
-                        expandido={briefingAberto}
-                        onSalvar={(v) => salvarDia(d, d.data, d.turno, lt.campo as string, v)}
-                      />
-                    </td>
-                  ))}
-                </tr>
-              ))}
             </tbody>
           </table>
         </CardContent></Card>
       )}
 
       {/* RESUMO — mesmos campos do bloco da planilha. O CMO% é (freela + fixo) / faturamento;
-          sem a folha CLT o percentual dava ~4% e o teto de 21% nunca disparava. */}
+          sem a folha CLT o percentual dava ~4% e o teto nunca disparava. Semana e mês usam
+          a MESMA régua desde 13/08/2026: a folha do mês rateada pelos dias do período. */}
       {resumo && (
         <Card><CardContent className="py-3">
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,320px)_1fr] gap-6">
@@ -576,7 +639,11 @@ export default function PlanoOperacionalPage() {
                     <td className="py-1.5 text-right tabular-nums font-medium">{fmtBRL(resumo.custo_freelas)}</td>
                   </tr>
                   <tr className="border-b border-[hsl(var(--border))]">
-                    <td className="py-1.5 text-muted-foreground">CMO Fixo</td>
+                    <td className="py-1.5 text-muted-foreground"
+                      title="Folha CLT do mês rateada pelos dias do período. É a mesma régua na semana e no mês.">
+                      CMO Fixo
+                      <span className="ml-1 text-[10px]">rateado</span>
+                    </td>
                     <td className="py-1.5 text-right tabular-nums font-medium">{fmtBRL(resumo.cmo_fixo)}</td>
                   </tr>
                   <tr className="border-b border-[hsl(var(--border))]">

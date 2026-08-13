@@ -18,8 +18,13 @@ export type ParametrosOperacao = {
   giro: number;
   /** dia da semana (0=domingo … 6=sábado) -> ticket médio */
   ticket_por_dia_semana: Record<number, number>;
-  /** funcao_id -> { nivel_servico, diaria } */
-  por_funcao: Record<string, { nivel_servico: number | null; diaria: number | null }>;
+  /** funcao_id -> { nivel_servico, diaria, custo_fechado_dia } */
+  por_funcao: Record<string, {
+    nivel_servico: number | null;
+    diaria: number | null;
+    /** contrato de equipe: valor fechado do dia, em vez de diária por cabeça */
+    custo_fechado_dia?: number | null;
+  }>;
 };
 
 /** Dia da semana de uma data AAAA-MM-DD, sem armadilha de fuso. */
@@ -81,9 +86,18 @@ export function calcularFreelas(total: number | null, fixos: number | null): num
   return Math.max(0, (total ?? 0) - (fixos ?? 0));
 }
 
-/** Custo = freelas × diária. O FIXO (CLT) não entra — a projeção é do CMO variável. */
+/**
+ * Custo = freelas × diária. O FIXO (CLT) não entra — a projeção é do CMO variável.
+ *
+ * Exceção: função com `custo_fechado_dia` é contratada como EQUIPE, não por cabeça —
+ * é o caso da segurança, em que a semana de 03/08 pagou R$ 3.040 (R$ 760 por "diária"
+ * contra os R$ 190 do parâmetro). Aí o dia que precisa de reforço custa o valor
+ * fechado, independentemente de quantas pessoas faltam.
+ */
 export function calcularCusto(freelas: number, funcaoId: string, p: ParametrosOperacao): number {
-  const diaria = p.por_funcao[funcaoId]?.diaria;
+  const cfg = p.por_funcao[funcaoId];
+  if (cfg?.custo_fechado_dia != null) return freelas > 0 ? cfg.custo_fechado_dia : 0;
+  const diaria = cfg?.diaria;
   if (!diaria) return 0;
   return freelas * diaria;
 }
