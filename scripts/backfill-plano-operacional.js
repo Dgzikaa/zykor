@@ -122,7 +122,7 @@ function extrairAba(wb, nome) {
       while (data.getUTCDay() !== 6) data.setUTCDate(data.getUTCDate() - 1);
     }
 
-    const dia = { data: iso(data), turno, coluna: c, funcoes: {} };
+    const dia = { data: iso(data), turno, coluna: c, funcoes: {}, fixos: {} };
 
     // contexto
     for (const [rot, campo] of Object.entries(CONTEXTO)) {
@@ -133,12 +133,23 @@ function extrairAba(wb, nome) {
     if (linhaDe['expectativa de público']) dia.publico = num(cel(ws, c, linhaDe['expectativa de público']));
     if (linhaDe['pico/lugares']) dia.pico = num(cel(ws, c, linhaDe['pico/lugares']));
 
-    // TOTAL por função (o FIXOS da planilha é descartado — quem manda é a escala)
+    // TOTAL e FIXOS por função.
+    //
+    // O FIXOS É IMPORTADO como override (fixos_manual), e não descartado como na primeira
+    // versão. Motivo: a contagem da escala diverge MUITO do que a planilha digitava — no ano,
+    // garçom 1.280 contra 1.776, segurança 84 contra 271. Usar a escala no histórico inflava
+    // o freela e o custo (03/08 dava R$ 320 onde a planilha diz R$ 130, porque a segurança
+    // fixa daquele dia não estava escalada).
+    //
+    // Regra que ficou: o PASSADO é registro — reproduz o que eles planejaram, com os números
+    // que usaram. O FUTURO é automático — dia novo nasce sem override e a escala manda.
     for (const [rot, codigo] of Object.entries(FUNCOES)) {
       const l = linhaDe[rot];
       if (!l) continue;
       const total = num(cel(ws, c, l));
       if (total !== null && total >= 0) dia.funcoes[codigo] = Math.round(total);
+      const fixos = num(cel(ws, c + 1, l));
+      if (fixos !== null && fixos >= 0) dia.fixos[codigo] = Math.round(fixos);
     }
 
     dias.push(dia);
@@ -166,9 +177,16 @@ function gerarSQL(dias) {
     `${esc(d.plano_chao)},${esc(d.pilula_treinamento)},${esc(d.observacoes)})`
   ).join(',\n  ');
 
+  // TOTAL + FIXOS por (dia, turno, função). Códigos presentes só num dos dois viram null no outro.
   const valoresFun = [];
-  dias.forEach(d => Object.entries(d.funcoes).forEach(([cod, total]) =>
-    valoresFun.push(`(${esc(d.data)},${esc(d.turno)},${esc(cod)},${total})`)));
+  dias.forEach(d => {
+    const cods = new Set([...Object.keys(d.funcoes), ...Object.keys(d.fixos)]);
+    cods.forEach(cod => {
+      const total = d.funcoes[cod];
+      const fixos = d.fixos[cod];
+      valoresFun.push(`(${esc(d.data)},${esc(d.turno)},${esc(cod)},${total ?? 'null'},${fixos ?? 'null'})`);
+    });
+  });
 
   return `-- =============================================================================
 -- BACKFILL do Plano Operacional (abas JANEIRO..AGOSTO 2026) — 12/08/2026
@@ -204,17 +222,28 @@ on conflict (bar_id, data, turno) do update
        observacoes          = excluded.observacoes,
        atualizado_em        = now();
 
--- 2) o TOTAL planejado por função
-insert into operations.operacao_dia_funcao (operacao_dia_id, funcao_id, total_calculado)
-select d.id, f.id, v.total
+-- 2) TOTAL e FIXOS planejados por função
+--
+-- O FIXOS entra como fixos_manual (override), não como fixos_escala. A contagem da escala
+-- diverge muito do que a planilha digitava — no ano, garçom 1.280 contra 1.776 e segurança
+-- 84 contra 271 — e usar a escala no histórico inflava o custo: 03/08 dava R\$ 320 onde a
+-- planilha diz R\$ 130, porque a segurança fixa daquele dia não estava escalada (a escala de
+-- segurança para em 02/08).
+--
+-- Regra: o PASSADO é registro, reproduz o que foi planejado com os números usados na época.
+-- O FUTURO é automático — dia criado pela tela nasce sem override e a escala manda.
+insert into operations.operacao_dia_funcao (operacao_dia_id, funcao_id, total_calculado, fixos_manual)
+select d.id, f.id, v.total, v.fixos
 from (values
   ${valoresFun.join(',\n  ')}
-) as v(data, turno, codigo, total)
+) as v(data, turno, codigo, total, fixos)
 join operations.operacao_dia d
   on d.bar_id = ${BAR_ID} and d.data = v.data::date and d.turno = v.turno::operations.operacao_turno
 join operations.operacao_funcao f on f.bar_id = ${BAR_ID} and f.codigo = v.codigo
 on conflict (operacao_dia_id, funcao_id) do update
-   set total_calculado = excluded.total_calculado, atualizado_em = now();
+   set total_calculado = excluded.total_calculado,
+       fixos_manual    = excluded.fixos_manual,
+       atualizado_em   = now();
 
 -- 3) fixos_escala = contagem da escala (quem tem horário no dia; FOLGA/FÉRIAS não contam).
 --    O sábado casa por turno; os demais dias são 'unico' nas duas pontas.
