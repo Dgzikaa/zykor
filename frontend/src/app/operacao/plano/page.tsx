@@ -185,9 +185,13 @@ function CelulasFuncao({ dia, funcao, linha, soLeitura, onSalvar }: {
           titulo={`Da Escala: ${linha?.fixos_escala ?? 0}. Editar aqui sobrepõe só neste dia.`}
           onSalvar={(v) => onSalvar(dia, funcao.id, 'fixos_manual', v)} />
       </td>
-      <td className="px-0.5 py-0.5 text-center tabular-nums text-muted-foreground">{linha?.freelas ?? 0}</td>
-      <td className="px-0.5 py-0.5 text-center tabular-nums">
-        {linha?.custo ? fmtBRL(linha.custo) : <span className="text-gray-300">—</span>}
+      {/* Freelas e custo sao o que sai do bolso — ganham destaque. Zero fica apagado pra
+          a vista bater direto nos dias que exigem contratacao. */}
+      <td className={`px-0.5 py-0.5 text-center tabular-nums ${linha?.freelas ? 'font-semibold text-amber-700 dark:text-amber-400' : 'text-gray-300'}`}>
+        {linha?.freelas || '—'}
+      </td>
+      <td className={`px-0.5 py-0.5 text-center tabular-nums ${linha?.custo ? '' : 'text-gray-300'}`}>
+        {linha?.custo ? fmtBRL(linha.custo) : '—'}
       </td>
     </Fragment>
   );
@@ -444,13 +448,15 @@ export default function PlanoOperacionalPage() {
               ))}
 
               {/* ---- cabeçalho das 4 sub-colunas, como na planilha ---- */}
+              {/* Os rotulos da planilha ("TOTAL / FIXOS") liam como erro: "total 2 mas fixos 3?".
+                  O sentido real e uma frase — precisa de 2, tem 3 na escala, logo 0 freelas. */}
               <tr className="border-b border-[hsl(var(--border))] bg-muted/40 text-[10px] text-muted-foreground">
                 <td className="px-3 py-1 sticky left-0 bg-muted/40 z-10">&nbsp;</td>
                 {dias.map(d => (
                   <Fragment key={d.id}>
-                    <td className="px-1 py-1 text-center border-l border-[hsl(var(--border))]">TOTAL</td>
-                    <td className="px-1 py-1 text-center">FIXOS</td>
-                    <td className="px-1 py-1 text-center">FREELAS</td>
+                    <td className="px-1 py-1 text-center border-l border-[hsl(var(--border))]" title="Quantos a operação precisa: pico ÷ nível de serviço">Precisa</td>
+                    <td className="px-1 py-1 text-center" title="Quantos já estão escalados (vem da Escala)">Escala</td>
+                    <td className="px-1 py-1 text-center font-semibold" title="Quanto falta contratar — é o que custa">Freelas</td>
                     <td className="px-1 py-1 text-center">Custo</td>
                   </Fragment>
                 ))}
@@ -581,6 +587,9 @@ export default function PlanoOperacionalPage() {
         soLeitura={soLeitura} onSalvo={async () => { await mutate(); }} />
 
       <p className="text-xs text-muted-foreground">
+        <b>Precisa</b> = pico ÷ nível de serviço · <b>Escala</b> = quem já está escalado (vem da tela
+        de Escala) · <b>Freelas</b> = o que falta contratar, e é o único que gera custo.
+        <br />
         <span className="inline-block w-3 h-3 rounded-sm align-middle bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-300 mr-1" />
         calculado ·
         <span className="inline-block w-3 h-3 rounded-sm align-middle bg-amber-50 dark:bg-amber-900/20 border border-amber-300 mx-1" />
