@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { PageShell } from '@/components/layout/PageShell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,25 @@ const COR: Record<string, string> = {
   amarelo: 'bg-amber-50 dark:bg-amber-900/20',
   branco: '',
 };
+
+/**
+ * Linhas de texto da planilha, na ordem exata da coluna A. Elas ficam NA GRADE (e não só
+ * num painel) porque é assim que a operação lê o dia: programação, entrada e plano de chão
+ * são o briefing que o time confere lado a lado com o quadro de gente.
+ */
+const LINHAS_TEXTO: Array<{ campo: keyof Dia; label: string; multilinha?: boolean }> = [
+  { campo: 'programacao_musical', label: 'Programação Musical', multilinha: true },
+  { campo: 'entrada', label: 'Entrada' },
+  { campo: 'promocao', label: 'Promoção do Dia' },
+  { campo: 'programacao_esportiva', label: 'Programação Esportiva', multilinha: true },
+];
+const LINHAS_TEXTO_PLANO: Array<{ campo: keyof Dia; label: string; multilinha?: boolean }> = [
+  { campo: 'plano_chao', label: 'Plano de Chão', multilinha: true },
+];
+const LINHAS_TEXTO_FIM: Array<{ campo: keyof Dia; label: string; multilinha?: boolean }> = [
+  { campo: 'pilula_treinamento', label: 'Pílula de Treinamento', multilinha: true },
+  { campo: 'observacoes', label: 'Observações', multilinha: true },
+];
 
 type Funcao = { id: string; codigo: string; nome: string; entra_no_custo: boolean; ordem: number };
 type LinhaFuncao = {
@@ -72,14 +91,15 @@ const rotuloDia = (dataISO: string, turno: string) => {
 };
 
 /** Célula numérica editável. Vazio = limpa o override e volta ao automático. */
-function CelulaNum({ valor, origem, sufixo, onSalvar, disabled, titulo }: {
+function CelulaNum({ valor, origem, sufixo, onSalvar, disabled, titulo, moeda }: {
   valor: number | null; origem?: 'branco' | 'verde' | 'amarelo'; sufixo?: string;
-  onSalvar: (v: number | null) => void; disabled?: boolean; titulo?: string;
+  onSalvar: (v: number | null) => void; disabled?: boolean; titulo?: string; moeda?: boolean;
 }) {
   const [editando, setEditando] = useState(false);
   const [txt, setTxt] = useState('');
+  const mostrar = (v: number | null) => (moeda ? fmtBRL(v) : fmtNum(v));
   if (disabled) {
-    return <span className={`block px-1.5 py-1 tabular-nums text-center ${COR[origem || 'branco']}`}>{fmtNum(valor)}{sufixo}</span>;
+    return <span className={`block px-1.5 py-1 tabular-nums text-center ${COR[origem || 'branco']}`}>{mostrar(valor)}{sufixo}</span>;
   }
   if (editando) {
     return (
@@ -102,8 +122,98 @@ function CelulaNum({ valor, origem, sufixo, onSalvar, disabled, titulo }: {
       onClick={() => { setTxt(valor == null ? '' : String(valor)); setEditando(true); }}
       className={`w-full px-1.5 py-1 tabular-nums text-center hover:ring-1 hover:ring-blue-400 rounded ${COR[origem || 'branco']}`}
     >
-      {fmtNum(valor)}{sufixo}
+      {mostrar(valor)}{sufixo}
     </button>
+  );
+}
+
+/**
+ * Célula de texto da grade. Mostra o conteúdo (com quebra de linha preservada, que o plano
+ * de chão usa) e vira textarea no clique. Não trunca com "…": o time precisa ler o dia
+ * inteiro sem abrir nada.
+ */
+function CelulaTexto({ valor, multilinha, disabled, onSalvar }: {
+  valor: string; multilinha: boolean; disabled?: boolean; onSalvar: (v: string) => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [txt, setTxt] = useState('');
+
+  if (editando) {
+    return (
+      <textarea
+        value={txt}
+        onChange={(e) => setTxt(e.target.value)}
+        onBlur={() => { setEditando(false); if (txt !== valor) onSalvar(txt); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') { setTxt(valor); setEditando(false); }
+          // Enter salva em linha única; multilinha exige Ctrl+Enter (Enter quebra linha)
+          if (e.key === 'Enter' && (!multilinha || e.ctrlKey)) { e.preventDefault(); (e.target as HTMLTextAreaElement).blur(); }
+        }}
+        ref={(el) => el?.focus()}
+        rows={multilinha ? 4 : 1}
+        className="w-full px-1.5 py-1 text-[11px] border border-blue-400 rounded bg-white dark:bg-gray-900 resize-y"
+      />
+    );
+  }
+  return (
+    <button
+      onClick={() => { if (!disabled) { setTxt(valor); setEditando(true); } }}
+      disabled={disabled}
+      className={`w-full text-left px-1.5 py-1 text-[11px] whitespace-pre-wrap break-words leading-snug
+        ${disabled ? '' : 'hover:ring-1 hover:ring-blue-400 rounded'} ${!valor ? 'text-gray-300' : ''}`}
+    >
+      {valor || '·'}
+    </button>
+  );
+}
+
+/** As 4 sub-colunas de uma função num dia: TOTAL | FIXOS | FREELAS | Custo. */
+function CelulasFuncao({ dia, funcao, linha, soLeitura, onSalvar }: {
+  dia: Dia; funcao: Funcao; linha: LinhaFuncao | undefined; soLeitura: boolean;
+  onSalvar: (d: Dia, funcaoId: string, campo: 'total_manual' | 'fixos_manual', v: number | null) => void;
+}) {
+  return (
+    <Fragment>
+      <td className="px-0.5 py-0.5 border-l border-[hsl(var(--border))]">
+        <CelulaNum valor={linha?.total ?? null} origem={linha?.total_origem} disabled={soLeitura}
+          titulo="Total = teto(pico ÷ nível de serviço). Apagar devolve ao automático."
+          onSalvar={(v) => onSalvar(dia, funcao.id, 'total_manual', v)} />
+      </td>
+      <td className="px-0.5 py-0.5">
+        {/* FIXOS vem da Escala. Editar aqui é override — o automático continua por trás. */}
+        <CelulaNum valor={linha?.fixos ?? null} origem={linha?.fixos_manual != null ? 'amarelo' : 'verde'} disabled={soLeitura}
+          titulo={`Da Escala: ${linha?.fixos_escala ?? 0}. Editar aqui sobrepõe só neste dia.`}
+          onSalvar={(v) => onSalvar(dia, funcao.id, 'fixos_manual', v)} />
+      </td>
+      <td className="px-0.5 py-0.5 text-center tabular-nums text-muted-foreground">{linha?.freelas ?? 0}</td>
+      <td className="px-0.5 py-0.5 text-center tabular-nums">
+        {linha?.custo ? fmtBRL(linha.custo) : <span className="text-gray-300">—</span>}
+      </td>
+    </Fragment>
+  );
+}
+
+/** Headcount = soma dos TOTAL / FIXOS / FREELAS do bloco (Ops ou Segurança). */
+function LinhaHeadcount({ rotulo, dias, funcoes, linhaDe }: {
+  rotulo: string; dias: Dia[]; funcoes: Funcao[];
+  linhaDe: (d: Dia, fid: string) => LinhaFuncao | undefined;
+}) {
+  return (
+    <tr className="border-b-2 border-[hsl(var(--border))] font-medium bg-muted/20">
+      <td className="px-3 py-1 sticky left-0 bg-muted/20 z-10">{rotulo}</td>
+      {dias.map(d => {
+        const ls = funcoes.map(f => linhaDe(d, f.id)).filter(Boolean) as LinhaFuncao[];
+        const soma = (k: 'total' | 'fixos' | 'freelas') => ls.reduce((s, l) => s + (Number(l[k]) || 0), 0);
+        return (
+          <Fragment key={d.id}>
+            <td className="px-0.5 py-1 text-center tabular-nums border-l border-[hsl(var(--border))]">{soma('total')}</td>
+            <td className="px-0.5 py-1 text-center tabular-nums">{soma('fixos')}</td>
+            <td className="px-0.5 py-1 text-center tabular-nums">{soma('freelas')}</td>
+            <td className="px-0.5 py-1" />
+          </Fragment>
+        );
+      })}
+    </tr>
   );
 }
 
@@ -134,6 +244,10 @@ export default function PlanoOperacionalPage() {
 
   const dias = useMemo(() => data?.dias || [], [data]);
   const funcoes = useMemo(() => (data?.funcoes || []).filter(f => f.entra_no_custo), [data]);
+  // A planilha separa o bloco de operação do de segurança, cada um com seu Headcount.
+  const SEG = ['seguranca', 'brigadista'];
+  const funcoesOps = useMemo(() => funcoes.filter(f => !SEG.includes(f.codigo)), [funcoes]);
+  const funcoesSeg = useMemo(() => funcoes.filter(f => SEG.includes(f.codigo)), [funcoes]);
 
   const salvarDia = useCallback(async (dia: Dia | null, dataISO: string, turno: string, campo: string, valor: unknown) => {
     try {
@@ -241,59 +355,74 @@ export default function PlanoOperacionalPage() {
         </CardContent></Card>
       ) : (
         <Card><CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-xs border-collapse">
+          {/* Layout espelhando a planilha: cada linha da coluna A vira uma linha, e cada dia
+              ocupa 4 sub-colunas (TOTAL | FIXOS | FREELAS | Custo) nas linhas de função.
+              As linhas de texto ocupam as 4 colunas do dia. */}
+          <table className="text-xs border-collapse" style={{ minWidth: 'max-content' }}>
             <thead>
               <tr className="border-b border-[hsl(var(--border))]">
-                <th className="text-left px-3 py-2 font-medium sticky left-0 bg-[hsl(var(--card))] z-10 min-w-[150px]">&nbsp;</th>
-                {dias.map(d => {
-                  // 248 dias de briefing vieram da planilha e ficavam invisíveis — o cabeçalho
-                  // do dia abre o painel com programação, plano de chão, promoção e observações.
-                  const temContexto = !!(d.programacao_musical || d.programacao_esportiva || d.plano_chao
-                    || d.promocao || d.entrada || d.observacoes || d.pilula_treinamento);
-                  return (
-                    <th key={d.id} className="px-2 py-2 font-medium text-center min-w-[92px] whitespace-nowrap">
-                      <button onClick={() => setDiaAberto(d)}
-                        title="Abrir programação, plano de chão e observações do dia"
-                        className="hover:underline decoration-dotted">
-                        {rotuloDia(d.data, d.turno)}
-                        {temContexto && <span className="ml-1 text-blue-500" aria-hidden>•</span>}
-                      </button>
-                      {d.data_especial && (
-                        <div className="text-[10px] font-normal text-amber-600 truncate max-w-[92px]" title={d.data_especial}>
-                          {d.data_especial}
-                        </div>
-                      )}
-                    </th>
-                  );
-                })}
+                <th className="text-left px-3 py-2 font-medium sticky left-0 bg-[hsl(var(--card))] z-20 min-w-[170px]">&nbsp;</th>
+                {dias.map(d => (
+                  <th key={d.id} colSpan={4}
+                    className="px-2 py-2 font-medium text-center whitespace-nowrap border-l border-[hsl(var(--border))]">
+                    {/* Clicar abre o painel do dia — é lá que fica o "dia atípico"
+                        (festival/feriado com ticket e giro próprios), que não cabe na grade. */}
+                    <button onClick={() => setDiaAberto(d)} title="Dia atípico: ticket e giro próprios deste dia"
+                      className="hover:underline decoration-dotted">
+                      {rotuloDia(d.data, d.turno)}
+                    </button>
+                    {d.data_especial && (
+                      <div className="text-[10px] font-normal text-amber-600 truncate" title={d.data_especial}>
+                        {d.data_especial}
+                      </div>
+                    )}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {/* --- entrada + cadeia de cálculo --- */}
+              {/* ---- contexto do dia (texto), igual às primeiras linhas da planilha ---- */}
+              {LINHAS_TEXTO.map(lt => (
+                <tr key={lt.campo} className="border-b border-[hsl(var(--border))] align-top">
+                  <td className="px-3 py-1.5 sticky left-0 bg-[hsl(var(--card))] z-10 text-muted-foreground">{lt.label}</td>
+                  {dias.map(d => (
+                    <td key={d.id} colSpan={4} className="p-0 border-l border-[hsl(var(--border))]">
+                      <CelulaTexto
+                        valor={(d[lt.campo] as string) || ''}
+                        multilinha={!!lt.multilinha}
+                        disabled={soLeitura}
+                        onSalvar={(v) => salvarDia(d, d.data, d.turno, lt.campo as string, v)}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+
+              {/* ---- cadeia de cálculo ---- */}
               <tr className="border-b border-[hsl(var(--border))]">
-                <td className="px-3 py-1.5 sticky left-0 bg-[hsl(var(--card))]">Faturamento previsto</td>
+                <td className="px-3 py-1.5 sticky left-0 bg-[hsl(var(--card))] z-10">Expect Faturamento</td>
                 {dias.map(d => (
-                  <td key={d.id} className="px-1 py-1">
-                    <CelulaNum valor={d.faturamento_previsto} origem="branco" disabled={soLeitura}
+                  <td key={d.id} colSpan={4} className="px-1 py-1 border-l border-[hsl(var(--border))]">
+                    <CelulaNum valor={d.faturamento_previsto} origem="branco" disabled={soLeitura} moeda
                       titulo="Entrada manual — é daqui que a cadeia toda sai"
                       onSalvar={(v) => salvarDia(d, d.data, d.turno, 'faturamento_previsto', v)} />
                   </td>
                 ))}
               </tr>
               <tr className="border-b border-[hsl(var(--border))]">
-                <td className="px-3 py-1.5 sticky left-0 bg-[hsl(var(--card))]">Público esperado</td>
+                <td className="px-3 py-1.5 sticky left-0 bg-[hsl(var(--card))] z-10">Expectativa de Público</td>
                 {dias.map(d => (
-                  <td key={d.id} className="px-1 py-1">
+                  <td key={d.id} colSpan={4} className="px-1 py-1 border-l border-[hsl(var(--border))]">
                     <CelulaNum valor={d.publico} origem={d.publico_manual != null ? 'amarelo' : 'verde'} disabled={soLeitura}
                       titulo="Faturamento ÷ ticket médio do dia da semana"
                       onSalvar={(v) => salvarDia(d, d.data, d.turno, 'publico_manual', v)} />
                   </td>
                 ))}
               </tr>
-              <tr className="border-b-2 border-[hsl(var(--border))]">
-                <td className="px-3 py-1.5 sticky left-0 bg-[hsl(var(--card))]">Pico / lugares</td>
+              <tr className="border-b border-[hsl(var(--border))]">
+                <td className="px-3 py-1.5 sticky left-0 bg-[hsl(var(--card))] z-10">Pico/Lugares</td>
                 {dias.map(d => (
-                  <td key={d.id} className="px-1 py-1">
+                  <td key={d.id} colSpan={4} className="px-1 py-1 border-l border-[hsl(var(--border))]">
                     <CelulaNum valor={d.pico} origem={d.pico_manual != null ? 'amarelo' : 'verde'} disabled={soLeitura}
                       titulo="Público ÷ giro de lotação"
                       onSalvar={(v) => salvarDia(d, d.data, d.turno, 'pico_manual', v)} />
@@ -301,37 +430,78 @@ export default function PlanoOperacionalPage() {
                 ))}
               </tr>
 
-              {/* --- quadro por função: TOTAL / fixos / freelas --- */}
-              {funcoes.map(f => (
-                <tr key={f.id} className="border-b border-[hsl(var(--border))] hover:bg-muted/30">
-                  <td className="px-3 py-1.5 sticky left-0 bg-[hsl(var(--card))]">{f.nome}</td>
-                  {dias.map(d => {
-                    const l = linhaDe(d, f.id);
-                    return (
-                      <td key={d.id} className="px-1 py-1">
-                        <div className="flex items-center justify-center gap-0.5">
-                          <div className="flex-1">
-                            <CelulaNum valor={l?.total ?? null} origem={l?.total_origem} disabled={soLeitura}
-                              titulo={`Total = teto(pico ÷ nível de serviço). Fixos da escala: ${l?.fixos_escala ?? 0}`}
-                              onSalvar={(v) => salvarFuncao(d, f.id, 'total_manual', v)} />
-                          </div>
-                          <span className="text-[10px] text-muted-foreground tabular-nums w-8 text-right"
-                            title={`${l?.fixos ?? 0} fixos da escala · ${l?.freelas ?? 0} freelas`}>
-                            {l?.fixos ?? 0}/{l?.freelas ?? 0}
-                          </span>
-                        </div>
-                      </td>
-                    );
-                  })}
+              {/* Plano de Chão fecha o bloco de contexto, como na planilha (vem depois do pico). */}
+              {LINHAS_TEXTO_PLANO.map(lt => (
+                <tr key={lt.campo} className="border-b-2 border-[hsl(var(--border))] align-top">
+                  <td className="px-3 py-1.5 sticky left-0 bg-[hsl(var(--card))] z-10 text-muted-foreground">{lt.label}</td>
+                  {dias.map(d => (
+                    <td key={d.id} colSpan={4} className="p-0 border-l border-[hsl(var(--border))]">
+                      <CelulaTexto valor={(d[lt.campo] as string) || ''} multilinha disabled={soLeitura}
+                        onSalvar={(v) => salvarDia(d, d.data, d.turno, lt.campo as string, v)} />
+                    </td>
+                  ))}
                 </tr>
               ))}
 
-              <tr className="border-t-2 border-[hsl(var(--border))] font-semibold bg-muted/40">
-                <td className="px-3 py-2 sticky left-0 bg-muted/40">Custo projetado (freela)</td>
+              {/* ---- cabeçalho das 4 sub-colunas, como na planilha ---- */}
+              <tr className="border-b border-[hsl(var(--border))] bg-muted/40 text-[10px] text-muted-foreground">
+                <td className="px-3 py-1 sticky left-0 bg-muted/40 z-10">&nbsp;</td>
                 {dias.map(d => (
-                  <td key={d.id} className="px-2 py-2 text-center tabular-nums">{fmtBRL(d.custo_dia)}</td>
+                  <Fragment key={d.id}>
+                    <td className="px-1 py-1 text-center border-l border-[hsl(var(--border))]">TOTAL</td>
+                    <td className="px-1 py-1 text-center">FIXOS</td>
+                    <td className="px-1 py-1 text-center">FREELAS</td>
+                    <td className="px-1 py-1 text-center">Custo</td>
+                  </Fragment>
                 ))}
               </tr>
+
+              {/* ---- funções de operação + Headcount Ops ---- */}
+              {funcoesOps.map(f => (
+                <tr key={f.id} className="border-b border-[hsl(var(--border))] hover:bg-muted/30">
+                  <td className="px-3 py-1 sticky left-0 bg-[hsl(var(--card))] z-10">{f.nome}</td>
+                  {dias.map(d => <CelulasFuncao key={d.id} dia={d} funcao={f} linha={linhaDe(d, f.id)}
+                    soLeitura={soLeitura} onSalvar={salvarFuncao} />)}
+                </tr>
+              ))}
+              <LinhaHeadcount rotulo="Headcount Ops" dias={dias} funcoes={funcoesOps} linhaDe={linhaDe} />
+
+              {/* ---- segurança + Headcount Seg ---- */}
+              {funcoesSeg.map(f => (
+                <tr key={f.id} className="border-b border-[hsl(var(--border))] hover:bg-muted/30">
+                  <td className="px-3 py-1 sticky left-0 bg-[hsl(var(--card))] z-10">{f.nome}</td>
+                  {dias.map(d => <CelulasFuncao key={d.id} dia={d} funcao={f} linha={linhaDe(d, f.id)}
+                    soLeitura={soLeitura} onSalvar={salvarFuncao} />)}
+                </tr>
+              ))}
+              <LinhaHeadcount rotulo="Headcount Seg" dias={dias} funcoes={funcoesSeg} linhaDe={linhaDe} />
+
+              {/* ---- custo do dia ---- */}
+              <tr className="border-t-2 border-[hsl(var(--border))] font-semibold bg-muted/40">
+                <td className="px-3 py-2 sticky left-0 bg-muted/40 z-10">Custo Proj do Dia</td>
+                {dias.map(d => (
+                  <td key={d.id} colSpan={4} className="px-2 py-2 text-center tabular-nums border-l border-[hsl(var(--border))]">
+                    {fmtBRL(d.custo_dia)}
+                  </td>
+                ))}
+              </tr>
+
+              {/* ---- fecho: pílula e observações ---- */}
+              {LINHAS_TEXTO_FIM.map(lt => (
+                <tr key={lt.campo} className="border-b border-[hsl(var(--border))] align-top">
+                  <td className="px-3 py-1.5 sticky left-0 bg-[hsl(var(--card))] z-10 text-muted-foreground">{lt.label}</td>
+                  {dias.map(d => (
+                    <td key={d.id} colSpan={4} className="p-0 border-l border-[hsl(var(--border))]">
+                      <CelulaTexto
+                        valor={(d[lt.campo] as string) || ''}
+                        multilinha={!!lt.multilinha}
+                        disabled={soLeitura}
+                        onSalvar={(v) => salvarDia(d, d.data, d.turno, lt.campo as string, v)}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
             </tbody>
           </table>
         </CardContent></Card>

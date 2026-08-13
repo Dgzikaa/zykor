@@ -243,6 +243,7 @@ export const MENU_TREE: MenuSection[] = [
     subItems: [
       { icon: 'ClipboardList', label: 'Plano Operacional', href: '/operacao/plano', permission: 'operacao_plano_operacional' },
       { icon: 'CalendarRange', label: 'Escala', href: '/operacao/escala', permission: 'operacao_escala' },
+      { icon: 'Scale', label: 'Planejado × Realizado', href: '/operacao/comparativo', permission: 'operacao_planejado_realizado' },
     ],
   },
   {
