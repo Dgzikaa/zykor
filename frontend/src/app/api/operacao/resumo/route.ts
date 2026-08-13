@@ -8,18 +8,41 @@ export const dynamic = 'force-dynamic';
 const sb = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 const ops = (c: ReturnType<typeof sb>) => (c as any).schema('operations');
 
+/**
+ * Rótulos do resumo, na ordem e com os nomes da planilha. `seg/bri` junta segurança e
+ * brigadista numa linha só — é como o time lê o custo de segurança.
+ */
+const LINHAS_RESUMO: Array<{ label: string; codigos: string[] }> = [
+  { label: 'garçom', codigos: ['garcom'] },
+  { label: 'cumim', codigos: ['cumim'] },
+  { label: 'host', codigos: ['host'] },
+  { label: 'asg', codigos: ['asg'] },
+  { label: 'bar', codigos: ['bartender'] },
+  { label: 'back', codigos: ['barback'] },
+  { label: 'cozinha', codigos: ['cozinha'] },
+  { label: 'seg/bri', codigos: ['seguranca', 'brigadista'] },
+];
+
+const segundaDe = (dataISO: string) => {
+  const [a, m, d] = dataISO.split('-').map(Number);
+  const x = new Date(Date.UTC(a, m - 1, d));
+  x.setUTCDate(x.getUTCDate() - (x.getUTCDay() === 0 ? 6 : x.getUTCDay() - 1));
+  return x.toISOString().slice(0, 10);
+};
+
 // =====================================================
-// Resumo do mês: total mensal + quebra por semana + por função.
+// Resumo do período — mesmos campos do bloco RESUMO da planilha.
 //
-// A DOR QUE ISSO RESOLVE: na planilha, mês que começa numa quarta obrigava a recortar
-// dias da última semana do mês anterior à mão ("tem mês que a semana começa dia 03, aí
-// tem que tirar 2 dias da última semana do outro mês"). Aqui não existe esse trabalho:
-// a chave é DATA, então
-//   - o MENSAL é todo dia cuja data cai no mês, não importa em que semana ele esteja;
-//   - a SEMANA é sempre segunda→domingo, atravessando a virada de mês sem cerimônia.
-// Cada semana da lista informa `dias_no_mes`, pra deixar explícito quando ela é parcial.
+//   Custo de Freelas · CMO Fixo · Público Proj · Fat Proj · CMO% Proj
+//   + FUNÇÃO / QTDE / CUSTO
 //
-// GET /api/operacao/resumo?mes=2026-08
+// O CMO% É (FREELA + FIXO) / FATURAMENTO, não só o freela. Sem a folha CLT o percentual
+// dava ~4% e o teto de 21% nunca disparava; com ela, a semana 03-09/08 fecha 28,79%.
+//
+// O CMO Fixo tem DUAS constantes independentes no parâmetro (semanal 59k, mensal 172k):
+// 172/59 = 2,9, não são 4,3 semanas. Derivar uma da outra daria percentual errado.
+//
+// GET /api/operacao/resumo?de=2026-08-01&ate=2026-08-31&escopo=mes|semana
 // =====================================================
 export async function GET(request: NextRequest) {
   const user = await authenticateUser(request);
@@ -27,77 +50,90 @@ export async function GET(request: NextRequest) {
   const nega = negarPorRota(user, request); if (nega) return nega;
   if (!user.bar_id) return NextResponse.json({ error: 'Nenhum bar selecionado' }, { status: 400 });
 
-  const mes = new URL(request.url).searchParams.get('mes') || '';
-  if (!/^\d{4}-\d{2}$/.test(mes)) return NextResponse.json({ error: 'Informe mes (AAAA-MM)' }, { status: 400 });
-
-  const [ano, m] = mes.split('-').map(Number);
-  const primeiro = new Date(Date.UTC(ano, m - 1, 1));
-  const ultimo = new Date(Date.UTC(ano, m, 0));
-  const de = primeiro.toISOString().slice(0, 10);
-  const ate = ultimo.toISOString().slice(0, 10);
+  const url = new URL(request.url);
+  const de = url.searchParams.get('de') || '';
+  const ate = url.searchParams.get('ate') || '';
+  const escopo = url.searchParams.get('escopo') === 'semana' ? 'semana' : 'mes';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(de) || !/^\d{4}-\d{2}-\d{2}$/.test(ate)) {
+    return NextResponse.json({ error: 'Informe de e ate (AAAA-MM-DD)' }, { status: 400 });
+  }
 
   const c = sb();
-  const [{ data: dias }, { data: linhas }] = await Promise.all([
-    ops(c).from('operacao_dia').select('id, data, turno, faturamento_previsto')
-      .eq('bar_id', user.bar_id).gte('data', de).lte('data', ate).order('data'),
-    ops(c).from('v_operacao_dia_funcao').select('*')
+  const [{ data: dias }, { data: linhas }, { data: param }] = await Promise.all([
+    ops(c).from('operacao_dia').select('id, data, turno, faturamento_previsto, publico_calculado, publico_manual')
       .eq('bar_id', user.bar_id).gte('data', de).lte('data', ate),
+    ops(c).from('v_operacao_dia_funcao').select('operacao_dia_id, data, funcao_codigo, freelas, custo, entra_no_custo')
+      .eq('bar_id', user.bar_id).gte('data', de).lte('data', ate),
+    ops(c).from('operacao_parametro').select('cmo_fixo_semanal, cmo_fixo_mensal')
+      .eq('bar_id', user.bar_id).lte('vigencia_inicio', ate)
+      .or(`vigencia_fim.is.null,vigencia_fim.gte.${ate}`)
+      .order('vigencia_inicio', { ascending: false }).limit(1).maybeSingle(),
   ]);
 
-  const custoPorDiaId = new Map<string, number>();
-  (linhas || []).forEach((l: any) => {
-    custoPorDiaId.set(l.operacao_dia_id, (custoPorDiaId.get(l.operacao_dia_id) || 0) + Number(l.custo || 0));
-  });
+  const custoFreelas = (linhas || []).reduce((s: number, l: any) => s + Number(l.custo || 0), 0);
+  const fatProj = (dias || []).reduce((s: number, d: any) => s + Number(d.faturamento_previsto || 0), 0);
+  const publicoProj = (dias || []).reduce(
+    (s: number, d: any) => s + Number(d.publico_manual ?? d.publico_calculado ?? 0), 0);
 
-  // ---- por função (mensal) — espelha o bloco "RESUMO MENSAL: FUNÇÃO / CUSTO" da planilha
-  const porFuncao = new Map<string, { funcao_nome: string; ordem: number; freelas: number; custo: number }>();
+  const cmoFixo = Number(
+    (escopo === 'semana' ? param?.cmo_fixo_semanal : param?.cmo_fixo_mensal) ?? 0);
+  const cmoPct = fatProj > 0 ? ((custoFreelas + cmoFixo) / fatProj) * 100 : null;
+
+  // por função, com seg/bri agrupado
+  const porCodigo = new Map<string, { qtde: number; custo: number }>();
   (linhas || []).forEach((l: any) => {
     if (!l.entra_no_custo) return;
-    const k = l.funcao_id;
-    if (!porFuncao.has(k)) porFuncao.set(k, { funcao_nome: l.funcao_nome, ordem: l.funcao_ordem, freelas: 0, custo: 0 });
-    const f = porFuncao.get(k)!;
-    f.freelas += Number(l.freelas || 0);
-    f.custo += Number(l.custo || 0);
+    const at = porCodigo.get(l.funcao_codigo) || { qtde: 0, custo: 0 };
+    at.qtde += Number(l.freelas || 0);
+    at.custo += Number(l.custo || 0);
+    porCodigo.set(l.funcao_codigo, at);
+  });
+  const porFuncao = LINHAS_RESUMO.map(lr => {
+    const acc = lr.codigos.reduce((a, cod) => {
+      const v = porCodigo.get(cod);
+      return { qtde: a.qtde + (v?.qtde || 0), custo: a.custo + (v?.custo || 0) };
+    }, { qtde: 0, custo: 0 });
+    return { label: lr.label, ...acc };
   });
 
-  // ---- por semana (segunda→domingo), atravessando a virada de mês
-  const segundaDe = (dataISO: string) => {
-    const [a, mm, dd] = dataISO.split('-').map(Number);
-    const d = new Date(Date.UTC(a, mm - 1, dd));
-    const dow = d.getUTCDay();
-    d.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
-    return d.toISOString().slice(0, 10);
-  };
+  // quebra por semana (só faz sentido no escopo mensal)
+  const custoPorDiaId = new Map<string, number>();
+  (linhas || []).forEach((l: any) =>
+    custoPorDiaId.set(l.operacao_dia_id, (custoPorDiaId.get(l.operacao_dia_id) || 0) + Number(l.custo || 0)));
 
-  const semanas = new Map<string, { inicio: string; fim: string; dias_no_mes: number; faturamento: number; custo: number }>();
+  const semanas = new Map<string, { inicio: string; fim: string; dias_no_periodo: number; faturamento: number; custo: number }>();
   (dias || []).forEach((d: any) => {
     const ini = segundaDe(d.data);
     if (!semanas.has(ini)) {
-      const [a, mm, dd] = ini.split('-').map(Number);
-      const fim = new Date(Date.UTC(a, mm - 1, dd + 6)).toISOString().slice(0, 10);
-      semanas.set(ini, { inicio: ini, fim, dias_no_mes: 0, faturamento: 0, custo: 0 });
+      const [a, m, dd] = ini.split('-').map(Number);
+      semanas.set(ini, {
+        inicio: ini,
+        fim: new Date(Date.UTC(a, m - 1, dd + 6)).toISOString().slice(0, 10),
+        dias_no_periodo: 0, faturamento: 0, custo: 0,
+      });
     }
     const s = semanas.get(ini)!;
-    // turno dia/noite do sábado são 2 registros do MESMO dia — não contar o dia duas vezes
-    if (d.turno !== 'noite') s.dias_no_mes += 1;
+    // sábado dia/noite são 2 registros do MESMO dia — não contar o dia duas vezes
+    if (d.turno !== 'noite') s.dias_no_periodo += 1;
     s.faturamento += Number(d.faturamento_previsto || 0);
     s.custo += custoPorDiaId.get(d.id) || 0;
   });
 
-  const listaSemanas = [...semanas.values()]
-    .sort((a, b) => a.inicio.localeCompare(b.inicio))
-    .map(s => ({ ...s, pct_cmo: s.faturamento > 0 ? (s.custo / s.faturamento) * 100 : null }));
-
-  const faturamento = (dias || []).reduce((t: number, d: any) => t + Number(d.faturamento_previsto || 0), 0);
-  const custo = [...custoPorDiaId.values()].reduce((t, v) => t + v, 0);
+  const cmoFixoSemana = Number(param?.cmo_fixo_semanal ?? 0);
 
   return NextResponse.json({
-    mes,
+    escopo,
     periodo: { de, ate },
-    total: { faturamento, custo, pct_cmo: faturamento > 0 ? (custo / faturamento) * 100 : null },
-    semanas: listaSemanas,
-    por_funcao: [...porFuncao.values()].sort((a, b) => a.ordem - b.ordem),
-    // teto combinado com o time; acima disso a tela alerta
+    custo_freelas: custoFreelas,
+    cmo_fixo: cmoFixo,
+    publico_proj: Math.round(publicoProj),
+    fat_proj: fatProj,
+    cmo_pct: cmoPct,
+    por_funcao: porFuncao,
+    semanas: [...semanas.values()].sort((a, b) => a.inicio.localeCompare(b.inicio)).map(s => ({
+      ...s,
+      cmo_pct: s.faturamento > 0 ? ((s.custo + cmoFixoSemana) / s.faturamento) * 100 : null,
+    })),
     limite_cmo_pct: 21,
   });
 }

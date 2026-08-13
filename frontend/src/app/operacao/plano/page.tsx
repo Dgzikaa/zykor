@@ -63,11 +63,13 @@ type Dia = {
   pilula_treinamento: string | null; observacoes: string | null; data_especial: string | null;
   funcoes: LinhaFuncao[]; custo_dia: number;
 };
+/** Mesmos campos do bloco RESUMO da planilha. */
 type Resumo = {
-  mes: string;
-  total: { faturamento: number; custo: number; pct_cmo: number | null };
-  semanas: Array<{ inicio: string; fim: string; dias_no_mes: number; faturamento: number; custo: number; pct_cmo: number | null }>;
-  por_funcao: Array<{ funcao_nome: string; freelas: number; custo: number }>;
+  escopo: 'semana' | 'mes';
+  custo_freelas: number; cmo_fixo: number; publico_proj: number; fat_proj: number;
+  cmo_pct: number | null;
+  por_funcao: Array<{ label: string; qtde: number; custo: number }>;
+  semanas: Array<{ inicio: string; fim: string; dias_no_periodo: number; faturamento: number; custo: number; cmo_pct: number | null }>;
   limite_cmo_pct: number;
 };
 
@@ -135,8 +137,18 @@ function CelulaNum({ valor, origem, sufixo, onSalvar, disabled, titulo, moeda }:
  * de chão usa) e vira textarea no clique. Não trunca com "…": o time precisa ler o dia
  * inteiro sem abrir nada.
  */
-function CelulaTexto({ valor, multilinha, disabled, expandido, onSalvar }: {
-  valor: string; multilinha: boolean; disabled?: boolean; expandido?: boolean; onSalvar: (v: string) => void;
+/**
+ * Quantas linhas o texto mostra antes de cortar. Classe estática porque o Tailwind não
+ * gera `line-clamp-${n}` dinâmico. `none` = mostra tudo (é o caso do plano de chão, que o
+ * time lê inteiro antes de montar o salão).
+ */
+const CLAMP: Record<string, string> = {
+  '2': 'line-clamp-2', '3': 'line-clamp-3', '4': 'line-clamp-4', none: '',
+};
+
+function CelulaTexto({ valor, multilinha, disabled, expandido, clamp = '3', onSalvar }: {
+  valor: string; multilinha: boolean; disabled?: boolean; expandido?: boolean;
+  clamp?: keyof typeof CLAMP; onSalvar: (v: string) => void;
 }) {
   const [editando, setEditando] = useState(false);
   const [txt, setTxt] = useState('');
@@ -164,7 +176,7 @@ function CelulaTexto({ valor, multilinha, disabled, expandido, onSalvar }: {
       disabled={disabled}
       title={valor || undefined}
       className={`w-full text-left px-1 py-1 text-[10px] whitespace-pre-wrap break-words leading-tight
-        ${expandido ? '' : 'line-clamp-3'}
+        ${expandido ? '' : CLAMP[clamp]}
         ${disabled ? '' : 'hover:ring-1 hover:ring-blue-400 rounded'} ${!valor ? 'text-gray-300' : ''}`}
     >
       {valor || '·'}
@@ -249,7 +261,7 @@ export default function PlanoOperacionalPage() {
   const { data, isLoading, mutate } = useApiSWR<{ dias: Dia[]; funcoes: Funcao[]; totais: { faturamento: number; custo: number } }>(
     `/api/operacao/plano?de=${de}&ate=${ate}`,
   );
-  const { data: resumo } = useApiSWR<Resumo>(`/api/operacao/resumo?mes=${mesRef}`);
+  const { data: resumo } = useApiSWR<Resumo>(`/api/operacao/resumo?de=${de}&ate=${ate}&escopo=${visao}`);
 
   const dias = useMemo(() => data?.dias || [], [data]);
   const funcoes = useMemo(() => (data?.funcoes || []).filter(f => f.entra_no_custo), [data]);
@@ -367,6 +379,13 @@ export default function PlanoOperacionalPage() {
           )}
           {visao === 'mes' && <p className="text-xs text-muted-foreground">Volte para a visão Semana para criar os dias.</p>}
         </CardContent></Card>
+      ) : visao === 'mes' ? (
+        // No mês a grade diária não entra: 31 dias × 4 colunas ficam ilegíveis, e o que se
+        // olha no mês é o consolidado. O detalhe do dia vive na visão Semana.
+        <Card><CardContent className="py-6 text-center text-sm text-muted-foreground">
+          {dias.filter(d => d.turno !== 'noite').length} dias planejados no mês.
+          Troque para <b>Semana</b> para ver e editar o dia a dia.
+        </CardContent></Card>
       ) : (
         <Card><CardContent className="p-0 overflow-x-auto">
           {/* Layout espelhando a planilha: cada linha da coluna A vira uma linha, e cada dia
@@ -463,8 +482,12 @@ export default function PlanoOperacionalPage() {
                   <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-muted-foreground text-[10px]">{lt.label}</td>
                   {dias.map(d => (
                     <td key={d.id} colSpan={4} className="p-0 border-l border-[hsl(var(--border))]">
+                      {/* Plano de chão sem corte: é a instrução de montagem do salão, lida
+                          inteira antes do serviço. Cortar em 3 linhas escondia justamente
+                          o que a operação precisa. */}
                       <CelulaTexto valor={(d[lt.campo] as string) || ''} multilinha disabled={soLeitura}
-                        expandido={briefingAberto} onSalvar={(v) => salvarDia(d, d.data, d.turno, lt.campo as string, v)} />
+                        expandido={briefingAberto} clamp="none"
+                        onSalvar={(v) => salvarDia(d, d.data, d.turno, lt.campo as string, v)} />
                     </td>
                   ))}
                 </tr>
@@ -537,62 +560,96 @@ export default function PlanoOperacionalPage() {
         </CardContent></Card>
       )}
 
-      {/* Resumo do mês — espelha os blocos "RESUMO SEMANAL" e "RESUMO MENSAL" da planilha.
-          A semana atravessa a virada de mês sem recorte manual: `dias_no_mes` deixa
-          explícito quando ela é parcial, que era o trabalho chato de todo mês. */}
-      {resumo && resumo.semanas.length > 0 && (
-        <Card><CardContent className="py-3 space-y-3">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span className="font-semibold text-sm">Resumo de {resumo.mes.slice(5)}/{resumo.mes.slice(2, 4)}</span>
-            <span className="text-sm">
-              {fmtBRL(resumo.total.faturamento)} previstos · <b className="tabular-nums">{fmtBRL(resumo.total.custo)}</b> de freela
-              {resumo.total.pct_cmo != null && (
-                <span className={resumo.total.pct_cmo > resumo.limite_cmo_pct ? ' text-red-600 font-semibold' : ' text-muted-foreground'}>
-                  {' '}({resumo.total.pct_cmo.toFixed(1)}%)
-                </span>
-              )}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* RESUMO — mesmos campos do bloco da planilha. O CMO% é (freela + fixo) / faturamento;
+          sem a folha CLT o percentual dava ~4% e o teto de 21% nunca disparava. */}
+      {resumo && (
+        <Card><CardContent className="py-3">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,320px)_1fr] gap-6">
             <div>
-              <div className="text-xs font-medium text-muted-foreground mb-1">Por semana</div>
-              <table className="w-full text-xs">
+              <div className="text-xs font-semibold mb-2">
+                {visao === 'semana' ? 'RESUMO SEMANAL' : 'RESUMO MENSAL'}
+              </div>
+              <table className="w-full text-sm">
                 <tbody>
-                  {resumo.semanas.map(s => (
-                    <tr key={s.inicio} className="border-b border-[hsl(var(--border))] last:border-0">
-                      <td className="py-1">
-                        {s.inicio.slice(8)}/{s.inicio.slice(5, 7)} — {s.fim.slice(8)}/{s.fim.slice(5, 7)}
-                        {s.dias_no_mes < 7 && (
-                          <span className="ml-1.5 text-[10px] text-muted-foreground">
-                            {s.dias_no_mes} {s.dias_no_mes === 1 ? 'dia' : 'dias'} neste mês
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-1 text-right tabular-nums">{fmtBRL(s.faturamento)}</td>
-                      <td className="py-1 text-right tabular-nums">{fmtBRL(s.custo)}</td>
-                      <td className={`py-1 text-right tabular-nums w-14 ${s.pct_cmo != null && s.pct_cmo > resumo.limite_cmo_pct ? 'text-red-600 font-semibold' : 'text-muted-foreground'}`}>
-                        {s.pct_cmo == null ? '—' : `${s.pct_cmo.toFixed(1)}%`}
-                      </td>
-                    </tr>
-                  ))}
+                  <tr className="border-b border-[hsl(var(--border))]">
+                    <td className="py-1.5 text-muted-foreground">Custo de Freelas</td>
+                    <td className="py-1.5 text-right tabular-nums font-medium">{fmtBRL(resumo.custo_freelas)}</td>
+                  </tr>
+                  <tr className="border-b border-[hsl(var(--border))]">
+                    <td className="py-1.5 text-muted-foreground">CMO Fixo</td>
+                    <td className="py-1.5 text-right tabular-nums font-medium">{fmtBRL(resumo.cmo_fixo)}</td>
+                  </tr>
+                  <tr className="border-b border-[hsl(var(--border))]">
+                    <td className="py-1.5 text-muted-foreground">Público Proj</td>
+                    <td className="py-1.5 text-right tabular-nums font-medium">{fmtNum(resumo.publico_proj)}</td>
+                  </tr>
+                  <tr className="border-b border-[hsl(var(--border))]">
+                    <td className="py-1.5 text-muted-foreground">Fat Proj</td>
+                    <td className="py-1.5 text-right tabular-nums font-medium">{fmtBRL(resumo.fat_proj)}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-1.5 font-medium">CMO% Proj</td>
+                    <td className={`py-1.5 text-right tabular-nums font-bold text-base
+                      ${resumo.cmo_pct != null && resumo.cmo_pct > resumo.limite_cmo_pct ? 'text-rose-600' : 'text-emerald-600'}`}>
+                      {resumo.cmo_pct == null ? '—' : `${resumo.cmo_pct.toFixed(2)}%`}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
+              {resumo.cmo_pct != null && resumo.cmo_pct > resumo.limite_cmo_pct && (
+                <p className="mt-1.5 text-[11px] text-rose-600">
+                  Acima do teto de {resumo.limite_cmo_pct}%.
+                </p>
+              )}
             </div>
 
-            <div>
-              <div className="text-xs font-medium text-muted-foreground mb-1">Por função (freelas no mês)</div>
-              <table className="w-full text-xs">
-                <tbody>
-                  {resumo.por_funcao.map(f => (
-                    <tr key={f.funcao_nome} className="border-b border-[hsl(var(--border))] last:border-0">
-                      <td className="py-1">{f.funcao_nome}</td>
-                      <td className="py-1 text-right tabular-nums text-muted-foreground">{fmtNum(f.freelas)} diárias</td>
-                      <td className="py-1 text-right tabular-nums">{fmtBRL(f.custo)}</td>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[11px] text-muted-foreground border-b border-[hsl(var(--border))]">
+                      <th className="text-left font-normal py-1">FUNÇÃO</th>
+                      <th className="text-right font-normal py-1">QTDE</th>
+                      <th className="text-right font-normal py-1">CUSTO</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {resumo.por_funcao.map(f => (
+                      <tr key={f.label} className="border-b border-[hsl(var(--border))] last:border-0">
+                        <td className="py-1">{f.label}</td>
+                        <td className="py-1 text-right tabular-nums text-muted-foreground">{fmtNum(f.qtde)}</td>
+                        <td className="py-1 text-right tabular-nums">{fmtBRL(f.custo)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* No mês, a quebra por semana substitui a grade diária — 31 dias x 4 colunas
+                  ficavam ilegíveis. `dias_no_periodo` marca a semana que entra parcial. */}
+              {visao === 'mes' && resumo.semanas.length > 0 && (
+                <div>
+                  <div className="text-[11px] text-muted-foreground mb-1">POR SEMANA</div>
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {resumo.semanas.map(s => (
+                        <tr key={s.inicio} className="border-b border-[hsl(var(--border))] last:border-0">
+                          <td className="py-1 whitespace-nowrap">
+                            {s.inicio.slice(8)}/{s.inicio.slice(5, 7)}–{s.fim.slice(8)}/{s.fim.slice(5, 7)}
+                            {s.dias_no_periodo < 7 && (
+                              <span className="ml-1 text-[10px] text-muted-foreground">({s.dias_no_periodo}d)</span>
+                            )}
+                          </td>
+                          <td className="py-1 text-right tabular-nums">{fmtBRL(s.custo)}</td>
+                          <td className={`py-1 text-right tabular-nums w-16 ${s.cmo_pct != null && s.cmo_pct > resumo.limite_cmo_pct ? 'text-rose-600 font-semibold' : 'text-muted-foreground'}`}>
+                            {s.cmo_pct == null ? '—' : `${s.cmo_pct.toFixed(1)}%`}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </CardContent></Card>
