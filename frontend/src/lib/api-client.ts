@@ -75,7 +75,13 @@ export async function apiCall(endpoint: string, options: ApiOptions = {}) {
       
       const errorData = await response.json().catch(() => ({}));
       console.error(`❌ API Error ${response.status}:`, errorData);
-      throw new Error(errorData.error || `HTTP ${response.status}`);
+      // Aditivo: além da mensagem, o corpo inteiro e o status vão pendurados no Error. Rota que
+      // responde erro COM dados (ex.: 409 devolvendo as parcelas que já existem no Conta Azul, pra
+      // tela oferecer "vincular") precisa deles; quem só lê e.message continua igual.
+      const err = new Error(errorData.error || `HTTP ${response.status}`) as Error & { status?: number; data?: unknown };
+      err.status = response.status;
+      err.data = errorData;
+      throw err;
     }
 
     // Retornar dados JSON

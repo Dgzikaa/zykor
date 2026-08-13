@@ -278,6 +278,31 @@ export function FaturaCartaoTab() {
       carregarBase();
       return true;
     } catch (e: any) {
+      // 409 com as parcelas que JA existem no Conta Azul (lancadas na mao, fora do Zykor). Em vez de
+      // so recusar, mostra a evidencia e deixa vincular — que e o que resolve, sem criar duplicata
+      // num sistema que nao deleta lancamento.
+      const ja = e?.data?.parcela_ja_no_ca as Array<any> | undefined;
+      if (ja?.length) {
+        const lista = ja.map((c) => `  ${c.n}) ${c.descricao} — venc. ${fmtDataBR(c.data_vencimento)} · ${fmtBRL(Number(c.valor_bruto))}`).join('\n');
+        const vincular = window.confirm(
+          `${e.message}\n\n${lista}\n\n` +
+          `OK = vincular esta linha ao lançamento que já existe (nada é criado no Conta Azul).\n` +
+          `Cancelar = ver a outra opção.`,
+        );
+        if (vincular) {
+          const alvo = ja.find((c) => c.contaazul_id) || ja[0];
+          return await enviarLancamento(l, { acao: 'vincular_existente', contaazul_id: alvo?.contaazul_id ?? null });
+        }
+        // segunda pergunta so pra quem recusou vincular: e compra diferente que coincidiu no valor?
+        if (window.confirm(
+          'Não vincular.\n\nÉ uma compra DIFERENTE que coincidiu no valor e no número da parcela?\n\n' +
+          'OK = lançar mesmo assim (cria lançamento novo no Conta Azul, que não dá pra apagar por API).\n' +
+          'Cancelar = não fazer nada.',
+        )) {
+          return await enviarLancamento(l, { ...(extra || {}), forcar: true });
+        }
+        return false;
+      }
       showToast({ type: 'error', title: 'Falha ao lançar', message: e?.message });
       return false;
     } finally {

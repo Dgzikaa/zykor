@@ -151,6 +151,51 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     ? `${String(body.competencia_inicial).slice(0, 7)}-01`
     : null;
 
+  // --- a parcela ja esta no Conta Azul, lancada por FORA do Zykor? ---
+  // cartao_compra_parcelada so conhece o que passou por aqui. Parcela lancada na mao direto no CA
+  // (o jeito antigo: "as vezes nao sou eu que faco, e a Catrine") nao aparece la, e o Mini Lousa do
+  // Deboche tem as 6 parcelas lancadas assim. Sem esta checagem, a fatura de setembro traria a 3/6 e
+  // ela seria lancada em cima. Nao bloqueia de vez: devolve a evidencia pra tela e quem lanca decide
+  // vincular ou lancar mesmo assim.
+  if (parcela && body.forcar !== true) {
+    const { data: noCa } = await (supabase as any).schema('financial')
+      .rpc('fn_parcelas_no_ca', { p_bar: barId, p_total: parcela.total, p_valor: Number(linha.valor) });
+    const conflitos = ((noCa || []) as any[])
+      .filter((r) => r.n >= parcela.n && r.n <= ateParcela)
+      .sort((a, b) => a.n - b.n);
+    if (conflitos.length) {
+      return NextResponse.json({
+        success: false,
+        parcela_ja_no_ca: conflitos,
+        error: conflitos.length === 1
+          ? `A parcela ${conflitos[0].n} de ${parcela.total} parece já estar no Conta Azul: "${conflitos[0].descricao}" (competência ${conflitos[0].data_competencia}, ${Number(conflitos[0].valor_bruto).toFixed(2)}).`
+          : `${conflitos.length} das parcelas que você quer lançar parecem já estar no Conta Azul (${conflitos.map((c) => c.n).join(', ')} de ${parcela.total}).`,
+      }, { status: 409 });
+    }
+  }
+
+  // Vincular a linha a um lancamento que JA existe no CA, sem criar nada — a saida do 409 acima.
+  if (parcela && chaveParcelada && body.acao === 'vincular_existente') {
+    await registrarParcelada(supabase, {
+      chaveParcelada, compraParcelada, linha, barId, parcela,
+      feitas: [parcela.n], contaazulIds: body.contaazul_id ? [String(body.contaazul_id)] : [],
+      modo, competenciaInicial, user,
+    });
+    const { data: vinculada } = await fin(supabase)
+      .from('cartao_fatura_linhas')
+      .update({
+        status: 'lancado',
+        contaazul_lancamento_id: body.contaazul_id ? String(body.contaazul_id) : null,
+        bar_id: barId, categoria_id, categoria_nome: categoria_nome || null,
+        atualizado_em: new Date().toISOString(),
+      })
+      .eq('id', id).select().single();
+    return NextResponse.json({
+      success: true, vinculado: true, linha: vinculada,
+      mensagem: `Vinculada ao lançamento que já existia no Conta Azul — nada foi criado. A partir de agora o Zykor reconhece as parcelas dessa compra sozinho.`,
+    });
+  }
+
   try {
     const contaazulIds: string[] = [];
     let contaazul_id: string | null = null;
