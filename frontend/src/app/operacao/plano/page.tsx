@@ -69,7 +69,7 @@ type Resumo = {
   custo_freelas: number; cmo_fixo: number; publico_proj: number; fat_proj: number;
   cmo_pct: number | null;
   por_funcao: Array<{ label: string; qtde: number; custo: number }>;
-  semanas: Array<{ inicio: string; fim: string; dias_no_periodo: number; faturamento: number; custo: number; cmo_pct: number | null }>;
+  semanas: Array<{ inicio: string; fim: string; dias_no_periodo: number; faturamento: number; custo: number; cmo_pct: number | null; parcial: boolean }>;
   limite_cmo_pct: number;
 };
 
@@ -636,8 +636,11 @@ export default function PlanoOperacionalPage() {
                         <tr key={s.inicio} className="border-b border-[hsl(var(--border))] last:border-0">
                           <td className="py-1 whitespace-nowrap">
                             {s.inicio.slice(8)}/{s.inicio.slice(5, 7)}–{s.fim.slice(8)}/{s.fim.slice(5, 7)}
-                            {s.dias_no_periodo < 7 && (
-                              <span className="ml-1 text-[10px] text-muted-foreground">({s.dias_no_periodo}d)</span>
+                            {s.parcial && (
+                              <span className="ml-1 text-[10px] text-muted-foreground"
+                                title={`Só ${s.dias_no_periodo} dia(s) desta semana caem no mês — o CMO Fixo entra rateado`}>
+                                ({s.dias_no_periodo}d)
+                              </span>
                             )}
                           </td>
                           <td className="py-1 text-right tabular-nums">{fmtBRL(s.custo)}</td>

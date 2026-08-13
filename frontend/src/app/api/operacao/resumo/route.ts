@@ -130,10 +130,18 @@ export async function GET(request: NextRequest) {
     fat_proj: fatProj,
     cmo_pct: cmoPct,
     por_funcao: porFuncao,
-    semanas: [...semanas.values()].sort((a, b) => a.inicio.localeCompare(b.inicio)).map(s => ({
-      ...s,
-      cmo_pct: s.faturamento > 0 ? ((s.custo + cmoFixoSemana) / s.faturamento) * 100 : null,
-    })),
+    // O CMO Fixo da semana é RATEADO pelos dias que caem no período. A semana que entra
+    // parcial (27/07–02/08 entra em agosto com 2 dias) levava a folha inteira sobre o
+    // faturamento de 2 dias e aparecia com 60% — número que não quer dizer nada.
+    semanas: [...semanas.values()].sort((a, b) => a.inicio.localeCompare(b.inicio)).map(s => {
+      const fixoRateado = cmoFixoSemana * (Math.min(s.dias_no_periodo, 7) / 7);
+      return {
+        ...s,
+        cmo_fixo_rateado: fixoRateado,
+        parcial: s.dias_no_periodo < 7,
+        cmo_pct: s.faturamento > 0 ? ((s.custo + fixoRateado) / s.faturamento) * 100 : null,
+      };
+    }),
     limite_cmo_pct: 21,
   });
 }
