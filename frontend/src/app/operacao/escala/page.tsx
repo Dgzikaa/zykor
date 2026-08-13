@@ -10,7 +10,7 @@ import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitur
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { ChevronLeft, ChevronRight, Loader2, CalendarRange } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Plus, X } from 'lucide-react';
 
 type Funcao = { id: string; codigo: string; nome: string; entra_no_custo: boolean; ordem: number };
 type Celula = { id: string; entra: string | null; sai: string | null; horas: number | null; marcador: string | null; turno: string };
@@ -141,6 +141,39 @@ export default function EscalaPage() {
   const escaladosNoDia = (dataISO: string, funcaoId?: string) =>
     pessoas.filter(p => (!funcaoId || p.funcao_id === funcaoId) && p.dias[dataISO]?.entra).length;
 
+  /**
+   * Adiciona pessoa. Sem isto não dava pra contratar ninguém: a grade só mostra quem já tem
+   * linha no período, então semana ainda não escalada não tinha onde colocar gente.
+   */
+  const [addFuncao, setAddFuncao] = useState<string | null>(null);
+  const [addNome, setAddNome] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+
+  const adicionar = useCallback(async (funcaoId: string) => {
+    const nome = addNome.trim();
+    if (!nome) return;
+    setOcupado(true);
+    try {
+      await api.post('/api/operacao/escala/pessoa', { funcao_id: funcaoId, pessoa_nome: nome, de, ate });
+      setAddNome(''); setAddFuncao(null);
+      await mutate();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Não adicionou', message: e?.message });
+    } finally { setOcupado(false); }
+  }, [addNome, de, ate, mutate, showToast]);
+
+  /** Remove só do PERÍODO — apagar o histórico destruiria o planejado × realizado passado. */
+  const remover = useCallback(async (p: Pessoa) => {
+    if (!window.confirm(`Tirar ${p.nome} da escala desta semana (${de.slice(8)}/${de.slice(5, 7)} a ${ate.slice(8)}/${ate.slice(5, 7)})?\n\nO histórico das semanas anteriores não é afetado.`)) return;
+    setOcupado(true);
+    try {
+      await api.delete(`/api/operacao/escala/pessoa?funcao_id=${p.funcao_id}&slot=${p.slot}&de=${de}&ate=${ate}`);
+      await mutate();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Não removeu', message: e?.message });
+    } finally { setOcupado(false); }
+  }, [de, ate, mutate, showToast]);
+
   return (
     <PageShell width="wide">
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -160,9 +193,9 @@ export default function EscalaPage() {
         <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
           <Loader2 className="w-4 h-4 animate-spin inline mr-2" />Carregando…
         </CardContent></Card>
-      ) : pessoas.length === 0 ? (
+      ) : funcoes.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-          Nenhuma escala nesta semana.
+          Nenhuma função cadastrada para este bar.
         </CardContent></Card>
       ) : (
         <Card><CardContent className="p-0 overflow-x-auto">
@@ -185,7 +218,9 @@ export default function EscalaPage() {
             <tbody>
               {funcoes.map(f => {
                 const doGrupo = pessoas.filter(p => p.funcao_id === f.id);
-                if (!doGrupo.length) return null;
+                // Grupo vazio continua aparecendo (só com a linha "adicionar"): é o que
+                // permite escalar uma semana ainda em branco e contratar gente numa função.
+                if (!doGrupo.length && soLeitura) return null;
                 return (
                   <Fragment key={f.id}>
                     <tr className="bg-muted/50 border-y border-[hsl(var(--border))]">
@@ -200,8 +235,19 @@ export default function EscalaPage() {
                       ))}
                     </tr>
                     {doGrupo.map(p => (
-                      <tr key={p.chave} className="border-b border-[hsl(var(--border))] hover:bg-muted/30">
-                        <td className="px-3 py-1 sticky left-0 bg-[hsl(var(--card))] whitespace-nowrap">{p.nome}</td>
+                      <tr key={p.chave} className="border-b border-[hsl(var(--border))] hover:bg-muted/30 group">
+                        <td className="px-3 py-1 sticky left-0 bg-[hsl(var(--card))] whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5">
+                            {p.nome}
+                            {!soLeitura && (
+                              <button onClick={() => remover(p)} disabled={ocupado}
+                                title="Tirar da escala desta semana"
+                                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity">
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </span>
+                        </td>
                         {datas.map(d => (
                           <td key={d} className="px-0.5 py-0.5">
                             <CelulaEscala cel={p.dias[d]} disabled={soLeitura}
@@ -210,6 +256,32 @@ export default function EscalaPage() {
                         ))}
                       </tr>
                     ))}
+                    {!soLeitura && (
+                      <tr key={'add' + f.id}>
+                        <td className="px-3 py-1 sticky left-0 bg-[hsl(var(--card))]">
+                          {addFuncao === f.id ? (
+                            <input
+                              value={addNome}
+                              onChange={(e) => setAddNome(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') adicionar(f.id);
+                                if (e.key === 'Escape') { setAddNome(''); setAddFuncao(null); }
+                              }}
+                              onBlur={() => { if (!addNome.trim()) setAddFuncao(null); }}
+                              ref={(el) => el?.focus()}
+                              placeholder="nome e Enter"
+                              className="w-full px-1.5 py-0.5 text-[11px] border border-blue-400 rounded bg-white dark:bg-gray-900"
+                            />
+                          ) : (
+                            <button onClick={() => { setAddFuncao(f.id); setAddNome(''); }}
+                              className="text-[11px] text-muted-foreground hover:text-blue-500 inline-flex items-center gap-1">
+                              <Plus className="w-3 h-3" />adicionar
+                            </button>
+                          )}
+                        </td>
+                        <td colSpan={7} />
+                      </tr>
+                    )}
                   </Fragment>
                 );
               })}

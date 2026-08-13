@@ -11,7 +11,9 @@ import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitur
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { ChevronLeft, ChevronRight, Loader2, CalendarRange } from 'lucide-react';
+import { DetalheDiaDialog } from './DetalheDiaDialog';
+import { ParametrosDialog } from './ParametrosDialog';
+import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Copy, Plus, Settings } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Cores das células, herdadas da planilha que esta tela substitui:
@@ -151,6 +153,31 @@ export default function PlanoOperacionalPage() {
     }
   }, [mutate, showToast]);
 
+  /**
+   * Cria os dias da semana. Sem isso a tela era beco sem saída: a tabela só desenha as
+   * colunas que vieram do banco, então semana ainda não planejada não tinha onde digitar.
+   * `copiar` traz o contexto da semana anterior — é como a planilha era usada na prática.
+   */
+  const [criando, setCriando] = useState(false);
+  const criarSemana = useCallback(async (copiar: boolean) => {
+    setCriando(true);
+    try {
+      const r = await api.post('/api/operacao/plano/semana', {
+        inicio: iso(segunda),
+        copiar_de: copiar ? iso(somaDias(segunda, -7)) : undefined,
+      });
+      showToast({ type: 'success', title: 'Semana criada', message: `${r.criados} dias${copiar ? ', copiando a semana anterior' : ''}.` });
+      await mutate();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Não criou', message: e?.message });
+    } finally {
+      setCriando(false);
+    }
+  }, [segunda, mutate, showToast]);
+
+  const [diaAberto, setDiaAberto] = useState<Dia | null>(null);
+  const [parametrosAberto, setParametrosAberto] = useState(false);
+
   const custoSemana = dias.reduce((s, d) => s + Number(d.custo_dia || 0), 0);
   const fatSemana = dias.reduce((s, d) => s + Number(d.faturamento_previsto || 0), 0);
   const pctCmo = fatSemana > 0 ? (custoSemana / fatSemana) * 100 : null;
@@ -178,6 +205,10 @@ export default function PlanoOperacionalPage() {
         </div>
         <div className="flex items-center gap-3 text-sm">
           {soLeitura && <BadgeSomenteLeitura />}
+          <Button variant="outline" size="sm" onClick={() => setParametrosAberto(true)}
+            title="Giro, ticket médio por dia da semana, nível de serviço e diária">
+            <Settings className="w-4 h-4 mr-1.5" />Parâmetros
+          </Button>
           <span>Faturamento previsto <b className="tabular-nums">{fmtBRL(fatSemana)}</b></span>
           <span>Freela projetado <b className="tabular-nums">{fmtBRL(custoSemana)}</b></span>
           {pctCmo != null && (
@@ -193,8 +224,20 @@ export default function PlanoOperacionalPage() {
           <Loader2 className="w-4 h-4 animate-spin inline mr-2" />Carregando…
         </CardContent></Card>
       ) : dias.length === 0 ? (
-        <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-          Nenhum dia planejado nesta semana. Preencha o faturamento previsto de um dia para começar.
+        <Card><CardContent className="py-10 text-center space-y-3">
+          <p className="text-sm text-muted-foreground">Esta semana ainda não foi planejada.</p>
+          {!soLeitura && visao === 'semana' && (
+            <div className="flex items-center justify-center gap-2">
+              <Button size="sm" onClick={() => criarSemana(true)} disabled={criando}>
+                {criando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Copy className="w-4 h-4 mr-2" />}
+                Copiar a semana anterior
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => criarSemana(false)} disabled={criando}>
+                <Plus className="w-4 h-4 mr-2" />Criar em branco
+              </Button>
+            </div>
+          )}
+          {visao === 'mes' && <p className="text-xs text-muted-foreground">Volte para a visão Semana para criar os dias.</p>}
         </CardContent></Card>
       ) : (
         <Card><CardContent className="p-0 overflow-x-auto">
@@ -202,11 +245,27 @@ export default function PlanoOperacionalPage() {
             <thead>
               <tr className="border-b border-[hsl(var(--border))]">
                 <th className="text-left px-3 py-2 font-medium sticky left-0 bg-[hsl(var(--card))] z-10 min-w-[150px]">&nbsp;</th>
-                {dias.map(d => (
-                  <th key={d.id} className="px-2 py-2 font-medium text-center min-w-[92px] whitespace-nowrap">
-                    {rotuloDia(d.data, d.turno)}
-                  </th>
-                ))}
+                {dias.map(d => {
+                  // 248 dias de briefing vieram da planilha e ficavam invisíveis — o cabeçalho
+                  // do dia abre o painel com programação, plano de chão, promoção e observações.
+                  const temContexto = !!(d.programacao_musical || d.programacao_esportiva || d.plano_chao
+                    || d.promocao || d.entrada || d.observacoes || d.pilula_treinamento);
+                  return (
+                    <th key={d.id} className="px-2 py-2 font-medium text-center min-w-[92px] whitespace-nowrap">
+                      <button onClick={() => setDiaAberto(d)}
+                        title="Abrir programação, plano de chão e observações do dia"
+                        className="hover:underline decoration-dotted">
+                        {rotuloDia(d.data, d.turno)}
+                        {temContexto && <span className="ml-1 text-blue-500" aria-hidden>•</span>}
+                      </button>
+                      {d.data_especial && (
+                        <div className="text-[10px] font-normal text-amber-600 truncate max-w-[92px]" title={d.data_especial}>
+                          {d.data_especial}
+                        </div>
+                      )}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -338,6 +397,18 @@ export default function PlanoOperacionalPage() {
           </div>
         </CardContent></Card>
       )}
+
+      {diaAberto && (
+        <DetalheDiaDialog
+          dia={diaAberto}
+          titulo={rotuloDia(diaAberto.data, diaAberto.turno)}
+          soLeitura={soLeitura}
+          onFechar={() => setDiaAberto(null)}
+          onSalvo={async () => { await mutate(); }}
+        />
+      )}
+      <ParametrosDialog open={parametrosAberto} onOpenChange={setParametrosAberto}
+        soLeitura={soLeitura} onSalvo={async () => { await mutate(); }} />
 
       <p className="text-xs text-muted-foreground">
         <span className="inline-block w-3 h-3 rounded-sm align-middle bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-300 mr-1" />
