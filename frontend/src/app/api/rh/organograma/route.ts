@@ -97,9 +97,18 @@ export async function GET(request: NextRequest) {
       cargo_nome: f.cargo_id ? cargoMap.get(f.cargo_id) || null : null,
     }));
 
+  // todos os ativos, para o seletor da cadeira poder REMANEJAR alguém que já está sentado em outra
+  // (alocar já fecha a ocupação anterior); os sem cadeira vêm primeiro por serem o caso comum
+  const pessoas = (funcRes.data || []).map((f: any) => ({
+    id: f.id, nome: f.nome,
+    cargo_nome: f.cargo_id ? cargoMap.get(f.cargo_id) || null : null,
+    sem_cadeira: !alocados.has(f.id),
+  })).sort((a: any, b: any) => (Number(b.sem_cadeira) - Number(a.sem_cadeira)) || a.nome.localeCompare(b.nome, 'pt-BR'));
+
   return NextResponse.json({
     cadeiras,
     sem_cadeira: semCadeira,
+    pessoas,
     cargos: cargosRes.data || [],
     areas: areasRes.data || [],
   });

@@ -35,9 +35,18 @@ type Cadeira = {
   vaga: boolean; ocupante: Ocupante | null;
 };
 type SemCadeira = { id: number; nome: string; foto_url: string | null; cargo_nome: string | null };
+type Pessoa = { id: number; nome: string; cargo_nome: string | null; sem_cadeira: boolean };
 type Opcao = { id: number; nome: string };
 type No = Cadeira & { filhos: No[]; total: number };
-type Resposta = { cadeiras: Cadeira[]; sem_cadeira: SemCadeira[]; cargos: Opcao[]; areas: Opcao[] };
+type Resposta = { cadeiras: Cadeira[]; sem_cadeira: SemCadeira[]; pessoas: Pessoa[]; cargos: Opcao[]; areas: Opcao[] };
+
+/**
+ * O que está sendo arrastado. São duas coisas diferentes e o alvo válido muda:
+ *  · uma CADEIRA cai sobre outra cadeira e vira subordinada dela;
+ *  · uma PESSOA cai sobre uma cadeira e passa a ocupá-la.
+ * Antes só a cadeira era arrastável, e quem estava "sem cadeira" não tinha como entrar arrastando.
+ */
+type Arrasto = { tipo: 'cadeira'; id: string } | { tipo: 'pessoa'; id: number } | null;
 
 const AVATAR_CORES = [
   'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
@@ -79,9 +88,11 @@ export function Organograma({ onAbrirDossie }: { onAbrirDossie: (id: number) => 
   const { data, isLoading, mutate } = useApiSWR<Resposta>(selectedBar ? '/api/rh/organograma' : null);
   const cadeiras = useMemo(() => data?.cadeiras || [], [data]);
   const semCadeira = useMemo(() => data?.sem_cadeira || [], [data]);
+  const pessoas = useMemo(() => data?.pessoas || [], [data]);
 
   const [busca, setBusca] = useState('');
-  const [arrastando, setArrastando] = useState<string | null>(null);
+  const [arrasto, setArrasto] = useState<Arrasto>(null);
+  const arrastando = arrasto?.tipo === 'cadeira' ? arrasto.id : null;
   const [alvo, setAlvo] = useState<string | 'raiz' | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [criando, setCriando] = useState(false);
@@ -137,16 +148,49 @@ export function Organograma({ onAbrirDossie }: { onAbrirDossie: (id: number) => 
     return set;
   }, [arrastando, porId]);
 
-  const soltar = (novoChefe: string | null) => {
-    const id = arrastando;
-    setArrastando(null); setAlvo(null);
-    if (!id || novoChefe === id) return;
-    if (novoChefe && descendentes.has(novoChefe)) {
+  /** Soltou numa cadeira (ou na faixa do topo, com `null`). */
+  const soltar = (destinoId: string | null) => {
+    const a = arrasto;
+    setArrasto(null); setAlvo(null);
+    if (!a) return;
+
+    if (a.tipo === 'pessoa') {
+      if (!destinoId) return;                       // pessoa não vira "raiz"
+      const cad = porId.get(destinoId);
+      if (cad && !cad.vaga) {
+        showToast({ type: 'error', title: 'Cadeira ocupada', message: `${cad.ocupante?.nome} já está nessa cadeira. Tire a pessoa antes.` });
+        return;
+      }
+      chamar('POST', { acao: 'alocar', cadeira_id: destinoId, funcionario_id: a.id }, 'Não foi possível alocar');
+      return;
+    }
+
+    const id = a.id;
+    if (destinoId === id) return;
+    if (destinoId && descendentes.has(destinoId)) {
       showToast({ type: 'error', title: 'Movimento inválido', message: 'Não dá pra colocar uma cadeira sob a própria equipe.' });
       return;
     }
-    if ((porId.get(id)?.cadeira_chefe_id ?? null) === novoChefe) return;
-    chamar('PUT', { cadeira_id: id, cadeira_chefe_id: novoChefe }, 'Não foi possível mover a cadeira');
+
+    // Caixa COM PESSOA solta numa cadeira VAGA é ambígua, e a leitura natural é a que o dono tentou:
+    // arrastou o Renato (Chefe de Salão) sobre CHEFE DE CUMINS esperando que ele ASSUMISSE a vaga —
+    // e ele virou subordinado. As duas intenções existem, então a escolha fica explícita.
+    const origem = porId.get(id);
+    const destino = destinoId ? porId.get(destinoId) : null;
+    if (origem?.ocupante && destino?.vaga) {
+      const assumir = window.confirm(
+        `${origem.ocupante.nome} sobre a cadeira ${destino.codigo}, que está VAGA.\n\n` +
+        `OK = ${origem.ocupante.nome} passa a ocupar ${destino.codigo} (a cadeira ${origem.codigo} fica vaga).\n` +
+        `Cancelar = a cadeira ${origem.codigo} vira subordinada de ${destino.codigo}.`,
+      );
+      if (assumir) {
+        chamar('POST', { acao: 'alocar', cadeira_id: destino.id, funcionario_id: origem.ocupante.id }, 'Não foi possível alocar');
+        return;
+      }
+    }
+
+    if ((origem?.cadeira_chefe_id ?? null) === destinoId) return;
+    chamar('PUT', { cadeira_id: id, cadeira_chefe_id: destinoId }, 'Não foi possível mover a cadeira');
   };
 
   const criarCadeira = async () => {
@@ -263,10 +307,10 @@ export function Organograma({ onAbrirDossie }: { onAbrirDossie: (id: number) => 
         <div className="inline-flex gap-8 items-start p-2 origin-top-left" style={{ transform: `scale(${zoom})` }}>
           {raizes.map((no) => (
             <Ramo key={no.id} no={no}
-              arrastando={arrastando} setArrastando={setArrastando}
+              arrasto={arrasto} setArrasto={setArrasto}
               alvo={alvo} setAlvo={setAlvo} descendentes={descendentes} soltar={soltar}
               combina={combina} temBusca={!!buscaNorm}
-              onAbrirDossie={onAbrirDossie} semCadeira={semCadeira} chamar={chamar} />
+              onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} />
           ))}
         </div>
       </div>
@@ -279,7 +323,15 @@ export function Organograma({ onAbrirDossie }: { onAbrirDossie: (id: number) => 
           </div>
           <div className="flex flex-wrap gap-1.5">
             {semCadeira.map((p) => (
-              <span key={p.id} className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2 py-1 text-xs">
+              // arrastável: soltar sobre uma cadeira VAGA aloca. Antes só dava pelo botão da caixa,
+              // e quem cadastrava alguém novo ficava sem saber como colocar a pessoa no quadro.
+              <span key={p.id} draggable
+                onDragStart={() => setArrasto({ tipo: 'pessoa', id: p.id })}
+                onDragEnd={() => { setArrasto(null); setAlvo(null); }}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-full border bg-background px-2 py-1 text-xs cursor-grab active:cursor-grabbing',
+                  arrasto?.tipo === 'pessoa' && arrasto.id === p.id && 'opacity-40',
+                )}>
                 <div className={cn('w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold', corAvatar(p.nome))}>{iniciais(p.nome)}</div>
                 <button onClick={() => onAbrirDossie(p.id)} className="hover:underline">{p.nome}</button>
                 {p.cargo_nome && <span className="text-muted-foreground">· {p.cargo_nome}</span>}
@@ -300,15 +352,15 @@ export function Organograma({ onAbrirDossie }: { onAbrirDossie: (id: number) => 
  * ponto de olhar o organograma. É também o formato do quadro do Canva: uma coluna por chefia.
  */
 function Ramo({
-  no, arrastando, setArrastando, alvo, setAlvo, descendentes, soltar,
-  combina, temBusca, onAbrirDossie, semCadeira, chamar,
+  no, arrasto, setArrasto, alvo, setAlvo, descendentes, soltar,
+  combina, temBusca, onAbrirDossie, pessoas, chamar,
 }: {
   no: No;
-  arrastando: string | null; setArrastando: (id: string | null) => void;
+  arrasto: Arrasto; setArrasto: (a: Arrasto) => void;
   alvo: string | 'raiz' | null; setAlvo: (a: string | 'raiz' | null) => void;
   descendentes: Set<string>; soltar: (chefeId: string | null) => void;
   combina: (c: Cadeira) => boolean; temBusca: boolean; onAbrirDossie: (id: number) => void;
-  semCadeira: SemCadeira[];
+  pessoas: Pessoa[];
   chamar: (m: 'PUT' | 'POST', corpo: Record<string, unknown>, erro: string) => Promise<boolean>;
 }) {
   const temFilhos = no.filhos.length > 0;
@@ -318,9 +370,9 @@ function Ramo({
 
   return (
     <div className="flex flex-col items-center">
-      <Caixa no={no} arrastando={arrastando} setArrastando={setArrastando} alvo={alvo} setAlvo={setAlvo}
+      <Caixa no={no} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
         descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-        onAbrirDossie={onAbrirDossie} semCadeira={semCadeira} chamar={chamar} />
+        onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} />
 
       {temFilhos && (empilhar ? (
         /* time do chefe: coluna, com um prumo à esquerda e um traço para cada caixa */
@@ -332,9 +384,9 @@ function Ramo({
               {no.filhos.map((f) => (
                 <div key={f.id} className="relative">
                   <div className="absolute -left-4 top-1/2 w-4 h-px bg-border" />
-                  <Caixa no={f} arrastando={arrastando} setArrastando={setArrastando} alvo={alvo} setAlvo={setAlvo}
+                  <Caixa no={f} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
                     descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-                    onAbrirDossie={onAbrirDossie} semCadeira={semCadeira} chamar={chamar} />
+                    onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} />
                 </div>
               ))}
             </div>
@@ -352,9 +404,9 @@ function Ramo({
             {no.filhos.map((f) => (
               <div key={f.id} className="flex flex-col items-center">
                 <div className="w-px h-4 bg-border" />
-                <Ramo no={f} arrastando={arrastando} setArrastando={setArrastando} alvo={alvo} setAlvo={setAlvo}
+                <Ramo no={f} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
                   descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-                  onAbrirDossie={onAbrirDossie} semCadeira={semCadeira} chamar={chamar} />
+                  onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} />
               </div>
             ))}
           </div>
@@ -365,19 +417,21 @@ function Ramo({
 }
 
 function Caixa({
-  no, arrastando, setArrastando, alvo, setAlvo, descendentes, soltar,
-  combina, temBusca, onAbrirDossie, semCadeira, chamar,
+  no, arrasto, setArrasto, alvo, setAlvo, descendentes, soltar,
+  combina, temBusca, onAbrirDossie, pessoas, chamar,
 }: {
   no: No;
-  arrastando: string | null; setArrastando: (id: string | null) => void;
+  arrasto: Arrasto; setArrasto: (a: Arrasto) => void;
   alvo: string | 'raiz' | null; setAlvo: (a: string | 'raiz' | null) => void;
   descendentes: Set<string>; soltar: (chefeId: string | null) => void;
   combina: (c: Cadeira) => boolean; temBusca: boolean; onAbrirDossie: (id: number) => void;
-  semCadeira: SemCadeira[];
+  pessoas: Pessoa[];
   chamar: (m: 'PUT' | 'POST', corpo: Record<string, unknown>, erro: string) => Promise<boolean>;
 }) {
   const [alocando, setAlocando] = useState(false);
-  const podeReceber = !!arrastando && arrastando !== no.id && !descendentes.has(no.id);
+  const podeReceber = arrasto?.tipo === 'pessoa'
+    ? no.vaga                                              // pessoa só entra em cadeira vaga
+    : !!arrasto && arrasto.id !== no.id && !descendentes.has(no.id);
   const destacado = temBusca && combina(no);
   const p = no.ocupante;
   const tempo = tempoDeCasa(p?.data_admissao || null);
@@ -385,15 +439,15 @@ function Caixa({
   return (
     <div
       draggable
-      onDragStart={() => setArrastando(no.id)}
-      onDragEnd={() => { setArrastando(null); setAlvo(null); }}
+      onDragStart={() => setArrasto({ tipo: 'cadeira', id: no.id })}
+      onDragEnd={() => { setArrasto(null); setAlvo(null); }}
       onDragOver={(e) => { if (podeReceber) { e.preventDefault(); setAlvo(no.id); } }}
       onDragLeave={() => setAlvo(alvo === no.id ? null : alvo)}
       onDrop={(e) => { e.preventDefault(); if (podeReceber) soltar(no.id); }}
       className={cn(
         'group relative w-[190px] shrink-0 rounded-lg border bg-background px-2 py-1.5 shadow-sm transition-all cursor-grab active:cursor-grabbing',
         alvo === no.id && podeReceber && 'ring-2 ring-indigo-500 border-indigo-500',
-        arrastando === no.id && 'opacity-40',
+        arrasto?.tipo === 'cadeira' && arrasto.id === no.id && 'opacity-40',
         destacado && 'ring-2 ring-amber-400',
         temBusca && !destacado && 'opacity-40',
         no.vaga && 'border-dashed border-amber-400 bg-amber-50/50 dark:bg-amber-900/10',
@@ -443,13 +497,15 @@ function Caixa({
 
       <div className="absolute -bottom-2 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
         {no.vaga ? (
-          semCadeira.length > 0 && (alocando ? (
+          pessoas.length > 0 && (alocando ? (
             <select defaultValue=""
               onChange={(e) => { if (e.target.value) { chamar('POST', { acao: 'alocar', cadeira_id: no.id, funcionario_id: Number(e.target.value) }, 'Não foi possível alocar'); setAlocando(false); } }}
               onBlur={() => setAlocando(false)}
               className="h-6 rounded border border-input bg-background px-1 text-[10px]">
               <option value="">escolha…</option>
-              {semCadeira.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+              {/* quem já está em outra cadeira também aparece: alocar fecha a ocupação anterior,
+                  então dá para remanejar sem ter que tirar da cadeira antes */}
+              {pessoas.map((s) => <option key={s.id} value={s.id}>{s.sem_cadeira ? s.nome : `${s.nome} (mover)`}</option>)}
             </select>
           ) : (
             <button onClick={() => setAlocando(true)} title="Alocar alguém nesta cadeira"
