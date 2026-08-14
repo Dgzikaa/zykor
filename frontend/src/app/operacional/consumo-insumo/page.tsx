@@ -190,6 +190,16 @@ export default function SaidasPage() {
           </div>
         )}
 
+        {/* Comparação com o Desvio: as duas telas medem a mesma saída teórica, mas o Desvio
+            fecha na contagem, que é de manhã — por isso o último dia não entra lá. */}
+        {aba === 'insumo' && (
+          <p className="text-[11px] text-gray-400">
+            Período <b>{fmtDataBR(range.ini)} a {fmtDataBR(range.fim)}</b>, os dois dias inclusive.
+            No Desvio de Consumo o mesmo intervalo mede até o dia anterior ao final, porque a contagem
+            de fechamento é feita de manhã.
+          </p>
+        )}
+
         {loading ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
         : view.length === 0 ? <Card className="card-dark"><CardContent className="py-16 text-center text-gray-400">Sem saídas no período (ou fichas/de-para pendentes).</CardContent></Card>
         : (
@@ -215,7 +225,16 @@ export default function SaidasPage() {
                         <td className="px-3 py-2 font-mono text-xs text-gray-500">{i.codigo}</td>
                         <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{i.nome || <span className="text-gray-400 italic">sem cadastro</span>}</td>
                         <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{i.categoria || 'Outros'}</td>
-                        <td className="px-3 py-2 text-right tabular-nums font-semibold">{fmtQtdUnidade(i.qtd, i.unidade)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold">
+                          {fmtQtdUnidade(i.qtd, i.unidade)}
+                          {/* Mesma saída na unidade que o Desvio usa. Sem isso o Original 600mL
+                              aparece como 798.000 aqui e 1.330 lá, e parece número divergente. */}
+                          {i.qtd_contagem != null && i.embalagem > 1 && (
+                            <div className="text-[10px] font-normal text-gray-400">
+                              {fmtQtdUnidade(i.qtd_contagem, i.unidade_contagem || 'un')}
+                            </div>
+                          )}
+                        </td>
                         {aba === 'geral' && <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{i.tipo === 'finalizacao' ? fmtBRL(i.valor) : '—'}</td>}
                         <td className="px-3 py-2 text-right tabular-nums text-gray-500">{i.dias}</td>
                       </tr>

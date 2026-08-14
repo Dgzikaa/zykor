@@ -605,7 +605,14 @@ export default function DesviosPage() {
                 {diasDiaria.length === 0 && <option value="">—</option>}
                 {diasDiaria.map(d => <option key={d.dia} value={d.dia}>{fmtData(d.dia)}</option>)}
               </select>
-              {ini && fim && <span className="text-xs text-gray-400">estoque {ddmm(ini)} → {ddmm(fim)}</span>}
+              {/* A contagem de `fim` é feita de manhã, então o consumo medido vai só até fim−1.
+                  Sem dizer isso, comparar com a tela de Saídas (que inclui os dois extremos) dá
+                  impressão de número divergente — foi o que o dono viu em 14/08/2026. */}
+              {ini && fim && (
+                <span className="text-xs text-gray-400" title="A contagem do dia final é feita de manhã, antes do consumo daquele dia">
+                  estoque {ddmm(ini)} → {ddmm(fim)} · consumo {ddmm(ini)} a {ddmmPrev(fim)}
+                </span>
+              )}
             </>
           ) : (
             <>
@@ -619,7 +626,14 @@ export default function DesviosPage() {
                 {tipo === 'semanal' && andamentoWin && <option value={`__and__${andamentoWin.fim}`}>🔴 Semana atual (em andamento) · {ddmm(andamentoWin.ini)} → {ddmm(andamentoWin.fim)}</option>}
                 {periodos.map(p => <option key={p.fim} value={p.fim}>{labelPeriodo(p)}</option>)}
               </select>
-              {ini && fim && <span className="text-xs text-gray-400">estoque {ddmm(ini)} → {ddmm(fim)}</span>}
+              {/* A contagem de `fim` é feita de manhã, então o consumo medido vai só até fim−1.
+                  Sem dizer isso, comparar com a tela de Saídas (que inclui os dois extremos) dá
+                  impressão de número divergente — foi o que o dono viu em 14/08/2026. */}
+              {ini && fim && (
+                <span className="text-xs text-gray-400" title="A contagem do dia final é feita de manhã, antes do consumo daquele dia">
+                  estoque {ddmm(ini)} → {ddmm(fim)} · consumo {ddmm(ini)} a {ddmmPrev(fim)}
+                </span>
+              )}
             </>
           )}
         </div>

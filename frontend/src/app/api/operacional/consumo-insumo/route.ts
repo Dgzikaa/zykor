@@ -57,7 +57,13 @@ export async function GET(request: NextRequest) {
     }
     const { data, error } = await silver.rpc('fn_consumo_insumo_periodo', { p_bar_id: barId, p_ini: ini, p_fim: fim });
     if (error) throw error;
-    return NextResponse.json({ success: true, rows: (data || []).map((r: any) => ({ codigo: r.insumo_codigo, nome: r.insumo_nome, categoria: r.categoria || 'Outros', qtd: r.qtd_base, unidade: r.unidade, dias: r.dias })) });
+    return NextResponse.json({ success: true, rows: (data || []).map((r: any) => ({
+      codigo: r.insumo_codigo, nome: r.insumo_nome, categoria: r.categoria || 'Outros',
+      qtd: r.qtd_base, unidade: r.unidade, dias: r.dias,
+      // mesma quantidade na unidade que o Desvio usa (garrafa/lata/barril) — sem isso a mesma
+      // saída aparece como 798.000 aqui e 1.330 lá, e parece divergência
+      embalagem: r.embalagem, unidade_contagem: r.unidade_contagem, qtd_contagem: r.qtd_contagem,
+    })) });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || String(e) }, { status: 500 });
   }
