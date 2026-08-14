@@ -617,10 +617,14 @@ function Caixa({
               </div>
             </button>
           ) : no.ocupante_nome ? (
-            // administrativo: nome digitado, sem cadastro por trás — por isso não abre dossiê
-            <div>
-              <div className="text-xs font-semibold truncate" title={no.ocupante_nome}>{no.ocupante_nome}</div>
-              <div className="text-[10px] text-muted-foreground truncate">{no.cargo_nome || 'sem cadastro'}</div>
+            // Nome digitado, sem funcionário por trás — por isso não abre dossiê. Hoje só os
+            // sócios caem aqui: eles não são folha do bar. O "sem ficha" existe pra ninguém
+            // achar que o clique quebrou.
+            <div title="Nome digitado na cadeira — não tem cadastro de funcionário, então não abre o dossiê">
+              <div className="text-xs font-semibold truncate">{no.ocupante_nome}</div>
+              <div className="text-[10px] text-muted-foreground truncate">
+                {no.cargo_nome || 'sem cargo'} · <span className="italic">sem ficha</span>
+              </div>
             </div>
           ) : (
             <div>
