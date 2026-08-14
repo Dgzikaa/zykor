@@ -27,6 +27,7 @@ type Linha = {
 };
 type Resposta = {
   data: string; linhas: Linha[];
+  equipe_de: string | null;
   resumo: { escalados: number; marcados: number; faltas: number; pendentes: number };
 };
 
@@ -51,7 +52,10 @@ export function CheckinsTab() {
   const [q, setQ] = useState('');
   const [salvandoId, setSalvandoId] = useState<number | null>(null);
 
-  const { data, isLoading, mutate } = useApiSWR<Resposta>(selectedBar ? `/api/rh/checkin?data=${dia}` : null);
+  const [verTodos, setVerTodos] = useState(false);
+  const { data, isLoading, mutate } = useApiSWR<Resposta>(
+    selectedBar ? `/api/rh/checkin?data=${dia}${verTodos ? '&todos=1' : ''}` : null,
+  );
 
   const linhas = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -94,6 +98,19 @@ export function CheckinsTab() {
         <Button variant="outline" size="sm" className="h-9" onClick={() => setDia(hojeISO())}>Hoje</Button>
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome ou área…" className="h-9 flex-1 min-w-[180px]" />
       </div>
+
+      {/* Cada líder marca só a sua gente; RH e admin veem o dia inteiro. O aviso existe para
+          ninguém achar que a escala sumiu ao ver menos nomes do que esperava. */}
+      {(data?.equipe_de || verTodos) && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {data?.equipe_de
+            ? <span>Mostrando só <strong>a sua equipe</strong> ({data.equipe_de}) — as cadeiras abaixo da sua no organograma.</span>
+            : <span>Mostrando <strong>todos os escalados</strong> do dia.</span>}
+          <Button variant="outline" size="sm" className="h-7" onClick={() => setVerTodos((v) => !v)}>
+            {verTodos ? 'Ver só a minha equipe' : 'Ver todos'}
+          </Button>
+        </div>
+      )}
 
       {r && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">

@@ -36,7 +36,34 @@ export async function GET(request: NextRequest) {
     .from('v_checkin_dia').select('*').eq('bar_id', user.bar_id).eq('data', data).order('nome');
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-  const lista = (linhas || []) as any[];
+  let lista = (linhas || []) as any[];
+
+  /**
+   * Cada líder marca só a SUA gente (ata de 13/08/2026: "chefe de fila luan tem que dar check so
+   * nas pessoas abaixo dele... de acordo com o usuario logado").
+   *
+   * A equipe sai da árvore de CADEIRAS abaixo da cadeira que a pessoa logada ocupa — assim continua
+   * certa quando alguém troca de posição. Quem não está vinculado a um funcionário, ou está numa
+   * cadeira sem ninguém abaixo, segue vendo o dia inteiro: é o caso de RH e admin, que precisam da
+   * visão completa. `?todos=1` também devolve tudo, para quem quiser conferir a casa toda.
+   */
+  let equipeDe: string | null = null;
+  const verTodos = sp.get('todos') === '1';
+  if (!verTodos) {
+    const { data: usr } = await (supabase as any).from('usuarios')
+      .select('funcionario_id, nome').eq('id', user.id).maybeSingle();
+    if (usr?.funcionario_id) {
+      const { data: equipe } = await (supabase as any).schema('hr')
+        .rpc('fn_equipe_do_funcionario', { p_funcionario_id: usr.funcionario_id });
+      const ids = new Set<number>(((equipe || []) as any[]).map((e) => e.funcionario_id));
+      // só restringe quando ele de fato lidera alguém — senão o líder sem equipe cadastrada
+      // abriria a tela vazia e acharia que quebrou
+      if (ids.size > 1) {
+        lista = lista.filter((l) => ids.has(l.funcionario_id));
+        equipeDe = usr.nome || null;
+      }
+    }
+  }
   // sugestão: o que o ponto diz, traduzido para as 4 opções que o líder tem
   const comSugestao = lista.map((l) => ({
     ...l,
@@ -50,6 +77,7 @@ export async function GET(request: NextRequest) {
     success: true,
     data,
     linhas: comSugestao,
+    equipe_de: equipeDe,   // preenchido = a lista está restrita à equipe dessa pessoa
     resumo: {
       escalados: comSugestao.length,
       marcados: comSugestao.filter((l) => l.checkin_status).length,
