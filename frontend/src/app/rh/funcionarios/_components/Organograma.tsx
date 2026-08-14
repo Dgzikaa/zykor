@@ -39,8 +39,9 @@ type Cadeira = {
 type SemCadeira = { id: number; nome: string; foto_url: string | null; cargo_nome: string | null };
 type Pessoa = { id: number; nome: string; cargo_nome: string | null; sem_cadeira: boolean };
 type Opcao = { id: number; nome: string };
+type Cargo = { id: number; nome: string; area_id: number | null };
 type No = Cadeira & { filhos: No[]; total: number };
-type Resposta = { cadeiras: Cadeira[]; sem_cadeira: SemCadeira[]; pessoas: Pessoa[]; cargos: Opcao[]; areas: Opcao[] };
+type Resposta = { cadeiras: Cadeira[]; sem_cadeira: SemCadeira[]; pessoas: Pessoa[]; cargos: Cargo[]; areas: Opcao[] };
 
 /**
  * O que está sendo arrastado. São duas coisas diferentes e o alvo válido muda:
@@ -285,18 +286,23 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
             <label className="text-[11px] text-muted-foreground">Nome da cadeira</label>
             <Input value={nova.codigo} onChange={(e) => setNova({ ...nova, codigo: e.target.value })} placeholder="CHEFE DE ATENDIMENTO" className="h-9" />
           </div>
+          {/* Área primeiro: é ela que filtra os cargos (cargo sem área — sócio, freela, gerência —
+              aparece em qualquer uma). Trocar de área limpa o cargo, para não sobrar um cargo de
+              outra área escolhido antes. */}
+          <div>
+            <label className="text-[11px] text-muted-foreground block">Área</label>
+            <select value={nova.area_id} onChange={(e) => setNova({ ...nova, area_id: e.target.value, cargo_id: '' })} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
+              <option value="">—</option>
+              {(data?.areas || []).map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+            </select>
+          </div>
           <div>
             <label className="text-[11px] text-muted-foreground block">Cargo</label>
             <select value={nova.cargo_id} onChange={(e) => setNova({ ...nova, cargo_id: e.target.value })} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
               <option value="">—</option>
-              {(data?.cargos || []).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-[11px] text-muted-foreground block">Área</label>
-            <select value={nova.area_id} onChange={(e) => setNova({ ...nova, area_id: e.target.value })} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
-              <option value="">—</option>
-              {(data?.areas || []).map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+              {(data?.cargos || [])
+                .filter((c) => !nova.area_id || c.area_id == null || String(c.area_id) === nova.area_id)
+                .map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select>
           </div>
           <Button size="sm" onClick={criarCadeira} disabled={salvando}>Criar</Button>

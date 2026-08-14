@@ -51,8 +51,10 @@ export async function GET(request: NextRequest) {
     hr('funcionarios')
       .select('id, nome, cargo_id, area_id, foto_url, data_admissao, data_nascimento, tipo_contratacao')
       .eq('bar_id', user.bar_id).eq('ativo', true).order('nome'),
-    hr('cargos').select('id, nome').eq('bar_id', user.bar_id),
-    hr('areas').select('id, nome, cor').eq('bar_id', user.bar_id),
+    // area_id vem junto para a tela filtrar os cargos pela área escolhida
+    // (cargo sem área — sócio, freela, gerência — aparece em qualquer uma)
+    hr('cargos').select('id, nome, area_id').eq('bar_id', user.bar_id).eq('ativo', true),
+    hr('areas').select('id, nome, cor').eq('bar_id', user.bar_id).eq('ativo', true),
   ]);
 
   if (cadRes.error) return NextResponse.json({ error: cadRes.error.message }, { status: 500 });
