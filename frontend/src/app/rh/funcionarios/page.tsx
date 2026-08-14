@@ -197,6 +197,8 @@ export default function FuncionariosPage() {
             {/* A "Equipe" virou o Organograma: quem está na casa aparece na cadeira que ocupa, e
                 clicar abre o dossiê. Sobrou uma aba só para os INATIVOS, que a árvore não mostra. */}
             <TabsTrigger value="organograma"><Network className="w-4 h-4 mr-1.5" />Organograma</TabsTrigger>
+            {/* Separado como no Canva: escritório e sócios não se misturam com as 60 pessoas do salão */}
+            <TabsTrigger value="organograma_adm"><Network className="w-4 h-4 mr-1.5" />Organograma adm.</TabsTrigger>
             <TabsTrigger value="checkins"><UserCheck className="w-4 h-4 mr-1.5" />Check-ins</TabsTrigger>
             <TabsTrigger value="inativos"><Users className="w-4 h-4 mr-1.5" />Inativos</TabsTrigger>
             <TabsTrigger value="desligados"><UserMinus className="w-4 h-4 mr-1.5" />Histórico</TabsTrigger>
@@ -315,6 +317,10 @@ export default function FuncionariosPage() {
 
           <TabsContent value="organograma">
             <Organograma onAbrirDossie={setDossieId} />
+          </TabsContent>
+
+          <TabsContent value="organograma_adm">
+            <Organograma onAbrirDossie={setDossieId} escopo="administrativo" />
           </TabsContent>
 
           <TabsContent value="desligados">

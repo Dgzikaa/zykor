@@ -9,7 +9,7 @@ import { useApiSWR } from '@/hooks/useApiSWR';
 import { useToast } from '@/components/ui/toast';
 import { getSelectedBarId } from '@/lib/selected-bar';
 import { cn } from '@/lib/utils';
-import { Loader2, Network, Search, Cake, Plus, UserPlus, UserMinus, Trash2, Wand2, ZoomIn, ZoomOut } from 'lucide-react';
+import { Loader2, Network, Search, Cake, Plus, UserPlus, UserMinus, Trash2, Wand2, ZoomIn, ZoomOut, Pencil, ArrowLeftRight } from 'lucide-react';
 
 /**
  * Organograma por CADEIRA, desenhado de cima para baixo como o quadro do Canva.
@@ -24,7 +24,7 @@ import { Loader2, Network, Search, Cake, Plus, UserPlus, UserMinus, Trash2, Wand
  */
 
 type Ocupante = {
-  id: number; nome: string; foto_url: string | null;
+  id: number; nome: string; foto_url: string | null; cargo_nome: string | null;
   data_admissao: string | null; data_nascimento: string | null;
   tipo_contratacao: string | null; desde: string | null;
 };
@@ -32,6 +32,8 @@ type Cadeira = {
   id: string; codigo: string; cadeira_chefe_id: string | null; ordem: number; observacao: string | null;
   cargo_id: number | null; cargo_nome: string | null;
   area_id: number | null; area_nome: string | null; area_cor: string | null;
+  escopo: 'operacao' | 'administrativo';
+  ocupante_nome: string | null;   // nome digitado (sócio, que não tem cadastro)
   vaga: boolean; ocupante: Ocupante | null;
 };
 type SemCadeira = { id: number; nome: string; foto_url: string | null; cargo_nome: string | null };
@@ -82,10 +84,15 @@ const aniversarioProximo = (nascimento: string | null) => {
   return (alvo.getTime() - hoje.getTime()) / 864e5 <= 30;
 };
 
-export function Organograma({ onAbrirDossie }: { onAbrirDossie: (id: number) => void }) {
+export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
+  onAbrirDossie: (id: number) => void;
+  /** 'administrativo' = escritório e sócios: o ocupante é um nome digitado, não um cadastro. */
+  escopo?: 'operacao' | 'administrativo';
+}) {
+  const admin = escopo === 'administrativo';
   const { selectedBar } = useBar();
   const { showToast } = useToast();
-  const { data, isLoading, mutate } = useApiSWR<Resposta>(selectedBar ? '/api/rh/organograma' : null);
+  const { data, isLoading, mutate } = useApiSWR<Resposta>(selectedBar ? `/api/rh/organograma?escopo=${escopo}` : null);
   const cadeiras = useMemo(() => data?.cadeiras || [], [data]);
   const semCadeira = useMemo(() => data?.sem_cadeira || [], [data]);
   const pessoas = useMemo(() => data?.pessoas || [], [data]);
@@ -196,7 +203,7 @@ export function Organograma({ onAbrirDossie }: { onAbrirDossie: (id: number) => 
   const criarCadeira = async () => {
     if (!nova.codigo.trim()) return showToast({ type: 'error', title: 'Dê um nome à cadeira' });
     const ok = await chamar('POST', {
-      acao: 'criar', codigo: nova.codigo,
+      acao: 'criar', codigo: nova.codigo, escopo,
       cargo_id: nova.cargo_id ? Number(nova.cargo_id) : null,
       area_id: nova.area_id ? Number(nova.area_id) : null,
     }, 'Não foi possível criar a cadeira');
@@ -214,7 +221,9 @@ export function Organograma({ onAbrirDossie }: { onAbrirDossie: (id: number) => 
 
   if (isLoading) return <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>;
 
-  if (!cadeiras.length) {
+  // No administrativo o quadro nasce vazio (ninguém foi semeado, porque sócio não é funcionário),
+  // então a tela precisa deixar CRIAR — por isso não há early return aqui.
+  if (!cadeiras.length && !admin) {
     return (
       <Card><CardContent className="py-12 text-center text-muted-foreground">
         <Network className="w-9 h-9 mx-auto mb-2 opacity-40" />Nenhuma cadeira cadastrada para este bar.
@@ -243,7 +252,15 @@ export function Organograma({ onAbrirDossie }: { onAbrirDossie: (id: number) => 
         {salvando && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
       </div>
 
-      {semHierarquia && (
+      {admin && (
+        <p className="text-xs text-muted-foreground">
+          Escritório e sócios. Aqui o ocupante é um <strong>nome digitado</strong> — sócio não vira cadastro de
+          funcionário, então não entra em headcount, CMO nem absenteísmo. Quem é funcionário de verdade
+          (ex.: Diego Galdino) pode ser alocado normalmente pelo <UserPlus className="w-3 h-3 inline" />.
+        </p>
+      )}
+
+      {semHierarquia && !admin && (
         <Card className="border-amber-300 dark:border-amber-800">
           <CardContent className="py-3 flex flex-wrap items-center gap-3">
             <div className="text-sm flex-1 min-w-[260px]">
@@ -310,7 +327,7 @@ export function Organograma({ onAbrirDossie }: { onAbrirDossie: (id: number) => 
               arrasto={arrasto} setArrasto={setArrasto}
               alvo={alvo} setAlvo={setAlvo} descendentes={descendentes} soltar={soltar}
               combina={combina} temBusca={!!buscaNorm}
-              onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} />
+              onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} />
           ))}
         </div>
       </div>
@@ -353,7 +370,7 @@ export function Organograma({ onAbrirDossie }: { onAbrirDossie: (id: number) => 
  */
 function Ramo({
   no, arrasto, setArrasto, alvo, setAlvo, descendentes, soltar,
-  combina, temBusca, onAbrirDossie, pessoas, chamar,
+  combina, temBusca, onAbrirDossie, pessoas, chamar, admin,
 }: {
   no: No;
   arrasto: Arrasto; setArrasto: (a: Arrasto) => void;
@@ -362,6 +379,7 @@ function Ramo({
   combina: (c: Cadeira) => boolean; temBusca: boolean; onAbrirDossie: (id: number) => void;
   pessoas: Pessoa[];
   chamar: (m: 'PUT' | 'POST', corpo: Record<string, unknown>, erro: string) => Promise<boolean>;
+  admin: boolean;
 }) {
   const temFilhos = no.filhos.length > 0;
   // Empilha quando nenhum filho tem equipe própria — é o time de um chefe. Se algum filho for chefe
@@ -372,7 +390,7 @@ function Ramo({
     <div className="flex flex-col items-center">
       <Caixa no={no} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
         descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-        onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} />
+        onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} />
 
       {temFilhos && (empilhar ? (
         /* time do chefe: coluna, com um prumo à esquerda e um traço para cada caixa */
@@ -386,7 +404,7 @@ function Ramo({
                   <div className="absolute -left-4 top-1/2 w-4 h-px bg-border" />
                   <Caixa no={f} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
                     descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-                    onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} />
+                    onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} />
                 </div>
               ))}
             </div>
@@ -406,7 +424,7 @@ function Ramo({
                 <div className="w-px h-4 bg-border" />
                 <Ramo no={f} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
                   descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-                  onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} />
+                  onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} />
               </div>
             ))}
           </div>
@@ -418,7 +436,7 @@ function Ramo({
 
 function Caixa({
   no, arrasto, setArrasto, alvo, setAlvo, descendentes, soltar,
-  combina, temBusca, onAbrirDossie, pessoas, chamar,
+  combina, temBusca, onAbrirDossie, pessoas, chamar, admin,
 }: {
   no: No;
   arrasto: Arrasto; setArrasto: (a: Arrasto) => void;
@@ -427,6 +445,7 @@ function Caixa({
   combina: (c: Cadeira) => boolean; temBusca: boolean; onAbrirDossie: (id: number) => void;
   pessoas: Pessoa[];
   chamar: (m: 'PUT' | 'POST', corpo: Record<string, unknown>, erro: string) => Promise<boolean>;
+  admin: boolean;
 }) {
   const [alocando, setAlocando] = useState(false);
   const podeReceber = arrasto?.tipo === 'pessoa'
@@ -477,9 +496,16 @@ function Caixa({
                 {aniversarioProximo(p.data_nascimento) && <Cake className="w-3 h-3 text-pink-500 shrink-0" />}
               </div>
               <div className="text-[10px] text-muted-foreground truncate">
-                {no.cargo_nome || 'sem cargo'}{tempo && ` · ${tempo}`}
+                {/* cargo da CADEIRA; se ela não tiver, mostra o da pessoa em vez de "sem cargo" */}
+                {no.cargo_nome || p.cargo_nome || 'sem cargo'}{tempo && ` · ${tempo}`}
               </div>
             </button>
+          ) : no.ocupante_nome ? (
+            // administrativo: nome digitado, sem cadastro por trás — por isso não abre dossiê
+            <div>
+              <div className="text-xs font-semibold truncate" title={no.ocupante_nome}>{no.ocupante_nome}</div>
+              <div className="text-[10px] text-muted-foreground truncate">{no.cargo_nome || 'sem cadastro'}</div>
+            </div>
           ) : (
             <div>
               <div className="text-xs font-bold text-amber-700 dark:text-amber-400">VAGA</div>
@@ -496,6 +522,18 @@ function Caixa({
       )}
 
       <div className="absolute -bottom-2 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+        {/* administrativo: escrever/limpar o nome direto na cadeira (sócio não tem cadastro) */}
+        {admin && !no.ocupante && (
+          <button
+            onClick={() => {
+              const atual = no.ocupante_nome || '';
+              const nome = window.prompt(`Quem ocupa "${no.codigo}"?\n\nDeixe em branco para marcar a cadeira como vaga.`, atual);
+              if (nome === null) return;
+              chamar('POST', { acao: 'nomear', cadeira_id: no.id, ocupante_nome: nome }, 'Não foi possível salvar o nome');
+            }}
+            title="Escrever o nome de quem ocupa"
+            className="rounded bg-background border p-0.5 text-muted-foreground hover:text-foreground"><Pencil className="w-3 h-3" /></button>
+        )}
         {no.vaga ? (
           pessoas.length > 0 && (alocando ? (
             <select defaultValue=""
@@ -517,6 +555,15 @@ function Caixa({
             title="Tirar a pessoa desta cadeira"
             className="rounded bg-background border p-0.5 text-muted-foreground hover:text-foreground"><UserMinus className="w-3 h-3" /></button>
         )}
+        <button
+          onClick={() => {
+            const destino = admin ? 'operacao' : 'administrativo';
+            if (window.confirm(`Mover ${no.codigo} para o organograma ${admin ? 'da operação' : 'administrativo'}?\n\nEla entra no topo de lá e as subordinadas sobem para o chefe atual.`)) {
+              chamar('POST', { acao: 'mover_escopo', cadeira_id: no.id, escopo: destino }, 'Não foi possível mover');
+            }
+          }}
+          title={admin ? 'Mover para o organograma da operação' : 'Mover para o organograma administrativo'}
+          className="rounded bg-background border p-0.5 text-muted-foreground hover:text-indigo-600"><ArrowLeftRight className="w-3 h-3" /></button>
         {no.vaga && no.filhos.length === 0 && (
           <button
             onClick={() => { if (window.confirm(`Remover a cadeira ${no.codigo}?`)) chamar('POST', { acao: 'remover', cadeira_id: no.id }, 'Não foi possível remover'); }}

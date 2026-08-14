@@ -38,10 +38,15 @@ export async function GET(request: NextRequest) {
   if (c.erro) return c.erro;
   const { user, hr } = c as any;
 
+  // escopo separa o quadro do bar do organograma do escritório/sócios (que não vira cadastro de
+  // funcionário nem conta em headcount) — cada aba pede o seu
+  const escopo = new URL(request.url).searchParams.get('escopo') === 'administrativo'
+    ? 'administrativo' : 'operacao';
+
   const [cadRes, ocupRes, funcRes, cargosRes, areasRes] = await Promise.all([
     hr('cadeiras')
-      .select('id, codigo, cargo_id, area_id, cadeira_chefe_id, ordem, observacao')
-      .eq('bar_id', user.bar_id).eq('ativa', true).order('ordem'),
+      .select('id, codigo, cargo_id, area_id, cadeira_chefe_id, ordem, observacao, escopo, ocupante_nome')
+      .eq('bar_id', user.bar_id).eq('ativa', true).eq('escopo', escopo).order('ordem'),
     hr('cadeira_ocupacao').select('cadeira_id, funcionario_id, inicio').is('fim', null),
     hr('funcionarios')
       .select('id, nome, cargo_id, area_id, foto_url, data_admissao, data_nascimento, tipo_contratacao')
@@ -78,9 +83,14 @@ export async function GET(request: NextRequest) {
       area_id: cad.area_id,
       area_nome: (area as any)?.nome || null,
       area_cor: (area as any)?.cor || null,
-      vaga: !pessoa,
+      escopo: cad.escopo,
+      // sócio não tem cadastro: o nome fica digitado na própria cadeira
+      ocupante_nome: cad.ocupante_nome,
+      vaga: !pessoa && !cad.ocupante_nome,
       ocupante: pessoa ? {
         id: pessoa.id, nome: pessoa.nome, foto_url: pessoa.foto_url,
+        // cargo DA PESSOA: quando a cadeira não tem cargo definido, a caixa mostra este
+        cargo_nome: pessoa.cargo_id ? cargoMap.get(pessoa.cargo_id) || null : null,
         data_admissao: pessoa.data_admissao, data_nascimento: pessoa.data_nascimento,
         tipo_contratacao: pessoa.tipo_contratacao, desde: ocup?.inicio || null,
       } : null,
@@ -173,6 +183,8 @@ export async function POST(request: NextRequest) {
       bar_id: user.bar_id, codigo,
       cargo_id: body.cargo_id || null, area_id: body.area_id || null,
       cadeira_chefe_id: body.cadeira_chefe_id || null,
+      escopo: body.escopo === 'administrativo' ? 'administrativo' : 'operacao',
+      ocupante_nome: body.ocupante_nome ? String(body.ocupante_nome).trim() : null,
       ordem: Number(body.ordem) || 0,
     }).select().single();
     if (error) {
@@ -215,22 +227,32 @@ export async function POST(request: NextRequest) {
     const lista = (cads || []) as any[];
     const nomeCargo = new Map<number, string>((cargos || []).map((c: any) => [c.id, semAcento(c.nome)]));
 
-    const garante = async (codigo: string, chefeId: string | null) => {
+    const garante = async (codigo: string, chefeId: string | null, cargoId: number | null) => {
       const existente = lista.find((c) => c.codigo === codigo);
       if (existente) {
-        await hr('cadeiras').update({ cadeira_chefe_id: chefeId }).eq('id', existente.id);
+        await hr('cadeiras').update({
+          cadeira_chefe_id: chefeId,
+          ...(cargoId && !existente.cargo_id ? { cargo_id: cargoId } : {}),
+        }).eq('id', existente.id);
         return existente.id as string;
       }
       const { data: nova } = await hr('cadeiras').insert({
-        bar_id: user.bar_id, codigo, cadeira_chefe_id: chefeId, ordem: 0,
+        bar_id: user.bar_id, codigo, cadeira_chefe_id: chefeId, cargo_id: cargoId, ordem: 0,
       }).select().single();
       if (nova) lista.push(nova);
       return nova?.id as string;
     };
 
-    const topoId = await garante(TOPO, null);
+    // cargo da própria chefia, para a caixa não sair "sem cargo" e para quem for alocado nela
+    // herdar o cargo certo (Chefe de Bar, Chefe de Cumins…)
+    const idCargoPorNome = new Map<string, number>(
+      (cargos || []).map((c: any) => [semAcento(c.nome), c.id]),
+    );
+    const cargoDaChefia = (chefia: string) => idCargoPorNome.get(semAcento(chefia)) ?? null;
+
+    const topoId = await garante(TOPO, null, cargoDaChefia(TOPO));
     const chefiaId = new Map<string, string>();
-    for (const m of MAPA) chefiaId.set(m.chefia, await garante(m.chefia, topoId));
+    for (const m of MAPA) chefiaId.set(m.chefia, await garante(m.chefia, topoId, cargoDaChefia(m.chefia)));
 
     const codigosEstrutura = new Set<string>([TOPO, ...MAPA.map((m) => m.chefia)]);
     let penduradas = 0;
@@ -270,8 +292,15 @@ export async function POST(request: NextRequest) {
     if (!cadeiraId || !funcionarioId) return NextResponse.json({ error: 'cadeira_id e funcionario_id obrigatórios' }, { status: 400 });
     if (!(await daCasa(cadeiraId))) return NextResponse.json({ error: 'Cadeira não encontrada neste bar' }, { status: 404 });
 
-    const { data: pessoa } = await hr('funcionarios').select('id').eq('id', funcionarioId).eq('bar_id', user.bar_id).eq('ativo', true).maybeSingle();
+    const { data: pessoa } = await hr('funcionarios').select('id, cargo_id').eq('id', funcionarioId).eq('bar_id', user.bar_id).eq('ativo', true).maybeSingle();
     if (!pessoa) return NextResponse.json({ error: 'Funcionário não encontrado neste bar' }, { status: 404 });
+
+    // A cadeira é que define a posição: quem senta na CHEFE DE BAR passa a ter o cargo Chefe de Bar.
+    // Só quando a cadeira TEM cargo — cadeira sem cargo não pode apagar o cargo da pessoa.
+    const { data: cad } = await hr('cadeiras').select('cargo_id').eq('id', cadeiraId).maybeSingle();
+    if (cad?.cargo_id && cad.cargo_id !== pessoa.cargo_id) {
+      await hr('funcionarios').update({ cargo_id: cad.cargo_id }).eq('id', funcionarioId).eq('bar_id', user.bar_id);
+    }
 
     // fecha o que estiver aberto dos dois lados antes de abrir o vínculo novo — os índices
     // parciais (uma ocupação aberta por cadeira, uma por pessoa) rejeitariam o insert senão
@@ -279,6 +308,45 @@ export async function POST(request: NextRequest) {
     await hr('cadeira_ocupacao').update({ fim: hoje, motivo_saida: 'realocação' }).eq('funcionario_id', funcionarioId).is('fim', null);
 
     const { error } = await hr('cadeira_ocupacao').insert({ cadeira_id: cadeiraId, funcionario_id: funcionarioId, inicio: hoje });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
+  }
+
+  /**
+   * Escreve (ou apaga) o nome digitado na cadeira — o caminho do administrativo, onde o ocupante
+   * não é cadastrado como funcionário. Nome vazio devolve a cadeira para VAGA.
+   */
+  /**
+   * Muda a cadeira de organograma (operação <-> administrativo).
+   *
+   * A cadeira sai da árvore antiga: perde o chefe, e as subordinadas sobem para o chefe que ela
+   * tinha. Sem isso, filho ficaria apontando para um pai de outro escopo — some da tela sem aviso.
+   */
+  if (acao === 'mover_escopo') {
+    const cadeiraId = String(body.cadeira_id || '');
+    if (!cadeiraId || !(await daCasa(cadeiraId))) return NextResponse.json({ error: 'Cadeira não encontrada neste bar' }, { status: 404 });
+    const destino = body.escopo === 'administrativo' ? 'administrativo' : 'operacao';
+
+    const { data: atual } = await hr('cadeiras').select('cadeira_chefe_id').eq('id', cadeiraId).maybeSingle();
+    await hr('cadeiras').update({ cadeira_chefe_id: atual?.cadeira_chefe_id ?? null }).eq('cadeira_chefe_id', cadeiraId);
+
+    const { error } = await hr('cadeiras')
+      .update({ escopo: destino, cadeira_chefe_id: null, atualizado_em: new Date().toISOString() })
+      .eq('id', cadeiraId).eq('bar_id', user.bar_id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      mensagem: `Cadeira movida para o organograma ${destino === 'administrativo' ? 'administrativo' : 'da operação'}. Ela entra no topo — arraste para o chefe certo.`,
+    });
+  }
+
+  if (acao === 'nomear') {
+    const cadeiraId = String(body.cadeira_id || '');
+    if (!cadeiraId || !(await daCasa(cadeiraId))) return NextResponse.json({ error: 'Cadeira não encontrada neste bar' }, { status: 404 });
+    const nome = String(body.ocupante_nome || '').trim();
+    const { error } = await hr('cadeiras')
+      .update({ ocupante_nome: nome || null, atualizado_em: new Date().toISOString() })
+      .eq('id', cadeiraId).eq('bar_id', user.bar_id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   }
