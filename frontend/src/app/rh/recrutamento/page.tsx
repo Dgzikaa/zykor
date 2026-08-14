@@ -10,13 +10,15 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
-import { Briefcase, Loader2, Plus, Trash2, UserPlus, X, ChevronRight } from 'lucide-react';
+import { Briefcase, Loader2, Plus, UserPlus, X, ChevronRight, ShieldAlert, Armchair } from 'lucide-react';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 
-type Vaga = { id: string; titulo: string; area_id: number | null; tipo_contratacao: string | null; status: string; candidatos: number };
+type Vaga = { id: string; titulo: string; area_id: number | null; cargo_id: number | null; tipo_contratacao: string | null; status: string; candidatos: number; cadeira_id: string | null; cadeira_codigo: string | null; headcount_status: string; headcount_motivo: string | null; solicitado_por: string | null; dias_aberta: number | null };
 type Cand = { id: string; nome: string; telefone: string | null; email: string | null; etapa: string; funcionario_id: number | null };
 type Opcao = { id: number; nome: string };
+type Cargo = { id: number; nome: string; area_id: number | null };
+type Quadro = { cadeira_id: string; codigo: string; cargo_id: number | null; cargo_nome: string | null; area_nome: string | null; vaga_id: string | null; vaga_desde_dias: number | null };
 
 const ETAPAS = [
   { v: 'inscrito', l: 'Inscritos', cls: 'border-t-slate-400' },
@@ -43,10 +45,14 @@ export default function RecrutamentoPage() {
 
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [areas, setAreas] = useState<Opcao[]>([]);
+  const [cargos, setCargos] = useState<Cargo[]>([]);
+  const [quadro, setQuadro] = useState<Quadro[]>([]);
   const [sel0, setSel0] = useState<string | null>(null);
   const [cands, setCands] = useState<Cand[]>([]);
   const [loading, setLoading] = useState(false);
-  const [novaVaga, setNovaVaga] = useState({ titulo: '', tipo_contratacao: 'CLT', area_id: '' });
+  // O título deixou de ser o campo principal: o que define a vaga é o CARGO, porque é ele que
+  // aponta pra cadeira. Título fica opcional (default = nome do cargo).
+  const [novaVaga, setNovaVaga] = useState({ cargo_id: '', titulo: '', tipo_contratacao: 'CLT' });
   const [formVaga, setFormVaga] = useState(false);
   const [novoCand, setNovoCand] = useState({ nome: '', telefone: '' });
   const [busy, setBusy] = useState<string | null>(null);
@@ -54,12 +60,14 @@ export default function RecrutamentoPage() {
   const carregarVagas = useCallback(async () => {
     if (!selectedBar) return;
     setLoading(true);
-    try { const r = await api.get('/api/rh/vagas'); setVagas(r.vagas || []); }
+    try {
+      const r = await api.get('/api/rh/vagas');
+      setVagas(r.vagas || []); setQuadro(r.quadro || []); setCargos(r.cargos || []); setAreas(r.areas || []);
+    }
     catch (e: any) { showToast({ type: 'error', title: 'Erro ao carregar vagas', message: e?.message }); }
     finally { setLoading(false); }
   }, [selectedBar, showToast]);
   useEffect(() => { carregarVagas(); }, [carregarVagas]);
-  useEffect(() => { if (!selectedBar) return; api.get('/api/rh/funcionarios/opcoes').then((r) => setAreas(r.areas || [])).catch(() => {}); }, [selectedBar]);
 
   const carregarCands = useCallback(async (vagaId: string) => {
     try { const r = await api.get(`/api/rh/vagas/${vagaId}/candidatos`); setCands(r.candidatos || []); }
@@ -67,10 +75,31 @@ export default function RecrutamentoPage() {
   }, [showToast]);
   useEffect(() => { if (sel0) carregarCands(sel0); else setCands([]); }, [sel0, carregarCands]);
 
-  const criarVaga = async () => {
-    if (!novaVaga.titulo.trim()) { showToast({ type: 'error', title: 'Informe o título' }); return; }
-    try { await api.post('/api/rh/vagas', novaVaga); setNovaVaga({ titulo: '', tipo_contratacao: 'CLT', area_id: '' }); setFormVaga(false); carregarVagas(); }
+  /** Sem argumentos = pelo formulário. Com cadeira = clicou direto numa cadeira vaga do quadro. */
+  const criarVaga = async (cadeira?: Quadro) => {
+    const cargoId = cadeira?.cargo_id ?? novaVaga.cargo_id;
+    if (!cargoId) { showToast({ type: 'error', title: 'Escolha o cargo' }); return; }
+    try {
+      const r = await api.post('/api/rh/vagas', {
+        cargo_id: cargoId,
+        titulo: cadeira ? '' : novaVaga.titulo,
+        tipo_contratacao: novaVaga.tipo_contratacao,
+        cadeira_id: cadeira?.cadeira_id,
+      });
+      // o servidor é quem decide se coube numa cadeira vaga ou virou pedido de quadro
+      showToast({ type: r.vaga?.headcount_status === 'pendente' ? 'warning' : 'success', title: r.aviso || 'Vaga aberta' });
+      setNovaVaga({ cargo_id: '', titulo: '', tipo_contratacao: 'CLT' }); setFormVaga(false); carregarVagas();
+    }
     catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
+  };
+  const decidirHeadcount = async (v: Vaga, aprovar: boolean) => {
+    const motivo = window.prompt(aprovar ? 'Justificativa da aprovação de quadro (opcional):' : 'Por que está recusando? (opcional)');
+    if (motivo === null) return;
+    try {
+      await api.post('/api/rh/vagas', { id: v.id, action: aprovar ? 'aprovar_headcount' : 'recusar_headcount', motivo });
+      showToast({ type: 'success', title: aprovar ? 'Quadro aumentado — cadeira criada' : 'Pedido recusado' });
+      carregarVagas();
+    } catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
   };
   const mudarStatus = async (v: Vaga, status: string) => { try { await api.post('/api/rh/vagas', { id: v.id, status }); carregarVagas(); } catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); } };
   const addCand = async () => {
@@ -119,11 +148,74 @@ export default function RecrutamentoPage() {
 
         {formVaga && (
           <Card className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm mb-4">
-            <CardContent className="py-3 flex items-end gap-2 flex-wrap">
-              <label className="flex flex-col gap-1 flex-1 min-w-[180px]"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Título da vaga</span><Input value={novaVaga.titulo} onChange={(e) => setNovaVaga({ ...novaVaga, titulo: e.target.value })} placeholder="ex: Bartender" className="h-9 text-sm" /></label>
-              <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Tipo</span><select value={novaVaga.tipo_contratacao} onChange={(e) => setNovaVaga({ ...novaVaga, tipo_contratacao: e.target.value })} className="h-9 rounded-md border border-input bg-background px-2 text-sm"><option>CLT</option><option>PJ</option><option>Freela</option></select></label>
-              <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Área</span><select value={novaVaga.area_id} onChange={(e) => setNovaVaga({ ...novaVaga, area_id: e.target.value })} className="h-9 rounded-md border border-input bg-background px-2 text-sm"><option value="">—</option>{areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}</select></label>
-              <Button size="sm" className="h-9" onClick={criarVaga}>Criar</Button>
+            <CardContent className="py-3 space-y-2">
+              <div className="flex items-end gap-2 flex-wrap">
+                <label className="flex flex-col gap-1 flex-1 min-w-[200px]"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Cargo</span>
+                  <select value={novaVaga.cargo_id} onChange={(e) => setNovaVaga({ ...novaVaga, cargo_id: e.target.value })} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
+                    <option value="">— escolha o cargo —</option>
+                    {cargos.map((c) => {
+                      const livres = quadro.filter((q) => q.cargo_id === c.id && !q.vaga_id).length;
+                      return <option key={c.id} value={c.id}>{c.nome}{livres > 0 ? ` — ${livres} cadeira(s) vaga(s)` : ' — quadro cheio'}</option>;
+                    })}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 flex-1 min-w-[160px]"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Título (opcional)</span><Input value={novaVaga.titulo} onChange={(e) => setNovaVaga({ ...novaVaga, titulo: e.target.value })} placeholder="usa o nome do cargo" className="h-9 text-sm" /></label>
+                <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Tipo</span><select value={novaVaga.tipo_contratacao} onChange={(e) => setNovaVaga({ ...novaVaga, tipo_contratacao: e.target.value })} className="h-9 rounded-md border border-input bg-background px-2 text-sm"><option>CLT</option><option>PJ</option><option>Freela</option></select></label>
+                <Button size="sm" className="h-9" onClick={() => criarVaga()}>Abrir processo</Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Se houver cadeira vaga do cargo, a vaga entra nela. Se o quadro estiver cheio, o pedido fica
+                <strong> pendente de aprovação de headcount</strong> — só vira cadeira nova depois que alguém aprovar.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Pedidos de aumento de quadro esperando decisão */}
+        {vagas.filter((v) => v.headcount_status === 'pendente').length > 0 && (
+          <Card className="rounded-2xl border-0 ring-1 ring-amber-300 dark:ring-amber-700 shadow-sm mb-4">
+            <CardContent className="py-3">
+              <div className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-2 flex items-center gap-1.5">
+                <ShieldAlert className="w-4 h-4" />Aumento de quadro aguardando aprovação
+              </div>
+              <div className="space-y-1.5">
+                {vagas.filter((v) => v.headcount_status === 'pendente').map((v) => (
+                  <div key={v.id} className="flex items-center gap-2 flex-wrap rounded-lg border bg-background px-3 py-2">
+                    <span className="text-sm font-medium">{v.titulo}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      todas as cadeiras deste cargo estão ocupadas
+                      {v.solicitado_por && ` · pedido por ${v.solicitado_por}`}
+                    </span>
+                    <div className="ml-auto flex gap-1.5">
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => decidirHeadcount(v, false)}>Recusar</Button>
+                      <Button size="sm" className="h-7 text-xs" onClick={() => decidirHeadcount(v, true)}>Aprovar quadro</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Quadro vago: cadeiras sem gente que ainda não viraram processo seletivo */}
+        {quadro.filter((q) => !q.vaga_id).length > 0 && (
+          <Card className="rounded-2xl border-0 ring-1 ring-black/5 dark:ring-white/10 shadow-sm mb-4">
+            <CardContent className="py-3">
+              <div className="text-xs font-semibold mb-2 flex items-center gap-1.5">
+                <Armchair className="w-4 h-4 text-muted-foreground" />
+                Cadeiras vagas sem processo seletivo ({quadro.filter((q) => !q.vaga_id).length})
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {quadro.filter((q) => !q.vaga_id).map((q) => (
+                  <button key={q.cadeira_id} onClick={() => criarVaga(q)} disabled={soLeitura || !q.cargo_id}
+                    title={q.cargo_id ? 'Abrir processo seletivo para esta cadeira' : 'Cadeira sem cargo definido — ajuste no organograma'}
+                    className="text-xs rounded-full border px-2.5 py-1 hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed">
+                    {q.codigo}
+                    {q.area_nome && <span className="text-muted-foreground"> · {q.area_nome}</span>}
+                    {q.vaga_desde_dias != null && <span className="text-muted-foreground"> · há {q.vaga_desde_dias}d</span>}
+                  </button>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}
@@ -141,8 +233,10 @@ export default function RecrutamentoPage() {
                     </div>
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <span className={cn('text-[10px] rounded-full px-1.5 py-0.5', v.status === 'aberta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : v.status === 'pausada' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-800')}>{v.status}</span>
+                      {v.headcount_status === 'pendente' && <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">quadro pendente</span>}
+                      {v.cadeira_codigo && <span className="text-[10px] text-muted-foreground truncate">{v.cadeira_codigo}</span>}
                       {v.tipo_contratacao && <span className="text-[10px] text-muted-foreground">{v.tipo_contratacao}</span>}
-                      <span className="text-[10px] text-muted-foreground ml-auto">{v.candidatos} cand.</span>
+                      <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{v.candidatos} cand.</span>
                     </div>
                   </button>
                 ))}
