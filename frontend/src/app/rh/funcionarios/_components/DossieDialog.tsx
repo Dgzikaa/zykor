@@ -26,12 +26,13 @@ const lerJson = async (r: Response): Promise<any> => {
 import {
   Loader2, Pencil, Upload, FileText, Trash2, ExternalLink,
   CalendarDays, Cake, Phone, Mail, CreditCard,
-  Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Target, ClipboardCheck, GraduationCap, Check, Link as LinkIcon,
+  Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Target, ClipboardCheck, GraduationCap, Check, Link as LinkIcon, UserMinus,
 } from 'lucide-react';
 import type { Funcionario } from '../page';
 import { CartaoIcon } from './CartoesBadge';
 import { EspelhoPontoTab } from './EspelhoPontoTab';
 import { LABEL_DOC } from '@/lib/rh/documentos';
+import { DemissaoDialog } from './DemissaoDialog';
 
 // Catálogo único (mesma lista que gera os alertas de documento faltando) — antes esta tela
 // conhecia 7 tipos e os alertas conheciam 5, avisando a falta de só 2.
@@ -103,6 +104,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [ocorrencias, setOcorrencias] = useState<Ocorr[]>([]);
   const [alertas, setAlertas] = useState<Alerta[]>([]);
+  const [demissaoAberta, setDemissaoAberta] = useState(false);
   const [tipoUp, setTipoUp] = useState('carteira_trabalho');
   const [validadeUp, setValidadeUp] = useState('');
   const [avisoArq, setAvisoArq] = useState<{ texto: string; erro: boolean } | null>(null);
@@ -430,6 +432,11 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
               <div className="mt-auto p-3 border-t flex flex-col gap-1.5">
                 <Button variant="outline" size="sm" className="justify-start" onClick={() => onEditar(func)}><Pencil className="w-3.5 h-3.5 mr-2" />Editar dados</Button>
                 <Button variant="outline" size="sm" className="justify-start" onClick={() => { const d = new Date(); window.open(`/recibo?id=${func.id}&mes=${d.getMonth() + 1}&ano=${d.getFullYear()}`, '_blank'); }}><ScrollText className="w-3.5 h-3.5 mr-2" />Gerar recibo</Button>
+                {func.ativo && (
+                  <Button variant="outline" size="sm" className="justify-start text-rose-600 hover:text-rose-700" onClick={() => setDemissaoAberta(true)}>
+                    <UserMinus className="w-3.5 h-3.5 mr-2" />Registrar demissão
+                  </Button>
+                )}
                 {(func as any).portal_token && (
                   <Button variant="outline" size="sm" className="justify-start" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/portal/${(func as any).portal_token}`); showToast({ type: 'success', title: 'Link do portal copiado', message: 'Envie pro funcionário (WhatsApp/QR).' }); }}><LinkIcon className="w-3.5 h-3.5 mr-2" />Copiar link do portal</Button>
                 )}
@@ -779,6 +786,16 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
           </div>
         )}
       </DialogContent>
+      {func && (
+        <DemissaoDialog
+          funcionarioId={func.id}
+          nome={func.nome}
+          docs={docs}
+          aberto={demissaoAberta}
+          onFechar={() => setDemissaoAberta(false)}
+          onPronto={() => carregar()}
+        />
+      )}
     </Dialog>
   );
 }

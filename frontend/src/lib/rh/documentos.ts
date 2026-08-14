@@ -32,6 +32,8 @@ export const TIPOS_DOCUMENTO: TipoDocumento[] = [
   { id: 'contrato', label: 'Contrato', obrigatorio: true },
   // pedido da ata: o termo assinado é outra coisa que "uniforme entregue" no checklist
   { id: 'termo_uniforme', label: 'Termo de Recebimento de Uniforme', obrigatorio: true },
+  // só existe quando o pedido parte do funcionário — por isso não é obrigatório
+  { id: 'carta_demissao', label: 'Carta de Demissão', obrigatorio: false },
   { id: 'certidao_nascimento', label: 'Certidão de Nascimento', obrigatorio: false },
   { id: 'titulo_eleitoral', label: 'Título Eleitoral', obrigatorio: false },
   { id: 'outro', label: 'Outro', obrigatorio: false },
