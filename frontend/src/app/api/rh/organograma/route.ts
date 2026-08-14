@@ -173,6 +173,75 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, cadeira: data });
   }
 
+  /**
+   * Monta a estrutura padrão da operação, ditada pelo dono em 13/08/2026:
+   * gerente operacional no topo, seis chefias abaixo dele, e o time dentro de cada chefia.
+   *
+   * Existe porque o organograma nasceu sem hierarquia — 62 cadeiras soltas não desenham nada — e
+   * porque sem uma cadeira de chefia não há como enxergar "chefe de atendimento VAGA", que é a
+   * pergunta que a operação faz.
+   *
+   * As chefias nascem VAGAS de propósito: quem senta em cada uma é decisão do RH, e chutar seria
+   * pior do que deixar a vaga explícita. Cargo que não se encaixa em nenhuma das seis (Produção,
+   * Chefe de Salão) fica direto sob o gerente, para não sumir nem ser posto no lugar errado.
+   */
+  if (acao === 'montar_padrao') {
+    const TOPO = 'GERENTE OPERACIONAL';
+    // cargo (minúsculo, sem acento) -> chefia
+    const MAPA: Array<{ chefia: string; cargos: string[] }> = [
+      { chefia: 'CHEFE DE ATENDIMENTO', cargos: ['garcom', 'garcon'] },
+      { chefia: 'CHEFE DE FILA', cargos: ['recepcionista'] },
+      { chefia: 'CHEFE DE LIMPEZA/INFRA', cargos: ['auxiliar de servicos gerais', 'asg'] },
+      { chefia: 'CHEFE DE BAR', cargos: ['bartender', 'barback'] },
+      { chefia: 'CHEFE DE CUMINS', cargos: ['cumin', 'cumim'] },
+      { chefia: 'CHEFE DE COZINHA', cargos: ['cozinheiro', 'auxiliar de cozinha'] },
+    ];
+    const semAcento = (s: string) => String(s || '').toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
+    const [{ data: cads }, { data: cargos }] = await Promise.all([
+      hr('cadeiras').select('id, codigo, cargo_id, area_id').eq('bar_id', user.bar_id).eq('ativa', true),
+      hr('cargos').select('id, nome').eq('bar_id', user.bar_id),
+    ]);
+    const lista = (cads || []) as any[];
+    const nomeCargo = new Map<number, string>((cargos || []).map((c: any) => [c.id, semAcento(c.nome)]));
+
+    const garante = async (codigo: string, chefeId: string | null) => {
+      const existente = lista.find((c) => c.codigo === codigo);
+      if (existente) {
+        await hr('cadeiras').update({ cadeira_chefe_id: chefeId }).eq('id', existente.id);
+        return existente.id as string;
+      }
+      const { data: nova } = await hr('cadeiras').insert({
+        bar_id: user.bar_id, codigo, cadeira_chefe_id: chefeId, ordem: 0,
+      }).select().single();
+      if (nova) lista.push(nova);
+      return nova?.id as string;
+    };
+
+    const topoId = await garante(TOPO, null);
+    const chefiaId = new Map<string, string>();
+    for (const m of MAPA) chefiaId.set(m.chefia, await garante(m.chefia, topoId));
+
+    const codigosEstrutura = new Set<string>([TOPO, ...MAPA.map((m) => m.chefia)]);
+    let penduradas = 0;
+    for (const c of lista) {
+      if (codigosEstrutura.has(c.codigo)) continue;
+      const cargo = c.cargo_id ? nomeCargo.get(c.cargo_id) || '' : '';
+      const destino = MAPA.find((m) => m.cargos.some((k) => cargo.includes(k)));
+      // sem encaixe -> direto no gerente, em vez de ficar solto ou num chefe errado
+      const paiId = destino ? chefiaId.get(destino.chefia)! : topoId;
+      await hr('cadeiras').update({ cadeira_chefe_id: paiId }).eq('id', c.id);
+      penduradas++;
+    }
+
+    return NextResponse.json({
+      success: true,
+      penduradas,
+      mensagem: `Estrutura montada: ${TOPO} no topo, ${MAPA.length} chefias abaixo e ${penduradas} cadeira(s) distribuídas. As chefias ficam VAGAS até alguém ser alocado.`,
+    });
+  }
+
   if (acao === 'editar') {
     const cadeiraId = String(body.cadeira_id || '');
     if (!cadeiraId || !(await daCasa(cadeiraId))) return NextResponse.json({ error: 'Cadeira não encontrada neste bar' }, { status: 404 });
