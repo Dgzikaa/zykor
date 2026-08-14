@@ -97,6 +97,7 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
   const { showToast } = useToast();
   const { data, isLoading, mutate } = useApiSWR<Resposta>(selectedBar ? `/api/rh/organograma?escopo=${escopo}` : null);
   const cadeiras = useMemo(() => data?.cadeiras || [], [data]);
+  const todas = cadeiras;
   const semCadeira = useMemo(() => data?.sem_cadeira || [], [data]);
   const pessoas = useMemo(() => data?.pessoas || [], [data]);
 
@@ -313,8 +314,10 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
       )}
 
       <p className="text-xs text-muted-foreground">
-        Arraste uma caixa sobre outra para definir o chefe direto. Cadeira tracejada está <strong>vaga</strong> —
-        clique em <UserPlus className="w-3 h-3 inline" /> para alocar alguém.
+        Passe o mouse na caixa: <Network className="w-3 h-3 inline" /> escolhe a quem ela responde,
+        <Plus className="w-3 h-3 inline" /> cria uma cadeira já abaixo dela (é assim que se monta a
+        cadeia: Assistente 1, Assistente 2…) e <UserPlus className="w-3 h-3 inline" /> aloca alguém na vaga.
+        Arrastar também funciona, mas o seletor não depende de pontaria.
       </p>
 
       {/* faixa de soltar = tirar o chefe */}
@@ -335,7 +338,7 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
               arrasto={arrasto} setArrasto={setArrasto}
               alvo={alvo} setAlvo={setAlvo} descendentes={descendentes} soltar={soltar}
               combina={combina} temBusca={!!buscaNorm}
-              onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} />
+              onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} />
           ))}
         </div>
       </div>
@@ -378,7 +381,7 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
  */
 function Ramo({
   no, arrasto, setArrasto, alvo, setAlvo, descendentes, soltar,
-  combina, temBusca, onAbrirDossie, pessoas, chamar, admin,
+  combina, temBusca, onAbrirDossie, pessoas, chamar, admin, todas, escopo,
 }: {
   no: No;
   arrasto: Arrasto; setArrasto: (a: Arrasto) => void;
@@ -388,6 +391,9 @@ function Ramo({
   pessoas: Pessoa[];
   chamar: (m: 'PUT' | 'POST', corpo: Record<string, unknown>, erro: string) => Promise<boolean>;
   admin: boolean;
+  /** lista chapada, para o seletor de chefe não depender de acertar o arrastar */
+  todas: Cadeira[];
+  escopo: 'operacao' | 'administrativo';
 }) {
   const temFilhos = no.filhos.length > 0;
   // Empilha quando nenhum filho tem equipe própria — é o time de um chefe. Se algum filho for chefe
@@ -398,7 +404,7 @@ function Ramo({
     <div className="flex flex-col items-center">
       <Caixa no={no} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
         descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-        onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} />
+        onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} />
 
       {temFilhos && (empilhar ? (
         /* time do chefe: coluna, com um prumo à esquerda e um traço para cada caixa */
@@ -412,7 +418,7 @@ function Ramo({
                   <div className="absolute -left-4 top-1/2 w-4 h-px bg-border" />
                   <Caixa no={f} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
                     descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-                    onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} />
+                    onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} />
                 </div>
               ))}
             </div>
@@ -432,7 +438,7 @@ function Ramo({
                 <div className="w-px h-4 bg-border" />
                 <Ramo no={f} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
                   descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-                  onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} />
+                  onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} />
               </div>
             ))}
           </div>
@@ -444,7 +450,7 @@ function Ramo({
 
 function Caixa({
   no, arrasto, setArrasto, alvo, setAlvo, descendentes, soltar,
-  combina, temBusca, onAbrirDossie, pessoas, chamar, admin,
+  combina, temBusca, onAbrirDossie, pessoas, chamar, admin, todas, escopo,
 }: {
   no: No;
   arrasto: Arrasto; setArrasto: (a: Arrasto) => void;
@@ -454,8 +460,23 @@ function Caixa({
   pessoas: Pessoa[];
   chamar: (m: 'PUT' | 'POST', corpo: Record<string, unknown>, erro: string) => Promise<boolean>;
   admin: boolean;
+  /** lista chapada, para o seletor de chefe não depender de acertar o arrastar */
+  todas: Cadeira[];
+  escopo: 'operacao' | 'administrativo';
 }) {
   const [alocando, setAlocando] = useState(false);
+  const [mudandoChefe, setMudandoChefe] = useState(false);
+
+  // Arrastar exige pontaria e, numa coluna empilhada, encaixar a caixa no lugar certo vira sorte —
+  // por isso existe o seletor: escolher o chefe numa lista é determinístico. Fora da lista ficam a
+  // própria cadeira e as que estão abaixo dela, que criariam ciclo.
+  const proibidos = useMemo(() => {
+    const s = new Set<string>([no.id]);
+    const desce = (n: No) => n.filhos.forEach((f) => { s.add(f.id); desce(f); });
+    desce(no);
+    return s;
+  }, [no]);
+
   const podeReceber = arrasto?.tipo === 'pessoa'
     ? no.vaga                                              // pessoa só entra em cadeira vaga
     : !!arrasto && arrasto.id !== no.id && !descendentes.has(no.id);
@@ -548,7 +569,36 @@ function Caixa({
         </span>
       )}
 
+      {mudandoChefe && (
+        <select defaultValue={no.cadeira_chefe_id || ''}
+          onChange={(e) => { chamar('PUT', { cadeira_id: no.id, cadeira_chefe_id: e.target.value || null }, 'Não foi possível mover'); setMudandoChefe(false); }}
+          onBlur={() => setMudandoChefe(false)}
+          className="mt-1 w-full h-7 rounded border border-input bg-background px-1 text-[10px]">
+          <option value="">— sem chefe (topo) —</option>
+          {todas.filter((c) => !proibidos.has(c.id))
+            .slice().sort((a, b) => a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true }))
+            .map((c) => <option key={c.id} value={c.id}>{c.codigo}</option>)}
+        </select>
+      )}
+
       <div className="absolute -bottom-2 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+        {/* responde a quem: sem depender de acertar o arrastar */}
+        <button onClick={() => setMudandoChefe((v) => !v)} title="Escolher a quem esta cadeira responde"
+          className="rounded bg-background border p-0.5 text-muted-foreground hover:text-indigo-600"><Network className="w-3 h-3" /></button>
+
+        {/* cria já pendurada aqui — é o jeito de montar a cadeia (Assistente 1, Assistente 2…) */}
+        <button
+          onClick={() => {
+            const codigo = window.prompt(`Nova cadeira ABAIXO de ${no.codigo}.\n\nNome da cadeira:`, '');
+            if (!codigo?.trim()) return;
+            chamar('POST', {
+              acao: 'criar', codigo, escopo,
+              cadeira_chefe_id: no.id, cargo_id: no.cargo_id, area_id: no.area_id,
+            }, 'Não foi possível criar');
+          }}
+          title="Criar uma cadeira abaixo desta"
+          className="rounded bg-background border p-0.5 text-muted-foreground hover:text-emerald-600"><Plus className="w-3 h-3" /></button>
+
         {/* administrativo: escrever/limpar o nome direto na cadeira (sócio não tem cadastro) */}
         {admin && !no.ocupante && (
           <button
