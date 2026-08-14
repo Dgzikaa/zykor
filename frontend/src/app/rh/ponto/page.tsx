@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { BancoHorasTab } from './_components/BancoHorasTab';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -117,6 +119,17 @@ export default function PontoPage() {
           </div>
         </div>
 
+        <Tabs defaultValue="espelho" className="w-full">
+          <TabsList className="mb-3">
+            <TabsTrigger value="espelho">Espelho da semana</TabsTrigger>
+            {/* Pedido da ata: o banco é somatório GERAL, não só do mês — por isso vive aqui, ao lado
+                do espelho, e não dentro da semana. */}
+            <TabsTrigger value="banco">Banco de horas</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="banco"><BancoHorasTab /></TabsContent>
+
+          <TabsContent value="espelho">
         <div className="flex items-center gap-2 mb-3">
           <select value={filtroArea} onChange={(e) => setFiltroArea(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
             <option value="">Todas as áreas</option>
@@ -181,6 +194,8 @@ export default function PontoPage() {
           )}
         </Card>
         <p className="text-[11px] text-muted-foreground mt-2">Saldo = horas trabalhadas − previstas no dia. Vira-noite é tratado automaticamente.</p>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <CellDialog edit={edit} onClose={() => setEdit(null)} onSalvar={salvar} onLimpar={limpar} salvando={salvando} />
