@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -33,6 +33,7 @@ import { CartaoIcon } from './CartoesBadge';
 import { EspelhoPontoTab } from './EspelhoPontoTab';
 import { LABEL_DOC } from '@/lib/rh/documentos';
 import { DemissaoDialog } from './DemissaoDialog';
+import { CalibracaoTab } from './CalibracaoTab';
 
 // Catálogo único (mesma lista que gera os alertas de documento faltando) — antes esta tela
 // conhecia 7 tipos e os alertas conheciam 5, avisando a falta de só 2.
@@ -79,18 +80,6 @@ type Treino = { id: string; nome: string; instituicao: string | null; data_concl
 type Onb = { id: string; item: string; concluido: boolean; ordem: number };
 type Calibracao = { id: string; ano: number; trimestre: number; comportamento: string | null; performance: string | null; observacao: string | null; registrado_por: string | null };
 
-// Escala da calibração, do pior para o melhor — a ordem importa: é ela que
-// define a cor e a posição na régua abaixo.
-const CONCEITOS = ['Insatisfatório', 'Parcial', 'Atende -', 'Atende +', 'Acima', 'Destaque'] as const;
-const corConceito = (c: string | null) =>
-  c === 'Destaque' ? 'bg-emerald-600 text-white'
-  : c === 'Acima' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-  : c === 'Atende +' ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
-  : c === 'Atende -' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-  : c === 'Parcial' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
-  : c === 'Insatisfatório' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-  : 'bg-muted text-muted-foreground';
-
 const CRITERIOS_PADRAO = ['Pontualidade', 'Postura e atitude', 'Trabalho em equipe', 'Qualidade do trabalho', 'Proatividade', 'Atendimento ao cliente'];
 const notaCls = (n: number) => n >= 4 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : n >= 3 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
 
@@ -126,17 +115,8 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const [salvandoTreino, setSalvandoTreino] = useState(false);
   const [onbItens, setOnbItens] = useState<Onb[]>([]);
   const [novoOnb, setNovoOnb] = useState('');
+  // só a contagem para o rótulo da aba — o formulário e a leitura vivem em CalibracaoTab
   const [calibracoes, setCalibracoes] = useState<Calibracao[]>([]);
-  const [novaCalib, setNovaCalib] = useState(() => {
-    const hoje = new Date();
-    return {
-      ano: hoje.getFullYear(),
-      trimestre: Math.floor(hoje.getMonth() / 3) + 1,
-      comportamento: '', performance: '', observacao: '',
-    };
-  });
-  const [salvandoCalib, setSalvandoCalib] = useState(false);
-  const [formCalibAberto, setFormCalibAberto] = useState(false);
 
   const carregar = useCallback(async () => {
     if (!funcionarioId) return;
@@ -326,31 +306,6 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
       if (!r.ok || !j.success) throw new Error(j.error || 'Falha');
       setNovoOnb(''); carregar();
     } catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
-  };
-  const salvarCalibracao = async () => {
-    if (!novaCalib.comportamento && !novaCalib.performance) {
-      showToast({ type: 'error', title: 'Escolha ao menos um conceito', message: 'Comportamento ou Performance.' });
-      return;
-    }
-    setSalvandoCalib(true);
-    try {
-      const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/calibracoes`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...barHdr() }, credentials: 'include',
-        body: JSON.stringify(novaCalib),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.success) throw new Error(j.error || 'Falha ao salvar');
-      setNovaCalib((p) => ({ ...p, comportamento: '', performance: '', observacao: '' }));
-      setFormCalibAberto(false);
-      carregar();
-    } catch (e: any) { showToast({ type: 'error', title: 'Erro', message: e?.message }); }
-    finally { setSalvandoCalib(false); }
-  };
-  const excluirCalibracao = async (calibId: string) => {
-    try {
-      await fetch(`/api/rh/funcionarios/${funcionarioId}/calibracoes?calibracao_id=${calibId}`, { method: 'DELETE', headers: barHdr(), credentials: 'include' });
-      setCalibracoes((p) => p.filter((c) => c.id !== calibId));
-    } catch (e: any) { showToast({ type: 'error', title: 'Erro ao excluir', message: e?.message }); }
   };
   const removeOnb = async (itemId: string) => {
     try { await fetch(`/api/rh/funcionarios/${funcionarioId}/onboarding?item_id=${itemId}`, { method: 'DELETE', headers: barHdr(), credentials: 'include' }); setOnbItens((p) => p.filter((x) => x.id !== itemId)); }
@@ -696,90 +651,16 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
 
               {/* Calibração — Comportamento × Performance por trimestre */}
               <TabsContent value="calibracao" className="px-6 py-4">
-                {calibracoes.length > 0 ? (
-                  <div className="space-y-2 mb-3">
-                    {calibracoes.map((c) => (
-                      <div key={c.id} className="rounded-lg border bg-background px-3 py-2.5">
-                        <div className="flex items-start justify-between gap-3 flex-wrap">
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-sm font-semibold tabular-nums">{c.trimestre}º tri {c.ano}</span>
-                          </div>
-                          <div className="flex items-center gap-4 flex-wrap flex-1 min-w-[240px]">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Comportamento</span>
-                              <span className={cn('text-[11px] font-medium rounded-full px-2 py-0.5', corConceito(c.comportamento))}>{c.comportamento || '—'}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Performance</span>
-                              <span className={cn('text-[11px] font-medium rounded-full px-2 py-0.5', corConceito(c.performance))}>{c.performance || '—'}</span>
-                            </div>
-                          </div>
-                          <button onClick={() => excluirCalibracao(c.id)} className="p-1.5 rounded-md hover:bg-muted text-red-500 shrink-0"><Trash2 className="w-4 h-4" /></button>
-                        </div>
-                        {c.observacao && <div className="text-xs text-muted-foreground mt-1.5 whitespace-pre-wrap">{c.observacao}</div>}
-                        {c.registrado_por && <div className="text-[10px] text-muted-foreground/70 mt-1">registrado por {c.registrado_por}</div>}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground text-center py-6 mb-3 border border-dashed rounded-lg flex flex-col items-center">
-                    <Target className="w-8 h-8 mb-1.5 opacity-40" />
-                    Nenhuma calibração registrada ainda.
-                  </div>
-                )}
-
-                {!formCalibAberto ? (
-                  <Button size="sm" variant="outline" onClick={() => setFormCalibAberto(true)}><Plus className="w-4 h-4 mr-1.5" />Nova calibração</Button>
-                ) : (
-                  <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
-                    <div className="flex items-end gap-2 flex-wrap">
-                      <label className="flex flex-col gap-1">
-                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Trimestre</span>
-                        <select value={novaCalib.trimestre} onChange={(e) => setNovaCalib({ ...novaCalib, trimestre: Number(e.target.value) })} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
-                          {[1, 2, 3, 4].map((t) => <option key={t} value={t}>{t}º trimestre</option>)}
-                        </select>
-                      </label>
-                      <label className="flex flex-col gap-1">
-                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Ano</span>
-                        <Input type="number" value={novaCalib.ano} onChange={(e) => setNovaCalib({ ...novaCalib, ano: Number(e.target.value) })} className="h-9 text-sm w-[100px]" />
-                      </label>
-                      <p className="text-[10px] text-muted-foreground flex-1 min-w-[180px] pb-2">
-                        Salvar um período que já existe corrige o registro, não duplica.
-                      </p>
-                    </div>
-
-                    {([['comportamento', 'Comportamento'], ['performance', 'Performance']] as const).map(([campo, rotulo]) => (
-                      <div key={campo}>
-                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">{rotulo}</div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {CONCEITOS.map((c) => (
-                            <button
-                              key={c}
-                              type="button"
-                              onClick={() => setNovaCalib((p) => ({ ...p, [campo]: p[campo] === c ? '' : c }))}
-                              className={cn(
-                                'text-xs rounded-full px-2.5 py-1 border transition-colors',
-                                novaCalib[campo] === c ? `${corConceito(c)} border-transparent font-medium` : 'border-input hover:bg-muted',
-                              )}
-                            >{c}</button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-
-                    <label className="flex flex-col gap-1">
-                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Observação (opcional)</span>
-                      <Input value={novaCalib.observacao} onChange={(e) => setNovaCalib({ ...novaCalib, observacao: e.target.value })} placeholder="ex: evoluiu muito no atendimento, precisa firmar liderança" className="h-9 text-sm" />
-                    </label>
-
-                    <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="outline" onClick={() => setFormCalibAberto(false)}>Cancelar</Button>
-                      <Button size="sm" onClick={salvarCalibracao} disabled={salvandoCalib}>{salvandoCalib ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar calibração'}</Button>
-                    </div>
-                  </div>
-                )}
+                {/* O card real tem oito blocos (docs/avaliação.jpg) — vive em componente próprio */}
+                <CalibracaoTab
+                  funcionarioId={func.id}
+                  cargoNome={func.cargo_nome || null}
+                  cartoes={{
+                    amarelo: ocorrencias.filter((o) => o.cartao === 'amarelo').length,
+                    vermelho: ocorrencias.filter((o) => o.cartao === 'vermelho').length,
+                  }}
+                />
               </TabsContent>
-
                 </div>
               </Tabs>
             </div>
