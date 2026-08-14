@@ -24,7 +24,8 @@ const sel = 'h-9 w-full rounded-md border border-input bg-background px-2 text-s
 
 export function FuncionarioDialog({ open, onClose, onSalvo, cargos, areas, funcionario }: {
   open: boolean; onClose: () => void; onSalvo: () => void;
-  cargos: Opcao[]; areas: Opcao[]; funcionario: Funcionario | null;
+  /** cargo carrega `area_id` para o formulário poder filtrar pela área escolhida */
+  cargos: (Opcao & { area_id?: number | null })[]; areas: Opcao[]; funcionario: Funcionario | null;
 }) {
   const { showToast } = useToast();
   const [form, setForm] = useState<Record<string, any>>(VAZIO);
@@ -128,16 +129,22 @@ export function FuncionarioDialog({ open, onClose, onSalvo, cargos, areas, funci
                   <option value="CLT">CLT</option><option value="PJ">PJ</option><option value="Freela">Freela</option>
                 </select>
               </div>
+              {/* Área ANTES do cargo: é ela que filtra a lista. Trocar de área limpa o cargo, senão
+                  sobraria um cargo de outra área escolhido antes (marcar Marketing e ficar com Cumin). */}
               <div className="space-y-1.5">
-                <Label className="text-xs">Cargo</Label>
-                <select className={sel} value={form.cargo_id} onChange={(e) => set('cargo_id', e.target.value)}>
-                  <option value="">—</option>{cargos.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                <Label className="text-xs">Área</Label>
+                <select className={sel} value={form.area_id} onChange={(e) => { set('area_id', e.target.value); set('cargo_id', ''); }}>
+                  <option value="">—</option>{areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Área</Label>
-                <select className={sel} value={form.area_id} onChange={(e) => set('area_id', e.target.value)}>
-                  <option value="">—</option>{areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                <Label className="text-xs">Cargo</Label>
+                <select className={sel} value={form.cargo_id} onChange={(e) => set('cargo_id', e.target.value)}>
+                  <option value="">—</option>
+                  {cargos
+                    // cargo sem área (sócio, freela, gerência) aparece em qualquer uma
+                    .filter((c) => !form.area_id || c.area_id == null || String(c.area_id) === String(form.area_id))
+                    .map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
               </div>
               <div className="space-y-1.5">

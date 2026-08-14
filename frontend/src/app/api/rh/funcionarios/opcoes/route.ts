@@ -12,7 +12,9 @@ export async function GET(request: NextRequest) {
 
   const supabase = await getAdminClient();
   const [c, a] = await Promise.all([
-    (supabase as any).schema('hr').from('cargos').select('id, nome').eq('bar_id', user.bar_id).eq('ativo', true).order('nome'),
+    // area_id vem junto: o formulário filtra os cargos pela área escolhida (cargo sem área —
+    // sócio, freela, gerência — aparece em qualquer uma)
+    (supabase as any).schema('hr').from('cargos').select('id, nome, area_id').eq('bar_id', user.bar_id).eq('ativo', true).order('nome'),
     (supabase as any).schema('hr').from('areas').select('id, nome').eq('bar_id', user.bar_id).eq('ativo', true).order('nome'),
   ]);
   return NextResponse.json({
