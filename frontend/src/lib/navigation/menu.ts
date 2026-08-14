@@ -216,6 +216,8 @@ export const MENU_TREE: MenuSection[] = [
     // sem migrar os tokens junto.
     subItems: [
       { icon: 'Users', label: 'Funcionários', href: '/rh/funcionarios', permission: 'rh_funcionarios' },
+      // A mensagem de toda segunda, montada sozinha (objetivo 3 da ata de 13/08/2026).
+      { icon: 'CalendarDays', label: 'Ata Semanal', href: '/rh/ata-semanal', permission: 'rh_ata_semanal' },
       // Saiu do perfil de cada pessoa: a pesquisa é anônima e agregada por setor,
       // então nunca houve resposta "daquele funcionário" pra mostrar lá.
       // Renomeada de "Pesquisa da Felicidade" para "Pesquisas" em 14/08/2026 (a Felicidade virou
