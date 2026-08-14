@@ -9,7 +9,8 @@ import { useApiSWR } from '@/hooks/useApiSWR';
 import { useToast } from '@/components/ui/toast';
 import { getSelectedBarId } from '@/lib/selected-bar';
 import { cn } from '@/lib/utils';
-import { Loader2, Network, Search, Cake, Plus, UserPlus, UserMinus, Trash2, Wand2, ZoomIn, ZoomOut, Pencil, ArrowLeftRight } from 'lucide-react';
+import { Loader2, Network, Search, Cake, Plus, UserPlus, UserMinus, Trash2, Wand2, ZoomIn, ZoomOut, Pencil, ArrowLeftRight, Camera, ChevronUp, ChevronDown } from 'lucide-react';
+import { getSupabaseClient } from '@/lib/supabase';
 
 /**
  * Organograma por CADEIRA, desenhado de cima para baixo como o quadro do Canva.
@@ -35,7 +36,8 @@ type Cadeira = {
   cargo_id: number | null; cargo_nome: string | null;
   area_id: number | null; area_nome: string | null; area_cor: string | null;
   escopo: 'operacao' | 'administrativo';
-  ocupante_nome: string | null;   // nome digitado (sócio, que não tem cadastro)
+  ocupante_nome: string | null;        // nome digitado (sócio, que não tem cadastro)
+  ocupante_foto_url: string | null;    // rosto do sócio (funcionário guarda no próprio cadastro)
   vaga: boolean; ocupante: Ocupante | null;
 };
 type SemCadeira = { id: number; nome: string; foto_url: string | null; cargo_nome: string | null };
@@ -61,6 +63,27 @@ const AVATAR_CORES = [
   'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
   'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
 ];
+/**
+ * Quem pode ser chefe: sócio, gerente, chefe, diretor e coordenador (decisão do dono).
+ *
+ * A lista de "responde a quem" com as 60+ cadeiras era impossível de usar — e pior, deixava fazer
+ * bobagem: "posso colocar 1 assistente de produção que responde pra 1 cumin, n faz sentido nenhum".
+ *
+ * Casa no nome da cadeira OU no cargo, porque nem toda cadeira tem cargo definido.
+ */
+const EH_LIDERANCA = /s[óo]cio|gerente|chefe|diretor|coordenador/i;
+
+/**
+ * Além da liderança, entra quem JÁ tem gente abaixo — é o caso do Analista Financeiro e do Analista
+ * RH/DP, que mandam no auxiliar e na estagiária e que o dono aprovou como estão. Sem essa segunda
+ * regra, a estrutura que ele validou deixaria de ser reproduzível.
+ * Para começar uma chefia nova onde ainda não há ninguém abaixo, o caminho é o botão + (cria a
+ * cadeira já pendurada), que não passa por esta lista.
+ */
+function podeSerChefe(c: Cadeira, comFilhos: Set<string>): boolean {
+  return EH_LIDERANCA.test(`${c.codigo} ${c.cargo_nome || ''}`) || comFilhos.has(c.id);
+}
+
 const iniciais = (nome: string) => nome.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
 const corAvatar = (nome: string) => { let h = 0; for (const c of nome) h = (h + c.charCodeAt(0)) % AVATAR_CORES.length; return AVATAR_CORES[h]; };
 
@@ -98,6 +121,11 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
   const { data, isLoading, mutate } = useApiSWR<Resposta>(selectedBar ? `/api/rh/organograma?escopo=${escopo}` : null);
   const cadeiras = useMemo(() => data?.cadeiras || [], [data]);
   const todas = cadeiras;
+  // quem já tem alguém abaixo também pode ser chefe (ver podeSerChefe)
+  const comFilhos = useMemo(
+    () => new Set(cadeiras.map((c) => c.cadeira_chefe_id).filter(Boolean) as string[]),
+    [cadeiras],
+  );
   const semCadeira = useMemo(() => data?.sem_cadeira || [], [data]);
   const pessoas = useMemo(() => data?.pessoas || [], [data]);
 
@@ -142,12 +170,13 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
       if (pai) pai.filhos.push(no); else raizes.push(no);
     }
     const contar = (no: No): number => {
-      no.filhos.sort((a, b) => a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true }));
+      // ordem manual primeiro (setas ↑↓); nome só desempata
+      no.filhos.sort((a, b) => (a.ordem - b.ordem) || a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true }));
       no.total = no.filhos.reduce((s, f) => s + 1 + contar(f), 0);
       return no.total;
     };
     raizes.forEach(contar);
-    raizes.sort((a, b) => b.total - a.total || a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true }));
+    raizes.sort((a, b) => (a.ordem - b.ordem) || a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true }));
     return { raizes, porId: mapa };
   }, [cadeiras]);
 
@@ -203,6 +232,36 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
     if ((origem?.cadeira_chefe_id ?? null) === destinoId) return;
     chamar('PUT', { cadeira_id: id, cadeira_chefe_id: destinoId }, 'Não foi possível mover a cadeira');
   };
+
+  /**
+   * Sobe o rosto direto para o Storage e guarda a URL.
+   *
+   * O arquivo NÃO passa pela função da Vercel (teto de ~4,5 MB no corpo da requisição): vai do
+   * browser para o bucket público `uploads`, que já existe e só aceita imagem. Depois só a URL
+   * viaja para a API, que decide onde gravar — cadastro do funcionário ou a própria cadeira.
+   */
+  const enviarFoto = useCallback(async (no: Cadeira, file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      return showToast({ type: 'error', title: 'Imagem muito grande', message: 'O limite é 10 MB.' });
+    }
+    setSalvando(true);
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const caminho = `rh/rosto/${no.id}.${ext}`;
+      const sb = await getSupabaseClient();
+      if (!sb) throw new Error('Sessão do Supabase indisponível');
+      const { error: upErro } = await sb.storage.from('uploads')
+        .upload(caminho, file, { upsert: true, contentType: file.type || `image/${ext}` });
+      if (upErro) throw new Error(upErro.message);
+      const { data: pub } = sb.storage.from('uploads').getPublicUrl(caminho);
+      // ?v= força o navegador a buscar de novo quando a pessoa troca a foto (mesmo caminho)
+      await chamar('POST', { acao: 'foto', cadeira_id: no.id, url: `${pub.publicUrl}?v=${Date.now()}` }, 'Não foi possível salvar a foto');
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Falha ao enviar a foto', message: e?.message });
+    } finally {
+      setSalvando(false);
+    }
+  }, [chamar, showToast]);
 
   const criarCadeira = async () => {
     if (!nova.codigo.trim()) return showToast({ type: 'error', title: 'Dê um nome à cadeira' });
@@ -338,7 +397,7 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
               arrasto={arrasto} setArrasto={setArrasto}
               alvo={alvo} setAlvo={setAlvo} descendentes={descendentes} soltar={soltar}
               combina={combina} temBusca={!!buscaNorm}
-              onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} />
+              onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} enviarFoto={enviarFoto} comFilhos={comFilhos} />
           ))}
         </div>
       </div>
@@ -381,7 +440,7 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
  */
 function Ramo({
   no, arrasto, setArrasto, alvo, setAlvo, descendentes, soltar,
-  combina, temBusca, onAbrirDossie, pessoas, chamar, admin, todas, escopo,
+  combina, temBusca, onAbrirDossie, pessoas, chamar, admin, todas, escopo, enviarFoto, comFilhos,
 }: {
   no: No;
   arrasto: Arrasto; setArrasto: (a: Arrasto) => void;
@@ -394,6 +453,8 @@ function Ramo({
   /** lista chapada, para o seletor de chefe não depender de acertar o arrastar */
   todas: Cadeira[];
   escopo: 'operacao' | 'administrativo';
+  enviarFoto: (no: Cadeira, file: File) => Promise<void>;
+  comFilhos: Set<string>;
 }) {
   const temFilhos = no.filhos.length > 0;
   // Empilha quando nenhum filho tem equipe própria — é o time de um chefe. Se algum filho for chefe
@@ -404,7 +465,7 @@ function Ramo({
     <div className="flex flex-col items-center">
       <Caixa no={no} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
         descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-        onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} />
+        onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} enviarFoto={enviarFoto} comFilhos={comFilhos} />
 
       {temFilhos && (empilhar ? (
         /* time do chefe: coluna, com um prumo à esquerda e um traço para cada caixa */
@@ -418,7 +479,7 @@ function Ramo({
                   <div className="absolute -left-4 top-1/2 w-4 h-px bg-border" />
                   <Caixa no={f} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
                     descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-                    onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} />
+                    onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} enviarFoto={enviarFoto} comFilhos={comFilhos} />
                 </div>
               ))}
             </div>
@@ -438,7 +499,7 @@ function Ramo({
                 <div className="w-px h-4 bg-border" />
                 <Ramo no={f} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
                   descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-                  onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} />
+                  onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} enviarFoto={enviarFoto} comFilhos={comFilhos} />
               </div>
             ))}
           </div>
@@ -450,7 +511,7 @@ function Ramo({
 
 function Caixa({
   no, arrasto, setArrasto, alvo, setAlvo, descendentes, soltar,
-  combina, temBusca, onAbrirDossie, pessoas, chamar, admin, todas, escopo,
+  combina, temBusca, onAbrirDossie, pessoas, chamar, admin, todas, escopo, enviarFoto, comFilhos,
 }: {
   no: No;
   arrasto: Arrasto; setArrasto: (a: Arrasto) => void;
@@ -463,6 +524,8 @@ function Caixa({
   /** lista chapada, para o seletor de chefe não depender de acertar o arrastar */
   todas: Cadeira[];
   escopo: 'operacao' | 'administrativo';
+  enviarFoto: (no: Cadeira, file: File) => Promise<void>;
+  comFilhos: Set<string>;
 }) {
   const [alocando, setAlocando] = useState(false);
   const [mudandoChefe, setMudandoChefe] = useState(false);
@@ -513,6 +576,11 @@ function Caixa({
           ) : (
             <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0', corAvatar(p.nome))}>{iniciais(p.nome)}</div>
           )
+        ) : no.ocupante_foto_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={no.ocupante_foto_url} alt={no.ocupante_nome || ''} className="w-8 h-8 rounded-full object-cover shrink-0" />
+        ) : no.ocupante_nome ? (
+          <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0', corAvatar(no.ocupante_nome))}>{iniciais(no.ocupante_nome)}</div>
         ) : (
           <div className="w-8 h-8 rounded-full border-2 border-dashed border-amber-400 shrink-0" aria-hidden />
         )}
@@ -571,17 +639,27 @@ function Caixa({
 
       {mudandoChefe && (
         <select defaultValue={no.cadeira_chefe_id || ''}
-          onChange={(e) => { chamar('PUT', { cadeira_id: no.id, cadeira_chefe_id: e.target.value || null }, 'Não foi possível mover'); setMudandoChefe(false); }}
+          onChange={(e) => {
+            chamar('PUT', { cadeira_id: no.id, cadeira_chefe_id: e.target.value || null }, 'Não foi possível mover');
+            setMudandoChefe(false);
+          }}
           onBlur={() => setMudandoChefe(false)}
           className="mt-1 w-full h-7 rounded border border-input bg-background px-1 text-[10px]">
           <option value="">— sem chefe (topo) —</option>
-          {todas.filter((c) => !proibidos.has(c.id))
+          {todas
+            .filter((c) => !proibidos.has(c.id) && podeSerChefe(c, comFilhos))
             .slice().sort((a, b) => a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true }))
             .map((c) => <option key={c.id} value={c.id}>{c.codigo}</option>)}
         </select>
       )}
 
       <div className="absolute -bottom-2 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+        {/* sobe/desce entre os irmãos — organizar a ordem do quadro sem arrastar */}
+        <button onClick={() => chamar('POST', { acao: 'reordenar', cadeira_id: no.id, direcao: 'cima' }, 'Não foi possível subir')}
+          title="Subir na lista" className="rounded bg-background border p-0.5 text-muted-foreground hover:text-foreground"><ChevronUp className="w-3 h-3" /></button>
+        <button onClick={() => chamar('POST', { acao: 'reordenar', cadeira_id: no.id, direcao: 'baixo' }, 'Não foi possível descer')}
+          title="Descer na lista" className="rounded bg-background border p-0.5 text-muted-foreground hover:text-foreground"><ChevronDown className="w-3 h-3" /></button>
+
         {/* responde a quem: sem depender de acertar o arrastar */}
         <button onClick={() => setMudandoChefe((v) => !v)} title="Escolher a quem esta cadeira responde"
           className="rounded bg-background border p-0.5 text-muted-foreground hover:text-indigo-600"><Network className="w-3 h-3" /></button>
@@ -598,6 +676,19 @@ function Caixa({
           }}
           title="Criar uma cadeira abaixo desta"
           className="rounded bg-background border p-0.5 text-muted-foreground hover:text-emerald-600"><Plus className="w-3 h-3" /></button>
+
+        {/* rosto: vale para os dois casos — funcionário grava no cadastro, sócio na cadeira */}
+        {(no.ocupante || no.ocupante_nome) && (
+          <label title="Trocar a foto" className="rounded bg-background border p-0.5 text-muted-foreground hover:text-foreground cursor-pointer">
+            <Camera className="w-3 h-3" />
+            <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (!file) return;
+              await enviarFoto(no, file);
+            }} />
+          </label>
+        )}
 
         {/* administrativo: escrever/limpar o nome direto na cadeira (sócio não tem cadastro) */}
         {admin && !no.ocupante && (

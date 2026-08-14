@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 
   const [cadRes, ocupRes, funcRes, cargosRes, areasRes, rostoRes, sitRes] = await Promise.all([
     hr('cadeiras')
-      .select('id, codigo, cargo_id, area_id, cadeira_chefe_id, ordem, observacao, escopo, ocupante_nome')
+      .select('id, codigo, cargo_id, area_id, cadeira_chefe_id, ordem, observacao, escopo, ocupante_nome, ocupante_foto_url')
       .eq('bar_id', user.bar_id).eq('ativa', true).eq('escopo', escopo).order('ordem'),
     hr('cadeira_ocupacao').select('cadeira_id, funcionario_id, inicio').is('fim', null),
     hr('funcionarios')
@@ -91,8 +91,9 @@ export async function GET(request: NextRequest) {
       area_nome: (area as any)?.nome || null,
       area_cor: (area as any)?.cor || null,
       escopo: cad.escopo,
-      // sócio não tem cadastro: o nome fica digitado na própria cadeira
+      // sócio não tem cadastro: nome e rosto ficam na própria cadeira
       ocupante_nome: cad.ocupante_nome,
+      ocupante_foto_url: cad.ocupante_foto_url,
       vaga: !pessoa && !cad.ocupante_nome,
       ocupante: pessoa ? {
         id: pessoa.id, nome: pessoa.nome,
@@ -351,6 +352,76 @@ export async function POST(request: NextRequest) {
       success: true,
       mensagem: `Cadeira movida para o organograma ${destino === 'administrativo' ? 'administrativo' : 'da operação'}. Ela entra no topo — arraste para o chefe certo.`,
     });
+  }
+
+  /**
+   * Guarda o rosto da cadeira. Body: { cadeira_id, url }
+   *
+   * Um botão só para os dois casos, porque a origem da foto é diferente:
+   *  · cadeira ocupada por FUNCIONÁRIO -> grava em hr.funcionarios.foto_url (que existia na tabela
+   *    mas não tinha tela nenhuma para preencher — daí todo mundo aparecer pela selfie do ponto);
+   *  · cadeira com nome digitado (sócio) -> grava na própria cadeira.
+   * URL vazia limpa a foto e devolve o rosto para a selfie do ponto / iniciais.
+   */
+  /**
+   * Sobe ou desce a cadeira ENTRE OS IRMÃOS. Body: { cadeira_id, direcao: 'cima' | 'baixo' }
+   *
+   * A ordem dentro do mesmo chefe é informação de verdade — a operação lê o organograma de cima
+   * para baixo — e não dava pra ajustar: a árvore vinha sempre em ordem alfabética. Troca o `ordem`
+   * com o vizinho, o que mantém a sequência estável sem precisar renumerar todo mundo.
+   */
+  if (acao === 'reordenar') {
+    const cadeiraId = String(body.cadeira_id || '');
+    if (!cadeiraId || !(await daCasa(cadeiraId))) return NextResponse.json({ error: 'Cadeira não encontrada neste bar' }, { status: 404 });
+    const paraCima = body.direcao !== 'baixo';
+
+    const { data: atual } = await hr('cadeiras').select('id, ordem, codigo, cadeira_chefe_id, escopo').eq('id', cadeiraId).maybeSingle();
+    if (!atual) return NextResponse.json({ error: 'Cadeira não encontrada' }, { status: 404 });
+
+    let q = hr('cadeiras').select('id, ordem, codigo').eq('bar_id', user.bar_id).eq('ativa', true).eq('escopo', atual.escopo);
+    q = atual.cadeira_chefe_id ? q.eq('cadeira_chefe_id', atual.cadeira_chefe_id) : q.is('cadeira_chefe_id', null);
+    const { data: irmaos } = await q;
+
+    // mesma ordenação da tela, senão "subir" moveria para um lugar diferente do que se vê
+    const lista = (irmaos || []).slice().sort((a: any, b: any) =>
+      (a.ordem - b.ordem) || String(a.codigo).localeCompare(String(b.codigo), 'pt-BR', { numeric: true }));
+
+    const i = lista.findIndex((c: any) => c.id === cadeiraId);
+    const j = paraCima ? i - 1 : i + 1;
+    if (i < 0 || j < 0 || j >= lista.length) {
+      return NextResponse.json({ success: true, sem_efeito: true });
+    }
+
+    // renumera a lista inteira: `ordem` nasceu com empates (tudo 0 ou 1), então só trocar dois
+    // valores iguais não mudaria nada na tela
+    const nova = lista.slice();
+    [nova[i], nova[j]] = [nova[j], nova[i]];
+    for (let k = 0; k < nova.length; k++) {
+      await hr('cadeiras').update({ ordem: k + 1 }).eq('id', nova[k].id);
+    }
+    return NextResponse.json({ success: true });
+  }
+
+  if (acao === 'foto') {
+    const cadeiraId = String(body.cadeira_id || '');
+    if (!cadeiraId || !(await daCasa(cadeiraId))) return NextResponse.json({ error: 'Cadeira não encontrada neste bar' }, { status: 404 });
+    const url = String(body.url || '').trim() || null;
+
+    const { data: ocup } = await hr('cadeira_ocupacao')
+      .select('funcionario_id').eq('cadeira_id', cadeiraId).is('fim', null).maybeSingle();
+
+    if (ocup?.funcionario_id) {
+      const { error } = await hr('funcionarios').update({ foto_url: url })
+        .eq('id', ocup.funcionario_id).eq('bar_id', user.bar_id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true, destino: 'funcionario' });
+    }
+
+    const { error } = await hr('cadeiras')
+      .update({ ocupante_foto_url: url, atualizado_em: new Date().toISOString() })
+      .eq('id', cadeiraId).eq('bar_id', user.bar_id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, destino: 'cadeira' });
   }
 
   if (acao === 'nomear') {
