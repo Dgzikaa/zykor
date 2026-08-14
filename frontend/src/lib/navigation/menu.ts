@@ -218,7 +218,10 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'Users', label: 'Funcionários', href: '/rh/funcionarios', permission: 'rh_funcionarios' },
       // Saiu do perfil de cada pessoa: a pesquisa é anônima e agregada por setor,
       // então nunca houve resposta "daquele funcionário" pra mostrar lá.
-      { icon: 'Smile', label: 'Pesquisa da Felicidade', href: '/rh/pesquisa-felicidade', permission: 'rh_pesquisa_da_felicidade' },
+      // Renomeada de "Pesquisa da Felicidade" para "Pesquisas" em 14/08/2026 (a Felicidade virou
+      // uma aba, ao lado de Calibração e Reconhecimentos). O rename troca o id da permissão —
+      // conferido antes: nenhum usuário nem perfil tinha `rh_pesquisa_da_felicidade` gravado.
+      { icon: 'Smile', label: 'Pesquisas', href: '/rh/pesquisas', permission: 'rh_pesquisas' },
       // RH → Escala saiu do menu em 12/08/2026: não era usada. A escala de verdade (a que o
       // time mantém na planilha "ESCALA ORDI!") virou a seção Operação abaixo. A rota
       // /rh/escala continua existindo, mas órfã do menu = admin-only pelo guard.

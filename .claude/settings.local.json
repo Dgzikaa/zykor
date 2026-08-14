@@ -47,7 +47,16 @@
       "PowerShell(cd C:\\\\Projects\\\\zykor\\\\frontend; $out = npx tsc --noEmit -p tsconfig.json 2>&1; if \\($LASTEXITCODE -eq 0\\) { \"TSC OK - 0 erros\" } else { \"TSC com erros: \" + \\(\\($out | Select-String 'error TS'\\).Count\\) + \" total\"; $out | Select-String 'error TS' | Select-Object -First 8 })",
       "mcp__claude_ai_Supabase__get_project_url",
       "mcp__claude_ai_Supabase__get_project",
-      "mcp__claude_ai_Supabase__get_organization"
+      "mcp__claude_ai_Supabase__get_organization",
+      "mcp__plugin_vercel_vercel__get_runtime_errors",
+      "Skill(artifact-design)",
+      "mcp__plugin_vercel_vercel__get_deployment_build_logs",
+      "mcp__plugin_vercel_vercel__search_vercel_documentation",
+      "PowerShell($l = \\(Get-Content -Path 'frontend/src/app/operacional/desperdicio/page.tsx' -Encoding UTF8\\)[61]; \\($l.ToCharArray\\(\\) | ForEach-Object { '{0:X4}' -f [int]$_ }\\) -join ' ')",
+      "PowerShell(nslookup *)",
+      "mcp__claude_ai_Google_Drive__download_file_content",
+      "PowerShell($c = Get-Command supabase -ErrorAction SilentlyContinue; if \\($c\\) { \"found: $\\($c.Source\\)\"; supabase --version } else { \"supabase CLI not found\" })",
+      "mcp__claude_ai_Supabase__query_logs"
     ]
   },
   "mcpServers": {

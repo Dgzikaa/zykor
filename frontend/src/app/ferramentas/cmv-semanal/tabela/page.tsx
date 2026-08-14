@@ -358,6 +358,17 @@ const formatarDataCurta = (dataStr: string): string => {
   return `${dia}/${mes}`;
 };
 
+const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+// Chave ordenável de uma coluna (semana OU mês) — usada pelo filtro De→Até.
+const chavePeriodo = (s: { ano: number; semana: number }) => s.ano * 100 + s.semana;
+
+// Rótulo curto da coluna, igual ao cabeçalho da tela: "S31/26" (semanal) / "Ago/26" (mensal).
+const rotuloPeriodo = (s: { ano: number; semana: number }, visao: 'semanal' | 'mensal') =>
+  visao === 'mensal'
+    ? `${NOMES_MESES[s.semana - 1]}/${String(s.ano).slice(-2)}`
+    : `S${String(s.semana).padStart(2, '0')}/${String(s.ano).slice(-2)}`;
+
 // Calcular semana atual (ISO 8601 - mesmo cálculo do backend)
 const getSemanaAtual = (): number => {
   const now = new Date();
@@ -397,6 +408,11 @@ export default function CMVSemanalTabelaPage() {
   const [anoFiltro, setAnoFiltro] = useState<string>('todos');
   // Visão: 'semanal' ou 'mensal'
   const [visao, setVisao] = useState<'semanal' | 'mensal'>('semanal');
+  // Recorte De→Até dentro do que foi carregado (Isaías, 12/08: "filtrar a semana e o mês e
+  // conseguir exportar"). Chave = ano*100+semana (ou mês), então ordena e compara direto.
+  // 'tudo' = sem limite daquele lado.
+  const [periodoDe, setPeriodoDe] = useState<string>('tudo');
+  const [periodoAte, setPeriodoAte] = useState<string>('tudo');
   // Força sync CA→bronze + re-agrega o mês atual (pra ver na hora, sem esperar o cron)
   const [forcandoSync, setForcandoSync] = useState(false);
   const [secoesAbertas, setSecoesAbertas] = useState<Record<string, boolean>>({
@@ -422,6 +438,24 @@ export default function CMVSemanalTabelaPage() {
     'cma-estoque_final_func': false,
     'cma-cma_resultado': true,
   });
+  // Colunas que a tela realmente mostra = o que foi carregado, recortado pelo De→Até.
+  // É esta lista (não `semanas`) que a tabela renderiza e que a exportação leva.
+  const semanasView = useMemo(() => {
+    const de = periodoDe !== 'tudo' ? Number(periodoDe) : -Infinity;
+    const ate = periodoAte !== 'tudo' ? Number(periodoAte) : Infinity;
+    const [min, max] = de <= ate ? [de, ate] : [ate, de]; // tolera De > Até
+    return semanas.filter((s) => {
+      const k = chavePeriodo(s);
+      return k >= min && k <= max;
+    });
+  }, [semanas, periodoDe, periodoAte]);
+
+  // Trocar de visão/ano recarrega outra régua de colunas — o recorte antigo não vale mais.
+  useEffect(() => {
+    setPeriodoDe('tudo');
+    setPeriodoAte('tudo');
+  }, [visao, anoFiltro, selectedBar?.id]);
+
   const [editando, setEditando] = useState<{ semanaId: string; campo: string } | null>(null);
   // Ctrl+Z — pilha das últimas alterações manuais (bonificações / CMV teórico) p/ desfazer.
   const [undoStack, setUndoStack] = useState<Array<{ semanaId: string; campo: string; valorAnterior: number; label: string }>>([]);
@@ -517,82 +551,10 @@ export default function CMVSemanalTabelaPage() {
     [histRows],
   );
 
-  // ===== Exportar planilha (Isaías, 04/08: "exportar como xls, tanto os antigos ou como tá agora") =====
-  // Duas abas: os números como estão hoje e a composição do Faturamento Limpo com as 3 leituras
-  // do CMV% (hoje × regra até 30/06 × corrigida), que é o que ele precisa pra bater a conta.
   const [exportando, setExportando] = useState(false);
-  const exportarXls = useCallback(async () => {
-    if (!selectedBar?.id || exportando) return;
-    setExportando(true);
-    try {
-      const ano = anoFiltro !== 'todos' ? anoFiltro : String(new Date().getFullYear());
-      const r = await fetch(`/api/cmv-semanal/exportar?bar_id=${selectedBar.id}&ano=${ano}`, {
-        headers: { 'x-selected-bar-id': String(selectedBar.id) },
-      });
-      const j = await r.json();
-      const linhas: any[] = j.semanas || [];
-      if (!linhas.length) { toast({ title: 'Nada para exportar', description: `Sem semanas em ${ano}.` }); return; }
-
-      const per = (l: any) => `${String(l.data_inicio).split('-').reverse().slice(0, 2).join('/')} a ${String(l.data_fim).split('-').reverse().slice(0, 2).join('/')}`;
-
-      const abaAtual = linhas.map((l) => ({
-        'Semana': l.semana,
-        'Período': per(l),
-        'Faturamento Bruto': Number(l.faturamento_bruto),
-        'Faturamento Limpo (base do CMV%)': Number(l.fat_limpo_hoje),
-        'Estoque Inicial': Number(l.estoque_inicial),
-        '(+) Compras': Number(l.compras_periodo),
-        '(-) Estoque Final': Number(l.estoque_final),
-        '(-) Consumações': Number(l.consumacoes),
-        '(+) Bonificações': Number(l.bonificacoes),
-        'CMA': Number(l.cma_total),
-        'CMV (R$)': Number(l.cmv_calculado),
-        'CMV Real (R$)': Number(l.cmv_real),
-        'CMV %': Number(l.cmv_pct_hoje),
-        'CMV Limpo %': Number(l.cmv_limpo_pct),
-        'CMV Teórico %': l.cmv_teorico_pct == null ? '' : Number(l.cmv_teorico_pct),
-        'Atualizado em': l.atualizado_em ? new Date(l.atualizado_em).toLocaleString('pt-BR') : '',
-      }));
-
-      // As TRÊS eras do Faturamento Limpo, pra qualquer print antigo ser explicável:
-      // hoje (só ingresso) × até 30/06 (sem bilheteria) × 01/07–04/08 (descontava o Yuzer inteiro).
-      const abaComparativo = linhas.map((l) => ({
-        'Semana': l.semana,
-        'Período': per(l),
-        'Faturamento Bruto': Number(l.faturamento_bruto),
-        '(-) Comissão': Number(l.comissao),
-        '(-) Couvert': Number(l.couvert),
-        '(-) Ingresso Yuzer': Number(l.yuzer_ingresso),
-        '(-) Sympla': Number(l.sympla),
-        'Bar do evento (FICA no faturamento)': Number(l.yuzer_bar),
-        'Yuzer lançado como entrada (regra 01/07)': Number(l.yuzer_lancado_como_entrada),
-        'Fat. Limpo HOJE': Number(l.fat_limpo_hoje),
-        'Fat. Limpo até 30/06': Number(l.fat_limpo_regra_antiga),
-        'Fat. Limpo 01/07 a 04/08': Number(l.fat_limpo_regra_0107),
-        'CMV (R$)': Number(l.cmv_calculado),
-        'CMV % HOJE': Number(l.cmv_pct_hoje),
-        'CMV % até 30/06': Number(l.cmv_pct_regra_antiga),
-        'CMV % 01/07 a 04/08': Number(l.cmv_pct_regra_0107),
-      }));
-
-      // import dinâmico: a lib de planilha não entra no bundle de quem só abre a tela
-      const XLSX = await import('xlsx');
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(abaAtual), 'CMV Semanal (hoje)');
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(abaComparativo), 'Faturamento Limpo');
-      XLSX.writeFile(wb, `cmv-semanal_${(selectedBar.nome || 'bar').replace(/\s+/g, '-').toLowerCase()}_${ano}.xlsx`);
-    } catch (e: any) {
-      toast({ title: 'Erro ao exportar', description: e?.message, variant: 'destructive' });
-    } finally {
-      setExportando(false);
-    }
-  }, [selectedBar?.id, selectedBar?.nome, anoFiltro, exportando, toast]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const semanaAtualRef = useRef<HTMLDivElement>(null);
-
-  // Nomes dos meses
-  const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
   // ====== METAS (estilo Desempenho) ======
   // Defaults aplicados quando bar não tem meta salva.
@@ -1231,6 +1193,136 @@ export default function CMVSemanalTabelaPage() {
       : null;
   };
 
+  // ===== Exportar planilha =====
+  // Isaías, 04/08: "exportar como xls, tanto os antigos ou como tá agora".
+  // Isaías, 12/08: "filtrar a semana e o mês e conseguir exportar" + "pra qualquer bar selecionado".
+  //
+  // O que sai = O QUE ESTÁ NA TELA: mesma visão (semanal/mensal), mesmas colunas do recorte
+  // De→Até e os mesmos valores que a célula mostra (reusa `getValorMetrica`, não refaz conta).
+  // Seção/grupo colapsado NÃO tira linha: no Excel esconder linha é trivial, descobrir que
+  // faltou indicador não é.
+  const exportarXls = useCallback(async () => {
+    if (!selectedBar?.id || exportando) return;
+    const cols = semanasView;
+    if (!cols.length) {
+      toast({ title: 'Nada para exportar', description: 'Nenhuma coluna no filtro atual.' });
+      return;
+    }
+    setExportando(true);
+    try {
+      const ehSemanal = visao === 'semanal';
+      const dec = (v: number | null) => (v === null || v === undefined || !Number.isFinite(v) ? '' : Math.round(v * 100) / 100);
+      const intervalo = (s: CMVSemanal) => `${formatarDataCurta(s.data_inicio)} a ${formatarDataCurta(s.data_fim)}`;
+
+      // Sufixo de unidade no nome do indicador — na matriz não há como formatar célula a célula.
+      const nomeIndicador = (m: MetricaConfig) =>
+        m.formato === 'moeda' && !/R\$/.test(m.label) ? `${m.label} (R$)`
+          : (m.formato === 'percentual' || m.formato === 'gap') && !/%/.test(m.label) ? `${m.label} (%)`
+            : m.label;
+
+      const metaTexto = (key: string) =>
+        !METRICAS_COM_META.includes(key) ? ''
+          : key === 'cmv_real' ? `${metasCmv.cmv_percentual?.valor ?? 26}% x Fat`
+            : metasCmv[key]?.valor != null ? `${Number(metasCmv[key]!.valor).toFixed(1)}%` : '';
+
+      // Achata a árvore Seção→Grupo→Métrica na mesma ordem em que a tela desenha as linhas.
+      const linhas = SECOES.flatMap((secao) =>
+        secao.grupos.flatMap((grupo) =>
+          grupo.metricas.map((m) => ({
+            secao: secao.titulo,
+            grupo: grupo.semCollapse ? '' : grupo.label,
+            indicador: nomeIndicador(m),
+            meta: metaTexto(m.key),
+            valores: cols.map((s) => dec(getValorMetrica(s, m.key))),
+          })),
+        ),
+      );
+
+      // Aba 1 — a matriz da tela: indicadores nas linhas, períodos nas colunas.
+      const aoaTela: (string | number)[][] = [
+        ['Seção', 'Grupo', 'Indicador', 'Meta', ...cols.map((s) => rotuloPeriodo(s, visao))],
+        ['', '', '', '', ...cols.map(intervalo)],
+        ...linhas.map((l) => [l.secao, l.grupo, l.indicador, l.meta, ...l.valores]),
+      ];
+
+      // Aba 2 — a mesma coisa transposta (um período por linha), que é o formato que o Excel
+      // gosta pra gráfico/tabela dinâmica.
+      const aoaPorPeriodo: (string | number)[][] = [
+        [ehSemanal ? 'Semana' : 'Mês', 'Ano', 'Início', 'Fim', ...linhas.map((l) => l.indicador)],
+        ...cols.map((s, i) => [
+          rotuloPeriodo(s, visao),
+          s.ano,
+          s.data_inicio,
+          s.data_fim,
+          ...linhas.map((l) => l.valores[i]),
+        ]),
+      ];
+
+      // import dinâmico: a lib de planilha não entra no bundle de quem só abre a tela
+      const XLSX = await import('xlsx');
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaTela), ehSemanal ? 'CMV Semanal' : 'CMV Mensal');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoaPorPeriodo), 'Por período');
+
+      // Aba 3 (só semanal) — composição do Faturamento Limpo com as TRÊS eras do CMV%
+      // (hoje × até 30/06 × 01/07–04/08), pra print antigo continuar explicável.
+      // Busca por ano porque o recorte pode atravessar a virada; filtra pelas colunas da tela.
+      if (ehSemanal) {
+        try {
+          const anos = [...new Set(cols.map((s) => s.ano))];
+          const respostas = await Promise.all(
+            anos.map((ano) =>
+              fetch(`/api/cmv-semanal/exportar?bar_id=${selectedBar.id}&ano=${ano}`, {
+                headers: { 'x-selected-bar-id': String(selectedBar.id) },
+              })
+                .then((r) => (r.ok ? r.json() : { semanas: [] }))
+                .then((j) => (j.semanas || []) as any[])
+                .catch(() => [] as any[]),
+            ),
+          );
+          const querido = new Set(cols.map((s) => `${s.ano}-${s.semana}`));
+          const linhasFat = respostas.flat().filter((l) => querido.has(`${l.ano}-${l.semana}`));
+          if (linhasFat.length) {
+            const aba = linhasFat.map((l) => ({
+              'Ano': l.ano,
+              'Semana': l.semana,
+              'Período': `${String(l.data_inicio).split('-').reverse().slice(0, 2).join('/')} a ${String(l.data_fim).split('-').reverse().slice(0, 2).join('/')}`,
+              'Faturamento Bruto': Number(l.faturamento_bruto),
+              '(-) Comissão': Number(l.comissao),
+              '(-) Couvert': Number(l.couvert),
+              '(-) Ingresso Yuzer': Number(l.yuzer_ingresso),
+              '(-) Sympla': Number(l.sympla),
+              'Bar do evento (FICA no faturamento)': Number(l.yuzer_bar),
+              'Yuzer lançado como entrada (regra 01/07)': Number(l.yuzer_lancado_como_entrada),
+              'Fat. Limpo HOJE': Number(l.fat_limpo_hoje),
+              'Fat. Limpo até 30/06': Number(l.fat_limpo_regra_antiga),
+              'Fat. Limpo 01/07 a 04/08': Number(l.fat_limpo_regra_0107),
+              'CMV (R$)': Number(l.cmv_calculado),
+              'CMV % HOJE': Number(l.cmv_pct_hoje),
+              'CMV % até 30/06': Number(l.cmv_pct_regra_antiga),
+              'CMV % 01/07 a 04/08': Number(l.cmv_pct_regra_0107),
+              'Atualizado em': l.atualizado_em ? new Date(l.atualizado_em).toLocaleString('pt-BR') : '',
+            }));
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(aba), 'Faturamento Limpo');
+          }
+        } catch {
+          /* aba extra é bônus — sem ela a planilha da tela já sai */
+        }
+      }
+
+      const slug = (selectedBar.nome || 'bar').replace(/\s+/g, '-').toLowerCase();
+      const marca = (s: CMVSemanal) => rotuloPeriodo(s, visao).replace('/', '-');
+      XLSX.writeFile(wb, `cmv-${visao}_${slug}_${marca(cols[0])}_a_${marca(cols[cols.length - 1])}.xlsx`);
+    } catch (e: any) {
+      toast({ title: 'Erro ao exportar', description: e?.message, variant: 'destructive' });
+    } finally {
+      setExportando(false);
+    }
+    // getValorMetrica/SECOES são recriados a cada render (dependem de fatorCmv/visao); a lista
+    // abaixo cobre o que muda o CONTEÚDO do arquivo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBar?.id, selectedBar?.nome, semanasView, visao, exportando, metasCmv, fatorCmv, METRICAS_COM_META, toast]);
+
   // Cor do gap
   const getGapColor = (valor: number): string => {
     if (valor < 0) return 'text-yellow-600 dark:text-yellow-400';
@@ -1451,10 +1543,55 @@ export default function CMVSemanalTabelaPage() {
                 </Select>
               </div>
               
+              {/* Recorte De→Até das colunas (semanas ou meses) — vale pra tela E pra exportação */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-500 dark:text-gray-400">De</span>
+                <Select value={periodoDe} onValueChange={setPeriodoDe}>
+                  <SelectTrigger className="w-[104px] h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tudo">Início</SelectItem>
+                    {semanas.map((s) => (
+                      <SelectItem key={`de-${s.id}`} value={String(chavePeriodo(s))}>
+                        {rotuloPeriodo(s, visao)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-xs text-gray-500 dark:text-gray-400">até</span>
+                <Select value={periodoAte} onValueChange={setPeriodoAte}>
+                  <SelectTrigger className="w-[104px] h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tudo">Fim</SelectItem>
+                    {semanas.map((s) => (
+                      <SelectItem key={`ate-${s.id}`} value={String(chavePeriodo(s))}>
+                        {rotuloPeriodo(s, visao)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {(periodoDe !== 'tudo' || periodoAte !== 'tudo') && (
+                  <button
+                    onClick={() => { setPeriodoDe('tudo'); setPeriodoAte('tudo'); }}
+                    title="Limpar recorte de período"
+                    className="inline-flex items-center justify-center h-9 w-8 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
               <div className="flex items-center gap-2">
                 <Table2 className="w-5 h-5 text-gray-500" />
                 <span className="font-semibold text-gray-900 dark:text-white">
-                  {semanas.length} {visao === 'semanal' ? 'semanas' : 'meses'}
+                  {semanasView.length}
+                  {semanasView.length !== semanas.length && (
+                    <span className="text-gray-400 font-normal">/{semanas.length}</span>
+                  )}{' '}
+                  {visao === 'semanal' ? 'semanas' : 'meses'}
                 </span>
                 {visao === 'semanal' && (
                   <span className="text-sm text-gray-500">
@@ -1476,17 +1613,15 @@ export default function CMVSemanalTabelaPage() {
                 </button>
               )}
 
-              {visao === 'semanal' && (
-                <button
-                  onClick={exportarXls}
-                  disabled={exportando}
-                  title="Baixa a planilha do ano: aba 1 = números como estão hoje; aba 2 = composição do Faturamento Limpo com o CMV% de hoje, o da regra antiga e o corrigido"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-3 h-9 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  {exportando ? 'Gerando…' : 'Exportar planilha'}
-                </button>
-              )}
+              <button
+                onClick={exportarXls}
+                disabled={exportando || semanasView.length === 0}
+                title="Baixa em .xlsx o que está na tela (visão e recorte De→Até): aba 1 = a matriz da tela, aba 2 = um período por linha. Na visão semanal vem também a composição do Faturamento Limpo com as 3 leituras do CMV%."
+                className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-3 h-9 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60"
+              >
+                <Download className="w-3.5 h-3.5" />
+                {exportando ? 'Gerando…' : 'Exportar planilha'}
+              </button>
 
               {/* Forçar atualização do mês corrente (sync CA + soft-delete + re-agrega) — só na visão mensal */}
               {visao === 'mensal' && (
@@ -1742,8 +1877,7 @@ export default function CMVSemanalTabelaPage() {
               </div>
             ) : (
               <div className="inline-flex" style={{ minWidth: 'max-content' }}>
-                {semanas.map((semana, idx) => {
-                  const isAtual = idx === semanaAtualIdx;
+                {semanasView.map((semana) => {
                   const semanaAtualNum = getSemanaAtual();
                   const mesAtualNum = new Date().getMonth() + 1;
                   const anoAtualNum = new Date().getFullYear();
@@ -1754,7 +1888,7 @@ export default function CMVSemanalTabelaPage() {
                   return (
                     <div 
                       key={semana.id}
-                      ref={isAtual ? semanaAtualRef : undefined}
+                      ref={isSemanaAtual ? semanaAtualRef : undefined}
                       className={cn(
                         "flex-shrink-0 w-[110px] border-r border-gray-200 dark:border-gray-700",
                         isSemanaAtual && "bg-emerald-50 dark:bg-emerald-900/20"
