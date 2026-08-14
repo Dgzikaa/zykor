@@ -22,11 +22,30 @@ type Pessoa = {
   dias: Record<string, Celula>;
 };
 
-/** Marcadores que a operação usa. Digitar qualquer um deles no lugar do horário grava o marcador. */
-const MARCADORES = ['FOLGA', 'FÉRIAS', 'ATESTADO', 'BANCO', 'ABRE', 'FECHA', 'INTERMEDIÁRIO'];
+/**
+ * Marcadores que a operação usa. Digitar qualquer um deles no lugar do horário grava o
+ * marcador — o casamento é pelas 4 primeiras letras, então não há colisão entre eles.
+ *
+ * MANUTENÇÃO vem antes de MANUTENÇÕES de propósito: a planilha tem as duas grafias para a
+ * mesma coisa (10 e 2 lançamentos) e daqui pra frente as duas gravam a forma singular. O
+ * histórico fica como está — passado é registro.
+ */
+const MARCADORES = [
+  'FOLGA', 'FÉRIAS', 'ATESTADO', 'BANCO',
+  'ABRE', 'FECHA', 'INTERMEDIÁRIO', 'PRODUÇÃO', 'MANUTENÇÃO', 'MANUTENÇÕES',
+];
 
-/** Os que aparecem como botão no painel — o resto continua funcionando digitado. */
+/** Botões do painel: valem para qualquer função. */
 const MARCADORES_RAPIDOS = ['FOLGA', 'FÉRIAS', 'ATESTADO', 'BANCO'];
+
+/**
+ * A LIDERANÇA tem vocabulário próprio, e é só dela: ABRE (415 lançamentos), FECHA (277),
+ * PRODUÇÃO (74), INTERMEDIÁRIO (11) e MANUTENÇÃO (12) não aparecem em nenhuma outra função.
+ * ABRE e FECHA são o 2º e o 3º marcadores mais usados da casa — mais que FÉRIAS e ATESTADO
+ * somados — e estavam fora dos botões, só no digitado.
+ */
+const MARCADORES_LIDERANCA = ['ABRE', 'FECHA', 'PRODUÇÃO', 'INTERMEDIÁRIO', 'MANUTENÇÃO'];
+const COD_LIDERANCA = 'lideranca';
 
 /**
  * Turnos padrão da casa, na ordem de uso REAL (contagem em `escala_dia` desde 01/06):
@@ -105,8 +124,8 @@ function CelulaEscala({ cel, onAbrir, disabled }: {
  * `position: fixed` com as coordenadas da célula porque a grade vive dentro de um
  * `overflow-x-auto` — um painel `absolute` seria cortado pela borda do card.
  */
-function PainelHorario({ titulo, atual, rect, onSalvar, onFechar }: {
-  titulo: string; atual: string; rect: DOMRect;
+function PainelHorario({ titulo, atual, rect, marcadores, onSalvar, onFechar }: {
+  titulo: string; atual: string; rect: DOMRect; marcadores: string[];
   onSalvar: (txt: string) => void; onFechar: () => void;
 }) {
   const [txt, setTxt] = useState(atual);
@@ -175,7 +194,7 @@ function PainelHorario({ titulo, atual, rect, onSalvar, onFechar }: {
         </div>
 
         <div className="flex flex-wrap gap-1 pt-1 border-t border-[hsl(var(--border))]">
-          {MARCADORES_RAPIDOS.map(m => (
+          {marcadores.map(m => (
             <button key={m} onClick={() => confirmar(m)}
               className={`px-1.5 py-0.5 text-[10px] rounded-full border border-[hsl(var(--border))] hover:bg-muted ${COR_MARCADOR[m] || ''}`}>
               {m}
@@ -442,6 +461,11 @@ export default function EscalaPage() {
           titulo={`${editando.pessoa.nome} · ${rotuloCurto(editando.data)}`}
           atual={textoDaCelula(editando.pessoa.dias[editando.data])}
           rect={editando.rect}
+          marcadores={
+            funcoes.find(f => f.id === editando.pessoa.funcao_id)?.codigo === COD_LIDERANCA
+              ? [...MARCADORES_RAPIDOS, ...MARCADORES_LIDERANCA]
+              : MARCADORES_RAPIDOS
+          }
           onFechar={() => setEditando(null)}
           onSalvar={(txt) => salvar(editando.pessoa, editando.data, txt)}
         />
