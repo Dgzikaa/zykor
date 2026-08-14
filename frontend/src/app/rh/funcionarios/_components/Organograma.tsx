@@ -292,7 +292,13 @@ export function Organograma({ onAbrirDossie }: { onAbrirDossie: (id: number) => 
   );
 }
 
-/** Um nó e sua subárvore: caixa em cima, linha descendo, filhos lado a lado embaixo. */
+/**
+ * Um nó e sua subárvore.
+ *
+ * O time EMPILHA embaixo do chefe; só quem tem equipe própria fica lado a lado. Com 13 garçons
+ * abertos na horizontal o quadro fica quilométrico e "fica ruim de enxergar os chefes" — que é o
+ * ponto de olhar o organograma. É também o formato do quadro do Canva: uma coluna por chefia.
+ */
 function Ramo({
   no, arrastando, setArrastando, alvo, setAlvo, descendentes, soltar,
   combina, temBusca, onAbrirDossie, semCadeira, chamar,
@@ -306,6 +312,9 @@ function Ramo({
   chamar: (m: 'PUT' | 'POST', corpo: Record<string, unknown>, erro: string) => Promise<boolean>;
 }) {
   const temFilhos = no.filhos.length > 0;
+  // Empilha quando nenhum filho tem equipe própria — é o time de um chefe. Se algum filho for chefe
+  // de alguém, os ramos vão lado a lado para cada um abrir a sua coluna.
+  const empilhar = temFilhos && no.filhos.every((f) => f.filhos.length === 0);
 
   return (
     <div className="flex flex-col items-center">
@@ -313,15 +322,32 @@ function Ramo({
         descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
         onAbrirDossie={onAbrirDossie} semCadeira={semCadeira} chamar={chamar} />
 
-      {temFilhos && (
+      {temFilhos && (empilhar ? (
+        /* time do chefe: coluna, com um prumo à esquerda e um traço para cada caixa */
         <>
-          {/* haste do pai até a régua dos filhos */}
+          <div className="w-px h-3 bg-border" />
+          <div className="relative pl-4 pt-1 self-start">
+            <div className="absolute left-0 top-0 bottom-3 w-px bg-border" />
+            <div className="flex flex-col gap-1.5">
+              {no.filhos.map((f) => (
+                <div key={f.id} className="relative">
+                  <div className="absolute -left-4 top-1/2 w-4 h-px bg-border" />
+                  <Caixa no={f} arrastando={arrastando} setArrastando={setArrastando} alvo={alvo} setAlvo={setAlvo}
+                    descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
+                    onAbrirDossie={onAbrirDossie} semCadeira={semCadeira} chamar={chamar} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : (
+        /* chefias: lado a lado, porque cada uma abre a própria coluna embaixo */
+        <>
           <div className="w-px h-4 bg-border" />
-          <div className="relative flex items-start gap-4">
-            {/* régua horizontal ligando os filhos (some quando só há um) */}
+          <div className="relative flex items-start gap-5">
             {no.filhos.length > 1 && (
-              <div className="absolute top-0 left-0 right-0 h-px bg-border"
-                style={{ left: 'calc(50% / var(--n))', right: 'calc(50% / var(--n))', ['--n' as any]: no.filhos.length }} />
+              <div className="absolute top-0 h-px bg-border"
+                style={{ left: `calc(50% / ${no.filhos.length})`, right: `calc(50% / ${no.filhos.length})` }} />
             )}
             {no.filhos.map((f) => (
               <div key={f.id} className="flex flex-col items-center">
@@ -333,7 +359,7 @@ function Ramo({
             ))}
           </div>
         </>
-      )}
+      ))}
     </div>
   );
 }
