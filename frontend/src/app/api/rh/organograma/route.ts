@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
   const escopo = new URL(request.url).searchParams.get('escopo') === 'administrativo'
     ? 'administrativo' : 'operacao';
 
-  const [cadRes, ocupRes, funcRes, cargosRes, areasRes] = await Promise.all([
+  const [cadRes, ocupRes, funcRes, cargosRes, areasRes, rostoRes, sitRes] = await Promise.all([
     hr('cadeiras')
       .select('id, codigo, cargo_id, area_id, cadeira_chefe_id, ordem, observacao, escopo, ocupante_nome')
       .eq('bar_id', user.bar_id).eq('ativa', true).eq('escopo', escopo).order('ordem'),
@@ -55,6 +55,9 @@ export async function GET(request: NextRequest) {
     // (cargo sem área — sócio, freela, gerência — aparece em qualquer uma)
     hr('cargos').select('id, nome, area_id').eq('bar_id', user.bar_id).eq('ativo', true),
     hr('areas').select('id, nome, cor').eq('bar_id', user.bar_id).eq('ativo', true),
+    // rosto (selfie do ponto, já que ninguém tem foto no cadastro) e selos de férias/atestado/cartões
+    hr('v_funcionario_rosto').select('funcionario_id, foto_url').eq('bar_id', user.bar_id),
+    hr('v_funcionario_situacao').select('*').eq('bar_id', user.bar_id),
   ]);
 
   if (cadRes.error) return NextResponse.json({ error: cadRes.error.message }, { status: 500 });
@@ -62,6 +65,8 @@ export async function GET(request: NextRequest) {
   const cargoMap = new Map<number, string>((cargosRes.data || []).map((x: any) => [x.id, x.nome]));
   const areaMap = new Map<number, any>((areasRes.data || []).map((x: any) => [x.id, x]));
   const funcMap = new Map<number, any>((funcRes.data || []).map((f: any) => [f.id, f]));
+  const rostoMap = new Map<number, string>((rostoRes.data || []).map((r: any) => [r.funcionario_id, r.foto_url]));
+  const sitMap = new Map<number, any>((sitRes.data || []).map((s: any) => [s.funcionario_id, s]));
 
   // ocupação só vale para gente ativa DESTE bar — a query de ocupação não filtra bar
   // (a cadeira é que pertence ao bar), então o cruzamento acontece aqui.
@@ -90,9 +95,15 @@ export async function GET(request: NextRequest) {
       ocupante_nome: cad.ocupante_nome,
       vaga: !pessoa && !cad.ocupante_nome,
       ocupante: pessoa ? {
-        id: pessoa.id, nome: pessoa.nome, foto_url: pessoa.foto_url,
+        id: pessoa.id, nome: pessoa.nome,
+        // sem foto no cadastro, cai na última selfie do ponto (é o que o dossiê já fazia)
+        foto_url: pessoa.foto_url || rostoMap.get(pessoa.id) || null,
         // cargo DA PESSOA: quando a cadeira não tem cargo definido, a caixa mostra este
         cargo_nome: pessoa.cargo_id ? cargoMap.get(pessoa.cargo_id) || null : null,
+        de_ferias: !!sitMap.get(pessoa.id)?.de_ferias,
+        com_atestado: !!sitMap.get(pessoa.id)?.com_atestado,
+        cartoes_amarelos: sitMap.get(pessoa.id)?.cartoes_amarelos || 0,
+        cartoes_vermelhos: sitMap.get(pessoa.id)?.cartoes_vermelhos || 0,
         data_admissao: pessoa.data_admissao, data_nascimento: pessoa.data_nascimento,
         tipo_contratacao: pessoa.tipo_contratacao, desde: ocup?.inicio || null,
       } : null,

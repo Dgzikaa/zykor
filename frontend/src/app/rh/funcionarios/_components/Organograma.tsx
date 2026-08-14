@@ -27,6 +27,8 @@ type Ocupante = {
   id: number; nome: string; foto_url: string | null; cargo_nome: string | null;
   data_admissao: string | null; data_nascimento: string | null;
   tipo_contratacao: string | null; desde: string | null;
+  de_ferias: boolean; com_atestado: boolean;
+  cartoes_amarelos: number; cartoes_vermelhos: number;
 };
 type Cadeira = {
   id: string; codigo: string; cadeira_chefe_id: string | null; ordem: number; observacao: string | null;
@@ -499,8 +501,27 @@ function Caixa({
             <button onClick={() => onAbrirDossie(p.id)} className="text-left w-full">
               <div className="text-xs font-semibold truncate flex items-center gap-1">
                 {p.nome.split(' ').slice(0, 2).join(' ')}
-                {aniversarioProximo(p.data_nascimento) && <Cake className="w-3 h-3 text-pink-500 shrink-0" />}
+                {aniversarioProximo(p.data_nascimento) && (
+                  <span title="Aniversário nos próximos 30 dias" className="shrink-0 leading-none"><Cake className="w-3 h-3 text-pink-500" /></span>
+                )}
               </div>
+              {/* selos: quem está fora hoje e o histórico de cartões */}
+              {(p.de_ferias || p.com_atestado || p.cartoes_amarelos > 0 || p.cartoes_vermelhos > 0) && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  {p.de_ferias && (
+                    <span title="De férias hoje" className="text-[9px] rounded px-1 bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">férias</span>
+                  )}
+                  {p.com_atestado && (
+                    <span title="Com atestado hoje" className="text-[9px] rounded px-1 bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">atestado</span>
+                  )}
+                  {p.cartoes_amarelos > 0 && (
+                    <span title={`${p.cartoes_amarelos} cartão(ões) amarelo(s)`} className="text-[9px] rounded px-1 bg-amber-400 text-amber-950 font-bold tabular-nums">{p.cartoes_amarelos}</span>
+                  )}
+                  {p.cartoes_vermelhos > 0 && (
+                    <span title={`${p.cartoes_vermelhos} cartão(ões) vermelho(s)`} className="text-[9px] rounded px-1 bg-rose-600 text-white font-bold tabular-nums">{p.cartoes_vermelhos}</span>
+                  )}
+                </div>
+              )}
               <div className="text-[10px] text-muted-foreground truncate">
                 {/* cargo da CADEIRA; se ela não tiver, mostra o da pessoa em vez de "sem cargo" */}
                 {no.cargo_nome || p.cargo_nome || 'sem cargo'}{tempo && ` · ${tempo}`}
