@@ -10,7 +10,7 @@ import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { useApiSWR } from '@/hooks/useApiSWR';
-import { Users, Loader2, Search, Plus, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp, LayoutGrid, List, Download, Network, ScrollText, UserMinus } from 'lucide-react';
+import { Users, Loader2, Search, Plus, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp, LayoutGrid, List, Download, Network, ScrollText, UserMinus, UserCheck } from 'lucide-react';
 import { FuncionarioDialog } from './_components/FuncionarioDialog';
 import { DossieDialog } from './_components/DossieDialog';
 import { DashboardRH } from './_components/DashboardRH';
@@ -18,6 +18,7 @@ import { IndicadoresRH } from './_components/IndicadoresRH';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { CartoesBadge, type Cartoes } from './_components/CartoesBadge';
+import { CheckinsTab } from './_components/CheckinsTab';
 import { HistoricoOcorrencias } from './_components/HistoricoOcorrencias';
 import { HistoricoDesligamentos } from './_components/HistoricoDesligamentos';
 import { Organograma } from './_components/Organograma';
@@ -196,6 +197,7 @@ export default function FuncionariosPage() {
             {/* A "Equipe" virou o Organograma: quem está na casa aparece na cadeira que ocupa, e
                 clicar abre o dossiê. Sobrou uma aba só para os INATIVOS, que a árvore não mostra. */}
             <TabsTrigger value="organograma"><Network className="w-4 h-4 mr-1.5" />Organograma</TabsTrigger>
+            <TabsTrigger value="checkins"><UserCheck className="w-4 h-4 mr-1.5" />Check-ins</TabsTrigger>
             <TabsTrigger value="inativos"><Users className="w-4 h-4 mr-1.5" />Inativos</TabsTrigger>
             <TabsTrigger value="desligados"><UserMinus className="w-4 h-4 mr-1.5" />Histórico</TabsTrigger>
             <TabsTrigger value="ocorrencias"><ScrollText className="w-4 h-4 mr-1.5" />Ocorrências</TabsTrigger>
@@ -305,6 +307,10 @@ export default function FuncionariosPage() {
                 </table>
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="checkins">
+            <CheckinsTab />
           </TabsContent>
 
           <TabsContent value="organograma">
