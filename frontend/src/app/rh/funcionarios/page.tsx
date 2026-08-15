@@ -191,14 +191,15 @@ export default function FuncionariosPage() {
           </div>
         </div>
 
-        <Tabs defaultValue="visao" className="w-full">
+        {/* O Organograma abre primeiro: é a tela que o RH usa no dia a dia — quem está na casa,
+            em que cadeira, e clicar abre o dossiê. A visão geral virou uma aba como as outras. */}
+        <Tabs defaultValue="organograma" className="w-full">
           <TabsList className="mb-4">
-            <TabsTrigger value="visao"><LayoutDashboard className="w-4 h-4 mr-1.5" />Visão geral</TabsTrigger>
-            {/* A "Equipe" virou o Organograma: quem está na casa aparece na cadeira que ocupa, e
-                clicar abre o dossiê. Sobrou uma aba só para os INATIVOS, que a árvore não mostra. */}
+            {/* UM organograma por empresa. O que era "Organograma adm." virou o organograma do
+                ESCRITÓRIO CENTRAL (bar 7), que atende toda a rede — trocando de bar no topo se
+                vê o quadro daquela empresa. "Administrativo" deixou de ser um conceito. */}
             <TabsTrigger value="organograma"><Network className="w-4 h-4 mr-1.5" />Organograma</TabsTrigger>
-            {/* Separado como no Canva: escritório e sócios não se misturam com as 60 pessoas do salão */}
-            <TabsTrigger value="organograma_adm"><Network className="w-4 h-4 mr-1.5" />Organograma adm.</TabsTrigger>
+            <TabsTrigger value="visao"><LayoutDashboard className="w-4 h-4 mr-1.5" />Visão geral</TabsTrigger>
             <TabsTrigger value="checkins"><UserCheck className="w-4 h-4 mr-1.5" />Check-ins</TabsTrigger>
             <TabsTrigger value="inativos"><Users className="w-4 h-4 mr-1.5" />Inativos</TabsTrigger>
             <TabsTrigger value="desligados"><UserMinus className="w-4 h-4 mr-1.5" />Histórico</TabsTrigger>
@@ -317,10 +318,6 @@ export default function FuncionariosPage() {
 
           <TabsContent value="organograma">
             <Organograma onAbrirDossie={setDossieId} />
-          </TabsContent>
-
-          <TabsContent value="organograma_adm">
-            <Organograma onAbrirDossie={setDossieId} escopo="administrativo" />
           </TabsContent>
 
           <TabsContent value="desligados">
