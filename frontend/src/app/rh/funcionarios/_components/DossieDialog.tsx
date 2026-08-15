@@ -26,13 +26,14 @@ const lerJson = async (r: Response): Promise<any> => {
 import {
   Loader2, Pencil, Upload, FileText, Trash2, ExternalLink,
   CalendarDays, Cake, Phone, Mail, CreditCard,
-  Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Target, GraduationCap, Check, Link as LinkIcon, UserMinus,
+  Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Target, GraduationCap, Check, Link as LinkIcon, UserMinus, ArrowRightLeft,
 } from 'lucide-react';
 import type { Funcionario } from '../page';
 import { CartaoIcon } from './CartoesBadge';
 import { EspelhoPontoTab } from './EspelhoPontoTab';
 import { LABEL_DOC } from '@/lib/rh/documentos';
 import { DemissaoDialog } from './DemissaoDialog';
+import { TransferenciaDialog } from './TransferenciaDialog';
 import { CalibracaoTab } from './CalibracaoTab';
 
 // Catálogo único (mesma lista que gera os alertas de documento faltando) — antes esta tela
@@ -92,6 +93,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [demissaoAberta, setDemissaoAberta] = useState(false);
   const [apagando, setApagando] = useState(false);
+  const [transferenciaAberta, setTransferenciaAberta] = useState(false);
   const [tipoUp, setTipoUp] = useState('carteira_trabalho');
   const [validadeUp, setValidadeUp] = useState('');
   const [avisoArq, setAvisoArq] = useState<{ texto: string; erro: boolean } | null>(null);
@@ -358,6 +360,11 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                 <Button variant="outline" size="sm" className="justify-start" onClick={() => onEditar(func)}><Pencil className="w-3.5 h-3.5 mr-2" />Editar dados</Button>
                 <Button variant="outline" size="sm" className="justify-start" onClick={() => { const d = new Date(); window.open(`/recibo?id=${func.id}&mes=${d.getMonth() + 1}&ano=${d.getFullYear()}`, '_blank'); }}><ScrollText className="w-3.5 h-3.5 mr-2" />Gerar recibo</Button>
                 {func.ativo && (
+                  <Button variant="outline" size="sm" className="justify-start" onClick={() => setTransferenciaAberta(true)}>
+                    <ArrowRightLeft className="w-3.5 h-3.5 mr-2" />Transferir de empresa
+                  </Button>
+                )}
+                {func.ativo && (
                   <Button variant="outline" size="sm" className="justify-start text-rose-600 hover:text-rose-700" onClick={() => setDemissaoAberta(true)}>
                     <UserMinus className="w-3.5 h-3.5 mr-2" />Registrar demissão
                   </Button>
@@ -602,6 +609,14 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
           onPronto={() => carregar()}
         />
       )}
+      {/* Único caminho para mudar alguém de empresa. O "mover para o organograma
+          administrativo" que existia dentro da cadeira movia gente sem registrar nada. */}
+      <TransferenciaDialog
+        funcionario={func ? { id: func.id, nome: func.nome, bar_id: (func as any).bar_id } : null}
+        open={transferenciaAberta}
+        onClose={() => setTransferenciaAberta(false)}
+        onTransferido={() => onClose()}
+      />
     </Dialog>
   );
 }

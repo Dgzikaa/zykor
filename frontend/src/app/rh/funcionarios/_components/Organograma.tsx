@@ -727,15 +727,10 @@ function Caixa({
             title="Tirar a pessoa desta cadeira"
             className="rounded bg-background border p-0.5 text-muted-foreground hover:text-foreground"><UserMinus className="w-3 h-3" /></button>
         )}
-        <button
-          onClick={() => {
-            const destino = admin ? 'operacao' : 'administrativo';
-            if (window.confirm(`Mover ${no.codigo} para o organograma ${admin ? 'da operação' : 'administrativo'}?\n\nEla entra no topo de lá e as subordinadas sobem para o chefe atual.`)) {
-              chamar('POST', { acao: 'mover_escopo', cadeira_id: no.id, escopo: destino }, 'Não foi possível mover');
-            }
-          }}
-          title={admin ? 'Mover para o organograma da operação' : 'Mover para o organograma administrativo'}
-          className="rounded bg-background border p-0.5 text-muted-foreground hover:text-indigo-600"><ArrowLeftRight className="w-3 h-3" /></button>
+        {/* O "mover para o organograma administrativo" saiu em 15/08/2026. Ele movia a CADEIRA
+            entre dois organogramas do mesmo bar, sem registrar nada — e o modelo mudou: o
+            administrativo não é outro organograma, é o organograma do Escritório Central (bar 7).
+            Mudança de empresa agora é TRANSFERÊNCIA, no dossiê da pessoa, com data e histórico. */}
         {no.vaga && no.filhos.length === 0 && (
           <button
             onClick={() => { if (window.confirm(`Remover a cadeira ${no.codigo}?`)) chamar('POST', { acao: 'remover', cadeira_id: no.id }, 'Não foi possível remover'); }}
