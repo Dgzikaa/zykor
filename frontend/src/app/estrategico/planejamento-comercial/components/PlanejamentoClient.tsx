@@ -976,7 +976,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                     <thead className="bg-[hsl(var(--muted))]">
                       {/* Primeira linha - Grupos colapsáveis */}
                       <tr className="sticky top-0 z-30 bg-[hsl(var(--muted))] border-b-2 border-[hsl(var(--border))]">
-                        <th colSpan={6} className="sticky-corner border-r-2 border-[hsl(var(--border))] bg-[hsl(var(--muted))]"></th>
+                        <th colSpan={5} className="sticky-corner border-r-2 border-[hsl(var(--border))] bg-[hsl(var(--muted))]"></th>
 
                         {/* Grupo CLIENTES */}
                         <th
@@ -1039,9 +1039,10 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                         <th className="sticky-header-1 px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '48px', minWidth: '48px'}}>Data</th>
                         <th className="sticky-header-2 px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px'}}>Dia</th>
                         <th className="sticky-header-3 px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '280px', minWidth: '280px'}}>Título</th>
-                        <th className="sticky-header-4 px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '90px', minWidth: '90px'}}>Artistas</th>
-                        <th className="sticky-header-5 px-2 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px'}}>Receita Real</th>
-                        <th className="sticky-header-6 px-2 py-2 text-center text-[11px] font-semibold border-r-2 border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px'}}>Meta M1</th>
+                        {/* Artistas saiu das colunas fixas (15/08/2026): quem tocou vive no modal
+                            do evento e no tooltip do Título. Eram 90px congelados de 676. */}
+                        <th className="sticky-header-4 px-2 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px'}}>Receita Real</th>
+                        <th className="sticky-header-5 px-2 py-2 text-center text-[11px] font-semibold border-r-2 border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px'}}>Meta M1</th>
                         
                         {/* Subcolunas CLIENTES */}
                         {gruposAbertos.clientes ? (
@@ -1242,7 +1243,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                           const isNewWeek = idx === 0 || (previousWeek !== null && currentWeek !== previousWeek);
 
                           // Calcular total de colunas visíveis para o separador de semana
-                          const totalColunas = 5
+                          const totalColunas = 4
                             + (gruposAbertos.clientes ? 3 : 1)
                             + (gruposAbertos.ticket ? 5 : 1)
                             + (gruposAbertos.artistico ? 6 : 1)
@@ -1280,7 +1281,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                               </button>
                             </td>
                             <td className="sticky-col-2 px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
-                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))]" style={{width: '280px', minWidth: '280px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}} title={`Label: ${evento.evento_nome || 'Sem atração'}${evento.observacoes ? `\n📌 ${evento.observacoes}` : ''}`}>
+                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))]" style={{width: '280px', minWidth: '280px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}} title={`Label: ${evento.evento_nome || 'Sem atração'}${(evento.artistas || []).length ? `\n🎵 ${(evento.artistas || []).join(', ')}` : ''}${evento.observacoes ? `\n📌 ${evento.observacoes}` : ''}`}>
                               <div className="flex items-start gap-1 min-w-0">
                                 {evento.flag_urgente && (
                                   <span title="Urgente (ex.: artista ainda não definido)" className="shrink-0 text-[10px] mt-0.5">🚩</span>
@@ -1313,16 +1314,13 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                 >SY</button>
                               </div>
                             </td>
-                            <td className="sticky-col-4 px-2 py-1.5 text-left text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))] cursor-pointer" style={{width: '90px', minWidth: '90px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}} title={(evento.artistas || []).join(', ') || 'Sem artista taggeado'} onClick={() => abrirModal(evento, true)}>
-                              <div className="truncate">{(evento.artistas || []).length ? (evento.artistas || []).join(', ') : <span className="text-gray-300 dark:text-gray-600">—</span>}</div>
-                            </td>
                             <td
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setLinhaHighlight(idx);
                                 setColunaHighlight(prev => prev === 'real_receita' ? null : 'real_receita');
                               }}
-                              className="sticky-col-5 px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer"
+                              className="sticky-col-4 px-2 py-1.5 text-center text-[11px] border-r border-[hsl(var(--border))] cursor-pointer"
                               style={{width: '110px', minWidth: '110px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (colunaHighlight === 'real_receita' ? 'rgb(219, 234, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white'))}}>
                               {evento.real_receita > 0 ? (
                                 <Tooltip>
@@ -1371,7 +1369,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                 setLinhaHighlight(idx); 
                                 setColunaHighlight(prev => prev === 'm1_receita' ? null : 'm1_receita');
                               }}
-                              className="sticky-col-6 px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer"
+                              className="sticky-col-5 px-2 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r-2 border-[hsl(var(--border))] cursor-pointer"
                               style={{width: '110px', minWidth: '110px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (colunaHighlight === 'm1_receita' ? 'rgb(219, 234, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white'))}}>{evento.m1_receita > 0 ? formatarMoeda(evento.m1_receita) : '-'}{evento.m1_manual && evento.m1_receita > 0 && <span title="Meta M1 editada manualmente (não veio da calculadora)" className="ml-0.5 text-amber-500 cursor-help text-[9px] align-top">🔔</span>}</td>
                             
                             {/* Grupo CLIENTES */}
@@ -1731,10 +1729,11 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                     </tbody>
                     <tfoot>
                       <tr className="font-bold text-[11px] text-gray-800 dark:text-gray-100">
-                        {/* Fixos: sempre visíveis (item 1). Colspan=3 cobre Data+Dia+Artista. */}
-                        <td colSpan={4} className={`${tfCls} text-left border-r`} style={{ position: 'sticky', left: 0, zIndex: 30 }}>TOTAIS · {totaisAgregados.totalEventos} ev</td>
-                        <td className={`${tfCls} text-center text-green-700 dark:text-green-400 border-r`} style={{ position: 'sticky', left: 456, zIndex: 30 }} title="Soma da receita real">{formatarMoeda(totaisAgregados.realizado)}</td>
-                        <td className={`${tfCls} text-center border-r-2`} style={{ position: 'sticky', left: 566, zIndex: 30 }} title="Soma da meta M1">{formatarMoeda(totaisAgregados.metaM1)}</td>
+                        {/* Fixos: sempre visíveis. Colspan=3 cobre Data+Dia+Título; os `left`
+                            acompanham os offsets do sticky-columns.css (Artistas saiu). */}
+                        <td colSpan={3} className={`${tfCls} text-left border-r`} style={{ position: 'sticky', left: 0, zIndex: 30 }}>TOTAIS · {totaisAgregados.totalEventos} ev</td>
+                        <td className={`${tfCls} text-center text-green-700 dark:text-green-400 border-r`} style={{ position: 'sticky', left: 366, zIndex: 30 }} title="Soma da receita real">{formatarMoeda(totaisAgregados.realizado)}</td>
+                        <td className={`${tfCls} text-center border-r-2`} style={{ position: 'sticky', left: 476, zIndex: 30 }} title="Soma da meta M1">{formatarMoeda(totaisAgregados.metaM1)}</td>
 
                         {/* CLIENTES (soma) */}
                         {gruposAbertos.clientes ? (
