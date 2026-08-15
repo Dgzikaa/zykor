@@ -91,6 +91,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   const [ocorrencias, setOcorrencias] = useState<Ocorr[]>([]);
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [demissaoAberta, setDemissaoAberta] = useState(false);
+  const [apagando, setApagando] = useState(false);
   const [tipoUp, setTipoUp] = useState('carteira_trabalho');
   const [validadeUp, setValidadeUp] = useState('');
   const [avisoArq, setAvisoArq] = useState<{ texto: string; erro: boolean } | null>(null);
@@ -361,6 +362,25 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                     <UserMinus className="w-3.5 h-3.5 mr-2" />Registrar demissão
                   </Button>
                 )}
+                {/* Apagar é para a linha criada por ENGANO (duplicata), não para quem saiu — quem
+                    saiu usa "Registrar demissão". O servidor recusa se houver histórico e diz o
+                    que impede; aqui o texto da confirmação já avisa que não tem volta. */}
+                <Button variant="outline" size="sm" className="justify-start text-rose-600 hover:text-rose-700"
+                  disabled={apagando}
+                  onClick={async () => {
+                    if (!window.confirm(`Apagar o cadastro de ${func.nome}?\n\nUse isto só para duplicata criada por engano. Se a pessoa saiu da empresa, cancele e use "Registrar demissão".\n\nEsta ação não tem volta.`)) return;
+                    setApagando(true);
+                    try {
+                      const r = await api.delete(`/api/rh/funcionarios/${func.id}/excluir`);
+                      showToast({ type: 'success', title: 'Cadastro apagado', message: `${r.nome} saiu da base.` });
+                      onClose();
+                    } catch (e: any) {
+                      showToast({ type: 'error', title: 'Não dá pra apagar', message: e?.message });
+                    } finally { setApagando(false); }
+                  }}>
+                  {apagando ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-2" />}
+                  Apagar funcionário
+                </Button>
                 {(func as any).portal_token && (
                   <Button variant="outline" size="sm" className="justify-start" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/portal/${(func as any).portal_token}`); showToast({ type: 'success', title: 'Link do portal copiado', message: 'Envie pro funcionário (WhatsApp/QR).' }); }}><LinkIcon className="w-3.5 h-3.5 mr-2" />Copiar link do portal</Button>
                 )}
