@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
-import { Boxes, Loader2, Search, CalendarDays, RefreshCw, Plus, Pencil, AlertTriangle, HelpCircle } from 'lucide-react';
+import { Boxes, Loader2, Search, CalendarDays, RefreshCw, Plus, Pencil, AlertTriangle, HelpCircle, Download, TrendingDown, TrendingUp } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -70,14 +70,37 @@ export default function EstoqueHistoricoPage() {
   const [loading, setLoading] = useState(false);
   const [busca, setBusca] = useState('');
   // Ordenação (padrão: maior valor primeiro). Filtros de coluna estilo Excel via useColumnFilters.
-  const [sortBy, setSortBy] = useState<'valor' | 'qtd' | 'nome'>('valor');
+  // `codigo` e `nome` entraram a pedido do time: a conferência contra a planilha é feita na ordem
+  // do código, e a leitura de item é A–Z. Antes só Qtd e Valor tinham cabeçalho clicável — o sort
+  // por nome já existia na lógica e não tinha como ser acionado.
+  type Ordem = 'valor' | 'qtd' | 'nome' | 'codigo';
+  const [sortBy, setSortBy] = useState<Ordem>('valor');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const toggleSort = (col: 'valor' | 'qtd' | 'nome') =>
-    sortBy === col ? setSortDir(d => (d === 'asc' ? 'desc' : 'asc')) : (setSortBy(col), setSortDir('desc'));
+  // texto (código/nome) começa em A–Z; número começa do maior — é o que se espera de cada um
+  const toggleSort = (col: Ordem) =>
+    sortBy === col
+      ? setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
+      : (setSortBy(col), setSortDir(col === 'nome' || col === 'codigo' ? 'asc' : 'desc'));
+  const setaDe = (col: Ordem) => (sortBy === col ? (sortDir === 'asc' ? '▲' : '▼') : '');
+
   const [comparar, setComparar] = useState(false);
   const [dataB, setDataB] = useState<string | null>(null);
   const [comp, setComp] = useState<any | null>(null);
   const [loadingComp, setLoadingComp] = useState(false);
+  /**
+   * Ordem e filtro da COMPARAÇÃO, separados dos da lista.
+   * `delta` (o padrão) é a maior variação em MÓDULO, que é como a comparação já chegava da API —
+   * mudar isso silenciosamente trocaria o que o time vê ao abrir a tela.
+   */
+  const [sortComp, setSortComp] = useState<'delta' | 'codigo' | 'nome' | 'qtd' | 'valor'>('delta');
+  const [sortCompDir, setSortCompDir] = useState<'asc' | 'desc'>('desc');
+  const toggleSortComp = (col: typeof sortComp) =>
+    sortComp === col
+      ? setSortCompDir(d => (d === 'asc' ? 'desc' : 'asc'))
+      : (setSortComp(col), setSortCompDir(col === 'nome' || col === 'codigo' ? 'asc' : 'desc'));
+  const setaComp = (col: typeof sortComp) => (sortComp === col ? (sortCompDir === 'asc' ? '▲' : '▼') : '');
+  /** Só quedas / só aumentos — pelo Δ VALOR, que é o número que vai pra reunião. */
+  const [sinal, setSinal] = useState<'todos' | 'neg' | 'pos'>('todos');
 
   // compara duas contagens DO MESMO TIPO (data + tipo) — busca os dois lados já filtrados pelo tipo
   const carregarComp = useCallback(async (t: string, a: string | null, b: string | null) => {
@@ -188,15 +211,98 @@ export default function EstoqueHistoricoPage() {
     const dir = sortDir === 'asc' ? 1 : -1;
     return [...colFiltrados].sort((a, b) => {
       if (sortBy === 'nome') return dir * cmpNome(a.insumo_nome, b.insumo_nome); // A–Z pt-BR (mesmo comparador da aba CMV)
+      if (sortBy === 'codigo') return dir * cmpNome(a.insumo_codigo || '', b.insumo_codigo || '');
       if (sortBy === 'qtd') return dir * (Number(a.estoque_final || 0) - Number(b.estoque_final || 0));
       return dir * (Number(a.valor || 0) - Number(b.valor || 0));
     });
   }, [colFiltrados, sortBy, sortDir]);
+
   const compView = useMemo(() => {
     if (!comp) return [];
     const s = busca.trim().toLowerCase();
-    return (comp.itens || []).filter((i: any) => !s || (i.nome || '').toLowerCase().includes(s) || (i.insumo_codigo || '').toLowerCase().includes(s));
-  }, [comp, busca]);
+    const filtrados = (comp.itens || []).filter((i: any) => {
+      if (s && !(i.nome || '').toLowerCase().includes(s) && !(i.insumo_codigo || '').toLowerCase().includes(s)) return false;
+      if (sinal === 'neg') return Number(i.delta_valor || 0) < 0;
+      if (sinal === 'pos') return Number(i.delta_valor || 0) > 0;
+      return true;
+    });
+    if (sortComp === 'delta') return filtrados; // já vem por maior variação em módulo
+    const dir = sortCompDir === 'asc' ? 1 : -1;
+    return [...filtrados].sort((a: any, b: any) => {
+      if (sortComp === 'nome') return dir * cmpNome(a.nome || '', b.nome || '');
+      if (sortComp === 'codigo') return dir * cmpNome(a.insumo_codigo || '', b.insumo_codigo || '');
+      if (sortComp === 'qtd') return dir * (Number(a.delta_qtd || 0) - Number(b.delta_qtd || 0));
+      return dir * (Number(a.delta_valor || 0) - Number(b.delta_valor || 0));
+    });
+  }, [comp, busca, sinal, sortComp, sortCompDir]);
+
+  /** Totais do que está na tela — o CSV fecha com eles, igual ao export dos desvios. */
+  const totalCompView = useMemo(
+    () => compView.reduce((s: number, i: any) => s + Number(i.delta_valor || 0), 0),
+    [compView],
+  );
+
+  /**
+   * Exporta o que está NA TELA — aba, busca, filtros de coluna, "fora do costume", sinal e
+   * ordem vão junto. Se o usuário filtrou, é o filtrado que ele quer levar pra reunião.
+   *
+   * Formato Excel pt-BR (mesma convenção do export de desvios): vírgula decimal sem separador
+   * de milhar e SEM aspas nos números, campo separado por `;` e BOM no início. Sem isso o
+   * Excel pt-BR abre número como texto e quebra acento.
+   */
+  const exportarCSV = useCallback(() => {
+    const num = (v: unknown, dec = 2) =>
+      v == null || v === '' ? '' : Number(v).toFixed(dec).replace('.', ',');
+    const txt = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+
+    let head: string[];
+    let linhas: string[][];
+    let rodape: string[][] = [];
+
+    if (comparar) {
+      const dA = fmtData(comp?.data_a), dB = fmtData(comp?.data_b);
+      head = ['Código', 'Insumo', `Qtd ${dA}`, `Qtd ${dB}`, 'Δ Qtd', `Valor ${dA}`, `Valor ${dB}`, 'Δ Valor'];
+      linhas = compView.map((it: any) => [
+        txt(it.insumo_codigo), txt(it.nome),
+        num(it.qtd_a, 3), num(it.qtd_b, 3), num(it.delta_qtd, 3),
+        num(it.valor_a), num(it.valor_b), num(it.delta_valor),
+      ]);
+      rodape = [
+        [txt(''), txt(`TOTAL (${compView.length} itens)`), '', '', '', '', '', num(totalCompView)],
+      ];
+    } else {
+      const ehLimpeza = classe === 'limpeza';
+      head = [
+        'Código', ehLimpeza ? 'Item' : classe === 'producao' ? 'Produção' : 'Insumo',
+        ...(ehLimpeza ? [] : ['Área']), 'Categoria',
+        ...(ehLimpeza ? ['Estoque ideal'] : []),
+        'Qtd contada', 'Unidade',
+        ...(ehLimpeza ? ['Sugestão de pedido'] : []),
+        'Preço unitário', 'Valor',
+      ];
+      linhas = itensView.map((it: any) => [
+        txt(it.insumo_codigo), txt(it.insumo_nome),
+        ...(ehLimpeza ? [] : [txt(it.area || '')]), txt(it.categoria || ''),
+        ...(ehLimpeza ? [num(it.estoque_ideal, 3)] : []),
+        num(it.estoque_final, 3), txt(unidadeCol(it) || ''),
+        ...(ehLimpeza ? [num(it.sug_pedido, 3)] : []),
+        num(it.custo_unitario), num(it.valor),
+      ]);
+      const total = itensView.reduce((s: number, i: any) => s + Number(i.valor || 0), 0);
+      rodape = [[txt(''), txt(`TOTAL (${itensView.length} itens)`), ...head.slice(2, -1).map(() => ''), num(total)]];
+    }
+
+    const csv = [head.map(txt), ...linhas, ...rodape].map(r => r.join(';')).join('\n');
+    const nome = comparar
+      ? `estoque_${classe}_comparacao_${comp?.data_a || ''}_${comp?.data_b || ''}${sinal !== 'todos' ? `_${sinal === 'neg' ? 'quedas' : 'aumentos'}` : ''}.csv`
+      : `estoque_${classe}_${tipo}_${data || ''}.csv`;
+
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nome; a.click();
+    URL.revokeObjectURL(url);
+  }, [comparar, comp, compView, totalCompView, itensView, classe, tipo, data, sinal, unidadeCol]);
 
   return (
     <PageShell width="wide">
@@ -214,6 +320,11 @@ export default function EstoqueHistoricoPage() {
               </Button>
             )}
             {podeInserir && <FazerContagem onSaved={() => carregar(tipo, null)} />}
+            <Button onClick={exportarCSV} variant="outline"
+              disabled={comparar ? compView.length === 0 : itensView.length === 0}
+              title="Baixa exatamente o que está na tela — aba, busca, filtros e ordem — em CSV para Excel">
+              <Download className="w-4 h-4 mr-1.5" />Exportar CSV
+            </Button>
             <Button onClick={sincronizar} disabled={sincronizando} variant="outline" title="Buscar o estoque dos últimos 14 dias da planilha de contagem (aba INSUMOS)">
               <RefreshCw className={`w-4 h-4 mr-1.5 ${sincronizando ? 'animate-spin' : ''}`} />{sincronizando ? 'Sincronizando…' : 'Sincronizar planilha'}
             </Button>
@@ -371,6 +482,28 @@ export default function EstoqueHistoricoPage() {
           </button>
         )}
 
+        {/* Só quedas / só aumentos — o caminho de 1 clique, mesmo padrão do "Só perdas/sobras"
+            dos desvios. O sinal é o do Δ VALOR, que é o número que vai pra reunião. */}
+        {comparar && (
+          <div className="flex items-center gap-2 flex-wrap text-sm">
+            <button onClick={() => setSinal(s => (s === 'neg' ? 'todos' : 'neg'))}
+              className={`h-9 rounded-md px-3 border inline-flex items-center gap-1.5 ${sinal === 'neg' ? 'bg-red-600 text-white border-red-600' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}
+              title="Só os itens que caíram de valor entre as duas contagens">
+              <TrendingDown className="w-4 h-4" />Só quedas
+            </button>
+            <button onClick={() => setSinal(s => (s === 'pos' ? 'todos' : 'pos'))}
+              className={`h-9 rounded-md px-3 border inline-flex items-center gap-1.5 ${sinal === 'pos' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}
+              title="Só os itens que subiram de valor entre as duas contagens">
+              <TrendingUp className="w-4 h-4" />Só aumentos
+            </button>
+            {sinal !== 'todos' && (
+              <span className="text-xs text-gray-500">
+                {compView.length} item(ns) · {fmtBRL(totalCompView)}
+              </span>
+            )}
+          </div>
+        )}
+
         {comparar && comp?.resumo && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <Card className="card-dark"><CardContent className="py-3"><div className="text-xs text-muted-foreground uppercase">{fmtData(comp.data_a)}</div><div className="text-xl font-bold">{fmtBRL(comp.resumo.valor_a)}</div></CardContent></Card>
@@ -424,8 +557,16 @@ export default function EstoqueHistoricoPage() {
         <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
-              <th className="text-left font-medium px-3 py-2">Cód.</th>
-              <th className="text-left font-medium px-3 py-2">{classe === 'limpeza' ? 'Item' : classe === 'producao' ? 'Produção' : 'Insumo'}</th>
+              <th className="text-left font-medium px-3 py-2">
+                <button onClick={() => toggleSort('codigo')} className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200" title="Ordenar por código">
+                  Cód. {setaDe('codigo')}
+                </button>
+              </th>
+              <th className="text-left font-medium px-3 py-2">
+                <button onClick={() => toggleSort('nome')} className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200" title="Ordenar de A a Z">
+                  {classe === 'limpeza' ? 'Item' : classe === 'producao' ? 'Produção' : 'Insumo'} {setaDe('nome')}
+                </button>
+              </th>
               {classe === 'limpeza'
                 ? <ColumnFilterHeader label="Categoria" className="py-2" options={optionsByCol.categoria || []} selected={colFilter.categoria || new Set()} onChange={(n) => setCol('categoria', n)} />
                 : <>
@@ -435,14 +576,14 @@ export default function EstoqueHistoricoPage() {
               {classe === 'limpeza' && <th className="text-right font-medium px-3 py-2">Estoque Ideal</th>}
               <th className="text-right font-medium px-3 py-2">
                 <button onClick={() => toggleSort('qtd')} className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
-                  Qtd. contada {sortBy === 'qtd' && (sortDir === 'asc' ? '▲' : '▼')}
+                  Qtd. contada {setaDe('qtd')}
                 </button>
               </th>
               {classe === 'limpeza' && <th className="text-right font-medium px-3 py-2">Sug. Pedido</th>}
               <th className="text-right font-medium px-3 py-2">{classe === 'limpeza' ? 'Preço' : classe === 'producao' ? 'Custo (ficha)' : 'Preço VMarket (na data)'}</th>
               <th className="text-right font-medium px-3 py-2">
                 <button onClick={() => toggleSort('valor')} className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200">
-                  Valor {sortBy === 'valor' && (sortDir === 'asc' ? '▲' : '▼')}
+                  Valor {setaDe('valor')}
                 </button>
               </th>
             </tr></thead>
@@ -479,14 +620,32 @@ export default function EstoqueHistoricoPage() {
         <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
-              <th className="text-left font-medium px-3 py-2">Cód.</th>
-              <th className="text-left font-medium px-3 py-2">Insumo</th>
+              <th className="text-left font-medium px-3 py-2">
+                <button onClick={() => toggleSortComp('codigo')} className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200" title="Ordenar por código">
+                  Cód. {setaComp('codigo')}
+                </button>
+              </th>
+              <th className="text-left font-medium px-3 py-2">
+                <button onClick={() => toggleSortComp('nome')} className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200" title="Ordenar de A a Z">
+                  Insumo {setaComp('nome')}
+                </button>
+              </th>
               <th className="text-right font-medium px-3 py-2">Qtd {fmtData(comp?.data_a)}</th>
               <th className="text-right font-medium px-3 py-2">Qtd {fmtData(comp?.data_b)}</th>
-              <th className="text-right font-medium px-3 py-2">Δ Qtd</th>
+              <th className="text-right font-medium px-3 py-2">
+                <button onClick={() => toggleSortComp('qtd')} className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200" title="Ordenar pela variação de quantidade">
+                  Δ Qtd {setaComp('qtd')}
+                </button>
+              </th>
               <th className="text-right font-medium px-3 py-2">Valor {fmtData(comp?.data_a)}</th>
               <th className="text-right font-medium px-3 py-2">Valor {fmtData(comp?.data_b)}</th>
-              <th className="text-right font-medium px-3 py-2">Δ Valor</th>
+              <th className="text-right font-medium px-3 py-2">
+                {/* "maior variação" é a ordem que a tela sempre teve (Δ em módulo) — continua sendo
+                    o padrão; clicar aqui passa a ordenar por Δ com sinal, do maior pro menor. */}
+                <button onClick={() => toggleSortComp('valor')} className="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200" title="Ordenar pela variação de valor (clique de novo para inverter)">
+                  Δ Valor {sortComp === 'delta' ? '≠' : setaComp('valor')}
+                </button>
+              </th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loadingComp ? <tr><td colSpan={8} className="px-3 py-10 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
