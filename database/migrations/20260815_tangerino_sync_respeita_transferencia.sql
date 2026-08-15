@@ -1,0 +1,40 @@
+-- =============================================================================
+-- A sync do Tangerino passa a respeitar transferencia manual — 15/08/2026
+-- =============================================================================
+--
+-- `fn_tangerino_sync_funcionarios` resolvia o bar pelo NOME do workplace ("...Ordinario" -> 3,
+-- "...Deboche" -> 4) e fazia `bar_id = COALESCE(workplace, atual)`.
+--
+-- Com a transferencia entre empresas (ver 20260815_hr_transferencia_entre_empresas.sql) isso
+-- vira uma armadilha: transferir alguem que bate ponto seria DESFEITO na proxima sincronizacao,
+-- em silencio. O usuario faz a acao, ve funcionar, e ela se desfaz sozinha horas depois — o pior
+-- tipo de bug, porque ninguem liga uma coisa na outra.
+--
+-- Caso concreto que motivou: DIEGO GALDINO e NATALIA DIAS ocupam cadeiras administrativas
+-- (Escritorio Central) mas estao no workplace "Producao Ordinario" do Tangerino. Sem esta trava,
+-- voltariam sozinhos para o bar 3 depois de transferidos.
+--
+-- MUDANCAS (o resto da funcao e identico):
+--   1. bar_id so vem do workplace quando `bar_manual = false`;
+--   2. cargo_id/area_id passam a casar contra o bar EFETIVO da pessoa (mesmo motivo — senao
+--      procurariam o cargo no bar errado e o zerariam);
+--   3. o relatorio ganha `bar_travado_por_transferencia`, para a divergencia entre Tangerino e
+--      Zykor ficar VISIVEL em vez de virar silencio. E `corrigir_bar` deixa de listar quem esta
+--      travado, senao o relatorio prometeria uma correcao que nao vai acontecer.
+--
+-- A funcao completa foi aplicada via MCP nesta data; este arquivo e o registro no repo.
+-- =============================================================================
+
+-- Ver a definicao vigente com:
+--   select pg_get_functiondef(p.oid) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--    where n.nspname = 'hr' and p.proname = 'fn_tangerino_sync_funcionarios';
+
+-- Trecho que mudou, para referencia rapida em code review:
+--
+--   bar_id = CASE WHEN f.bar_manual THEN f.bar_id ELSE COALESCE(e.bar, f.bar_id) END,
+--   cargo_id = COALESCE((SELECT c.id FROM hr.cargos c
+--                         WHERE c.bar_id = CASE WHEN f.bar_manual THEN f.bar_id
+--                                               ELSE COALESCE(e.bar, f.bar_id) END
+--                           AND public.normcat(c.nome) = public.normcat(e.cargo_nome)
+--                         LIMIT 1), f.cargo_id),
+--   area_id  = (idem, mesmo CASE)
