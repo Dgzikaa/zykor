@@ -205,7 +205,25 @@ export async function POST(req: NextRequest) {
     }
 
     // ETL bronze -> hr.ponto_registro (liga por employee.id -> funcionario; bar = bar-casa; agrega por dia operacional)
-    const { data: etl } = await (supabase as any).schema('hr').rpc('fn_tangerino_punch_to_ponto');
+    //
+    // O erro desta chamada era DESCARTADO e a rota respondia success:true de qualquer jeito. Com o
+    // bronze sendo gravado página a página logo acima, dava o pior cenário possível: marcação
+    // entrando, ponto parado, e todo mundo achando que a sync funcionou — foi assim que 8 dias de
+    // ponto sumiram entre 08 e 14/08/2026 sem ninguém perceber.
+    //
+    // Esta chamada é o caminho RÁPIDO (o ponto aparece assim que a sync termina). A rede de
+    // segurança é o cron `tangerino-punch-to-ponto`, que roda a mesma função dentro do banco às
+    // 08:35 UTC — se a função da Vercel morrer no meio da paginação, o ponto entra do mesmo jeito.
+    const { data: etl, error: etlErro } = await (supabase as any).schema('hr').rpc('fn_tangerino_punch_to_ponto');
+    if (etlErro) {
+      return NextResponse.json({
+        success: false,
+        etapa: 'punch_to_ponto',
+        error: etlErro.message,
+        aviso: 'As marcações foram gravadas no bronze, mas NÃO viraram ponto. O cron tangerino-punch-to-ponto tenta de novo às 08:35 UTC.',
+        periodo: { de, ate: hoje }, marcacoes_gravadas: gravados, total_tangerino: total,
+      }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true, periodo: { de, ate: hoje }, marcacoes_gravadas: gravados, total_tangerino: total, etl });
   } catch (e: any) {

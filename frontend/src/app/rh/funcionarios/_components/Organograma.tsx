@@ -627,6 +627,11 @@ function Caixa({
       onDragOver={(e) => { if (podeReceber) { e.preventDefault(); setAlvo(no.id); } }}
       onDragLeave={() => setAlvo(alvo === no.id ? null : alvo)}
       onDrop={(e) => { e.preventDefault(); if (podeReceber) soltar(no.id); }}
+      // A caixa INTEIRA abre o dossiê, não só o nome: o alvo de clique era uma linha de texto de
+      // ~11px dentro de um card de 190px, e a foto — que é o que a pessoa mira — não fazia nada.
+      // Os botões de ação e os seletores param a propagação, senão configurar a cadeira abriria
+      // o dossiê junto.
+      onClick={() => { if (p) onAbrirDossie(p.id); }}
       className={cn(
         'group relative w-[190px] shrink-0 rounded-lg border bg-background px-2 py-1.5 shadow-sm transition-all cursor-grab active:cursor-grabbing',
         alvo === no.id && podeReceber && 'ring-2 ring-indigo-500 border-indigo-500',
@@ -659,7 +664,8 @@ function Caixa({
 
         <div className="min-w-0 flex-1">
           {p ? (
-            <button onClick={() => onAbrirDossie(p.id)} className="text-left w-full">
+            // continua sendo <button> pelo teclado (Tab + Enter); o clique de mouse já é da caixa
+            <button onClick={(e) => { e.stopPropagation(); onAbrirDossie(p.id); }} className="text-left w-full">
               <div className="text-xs font-semibold truncate flex items-center gap-1">
                 {p.nome.split(' ').slice(0, 2).join(' ')}
                 {aniversarioProximo(p.data_nascimento) && (
@@ -715,6 +721,7 @@ function Caixa({
 
       {mudandoChefe && (
         <select defaultValue={no.cadeira_chefe_id || ''}
+          onClick={(e) => e.stopPropagation()}
           onChange={(e) => {
             chamar('PUT', { cadeira_id: no.id, cadeira_chefe_id: e.target.value || null }, 'Não foi possível mover');
             setMudandoChefe(false);
@@ -729,7 +736,8 @@ function Caixa({
         </select>
       )}
 
-      <div className="absolute -bottom-2 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+      <div className="absolute -bottom-2 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100"
+        onClick={(e) => e.stopPropagation()}>
         {/* sobe/desce entre os irmãos — organizar a ordem do quadro sem arrastar */}
         <button onClick={() => chamar('POST', { acao: 'reordenar', cadeira_id: no.id, direcao: 'cima' }, 'Não foi possível subir')}
           title="Subir na lista" className="rounded bg-background border p-0.5 text-muted-foreground hover:text-foreground"><ChevronUp className="w-3 h-3" /></button>
