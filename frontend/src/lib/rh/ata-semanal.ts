@@ -77,7 +77,10 @@ export function renderAta(b: BlocosAta): string {
 
   const opcionais = [
     bloco('Atestados', b.atestados),
-    b.absenteismo_pct != null ? `*Absenteísmo*\n${pct(b.absenteismo_pct)} dos turnos escalados` : '',
+    // diz a FÓRMULA junto: "12%" sozinho não deixa ninguém conferir, e a definição já mudou uma vez
+    b.absenteismo_pct != null
+      ? `*Absenteísmo*\n${pct(b.absenteismo_pct)} — faltas + atestados sobre ${b.cobertura.escalados} diária${b.cobertura.escalados > 1 ? 's' : ''} escalada${b.cobertura.escalados > 1 ? 's' : ''}`
+      : '',
     bloco('Entradas', b.entradas),
     bloco('Saídas', b.saidas),
     bloco('Súmula (cartões)', b.cartoes),

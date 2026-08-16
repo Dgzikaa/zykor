@@ -86,7 +86,6 @@ export async function GET(request: NextRequest) {
     escalados: linhasCheck.length,
     com_checkin: linhasCheck.filter((l: any) => !!l.checkin_status).length,
   };
-  const absenteismo = cobertura.com_checkin > 0 ? (faltas.length / cobertura.com_checkin) * 100 : null;
 
   // ---- Atestados e cartões da semana --------------------------------------------------------
   const ocorrs = ocorrRes.data || [];
@@ -95,6 +94,31 @@ export async function GET(request: NextRequest) {
 
   const atestados: Pessoa[] = ocorrs.filter((o: any) => o.tipo === 'atestado' && noPeriodo(o))
     .map((o: any) => ({ nome: rotulo(o), detalhe: o.data_fim && o.data_fim !== o.data_inicio ? `${nomeDia(o.data_inicio)} a ${nomeDia(o.data_fim)}` : nomeDia(o.data_inicio) }));
+
+  /**
+   * Absenteísmo = (faltas + atestados) ÷ diárias escaladas — a definição do documento de RH.
+   *
+   * Antes era `faltas ÷ turnos COM check-in`, que erra dos dois lados: some com o atestado (que é
+   * ausência igual, só que justificada) e encolhe o denominador para os turnos que o líder
+   * conferiu — numa semana com 3 check-ins, 1 falta virava 33%.
+   *
+   * Atestado é contado por TURNO ESCALADO coberto, não por ocorrência: um atestado de 3 dias vale
+   * o que a pessoa realmente deixou de trabalhar. E cada diária conta no máximo uma vez — turno
+   * marcado como falta que também está dentro de um atestado não soma duas ausências.
+   */
+  const atestadoPorPessoa = new Map<number, Array<{ ini: string; fim: string }>>();
+  for (const o of ocorrs) {
+    if (o.tipo !== 'atestado' || !o.funcionario_id) continue;
+    const lista = atestadoPorPessoa.get(o.funcionario_id) || [];
+    lista.push({ ini: String(o.data_inicio), fim: String(o.data_fim || o.data_inicio) });
+    atestadoPorPessoa.set(o.funcionario_id, lista);
+  }
+  const emAtestado = (funcionarioId: number, data: string) =>
+    (atestadoPorPessoa.get(funcionarioId) || []).some((a) => data >= a.ini && data <= a.fim);
+
+  const ausencias = linhasCheck.filter((l: any) =>
+    l.checkin_status === 'falta' || emAtestado(l.funcionario_id, String(l.data))).length;
+  const absenteismo = cobertura.escalados > 0 ? (ausencias / cobertura.escalados) * 100 : null;
 
   const cartoes: Pessoa[] = ocorrs.filter((o: any) => o.cartao && String(o.data_inicio) >= inicio && String(o.data_inicio) <= fim)
     .map((o: any) => ({ nome: rotulo(o), detalhe: `${o.cartao}${o.descricao ? ` — ${o.descricao}` : ''}` }));
