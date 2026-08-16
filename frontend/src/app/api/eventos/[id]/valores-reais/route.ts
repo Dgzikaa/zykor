@@ -253,9 +253,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         // ONDA 2C: Locais excluídos agora vêm do banco
         const locaisExcluidos = locaisMapeamento.excluidos;
 
+        // FONTE: a view _filtrado, que lê silver.silver_contahub_operacional_stockout_processado.
+        // A TABELA gold.gold_contahub_operacional_stockout está MORTA desde 26/04/2026 — o pipeline
+        // passou a escrever só em bronze+silver (migration 2026-05-12-stockout-canonico-unificado),
+        // e os 11 crons de stockout alimentam essas duas. Lendo a gold, todo evento posterior a
+        // abril calculava stockout sobre ZERO linha e devolvia 0% sem reclamar.
         const { data: stockoutData, error: stockoutError } = await supabase
           .schema('gold')
-          .from('gold_contahub_operacional_stockout')
+          .from('gold_contahub_operacional_stockout_filtrado')
           .select('prd_ativo, prd_venda, loc_desc, prd_desc')
           .eq('data_consulta', eventoData.data_evento)
           .eq('bar_id', user.bar_id)
@@ -325,9 +330,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           const locaisMapeamentoFallback = await getLocaisMapeamento(user.bar_id!);
           const locaisExcluidosStockout = locaisMapeamentoFallback?.excluidos || [];
           
+          // mesma troca do bloco acima: a tabela gold está congelada em 26/04/2026
           const { data: dadosStockout } = await supabase
             .schema('gold')
-            .from('gold_contahub_operacional_stockout')
+            .from('gold_contahub_operacional_stockout_filtrado')
             .select('prd_ativo, prd_venda, loc_desc, prd_desc')
             .eq('prd_ativo', 'S')
             .eq('data_consulta', eventoData.data_evento)

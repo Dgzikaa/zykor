@@ -506,27 +506,41 @@ export async function fetchDataForIntent(
     case 'estoque': {
       const dataConsulta = entities.data || ontem.toISOString().split('T')[0];
       
+      // Esta consulta estava errada de duas formas e devolvia SEMPRE zero, calada:
+      //  1. lia gold.gold_contahub_operacional_stockout, tabela morta desde 26/04/2026 (o pipeline
+      //     escreve em bronze+silver desde a unificação de 12/05);
+      //  2. filtrava por `data_stockout`, ordenava por `tempo_ruptura_min` e lia `nome_produto` /
+      //     `codigo_produto` — NENHUMA dessas colunas existe ali. As reais são data_consulta,
+      //     prd_desc e prd. Com coluna inexistente o PostgREST erra, `rupturas` vem undefined e a
+      //     IA respondia "nenhuma ruptura" para qualquer pergunta sobre estoque.
+      // Ruptura = produto ativo com estoque zerado. Não existe "tempo de ruptura" no dado: a coleta
+      // é um retrato por hora, então o que dá para contar é EM QUANTAS COLETAS o produto apareceu
+      // zerado — e é isso que o campo passa a dizer, em vez de inventar minutos.
       const { data: rupturas } = await supabase
         .schema('gold')
-        .from('gold_contahub_operacional_stockout')
-        .select('*')
+        .from('gold_contahub_operacional_stockout_filtrado')
+        .select('data_consulta, prd, prd_desc, loc_desc, prd_venda, prd_estoque, prd_ativo')
         .eq('bar_id', barId)
-        .gte('data_stockout', dataConsulta)
-        .order('tempo_ruptura_min', { ascending: false });
+        .gte('data_consulta', dataConsulta)
+        .eq('prd_ativo', 'S')
+        .lte('prd_estoque', 0)
+        .order('data_consulta', { ascending: false })
+        .limit(1000);
 
-      const produtosAfetados: Record<string, { nome: string; tempoTotal: number; vezes: number }> = {};
+      const produtosAfetados: Record<string, { nome: string; coletasZerado: number; local: string | null }> = {};
       rupturas?.forEach(r => {
-        const key = r.nome_produto || r.codigo_produto;
+        const key = r.prd_desc || r.prd;
+        if (!key) return;
         if (!produtosAfetados[key]) {
-          produtosAfetados[key] = { nome: key, tempoTotal: 0, vezes: 0 };
+          produtosAfetados[key] = { nome: key, coletasZerado: 0, local: r.loc_desc ?? null };
         }
-        produtosAfetados[key].tempoTotal += r.tempo_ruptura_min || 0;
-        produtosAfetados[key].vezes += 1;
+        produtosAfetados[key].coletasZerado += 1;
       });
 
       result = {
         totalRupturas: rupturas?.length || 0,
-        produtosMaisAfetados: Object.values(produtosAfetados).sort((a, b) => b.tempoTotal - a.tempoTotal).slice(0, 5),
+        produtosMaisAfetados: Object.values(produtosAfetados)
+          .sort((a, b) => b.coletasZerado - a.coletasZerado).slice(0, 5),
         rupturas: rupturas || [],
         dataConsulta
       };
