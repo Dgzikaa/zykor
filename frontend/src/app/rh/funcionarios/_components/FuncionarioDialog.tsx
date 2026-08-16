@@ -126,8 +126,20 @@ export function FuncionarioDialog({ open, onClose, onSalvo, cargos, areas, funci
                 <Input value={form.nome} onChange={(e) => set('nome', e.target.value)} placeholder="Nome completo" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">CPF</Label>
+                <Label className="text-xs">
+                  CPF{contratando && <span className="text-amber-600 dark:text-amber-400"> — importante</span>}
+                </Label>
                 <Input value={form.cpf} onChange={(e) => set('cpf', e.target.value)} placeholder="000.000.000-00" />
+                {/* O CPF é a chave que faz o Tangerino ADOTAR este cadastro em vez de criar outro.
+                    Sem ele, quando o DP registrar a mesma pessoa lá, a sync não reconhece ninguém e
+                    nasce a duplicata — foi assim que apareceram ~40 na primeira importação.
+                    Avisa, mas não trava: nem sempre o CPF está à mão na hora de contratar. */}
+                {contratando && !String(form.cpf).trim() && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                    Sem CPF, quando esta pessoa for cadastrada no Tangerino a sync vai criar um
+                    <strong> cadastro duplicado</strong> em vez de atualizar este.
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Data de nascimento</Label>

@@ -56,7 +56,10 @@
       "PowerShell(nslookup *)",
       "mcp__claude_ai_Google_Drive__download_file_content",
       "PowerShell($c = Get-Command supabase -ErrorAction SilentlyContinue; if \\($c\\) { \"found: $\\($c.Source\\)\"; supabase --version } else { \"supabase CLI not found\" })",
-      "mcp__claude_ai_Supabase__query_logs"
+      "mcp__claude_ai_Supabase__query_logs",
+      "Bash(node *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT=$?\")"
     ]
   },
   "mcpServers": {
