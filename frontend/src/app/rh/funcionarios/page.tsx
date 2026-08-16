@@ -10,7 +10,7 @@ import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { useApiSWR } from '@/hooks/useApiSWR';
-import { Users, Loader2, Search, Plus, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp, LayoutGrid, List, Download, Network, ScrollText, UserMinus, UserCheck } from 'lucide-react';
+import { Users, Loader2, Search, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp, LayoutGrid, List, Download, Network, ScrollText, UserMinus, UserCheck, BriefcaseBusiness } from 'lucide-react';
 import { FuncionarioDialog } from './_components/FuncionarioDialog';
 import { DossieDialog } from './_components/DossieDialog';
 import { DashboardRH } from './_components/DashboardRH';
@@ -145,7 +145,7 @@ export default function FuncionariosPage() {
     if (error) showToast({ type: 'error', title: 'Erro ao carregar funcionários', message: (error as any)?.message });
   }, [error, showToast]);
 
-  const novo = () => { setEditando(null); setFormAberto(true); };
+  // Só EDIÇÃO abre este formulário — criar cadastro novo é ato da cadeira, no organograma.
   const editar = (f: Funcionario) => { setEditando(f); setFormAberto(true); setDossieId(null); };
   const onSalvo = () => { setFormAberto(false); setEditando(null); mutateLista(); };
 
@@ -185,9 +185,15 @@ export default function FuncionariosPage() {
                 <p className="text-sm text-white/80">Central de RH — equipe, documentos e indicadores</p>
               </div>
             </div>
-            <Button onClick={novo} className="bg-white text-indigo-700 hover:bg-white/90 shadow-sm">
-              <Plus className="w-4 h-4 mr-1.5" />Novo funcionário
-            </Button>
+            {/* O botão "Novo funcionário" saiu em 15/08/2026. Decisão do Gonza: "não vai existir
+                alguém chegar e adicionar funcionário novo. Adicionar aonde, em que cadeira?" —
+                cadastro solto nascia sem função, sem área, sem chefe e sem salário, e a pessoa
+                ficava fora do quadro. Agora se contrata clicando na CADEIRA VAGA, no organograma. */}
+            <div className="text-right text-xs text-white/85 max-w-[260px]">
+              <div className="font-semibold text-sm">Contratação é por cadeira</div>
+              Abra o <strong>Organograma</strong> e use o <BriefcaseBusiness className="w-3 h-3 inline" /> da
+              cadeira vaga — função, área, chefe e salário já vêm dela.
+            </div>
           </div>
         </div>
 

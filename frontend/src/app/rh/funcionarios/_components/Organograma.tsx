@@ -9,8 +9,10 @@ import { useApiSWR } from '@/hooks/useApiSWR';
 import { useToast } from '@/components/ui/toast';
 import { getSelectedBarId } from '@/lib/selected-bar';
 import { cn } from '@/lib/utils';
-import { Loader2, Network, Search, Cake, Plus, UserPlus, UserMinus, Trash2, Wand2, ZoomIn, ZoomOut, Pencil, ArrowLeftRight, Camera, ChevronUp, ChevronDown } from 'lucide-react';
+import { Loader2, Network, Search, Cake, Plus, UserPlus, UserMinus, Trash2, Wand2, ZoomIn, ZoomOut, Pencil, ArrowLeftRight, Camera, ChevronUp, ChevronDown, BriefcaseBusiness, Settings2 } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase';
+import { FuncionarioDialog, type CadeiraAlvo } from './FuncionarioDialog';
+import { CadeiraDialog } from './CadeiraDialog';
 
 /**
  * Organograma por CADEIRA, desenhado de cima para baixo como o quadro do Canva.
@@ -36,6 +38,8 @@ type Cadeira = {
   cargo_id: number | null; cargo_nome: string | null;
   area_id: number | null; area_nome: string | null; area_cor: string | null;
   escopo: 'operacao' | 'administrativo';
+  /** override do salário DESTA cadeira; nulo = vale a faixa do cargo */
+  salario_referencia: number | null;
   ocupante_nome: string | null;        // nome digitado (sócio, que não tem cadastro)
   ocupante_foto_url: string | null;    // rosto do sócio (funcionário guarda no próprio cadastro)
   vaga: boolean; ocupante: Ocupante | null;
@@ -43,7 +47,7 @@ type Cadeira = {
 type SemCadeira = { id: number; nome: string; foto_url: string | null; cargo_nome: string | null };
 type Pessoa = { id: number; nome: string; cargo_nome: string | null; sem_cadeira: boolean };
 type Opcao = { id: number; nome: string };
-type Cargo = { id: number; nome: string; area_id: number | null };
+type Cargo = { id: number; nome: string; area_id: number | null; salario_min: number | null; salario_max: number | null };
 type No = Cadeira & { filhos: No[]; total: number };
 type Resposta = { cadeiras: Cadeira[]; sem_cadeira: SemCadeira[]; pessoas: Pessoa[]; cargos: Cargo[]; areas: Opcao[] };
 
@@ -137,6 +141,37 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
   const [criando, setCriando] = useState(false);
   const [nova, setNova] = useState({ codigo: '', cargo_id: '', area_id: '' });
   const [zoom, setZoom] = useState(1);
+  /** cadeira vaga em que se está contratando (abre o cadastro já preso a ela) */
+  const [contratando, setContratando] = useState<CadeiraAlvo | null>(null);
+  /** cadeira sendo configurada: cargo, área e salário */
+  const [editandoCadeira, setEditandoCadeira] = useState<Cadeira | null>(null);
+
+  const cargoPorId = useMemo(
+    () => new Map<number, Cargo>((data?.cargos || []).map((c) => [c.id, c])),
+    [data],
+  );
+
+  /**
+   * Monta o que a contratação precisa saber sobre a cadeira.
+   *
+   * A regra do salário é a decisão de 15/08/2026: o CARGO carrega a faixa (padrão para os ~16
+   * cargos) e a CADEIRA pode sobrepor (CUMIN 1 não precisa valer o mesmo que CUMIN 7). Sem nenhum
+   * dos dois preenchidos a sugestão é NULA — o formulário diz "sem referência" em vez de propor
+   * R$ 0,00, que é o tipo de sugestão que vira salário errado sem ninguém notar.
+   */
+  const alvoDaCadeira = useCallback((c: Cadeira): CadeiraAlvo => {
+    const cargo = c.cargo_id ? cargoPorId.get(c.cargo_id) : null;
+    return {
+      id: c.id, codigo: c.codigo,
+      cargo_nome: c.cargo_nome, area_nome: c.area_nome,
+      salario_sugerido: c.salario_referencia ?? cargo?.salario_min ?? null,
+      faixa_min: cargo?.salario_min ?? null, faixa_max: cargo?.salario_max ?? null,
+      origem_salario: c.salario_referencia != null ? 'cadeira' : (cargo?.salario_min != null ? 'cargo' : null),
+    };
+  }, [cargoPorId]);
+
+  const onContratar = useCallback((c: Cadeira) => setContratando(alvoDaCadeira(c)), [alvoDaCadeira]);
+  const onEditarCadeira = useCallback((c: Cadeira) => setEditandoCadeira(c), []);
 
   const chamar = useCallback(async (metodo: 'PUT' | 'POST', corpo: Record<string, unknown>, erroPadrao: string) => {
     setSalvando(true);
@@ -374,9 +409,16 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
 
       <p className="text-xs text-muted-foreground">
         Passe o mouse na caixa: <Network className="w-3 h-3 inline" /> escolhe a quem ela responde,
+        <Settings2 className="w-3 h-3 inline" /> configura cargo, área e salário,
         <Plus className="w-3 h-3 inline" /> cria uma cadeira já abaixo dela (é assim que se monta a
-        cadeia: Assistente 1, Assistente 2…) e <UserPlus className="w-3 h-3 inline" /> aloca alguém na vaga.
+        cadeia: Assistente 1, Assistente 2…), <BriefcaseBusiness className="w-3 h-3 inline" /> contrata
+        alguém de fora para a vaga e <UserPlus className="w-3 h-3 inline" /> aloca quem já é da casa.
         Arrastar também funciona, mas o seletor não depende de pontaria.
+      </p>
+      <p className="text-xs text-muted-foreground">
+        <strong>Contratar é sempre por cadeira.</strong> Não existe mais cadastrar solto: é a cadeira que
+        diz a função, a área, o chefe e o salário de quem entra — e é ela que some da conta de vagas
+        quando alguém senta.
       </p>
 
       {/* faixa de soltar = tirar o chefe */}
@@ -397,7 +439,7 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
               arrasto={arrasto} setArrasto={setArrasto}
               alvo={alvo} setAlvo={setAlvo} descendentes={descendentes} soltar={soltar}
               combina={combina} temBusca={!!buscaNorm}
-              onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} enviarFoto={enviarFoto} comFilhos={comFilhos} />
+              onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} enviarFoto={enviarFoto} comFilhos={comFilhos} onContratar={onContratar} onEditarCadeira={onEditarCadeira} />
           ))}
         </div>
       </div>
@@ -427,6 +469,26 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
           </div>
         </CardContent></Card>
       )}
+
+      {/* Contratar: o cadastro nasce preso à cadeira, que é o pedido do Gonza ("adicionar aonde, em
+          que cadeira?"). Por isso este formulário vive aqui e não mais atrás de um botão global. */}
+      <FuncionarioDialog
+        open={!!contratando}
+        onClose={() => setContratando(null)}
+        onSalvo={() => { setContratando(null); mutate(); }}
+        cargos={data?.cargos || []}
+        areas={data?.areas || []}
+        funcionario={null}
+        cadeira={contratando}
+      />
+
+      <CadeiraDialog
+        cadeira={editandoCadeira}
+        cargos={data?.cargos || []}
+        areas={data?.areas || []}
+        onClose={() => setEditandoCadeira(null)}
+        onSalvo={() => { setEditandoCadeira(null); mutate(); }}
+      />
     </div>
   );
 }
@@ -441,6 +503,7 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
 function Ramo({
   no, arrasto, setArrasto, alvo, setAlvo, descendentes, soltar,
   combina, temBusca, onAbrirDossie, pessoas, chamar, admin, todas, escopo, enviarFoto, comFilhos,
+  onContratar, onEditarCadeira,
 }: {
   no: No;
   arrasto: Arrasto; setArrasto: (a: Arrasto) => void;
@@ -455,6 +518,10 @@ function Ramo({
   escopo: 'operacao' | 'administrativo';
   enviarFoto: (no: Cadeira, file: File) => Promise<void>;
   comFilhos: Set<string>;
+  /** abre o cadastro já preso a esta cadeira vaga */
+  onContratar: (c: Cadeira) => void;
+  /** abre cargo, área e salário desta cadeira */
+  onEditarCadeira: (c: Cadeira) => void;
 }) {
   const temFilhos = no.filhos.length > 0;
   // Empilha quando nenhum filho tem equipe própria — é o time de um chefe. Se algum filho for chefe
@@ -465,7 +532,7 @@ function Ramo({
     <div className="flex flex-col items-center">
       <Caixa no={no} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
         descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-        onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} enviarFoto={enviarFoto} comFilhos={comFilhos} />
+        onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} enviarFoto={enviarFoto} comFilhos={comFilhos} onContratar={onContratar} onEditarCadeira={onEditarCadeira} />
 
       {temFilhos && (empilhar ? (
         /* time do chefe: coluna, com um prumo à esquerda e um traço para cada caixa */
@@ -479,7 +546,7 @@ function Ramo({
                   <div className="absolute -left-4 top-1/2 w-4 h-px bg-border" />
                   <Caixa no={f} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
                     descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-                    onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} enviarFoto={enviarFoto} comFilhos={comFilhos} />
+                    onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} enviarFoto={enviarFoto} comFilhos={comFilhos} onContratar={onContratar} onEditarCadeira={onEditarCadeira} />
                 </div>
               ))}
             </div>
@@ -499,7 +566,7 @@ function Ramo({
                 <div className="w-px h-4 bg-border" />
                 <Ramo no={f} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
                   descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
-                  onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} enviarFoto={enviarFoto} comFilhos={comFilhos} />
+                  onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} enviarFoto={enviarFoto} comFilhos={comFilhos} onContratar={onContratar} onEditarCadeira={onEditarCadeira} />
               </div>
             ))}
           </div>
@@ -512,6 +579,7 @@ function Ramo({
 function Caixa({
   no, arrasto, setArrasto, alvo, setAlvo, descendentes, soltar,
   combina, temBusca, onAbrirDossie, pessoas, chamar, admin, todas, escopo, enviarFoto, comFilhos,
+  onContratar, onEditarCadeira,
 }: {
   no: No;
   arrasto: Arrasto; setArrasto: (a: Arrasto) => void;
@@ -526,6 +594,10 @@ function Caixa({
   escopo: 'operacao' | 'administrativo';
   enviarFoto: (no: Cadeira, file: File) => Promise<void>;
   comFilhos: Set<string>;
+  /** abre o cadastro já preso a esta cadeira vaga */
+  onContratar: (c: Cadeira) => void;
+  /** abre cargo, área e salário desta cadeira */
+  onEditarCadeira: (c: Cadeira) => void;
 }) {
   const [alocando, setAlocando] = useState(false);
   const [mudandoChefe, setMudandoChefe] = useState(false);
@@ -668,6 +740,10 @@ function Caixa({
         <button onClick={() => setMudandoChefe((v) => !v)} title="Escolher a quem esta cadeira responde"
           className="rounded bg-background border p-0.5 text-muted-foreground hover:text-indigo-600"><Network className="w-3 h-3" /></button>
 
+        {/* cargo, área e salário da cadeira — é daqui que sai o valor sugerido na contratação */}
+        <button onClick={() => onEditarCadeira(no)} title="Configurar a cadeira (cargo, área e salário)"
+          className="rounded bg-background border p-0.5 text-muted-foreground hover:text-indigo-600"><Settings2 className="w-3 h-3" /></button>
+
         {/* cria já pendurada aqui — é o jeito de montar a cadeia (Assistente 1, Assistente 2…) */}
         <button
           onClick={() => {
@@ -705,6 +781,13 @@ function Caixa({
             }}
             title="Escrever o nome de quem ocupa"
             className="rounded bg-background border p-0.5 text-muted-foreground hover:text-foreground"><Pencil className="w-3 h-3" /></button>
+        )}
+        {/* CONTRATAR: o único caminho para um cadastro novo nascer. Fica ao lado do "alocar alguém
+            que já é da casa" porque as duas coisas preenchem a mesma vaga por caminhos diferentes —
+            remanejar quem já está × trazer gente de fora. */}
+        {no.vaga && !no.ocupante_nome && (
+          <button onClick={() => onContratar(no)} title="Contratar alguém novo para esta cadeira"
+            className="rounded bg-background border p-0.5 text-muted-foreground hover:text-emerald-600"><BriefcaseBusiness className="w-3 h-3" /></button>
         )}
         {no.vaga ? (
           pessoas.length > 0 && (alocando ? (

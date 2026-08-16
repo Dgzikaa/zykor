@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
+import { fimDaExperiencia } from '@/lib/rh/experiencia';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,15 +46,16 @@ export async function GET(request: NextRequest) {
 
   const [cadRes, ocupRes, funcRes, cargosRes, areasRes, rostoRes, sitRes] = await Promise.all([
     hr('cadeiras')
-      .select('id, codigo, cargo_id, area_id, cadeira_chefe_id, ordem, observacao, escopo, ocupante_nome, ocupante_foto_url')
+      .select('id, codigo, cargo_id, area_id, cadeira_chefe_id, ordem, observacao, escopo, ocupante_nome, ocupante_foto_url, salario_referencia')
       .eq('bar_id', user.bar_id).eq('ativa', true).eq('escopo', escopo).order('ordem'),
     hr('cadeira_ocupacao').select('cadeira_id, funcionario_id, inicio').is('fim', null),
     hr('funcionarios')
       .select('id, nome, cargo_id, area_id, foto_url, data_admissao, data_nascimento, tipo_contratacao')
       .eq('bar_id', user.bar_id).eq('ativo', true).order('nome'),
     // area_id vem junto para a tela filtrar os cargos pela área escolhida
-    // (cargo sem área — sócio, freela, gerência — aparece em qualquer uma)
-    hr('cargos').select('id, nome, area_id').eq('bar_id', user.bar_id).eq('ativo', true),
+    // (cargo sem área — sócio, freela, gerência — aparece em qualquer uma).
+    // salario_min/max é a FAIXA do cargo: a sugestão de quem contrata numa cadeira sem override.
+    hr('cargos').select('id, nome, area_id, salario_min, salario_max').eq('bar_id', user.bar_id).eq('ativo', true),
     hr('areas').select('id, nome, cor').eq('bar_id', user.bar_id).eq('ativo', true),
     // rosto (selfie do ponto, já que ninguém tem foto no cadastro) e selos de férias/atestado/cartões
     hr('v_funcionario_rosto').select('funcionario_id, foto_url').eq('bar_id', user.bar_id),
@@ -91,6 +93,8 @@ export async function GET(request: NextRequest) {
       area_nome: (area as any)?.nome || null,
       area_cor: (area as any)?.cor || null,
       escopo: cad.escopo,
+      // override do salário DESTA cadeira; nulo = quem contrata cai na faixa do cargo
+      salario_referencia: cad.salario_referencia,
       // sócio não tem cadastro: nome e rosto ficam na própria cadeira
       ocupante_nome: cad.ocupante_nome,
       ocupante_foto_url: cad.ocupante_foto_url,
@@ -171,7 +175,8 @@ export async function PUT(request: NextRequest) {
 /**
  * POST -> ações sobre cadeira. Body: { acao, ... }
  *  criar     { codigo, cargo_id?, area_id?, cadeira_chefe_id? }
- *  editar    { cadeira_id, codigo?, cargo_id?, area_id?, observacao? }
+ *  editar    { cadeira_id, codigo?, cargo_id?, area_id?, observacao?, salario_referencia? }
+ *  contratar { cadeira_id, nome, ...dados }   -> cria o cadastro E senta na cadeira
  *  alocar    { cadeira_id, funcionario_id }   -> tira a pessoa da cadeira antiga
  *  desalocar { cadeira_id, motivo? }          -> deixa a cadeira VAGA (não apaga o histórico)
  *  remover   { cadeira_id }                   -> inativa (só se estiver vaga e sem filhas)
@@ -295,9 +300,104 @@ export async function POST(request: NextRequest) {
     if (body.cargo_id !== undefined) patch.cargo_id = body.cargo_id || null;
     if (body.area_id !== undefined) patch.area_id = body.area_id || null;
     if (body.observacao !== undefined) patch.observacao = body.observacao || null;
+    // Salário da cadeira: '' e null limpam o override e devolvem a decisão para a faixa do cargo.
+    // Zero NÃO é o mesmo que vazio — cadeira que realmente não paga nada é diferente de cadeira
+    // sem referência definida, e tratar os dois igual esconderia um cadastro pela metade.
+    if (body.salario_referencia !== undefined) {
+      patch.salario_referencia = body.salario_referencia === '' || body.salario_referencia === null
+        ? null : Number(body.salario_referencia);
+    }
     const { error } = await hr('cadeiras').update(patch).eq('id', cadeiraId).eq('bar_id', user.bar_id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
+  }
+
+  /**
+   * CONTRATAR NA CADEIRA — o único caminho para nascer um cadastro novo (decisão do Gonza, 15/08/2026:
+   * "não vai existir alguém chegar e adicionar funcionário novo. Adicionar aonde, em que cadeira?").
+   *
+   * Cria o funcionário E abre a ocupação na mesma chamada, porque as duas coisas separadas foi o que
+   * gerou gente cadastrada fora do quadro: quem criava pelo botão global não voltava para alocar, e a
+   * pessoa ficava no limbo do "sem cadeira" sem aparecer no organograma de ninguém.
+   *
+   * Cargo e área vêm da CADEIRA, não do que veio no corpo — é a cadeira que define a posição (mesma
+   * regra do `alocar`). Salário é sugerido pela tela, mas quem contrata pode digitar por cima, então
+   * aqui vale o que veio.
+   */
+  if (acao === 'contratar') {
+    const cadeiraId = String(body.cadeira_id || '');
+    const nome = String(body.nome || '').trim();
+    if (!cadeiraId) return NextResponse.json({ error: 'cadeira_id obrigatório' }, { status: 400 });
+    if (!nome) return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 });
+
+    const { data: cad } = await hr('cadeiras')
+      .select('id, codigo, cargo_id, area_id, ocupante_nome').eq('id', cadeiraId).eq('bar_id', user.bar_id).eq('ativa', true).maybeSingle();
+    if (!cad) return NextResponse.json({ error: 'Cadeira não encontrada neste bar' }, { status: 404 });
+
+    // Cadeira ocupada não recebe contratação: sobrescrever silenciosamente tiraria alguém do quadro
+    // sem ninguém pedir. Quem vai substituir passa por desalocar/demitir primeiro.
+    const { data: ocupada } = await hr('cadeira_ocupacao')
+      .select('id').eq('cadeira_id', cadeiraId).is('fim', null).maybeSingle();
+    if (ocupada) return NextResponse.json({ error: 'Esta cadeira já está ocupada' }, { status: 409 });
+    // Nome digitado (sócio) não tem ocupação registrada, então passaria pela checagem acima e a
+    // cadeira ficaria com duas pessoas — a escrita à mão e o cadastro novo.
+    if (cad.ocupante_nome) {
+      return NextResponse.json(
+        { error: `A cadeira já está com "${cad.ocupante_nome}" escrito à mão. Apague o nome antes de contratar.` },
+        { status: 409 },
+      );
+    }
+
+    const num = (v: any) => (v === '' || v == null ? null : Number(v));
+    const admissao = String(body.data_admissao || '').trim() || hoje;
+    const payload: Corpo = {
+      bar_id: user.bar_id,
+      nome,
+      cpf: body.cpf || null, telefone: body.telefone || null, email: body.email || null,
+      data_nascimento: body.data_nascimento || null, genero: body.genero || null,
+      tipo_contratacao: body.tipo_contratacao || 'CLT',
+      cargo_id: cad.cargo_id, area_id: cad.area_id,
+      data_admissao: admissao,
+      data_fim_experiencia: fimDaExperiencia(admissao),
+      salario_base: num(body.salario_base), valor_diaria: num(body.valor_diaria),
+      vale_transporte_diaria: num(body.vale_transporte_diaria),
+      dias_trabalho_semana: num(body.dias_trabalho_semana),
+      chave_pix: body.chave_pix || null, tipo_chave_pix: body.tipo_chave_pix || null,
+      observacoes: body.observacoes || null,
+      ativo: true,
+    };
+
+    const { data: novo, error: erroFunc } = await hr('funcionarios').insert(payload).select().single();
+    if (erroFunc) return NextResponse.json({ error: erroFunc.message }, { status: 500 });
+
+    // O vínculo com a cadeira começa na ADMISSÃO, não em hoje: contratar com data retroativa
+    // (o caso comum — o RH cadastra depois que a pessoa entrou) tem que deixar o quadro certo
+    // desde o dia em que ela de fato assumiu.
+    const { error: erroOcup } = await hr('cadeira_ocupacao')
+      .insert({ cadeira_id: cadeiraId, funcionario_id: novo.id, inicio: admissao });
+    if (erroOcup) {
+      // Cadastro sem cadeira é exatamente o limbo que esta ação existe para acabar — desfaz.
+      await hr('funcionarios').delete().eq('id', novo.id).eq('bar_id', user.bar_id);
+      return NextResponse.json({ error: `Não foi possível alocar na cadeira: ${erroOcup.message}` }, { status: 500 });
+    }
+
+    // Mesmo histórico que o cadastro pelo botão global gravava (contrato de admissão).
+    if (payload.salario_base || payload.valor_diaria || payload.vale_transporte_diaria) {
+      await hr('contratos_funcionario').insert({
+        funcionario_id: novo.id,
+        salario_base: payload.salario_base || 0,
+        vale_transporte_diaria: payload.vale_transporte_diaria || 0,
+        tipo_contratacao: payload.tipo_contratacao,
+        cargo_id: cad.cargo_id, area_id: cad.area_id,
+        vigencia_inicio: admissao,
+        motivo_alteracao: `Admissão — cadeira ${cad.codigo}`,
+      });
+    }
+
+    return NextResponse.json({
+      success: true, funcionario: novo,
+      mensagem: `${nome} contratado(a) na cadeira ${cad.codigo}.`,
+    }, { status: 201 });
   }
 
   if (acao === 'alocar') {
