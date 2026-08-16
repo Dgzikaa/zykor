@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
   const [cadRes, ocupRes, funcRes, cargosRes, areasRes, rostoRes, sitRes] = await Promise.all([
     hr('cadeiras')
-      .select('id, codigo, cargo_id, area_id, cadeira_chefe_id, ordem, observacao, escopo, ocupante_nome, ocupante_foto_url, salario_referencia')
+      .select('id, codigo, cargo_id, area_id, cadeira_chefe_id, ordem, observacao, escopo, ocupante_nome, ocupante_foto_url, salario_referencia, pausada')
       .eq('bar_id', user.bar_id).eq('ativa', true).eq('escopo', escopo).order('ordem'),
     hr('cadeira_ocupacao').select('cadeira_id, funcionario_id, inicio').is('fim', null),
     hr('funcionarios')
@@ -95,6 +95,8 @@ export async function GET(request: NextRequest) {
       escopo: cad.escopo,
       // override do salário DESTA cadeira; nulo = quem contrata cai na faixa do cargo
       salario_referencia: cad.salario_referencia,
+      // cadeira que existe na estrutura mas não está sendo preenchida agora — não é vaga aberta
+      pausada: cad.pausada,
       // sócio não tem cadastro: nome e rosto ficam na própria cadeira
       ocupante_nome: cad.ocupante_nome,
       ocupante_foto_url: cad.ocupante_foto_url,
@@ -307,6 +309,7 @@ export async function POST(request: NextRequest) {
       patch.salario_referencia = body.salario_referencia === '' || body.salario_referencia === null
         ? null : Number(body.salario_referencia);
     }
+    if (body.pausada !== undefined) patch.pausada = !!body.pausada;
     const { error } = await hr('cadeiras').update(patch).eq('id', cadeiraId).eq('bar_id', user.bar_id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
@@ -331,8 +334,14 @@ export async function POST(request: NextRequest) {
     if (!nome) return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 });
 
     const { data: cad } = await hr('cadeiras')
-      .select('id, codigo, cargo_id, area_id, ocupante_nome').eq('id', cadeiraId).eq('bar_id', user.bar_id).eq('ativa', true).maybeSingle();
+      .select('id, codigo, cargo_id, area_id, ocupante_nome, pausada').eq('id', cadeiraId).eq('bar_id', user.bar_id).eq('ativa', true).maybeSingle();
     if (!cad) return NextResponse.json({ error: 'Cadeira não encontrada neste bar' }, { status: 404 });
+    // cadeira pausada é decisão de não preencher agora — contratar nela desfaz isso sem ninguém ver
+    if (cad.pausada) {
+      return NextResponse.json(
+        { error: `A cadeira ${cad.codigo} está pausada. Tire a pausa antes de contratar.` }, { status: 409 },
+      );
+    }
 
     // Cadeira ocupada não recebe contratação: sobrescrever silenciosamente tiraria alguém do quadro
     // sem ninguém pedir. Quem vai substituir passa por desalocar/demitir primeiro.

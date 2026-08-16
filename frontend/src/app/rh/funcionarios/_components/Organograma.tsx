@@ -40,6 +40,8 @@ type Cadeira = {
   escopo: 'operacao' | 'administrativo';
   /** override do salário DESTA cadeira; nulo = vale a faixa do cargo */
   salario_referencia: number | null;
+  /** existe na estrutura, mas não está sendo preenchida agora — não conta como vaga aberta */
+  pausada: boolean;
   ocupante_nome: string | null;        // nome digitado (sócio, que não tem cadastro)
   ocupante_foto_url: string | null;    // rosto do sócio (funcionário guarda no próprio cadastro)
   vaga: boolean; ocupante: Ocupante | null;
@@ -314,7 +316,9 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
     || (c.ocupante?.nome || '').toLowerCase().includes(buscaNorm)
     || (c.cargo_nome || '').toLowerCase().includes(buscaNorm);
 
-  const vagas = cadeiras.filter((c) => c.vaga).length;
+  // cadeira pausada não entra na conta: ela não é uma vaga a preencher (mesma regra da v_cadeiras_vagas)
+  const vagas = cadeiras.filter((c) => c.vaga && !c.pausada).length;
+  const pausadas = cadeiras.filter((c) => c.pausada).length;
   const semHierarquia = cadeiras.length > 0 && raizes.length === cadeiras.length;
 
   if (isLoading) return <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>;
@@ -337,7 +341,8 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
           <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Destacar por cadeira, pessoa ou cargo…" className="pl-8" />
         </div>
         <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {cadeiras.length} cadeiras · {cadeiras.length - vagas} ocupadas · <strong className="text-amber-600 dark:text-amber-400">{vagas} vagas</strong>
+          {cadeiras.length} cadeiras · {cadeiras.length - vagas - pausadas} ocupadas · <strong className="text-amber-600 dark:text-amber-400">{vagas} vagas</strong>
+          {pausadas > 0 && <> · {pausadas} pausada{pausadas > 1 ? 's' : ''}</>}
         </span>
         <div className="flex items-center rounded-md border border-input h-9">
           <button className="px-2 h-full hover:bg-muted rounded-l-md" onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))} aria-label="Diminuir"><ZoomOut className="w-4 h-4" /></button>
@@ -638,7 +643,8 @@ function Caixa({
         arrasto?.tipo === 'cadeira' && arrasto.id === no.id && 'opacity-40',
         destacado && 'ring-2 ring-amber-400',
         temBusca && !destacado && 'opacity-40',
-        no.vaga && 'border-dashed border-amber-400 bg-amber-50/50 dark:bg-amber-900/10',
+        no.vaga && !no.pausada && 'border-dashed border-amber-400 bg-amber-50/50 dark:bg-amber-900/10',
+        no.pausada && 'border-dashed border-slate-300 dark:border-slate-700 bg-muted/40 opacity-70',
       )}
     >
       <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground truncate" title={no.codigo}>
@@ -706,7 +712,13 @@ function Caixa({
             </div>
           ) : (
             <div>
-              <div className="text-xs font-bold text-amber-700 dark:text-amber-400">VAGA</div>
+              {/* PAUSADA ≠ VAGA: a cadeira existe na estrutura mas ninguém vai preencher agora.
+                  Some da conta de vagas e da ata — senão o recrutamento persegue posição congelada. */}
+              {no.pausada ? (
+                <div className="text-xs font-bold text-slate-500 dark:text-slate-400">PAUSADA</div>
+              ) : (
+                <div className="text-xs font-bold text-amber-700 dark:text-amber-400">VAGA</div>
+              )}
               <div className="text-[10px] text-muted-foreground truncate">{no.cargo_nome || no.area_nome || 'sem cargo'}</div>
             </div>
           )}
@@ -793,7 +805,7 @@ function Caixa({
         {/* CONTRATAR: o único caminho para um cadastro novo nascer. Fica ao lado do "alocar alguém
             que já é da casa" porque as duas coisas preenchem a mesma vaga por caminhos diferentes —
             remanejar quem já está × trazer gente de fora. */}
-        {no.vaga && !no.ocupante_nome && (
+        {no.vaga && !no.ocupante_nome && !no.pausada && (
           <button onClick={() => onContratar(no)} title="Contratar alguém novo para esta cadeira"
             className="rounded bg-background border p-0.5 text-muted-foreground hover:text-emerald-600"><BriefcaseBusiness className="w-3 h-3" /></button>
         )}

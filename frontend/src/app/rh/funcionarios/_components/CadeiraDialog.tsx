@@ -32,6 +32,7 @@ type Cadeira = {
   id: string; codigo: string;
   cargo_id: number | null; area_id: number | null;
   observacao: string | null; salario_referencia: number | null;
+  pausada: boolean;
 };
 type Referencia = {
   periodo: { ano: number; mes: number } | null;
@@ -50,7 +51,7 @@ export function CadeiraDialog({ cadeira, cargos, areas, onClose, onSalvo }: {
 }) {
   const { showToast } = useToast();
   const { selectedBar } = useBar();
-  const [form, setForm] = useState({ codigo: '', cargo_id: '', area_id: '', salario_referencia: '', observacao: '' });
+  const [form, setForm] = useState({ codigo: '', cargo_id: '', area_id: '', salario_referencia: '', observacao: '', pausada: false });
   const [faixa, setFaixa] = useState({ salario_min: '', salario_max: '' });
   const [salvando, setSalvando] = useState(false);
 
@@ -65,6 +66,7 @@ export function CadeiraDialog({ cadeira, cargos, areas, onClose, onSalvo }: {
       area_id: cadeira.area_id ? String(cadeira.area_id) : '',
       salario_referencia: texto(cadeira.salario_referencia),
       observacao: cadeira.observacao || '',
+      pausada: !!cadeira.pausada,
     });
   }, [cadeira]);
 
@@ -104,6 +106,7 @@ export function CadeiraDialog({ cadeira, cargos, areas, onClose, onSalvo }: {
         area_id: form.area_id ? Number(form.area_id) : null,
         salario_referencia: form.salario_referencia === '' ? null : Number(form.salario_referencia),
         observacao: form.observacao,
+        pausada: form.pausada,
       });
       showToast({ type: 'success', title: 'Cadeira atualizada' });
       onSalvo();
@@ -200,6 +203,20 @@ export function CadeiraDialog({ cadeira, cargos, areas, onClose, onSalvo }: {
               Sem cargo definido não há faixa salarial nem sugestão na contratação — escolha o cargo acima.
             </p>
           )}
+
+          {/* Pausada ≠ vaga. A cadeira continua desenhada no organograma, porque a estrutura é real,
+              mas sai da conta de vagas e da ata — senão o recrutamento persegue posição congelada. */}
+          <label className="flex items-start gap-2.5 cursor-pointer rounded-md border px-3 py-2.5">
+            <input type="checkbox" className="mt-0.5" checked={form.pausada}
+              onChange={(e) => setForm({ ...form, pausada: e.target.checked })} />
+            <span>
+              <span className="text-sm font-medium">Cadeira pausada</span>
+              <span className="block text-[11px] text-muted-foreground">
+                Existe na estrutura, mas não vai ser preenchida agora. Continua aparecendo no
+                organograma e deixa de contar como vaga aberta.
+              </span>
+            </span>
+          </label>
 
           <div className="space-y-1.5">
             <Label className="text-xs">Observação</Label>
