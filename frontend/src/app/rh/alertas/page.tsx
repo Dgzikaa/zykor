@@ -9,6 +9,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useApiSWR } from '@/hooks/useApiSWR';
 import { cn } from '@/lib/utils';
 import { ShieldAlert, Loader2, Search, CheckCircle2, ExternalLink } from 'lucide-react';
+import { VinculoTangerino } from './_components/VinculoTangerino';
 
 /**
  * Alerta de RH (Fase 8 da ata de 13/08/2026).
@@ -59,6 +60,10 @@ export default function AlertasRhPage() {
             </div>
           </div>
         </div>
+
+        {/* Fica ACIMA dos alertas por pessoa e fora do isLoading: vínculo quebrado não é pendência
+            de uma ficha, é a integração parada — e some sozinho quando não há nada a resolver. */}
+        <VinculoTangerino />
 
         {isLoading ? <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div> : (
           <>
