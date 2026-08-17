@@ -241,39 +241,67 @@ export function GraficoBarrasAgrupadas({
 
 // ---------------------------------------------------------------------------
 // GraficoBarrasAgrupadasH — N séries de barra HORIZONTAL por categoria, com rótulo
-// no fim de cada barra (bom p/ dia-da-semana × mês: números não se sobrepõem)
+// no fim de cada barra (bom p/ dia-da-semana × mês: números não se sobrepõem).
+// Séries com o mesmo `stack` viram UMA barra dividida (ex.: ticket porta + bar):
+// o rótulo sai só na série marcada com rotulo:'total' e mostra a soma do stack.
 // ---------------------------------------------------------------------------
 export function GraficoBarrasAgrupadasH({
-  data, yKey, series, height = 340, formatV, cores, mostrarRotulo = true, mostrarVariacao = false,
+  data, yKey, series, height = 340, formatV, cores, mostrarRotulo = true, mostrarVariacao = false, formatRotulo, margemDireita, mostrarLegenda = true,
 }: {
-  data: any[]; yKey: string; series: { key: string; nome: string; cor?: string }[];
+  data: any[]; yKey: string;
+  series: {
+    key: string; nome: string; cor?: string;
+    /** séries com o mesmo stack empilham numa barra só */
+    stack?: string;
+    /** 'valor' (default) = rótulo do próprio segmento; 'total' = soma do stack; 'nenhum' = sem rótulo */
+    rotulo?: 'valor' | 'total' | 'nenhum';
+    /** texto antes do número no rótulo (ex.: o mês, quando a legenda é porta/bar) */
+    rotuloPrefixo?: string;
+  }[];
   height?: number; formatV?: Fmt; cores?: string[]; mostrarRotulo?: boolean; mostrarVariacao?: boolean;
+  /** formato só do rótulo na ponta da barra (default: formatV) — ex.: arredondar o rótulo e manter centavos no tooltip */
+  formatRotulo?: Fmt;
+  /** espaço à direita pro rótulo (px) — aumentar quando usa rotuloPrefixo */
+  margemDireita?: number;
+  /** false = sem legenda no gráfico (quando o card desenha a própria, ex.: stack porta/bar) */
+  mostrarLegenda?: boolean;
 }) {
   const th = useGraficoTheme();
   const rows = useMemo(() => data || [], [data]);
   const paleta = cores && cores.length ? cores : th.cores;
   const option = useMemo(() => ({
     textStyle: baseTextStyle,
-    grid: { top: 8, right: mostrarVariacao ? 104 : 66, bottom: 40, left: 6, containLabel: true },
+    grid: { top: 8, right: margemDireita ?? (mostrarVariacao ? 104 : 66), bottom: mostrarLegenda ? 40 : 8, left: 6, containLabel: true },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: hexA(th.muted, 0.08) } }, backgroundColor: th.surface, borderColor: th.eixo, borderWidth: 1, textStyle: { color: th.texto, fontSize: 12 }, valueFormatter: (v: any) => (formatV ? formatV(Number(v)) : fmtNum(v)) },
-    legend: { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } },
+    legend: mostrarLegenda ? { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: th.texto2, fontSize: 11 } } : undefined,
     xAxis: { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: th.grid } }, axisLabel: { color: th.muted, fontSize: 11, formatter: (v: number) => (formatV ? formatV(v) : fmtNum(v)) } },
     yAxis: { type: 'category', data: rows.map((d) => d[yKey]), axisLine: { lineStyle: { color: th.eixo } }, axisTick: { show: false }, axisLabel: { color: th.texto2, fontSize: 11 } },
-    series: series.map((s, i) => ({
-      name: s.nome, type: 'bar', data: rows.map((d) => Number(d[s.key]) || 0),
-      barMaxWidth: 11,
-      itemStyle: { borderRadius: [0, 3, 3, 0], color: s.cor || paleta[i % paleta.length] },
-      label: mostrarRotulo ? {
-        show: true, position: 'right', color: th.texto2, fontSize: 9,
-        formatter: (p: any) => {
-          const base = formatV ? formatV(p.value) : fmtNum(p.value);
-          if (!mostrarVariacao) return base;
-          const v = rows[p.dataIndex]?.[`${s.key}__var`];
-          return v == null ? base : `${base}  ${v >= 0 ? '+' : ''}${fmtNum(v)}%`;
-        },
-      } : undefined,
-    })),
-  }), [th, rows, yKey, series, formatV, paleta, mostrarRotulo, mostrarVariacao]);
+    series: series.map((s, i) => {
+      const doStack = s.stack ? series.filter((x) => x.stack === s.stack) : [s];
+      const ultimoDoStack = doStack[doStack.length - 1]?.key === s.key;
+      const modo = s.rotulo ?? (s.stack ? 'nenhum' : 'valor');
+      return {
+        name: s.nome, type: 'bar', data: rows.map((d) => Number(d[s.key]) || 0),
+        stack: s.stack, barMaxWidth: 11,
+        // canto arredondado só na ponta da barra (último segmento do stack)
+        itemStyle: { borderRadius: ultimoDoStack ? [0, 3, 3, 0] : [0, 0, 0, 0], color: s.cor || paleta[i % paleta.length] },
+        label: mostrarRotulo && modo !== 'nenhum' ? {
+          show: true, position: 'right', color: th.texto2, fontSize: 9,
+          formatter: (p: any) => {
+            const linha = rows[p.dataIndex];
+            const valor = modo === 'total'
+              ? doStack.reduce((acc, x) => acc + (Number(linha?.[x.key]) || 0), 0)
+              : (Number(p.value) || 0);
+            const fmt = formatRotulo || formatV;
+            const base = `${s.rotuloPrefixo ? `${s.rotuloPrefixo} ` : ''}${fmt ? fmt(valor) : fmtNum(valor)}`;
+            if (!mostrarVariacao) return base;
+            const v = linha?.[`${s.key}__var`];
+            return v == null ? base : `${base}  ${v >= 0 ? '+' : ''}${fmtNum(v)}%`;
+          },
+        } : undefined,
+      };
+    }),
+  }), [th, rows, yKey, series, formatV, paleta, mostrarRotulo, mostrarVariacao, formatRotulo, margemDireita, mostrarLegenda]);
   if (!rows.length) return <Vazio height={height} />;
   return <ReactECharts option={option} style={{ height, width: '100%' }} opts={{ renderer: 'canvas' }} notMerge lazyUpdate />;
 }

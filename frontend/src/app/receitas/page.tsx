@@ -22,6 +22,7 @@ import { CardDespesasComerciais } from '@/components/receitas/CardDespesasComerc
 import { CardLotacao } from '@/components/receitas/CardLotacao';
 import { CardsClientes } from '@/components/receitas/CardsClientes';
 import { CardDiaSemana } from '@/components/receitas/CardDiaSemana';
+import { CardTicketDiaSemana } from '@/components/receitas/CardTicketDiaSemana';
 import { CardNPS } from '@/components/receitas/CardNPS';
 import { periodoPadrao, type PeriodoValor } from '@/lib/receitas/periodo';
 
@@ -100,6 +101,7 @@ export default function DashboardReceitasPage() {
             <CardLotacao barId={barId} periodo={periodo} />
             <CardsClientes barId={barId} periodo={periodo} />
             <CardDiaSemana barId={barId} periodo={periodo} />
+            <CardTicketDiaSemana barId={barId} periodo={periodo} />
           </div>
         </>
       )}
