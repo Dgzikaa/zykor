@@ -87,11 +87,24 @@ interface OrganizadorData {
   mercado_alvo: string;
   posicionamento: string;
   singularidades: string[];
+  /** detalhe de cada Bizu, ALINHADO POR ÍNDICE com valores_centrais */
+  valores_centrais_detalhe: DetalheBizu[];
+  /** detalhe de cada singularidade, alinhado por índice */
+  singularidades_detalhe: DetalheSimples[];
+  principais_concorrentes: string;
   principais_problemas: string[];
   meta_10_anos: string;
   imagem_3_anos: string;
   imagem_1_ano: string;
 }
+
+/**
+ * Detalhe de um Bizu. Os três campos são o que o Gonza pediu em 18/08/2026: o que aquilo quer
+ * dizer, e — principalmente — os dois lados da fronteira. "O que NÃO é" costuma ser o que faz o
+ * valor virar decisão de verdade em vez de frase de parede.
+ */
+type DetalheBizu = { detalhamento?: string; o_que_e?: string; o_que_nao_e?: string };
+type DetalheSimples = { detalhamento?: string };
 
 /** 7 BIZUS (valores centrais) e 5 Principais Problemas — conforme a planilha. */
 const QTD_BIZUS = 7;
@@ -130,6 +143,9 @@ const defaultOrganizador: OrganizadorData = {
   // Base estratégica
   missao: 'Fazer momentos virarem memórias',
   nicho: 'Bares Musicais',
+  principais_concorrentes: '',
+  valores_centrais_detalhe: [],
+  singularidades_detalhe: [],
   valores_centrais: [
     'Defendemos o nosso Barco, Sempre',
     'Não existe "não é comigo"',
@@ -319,6 +335,10 @@ export default function OrganizadorEditPage() {
               valores_centrais: salvo.valores_centrais?.length ? salvo.valores_centrais : defaultOrganizador.valores_centrais,
               singularidades: salvo.singularidades?.length ? salvo.singularidades : defaultOrganizador.singularidades,
               principais_problemas: salvo.principais_problemas?.length ? salvo.principais_problemas : defaultOrganizador.principais_problemas,
+              // colunas novas: registro antigo vem sem elas (ou null) e o spread deixaria undefined
+              valores_centrais_detalhe: salvo.valores_centrais_detalhe || [],
+              singularidades_detalhe: salvo.singularidades_detalhe || [],
+              principais_concorrentes: salvo.principais_concorrentes || '',
             });
             setOkrs(construirOkrs(data.okrs));
           }
@@ -367,6 +387,28 @@ export default function OrganizadorEditPage() {
 
   const updateOrganizador = (field: keyof OrganizadorData, value: any) => {
     setOrganizador(prev => ({ ...prev, [field]: value }));
+  };
+
+  /**
+   * Detalhe alinhado por índice. Preenche os buracos com {} até o índice pedido, senão editar o
+   * detalhe do Bizu 5 antes dos anteriores gravaria um array esparso (com vazios) que o JSON não
+   * representa direito.
+   */
+  /** qual detalhe esta aberto: os Bizus abrem os 3 campos; a singularidade, so o detalhamento */
+  const [detalheAberto, setDetalheAberto] = useState<
+    { tipo: 'bizu' | 'singularidade'; index: number } | null
+  >(null);
+
+  const updateDetalhe = (
+    field: 'valores_centrais_detalhe' | 'singularidades_detalhe',
+    index: number, chave: string, value: string,
+  ) => {
+    setOrganizador(prev => {
+      const arr = [...((prev[field] as any[]) || [])];
+      while (arr.length <= index) arr.push({});
+      arr[index] = { ...(arr[index] || {}), [chave]: value };
+      return { ...prev, [field]: arr };
+    });
   };
 
   const updateArrayField = (field: 'valores_centrais' | 'singularidades' | 'principais_problemas', index: number, value: string) => {
@@ -531,23 +573,44 @@ export default function OrganizadorEditPage() {
                     </td>
                     <td className="p-2">
                       <div className="space-y-1">
-                        {Array.from({ length: QTD_BIZUS }, (_, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-amber-600 dark:text-amber-400 w-4 flex-shrink-0">{i + 1}.</span>
-                            <Input
-                              value={organizador.valores_centrais?.[i] || ''}
-                              onChange={(e) => updateArrayField('valores_centrais', i, e.target.value)}
-                              placeholder={`Bizu ${i + 1}`}
-                              className="h-8 text-sm bg-gray-50 dark:bg-gray-700"
-                            />
-                          </div>
-                        ))}
+                        {Array.from({ length: QTD_BIZUS }, (_, i) => {
+                          const d = organizador.valores_centrais_detalhe?.[i];
+                          const temDetalhe = !!(d?.detalhamento || d?.o_que_e || d?.o_que_nao_e);
+                          return (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-amber-600 dark:text-amber-400 w-4 flex-shrink-0">{i + 1}.</span>
+                              <Input
+                                value={organizador.valores_centrais?.[i] || ''}
+                                onChange={(e) => updateArrayField('valores_centrais', i, e.target.value)}
+                                placeholder={`Bizu ${i + 1}`}
+                                className="h-8 text-sm bg-gray-50 dark:bg-gray-700"
+                              />
+                              {/* o detalhe fica atras de um botao, nao inline: sao 7 Bizus x 3 textos
+                                  longos, e abrir tudo na tabela enterraria o resto da base estrategica */}
+                              <button
+                                type="button"
+                                onClick={() => setDetalheAberto({ tipo: 'bizu', index: i })}
+                                disabled={!organizador.valores_centrais?.[i]}
+                                title={organizador.valores_centrais?.[i]
+                                  ? 'Abrir o detalhamento deste Bizu'
+                                  : 'Escreva o Bizu antes de detalhar'}
+                                className={`h-8 px-2 rounded-md border text-xs flex-shrink-0 disabled:opacity-30 ${
+                                  temDetalhe
+                                    ? 'border-amber-400 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20'
+                                    : 'border-gray-300 dark:border-gray-600 text-gray-400'
+                                }`}
+                              >
+                                {temDetalhe ? 'ver' : 'detalhar'}
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     </td>
                   </tr>
                   {/* FOCO CENTRAL */}
                   <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <td rowSpan={2} className="bg-[#f5deb3] dark:bg-amber-900/30 p-3 font-bold text-gray-800 dark:text-white align-top border-r border-gray-300 dark:border-gray-600">
+                    <td rowSpan={3} className="bg-[#f5deb3] dark:bg-amber-900/30 p-3 font-bold text-gray-800 dark:text-white align-top border-r border-gray-300 dark:border-gray-600">
                       FOCO CENTRAL
                     </td>
                     <td className="p-2 border-b border-gray-100 dark:border-gray-700">
@@ -568,6 +631,21 @@ export default function OrganizadorEditPage() {
                         <Textarea
                           value={organizador.nicho || ''}
                           onChange={(e) => updateOrganizador('nicho', e.target.value)}
+                          className="text-sm flex-1 bg-gray-50 dark:bg-gray-700 min-h-[50px]"
+                          rows={2}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                  {/* Concorrentes: campo proprio do Foco Central (pedido do Gonza, 18/08/2026) */}
+                  <tr className="border-b border-gray-200 dark:border-gray-700">
+                    <td className="p-2">
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs font-semibold text-gray-500 w-16 pt-1">Concorrentes:</span>
+                        <Textarea
+                          value={organizador.principais_concorrentes || ''}
+                          onChange={(e) => updateOrganizador('principais_concorrentes', e.target.value)}
+                          placeholder="Principais concorrentes"
                           className="text-sm flex-1 bg-gray-50 dark:bg-gray-700 min-h-[50px]"
                           rows={2}
                         />
@@ -609,15 +687,34 @@ export default function OrganizadorEditPage() {
                       <div className="flex items-start gap-2">
                         <span className="text-xs font-semibold text-gray-500 w-28 pt-1">3 Singularidades:</span>
                         <div className="flex-1 space-y-1">
-                          {[0, 1, 2].map(i => (
-                            <Textarea
-                              key={i}
-                              value={organizador.singularidades?.[i] || ''}
-                              onChange={(e) => updateArrayField('singularidades', i, e.target.value)}
-                              className="text-sm bg-gray-50 dark:bg-gray-700 min-h-[40px]"
-                              rows={1}
-                            />
-                          ))}
+                          {[0, 1, 2].map(i => {
+                            const temDetalhe = !!organizador.singularidades_detalhe?.[i]?.detalhamento;
+                            return (
+                              <div key={i} className="flex items-start gap-2">
+                                <Textarea
+                                  value={organizador.singularidades?.[i] || ''}
+                                  onChange={(e) => updateArrayField('singularidades', i, e.target.value)}
+                                  className="text-sm bg-gray-50 dark:bg-gray-700 min-h-[40px] flex-1"
+                                  rows={1}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setDetalheAberto({ tipo: 'singularidade', index: i })}
+                                  disabled={!organizador.singularidades?.[i]}
+                                  title={organizador.singularidades?.[i]
+                                    ? 'Abrir o detalhamento desta singularidade'
+                                    : 'Escreva a singularidade antes de detalhar'}
+                                  className={`h-8 px-2 rounded-md border text-xs flex-shrink-0 disabled:opacity-30 ${
+                                    temDetalhe
+                                      ? 'border-amber-400 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20'
+                                      : 'border-gray-300 dark:border-gray-600 text-gray-400'
+                                  }`}
+                                >
+                                  {temDetalhe ? 'ver' : 'detalhar'}
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </td>
@@ -1115,6 +1212,101 @@ export default function OrganizadorEditPage() {
         </div>
 
       </div>
+
+      {/*
+        Detalhamento do Bizu / da Singularidade.
+        Os rótulos do "o que é" e "o que não é" repetem o TEXTO do Bizu de propósito — foi assim que
+        o Gonza pediu ("O que é 'Defender o nosso Barco, Sempre'"). Ler o valor inteiro na pergunta
+        é o que força a resposta a ser sobre aquele valor, e não sobre valor em geral.
+      */}
+      {detalheAberto && (() => {
+        const ehBizu = detalheAberto.tipo === 'bizu';
+        const i = detalheAberto.index;
+        const titulo = ehBizu
+          ? (organizador.valores_centrais?.[i] || `Bizu ${i + 1}`)
+          : (organizador.singularidades?.[i] || `Singularidade ${i + 1}`);
+        const campo = ehBizu ? 'valores_centrais_detalhe' : 'singularidades_detalhe';
+        const d: any = (organizador as any)[campo]?.[i] || {};
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setDetalheAberto(null)}
+          >
+            <div
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-semibold">
+                    {ehBizu ? `Bizu ${i + 1}` : `Singularidade ${i + 1}`}
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">{titulo}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDetalheAberto(null)}
+                  className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xl leading-none px-2"
+                  aria-label="Fechar"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 dark:text-gray-300 block mb-1">
+                    Detalhamento
+                  </label>
+                  <Textarea
+                    value={d.detalhamento || ''}
+                    onChange={(e) => updateDetalhe(campo as any, i, 'detalhamento', e.target.value)}
+                    placeholder="O que isso quer dizer, na prática"
+                    className="text-sm bg-gray-50 dark:bg-gray-700"
+                    rows={4}
+                  />
+                </div>
+
+                {ehBizu && (
+                  <>
+                    <div>
+                      <label className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 block mb-1">
+                        O que É &quot;{titulo}&quot;
+                      </label>
+                      <Textarea
+                        value={d.o_que_e || ''}
+                        onChange={(e) => updateDetalhe(campo as any, i, 'o_que_e', e.target.value)}
+                        placeholder="Comportamentos e decisões que mostram esse Bizu acontecendo"
+                        className="text-sm bg-gray-50 dark:bg-gray-700"
+                        rows={4}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-rose-700 dark:text-rose-400 block mb-1">
+                        O que NÃO é &quot;{titulo}&quot;
+                      </label>
+                      <Textarea
+                        value={d.o_que_nao_e || ''}
+                        onChange={(e) => updateDetalhe(campo as any, i, 'o_que_nao_e', e.target.value)}
+                        placeholder="O que costuma ser confundido com esse Bizu, e não é"
+                        className="text-sm bg-gray-50 dark:bg-gray-700"
+                        rows={4}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
+                <span className="text-[11px] text-gray-500">
+                  O texto entra junto no <b>Salvar</b> da tela.
+                </span>
+                <Button size="sm" onClick={() => setDetalheAberto(null)}>Fechar</Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
