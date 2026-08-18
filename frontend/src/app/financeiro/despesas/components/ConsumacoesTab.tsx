@@ -6,7 +6,7 @@ import { useBar } from '@/contexts/BarContext';
 import { useApiSWR } from '@/hooks/useApiSWR';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { HandCoins, Loader2, Send, Check, AlertTriangle, ChevronRight } from 'lucide-react';
+import { HandCoins, Loader2, Send, Check, AlertTriangle, ChevronRight, ChevronLeft } from 'lucide-react';
 
 type Item = { chave: string; label: string; categoria: string; sinal: 'DESPESA' | 'RECEITA'; valor: number; ja_lancado: boolean };
 type DiaResumo = { dia: string; total: number; n_itens: number; n_lancados: number; n_pendentes: number };
@@ -29,6 +29,21 @@ function mesDe(dataISO: string) {
   const [y, m] = dataISO.split('-').map(Number);
   const ultimo = new Date(Date.UTC(y, m, 0)).getUTCDate();
   return { de: `${y}-${String(m).padStart(2, '0')}-01`, ate: `${y}-${String(m).padStart(2, '0')}-${String(ultimo).padStart(2, '0')}` };
+}
+
+/**
+ * Anda no tempo sem passar pelo calendario (pedido do Gonza).
+ *
+ * O passo segue a GRANULARIDADE escolhida: em "dia" anda 1 dia, em "semana" 7, em "mes" um mes.
+ * Um passo fixo de 1 dia deixaria a seta inutil nas outras duas visoes, que e onde ela daria mais
+ * trabalho de evitar. Tudo em UTC, igual aos outros helpers daqui, pra nao escorregar um dia por
+ * causa de fuso.
+ */
+function deslocar(dataISO: string, passos: number, gran: Gran) {
+  const d = new Date(`${dataISO}T00:00:00Z`);
+  if (gran === 'mes') d.setUTCMonth(d.getUTCMonth() + passos);
+  else d.setUTCDate(d.getUTCDate() + passos * (gran === 'semana' ? 7 : 1));
+  return d.toISOString().slice(0, 10);
 }
 
 export function ConsumacoesTab() {
@@ -108,7 +123,22 @@ export function ConsumacoesTab() {
               </button>
             ))}
           </div>
-          <input type="date" value={dataRef} onChange={(e) => setDataRef(e.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm" />
+          {/* setas coladas no calendario: conferir dia a dia sem reabrir o seletor toda vez */}
+          <div className="inline-flex items-center gap-1">
+            <button onClick={() => setDataRef(deslocar(dataRef, -1, gran))}
+              title={gran === 'dia' ? 'Dia anterior' : gran === 'semana' ? 'Semana anterior' : 'Mês anterior'}
+              aria-label="Anterior"
+              className="h-9 w-8 inline-flex items-center justify-center rounded-md border bg-background hover:bg-muted">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <input type="date" value={dataRef} onChange={(e) => setDataRef(e.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm" />
+            <button onClick={() => setDataRef(deslocar(dataRef, 1, gran))}
+              title={gran === 'dia' ? 'Próximo dia' : gran === 'semana' ? 'Próxima semana' : 'Próximo mês'}
+              aria-label="Próximo"
+              className="h-9 w-8 inline-flex items-center justify-center rounded-md border bg-background hover:bg-muted">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 
