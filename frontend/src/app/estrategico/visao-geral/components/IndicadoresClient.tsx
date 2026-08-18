@@ -24,10 +24,8 @@ import {
   X,
   Star,
   DollarSign,
-  ClipboardList,
   RefreshCw
 } from 'lucide-react';
-import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -229,16 +227,8 @@ export function IndicadoresClient({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/estrategico/organizador">
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-900/20"
-              >
-                <ClipboardList className="w-4 h-4 mr-2" />
-                Organizador
-              </Button>
-            </Link>
+            {/* O Organizador saiu daqui em 18/08/2026: virou item próprio do menu (Estratégico > OVT),
+                a pedido do Gonza. Era o único caminho pra ele, o que deixava a tela escondida. */}
             <Button
               variant="ghost"
               size="sm"

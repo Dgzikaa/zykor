@@ -266,7 +266,7 @@ export default function OrganizadorEditPage() {
   const { setPageTitle } = usePageTitle();
 
   useEffect(() => {
-    setPageTitle('🎯 Organizador');
+    setPageTitle('🎯 OVT — Organizador de Visão e Tração');
     return () => setPageTitle('');
   }, [setPageTitle]);
 

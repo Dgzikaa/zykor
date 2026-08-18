@@ -61,6 +61,11 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'BarChart3', label: 'Desempenho', href: '/estrategico/desempenho', permission: 'estrategico_desempenho' },
       { icon: 'Calendar', label: 'Planejamento', href: '/estrategico/planejamento-comercial', permission: 'estrategico_planejamento' },
       { icon: 'DollarSign', label: 'Orçamentação', href: '/estrategico/orcamentacao', permission: 'estrategico_orcamentacao' },
+      // OVT = Organizador de Visão e Tração (a planilha "ORGANIZADOR VISÃO - TRAÇÃO"). Era rota
+      // ÓRFÃ — só se chegava nela por um botão dentro da Visão Geral, e rota fora do menu é
+      // admin-only pelo guard, então o resto do time nem via. Pedido do Gonza: item próprio.
+      // A permission é o id gerado por gerarIdModulo('Estratégico', 'OVT').
+      { icon: 'ClipboardList', label: 'OVT', href: '/estrategico/organizador', permission: 'estrategico_ovt' },
     ],
   },
   {
