@@ -9,7 +9,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 import { useApiSWR } from '@/hooks/useApiSWR';
 import { useToast } from '@/hooks/use-toast';
-import { LogOut, Search, Loader2, Download, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import { LogOut, Search, Loader2, Download, ChevronDown, ChevronRight, RefreshCw, AlertTriangle } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
 import { OrdemFiltro, cmpNome } from '@/components/filtros/FiltroBarra';
 
@@ -94,6 +94,15 @@ export default function SaidasPage() {
     },
   );
   const rows = useMemo<any[]>(() => (resp?.success ? (resp.rows || []) : []), [resp]);
+
+  // Preparo que vendeu muito mais do que foi lancado como produzido. So faz sentido na aba
+  // Producoes, entao a chave e null nas outras e o SWR nem busca.
+  const { data: pend } = useApiSWR<any>(
+    barId && aba === 'producao'
+      ? `/api/operacional/consumo-insumo/producao-pendente?bar_id=${barId}&ini=${range.ini}&fim=${range.fim}`
+      : null,
+  );
+  const producaoPendente = useMemo<any[]>(() => (pend?.success ? (pend.linhas || []) : []), [pend]);
   const loading = isLoading;
   // Ao trocar filtros (bar/intervalo/aba), fecha o drill e limpa a categoria — igual ao início do carregar() original.
   useEffect(() => { setAberto(null); setBreakdown(null); setCat(null); }, [barId, range.ini, range.fim, aba]);
@@ -227,7 +236,50 @@ export default function SaidasPage() {
             Período <b>{fmtDataBR(range.ini)} a {fmtDataBR(range.fim)}</b>, os dois dias inclusive.
             No Desvio de Consumo o mesmo intervalo mede até o dia anterior ao final, porque a contagem
             de fechamento é feita de manhã.
+            {' '}Esta aba conta só o insumo que vai <b>direto</b> no produto vendido; o que passa por
+            um <b>preparo</b> (ex.: queijo do pastel) aparece na aba <b>Produções</b>. O Desvio soma
+            os dois — por isso ele costuma ser maior aqui na cozinha.
           </p>
+        )}
+
+        {/* O insumo so e debitado quando alguem registra a producao. Se o preparo vendeu e ninguem
+            lancou, o insumo dele vira "desvio" -- perda que nao existe, e que ainda esconde a perda
+            de verdade no meio. Caso que originou: pastel de queijo no Deboche, 1.052 vendidos
+            contra 50 lancados, R$ 5,5 mil de falso desvio em 3 insumos. */}
+        {aba === 'producao' && producaoPendente.length > 0 && (
+          <Card className="card-dark border-amber-300 dark:border-amber-800">
+            <CardContent className="py-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                    {producaoPendente.length === 1 ? 'Uma produção não foi lançada' : `${producaoPendente.length} produções não foram lançadas`}
+                  </div>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
+                    Vendeu bem mais do que foi registrado como feito. Enquanto ninguém lançar, os
+                    insumos desses preparos aparecem como desvio sem terem sumido.
+                  </p>
+                  <div className="space-y-1">
+                    {producaoPendente.slice(0, 8).map((p: any) => (
+                      <div key={p.codigo} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+                        <span className="font-mono text-gray-400">{p.codigo}</span>
+                        <span className="font-medium">{p.nome}</span>
+                        <span className="text-gray-500">
+                          vendeu <b>{fmtNum(p.vendido)}</b>, lançado <b>{fmtNum(p.produzido)}</b>
+                        </span>
+                        <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                          faltam {fmtNum(p.faltando)} ({p.pct_sem_registro}%)
+                        </span>
+                      </div>
+                    ))}
+                    {producaoPendente.length > 8 && (
+                      <div className="text-[11px] text-gray-400">e mais {producaoPendente.length - 8}…</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {loading ? <div className="py-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
