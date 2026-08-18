@@ -9,7 +9,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { api } from '@/lib/api-client';
 import { useApiSWR } from '@/hooks/useApiSWR';
 import { useToast } from '@/hooks/use-toast';
-import { LogOut, Search, Loader2, Download, ChevronDown, ChevronRight } from 'lucide-react';
+import { LogOut, Search, Loader2, Download, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
 import { OrdemFiltro, cmpNome } from '@/components/filtros/FiltroBarra';
 
@@ -86,7 +86,7 @@ export default function SaidasPage() {
   const temDrill = aba !== 'geral'; // Geral não abre quebra por produto
 
   // Cache via SWR: chave = bar + intervalo + aba. Mesmo shape (r.success/r.rows) do api.get anterior.
-  const { data: resp, isLoading } = useApiSWR<any>(
+  const { data: resp, isLoading, mutate } = useApiSWR<any>(
     barId ? `/api/operacional/consumo-insumo?bar_id=${barId}&ini=${range.ini}&fim=${range.fim}&aba=${aba}` : null,
     {
       onError: (e: any) => toast({ title: 'Erro', description: e?.message, variant: 'destructive' }),
@@ -97,6 +97,29 @@ export default function SaidasPage() {
   const loading = isLoading;
   // Ao trocar filtros (bar/intervalo/aba), fecha o drill e limpa a categoria — igual ao início do carregar() original.
   useEffect(() => { setAberto(null); setBreakdown(null); setCat(null); }, [barId, range.ini, range.fim, aba]);
+
+  /**
+   * Recalcular (pedido do Isaias).
+   *
+   * A EMBALAGEM ja e lida ao vivo pela funcao do banco: trocar na tela de Insumos muda a coluna
+   * "Saida" na hora. O que fazia parecer travado eram duas coisas somadas: o cache do SWR (dedupa
+   * 30s e nao revalida ao focar a aba), e a base `qtd_base`, que vem de uma matview e so pegava
+   * mudanca de ficha tecnica no cron. O botao resolve os dois: refaz a matview (~3s) e depois
+   * forca a tela a buscar de novo.
+   */
+  const [recalculando, setRecalculando] = useState(false);
+  const recalcular = async () => {
+    setRecalculando(true);
+    try {
+      const r = await api.post('/api/operacional/consumo-insumo/recalcular', {});
+      if (!r?.success) throw new Error(r?.error || 'Falha ao recalcular');
+      await mutate();            // sem isto o SWR devolveria o cache e o botao pareceria nao ter feito nada
+      setBreakdown(null); setAberto(null);
+      toast({ title: 'Saidas recalculadas', description: r.mensagem });
+    } catch (e: any) {
+      toast({ title: 'Erro ao recalcular', description: e?.message, variant: 'destructive' });
+    } finally { setRecalculando(false); }
+  };
 
   const abrirBreak = async (codigo: string) => {
     if (!temDrill) return;
@@ -180,6 +203,13 @@ export default function SaidasPage() {
           <span className="text-sm text-gray-500 dark:text-gray-400">{range.ini === range.fim ? fmtDataBR(range.ini) : `${fmtDataBR(range.ini)} → ${fmtDataBR(range.fim)}`}</span>
           <div className="relative ml-auto"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><Input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar…" className="pl-9 h-8 w-56" /></div>
           <OrdemFiltro value={ordem} onChange={setOrdem} cor="violet" options={[['saida', 'Maior saída'], ['az', 'A–Z']] as const} />
+          {/* Recalcular ANTES do CSV: quem exporta quer o numero ja atualizado. O title explica o
+              que o botao alcanca e o que nao alcanca, senao vira botao magico. */}
+          <Button variant="outline" size="sm" onClick={recalcular} disabled={recalculando}
+            title="Refaz a saida com a ficha tecnica e a embalagem atuais. Venda nova e de-para entram sozinhos, a cada 10 min.">
+            {recalculando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+            {recalculando ? 'Recalculando...' : 'Recalcular'}
+          </Button>
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={!view.length}><Download className="w-4 h-4 mr-1.5" />CSV</Button>
         </div>
 
