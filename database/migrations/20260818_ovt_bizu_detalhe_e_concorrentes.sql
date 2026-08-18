@@ -16,11 +16,14 @@
 alter table meta.organizador_visao
   add column if not exists valores_centrais_detalhe jsonb not null default '[]'::jsonb,
   add column if not exists singularidades_detalhe   jsonb not null default '[]'::jsonb,
-  add column if not exists principais_concorrentes  text;
+  add column if not exists principais_concorrentes  text,
+  add column if not exists principais_problemas_detalhe jsonb not null default '[]'::jsonb;
 
 comment on column meta.organizador_visao.valores_centrais_detalhe is
   'Detalhe de cada Bizu, ALINHADO POR INDICE com valores_centrais: [{detalhamento, o_que_e, o_que_nao_e}]. Indice porque a tela edita 7 posicoes fixas; casar por nome quebraria ao renomear o Bizu.';
 comment on column meta.organizador_visao.singularidades_detalhe is
   'Detalhe de cada singularidade, alinhado por indice com singularidades: [{detalhamento}].';
+comment on column meta.organizador_visao.principais_problemas_detalhe is
+  'Detalhe de cada problema, alinhado por indice com principais_problemas: [{detalhamento}].';
 comment on column meta.organizador_visao.principais_concorrentes is
   'Campo proprio do Foco Central, abaixo de Missao e Nicho (pedido do Gonza, 18/08/2026).';

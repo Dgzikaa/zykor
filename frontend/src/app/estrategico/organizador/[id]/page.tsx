@@ -91,6 +91,8 @@ interface OrganizadorData {
   valores_centrais_detalhe: DetalheBizu[];
   /** detalhe de cada singularidade, alinhado por índice */
   singularidades_detalhe: DetalheSimples[];
+  /** detalhe de cada problema, alinhado por índice */
+  principais_problemas_detalhe: DetalheSimples[];
   principais_concorrentes: string;
   principais_problemas: string[];
   meta_10_anos: string;
@@ -146,6 +148,7 @@ const defaultOrganizador: OrganizadorData = {
   principais_concorrentes: '',
   valores_centrais_detalhe: [],
   singularidades_detalhe: [],
+  principais_problemas_detalhe: [],
   valores_centrais: [
     'Defendemos o nosso Barco, Sempre',
     'Não existe "não é comigo"',
@@ -338,6 +341,7 @@ export default function OrganizadorEditPage() {
               // colunas novas: registro antigo vem sem elas (ou null) e o spread deixaria undefined
               valores_centrais_detalhe: salvo.valores_centrais_detalhe || [],
               singularidades_detalhe: salvo.singularidades_detalhe || [],
+              principais_problemas_detalhe: salvo.principais_problemas_detalhe || [],
               principais_concorrentes: salvo.principais_concorrentes || '',
             });
             setOkrs(construirOkrs(data.okrs));
@@ -396,11 +400,11 @@ export default function OrganizadorEditPage() {
    */
   /** qual detalhe esta aberto: os Bizus abrem os 3 campos; a singularidade, so o detalhamento */
   const [detalheAberto, setDetalheAberto] = useState<
-    { tipo: 'bizu' | 'singularidade'; index: number } | null
+    { tipo: 'bizu' | 'singularidade' | 'problema'; index: number } | null
   >(null);
 
   const updateDetalhe = (
-    field: 'valores_centrais_detalhe' | 'singularidades_detalhe',
+    field: 'valores_centrais_detalhe' | 'singularidades_detalhe' | 'principais_problemas_detalhe',
     index: number, chave: string, value: string,
   ) => {
     setOrganizador(prev => {
@@ -846,6 +850,21 @@ export default function OrganizadorEditPage() {
                         placeholder={`Problema ${i + 1}`}
                         className="h-8 text-sm bg-gray-50 dark:bg-gray-700 flex-1"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setDetalheAberto({ tipo: 'problema', index: i })}
+                        disabled={!organizador.principais_problemas?.[i]}
+                        title={organizador.principais_problemas?.[i]
+                          ? 'Abrir o detalhamento deste problema'
+                          : 'Escreva o problema antes de detalhar'}
+                        className={`h-8 px-2 rounded-md border text-xs flex-shrink-0 disabled:opacity-30 ${
+                          organizador.principais_problemas_detalhe?.[i]?.detalhamento
+                            ? 'border-amber-400 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20'
+                            : 'border-gray-300 dark:border-gray-600 text-gray-400'
+                        }`}
+                      >
+                        {organizador.principais_problemas_detalhe?.[i]?.detalhamento ? 'ver' : 'detalhar'}
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -1221,11 +1240,16 @@ export default function OrganizadorEditPage() {
       */}
       {detalheAberto && (() => {
         const ehBizu = detalheAberto.tipo === 'bizu';
+        const ehProblema = detalheAberto.tipo === 'problema';
         const i = detalheAberto.index;
         const titulo = ehBizu
           ? (organizador.valores_centrais?.[i] || `Bizu ${i + 1}`)
-          : (organizador.singularidades?.[i] || `Singularidade ${i + 1}`);
-        const campo = ehBizu ? 'valores_centrais_detalhe' : 'singularidades_detalhe';
+          : ehProblema
+            ? (organizador.principais_problemas?.[i] || `Problema ${i + 1}`)
+            : (organizador.singularidades?.[i] || `Singularidade ${i + 1}`);
+        const campo = ehBizu
+          ? 'valores_centrais_detalhe'
+          : ehProblema ? 'principais_problemas_detalhe' : 'singularidades_detalhe';
         const d: any = (organizador as any)[campo]?.[i] || {};
         return (
           <div
@@ -1239,7 +1263,7 @@ export default function OrganizadorEditPage() {
               <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-start justify-between gap-3">
                 <div>
                   <div className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-semibold">
-                    {ehBizu ? `Bizu ${i + 1}` : `Singularidade ${i + 1}`}
+                    {ehBizu ? `Bizu ${i + 1}` : ehProblema ? `Problema ${i + 1}` : `Singularidade ${i + 1}`}
                   </div>
                   <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">{titulo}</h3>
                 </div>
@@ -1261,7 +1285,9 @@ export default function OrganizadorEditPage() {
                   <Textarea
                     value={d.detalhamento || ''}
                     onChange={(e) => updateDetalhe(campo as any, i, 'detalhamento', e.target.value)}
-                    placeholder="O que isso quer dizer, na prática"
+                    placeholder={ehProblema
+                      ? 'Qual é o problema, onde dói e o que já se sabe da causa'
+                      : 'O que isso quer dizer, na prática'}
                     className="text-sm bg-gray-50 dark:bg-gray-700"
                     rows={4}
                   />
