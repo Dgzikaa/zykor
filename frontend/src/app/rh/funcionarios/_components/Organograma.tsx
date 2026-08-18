@@ -493,6 +493,7 @@ export function Organograma({ onAbrirDossie, escopo = 'operacao' }: {
         areas={data?.areas || []}
         onClose={() => setEditandoCadeira(null)}
         onSalvo={() => { setEditandoCadeira(null); mutate(); }}
+        onRecarregar={mutate}
       />
     </div>
   );
@@ -741,10 +742,31 @@ function Caixa({
           onBlur={() => setMudandoChefe(false)}
           className="mt-1 w-full h-7 rounded border border-input bg-background px-1 text-[10px]">
           <option value="">— sem chefe (topo) —</option>
-          {todas
-            .filter((c) => !proibidos.has(c.id) && podeSerChefe(c, comFilhos))
-            .slice().sort((a, b) => a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true }))
-            .map((c) => <option key={c.id} value={c.id}>{c.codigo}</option>)}
+          {/* A lista era FILTRADA por podeSerChefe e isso virou trava: o RH não conseguia pôr os
+              seguranças sob a Andreia, nem os garçons do Deboche sob alguém, porque nenhuma dessas
+              cadeiras casa com "chefe/gerente/sócio/diretor/coordenador" nem tinha filho ainda.
+              Agora nada fica de fora — as chefias só vêm ANTES, que era o motivo real do filtro
+              (evitar escolher no meio de 60 opções e pendurar assistente em cumin sem querer). */}
+          {(() => {
+            const livres = todas.filter((c) => !proibidos.has(c.id))
+              .slice().sort((a, b) => a.codigo.localeCompare(b.codigo, 'pt-BR', { numeric: true }));
+            const chefias = livres.filter((c) => podeSerChefe(c, comFilhos));
+            const outras = livres.filter((c) => !podeSerChefe(c, comFilhos));
+            return (
+              <>
+                {chefias.length > 0 && (
+                  <optgroup label="Chefias">
+                    {chefias.map((c) => <option key={c.id} value={c.id}>{c.codigo}</option>)}
+                  </optgroup>
+                )}
+                {outras.length > 0 && (
+                  <optgroup label="Outras cadeiras">
+                    {outras.map((c) => <option key={c.id} value={c.id}>{c.codigo}</option>)}
+                  </optgroup>
+                )}
+              </>
+            );
+          })()}
         </select>
       )}
 

@@ -6,6 +6,15 @@ import { podeRH } from '@/lib/auth/rh-guard';
 export const dynamic = 'force-dynamic';
 
 /**
+ * ATENÇÃO: as tabelas vivem no schema `hr`, não em `public`. Esta rota chamava `.from('areas')` sem
+ * schema e batia em public.areas, que não existe — as quatro operações respondiam 500 calado. Foi o
+ * mesmo defeito da rota de cargos, achado em 15/08/2026, e ele reapareceu aqui porque o organograma
+ * passou a criar área na hora (a Gabriela precisava de "Segurança", que não existia).
+ * Ver feedback_supabase_from_sem_schema_falha_calada.
+ */
+const hrDe = (supabase: any) => (t: string) => supabase.schema('hr').from(t);
+
+/**
  * GET /api/rh/areas
  * Lista todas as áreas de um bar
  */
@@ -24,8 +33,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = await getAdminClient();
     
-    let query = supabase
-      .from('areas')
+    let query = hrDe(supabase)('areas')
       .select('*')
       .eq('bar_id', parseInt(barId))
       .order('nome');
@@ -73,8 +81,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = await getAdminClient();
 
-    const { data, error } = await supabase
-      .from('areas')
+    const { data, error } = await hrDe(supabase)('areas')
       .insert({
         bar_id,
         nome: nome.trim(),
@@ -140,8 +147,7 @@ export async function PUT(request: NextRequest) {
     if (cor !== undefined) updateData.cor = cor;
     if (ativo !== undefined) updateData.ativo = ativo;
 
-    const { data, error } = await supabase
-      .from('areas')
+    const { data, error } = await hrDe(supabase)('areas')
       .update(updateData)
       .eq('id', id)
       .select()
@@ -194,8 +200,7 @@ export async function DELETE(request: NextRequest) {
     const supabase = await getAdminClient();
 
     // Verificar se há funcionários usando esta área
-    const { count } = await supabase
-      .from('funcionarios')
+    const { count } = await hrDe(supabase)('funcionarios')
       .select('*', { count: 'exact', head: true })
       .eq('area_id', parseInt(id))
       .eq('ativo', true);
@@ -208,8 +213,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Soft delete
-    const { error } = await supabase
-      .from('areas')
+    const { error } = await hrDe(supabase)('areas')
       .update({ ativo: false, atualizado_em: new Date().toISOString() })
       .eq('id', parseInt(id));
 

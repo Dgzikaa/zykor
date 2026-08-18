@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/toast';
 import { useApiSWR } from '@/hooks/useApiSWR';
 import { api } from '@/lib/api-client';
 import { useBar } from '@/contexts/BarContext';
-import { Loader2, Settings2 } from 'lucide-react';
+import { Loader2, Settings2, Plus } from 'lucide-react';
 
 /**
  * Configuração da CADEIRA: cargo, área e salário.
@@ -44,10 +44,12 @@ const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'o
 const moeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const texto = (v: number | null | undefined) => (v == null ? '' : String(v));
 
-export function CadeiraDialog({ cadeira, cargos, areas, onClose, onSalvo }: {
+export function CadeiraDialog({ cadeira, cargos, areas, onClose, onSalvo, onRecarregar }: {
   cadeira: Cadeira | null;
   cargos: Cargo[]; areas: Opcao[];
   onClose: () => void; onSalvo: () => void;
+  /** recarrega o organograma SEM fechar o diálogo — usado ao criar cargo/área na hora */
+  onRecarregar: () => void;
 }) {
   const { showToast } = useToast();
   const { selectedBar } = useBar();
@@ -76,6 +78,49 @@ export function CadeiraDialog({ cadeira, cargos, areas, onClose, onSalvo }: {
   useEffect(() => {
     setFaixa({ salario_min: texto(cargo?.salario_min), salario_max: texto(cargo?.salario_max) });
   }, [cargo?.id, cargo?.salario_min, cargo?.salario_max]);
+
+  /**
+   * Criar cargo e área SEM sair daqui.
+   *
+   * A Gabriela travou em 18/08/2026: criou a cadeira da segurança e "não me deixa mudar o cargo".
+   * Não era trava de permissão — o cargo "Segurança" simplesmente NÃO EXISTIA em nenhum bar, e o
+   * único caminho para criar um era fora desta tela. Quem monta o organograma é justamente quem
+   * descobre que falta cargo, então o cadastro tem que caber aqui.
+   */
+  const [criando, setCriando] = useState<'cargo' | 'area' | null>(null);
+
+  const criarCargo = async () => {
+    const nome = window.prompt('Nome do novo cargo (ex.: Segurança):', '')?.trim();
+    if (!nome) return;
+    setCriando('cargo');
+    try {
+      // nasce já na área escolhida na tela; sem área, fica global e aparece em qualquer uma
+      const r: any = await api.post('/api/rh/cargos', {
+        bar_id: selectedBar?.id, nome, area_id: form.area_id ? Number(form.area_id) : null,
+      });
+      const novoId = r?.data?.id;
+      onRecarregar();
+      if (novoId) setForm((f) => ({ ...f, cargo_id: String(novoId) }));
+      showToast({ type: 'success', title: `Cargo "${nome}" criado` });
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Não foi possível criar o cargo', message: e?.message });
+    } finally { setCriando(null); }
+  };
+
+  const criarArea = async () => {
+    const nome = window.prompt('Nome da nova área (ex.: Segurança):', '')?.trim();
+    if (!nome) return;
+    setCriando('area');
+    try {
+      const r: any = await api.post('/api/rh/areas', { bar_id: selectedBar?.id, nome });
+      const novoId = r?.data?.id ?? r?.area?.id;
+      onRecarregar();
+      if (novoId) setForm((f) => ({ ...f, area_id: String(novoId), cargo_id: '' }));
+      showToast({ type: 'success', title: `Área "${nome}" criada` });
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Não foi possível criar a área', message: e?.message });
+    } finally { setCriando(null); }
+  };
 
   if (!cadeira) return null;
 
@@ -136,7 +181,13 @@ export function CadeiraDialog({ cadeira, cargos, areas, onClose, onSalvo }: {
           <div className="grid grid-cols-2 gap-3">
             {/* Área antes do cargo: é ela que filtra a lista (mesma regra do cadastro). */}
             <div className="space-y-1.5">
-              <Label className="text-xs">Área</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Área</Label>
+                <button type="button" onClick={criarArea} disabled={criando !== null}
+                  className="text-[11px] text-primary hover:underline inline-flex items-center gap-0.5">
+                  {criando === 'area' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}nova
+                </button>
+              </div>
               <select className={sel} value={form.area_id}
                 onChange={(e) => setForm({ ...form, area_id: e.target.value, cargo_id: '' })}>
                 <option value="">—</option>
@@ -144,7 +195,13 @@ export function CadeiraDialog({ cadeira, cargos, areas, onClose, onSalvo }: {
               </select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Cargo</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Cargo</Label>
+                <button type="button" onClick={criarCargo} disabled={criando !== null}
+                  className="text-[11px] text-primary hover:underline inline-flex items-center gap-0.5">
+                  {criando === 'cargo' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}novo
+                </button>
+              </div>
               <select className={sel} value={form.cargo_id} onChange={(e) => setForm({ ...form, cargo_id: e.target.value })}>
                 <option value="">—</option>
                 {cargos
