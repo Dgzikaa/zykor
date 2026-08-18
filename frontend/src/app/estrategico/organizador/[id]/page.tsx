@@ -46,6 +46,11 @@ interface OKR {
   status: string;
   /** 'GERAL' = OKRs gerais; demais = módulos por área (ver AREAS) */
   area: string;
+  /**
+   * North Star Metric: a métrica PRINCIPAL da área (Gonza, 18/08/2026). Uma por área — as outras
+   * linhas são OKRs de apoio. O banco garante a unicidade com índice parcial.
+   */
+  is_nsm?: boolean;
 }
 
 /**
@@ -399,6 +404,63 @@ export default function OrganizadorEditPage() {
    * representa direito.
    */
   /** qual detalhe esta aberto: os Bizus abrem os 3 campos; a singularidade, so o detalhamento */
+  /**
+   * Realizado dos indicadores. Vem de /acompanhamento, que só agrega gold.desempenho e o serviço da
+   * Orçamentação — nada é recalculado aqui, pra não virar uma terceira fonte dos mesmos números.
+   */
+  const [acomp, setAcomp] = useState<any>(null);
+  useEffect(() => {
+    if (!organizador.bar_id || !organizador.ano) return;
+    let vivo = true;
+    (async () => {
+      try {
+        // fetch direto, igual ao resto desta tela (ela não usa o api-client)
+        const resp = await fetch(
+          `/api/estrategico/organizador/acompanhamento?bar_id=${organizador.bar_id}&ano=${organizador.ano}&semestre=${organizador.semestre || 2}`,
+        );
+        const r = await resp.json();
+        if (vivo && r?.success) setAcomp(r);
+      } catch { /* acompanhamento é complemento: falhou, a tela de metas continua funcionando */ }
+    })();
+    return () => { vivo = false; };
+  }, [organizador.bar_id, organizador.ano, organizador.semestre]);
+
+  /**
+   * Linha de acompanhamento embaixo da meta.
+   *
+   * `inverso` = quanto MENOR melhor (CMV, artístico, CMO). Sem isso o CMV abaixo da meta ficaria
+   * vermelho, que é o contrário do que ele significa.
+   * `unidade` explica o que está sendo comparado ("acumulado" x "média/mês") — sem esse rótulo o
+   * leitor não sabe se o número é a soma do semestre ou a média, e compara errado.
+   */
+  const Realizado = ({ valor, meta, formato, inverso, unidade }: {
+    valor: number | null | undefined; meta: number | null | undefined;
+    formato: 'moeda' | 'numero' | 'pct' | 'nota'; inverso?: boolean; unidade?: string;
+  }) => {
+    if (valor == null) return null;
+    const txt = formato === 'moeda' ? formatCurrency(valor)
+      : formato === 'pct' ? `${valor.toFixed(1)}%`
+      : formato === 'nota' ? valor.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+      : formatarNumero(Math.round(valor));
+    const pct = meta ? (valor / meta) * 100 : null;
+    const bom = pct == null ? null : inverso ? pct <= 100 : pct >= 100;
+    return (
+      <div className="flex items-center justify-end gap-1.5 text-[10px] mt-0.5">
+        <span className="text-gray-500 dark:text-gray-400">
+          {unidade ? `${unidade}: ` : 'realizado: '}<b className="text-gray-700 dark:text-gray-200">{txt}</b>
+        </span>
+        {pct != null && (
+          <span className={`px-1 rounded font-bold ${
+            bom ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+          }`}>
+            {pct.toFixed(0)}% da meta
+          </span>
+        )}
+      </div>
+    );
+  };
+
   const [detalheAberto, setDetalheAberto] = useState<
     { tipo: 'bizu' | 'singularidade' | 'problema'; index: number } | null
   >(null);
@@ -420,6 +482,22 @@ export default function OrganizadorEditPage() {
       const arr = [...(prev[field] || [])];
       arr[index] = value;
       return { ...prev, [field]: arr };
+    });
+  };
+
+  /**
+   * Marca/desmarca a NSM. Marcar uma DESMARCA as outras da mesma área no mesmo passo: é o que faz o
+   * "North Star" significar alguma coisa, e evita o save bater no índice único do banco em vez de
+   * na regra da tela.
+   */
+  const marcarNSM = (index: number) => {
+    setOkrs(prev => {
+      const area = prev[index]?.area;
+      const virandoNSM = !prev[index]?.is_nsm;
+      return prev.map((o, i) => {
+        if (o.area !== area) return o;
+        return { ...o, is_nsm: virandoNSM && i === index };
+      });
     });
   };
 
@@ -787,11 +865,11 @@ export default function OrganizadorEditPage() {
                 </div>
                 <div className="p-3 space-y-3">
                   {[
-                    { label: 'Faturamento', field: 'meta_faturamento', icon: DollarSign, tag: 'BP', isCurrency: true },
-                    { label: 'Clientes Ativos', field: 'meta_clientes_ativos', icon: Users, tag: 'NSM', isNumber: true },
-                    { label: 'CMV Limpo', field: 'meta_cmv_limpo', icon: Percent, tag: 'BP', suffix: '%' },
-                    { label: '(Atrações+Produção)/Fat', field: 'meta_artistica', icon: Music, tag: 'BP', suffix: '%' },
-                    { label: 'CMO Fixo', field: 'meta_cmo_fixo', icon: DollarSign, tag: 'BP', isCurrency: true },
+                    { label: 'Faturamento', field: 'meta_faturamento', icon: DollarSign, tag: 'BP', isCurrency: true, fmt: 'moeda', unidade: 'acumulado' },
+                    { label: 'Clientes Ativos', field: 'meta_clientes_ativos', icon: Users, tag: 'NSM', isNumber: true, fmt: 'numero', unidade: 'média/mês' },
+                    { label: 'CMV Limpo', field: 'meta_cmv_limpo', icon: Percent, tag: 'BP', suffix: '%', fmt: 'pct', inverso: true },
+                    { label: '(Atrações+Produção)/Fat', field: 'meta_artistica', icon: Music, tag: 'BP', suffix: '%', fmt: 'pct', inverso: true },
+                    { label: 'CMO Fixo', field: 'meta_cmo_fixo', icon: DollarSign, tag: 'BP', isCurrency: true, fmt: 'moeda', inverso: true, unidade: 'média/mês' },
                   ].map((item) => {
                     const IconComponent = item.icon;
                     const value = (organizador as any)[item.field];
@@ -803,7 +881,8 @@ export default function OrganizadorEditPage() {
                       else displayValue = String(value);
                     }
                     return (
-                      <div key={item.field} className="flex items-center justify-between gap-2">
+                      <div key={item.field}>
+                        <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-1.5 flex-1 min-w-0">
                           <IconComponent className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                           <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{item.label}</span>
@@ -828,9 +907,24 @@ export default function OrganizadorEditPage() {
                           />
                           <span className="text-xs font-bold text-gray-600 dark:text-gray-400 w-4 text-left">{item.suffix || ''}</span>
                         </div>
+                        </div>
+                        <Realizado
+                          valor={acomp?.semestre?.[item.field]}
+                          meta={value}
+                          formato={(item as any).fmt}
+                          inverso={(item as any).inverso}
+                          unidade={(item as any).unidade}
+                        />
                       </div>
                     );
                   })}
+                  {acomp?.semestre?.meses > 0 && (
+                    <p className="text-[10px] text-gray-400 pt-1 border-t border-gray-100 dark:border-gray-700">
+                      Acumulado de {acomp.semestre.meses} {acomp.semestre.meses === 1 ? 'mês' : 'meses'} do semestre.
+                      As médias usam só os {acomp.semestre.meses_fechados} meses fechados — o mês em curso
+                      distorceria.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -885,11 +979,11 @@ export default function OrganizadorEditPage() {
                   />
                   <div className="space-y-3 text-xs">
                     {[
-                      { label: 'Faturamento', field: 'faturamento_meta', icon: DollarSign, isCurrency: true },
-                      { label: 'Lucro Líquido', field: 'lucro_liquido_meta', icon: TrendingUp, isCurrency: true },
-                      { label: 'Média-ano Clientes Ativos', field: 'pessoas_meta', icon: Users, isNumber: true },
-                      { label: '(Atrações+Produ)/Fat', field: 'artistico_meta', icon: Music, suffix: '%' },
-                      { label: 'Avaliações Google', field: 'reputacao_meta', icon: Star, prefix: '⭐', isDecimal: true },
+                      { label: 'Faturamento', field: 'faturamento_meta', icon: DollarSign, isCurrency: true, fmt: 'moeda', unidade: 'acumulado' },
+                      { label: 'Lucro Líquido', field: 'lucro_liquido_meta', icon: TrendingUp, isCurrency: true, fmt: 'moeda', unidade: 'acumulado' },
+                      { label: 'Média-ano Clientes Ativos', field: 'pessoas_meta', icon: Users, isNumber: true, fmt: 'numero', unidade: 'média/mês' },
+                      { label: '(Atrações+Produ)/Fat', field: 'artistico_meta', icon: Music, suffix: '%', fmt: 'pct', inverso: true },
+                      { label: 'Avaliações Google', field: 'reputacao_meta', icon: Star, prefix: '⭐', isDecimal: true, fmt: 'nota', unidade: 'média' },
                     ].map(item => {
                       const IconComponent = item.icon;
                       const value = (organizador as any)[item.field];
@@ -907,7 +1001,8 @@ export default function OrganizadorEditPage() {
                         }
                       }
                       return (
-                        <div key={item.field} className="flex items-center justify-between gap-2">
+                        <div key={item.field}>
+                        <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <IconComponent className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                             <span className="text-gray-700 dark:text-gray-300 truncate">{item.label}</span>
@@ -933,8 +1028,23 @@ export default function OrganizadorEditPage() {
                             <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400 w-3 text-left">{item.suffix || ''}</span>
                           </div>
                         </div>
+                        <Realizado
+                          valor={acomp?.ano?.[item.field]}
+                          meta={value}
+                          formato={(item as any).fmt}
+                          inverso={(item as any).inverso}
+                          unidade={(item as any).unidade}
+                        />
+                        </div>
                       );
                     })}
+                    {acomp?.ano?.meses > 0 && (
+                      <p className="text-[10px] text-gray-400 pt-1 border-t border-gray-100 dark:border-gray-700">
+                        Acumulado de {acomp.ano.meses} {acomp.ano.meses === 1 ? 'mês' : 'meses'} do ano
+                        (médias com os {acomp.ano.meses_fechados} fechados). A meta é do ANO inteiro:
+                        no meio do ano, o acumulado ainda está a caminho.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1145,16 +1255,41 @@ export default function OrganizadorEditPage() {
                             return (
                               <div
                                 key={index}
-                                className={`grid grid-cols-1 ${GRID_OKR_AREA} ${statusStyle.bg}`}
+                                className={`grid grid-cols-1 ${GRID_OKR_AREA} ${statusStyle.bg} ${
+                                  okr.is_nsm ? 'ring-2 ring-inset ring-amber-400 dark:ring-amber-500' : ''
+                                }`}
                               >
                                 <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
                                   <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Tema</label>
-                                  <Textarea
-                                    value={okr.epico}
-                                    onChange={(e) => updateOKR(index, 'epico', e.target.value)}
-                                    className="text-xs font-semibold bg-white/80 dark:bg-gray-700 min-h-[40px] py-1.5"
-                                    rows={2}
-                                  />
+                                  {/* A estrela fica colada no Tema porque é o Tema que ela qualifica:
+                                      esta é A métrica da área, as outras linhas são apoio. */}
+                                  <div className="flex items-start gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => marcarNSM(index)}
+                                      title={okr.is_nsm
+                                        ? 'Esta é a North Star Metric da área — clique para desmarcar'
+                                        : 'Marcar como North Star Metric da área (a principal)'}
+                                      className={`mt-0.5 flex-shrink-0 rounded p-0.5 ${
+                                        okr.is_nsm
+                                          ? 'text-amber-500'
+                                          : 'text-gray-300 dark:text-gray-600 hover:text-amber-400'
+                                      }`}
+                                    >
+                                      <Star className={`w-4 h-4 ${okr.is_nsm ? 'fill-amber-400' : ''}`} />
+                                    </button>
+                                    <Textarea
+                                      value={okr.epico}
+                                      onChange={(e) => updateOKR(index, 'epico', e.target.value)}
+                                      className="text-xs font-semibold bg-white/80 dark:bg-gray-700 min-h-[40px] py-1.5 flex-1"
+                                      rows={2}
+                                    />
+                                  </div>
+                                  {okr.is_nsm && (
+                                    <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                                      NSM
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
                                   <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Big Bet</label>

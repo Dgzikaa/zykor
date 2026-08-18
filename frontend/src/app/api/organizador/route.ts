@@ -158,6 +158,9 @@ export async function POST(request: NextRequest) {
         andamento: okr.andamento,
         status: okr.status || 'cinza',
         area: okr.area || 'GERAL',
+        // is_nsm precisa estar nos DOIS mapeamentos (POST e PUT): aqui o OKR é montado campo a
+        // campo, então campo que falta some no save sem erro nenhum.
+        is_nsm: !!okr.is_nsm,
         organizador_id: organizador.id,
         ordem: index
       }));
@@ -222,6 +225,9 @@ export async function PUT(request: NextRequest) {
           andamento: okr.andamento,
           status: okr.status || 'cinza',
           area: okr.area || 'GERAL',
+        // is_nsm precisa estar nos DOIS mapeamentos (POST e PUT): aqui o OKR é montado campo a
+        // campo, então campo que falta some no save sem erro nenhum.
+        is_nsm: !!okr.is_nsm,
           organizador_id: id,
           ordem: index
         }));
