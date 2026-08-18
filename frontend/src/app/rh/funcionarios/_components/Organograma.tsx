@@ -530,9 +530,19 @@ function Ramo({
   onEditarCadeira: (c: Cadeira) => void;
 }) {
   const temFilhos = no.filhos.length > 0;
-  // Empilha quando nenhum filho tem equipe própria — é o time de um chefe. Se algum filho for chefe
-  // de alguém, os ramos vão lado a lado para cada um abrir a sua coluna.
-  const empilhar = temFilhos && no.filhos.every((f) => f.filhos.length === 0);
+  /**
+   * Os filhos são de dois tipos e não podem ter o mesmo tratamento:
+   *  · quem TEM equipe própria precisa abrir a sua coluna, então vai lado a lado;
+   *  · quem não tem é o time direto do chefe, e empilha numa coluna só.
+   *
+   * Antes era um ou outro para o grupo inteiro: bastava UM filho ter equipe para os outros todos
+   * irem lado a lado. No Deboche isso deixou o Chefe de Salão com 7 caixas na horizontal — as 2
+   * capitanias mais garçom, garçonete, ASG… — e a Gabriela reclamou com razão que "fica muito
+   * espalhado". Agora os dois convivem: capitanias em colunas, time direto empilhado ao lado.
+   */
+  const ramos = no.filhos.filter((f) => f.filhos.length > 0);
+  const folhas = no.filhos.filter((f) => f.filhos.length === 0);
+  const empilhar = temFilhos && ramos.length === 0;
 
   return (
     <div className="flex flex-col items-center">
@@ -562,12 +572,16 @@ function Ramo({
         /* chefias: lado a lado, porque cada uma abre a própria coluna embaixo */
         <>
           <div className="w-px h-4 bg-border" />
+          {/* colunas = 1 por chefia + 1 para o time direto, quando existir */}
           <div className="relative flex items-start gap-5">
-            {no.filhos.length > 1 && (
+            {(ramos.length + (folhas.length ? 1 : 0)) > 1 && (
               <div className="absolute top-0 h-px bg-border"
-                style={{ left: `calc(50% / ${no.filhos.length})`, right: `calc(50% / ${no.filhos.length})` }} />
+                style={{
+                  left: `calc(50% / ${ramos.length + (folhas.length ? 1 : 0)})`,
+                  right: `calc(50% / ${ramos.length + (folhas.length ? 1 : 0)})`,
+                }} />
             )}
-            {no.filhos.map((f) => (
+            {ramos.map((f) => (
               <div key={f.id} className="flex flex-col items-center">
                 <div className="w-px h-4 bg-border" />
                 <Ramo no={f} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
@@ -575,6 +589,25 @@ function Ramo({
                   onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} enviarFoto={enviarFoto} comFilhos={comFilhos} onContratar={onContratar} onEditarCadeira={onEditarCadeira} />
               </div>
             ))}
+            {folhas.length > 0 && (
+              <div className="flex flex-col items-center">
+                <div className="w-px h-4 bg-border" />
+                {/* mesmo desenho do time empilhado: prumo à esquerda e um traço por caixa */}
+                <div className="relative pl-4 pt-1 self-start">
+                  <div className="absolute left-0 top-0 bottom-3 w-px bg-border" />
+                  <div className="flex flex-col gap-1.5">
+                    {folhas.map((f) => (
+                      <div key={f.id} className="relative">
+                        <div className="absolute -left-4 top-1/2 w-4 h-px bg-border" />
+                        <Caixa no={f} arrasto={arrasto} setArrasto={setArrasto} alvo={alvo} setAlvo={setAlvo}
+                          descendentes={descendentes} soltar={soltar} combina={combina} temBusca={temBusca}
+                          onAbrirDossie={onAbrirDossie} pessoas={pessoas} chamar={chamar} admin={admin} todas={todas} escopo={escopo} enviarFoto={enviarFoto} comFilhos={comFilhos} onContratar={onContratar} onEditarCadeira={onEditarCadeira} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </>
       ))}
