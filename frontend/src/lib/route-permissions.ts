@@ -60,6 +60,13 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   // (getMenuRoutePermissions só itera subItems). Entrada explícita p/ o guard não negar.
   { path: '/graficos', requiredModules: ['gestao', 'home'] },
 
+  // Recibo de pagamento (impressão) — tela SEM item de menu, aberta em nova aba pelo botão
+  // "Gerar recibo" do dossiê do funcionário. Sem esta entrada o middleware caía no
+  // DENY BY DEFAULT ("rota não configurada") e jogava a pessoa no /home — foi o que o Gonza
+  // viu em 19/08/2026 ("cliquei e voltou pra página inicial"). Quem vê o dossiê vê o recibo:
+  // mesmo módulo de /rh/funcionarios.
+  { path: '/recibo', requiredModules: ['rh_funcionarios', 'ferramentas_funcionarios', 'rh', 'ferramentas'] },
+
   // ========================================
   // COZINHA / KIOSK (override antes do menu p/ ganhar o match exato)
   // ========================================

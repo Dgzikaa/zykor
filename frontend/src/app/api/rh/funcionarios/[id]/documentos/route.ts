@@ -39,11 +39,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
   const documentos = await Promise.all((docs || []).map(async (d: any) => {
-    const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(d.storage_path, 3600);
+    // Duas URLs assinadas do MESMO arquivo:
+    //  - `url`        abre no navegador (ver o PDF/foto sem baixar)
+    //  - `url_download` traz Content-Disposition: attachment, que é o que faz o "Exportar
+    //    documentos" do dossiê baixar de verdade. O atributo `download` do <a> não vale aqui:
+    //    o Storage é outra origem e o navegador ignora — quem manda é o header.
+    const [{ data: signed }, { data: signedDl }] = await Promise.all([
+      supabase.storage.from(BUCKET).createSignedUrl(d.storage_path, 3600),
+      supabase.storage.from(BUCKET).createSignedUrl(d.storage_path, 3600, { download: d.nome_arquivo || true }),
+    ]);
     return {
       id: d.id, tipo: d.tipo, descricao: d.descricao, nome_arquivo: d.nome_arquivo,
       mime: d.mime, tamanho_bytes: d.tamanho_bytes, validade: d.validade, criado_em: d.criado_em,
       url: signed?.signedUrl || null,
+      url_download: signedDl?.signedUrl || signed?.signedUrl || null,
     };
   }));
   return NextResponse.json({ success: true, documentos });

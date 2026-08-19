@@ -24,7 +24,7 @@ const lerJson = async (r: Response): Promise<any> => {
   catch { return { success: false, error: r.status === 413 ? `Arquivo grande demais para o envio (máx. ${formataMb(MAX_DOC_BYTES)}).` : `Erro ${r.status} no servidor.` }; }
 };
 import {
-  Loader2, Pencil, Upload, FileText, Trash2, ExternalLink,
+  Loader2, Pencil, Upload, Download, FileText, Trash2, ExternalLink,
   CalendarDays, Cake, Phone, Mail, CreditCard,
   Banknote, Clock, Fingerprint, CalendarX, AlertTriangle, Plus, ScrollText, Target, GraduationCap, Check, Link as LinkIcon, UserMinus, ArrowRightLeft,
 } from 'lucide-react';
@@ -149,6 +149,34 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
   // Upload em 3 passos: pede URL assinada -> sobe DIRETO pro Storage -> confirma e grava a linha.
   // O arquivo não passa pela função da Vercel (o corpo de requisição lá tem teto de ~4,5 MB e PDF
   // escaneado de várias páginas estourava isso: a requisição morria na borda e a tela só dizia
+  /**
+   * Exporta TODOS os documentos do funcionário (pedido do Gonza, 19/08/2026).
+   *
+   * Baixa um a um pelas URLs assinadas com Content-Disposition: attachment (`url_download`,
+   * montada na rota). Sem lib de zip de propósito: a alternativa era entrar com um empacotador
+   * no bundle pra resolver um botão. O navegador pergunta uma vez se aceita vários downloads;
+   * o intervalo entre os cliques é o que evita ele engolir os seguintes.
+   */
+  const [exportando, setExportando] = useState(false);
+  const exportarDocs = async () => {
+    if (!docs.length) return;
+    setExportando(true);
+    try {
+      for (const d of docs) {
+        const href = (d as any).url_download || d.url;
+        if (!href) continue;
+        const a = document.createElement('a');
+        a.href = href;
+        a.download = d.nome_arquivo || '';
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    } finally { setExportando(false); }
+  };
+
   // "Falha no upload"). Ver comentários em lib/rh/documentos.ts.
   const enviarDoc = async () => {
     const file = fileRef.current?.files?.[0];
@@ -452,6 +480,14 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                     <Button size="sm" onClick={salvarNums} disabled={salvandoNums} className="h-8">{salvandoNums ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Check className="w-4 h-4 mr-1.5" />}Salvar números</Button>
                   </div>
                 </div>
+                {docs.length > 0 && (
+                  <div className="flex justify-end mb-2">
+                    <Button variant="outline" size="sm" className="h-8" onClick={exportarDocs} disabled={exportando}>
+                      {exportando ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Download className="w-3.5 h-3.5 mr-1.5" />}
+                      {exportando ? 'Baixando…' : `Exportar (${docs.length})`}
+                    </Button>
+                  </div>
+                )}
                 {docs.length > 0 ? (
                   <div className="space-y-1.5 mb-3">
                     {docs.map((d) => (

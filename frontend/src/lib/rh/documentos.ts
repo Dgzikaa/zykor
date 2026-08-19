@@ -36,6 +36,12 @@ export const TIPOS_DOCUMENTO: TipoDocumento[] = [
   { id: 'carta_demissao', label: 'Carta de Demissão', obrigatorio: false },
   { id: 'certidao_nascimento', label: 'Certidão de Nascimento', obrigatorio: false },
   { id: 'titulo_eleitoral', label: 'Título Eleitoral', obrigatorio: false },
+  // Pedido do Gonza (19/08/2026): atestado e recibo de férias tambem sao papel do funcionario
+  // e o lugar deles é o Dossiê, junto do resto. Não são obrigatórios (acontecem quando acontecem)
+  // e podem repetir — são os dois tipos que entram várias vezes na vida do mesmo funcionário.
+  { id: 'atestado', label: 'Atestado', obrigatorio: false },
+  { id: 'recibo_ferias', label: 'Recibo de Férias', obrigatorio: false },
+  { id: 'advertencia', label: 'Advertência', obrigatorio: false },
   { id: 'outro', label: 'Outro', obrigatorio: false },
 ];
 
