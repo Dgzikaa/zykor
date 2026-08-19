@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useBar } from '@/contexts/BarContext';
 import { useApiSWR } from '@/hooks/useApiSWR';
 import { useToast } from '@/components/ui/toast';
@@ -80,7 +81,41 @@ export function ConsumacoesTab() {
     const ini = new Date(); ini.setDate(ini.getDate() - 60);
     return { de: ini.toISOString().slice(0, 10), ate: fim.toISOString().slice(0, 10) };
   }, []);
-  const { data: pend } = useApiSWR<any>(
+  const [corrigindo, setCorrigindo] = useState(false);
+  /**
+   * Manda corrigir no Conta Azul. O servidor RECALCULA o delta antes de lançar — entre ver a lista e
+   * clicar, a classificação pode ter mudado de novo, e lançar um delta velho criaria um erro novo.
+   */
+  const corrigirPendencias = async () => {
+    const linhas = (pend?.linhas || []).map((l: any) => ({ dia: l.dia, chave: l.chave }));
+    if (!linhas.length) return;
+    if (!window.confirm(
+      `Lançar ${linhas.length} ajuste(s) no Conta Azul?\n\n` +
+      `Estorno entra como RECEITA na mesma categoria (o CA não apaga lançamento).\n` +
+      `Isso NÃO pode ser desfeito pela API.`,
+    )) return;
+    setCorrigindo(true);
+    try {
+      const r: any = await api.post('/api/financeiro/fechamento/consumacao/pendencias', {
+        bar_id: selectedBar?.id, linhas,
+      });
+      const falhas = (r?.resultados || []).filter((x: any) => !x.ok);
+      if (falhas.length) {
+        showToast({
+          type: 'error',
+          title: `${r.corrigidos || 0} corrigido(s), ${falhas.length} com erro`,
+          message: falhas[0]?.erro,
+        });
+      } else {
+        showToast({ type: 'success', title: `${r.corrigidos} ajuste(s) lançado(s) no Conta Azul` });
+      }
+      await mutatePend();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Não foi possível corrigir', message: e?.message });
+    } finally { setCorrigindo(false); }
+  };
+
+  const { data: pend, mutate: mutatePend } = useApiSWR<any>(
     selectedBar?.id
       ? `/api/financeiro/fechamento/consumacao/pendencias?bar_id=${selectedBar.id}&ini=${janelaPend.de}&fim=${janelaPend.ate}&minimo=${corte}`
       : null,
@@ -200,7 +235,11 @@ export function ConsumacoesTab() {
                 {pend.resumo.linhas} ajuste{pend.resumo.linhas > 1 ? 's' : ''} pendente{pend.resumo.linhas > 1 ? 's' : ''} no Conta Azul
                 {pend.resumo.dias > 1 && ` · ${pend.resumo.dias} dias`} · últimos 60 dias
               </span>
-              <div className="ml-auto flex items-center gap-1.5 text-[11px]">
+              <div className="ml-auto flex items-center gap-2 text-[11px]">
+                <Button size="sm" onClick={corrigirPendencias} disabled={corrigindo || ocupado}>
+                  {corrigindo ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1" />}
+                  Corrigir no Conta Azul
+                </Button>
                 <span className="text-muted-foreground">a partir de</span>
                 <select value={corte} onChange={(e) => setCorte(Number(e.target.value))}
                   className="h-7 rounded border bg-background px-1.5 text-[11px]">
