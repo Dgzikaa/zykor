@@ -1,30 +1,35 @@
 /**
  * Recalcula o CMV teórico (gold.produto_cmv) de um bar após uma edição de ficha/insumo.
- * fn_cmv_teorico roda em ~150ms e é idempotente, então pode ser chamada a cada save
- * pra que a tela de CMV Teórico reflita a mudança na hora (sem depender do botão Recalcular).
+ * fn_cmv_teorico é idempotente e rápida — medida em produção: 225 chamadas, média 266 ms —
+ * então pode rodar a cada save pra que a tela de CMV Teórico reflita a mudança na hora.
  * O cron diário (cmv-teorico-diario) e o botão seguem como backstop.
+ *
+ * NÃO ACRESCENTE REFRESH DE MATVIEW AQUI. Ver `refreshConsumoTeorico` abaixo.
  */
 export async function recalcCmvTeorico(supabase: any, barId: number | null | undefined): Promise<void> {
   if (!barId) return;
-  // 1) gold.produto_cmv (rápido, ~150ms) — CMV Teórico do cardápio reflete na hora.
-  // 2) matviews de consumo teórico (silver.*_dia + gold.cmv_teorico_dia) — Saída Teórica em
-  //    /operacional/desvios e /operacional/consumo-insumo refletem na hora. Sem isso a matview
-  //    só atualizava no cron horário e o socio via valor antigo depois de editar a ficha.
-  // Roda em paralelo — refresh de matview é lento, não deve segurar o recalc.
-  await Promise.all([
-    (async () => {
-      try { await supabase.schema('gold').rpc('fn_cmv_teorico', { p_bar_id: barId }); }
-      catch (e) { console.error('[recalcCmvTeorico] fn_cmv_teorico falhou para bar', barId, e); }
-    })(),
-    refreshConsumoTeorico(supabase),
-  ]);
+  try { await supabase.schema('gold').rpc('fn_cmv_teorico', { p_bar_id: barId }); }
+  catch (e) { console.error('[recalcCmvTeorico] fn_cmv_teorico falhou para bar', barId, e); }
 }
 
 /**
  * Refresca as matviews de consumo teórico (silver.consumo_teorico_insumo_dia e cascata).
- * Sem isso, a coluna "Saída teórica" em /operacional/desvios e a tela /operacional/consumo-insumo
- * ficam com o valor antigo até o próximo cron horário. Best-effort: não bloqueia a edição.
- * REFRESH CONCURRENTLY roda sem lock — pode demorar segundos em background.
+ *
+ * SAIU DO CAMINHO DO SAVE em 19/08/2026. Ela estava dentro do `recalcCmvTeorico`, num
+ * `Promise.all` AGUARDADO — ou seja, todo salvar de ficha/insumo esperava por ela. E ela não é
+ * "alguns segundos": `silver.fn_refresh_consumo_teorico` refaz CINCO matviews sobre o histórico
+ * INTEIRO de vendas (1,15 milhão de linhas, 242 MB). Medida em produção: **média 27,7 s, máximo
+ * 58 s**. É a mesma função que o cron `silver-vendas-produto-dia` roda de hora em hora.
+ *
+ * Na prática ela nunca chegou a rodar por aqui — em 8 dias o pg_stat_statements não registrou
+ * NENHUMA chamada dela via PostgREST (sem nenhuma entrada descartada), enquanto a irmã
+ * `gold.fn_cmv_teorico`, chamada na mesma função, registrou 225. Alguma coisa a engolia antes
+ * do banco e o catch abaixo escondia. Ou seja: a promessa de "Saída Teórica reflete na hora"
+ * já não valia — e, se um dia voltasse a funcionar, cada salvar de ficha passaria a travar
+ * ~30 s. Por isso está fora do save, e não só "consertada".
+ *
+ * Quem precisar da Saída Teórica na hora deve ter um botão explícito de recalcular, que mostre
+ * que vai demorar. O cron horário segue sendo a atualização normal.
  */
 export async function refreshConsumoTeorico(supabase: any): Promise<void> {
   try {
