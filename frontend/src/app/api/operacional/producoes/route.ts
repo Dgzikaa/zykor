@@ -143,8 +143,10 @@ export async function PUT(request: NextRequest) {
   if ('rendimento' in body) patch.rendimento = Number(body.rendimento);
   // conversor de contagem: quanto da unidade-base (rendimento) cabe em 1 unidade de contagem (ex.: 0,4 kg/porção)
   if ('fator_contagem' in body) patch.fator_contagem = (body.fator_contagem == null || body.fator_contagem === '') ? null : Number(body.fator_contagem);
-  const { data, error } = await supabase.from('producao_base').update(patch).eq('id', id).select().single();
+  // .eq('bar_id') junto: sem ele dava pra editar a produção de outro bar mandando o id na mão.
+  const { data, error } = await supabase.from('producao_base').update(patch).eq('id', id).eq('bar_id', user.bar_id).select().maybeSingle();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json({ success: false, error: 'Produção não encontrada neste bar' }, { status: 404 });
   // rendimento muda o custo da produção (e dos produtos que a usam) → recalcula o CMV teórico
   if ('rendimento' in body && data?.bar_id) await recalcCmvTeorico(supabase, data.bar_id);
   return NextResponse.json({ success: true, producao: data });
@@ -157,7 +159,36 @@ export async function DELETE(request: NextRequest) {
   const id = Number(new URL(request.url).searchParams.get('id'));
   if (!id) return NextResponse.json({ success: false, error: 'id obrigatório' }, { status: 400 });
   const supabase = await getAdminClient();
-  const { error } = await supabase.from('producao_base').delete().eq('id', id);
+
+  const { data: alvo } = await supabase.from('producao_base')
+    .select('id, nome, codigo').eq('id', id).eq('bar_id', user.bar_id).maybeSingle();
+  if (!alvo) return NextResponse.json({ success: false, error: 'Produção não encontrada neste bar' }, { status: 404 });
+
+  // Produção COM HISTÓRICO não pode ser apagada: operations.producao_execucao aponta pra cá
+  // com FK sem ON DELETE, então o delete estourava erro de FK cru e a tela só "travava"
+  // (Gonza, 19/08/2026, Massa de Coxinha do Deboche — 6 produções registradas). Apagar também
+  // reescreveria CMV/desvio de semanas já fechadas. Aqui explicamos o motivo e mandamos inativar.
+  const ops = (supabase as any).schema('operations');
+  const [execs, usos] = await Promise.all([
+    ops.from('producao_execucao').select('id', { count: 'exact', head: true }).eq('producao_id', id),
+    supabase.from('producao_ficha_item').select('id', { count: 'exact', head: true }).eq('producao_ref', id),
+  ]);
+  const nExec = execs.count || 0;
+  const nUso = usos.count || 0;
+  if (nExec > 0 || nUso > 0) {
+    const motivos = [
+      nExec > 0 ? `${nExec} produção(ões) já registrada(s)` : null,
+      nUso > 0 ? `é insumo de ${nUso} outra(s) ficha(s)` : null,
+    ].filter(Boolean).join(' e ');
+    return NextResponse.json({
+      success: false,
+      code: 'TEM_HISTORICO',
+      error: `Não dá pra excluir "${alvo.nome}" (${alvo.codigo}): ${motivos}. Apagar reescreveria o CMV de semanas já fechadas — desative a produção em vez de excluir.`,
+      execucoes: nExec, usada_em_fichas: nUso,
+    }, { status: 409 });
+  }
+
+  const { error } = await supabase.from('producao_base').delete().eq('id', id).eq('bar_id', user.bar_id);
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }

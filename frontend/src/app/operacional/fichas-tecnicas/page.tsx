@@ -365,7 +365,27 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
       if (!r.success) throw new Error(r.error);
       setConfirmDel(false); setSel(null); reloadLista();
       toast({ title: kind === 'producao' ? 'Produção excluída' : 'Produto excluído da base' });
+    } catch (e: any) {
+      // Produção com histórico não é apagável (o CMV das semanas fechadas depende dela). A rota
+      // devolve 409 TEM_HISTORICO explicando o motivo; aqui a saída vira "desativar".
+      if (e?.data?.code === 'TEM_HISTORICO') { setConfirmDel(false); setBloqueioDel(e.data); return; }
+      toast({ title: 'Erro', description: e?.message, variant: 'destructive' });
+    }
+  };
+
+  // 409 do delete: guarda o motivo pra oferecer "desativar" no lugar de excluir
+  const [bloqueioDel, setBloqueioDel] = useState<any | null>(null);
+  const [desativando, setDesativando] = useState(false);
+  const desativarProducao = async () => {
+    if (!selObj) return;
+    setDesativando(true);
+    try {
+      const r = await api.put('/api/operacional/producoes', { id: selObj.id, ativo: false });
+      if (!r.success) throw new Error(r.error);
+      setBloqueioDel(null); reloadLista();
+      toast({ title: 'Produção desativada', description: `${selObj.nome} sai das listas e o histórico fica preservado.` });
     } catch (e: any) { toast({ title: 'Erro', description: e?.message, variant: 'destructive' }); }
+    finally { setDesativando(false); }
   };
 
   // editar produto (nome + código) — finalização
@@ -979,6 +999,27 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                       <div className="flex justify-end gap-2 pt-1">
                         <Button variant="outline" onClick={() => setConfirmDel(false)}>Cancelar</Button>
                         <Button onClick={excluirProduto} className="bg-red-600 hover:bg-red-700 text-white">Excluir</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Modal: por que NÃO dá pra excluir esta produção (e a saída: desativar) */}
+                {bloqueioDel && (
+                  <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setBloqueioDel(null); }}>
+                    <div className="bg-white dark:bg-gray-900 rounded-xl p-4 w-full max-w-md space-y-3" onClick={e => e.stopPropagation()}>
+                      <h4 className="font-semibold text-gray-900 dark:text-white">Essa produção tem histórico</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-300">{bloqueioDel.error}</p>
+                      <ul className="text-xs text-gray-500 list-disc pl-4 space-y-0.5">
+                        {bloqueioDel.execucoes > 0 && <li>{bloqueioDel.execucoes} produção(ões) já registrada(s) no Controle de Produção</li>}
+                        {bloqueioDel.usada_em_fichas > 0 && <li>usada como insumo em {bloqueioDel.usada_em_fichas} outra(s) ficha(s) técnica(s)</li>}
+                      </ul>
+                      <p className="text-xs text-gray-500"><b>Desativar</b> tira ela das listas e do planejamento, e mantém o histórico do CMV intacto.</p>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <Button variant="outline" onClick={() => setBloqueioDel(null)}>Cancelar</Button>
+                        <Button onClick={desativarProducao} disabled={desativando} className="bg-amber-600 hover:bg-amber-700 text-white">
+                          {desativando ? 'Desativando…' : 'Desativar produção'}
+                        </Button>
                       </div>
                     </div>
                   </div>

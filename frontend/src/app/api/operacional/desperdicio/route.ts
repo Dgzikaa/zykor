@@ -205,6 +205,39 @@ export async function GET(request: NextRequest) {
     ]);
     for (const r of (cad || []) as any[]) nomeByCod.set(r.codigo, { nome: r.nome, unidade_medida: r.unidade_medida, categoria: r.categoria });
     for (const r of (prc || []) as any[]) precoByCod.set(String(r.cod_u).toUpperCase(), Number(r.preco_atual || 0));
+
+    // Explodir um PRODUTO PRONTO gera componentes que podem ser PREPAROS (pc/pd), e preparo mora
+    // em public.producao_base, não em operations.insumos — sem este segundo lookup essas linhas
+    // ficavam só com o código na tela (Gonza, 19/08/2026: "faltou aparecer o nome do insumo").
+    const semNome = codigos.filter((c) => !nomeByCod.has(c as string));
+    if (semNome.length) {
+      const { data: prep } = await supabase.from('producao_base')
+        .select('codigo, nome, unidade, unidade_contagem, secao').eq('bar_id', bar_id).in('codigo', semNome);
+      for (const r of (prep || []) as any[]) {
+        if (!r.codigo) continue;
+        nomeByCod.set(r.codigo, {
+          nome: r.nome,
+          unidade_medida: r.unidade_contagem || r.unidade || null,
+          categoria: r.secao ? `Produção ${r.secao}` : 'Produção',
+        });
+      }
+      // a planilha grava o código em minúsculo (pc0033) e a ficha em maiúsculo — casa os dois
+      const faltam = semNome.filter((c) => !nomeByCod.has(c as string));
+      if (faltam.length) {
+        const { data: prep2 } = await supabase.from('producao_base')
+          .select('codigo, nome, unidade, unidade_contagem, secao').eq('bar_id', bar_id);
+        const porUpper = new Map<string, any>();
+        for (const r of (prep2 || []) as any[]) if (r.codigo) porUpper.set(String(r.codigo).toUpperCase(), r);
+        for (const c of faltam) {
+          const r = porUpper.get(String(c).toUpperCase());
+          if (r) nomeByCod.set(c as string, {
+            nome: r.nome,
+            unidade_medida: r.unidade_contagem || r.unidade || null,
+            categoria: r.secao ? `Produção ${r.secao}` : 'Produção',
+          });
+        }
+      }
+    }
   }
 
   const itensPorReg = new Map<number, any[]>();
