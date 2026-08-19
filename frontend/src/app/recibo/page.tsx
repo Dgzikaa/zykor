@@ -67,6 +67,16 @@ function ReciboInner() {
             <div className="text-right text-xs text-gray-400">{folha ? 'Holerite' : 'Recibo'}</div>
           </div>
 
+          {/* Sem folha do mês o recibo saía com TUDO em R$ 0,00 e sem explicação -- lia-se como
+              tela quebrada (foi o que o Gonza viu em 19/08/2026: "esse botão seria o quê?").
+              A folha é lançada por competência; se a do mês ainda não entrou, o aviso diz isso. */}
+          {!folha && totalProv === 0 && (
+            <div className="no-print mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              A folha de <b>{MESES[mes]}/{ano}</b> ainda não foi lançada para esta pessoa — por isso
+              os valores estão zerados. Lance a folha do mês em RH &rsaquo; Folha de Pagamento e gere o recibo de novo.
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-y-1 gap-x-6 text-sm mb-5">
             <div><span className="text-gray-500">Funcionário:</span> <b>{f.nome}</b></div>
             <div><span className="text-gray-500">CPF:</span> {f.cpf || '—'}</div>
