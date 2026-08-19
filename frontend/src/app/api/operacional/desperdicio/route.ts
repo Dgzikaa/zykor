@@ -193,56 +193,51 @@ export async function GET(request: NextRequest) {
 
   // Junta nome + preço unitário do insumo (evita 1 lookup por item). Preço vem da view
   // operations.v_insumo_preco_atual, que já é a fonte usada pelo desvio pra valorizar.
-  const codigos = Array.from(new Set((itens || []).map((i: any) => i.insumo_codigo)));
+  //
+  // TUDO É CASADO POR CÓDIGO EM MAIÚSCULO. O código do mesmo item aparece com caixas
+  // diferentes conforme a origem: lançamento manual grava como está no cadastro (i0507),
+  // e a explosão de produto pronto (fn_desperdicio_explodir_produto) devolve MAIÚSCULO
+  // (I0507). Com `.in('codigo', codigos)` exato, os itens vindos da explosão não casavam e
+  // a tela mostrava só o código — foi o que o Gonza viu em 19/08/2026.
+  //
+  // Duas fontes de nome, porque um componente de ficha pode ser INSUMO (operations.insumos)
+  // ou PREPARO (public.producao_base) — preparo não existe na tabela de insumos.
+  const codigos = Array.from(new Set((itens || []).map((i: any) => i.insumo_codigo).filter(Boolean)));
   const nomeByCod = new Map<string, { nome: string; unidade_medida: string | null; categoria: string | null }>();
   const precoByCod = new Map<string, number>();
   if (codigos.length) {
-    const [{ data: cad }, { data: prc }] = await Promise.all([
+    // variantes de caixa pro filtro do PostgREST (não há ilike com lista)
+    const variantes = Array.from(new Set(codigos.flatMap((c) => {
+      const t = String(c);
+      return [t, t.toLowerCase(), t.toUpperCase()];
+    })));
+    const [{ data: cad }, { data: prc }, { data: prep }] = await Promise.all([
       ops(supabase).from('insumos')
-        .select('codigo, nome, unidade_medida, categoria').eq('bar_id', bar_id).in('codigo', codigos),
+        .select('codigo, nome, unidade_medida, categoria').eq('bar_id', bar_id).in('codigo', variantes),
       ops(supabase).from('v_insumo_preco_atual')
         .select('cod_u, preco_atual').eq('bar_id', bar_id).in('cod_u', codigos.map((c) => String(c).toUpperCase())),
+      supabase.from('producao_base')
+        .select('codigo, nome, unidade, unidade_contagem, secao').eq('bar_id', bar_id).in('codigo', variantes),
     ]);
-    for (const r of (cad || []) as any[]) nomeByCod.set(r.codigo, { nome: r.nome, unidade_medida: r.unidade_medida, categoria: r.categoria });
-    for (const r of (prc || []) as any[]) precoByCod.set(String(r.cod_u).toUpperCase(), Number(r.preco_atual || 0));
-
-    // Explodir um PRODUTO PRONTO gera componentes que podem ser PREPAROS (pc/pd), e preparo mora
-    // em public.producao_base, não em operations.insumos — sem este segundo lookup essas linhas
-    // ficavam só com o código na tela (Gonza, 19/08/2026: "faltou aparecer o nome do insumo").
-    const semNome = codigos.filter((c) => !nomeByCod.has(c as string));
-    if (semNome.length) {
-      const { data: prep } = await supabase.from('producao_base')
-        .select('codigo, nome, unidade, unidade_contagem, secao').eq('bar_id', bar_id).in('codigo', semNome);
-      for (const r of (prep || []) as any[]) {
-        if (!r.codigo) continue;
-        nomeByCod.set(r.codigo, {
-          nome: r.nome,
-          unidade_medida: r.unidade_contagem || r.unidade || null,
-          categoria: r.secao ? `Produção ${r.secao}` : 'Produção',
-        });
-      }
-      // a planilha grava o código em minúsculo (pc0033) e a ficha em maiúsculo — casa os dois
-      const faltam = semNome.filter((c) => !nomeByCod.has(c as string));
-      if (faltam.length) {
-        const { data: prep2 } = await supabase.from('producao_base')
-          .select('codigo, nome, unidade, unidade_contagem, secao').eq('bar_id', bar_id);
-        const porUpper = new Map<string, any>();
-        for (const r of (prep2 || []) as any[]) if (r.codigo) porUpper.set(String(r.codigo).toUpperCase(), r);
-        for (const c of faltam) {
-          const r = porUpper.get(String(c).toUpperCase());
-          if (r) nomeByCod.set(c as string, {
-            nome: r.nome,
-            unidade_medida: r.unidade_contagem || r.unidade || null,
-            categoria: r.secao ? `Produção ${r.secao}` : 'Produção',
-          });
-        }
-      }
+    for (const r of (cad || []) as any[]) {
+      if (r.codigo) nomeByCod.set(String(r.codigo).toUpperCase(), { nome: r.nome, unidade_medida: r.unidade_medida, categoria: r.categoria });
     }
+    // preparo entra só onde o insumo não respondeu (o cadastro de insumo manda)
+    for (const r of (prep || []) as any[]) {
+      const k = String(r.codigo || '').toUpperCase();
+      if (!k || nomeByCod.has(k)) continue;
+      nomeByCod.set(k, {
+        nome: r.nome,
+        unidade_medida: r.unidade_contagem || r.unidade || null,
+        categoria: r.secao ? `Produção ${r.secao}` : 'Produção',
+      });
+    }
+    for (const r of (prc || []) as any[]) precoByCod.set(String(r.cod_u).toUpperCase(), Number(r.preco_atual || 0));
   }
 
   const itensPorReg = new Map<number, any[]>();
   for (const it of (itens || []) as any[]) {
-    const cad = nomeByCod.get(it.insumo_codigo);
+    const cad = nomeByCod.get(String(it.insumo_codigo || '').toUpperCase());
     const preco = precoByCod.get(String(it.insumo_codigo).toUpperCase()) ?? null;
     const valor_rs = preco != null ? Math.round(Number(it.qtd) * preco * 100) / 100 : null;
     const enriched = {
