@@ -6,6 +6,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useApiSWR } from '@/hooks/useApiSWR';
+import { useBar } from '@/contexts/BarContext';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { usePageTitle } from '@/contexts/PageTitleContext';
@@ -14,7 +16,7 @@ import { api } from '@/lib/api-client';
 import { origemCelula } from '@/lib/operacao/calculo';
 import { DetalheDiaDialog } from './DetalheDiaDialog';
 import { ParametrosDialog } from './ParametrosDialog';
-import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Copy, Plus, Settings, DownloadCloud, CalendarCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Loader2, CalendarRange, Copy, Plus, Settings, DownloadCloud, CalendarCheck } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Cores das células, herdadas da planilha que esta tela substitui:
@@ -271,10 +273,35 @@ function LinhaHeadcount({ rotulo, dias, funcoes, linhaDe }: {
   );
 }
 
+/**
+ * Faixa que abre/fecha uma seção da grade.
+ *
+ * É também o que dá HIERARQUIA à tabela — o pedido do Gonza de "trabalhar com mais cores, tipo no
+ * Excel". Sem faixa, 20 linhas cinzas seguidas viram um bloco só e ninguém acha onde começa a
+ * equipe.
+ */
+function FaixaSecao({ titulo, chave, cor, aberta, onToggle, colSpan }: {
+  titulo: string; chave: string; cor: string; aberta: boolean; onToggle: (k: string) => void; colSpan: number;
+}) {
+  return (
+    <tr className={`border-y border-[hsl(var(--border))] ${cor}`}>
+      <td colSpan={colSpan} className="px-2 py-1 sticky left-0 z-10">
+        <button onClick={() => onToggle(chave)}
+          className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide w-full text-left">
+          {aberta ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          {titulo}
+          {!aberta && <span className="font-normal normal-case text-muted-foreground">(oculta)</span>}
+        </button>
+      </td>
+    </tr>
+  );
+}
+
 export default function PlanoOperacionalPage() {
   const { setPageTitle } = usePageTitle();
   const { soLeitura } = useModuloPermissao('/operacao/plano');
   const { showToast } = useToast();
+  const { selectedBar } = useBar();
   useEffect(() => { setPageTitle('🗓️ Plano Operacional'); return () => setPageTitle(''); }, [setPageTitle]);
 
   const [segunda, setSegunda] = useState(() => segundaDa(new Date()));
@@ -297,6 +324,51 @@ export default function PlanoOperacionalPage() {
   const { data: resumo } = useApiSWR<Resumo>(`/api/operacao/resumo?de=${de}&ate=${ate}&escopo=${visao}`);
 
   const dias = useMemo(() => data?.dias || [], [data]);
+
+  /**
+   * No celular a grade mostra UM dia por vez.
+   *
+   * A semana inteira são 8 colunas; num telefone cada uma fica com ~40px e o texto quebra letra a
+   * letra — a "Programação Musical" virava uma coluna de alfabeto (docs/printMobile.jpg). Encolher
+   * fonte não resolve: o problema é a quantidade de colunas. Um dia por vez devolve à célula a
+   * largura que ela precisa, e o seletor de dia fica logo acima.
+   *
+   * A tabela em si não muda — ela só recebe menos dias. Assim desktop e celular continuam com UM
+   * layout só para manter, em vez de duas telas que divergem com o tempo.
+   */
+  /**
+   * Seções que dá para fechar. O Gonza: "talvez a gente tenha uma opção de ocultar algumas coisas,
+   * quero visualizar só a equipe, não quero ver a programação".
+   *
+   * Fica no localStorage por bar: quem cuida da escala abre a tela todo dia pra ver equipe, e
+   * reabrir as 4 seções toda vez é o tipo de atrito que faz a pessoa voltar pra planilha.
+   */
+  const [fechadas, setFechadas] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try {
+      const bruto = localStorage.getItem(`plano-secoes-${selectedBar?.id ?? 0}`);
+      if (bruto) setFechadas(JSON.parse(bruto));
+    } catch { /* preferência de layout não vale quebrar a tela */ }
+  }, [selectedBar?.id]);
+  const alternarSecao = (k: string) => {
+    setFechadas(prev => {
+      const proximo = { ...prev, [k]: !prev[k] };
+      // preferência de layout não vale quebrar a tela se o storage estiver indisponível
+      try { localStorage.setItem(`plano-secoes-${selectedBar?.id ?? 0}`, JSON.stringify(proximo)); } catch { /* ignora */ }
+      return proximo;
+    });
+  };
+  const aberta = (k: string) => !fechadas[k];
+
+  const mobile = useIsMobile();
+  const [idxDia, setIdxDia] = useState(0);
+  const diasGrade = useMemo(() => {
+    if (!mobile || dias.length === 0) return dias;
+    return [dias[Math.min(idxDia, dias.length - 1)]];
+  }, [mobile, dias, idxDia]);
+
+  // ao trocar de semana, volta pro primeiro dia — senão fica preso num índice que já não existe
+  useEffect(() => { setIdxDia(0); }, [de, visao]);
   const funcoes = useMemo(() => (data?.funcoes || []).filter(f => f.entra_no_custo), [data]);
   const funcoesOps = useMemo(() => funcoes.filter(f => !COD_SEGURANCA.includes(f.codigo)), [funcoes]);
   const funcoesSeg = useMemo(() => funcoes.filter(f => COD_SEGURANCA.includes(f.codigo)), [funcoes]);
@@ -466,6 +538,24 @@ export default function PlanoOperacionalPage() {
         </CardContent></Card>
       ) : (
         <Card><CardContent className="p-0 overflow-x-auto">
+          {/* Seletor de dia — só no celular, onde a grade mostra um dia por vez. */}
+          {mobile && dias.length > 1 && (
+            <div className="flex gap-1 overflow-x-auto px-2 py-2 border-b border-[hsl(var(--border))] sticky top-0 bg-[hsl(var(--card))] z-30">
+              {dias.map((d, i) => {
+                const ativo = i === Math.min(idxDia, dias.length - 1);
+                return (
+                  <button key={d.id} onClick={() => setIdxDia(i)}
+                    className={`shrink-0 rounded-md px-2.5 py-1.5 text-[11px] font-medium border transition-colors ${
+                      ativo
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'border-[hsl(var(--border))] text-muted-foreground hover:bg-muted'
+                    }`}>
+                    {rotuloDia(d.data, d.turno)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {/* Layout espelhando a planilha: cada linha da coluna A vira uma linha, e cada dia
               ocupa 4 sub-colunas (Precisa | Escala | Freelas | Custo) nas linhas de função.
               As linhas de texto ocupam as 4 colunas do dia.
@@ -476,7 +566,7 @@ export default function PlanoOperacionalPage() {
           <table className="w-full text-xs border-collapse table-fixed">
             <colgroup>
               <col style={{ width: '132px' }} />
-              {dias.map(d => (
+              {diasGrade.map(d => (
                 <Fragment key={d.id}>
                   <col /><col /><col />
                 </Fragment>
@@ -484,10 +574,16 @@ export default function PlanoOperacionalPage() {
             </colgroup>
             <thead>
               <tr className="border-b border-[hsl(var(--border))]">
-                <th className="text-left px-2 py-2 font-medium sticky left-0 bg-[hsl(var(--card))] z-20">&nbsp;</th>
-                {dias.map(d => (
+                <th className="text-left px-2 py-2 font-medium sticky left-0 bg-muted/60 z-20 border-b border-[hsl(var(--border))]">&nbsp;</th>
+                {diasGrade.map(d => (
                   <th key={d.id} colSpan={3}
-                    className="px-1 py-1.5 font-medium text-center whitespace-nowrap border-l border-[hsl(var(--border))] text-[11px]">
+                    /* fim de semana com fundo proprio: e o dia que mais muda a operacao, e achar
+                       sexta/sabado no meio de 8 colunas iguais era caca ao tesouro */
+                    className={`px-1 py-1.5 font-semibold text-center whitespace-nowrap border-l border-[hsl(var(--border))] text-[11px] ${
+                      [0, 5, 6].includes(new Date(d.data + 'T12:00:00').getDay())
+                        ? 'bg-amber-100/60 dark:bg-amber-900/20'
+                        : 'bg-muted/60'
+                    }`}>
                     {/* Clicar abre o painel do dia — é lá que fica o "dia atípico"
                         (festival/feriado com ticket e giro próprios), que não cabe na grade. */}
                     <button onClick={() => setDiaAberto(d)} title="Dia atípico: ticket e giro próprios deste dia"
@@ -504,11 +600,13 @@ export default function PlanoOperacionalPage() {
               </tr>
             </thead>
             <tbody>
+              <FaixaSecao titulo="Programação" chave="briefing" colSpan={1 + diasGrade.length * 3}
+                cor="bg-violet-100/70 dark:bg-violet-900/30" aberta={aberta('briefing')} onToggle={alternarSecao} />
               {/* ---- contexto do dia (texto), igual às primeiras linhas da planilha ---- */}
-              {LINHAS_TEXTO.map(lt => (
+              {aberta('briefing') && LINHAS_TEXTO.map(lt => (
                 <tr key={lt.campo} className="border-b border-[hsl(var(--border))] align-top">
-                  <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-muted-foreground text-[10px]">{lt.label}</td>
-                  {dias.map(d => (
+                  <td className="px-2 py-1 sticky left-0 bg-muted/60 z-10 text-muted-foreground text-[10px]">{lt.label}</td>
+                  {diasGrade.map(d => (
                     <td key={d.id} colSpan={3} className="p-0 border-l border-[hsl(var(--border))]">
                       <CelulaTexto
                         valor={(d[lt.campo] as string) || ''}
@@ -522,10 +620,13 @@ export default function PlanoOperacionalPage() {
                 </tr>
               ))}
 
+              <FaixaSecao titulo="Projeção" chave="projecao" colSpan={1 + diasGrade.length * 3}
+                cor="bg-sky-100/70 dark:bg-sky-900/30" aberta={aberta('projecao')} onToggle={alternarSecao} />
               {/* ---- cadeia de cálculo ---- */}
+              {aberta('projecao') && (<>
               <tr className="border-b border-[hsl(var(--border))]">
-                <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-[11px]">Expect Faturamento</td>
-                {dias.map(d => (
+                <td className="px-2 py-1 sticky left-0 bg-muted/60 z-10 text-[11px]">Expect Faturamento</td>
+                {diasGrade.map(d => (
                   <td key={d.id} colSpan={3} className="px-1 py-1 border-l border-[hsl(var(--border))]">
                     {/* Verde = veio do M1 do comercial; amarelo = digitado por cima dele;
                         branco = digitado sem M1 por trás. Apagar a célula volta pro M1. */}
@@ -539,8 +640,8 @@ export default function PlanoOperacionalPage() {
                 ))}
               </tr>
               <tr className="border-b border-[hsl(var(--border))]">
-                <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-[11px]">Expectativa de Público</td>
-                {dias.map(d => (
+                <td className="px-2 py-1 sticky left-0 bg-muted/60 z-10 text-[11px]">Expectativa de Público</td>
+                {diasGrade.map(d => (
                   <td key={d.id} colSpan={3} className="px-1 py-1 border-l border-[hsl(var(--border))]">
                     <CelulaNum valor={d.publico} origem={d.publico_manual != null ? 'amarelo' : 'verde'} disabled={soLeitura}
                       titulo="Faturamento ÷ ticket médio do dia da semana"
@@ -553,12 +654,12 @@ export default function PlanoOperacionalPage() {
                   Sobe até o dia, então o rótulo diz "até agora" em vez de deixar parecer
                   que a expectativa está furada quando a semana ainda está começando. */}
               <tr className="border-b border-[hsl(var(--border))]">
-                <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-[11px] text-muted-foreground">
+                <td className="px-2 py-1 sticky left-0 bg-muted/60 z-10 text-[11px] text-muted-foreground">
                   <span className="inline-flex items-center gap-1">
                     <CalendarCheck className="w-3 h-3" />Reservas até agora
                   </span>
                 </td>
-                {dias.map(d => {
+                {diasGrade.map(d => {
                   // O % é sobre o público do DIA INTEIRO, não do turno: a reserva do GetIn é da
                   // data, e no sábado partido comparar as 389 pessoas com o público só do turno
                   // dia dava 549% — lia como erro na tela.
@@ -586,8 +687,8 @@ export default function PlanoOperacionalPage() {
               </tr>
 
               <tr className="border-b border-[hsl(var(--border))]">
-                <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-[11px]">Pico/Lugares</td>
-                {dias.map(d => (
+                <td className="px-2 py-1 sticky left-0 bg-muted/60 z-10 text-[11px]">Pico/Lugares</td>
+                {diasGrade.map(d => (
                   <td key={d.id} colSpan={3} className="px-1 py-1 border-l border-[hsl(var(--border))]">
                     <CelulaNum valor={d.pico} origem={d.pico_manual != null ? 'amarelo' : 'verde'} disabled={soLeitura}
                       titulo="Público ÷ giro de lotação"
@@ -596,11 +697,15 @@ export default function PlanoOperacionalPage() {
                 ))}
               </tr>
 
+              </>)}
+
+              <FaixaSecao titulo="Plano de Chão" chave="plano" colSpan={1 + diasGrade.length * 3}
+                cor="bg-amber-100/70 dark:bg-amber-900/30" aberta={aberta('plano')} onToggle={alternarSecao} />
               {/* Plano de Chão fecha o bloco de contexto, como na planilha (vem depois do pico). */}
-              {LINHAS_TEXTO_PLANO.map(lt => (
+              {aberta('plano') && LINHAS_TEXTO_PLANO.map(lt => (
                 <tr key={lt.campo} className="border-b-2 border-[hsl(var(--border))] align-top">
-                  <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-muted-foreground text-[10px]">{lt.label}</td>
-                  {dias.map(d => (
+                  <td className="px-2 py-1 sticky left-0 bg-muted/60 z-10 text-muted-foreground text-[10px]">{lt.label}</td>
+                  {diasGrade.map(d => (
                     <td key={d.id} colSpan={3} className="p-0 border-l border-[hsl(var(--border))]">
                       {/* Plano de chão sem corte: é a instrução de montagem do salão, lida
                           inteira antes do serviço. Cortar em 3 linhas escondia justamente
@@ -613,12 +718,15 @@ export default function PlanoOperacionalPage() {
                 </tr>
               ))}
 
+              <FaixaSecao titulo="Equipe" chave="equipe" colSpan={1 + diasGrade.length * 3}
+                cor="bg-emerald-100/70 dark:bg-emerald-900/30" aberta={aberta('equipe')} onToggle={alternarSecao} />
+              {aberta('equipe') && (<>
               {/* ---- cabeçalho das 4 sub-colunas, como na planilha ---- */}
               {/* Os rotulos da planilha ("TOTAL / FIXOS") liam como erro: "total 2 mas fixos 3?".
                   O sentido real e uma frase — precisa de 2, tem 3 na escala, logo 0 freelas. */}
               <tr className="border-b border-[hsl(var(--border))] bg-muted/40 text-[10px] text-muted-foreground">
                 <td className="px-2 py-0.5 sticky left-0 bg-muted/40 z-10">&nbsp;</td>
-                {dias.map(d => (
+                {diasGrade.map(d => (
                   <Fragment key={d.id}>
                     <td className="px-1 py-1 text-center border-l border-[hsl(var(--border))]" title="Quantos a operação precisa: pico ÷ nível de serviço">Precisa</td>
                     <td className="px-1 py-1 text-center" title="Quantos já estão escalados (vem da Escala)">Escala</td>
@@ -630,27 +738,29 @@ export default function PlanoOperacionalPage() {
               {/* ---- funções de operação + Headcount Ops ---- */}
               {funcoesOps.map(f => (
                 <tr key={f.id} className="border-b border-[hsl(var(--border))] hover:bg-muted/30">
-                  <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-[11px]">{f.nome}</td>
-                  {dias.map(d => <CelulasFuncao key={d.id} dia={d} funcao={f} linha={linhaDe(d, f.id)}
+                  <td className="px-2 py-1 sticky left-0 bg-muted/60 z-10 text-[11px]">{f.nome}</td>
+                  {diasGrade.map(d => <CelulasFuncao key={d.id} dia={d} funcao={f} linha={linhaDe(d, f.id)}
                     soLeitura={soLeitura} onSalvar={salvarFuncao} />)}
                 </tr>
               ))}
-              <LinhaHeadcount rotulo="Headcount Ops" dias={dias} funcoes={funcoesOps} linhaDe={linhaDe} />
+              <LinhaHeadcount rotulo="Headcount Ops" dias={diasGrade} funcoes={funcoesOps} linhaDe={linhaDe} />
 
               {/* ---- segurança + Headcount Seg ---- */}
               {funcoesSeg.map(f => (
                 <tr key={f.id} className="border-b border-[hsl(var(--border))] hover:bg-muted/30">
-                  <td className="px-2 py-1 sticky left-0 bg-[hsl(var(--card))] z-10 text-[11px]">{f.nome}</td>
-                  {dias.map(d => <CelulasFuncao key={d.id} dia={d} funcao={f} linha={linhaDe(d, f.id)}
+                  <td className="px-2 py-1 sticky left-0 bg-muted/60 z-10 text-[11px]">{f.nome}</td>
+                  {diasGrade.map(d => <CelulasFuncao key={d.id} dia={d} funcao={f} linha={linhaDe(d, f.id)}
                     soLeitura={soLeitura} onSalvar={salvarFuncao} />)}
                 </tr>
               ))}
-              <LinhaHeadcount rotulo="Headcount Seg" dias={dias} funcoes={funcoesSeg} linhaDe={linhaDe} />
+              <LinhaHeadcount rotulo="Headcount Seg" dias={diasGrade} funcoes={funcoesSeg} linhaDe={linhaDe} />
+
+              </>)}
 
               {/* ---- custo do dia ---- */}
               <tr className="border-t-2 border-[hsl(var(--border))] font-semibold bg-muted/40">
                 <td className="px-2 py-1.5 sticky left-0 bg-muted/40 z-10 text-[11px]">Custo Proj do Dia</td>
-                {dias.map(d => (
+                {diasGrade.map(d => (
                   <td key={d.id} colSpan={3} className="px-1 py-1.5 text-center tabular-nums border-l border-[hsl(var(--border))] text-[11px]">
                     {fmtBRL(d.custo_dia)}
                   </td>
