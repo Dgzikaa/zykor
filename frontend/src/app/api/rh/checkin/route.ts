@@ -16,7 +16,9 @@ export const dynamic = 'force-dynamic';
  * mão é o que separa "não veio" de "veio e não bateu".
  */
 
-const STATUS = ['ok', 'ok_atraso', 'escala_errada', 'falta'] as const;
+// 'atestado' = ausência JUSTIFICADA (Gonza, 19/08/2026). Não é falta: gera ocorrência de tipo
+// 'atestado' no dossiê, não de tipo 'falta'.
+const STATUS = ['ok', 'ok_atraso', 'escala_errada', 'falta', 'atestado'] as const;
 type Status = (typeof STATUS)[number];
 
 /** GET ?data=YYYY-MM-DD -> escalados do dia com sugestão do ponto e o que já foi marcado. */
@@ -121,20 +123,27 @@ export async function POST(request: NextRequest) {
 
   let ocorrenciaId: string | null = atual?.ocorrencia_id ?? null;
 
-  // deixou de ser falta -> a ocorrência que ESTE check-in criou vai junto
-  if (atual?.ocorrencia_id && status !== 'falta') {
+  // Falta e atestado geram ocorrência no dossiê; os outros status, não.
+  const TIPO_OCORRENCIA: Partial<Record<Status, { tipo: string; descricao: string }>> = {
+    falta: { tipo: 'falta', descricao: 'Falta registrada no check-in do dia' },
+    atestado: { tipo: 'atestado', descricao: 'Atestado registrado no check-in do dia' },
+  };
+  const alvo = TIPO_OCORRENCIA[status];
+
+  // Trocou pra um status que não gera ocorrência (ou gera OUTRA): a que ESTE check-in criou sai.
+  // Sem comparar o tipo, marcar falta e depois corrigir pra atestado deixava a FALTA no histórico.
+  if (atual?.ocorrencia_id && (!alvo || atual.status !== status)) {
     await hr('funcionario_ocorrencias').delete().eq('id', atual.ocorrencia_id);
     ocorrenciaId = null;
   }
 
-  // virou falta e ainda não tinha ocorrência
-  if (status === 'falta' && !ocorrenciaId) {
+  if (alvo && !ocorrenciaId) {
     const { data: oc } = await hr('funcionario_ocorrencias').insert({
       funcionario_id: funcionarioId,
       bar_id: user.bar_id,
-      tipo: 'falta',
+      tipo: alvo.tipo,
       data_inicio: data,
-      descricao: body.observacao || 'Falta registrada no check-in do dia',
+      descricao: body.observacao || alvo.descricao,
       colaborador_nome: pessoa.nome,
       aplicado_por: user.email || 'app',
     }).select('id').single();

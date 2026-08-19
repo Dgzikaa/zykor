@@ -31,9 +31,13 @@ type Resposta = {
   resumo: { escalados: number; marcados: number; faltas: number; pendentes: number };
 };
 
+// A lista que o Gonza pediu (19/08/2026): Presente / Presente Atrasado / Faltou / Atestado /
+// Não está na Escala. 'atestado' é ausência JUSTIFICADA — vira ocorrência de atestado no dossiê,
+// não de falta.
 const OPCOES = [
   { id: 'ok', label: 'OK', cls: 'bg-emerald-600 text-white border-emerald-600' },
   { id: 'ok_atraso', label: 'OK c/ atraso', cls: 'bg-amber-500 text-white border-amber-500' },
+  { id: 'atestado', label: 'Atestado', cls: 'bg-sky-600 text-white border-sky-600' },
   { id: 'escala_errada', label: 'Escala errada', cls: 'bg-slate-500 text-white border-slate-500' },
   { id: 'falta', label: 'Falta', cls: 'bg-rose-600 text-white border-rose-600' },
 ] as const;
@@ -76,6 +80,8 @@ export function CheckinsTab() {
       if (!r.ok || !j.success) throw new Error(j.error || 'Não foi possível marcar');
       if (status === 'falta') {
         showToast({ type: 'warning', title: 'Falta registrada', message: `Ocorrência criada para ${l.nome}.` });
+      } else if (status === 'atestado') {
+        showToast({ type: 'info', title: 'Atestado registrado', message: `Ocorrência de atestado criada para ${l.nome} — o arquivo entra no Dossiê.` });
       }
       mutate();
     } catch (e: any) {
