@@ -318,6 +318,60 @@ const construirOkrs = (salvos?: OKR[] | null): OKR[] => {
   return resultado;
 };
 
+// Função para formatar números (12000 -> 12.000)
+const formatarNumero = (valor: number | null | undefined): string => {
+  if (!valor) return '';
+  return valor.toLocaleString('pt-BR');
+};
+
+/**
+ * Campo numérico das METAS. NÃO reformata enquanto se digita.
+ *
+ * Bug que isto corrige (Gonza, 19/08/2026 — "só fica R$ 1,00", em Faturamento e CMO Fixo):
+ * o input era controlado pelo valor JÁ FORMATADO (`formatCurrency(1)` = "R$ 1,00") e o
+ * onChange reparseava o texto a cada tecla. Digitando 1500000, o "1" virava "R$ 1,00" na
+ * tela e todo dígito seguinte caía DEPOIS da vírgula decimal — o parse jogava fora e a meta
+ * ficava presa em 1. Enquanto o campo está em foco vale o texto CRU digitado; o formatado só
+ * volta no blur.
+ *
+ * MORA NO ESCOPO DO MÓDULO de propósito. Na primeira tentativa ele estava DENTRO do
+ * OrganizadorEditPage: a cada render do pai o componente virava um tipo novo, o React
+ * desmontava/remontava, o `texto` voltava pra null a cada tecla e o bug continuava idêntico.
+ * Não mover pra dentro de componente nenhum.
+ */
+const CampoNumero = ({ value, formato, onChange, className, placeholder }: {
+  value: number | null | undefined;
+  formato: 'moeda' | 'numero' | 'texto';
+  onChange: (v: number | null) => void;
+  className?: string;
+  placeholder?: string;
+}) => {
+  const [texto, setTexto] = useState<string | null>(null); // != null → editando
+  const formatado = value == null ? ''
+    : formato === 'moeda' ? formatCurrency(value)
+    : formato === 'numero' ? formatarNumero(value)
+    : String(value).replace('.', ',');
+  // pt-BR: ponto é separador de milhar, vírgula é decimal.
+  const parse = (txt: string): number | null => {
+    const limpo = txt.replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
+    if (!limpo || limpo === '-') return null;
+    const n = parseFloat(limpo);
+    return Number.isFinite(n) ? n : null;
+  };
+  return (
+    <Input
+      type="text"
+      className={className}
+      placeholder={placeholder}
+      value={texto ?? formatado}
+      // ao focar mostra o número cru (1500000), que é o que se quer reescrever
+      onFocus={() => setTexto(value == null ? '' : String(value).replace('.', ','))}
+      onChange={(e) => { setTexto(e.target.value); onChange(parse(e.target.value)); }}
+      onBlur={() => setTexto(null)}
+    />
+  );
+};
+
 export default function OrganizadorEditPage() {
   const router = useRouter();
   const params = useParams();
@@ -590,55 +644,6 @@ export default function OrganizadorEditPage() {
       </div>
     );
   }
-
-  // Função para formatar números (12000 -> 12.000)
-  const formatarNumero = (valor: number | null | undefined): string => {
-    if (!valor) return '';
-    return valor.toLocaleString('pt-BR');
-  };
-
-  /**
-   * Campo numérico das METAS. NÃO reformata enquanto se digita.
-   *
-   * Bug que isto corrige (Gonza, 19/08/2026 — "só fica R$ 1,00", em Faturamento e CMO Fixo):
-   * o input era controlado pelo valor JÁ FORMATADO (`formatCurrency(1)` = "R$ 1,00") e o
-   * onChange reparseava o texto a cada tecla. Digitando 1500000, o "1" virava "R$ 1,00" na
-   * tela e todo dígito seguinte caía DEPOIS da vírgula decimal — o parse jogava fora e a meta
-   * ficava presa em 1. Enquanto o campo está em foco vale o texto CRU digitado; o formatado só
-   * volta no blur.
-   */
-  const CampoNumero = ({ value, formato, onChange, className, placeholder }: {
-    value: number | null | undefined;
-    formato: 'moeda' | 'numero' | 'texto';
-    onChange: (v: number | null) => void;
-    className?: string;
-    placeholder?: string;
-  }) => {
-    const [texto, setTexto] = useState<string | null>(null); // != null → editando
-    const formatado = value == null ? ''
-      : formato === 'moeda' ? formatCurrency(value)
-      : formato === 'numero' ? formatarNumero(value)
-      : String(value).replace('.', ',');
-    // pt-BR: ponto é separador de milhar, vírgula é decimal.
-    const parse = (txt: string): number | null => {
-      const limpo = txt.replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
-      if (!limpo || limpo === '-') return null;
-      const n = parseFloat(limpo);
-      return Number.isFinite(n) ? n : null;
-    };
-    return (
-      <Input
-        type="text"
-        className={className}
-        placeholder={placeholder}
-        value={texto ?? formatado}
-        // ao focar mostra o número cru (1500000), que é o que se quer reescrever
-        onFocus={() => setTexto(value == null ? '' : String(value).replace('.', ','))}
-        onChange={(e) => { setTexto(e.target.value); onChange(parse(e.target.value)); }}
-        onBlur={() => setTexto(null)}
-      />
-    );
-  };
 
   return (
     <div className="min-h-screen bg-[#f5f0e1] dark:bg-gray-900">
