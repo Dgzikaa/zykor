@@ -68,9 +68,21 @@ export function ConsumacoesTab() {
    * sem ele o painel encheria de centavos e ninguém olharia.
    */
   const [corte, setCorte] = useState(20);
+  /**
+   * Janela PRÓPRIA, não a do seletor da aba.
+   *
+   * Na primeira versão o painel seguia o período visível e a aba abre em "ontem" — como as
+   * pendências são de dias antigos, ele ficava invisível e parecia não existir. Pendência é
+   * BACKLOG: só serve se aparecer sem ninguém ir procurar dia a dia.
+   */
+  const janelaPend = useMemo(() => {
+    const fim = new Date();
+    const ini = new Date(); ini.setDate(ini.getDate() - 60);
+    return { de: ini.toISOString().slice(0, 10), ate: fim.toISOString().slice(0, 10) };
+  }, []);
   const { data: pend } = useApiSWR<any>(
     selectedBar?.id
-      ? `/api/financeiro/fechamento/consumacao/pendencias?bar_id=${selectedBar.id}&ini=${range.de}&fim=${range.ate}&minimo=${corte}`
+      ? `/api/financeiro/fechamento/consumacao/pendencias?bar_id=${selectedBar.id}&ini=${janelaPend.de}&fim=${janelaPend.ate}&minimo=${corte}`
       : null,
   );
 
@@ -168,6 +180,17 @@ export function ConsumacoesTab() {
         </span>
       </div>
 
+      {pend?.success && pend.resumo.linhas === 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-300">
+          <Check className="h-4 w-4 shrink-0" />
+          <span>
+            Nenhum ajuste pendente no Conta Azul nos últimos 60 dias
+            {pend.resumo.ignoradas_abaixo_do_corte > 0 &&
+              ` (${pend.resumo.ignoradas_abaixo_do_corte} diferença(s) abaixo de ${fmtBRL(corte)} ignorada(s))`}.
+          </span>
+        </div>
+      )}
+
       {pend?.success && pend.resumo.linhas > 0 && (
         <Card className="border-amber-300 dark:border-amber-800">
           <CardContent className="py-3 space-y-2">
@@ -175,7 +198,7 @@ export function ConsumacoesTab() {
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
               <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">
                 {pend.resumo.linhas} ajuste{pend.resumo.linhas > 1 ? 's' : ''} pendente{pend.resumo.linhas > 1 ? 's' : ''} no Conta Azul
-                {pend.resumo.dias > 1 && ` · ${pend.resumo.dias} dias`}
+                {pend.resumo.dias > 1 && ` · ${pend.resumo.dias} dias`} · últimos 60 dias
               </span>
               <div className="ml-auto flex items-center gap-1.5 text-[11px]">
                 <span className="text-muted-foreground">a partir de</span>
@@ -223,8 +246,11 @@ export function ConsumacoesTab() {
                 </thead>
                 <tbody>
                   {pend.linhas.map((l: any) => (
-                    <tr key={`${l.dia}-${l.chave}`} className="border-t">
-                      <td className="px-2 py-1.5 whitespace-nowrap">{brDate(l.dia)}</td>
+                    <tr key={`${l.dia}-${l.chave}`}
+                      onClick={() => { setGran('dia'); setDataRef(l.dia); }}
+                      title="Abrir esse dia nas Consumações"
+                      className="border-t cursor-pointer hover:bg-muted/50">
+                      <td className="px-2 py-1.5 whitespace-nowrap underline decoration-dotted">{brDate(l.dia)}</td>
                       <td className="px-2 py-1.5">
                         {l.categoria_ca}
                         {l.situacao === 'sumiu' && (
