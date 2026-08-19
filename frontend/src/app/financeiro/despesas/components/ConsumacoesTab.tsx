@@ -57,6 +57,23 @@ export function ConsumacoesTab() {
 
   const range = useMemo(() => gran === 'dia' ? { de: dataRef, ate: dataRef } : gran === 'semana' ? semanaDe(dataRef) : mesDe(dataRef), [gran, dataRef]);
 
+  /**
+   * Ajustes que ficaram pendentes NO CONTA AZUL: o dia já foi lançado e a classificação do consumo
+   * mudou depois. O lançamento é idempotente por categoria e ignora o valor, então reclassificar
+   * ("não foi benefício cliente, foi funcionário") ou marcar "ignorar" deixa a categoria antiga lá
+   * e a nova de fora — e o complemento de soma-zero ainda faz o TOTAL fechar, escondendo o erro
+   * dentro da categoria.
+   *
+   * O corte existe porque mudar uma ficha técnica desloca o custo histórico de todos os dias:
+   * sem ele o painel encheria de centavos e ninguém olharia.
+   */
+  const [corte, setCorte] = useState(20);
+  const { data: pend } = useApiSWR<any>(
+    selectedBar?.id
+      ? `/api/financeiro/fechamento/consumacao/pendencias?bar_id=${selectedBar.id}&ini=${range.de}&fim=${range.ate}&minimo=${corte}`
+      : null,
+  );
+
   // Cache via SWR: a chave inclui bar + granularidade (endpoint dia vs período). mutate() = refetch pós-POST.
   const { data: resp, isValidating: loading, mutate } = useApiSWR<any>(
     selectedBar?.id && dataRef
@@ -150,6 +167,87 @@ export function ConsumacoesTab() {
             : <>Visão de <b>{gran === 'semana' ? 'semana' : 'mês'}</b> ({brDate(range.de)} a {brDate(range.ate)}) — cada dia é lançado com a sua própria competência. Clique num dia pra ver as categorias.</>}
         </span>
       </div>
+
+      {pend?.success && pend.resumo.linhas > 0 && (
+        <Card className="border-amber-300 dark:border-amber-800">
+          <CardContent className="py-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+              <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                {pend.resumo.linhas} ajuste{pend.resumo.linhas > 1 ? 's' : ''} pendente{pend.resumo.linhas > 1 ? 's' : ''} no Conta Azul
+                {pend.resumo.dias > 1 && ` · ${pend.resumo.dias} dias`}
+              </span>
+              <div className="ml-auto flex items-center gap-1.5 text-[11px]">
+                <span className="text-muted-foreground">a partir de</span>
+                <select value={corte} onChange={(e) => setCorte(Number(e.target.value))}
+                  className="h-7 rounded border bg-background px-1.5 text-[11px]">
+                  <option value={5}>R$ 5</option>
+                  <option value={20}>R$ 20</option>
+                  <option value={50}>R$ 50</option>
+                  <option value={100}>R$ 100</option>
+                </select>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground">
+              Esses dias já foram lançados e a classificação do consumo mudou depois. O Conta Azul não
+              deixa apagar lançamento, então a correção é dentro dele: <b>estornar</b> o que sobrou e
+              <b> lançar</b> o que falta, na categoria indicada.
+              {pend.resumo.ignoradas_abaixo_do_corte > 0 &&
+                ` ${pend.resumo.ignoradas_abaixo_do_corte} diferença(s) menor(es) que o corte estão ocultas.`}
+            </p>
+
+            <div className="flex flex-wrap gap-3 text-xs">
+              {pend.resumo.a_estornar > 0 && (
+                <span className="text-rose-700 dark:text-rose-400">
+                  a estornar: <b>{fmtBRL(pend.resumo.a_estornar)}</b>
+                </span>
+              )}
+              {pend.resumo.a_lancar > 0 && (
+                <span className="text-emerald-700 dark:text-emerald-400">
+                  a lançar: <b>{fmtBRL(pend.resumo.a_lancar)}</b>
+                </span>
+              )}
+            </div>
+
+            <div className="max-h-64 overflow-y-auto rounded-md border">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/50 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-2 py-1.5">Dia</th>
+                    <th className="text-left px-2 py-1.5">Categoria no Conta Azul</th>
+                    <th className="text-right px-2 py-1.5">Está lá</th>
+                    <th className="text-right px-2 py-1.5">Deveria ser</th>
+                    <th className="text-right px-2 py-1.5">O que fazer</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pend.linhas.map((l: any) => (
+                    <tr key={`${l.dia}-${l.chave}`} className="border-t">
+                      <td className="px-2 py-1.5 whitespace-nowrap">{brDate(l.dia)}</td>
+                      <td className="px-2 py-1.5">
+                        {l.categoria_ca}
+                        {l.situacao === 'sumiu' && (
+                          <span className="ml-1.5 text-[9px] rounded px-1 bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
+                            deixou de existir no dia
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmtBRL(l.no_ca)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{fmtBRL(l.agora)}</td>
+                      <td className={`px-2 py-1.5 text-right tabular-nums font-semibold ${
+                        l.delta < 0 ? 'text-rose-700 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-400'
+                      }`}>
+                        {l.delta < 0 ? `estornar ${fmtBRL(Math.abs(l.delta))}` : `lançar ${fmtBRL(l.delta)}`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* MODO DIA — categorias */}
       {gran === 'dia' && (
