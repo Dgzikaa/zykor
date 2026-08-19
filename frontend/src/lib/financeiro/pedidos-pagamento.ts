@@ -125,6 +125,23 @@ export function podeAprovar(user: AuthenticatedUser): boolean {
   return userHasModule(user.modulos_permitidos, 'ferramentas_agendamento');
 }
 
+/**
+ * Pode VER os pedidos do bar inteiro (não só os que a própria pessoa lançou)?
+ *
+ * Ver e aprovar eram a MESMA checagem: quem não podia aprovar caía em `escopo=meus` e só
+ * enxergava os próprios pedidos. O Isaías (perfil Administrativo, com o módulo de Pedidos de
+ * Pagamento mas sem o de Agendamentos) reclamou em 19/08/2026: "quando a galera lança boleto eu
+ * não consigo ver o que foi lançado... se a Nat fizer o lançamento eu não consigo ver".
+ *
+ * São coisas diferentes: aprovar/rejeitar/editar pedido dos outros continua exigindo
+ * `podeAprovar`; VER o que o bar lançou é de quem tem o módulo da tela — quem consegue abrir
+ * Pedidos de Pagamento vê a fila do bar, que é justamente o motivo de a tela existir.
+ */
+export function podeVerTodos(user: AuthenticatedUser): boolean {
+  if (podeAprovar(user)) return true;
+  return userHasModule(user.modulos_permitidos, 'ferramentas financeiro_pedidos_de_pagamento');
+}
+
 /** Registra uma linha de auditoria de mudança de campo/status. */
 export async function registrarHistorico(
   supabase: SupabaseClient,

@@ -4,6 +4,7 @@ import { authenticateUser, authErrorResponse, permissionErrorResponse } from '@/
 import {
   fin,
   podeAprovar,
+  podeVerTodos,
   registrarHistorico,
   STATUS_EDITAVEL_SOLICITANTE,
   type PedidoPagamento,
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   // Solicitante só vê o próprio; financeiro vê todos do bar.
-  if (!podeAprovar(user) && pedido.solicitante_id !== user.auth_id) {
+  if (!podeVerTodos(user) && pedido.solicitante_id !== user.auth_id) {
     return permissionErrorResponse('Sem acesso a este pedido');
   }
 

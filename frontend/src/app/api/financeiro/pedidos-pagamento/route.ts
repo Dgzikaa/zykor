@@ -5,6 +5,7 @@ import { negarPorRota } from '@/lib/permissions/guard';
 import {
   fin,
   podeAprovar,
+  podeVerTodos,
   comentarioSistema,
   formatBRL,
   TIPOS_VALIDOS,
@@ -40,8 +41,9 @@ export async function GET(request: NextRequest) {
   const limitParam = searchParams.get('limit');
   const limitExplicito = limitParam ? Math.min(parseInt(limitParam), 1000) : null;
 
-  // Quem não pode aprovar só enxerga os próprios pedidos, mesmo pedindo "todos".
-  const escopo = podeAprovar(user) && escopoParam !== 'meus' ? 'todos' : 'meus';
+  // Quem não pode VER o bar inteiro só enxerga os próprios pedidos, mesmo pedindo "todos".
+  // (ver != aprovar — o módulo da tela já dá a visão da fila; ver podeVerTodos.)
+  const escopo = podeVerTodos(user) && escopoParam !== 'meus' ? 'todos' : 'meus';
 
   const supabase = await getAdminClient();
   const buildQuery = () => {
