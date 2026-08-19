@@ -299,18 +299,20 @@ const semConteudo = (linhas: OKR[]): OKR[] =>
 /**
  * Junta o que veio do banco com os esqueletos padrão: mantém a ordem
  * (Gerais primeiro, depois cada área) e semeia áreas ainda vazias.
- * `vazio` = OVT novo: semeia as LINHAS (pra ter onde escrever) sem o texto do Ordinário.
+ *
+ * O esqueleto entra SEMPRE em branco — dá as LINHAS pra pessoa ter onde escrever, nunca o
+ * texto. `defaultOKRs` é o OVT do Ordinário escrito no código ("Gonza", "Faturamento de Sábado
+ * em 85k"…): semear isso num OVT de outro bar foi o que o Gonza viu no Deboche. Vale pro OVT
+ * novo E pra edição de um OVT que ficou sem OKRs — os dois caminhos passam por aqui.
  */
-const construirOkrs = (salvos?: OKR[] | null, vazio = false): OKR[] => {
+const construirOkrs = (salvos?: OKR[] | null): OKR[] => {
   const normalizados = (salvos || []).map(o => ({ ...o, area: o.area || 'GERAL', andamento: o.andamento || '' }));
   const gerais = normalizados.filter(o => o.area === 'GERAL');
-  const modeloGeral = vazio ? semConteudo(defaultOKRs) : [...defaultOKRs];
-  const resultado: OKR[] = gerais.length > 0 ? gerais : modeloGeral;
+  const resultado: OKR[] = gerais.length > 0 ? gerais : semConteudo(defaultOKRs);
 
   AREAS.forEach(area => {
     const daArea = normalizados.filter(o => o.area === area.key);
-    const modeloArea = vazio ? semConteudo(okrsPadraoDaArea(area.key)) : okrsPadraoDaArea(area.key);
-    resultado.push(...(daArea.length > 0 ? daArea : modeloArea));
+    resultado.push(...(daArea.length > 0 ? daArea : semConteudo(okrsPadraoDaArea(area.key))));
   });
 
   return resultado;
@@ -346,7 +348,7 @@ export default function OrganizadorEditPage() {
     ano: parseInt(searchParams.get('ano') || String(new Date().getFullYear())),
     semestre: parseInt(searchParams.get('semestre') || String(new Date().getMonth() < 6 ? 1 : 2)),
   });
-  const [okrs, setOkrs] = useState<OKR[]>(() => construirOkrs(null, true));
+  const [okrs, setOkrs] = useState<OKR[]>(() => construirOkrs());
 
   // Flag para evitar múltiplas chamadas
   const [dataLoaded, setDataLoaded] = useState(false);
