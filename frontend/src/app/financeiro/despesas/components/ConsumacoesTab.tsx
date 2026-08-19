@@ -216,8 +216,10 @@ export function ConsumacoesTab() {
               Esses dias já foram lançados e a classificação do consumo mudou depois. O Conta Azul não
               deixa apagar lançamento, então a correção é dentro dele: <b>estornar</b> o que sobrou e
               <b> lançar</b> o que falta, na categoria indicada.
+              {' '}Categoria que <b>sumiu do dia</b> aparece sempre, sem corte — é reclassificação
+              certa. O corte vale só para valor que mudou, que às vezes é só a ficha técnica.
               {pend.resumo.ignoradas_abaixo_do_corte > 0 &&
-                ` ${pend.resumo.ignoradas_abaixo_do_corte} diferença(s) menor(es) que o corte estão ocultas.`}
+                ` ${pend.resumo.ignoradas_abaixo_do_corte} diferença(s) de valor abaixo do corte estão ocultas — baixe o corte pra ver.`}
             </p>
 
             <div className="flex flex-wrap gap-3 text-xs">

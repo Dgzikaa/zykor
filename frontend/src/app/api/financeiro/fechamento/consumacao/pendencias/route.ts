@@ -73,9 +73,19 @@ export async function GET(request: NextRequest) {
     situacao: r.situacao as 'novo' | 'sumiu' | 'aumentou' | 'diminuiu',
   }));
 
-  // "sumiu" entra sempre que passa do corte: é o caso inequívoco (a categoria deixou de existir
-  // naquele dia), enquanto "aumentou/diminuiu" pode ser só a ficha técnica tendo mudado.
-  const linhas = todas.filter((l) => Math.abs(l.delta) >= minimo);
+  /**
+   * O corte vale só para "aumentou/diminuiu" — esses PODEM ser só a ficha técnica tendo mudado, o
+   * que desloca o custo histórico de todos os dias e encheria a lista de centavos.
+   *
+   * "sumiu" e "novo" NÃO têm corte: a categoria deixou de existir (ou passou a existir) naquele
+   * dia, o que é sempre reclassificação ou "ignorar" de verdade — o caso que originou o painel.
+   * Filtrar esses por valor esconderia justamente o erro que a gente quer pegar. São poucos: nos
+   * últimos 60 dias, 20 dos 56 "sumiu" estão abaixo de R$ 20 e somam R$ 222.
+   *
+   * Nada é descartado no banco: o seletor da tela desce e mostra o resto.
+   */
+  const inequivoco = (l: { situacao: string }) => l.situacao === 'sumiu' || l.situacao === 'novo';
+  const linhas = todas.filter((l) => inequivoco(l) || Math.abs(l.delta) >= minimo);
 
   const resumo = {
     linhas: linhas.length,
@@ -83,6 +93,8 @@ export async function GET(request: NextRequest) {
     a_estornar: Number(linhas.filter((l) => l.delta < 0).reduce((s, l) => s + Math.abs(l.delta), 0).toFixed(2)),
     a_lancar: Number(linhas.filter((l) => l.delta > 0).reduce((s, l) => s + l.delta, 0).toFixed(2)),
     ignoradas_abaixo_do_corte: todas.length - linhas.length,
+    // quantas entraram por serem inequívocas, mesmo abaixo do corte
+    inequivocas: linhas.filter(inequivoco).length,
   };
 
   return NextResponse.json({ success: true, minimo, fator, resumo, linhas });
