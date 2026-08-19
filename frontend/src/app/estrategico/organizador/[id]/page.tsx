@@ -113,8 +113,9 @@ interface OrganizadorData {
 type DetalheBizu = { detalhamento?: string; o_que_e?: string; o_que_nao_e?: string };
 type DetalheSimples = { detalhamento?: string };
 
-/** 7 BIZUS (valores centrais) e 5 Principais Problemas — conforme a planilha. */
+/** 7 BIZUS (valores centrais), 3 Singularidades e 5 Principais Problemas — conforme a planilha. */
 const QTD_BIZUS = 7;
+const QTD_SINGULARIDADES = 3;
 const QTD_PROBLEMAS = 5;
 
 const statusOptions = [
@@ -265,17 +266,51 @@ const okrsPadraoDaArea = (areaKey: string): OKR[] =>
   }));
 
 /**
+ * OVT NOVO nasce em BRANCO.
+ *
+ * `defaultOrganizador` / `defaultOKRs` são o OVT do ORDINÁRIO escrito no código (missão,
+ * Bizus, posicionamento, metas, épicos). Até 19/08/2026 QUALQUER OVT novo nascia com esse
+ * conteúdo — o Gonza criou o do Deboche e veio "igual do Ordi". Estes helpers mantêm só a
+ * ESTRUTURA (7 Bizus, 3 Singularidades, 5 Problemas, as áreas) e zeram o conteúdo.
+ */
+const emBranco = (): OrganizadorData => {
+  const base: any = { ...defaultOrganizador };
+  for (const k of Object.keys(base)) {
+    const v = base[k];
+    if (typeof v === 'string') base[k] = '';
+    else if (typeof v === 'number') base[k] = null;
+    else if (Array.isArray(v)) base[k] = v.map((x: unknown) => (typeof x === 'string' ? '' : x));
+  }
+  // identificação/período não são conteúdo: seguem do default
+  base.bar_id = defaultOrganizador.bar_id;
+  base.ano = defaultOrganizador.ano;
+  base.semestre = defaultOrganizador.semestre;
+  base.trimestre = null;
+  base.tipo = defaultOrganizador.tipo;
+  base.valores_centrais_detalhe = [];
+  base.singularidades_detalhe = [];
+  base.principais_problemas_detalhe = [];
+  return base as OrganizadorData;
+};
+
+const semConteudo = (linhas: OKR[]): OKR[] =>
+  linhas.map(o => ({ ...o, epico: '', historia: '', responsavel: '', observacoes: '', andamento: '', status: 'cinza' }));
+
+/**
  * Junta o que veio do banco com os esqueletos padrão: mantém a ordem
  * (Gerais primeiro, depois cada área) e semeia áreas ainda vazias.
+ * `vazio` = OVT novo: semeia as LINHAS (pra ter onde escrever) sem o texto do Ordinário.
  */
-const construirOkrs = (salvos?: OKR[] | null): OKR[] => {
+const construirOkrs = (salvos?: OKR[] | null, vazio = false): OKR[] => {
   const normalizados = (salvos || []).map(o => ({ ...o, area: o.area || 'GERAL', andamento: o.andamento || '' }));
   const gerais = normalizados.filter(o => o.area === 'GERAL');
-  const resultado: OKR[] = gerais.length > 0 ? gerais : [...defaultOKRs];
+  const modeloGeral = vazio ? semConteudo(defaultOKRs) : [...defaultOKRs];
+  const resultado: OKR[] = gerais.length > 0 ? gerais : modeloGeral;
 
   AREAS.forEach(area => {
     const daArea = normalizados.filter(o => o.area === area.key);
-    resultado.push(...(daArea.length > 0 ? daArea : okrsPadraoDaArea(area.key)));
+    const modeloArea = vazio ? semConteudo(okrsPadraoDaArea(area.key)) : okrsPadraoDaArea(area.key);
+    resultado.push(...(daArea.length > 0 ? daArea : modeloArea));
   });
 
   return resultado;
@@ -306,11 +341,12 @@ export default function OrganizadorEditPage() {
   const [areasFechadas, setAreasFechadas] = useState<Record<string, boolean>>({});
 
   const [organizador, setOrganizador] = useState<OrganizadorData>({
-    ...defaultOrganizador,
+    // OVT novo nasce em branco; a edição sobrescreve tudo com o que veio do banco.
+    ...emBranco(),
     ano: parseInt(searchParams.get('ano') || String(new Date().getFullYear())),
     semestre: parseInt(searchParams.get('semestre') || String(new Date().getMonth() < 6 ? 1 : 2)),
   });
-  const [okrs, setOkrs] = useState<OKR[]>(() => construirOkrs());
+  const [okrs, setOkrs] = useState<OKR[]>(() => construirOkrs(null, true));
 
   // Flag para evitar múltiplas chamadas
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -334,15 +370,17 @@ export default function OrganizadorEditPage() {
           if (data.organizador) {
             const salvo = data.organizador;
             setOrganizador({
-              ...defaultOrganizador,
+              // fallback em BRANCO: campo que o registro não tem não pode vir preenchido
+              // com o texto do Ordinário (era o que acontecia com o OVT do Deboche).
+              ...emBranco(),
               ...salvo,
               // Registros legados (trimestrais/anuais) passam a ser lidos como semestrais.
               tipo: 'semestral',
               trimestre: null,
               semestre: salvo.semestre ?? (salvo.trimestre ? Math.ceil(salvo.trimestre / 2) : defaultOrganizador.semestre),
-              valores_centrais: salvo.valores_centrais?.length ? salvo.valores_centrais : defaultOrganizador.valores_centrais,
-              singularidades: salvo.singularidades?.length ? salvo.singularidades : defaultOrganizador.singularidades,
-              principais_problemas: salvo.principais_problemas?.length ? salvo.principais_problemas : defaultOrganizador.principais_problemas,
+              valores_centrais: salvo.valores_centrais?.length ? salvo.valores_centrais : Array(QTD_BIZUS).fill(''),
+              singularidades: salvo.singularidades?.length ? salvo.singularidades : Array(QTD_SINGULARIDADES).fill(''),
+              principais_problemas: salvo.principais_problemas?.length ? salvo.principais_problemas : Array(QTD_PROBLEMAS).fill(''),
               // colunas novas: registro antigo vem sem elas (ou null) e o spread deixaria undefined
               valores_centrais_detalhe: salvo.valores_centrais_detalhe || [],
               singularidades_detalhe: salvo.singularidades_detalhe || [],
@@ -372,7 +410,12 @@ export default function OrganizadorEditPage() {
       const body = {
         ...organizador,
         bar_id: selectedBar.id,
-        okrs: okrs.filter(o => o.epico.trim() !== '')
+        // Descarta só a linha 100% vazia. Antes o filtro era `epico.trim() !== ''`, e quem
+        // preenchia Big Bet / OBS / Andamento sem preencher o Tema perdia a linha no save --
+        // no reload o esqueleto padrão voltava e parecia que "apagou tudo" (Gonza, 19/08/2026).
+        okrs: okrs.filter(o =>
+          [o.epico, o.historia, o.responsavel, o.observacoes, o.andamento]
+            .some(v => (v || '').trim() !== ''))
       };
 
       const response = await fetch('/api/organizador', {
@@ -552,6 +595,49 @@ export default function OrganizadorEditPage() {
     return valor.toLocaleString('pt-BR');
   };
 
+  /**
+   * Campo numérico das METAS. NÃO reformata enquanto se digita.
+   *
+   * Bug que isto corrige (Gonza, 19/08/2026 — "só fica R$ 1,00", em Faturamento e CMO Fixo):
+   * o input era controlado pelo valor JÁ FORMATADO (`formatCurrency(1)` = "R$ 1,00") e o
+   * onChange reparseava o texto a cada tecla. Digitando 1500000, o "1" virava "R$ 1,00" na
+   * tela e todo dígito seguinte caía DEPOIS da vírgula decimal — o parse jogava fora e a meta
+   * ficava presa em 1. Enquanto o campo está em foco vale o texto CRU digitado; o formatado só
+   * volta no blur.
+   */
+  const CampoNumero = ({ value, formato, onChange, className, placeholder }: {
+    value: number | null | undefined;
+    formato: 'moeda' | 'numero' | 'texto';
+    onChange: (v: number | null) => void;
+    className?: string;
+    placeholder?: string;
+  }) => {
+    const [texto, setTexto] = useState<string | null>(null); // != null → editando
+    const formatado = value == null ? ''
+      : formato === 'moeda' ? formatCurrency(value)
+      : formato === 'numero' ? formatarNumero(value)
+      : String(value).replace('.', ',');
+    // pt-BR: ponto é separador de milhar, vírgula é decimal.
+    const parse = (txt: string): number | null => {
+      const limpo = txt.replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.');
+      if (!limpo || limpo === '-') return null;
+      const n = parseFloat(limpo);
+      return Number.isFinite(n) ? n : null;
+    };
+    return (
+      <Input
+        type="text"
+        className={className}
+        placeholder={placeholder}
+        value={texto ?? formatado}
+        // ao focar mostra o número cru (1500000), que é o que se quer reescrever
+        onFocus={() => setTexto(value == null ? '' : String(value).replace('.', ','))}
+        onChange={(e) => { setTexto(e.target.value); onChange(parse(e.target.value)); }}
+        onBlur={() => setTexto(null)}
+      />
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#f5f0e1] dark:bg-gray-900">
       <div className="w-full px-4 py-3">
@@ -713,8 +799,8 @@ export default function OrganizadorEditPage() {
                         <Textarea
                           value={organizador.nicho || ''}
                           onChange={(e) => updateOrganizador('nicho', e.target.value)}
-                          className="text-sm flex-1 bg-gray-50 dark:bg-gray-700 min-h-[50px]"
-                          rows={2}
+                          className="text-sm flex-1 bg-gray-50 dark:bg-gray-700 h-8 min-h-0 resize-none"
+                          rows={1}
                         />
                       </div>
                     </td>
@@ -728,8 +814,8 @@ export default function OrganizadorEditPage() {
                           value={organizador.principais_concorrentes || ''}
                           onChange={(e) => updateOrganizador('principais_concorrentes', e.target.value)}
                           placeholder="Principais concorrentes"
-                          className="text-sm flex-1 bg-gray-50 dark:bg-gray-700 min-h-[50px]"
-                          rows={2}
+                          className="text-sm flex-1 bg-gray-50 dark:bg-gray-700 h-8 min-h-0 resize-none"
+                          rows={1}
                         />
                       </div>
                     </td>
@@ -745,7 +831,7 @@ export default function OrganizadorEditPage() {
                         <Textarea
                           value={organizador.mercado_alvo || ''}
                           onChange={(e) => updateOrganizador('mercado_alvo', e.target.value)}
-                          className="text-sm flex-1 bg-gray-50 dark:bg-gray-700"
+                          className="text-sm flex-1 bg-gray-50 dark:bg-gray-700 h-8 min-h-0 resize-none"
                           rows={1}
                         />
                       </div>
@@ -758,7 +844,7 @@ export default function OrganizadorEditPage() {
                         <Textarea
                           value={organizador.posicionamento || ''}
                           onChange={(e) => updateOrganizador('posicionamento', e.target.value)}
-                          className="text-sm flex-1 bg-gray-50 dark:bg-gray-700"
+                          className="text-sm flex-1 bg-gray-50 dark:bg-gray-700 h-8 min-h-0 resize-none"
                           rows={1}
                         />
                       </div>
@@ -776,7 +862,7 @@ export default function OrganizadorEditPage() {
                                 <Textarea
                                   value={organizador.singularidades?.[i] || ''}
                                   onChange={(e) => updateArrayField('singularidades', i, e.target.value)}
-                                  className="text-sm bg-gray-50 dark:bg-gray-700 min-h-[40px] flex-1"
+                                  className="text-sm bg-gray-50 dark:bg-gray-700 flex-1 h-8 min-h-0 resize-none"
                                   rows={1}
                                 />
                                 <button
@@ -810,8 +896,8 @@ export default function OrganizadorEditPage() {
                       <Textarea
                         value={organizador.meta_10_anos || ''}
                         onChange={(e) => updateOrganizador('meta_10_anos', e.target.value)}
-                        className="text-sm bg-gray-50 dark:bg-gray-700"
-                        rows={2}
+                        className="text-sm bg-gray-50 dark:bg-gray-700 h-8 min-h-0 resize-none"
+                        rows={1}
                       />
                     </td>
                   </tr>
@@ -823,8 +909,8 @@ export default function OrganizadorEditPage() {
                       <Textarea
                         value={organizador.imagem_3_anos || ''}
                         onChange={(e) => updateOrganizador('imagem_3_anos', e.target.value)}
-                        className="text-sm bg-gray-50 dark:bg-gray-700"
-                        rows={2}
+                        className="text-sm bg-gray-50 dark:bg-gray-700 h-8 min-h-0 resize-none"
+                        rows={1}
                       />
                     </td>
                   </tr>
@@ -873,13 +959,6 @@ export default function OrganizadorEditPage() {
                   ].map((item) => {
                     const IconComponent = item.icon;
                     const value = (organizador as any)[item.field];
-                    // Formatar valor para exibição no input
-                    let displayValue = '';
-                    if (value != null) {
-                      if ((item as any).isCurrency) displayValue = formatCurrency(value);
-                      else if ((item as any).isNumber) displayValue = formatarNumero(value);
-                      else displayValue = String(value);
-                    }
                     return (
                       <div key={item.field}>
                         <div className="flex items-center justify-between gap-2">
@@ -889,19 +968,10 @@ export default function OrganizadorEditPage() {
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 font-bold flex-shrink-0">{item.tag}</span>
                         </div>
                         <div className="flex items-center gap-1 justify-end flex-shrink-0">
-                          <Input
-                            type="text"
-                            value={displayValue}
-                            onChange={(e) => {
-                              // Remove formatação para salvar como número
-                              const rawValue = e.target.value
-                                .replace('R$', '')
-                                .replace(/\s/g, '')
-                                .replace(/\./g, '')
-                                .replace(',', '.');
-                              const numValue = parseFloat(rawValue) || null;
-                              updateOrganizador(item.field as keyof OrganizadorData, numValue);
-                            }}
+                          <CampoNumero
+                            value={value}
+                            formato={(item as any).isCurrency ? 'moeda' : (item as any).isNumber ? 'numero' : 'texto'}
+                            onChange={(v) => updateOrganizador(item.field as keyof OrganizadorData, v)}
                             className={`${(item as any).isCurrency ? 'w-32 text-right' : 'w-20 text-center'} h-8 text-sm font-bold bg-gray-50 dark:bg-gray-700`}
                             placeholder={(item as any).isCurrency ? 'R$ 0,00' : '0'}
                           />
@@ -987,19 +1057,6 @@ export default function OrganizadorEditPage() {
                     ].map(item => {
                       const IconComponent = item.icon;
                       const value = (organizador as any)[item.field];
-                      // Formatar valor para exibição no input
-                      let displayValue = '';
-                      if (value != null) {
-                        if ((item as any).isCurrency) {
-                          displayValue = formatCurrency(value);
-                        } else if ((item as any).isNumber) {
-                          displayValue = formatarNumero(value);
-                        } else if ((item as any).isDecimal) {
-                          displayValue = value.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-                        } else {
-                          displayValue = String(value);
-                        }
-                      }
                       return (
                         <div key={item.field}>
                         <div className="flex items-center justify-between gap-2">
@@ -1009,19 +1066,10 @@ export default function OrganizadorEditPage() {
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
                             {item.prefix && <span className="text-gray-500 text-[10px]">{item.prefix}</span>}
-                            <Input
-                              type="text"
-                              value={displayValue}
-                              onChange={(e) => {
-                                // Remove formatação para salvar como número
-                                const rawValue = e.target.value
-                                  .replace('R$', '')
-                                  .replace(/\s/g, '')
-                                  .replace(/\./g, '')
-                                  .replace(',', '.');
-                                const numValue = parseFloat(rawValue) || null;
-                                updateOrganizador(item.field as keyof OrganizadorData, numValue);
-                              }}
+                            <CampoNumero
+                              value={value}
+                              formato={(item as any).isCurrency ? 'moeda' : (item as any).isNumber ? 'numero' : 'texto'}
+                              onChange={(v) => updateOrganizador(item.field as keyof OrganizadorData, v)}
                               className={`${(item as any).isCurrency ? 'w-32' : 'w-20'} h-8 text-right text-xs font-semibold bg-gray-50 dark:bg-gray-700`}
                               placeholder={(item as any).isCurrency ? 'R$ 0,00' : '0'}
                             />
@@ -1107,8 +1155,8 @@ export default function OrganizadorEditPage() {
                         <Textarea
                           value={okr.historia}
                           onChange={(e) => updateOKR(index, 'historia', e.target.value)}
-                          className="text-xs bg-white/80 dark:bg-gray-700 min-h-[40px] py-1.5"
-                          rows={2}
+                          className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-8 min-h-0 resize-none"
+                          rows={1}
                         />
                       </div>
                       <div className="px-1 py-1 border-r border-gray-200 dark:border-gray-700">
@@ -1124,8 +1172,8 @@ export default function OrganizadorEditPage() {
                         <Textarea
                           value={okr.observacoes}
                           onChange={(e) => updateOKR(index, 'observacoes', e.target.value)}
-                          className="text-xs bg-white/80 dark:bg-gray-700 min-h-[40px] py-1.5"
-                          rows={2}
+                          className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-8 min-h-0 resize-none"
+                          rows={1}
                         />
                       </div>
                       <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
@@ -1134,8 +1182,8 @@ export default function OrganizadorEditPage() {
                           value={okr.andamento}
                           onChange={(e) => updateOKR(index, 'andamento', e.target.value)}
                           placeholder="Onde está hoje..."
-                          className="text-xs bg-white/80 dark:bg-gray-700 min-h-[40px] py-1.5"
-                          rows={2}
+                          className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-8 min-h-0 resize-none"
+                          rows={1}
                         />
                       </div>
                       <div className="px-1 py-1 border-r border-gray-200 dark:border-gray-700">
@@ -1281,8 +1329,8 @@ export default function OrganizadorEditPage() {
                                     <Textarea
                                       value={okr.epico}
                                       onChange={(e) => updateOKR(index, 'epico', e.target.value)}
-                                      className="text-xs font-semibold bg-white/80 dark:bg-gray-700 min-h-[40px] py-1.5 flex-1"
-                                      rows={2}
+                                      className="text-xs font-semibold bg-white/80 dark:bg-gray-700 py-1.5 flex-1 h-8 min-h-0 resize-none"
+                                      rows={1}
                                     />
                                   </div>
                                   {okr.is_nsm && (
@@ -1296,8 +1344,8 @@ export default function OrganizadorEditPage() {
                                   <Textarea
                                     value={okr.historia}
                                     onChange={(e) => updateOKR(index, 'historia', e.target.value)}
-                                    className="text-xs bg-white/80 dark:bg-gray-700 min-h-[40px] py-1.5"
-                                    rows={2}
+                                    className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-8 min-h-0 resize-none"
+                                    rows={1}
                                   />
                                 </div>
                                 <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
@@ -1305,8 +1353,8 @@ export default function OrganizadorEditPage() {
                                   <Textarea
                                     value={okr.observacoes}
                                     onChange={(e) => updateOKR(index, 'observacoes', e.target.value)}
-                                    className="text-xs bg-white/80 dark:bg-gray-700 min-h-[40px] py-1.5"
-                                    rows={2}
+                                    className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-8 min-h-0 resize-none"
+                                    rows={1}
                                   />
                                 </div>
                                 <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
@@ -1315,8 +1363,8 @@ export default function OrganizadorEditPage() {
                                     value={okr.andamento}
                                     onChange={(e) => updateOKR(index, 'andamento', e.target.value)}
                                     placeholder="Onde está hoje..."
-                                    className="text-xs bg-white/80 dark:bg-gray-700 min-h-[40px] py-1.5"
-                                    rows={2}
+                                    className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-8 min-h-0 resize-none"
+                                    rows={1}
                                   />
                                 </div>
                                 <div className="px-1 py-1 border-r border-gray-200 dark:border-gray-700">

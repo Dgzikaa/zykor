@@ -195,48 +195,74 @@ export async function PUT(request: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: 'ID é obrigatório' }, { status: 400 });
     }
+    if (!user.bar_id) {
+      return NextResponse.json({ error: 'Nenhum bar selecionado' }, { status: 400 });
+    }
 
     // O período (ano/semestre) é editável na tela, então vai junto no update.
-    // bar_id continua imutável.
+    // bar_id continua imutável — e o filtro por bar_id do USUÁRIO é o que impede
+    // salvar por cima do OVT de outro bar mandando o id na mão.
     const { data: organizador, error } = await supabase
       .from('organizador_visao')
       .update({ ...dados, updated_at: new Date().toISOString() })
       .eq('id', id)
+      .eq('bar_id', user.bar_id)
       .select()
       .single();
 
     if (error) throw error;
+    if (!organizador) {
+      return NextResponse.json({ error: 'Organizador não encontrado neste bar' }, { status: 404 });
+    }
 
-    // Atualizar OKRs se fornecidos
-    if (okrs !== undefined) {
-      // Remover OKRs antigos
-      await supabase
-        .from('organizador_okrs')
-        .delete()
-        .eq('organizador_id', id);
-
-      // Inserir novos
-      if (okrs.length > 0) {
-        const okrsComOrganizador = okrs.map((okr: any, index: number) => ({
-          epico: okr.epico,
-          historia: okr.historia,
-          responsavel: okr.responsavel,
-          observacoes: okr.observacoes,
-          andamento: okr.andamento,
-          status: okr.status || 'cinza',
-          area: okr.area || 'GERAL',
+    // Atualizar OKRs se fornecidos.
+    //
+    // Isto é um REPLACE (apaga tudo e reinsere) e o PostgREST não dá transação: se o insert
+    // falhasse, o OVT ficava VAZIO — foi o "apertei salvar e apagou tudo" do Gonza (19/08/2026,
+    // OVT do Deboche). Agora guardamos os OKRs atuais antes de apagar e, se o insert falhar,
+    // repomos o backup e devolvemos erro — o pior caso vira "não salvou", nunca "perdeu tudo".
+    if (Array.isArray(okrs)) {
+      const linhas = okrs.map((okr: any, index: number) => ({
+        epico: okr.epico,
+        historia: okr.historia,
+        responsavel: okr.responsavel,
+        observacoes: okr.observacoes,
+        andamento: okr.andamento,
+        status: okr.status || 'cinza',
+        area: okr.area || 'GERAL',
         // is_nsm precisa estar nos DOIS mapeamentos (POST e PUT): aqui o OKR é montado campo a
         // campo, então campo que falta some no save sem erro nenhum.
         is_nsm: !!okr.is_nsm,
-          organizador_id: id,
-          ordem: index
-        }));
+        organizador_id: id,
+        ordem: index,
+      }));
 
+      const { data: antigos } = await supabase
+        .from('organizador_okrs')
+        .select('*')
+        .eq('organizador_id', id);
+
+      const { error: delErro } = await supabase
+        .from('organizador_okrs')
+        .delete()
+        .eq('organizador_id', id);
+      if (delErro) throw delErro;
+
+      if (linhas.length > 0) {
         const { error: okrsError } = await supabase
           .from('organizador_okrs')
-          .insert(okrsComOrganizador);
+          .insert(linhas);
 
-        if (okrsError) throw okrsError;
+        if (okrsError) {
+          if (antigos?.length) {
+            await supabase.from('organizador_okrs').insert(antigos);
+          }
+          console.error('Erro ao gravar OKRs — backup reposto:', okrsError);
+          return NextResponse.json(
+            { error: 'Não foi possível salvar os OKRs. Nada foi perdido, tente de novo.' },
+            { status: 500 },
+          );
+        }
       }
     }
 
@@ -264,11 +290,17 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID é obrigatório' }, { status: 400 });
     }
 
-    // OKRs são deletados automaticamente pelo CASCADE
+    if (!user.bar_id) {
+      return NextResponse.json({ error: 'Nenhum bar selecionado' }, { status: 400 });
+    }
+
+    // OKRs são deletados automaticamente pelo CASCADE.
+    // O filtro por bar_id do usuário impede apagar o OVT de outro bar mandando o id na mão.
     const { error } = await supabase
       .from('organizador_visao')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('bar_id', user.bar_id);
 
     if (error) throw error;
 
