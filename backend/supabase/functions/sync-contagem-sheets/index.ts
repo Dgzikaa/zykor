@@ -228,6 +228,17 @@ function parseUtensilios(rows: unknown[][], fromISO: string, toISODate: string, 
  * bar (best-effort). A contagem costuma fechar à tarde, depois do cron das 23h ainda pega,
  * mas o gatilho aqui garante que o "Estoque Final" do CMV nunca fique defasado da contagem.
  */
+/**
+ * Roda a promise SEM segurar a resposta. Usa `EdgeRuntime.waitUntil` quando existe (mantem o
+ * worker vivo ate terminar); senao so nao da await (best-effort). A promise passada aqui NUNCA
+ * pode rejeitar — trate o erro dentro dela.
+ */
+function emSegundoPlano(p: Promise<unknown>): void {
+  const er = (globalThis as any).EdgeRuntime
+  if (typeof er?.waitUntil === 'function') er.waitUntil(p)
+  else void p.catch(() => {})
+}
+
 async function dispararCmvSemanal(bar: number): Promise<void> {
   try {
     const ano = Number(new Date().toISOString().slice(0, 4))
@@ -330,7 +341,15 @@ async function syncBar(sb: ReturnType<typeof createClient>, bar: number, diasAtr
 
   // Contagem já congelada/valorizada pelo refresh → recalcula o CMV semanal deste bar (best-effort),
   // pra o Estoque Final do CMV refletir a contagem finalizada na hora (evita o valor defasado).
-  await dispararCmvSemanal(bar)
+  //
+  // EM SEGUNDO PLANO de propósito: o recálculo do CMV varre TODAS as semanas do ano e leva
+  // 35–60s sozinho — era ~90% do tempo total desta função (o resto — ler a planilha, gravar o
+  // bronze e rodar o refresh — fecha em ~5s). Com o `await` aqui, o botão "Atualizar estoque"
+  // das telas (Desvios, Estoque, Planejamento da Produção) ficava ~1 minuto girando; o time
+  // achava que tinha travado e clicava de novo (25 disparos em 1h no dia 19/08). A contagem já
+  // está gravada neste ponto: o CMV é consequência dela, então a resposta sai na hora e o CMV
+  // se atualiza logo atrás. Não voltar a dar `await` aqui.
+  emSegundoPlano(dispararCmvSemanal(bar))
 
   return { bar, janela: { from, to: today }, bronze: landed, limpeza: recsLimpeza.length, utensilio: recsUtensilio.length, upserted }
 }

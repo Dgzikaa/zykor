@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageShell } from '@/components/layout/PageShell';
@@ -11,6 +11,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { useApiSWR } from '@/hooks/useApiSWR';
 import { api } from '@/lib/api-client';
+import { useToast } from '@/hooks/use-toast';
 import { ChefHat, Loader2, CalendarDays, Sparkles, RefreshCw, Play, Lock, Unlock, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Beer, X, HelpCircle } from 'lucide-react';
 
 const fmtN = (v: any) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -50,6 +51,7 @@ function parcelasFrozen(it: any) {
 
 export default function PlanoProducaoPage() {
   const { selectedBar } = useBar();
+  const { toast } = useToast();
   const { soLeitura } = useModuloPermissao('/operacional/plano-producao');
   const { setPageTitle } = usePageTitle();
   useEffect(() => { setPageTitle('👨‍🍳 Planejamento da Produção'); return () => setPageTitle(''); }, [setPageTitle]);
@@ -78,7 +80,25 @@ export default function PlanoProducaoPage() {
   useEffect(() => {
     if (swrRes?.success) { setRes(swrRes); setItens(swrRes.itens || []); }
   }, [swrRes]);
-  const carregar = () => mutate();
+  // "Atualizar estoque" = PUXAR A PLANILHA de contagem e só então re-buscar o plano.
+  // Antes o botão só fazia `mutate()` (re-fetch da própria API): quem acabava de contar no
+  // Sheets clicava e nada mudava — o estoque só entrava na hora do cron. Agora roda o mesmo
+  // sync da tela de Estoque/Desvios (últimos 14 dias, aba INSUMOS) antes do refetch.
+  const [sincronizando, setSincronizando] = useState(false);
+  const carregar = useCallback(async () => {
+    if (!barId) { mutate(); return; }
+    setSincronizando(true);
+    try {
+      const r = await api.post('/api/operacional/estoque-historico', { action: 'sync' });
+      if (!r.success) throw new Error(r.error);
+      toast({ title: 'Estoque atualizado', description: `${r.upserted ?? 0} linhas da planilha de contagem` });
+    } catch (e: any) {
+      toast({ title: 'Erro ao atualizar estoque', description: e?.message, variant: 'destructive' });
+    } finally {
+      setSincronizando(false);
+      await mutate(); // refaz as sugestões com o estoque novo (mesmo se o sync falhar)
+    }
+  }, [barId, mutate, toast]);
 
   const semanaAtual = semanaSel ?? res?.semana_sel ?? null; // semana em foco
 
@@ -252,7 +272,10 @@ export default function PlanoProducaoPage() {
             <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">{soLeitura && <BadgeSomenteLeitura />}</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Ponto de Ressuprimento = média 6 semanas + desvio padrão × fator de serviço · {selectedBar?.nome || ''}</p>
           </div>
-          <button onClick={carregar} title="Atualizar estoque e sugestões" className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />Atualizar estoque</button>
+          <button onClick={carregar} disabled={sincronizando}
+            title="Puxa a contagem da planilha (últimos 14 dias) e refaz as sugestões"
+            className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50">
+            <RefreshCw className={`w-4 h-4 ${sincronizando || loading ? 'animate-spin' : ''}`} />{sincronizando ? 'Atualizando…' : 'Atualizar estoque'}</button>
         </div>
 
         {/* Status da sessão + ações */}
