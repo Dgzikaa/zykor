@@ -215,8 +215,7 @@ grant execute on function operations.fn_escala_salvar_padrao(integer, date, date
 --
 -- A ordem de decisão da função virou:
 --   1. de-para explícito do cargo (hr.cargos.funcao_escala_id) — continua ganhando, pra não
---      remexer nos blocos que a operação já usa (ex.: o segurança que chefia o outro segurança
---      segue no bloco Segurança, e não sai pra Liderança do nada);
+--      remexer nos blocos que a operação já usa;
 --   2. TEM CADEIRA EMBAIXO -> Liderança;
 --   3. função com o mesmo nome do cargo (o caminho do bar novo).
 --
@@ -233,3 +232,17 @@ grant execute on function operations.fn_escala_salvar_padrao(integer, date, date
 --   3. puxado 24-30/08 do organograma -> 392 linhas, 56 pessoas, 0 função nova.
 -- O histórico até 23/08 (9.457 linhas) continua intocado: é ele que alimenta os fixos do Plano
 -- Operacional e o Planejado × Realizado.
+
+-- CORREÇÃO no mesmo dia: o organograma dizia que um segurança chefiava o outro (a cadeira do
+-- MARCWS estava pendurada na do DANIEL). Rodrigo: "os 2 seguranças respondem a gerente
+-- operacional, não tem 1 segurança que lidera outro". Corrigido — as duas cadeiras agora
+-- respondem à Gerente Operacional (ANDREIA). Varredura confirmou que não sobrou nenhuma outra
+-- cadeira pendurada em outra do MESMO cargo, em bar nenhum.
+--
+-- Isso importa além da grade: "tem cadeira embaixo" é o que define LÍDER — quem vê a equipe na
+-- escala e faz o check-in dela. Com o desenho errado, o DANIEL enxergaria o MARCWS como
+-- subordinado. Depois da correção, os líderes dos dois bares são exatamente os chefes:
+--   Ordinário: Chefe de Bar, Chefe de Cumins, Gerente Operacional, Chefe de Cozinha,
+--              Chefe de Fila, Chefe de Limpeza/Infra (+ Chefe de Atendimento, cadeira VAGA
+--              com 13 cadeiras embaixo);
+--   Deboche:   Chefe de Salão, Capitã de Cozinha, Capitão de Bar (+ Gerente Operacional, VAGA).
