@@ -260,12 +260,22 @@ export function DiaCheckin({ soLeitura }: { soLeitura: boolean }) {
           {!visiveis.length && (
             <div className="py-8 text-center text-xs text-muted-foreground">Ninguém com esse nome.</div>
           )}
+          {/* respiro pra última pessoa da lista não nascer embaixo da barra de Salvar */}
+          {!soLeitura && !!pendentes.length && <div className="h-16" aria-hidden />}
         </div>
       )}
 
-      {/* Salvar fixo: o líder rola a lista inteira, então o botão não pode ficar no fim dela. */}
+      {/*
+        Salvar FIXO: o líder rola a lista inteira, então o botão não pode ficar no fim dela.
+
+        ACIMA da barra de navegação do app, não em bottom-0. A BottomNavigation do mobile é
+        `fixed bottom-0 z-30` e cobria este botão inteiro (z-20, mesma posição): no celular o
+        líder marcava a equipe toda e não tinha em que clicar — exatamente o "não tá salvando"
+        que o Junin viu ao vivo em 20/08/2026. No desktop a barra não existe (lg:hidden), então
+        o deslocamento só vale abaixo de lg.
+      */}
       {!soLeitura && !!pendentes.length && (
-        <div className="fixed bottom-0 left-0 right-0 p-3 bg-[hsl(var(--card))] border-t border-[hsl(var(--border))] z-20">
+        <div className="fixed bottom-[84px] lg:bottom-0 left-0 right-0 p-3 bg-[hsl(var(--card))] border-t border-[hsl(var(--border))] z-40 shadow-[0_-6px_16px_-8px_rgba(0,0,0,0.35)]">
           <Button onClick={salvar} disabled={salvando} className="w-full h-11">
             {salvando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
             Salvar {pendentes.length} {pendentes.length === 1 ? 'marcação' : 'marcações'}
