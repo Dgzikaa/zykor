@@ -51,11 +51,22 @@ const rotulo = (id: string | null) => OPCOES.find(o => o.id === id)?.label ?? 'm
 const corDe = (id: string | null) => OPCOES.find(o => o.id === id)?.cls
   ?? 'bg-transparent text-muted-foreground border-dashed border-[hsl(var(--border))]';
 
-const hojeISO = () => new Date().toISOString().slice(0, 10);
+/**
+ * Hoje no fuso de QUEM ESTÁ OLHANDO, não em UTC.
+ *
+ * `toISOString()` devolve UTC: às 21h no Brasil já é o dia seguinte lá, então a tela abria em
+ * amanhã — justamente no horário em que o líder faz o check-in do turno da noite. Pego em
+ * produção no teste de 19/08/2026, 22h: a tela abriu em 20/08.
+ */
+const localISO = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const hojeISO = () => localISO(new Date());
 const somaDias = (iso: string, n: number) => {
-  const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10);
+  const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + n); return localISO(d);
 };
 const fmtBR = (iso: string) => iso.split('-').reverse().join('/');
+/** o Postgres devolve `time` como 17:00:00 — a operação lê 17:00 */
+const hhmm = (t: string | null) => (t ? String(t).slice(0, 5) : '');
 const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 export function DiaCheckin({ soLeitura }: { soLeitura: boolean }) {
@@ -173,7 +184,7 @@ export function DiaCheckin({ soLeitura }: { soLeitura: boolean }) {
                     </div>
                     <div className="text-[11px] text-muted-foreground truncate">
                       {l.funcao_nome || '—'}
-                      {l.hora_inicio && ` · ${l.hora_inicio}${l.hora_fim ? `–${l.hora_fim}` : ''}`}
+                      {l.hora_inicio && ` · ${hhmm(l.hora_inicio)}${l.hora_fim ? `–${hhmm(l.hora_fim)}` : ''}`}
                       {/* o ponto é SUGESTÃO, não veredito: quem é PJ ou liderança não bate */}
                       {l.entrada ? ` · bateu ${String(l.entrada).slice(11, 16)}` : ' · sem marcação'}
                       {!!l.atraso_min && l.atraso_min > 0 && ` (${l.atraso_min}min)`}
@@ -191,7 +202,7 @@ export function DiaCheckin({ soLeitura }: { soLeitura: boolean }) {
                 {/* opções abrem NA LINHA, não em popover: no celular popover flutuante briga
                     com rolagem e com o teclado da busca. */}
                 {aberta === l.funcionario_id && !soLeitura && (
-                  <div className="px-3 pb-3 grid grid-cols-2 gap-1.5">
+                  <div className="px-3 pb-3 grid grid-cols-2 gap-1.5 max-w-md">
                     {OPCOES.map(o => (
                       <button key={o.id}
                         onClick={() => { setEscolha(x => ({ ...x, [l.funcionario_id]: o.id })); setAberta(null); }}
