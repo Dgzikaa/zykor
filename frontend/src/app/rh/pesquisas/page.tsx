@@ -7,14 +7,14 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { FormularioTab } from './FormularioTab';
+import { PesquisaTab } from './PesquisaTab';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useApiSWR } from '@/hooks/useApiSWR';
 import { useToast } from '@/components/ui/toast';
 import { getSelectedBarId } from '@/lib/selected-bar';
 import { cn } from '@/lib/utils';
-import { Loader2, Smile, Target, Award, Plus, Trash2, ClipboardList } from 'lucide-react';
+import { Loader2, Smile, Target, Award, Plus, Trash2, ClipboardList, BarChart3, Building2, MessagesSquare } from 'lucide-react';
 import PesquisaFelicidadePage from '../pesquisa-felicidade/page';
 
 /**
@@ -39,7 +39,7 @@ const corNivel = (id: string | null) => NIVEIS.find((n) => n.id === id)?.cor || 
 
 export default function PesquisasPage() {
   const { setPageTitle } = usePageTitle();
-  const [aba, setAba] = useState('felicidade');
+  const [aba, setAba] = useState('analises');
   // Depende de `aba` de propósito: a tela da Felicidade escreve o próprio título ao montar e
   // apaga ao desmontar. Como efeito de filho roda antes do do pai, reafirmar aqui a cada troca
   // de aba mantém "Pesquisas" no header.
@@ -52,18 +52,24 @@ export default function PesquisasPage() {
     <ProtectedRoute>
       <div className="mx-auto px-3 py-5">
         <Tabs value={aba} onValueChange={setAba} className="w-full">
+          {/* Ordem definida pelo Gonza (20/08/2026): a leitura primeiro, depois cada pesquisa.
+              Reconhecimentos não estava na lista dele, mas está em uso — ficou no fim em vez de
+              sumir. Calibração continua aqui só como leitura: ela depende da Avaliação de
+              Desempenho, que ainda não existe. */}
           <TabsList className="mb-4">
-            <TabsTrigger value="felicidade"><Smile className="w-4 h-4 mr-1.5" />Felicidade</TabsTrigger>
-            {/* Onde a pesquisa NASCE: gera o formulário da semana e o link do WhatsApp. A aba
-                Felicidade ao lado é a leitura histórica, que ainda vem da planilha. */}
-            <TabsTrigger value="formulario"><ClipboardList className="w-4 h-4 mr-1.5" />Formulário</TabsTrigger>
+            <TabsTrigger value="analises"><BarChart3 className="w-4 h-4 mr-1.5" />Análises</TabsTrigger>
+            <TabsTrigger value="felicidade"><Smile className="w-4 h-4 mr-1.5" />Pesquisa da Felicidade</TabsTrigger>
+            <TabsTrigger value="marca"><Building2 className="w-4 h-4 mr-1.5" />Marca Empregadora</TabsTrigger>
+            <TabsTrigger value="feedback"><MessagesSquare className="w-4 h-4 mr-1.5" />Feedback</TabsTrigger>
             <TabsTrigger value="calibracao"><Target className="w-4 h-4 mr-1.5" />Calibração</TabsTrigger>
             <TabsTrigger value="reconhecimentos"><Award className="w-4 h-4 mr-1.5" />Reconhecimentos</TabsTrigger>
           </TabsList>
 
-          {/* a tela da felicidade inteira, com as abas internas dela */}
-          <TabsContent value="felicidade"><PesquisaFelicidadePage /></TabsContent>
-          <TabsContent value="formulario"><FormularioTab /></TabsContent>
+          {/* Análises = a leitura histórica (ainda vem da planilha), com as abas internas dela */}
+          <TabsContent value="analises"><PesquisaFelicidadePage /></TabsContent>
+          <TabsContent value="felicidade"><PesquisaTab tipo="felicidade" /></TabsContent>
+          <TabsContent value="marca"><PesquisaTab tipo="marca_empregadora" /></TabsContent>
+          <TabsContent value="feedback"><PesquisaTab tipo="feedback" /></TabsContent>
           <TabsContent value="calibracao"><PainelCalibracao /></TabsContent>
           <TabsContent value="reconhecimentos"><PainelReconhecimentos /></TabsContent>
         </Tabs>

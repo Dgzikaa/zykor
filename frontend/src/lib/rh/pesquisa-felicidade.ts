@@ -7,6 +7,37 @@
  * girando o ciclo 1.1 → 1.11.
  */
 
+/**
+ * As três pesquisas. Mesmo motor (rodada + link + respostas), formulários diferentes.
+ * A de Calibração fica pra depois — depende da Avaliação de Desempenho (Gonza, 20/08/2026).
+ */
+export const TIPOS_PESQUISA = {
+  felicidade: {
+    titulo: 'Pesquisa da Felicidade',
+    convite: 'São 5 perguntas, menos de 1 minuto, e é anônima',
+    anonima: true,
+  },
+  marca_empregadora: {
+    titulo: 'Marca Empregadora',
+    convite: 'Uma pergunta e uma sugestão. É 100% anônima',
+    anonima: true,
+  },
+  feedback: {
+    titulo: 'Pesquisa de Feedback',
+    // essa NÃO é anônima de propósito: a pergunta é sobre o líder direto de cada um
+    convite: 'Uma pergunta só, sobre a conversa com o seu líder',
+    anonima: false,
+  },
+} as const;
+
+export type TipoPesquisa = keyof typeof TIPOS_PESQUISA;
+
+/** Pergunta fixa da Marca Empregadora — é sempre a mesma, não sai de banco. */
+export const PERGUNTA_MARCA = 'O quanto você recomendaria o {bar} para um amigo trabalhar?';
+export const SUGESTAO_MARCA = 'Você possui alguma sugestão para fazer do {bar} um lugar melhor para se trabalhar?';
+/** Pergunta fixa da Pesquisa de Feedback. */
+export const PERGUNTA_FEEDBACK = 'O seu líder direto já teve uma conversa de feedback contigo este mês?';
+
 export const DIMENSOES = [
   { chave: 'engajamento', titulo: 'Eu comigo', descricao: 'Engajamento' },
   { chave: 'pertencimento', titulo: 'Eu com a empresa', descricao: 'Pertencimento' },
@@ -56,13 +87,19 @@ export function scoreDimensao(notas: number[]): number | null {
   return Math.round(((fav - desfav) / validas.length) * 1000) / 10;
 }
 
-/** Sorteia 1 pergunta por dimensão, evitando as usadas nas últimas rodadas. */
+/**
+ * Sorteia 1 pergunta por dimensão, evitando as usadas nas últimas rodadas, e EMBARALHA a ordem.
+ *
+ * Embaralhar foi pedido explícito ("não precisa começar sempre com a pergunta de dimensão 1"):
+ * com a ordem fixa, quem responde toda semana decora a sequência e passa a responder no
+ * automático — o que estraga justamente o indicador.
+ */
 export function sortearRodada(
   banco: { id: number; dimensao: string; texto: string }[],
   usadasRecentes: Set<number>,
   aleatorio: () => number = Math.random,
 ): { dimensao: string; pergunta_id: number; texto: string }[] {
-  return DIMENSOES.map((d) => {
+  const escolhidas = DIMENSOES.map((d) => {
     const daDimensao = banco.filter((p) => p.dimensao === d.chave);
     if (!daDimensao.length) return null;
     // só cai nas repetidas quando o banco inteiro já rodou — senão a pesquisa repetiria
@@ -72,6 +109,13 @@ export function sortearRodada(
     const escolhida = pool[Math.floor(aleatorio() * pool.length)];
     return { dimensao: d.chave, pergunta_id: escolhida.id, texto: escolhida.texto };
   }).filter(Boolean) as { dimensao: string; pergunta_id: number; texto: string }[];
+
+  // Fisher-Yates com o mesmo gerador, pra continuar testável com um aleatorio() fixo.
+  for (let i = escolhidas.length - 1; i > 0; i--) {
+    const j = Math.floor(aleatorio() * (i + 1));
+    [escolhidas[i], escolhidas[j]] = [escolhidas[j], escolhidas[i]];
+  }
+  return escolhidas;
 }
 
 /** Segunda-feira da semana de uma data (a pesquisa é semanal). */
