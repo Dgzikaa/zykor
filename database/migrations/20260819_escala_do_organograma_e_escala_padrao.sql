@@ -183,3 +183,25 @@ end;
 $function$;
 
 grant execute on function operations.fn_escala_salvar_padrao(integer, date, date) to service_role;
+
+
+-- =============================================================================
+-- ADENDO (mesma noite): de-para CARGO -> FUNÇÃO, e a função passa a usá-lo.
+--
+-- O casamento por NOME funcionou no Deboche (que não tinha função nenhuma) e falhou no
+-- Ordinário, onde os vocabulários divergem: Cumim×Cumin, ASG×Auxiliar de Serviços Gerais,
+-- Host×Recepcionista, Cozinha×Auxiliar de Cozinha, Liderança×Chefe de.../Gerente Operacional.
+-- Rodando por nome, criou 11 funções DUPLICADAS na grade do Ordinário (revertido na hora).
+--
+-- O mapa saiu dos dados, não de chute: cruzei quem está na escala de agosto com o cargo da
+-- cadeira que a pessoa ocupa — é o de-para que a operação já pratica.
+--
+-- Conferido depois de ligar: puxar o Ordinário numa semana vazia distribuiu as 55 pessoas do
+-- organograma nas 9 funções existentes, sem criar nenhuma —
+--   Garçom 13 · Cumim 8 · Liderança 7 · Barback 6 · ASG 5 · Cozinha 5 · Host 5 · Bartender 4
+--   · Segurança 2.
+--
+-- Ver operations.cargo_funcao (criada na migration operacao_de_para_cargo_funcao) e a versão
+-- final de fn_escala_puxar_do_organograma, que tenta o de-para explícito e só cai no nome como
+-- rede de segurança — o caminho do bar novo.
+-- =============================================================================
