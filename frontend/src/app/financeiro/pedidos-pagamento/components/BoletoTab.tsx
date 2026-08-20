@@ -20,6 +20,7 @@ import { type Pedido } from '../types';
 import { type TabKey, TAB_STATUS } from '../statusTabs';
 import { type BoletoDecodificado, linhaDigitavelValida, decodificarDigitos } from '../boletoBarcode';
 import { getSelectedBarId } from '@/lib/selected-bar';
+import { FiltroPeriodo, PERIODO_VAZIO, aplicarPeriodo, type Periodo } from './FiltroPeriodo';
 
 type DadosBoleto = {
   valor: number | null;
@@ -259,8 +260,12 @@ export function BoletoTab({
     }
   };
 
-  // Lista de boletos (mesmo esquema da aba PIX): filtros por status.
-  const boletosFiltrados = useMemo(() => pedidos.filter(p => TAB_STATUS[tab](p.status)), [pedidos, tab]);
+  // Lista de boletos (mesmo esquema da aba PIX): filtros por status + período.
+  const [periodo, setPeriodo] = useState<Periodo>(PERIODO_VAZIO);
+  const porStatus = useMemo(() => pedidos.filter(p => TAB_STATUS[tab](p.status)), [pedidos, tab]);
+  const boletosFiltrados = useMemo(() => aplicarPeriodo(porStatus, periodo), [porStatus, periodo]);
+  const somaFiltrada = useMemo(
+    () => boletosFiltrados.reduce((s, p) => s + Number(p.valor || 0), 0), [boletosFiltrados]);
   const countSolicitado = useMemo(() => pedidos.filter(p => TAB_STATUS.solicitado(p.status)).length, [pedidos]);
 
   // Reconcilia os boletos com o Inter na hora (consulta GET /banking/v2/pagamento) — vira agendado
@@ -485,10 +490,15 @@ export function BoletoTab({
           </TabsList>
         </Tabs>
 
+        <FiltroPeriodo periodo={periodo} onChange={setPeriodo}
+          total={porStatus.length} filtrados={boletosFiltrados.length} soma={somaFiltrada} />
+
         {boletosFiltrados.length === 0 ? (
           <Card><CardContent className="py-10 text-center text-muted-foreground">
             <Receipt className="w-9 h-9 mx-auto mb-2 opacity-40" />
-            Nenhum boleto nesta aba.
+            {porStatus.length > 0
+              ? `Nenhum boleto no período. Existem ${porStatus.length} nesta aba fora do filtro.`
+              : 'Nenhum boleto nesta aba.'}
           </CardContent></Card>
         ) : (
           <div className="space-y-2">

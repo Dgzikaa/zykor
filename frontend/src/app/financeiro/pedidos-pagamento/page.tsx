@@ -18,6 +18,7 @@ import { type Pedido } from './types';
 import { type TabKey, TAB_STATUS, isBoleto } from './statusTabs';
 import nextDynamic from 'next/dynamic';
 import { PedidoCard, type Opcao } from './components/PedidoCard';
+import { FiltroPeriodo, PERIODO_VAZIO, aplicarPeriodo, type Periodo } from './components/FiltroPeriodo';
 import type { FreelaAprovacao } from './components/FreelaFinanceiro';
 
 // Só UMA aba aparece por vez e os dois diálogos só existem depois de um clique — mas todos
@@ -272,6 +273,16 @@ export default function PedidosPagamentoPage() {
     }
     return base.filter(p => TAB_STATUS[tab](p.status));
   }, [listaAtiva, tab, soComprovante, busca]);
+  /**
+   * Período (vencimento OU competência) — mesmo filtro da aba Boleto. Fica DEPOIS da busca de
+   * propósito: quem digitou um nome quer achar o pedido, não ser barrado por uma data que ele
+   * nem lembra que estava ligada.
+   */
+  const [periodo, setPeriodo] = useState<Periodo>(PERIODO_VAZIO);
+  const filtradosPeriodo = useMemo(
+    () => (busca.trim() ? filtrados : aplicarPeriodo(filtrados, periodo)), [filtrados, periodo, busca]);
+  const somaPeriodo = useMemo(
+    () => filtradosPeriodo.reduce((s, p) => s + Number(p.valor || 0), 0), [filtradosPeriodo]);
   const countSolicitado = useMemo(() => listaAtiva.filter(p => TAB_STATUS.solicitado(p.status)).length, [listaAtiva]);
   // Prontos pra AGENDAR (aprovados ainda não disparados + erros de agendamento p/ retry).
   const agendaveis = useMemo(
@@ -484,22 +495,29 @@ export default function PedidosPagamentoPage() {
                 </p>
               )}
 
+              {!buscando && tab !== 'consolidado' && (
+                <FiltroPeriodo periodo={periodo} onChange={setPeriodo}
+                  total={filtrados.length} filtrados={filtradosPeriodo.length} soma={somaPeriodo} />
+              )}
+
               {tab === 'consolidado' && !buscando ? (
                 <ConsolidadoTab pedidos={listaAtiva} onOpenDetalhe={setDetalheId} />
               ) : loading ? (
                 <div className="py-16 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>
-              ) : filtrados.length === 0 ? (
+              ) : filtradosPeriodo.length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center text-muted-foreground">
                     <Receipt className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                    {buscando ? `Nada encontrado para “${busca.trim()}”.` : 'Nenhum pedido nesta aba.'}
+                    {buscando ? `Nada encontrado para “${busca.trim()}”.`
+                      : filtrados.length > 0 ? `Nenhum pedido no período. Existem ${filtrados.length} nesta aba fora do filtro.`
+                      : 'Nenhum pedido nesta aba.'}
                   </CardContent>
                 </Card>
               ) : modo === 'freela' ? (
                 // Freela no financeiro: por PESSOA, com vínculo CA (categoria/fornecedor) + aprovar/
                 // recusar/subir/excluir. O vínculo cobre freela cujo cadastro não trouxe fornecedor.
                 <FreelaFinanceiro
-                  itens={filtrados}
+                  itens={filtradosPeriodo}
                   podeAprovar={podeAprovar}
                   categorias={opcoes.categorias}
                   fornecedores={opcoes.fornecedores}
@@ -512,7 +530,7 @@ export default function PedidosPagamentoPage() {
                 />
               ) : (
                 <div className="space-y-2">
-                  {filtrados.map((p) => (
+                  {filtradosPeriodo.map((p) => (
                     <PedidoCard
                       key={p.id}
                       pedido={p}
