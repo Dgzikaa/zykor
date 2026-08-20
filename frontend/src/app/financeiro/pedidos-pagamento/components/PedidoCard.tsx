@@ -7,7 +7,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { useBar } from '@/contexts/BarContext';
-import { Check, X, Loader2, Sparkles, Paperclip, CalendarClock, Trash2, AlertCircle } from 'lucide-react';
+import { Check, X, Loader2, Sparkles, Paperclip, CalendarClock, Trash2, AlertCircle, Smartphone, Tablet, Monitor } from 'lucide-react';
 import { isoToBr } from '@/components/ui/date-input-br';
 import {
   TIPO_LABEL, STATUS_COLOR, statusLabel, formatBRL, type Pedido,
@@ -166,6 +166,19 @@ export function PedidoCard({
             )}
             {pedido.pix_copia_cola && (
               <Badge className="bg-purple-500/15 text-purple-600 text-[10px] shrink-0">Copia e cola</Badge>
+            )}
+            {/* De onde subiu. Pedido do Rodrigo (20/08/2026) depois do caso dos boletos sem
+                fornecedor: saber se veio do celular muda o diagnóstico — e a resposta estava
+                em lugar nenhum. Não aparece nos pedidos antigos, que nasceram sem o dado. */}
+            {pedido.origem_dispositivo && (
+              <Badge variant="outline" className="text-[10px] shrink-0 gap-0.5 text-muted-foreground"
+                title={`Criado no ${pedido.origem_dispositivo}`}>
+                {pedido.origem_dispositivo === 'celular' ? <Smartphone className="w-2.5 h-2.5" />
+                  : pedido.origem_dispositivo === 'tablet' ? <Tablet className="w-2.5 h-2.5" />
+                  : <Monitor className="w-2.5 h-2.5" />}
+                {pedido.origem_dispositivo === 'celular' ? 'Celular'
+                  : pedido.origem_dispositivo === 'tablet' ? 'Tablet' : 'PC'}
+              </Badge>
             )}
           </div>
           <div className="text-xs text-muted-foreground mt-0.5">

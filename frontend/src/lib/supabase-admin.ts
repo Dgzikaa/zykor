@@ -13,10 +13,13 @@ let adminClient: SupabaseClient | null = null;
  */
 export interface AuditActor { email?: string; role?: string; bar_id?: number }
 // reqId = id único da requisição → agrupa no painel as N linhas de uma mesma ação em massa.
-export const auditContext = new AsyncLocalStorage<{ actor: AuditActor; reqId?: string; client?: SupabaseClient }>();
+// ua = user-agent do NAVEGADOR (não o do client Node). Sem ele a trilha não sabe dizer se a ação
+// veio do celular ou do computador — foi o que faltou pra responder "esses boletos foram subidos
+// pelo celular?" (David/financeiro, 20/08/2026): `audit_trail.user_agent` estava vazio em tudo.
+export const auditContext = new AsyncLocalStorage<{ actor: AuditActor; reqId?: string; ua?: string; client?: SupabaseClient }>();
 
 // headers de auditoria a partir do contexto atual (usado pelos clients e pelo wrapper de fetch)
-function auditHeaders(store: { actor: AuditActor; reqId?: string } | undefined): Record<string, string> | undefined {
+function auditHeaders(store: { actor: AuditActor; reqId?: string; ua?: string } | undefined): Record<string, string> | undefined {
   if (!store?.actor?.email) return undefined;
   const h: Record<string, string> = {
     'x-audit-email': store.actor.email,
@@ -24,6 +27,12 @@ function auditHeaders(store: { actor: AuditActor; reqId?: string } | undefined):
     'x-audit-bar': store.actor.bar_id != null ? String(store.actor.bar_id) : '',
   };
   if (store.reqId) h['x-audit-req'] = store.reqId;
+  // Header HTTP não aceita byte fora de latin-1 e tem teto de tamanho: limpa e corta. UA real é
+  // ASCII, então na prática isto só protege contra lixo.
+  if (store.ua) {
+    const limpo = store.ua.replace(/[^ -~]/g, '').slice(0, 300);
+    if (limpo) h['x-audit-ua'] = limpo;
+  }
   return h;
 }
 

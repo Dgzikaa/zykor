@@ -32,6 +32,8 @@ export interface Pedido {
   cpf_cnpj?: string | null;
   observacao?: string | null;
   precisa_comprovante?: boolean | null;
+  /** De onde o pedido foi criado (celular/tablet/computador). Null nos anteriores a 20/08/2026. */
+  origem_dispositivo?: string | null;
   pix_copia_cola?: string | null;
   linha_digitavel?: string | null;
   categoria_id?: string | null;

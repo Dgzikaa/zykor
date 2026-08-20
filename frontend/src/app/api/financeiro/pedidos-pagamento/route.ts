@@ -13,6 +13,7 @@ import {
 } from '@/lib/financeiro/pedidos-pagamento';
 import { paginate } from '@/lib/supabase/paginate';
 import { broadcastPedidoChange } from '@/lib/realtime/broadcastPedidos';
+import { dispositivoDeUA } from '@/lib/dispositivo';
 
 export const dynamic = 'force-dynamic';
 
@@ -258,6 +259,9 @@ export async function POST(request: NextRequest) {
     status: 'aguardando_aprovacao',
     solicitante_id: user.auth_id,
     solicitante_nome: user.nome,
+    // De onde subiu (celular/tablet/computador). Guardado NA LINHA porque a lista mostra um badge
+    // por card — cruzar a trilha de auditoria a cada carregamento sairia caro.
+    origem_dispositivo: dispositivoDeUA(request.headers.get('user-agent')),
     descricao,
     valor: valorEfetivo,
     data_competencia,

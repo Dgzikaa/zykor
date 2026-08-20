@@ -77,7 +77,7 @@ export async function authenticateUser(
   // O usuário é preenchido por mutação mais abaixo, quando a autenticação resolve.
   try {
     const reqId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.round(Math.random() * 1e9)}`);
-    auditContext.enterWith({ actor: {}, reqId });
+    auditContext.enterWith({ actor: {}, reqId, ua: request.headers.get('user-agent') || undefined });
   } catch { /* noop */ }
 
   try {
