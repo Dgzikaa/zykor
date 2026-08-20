@@ -17,7 +17,7 @@ const VAZIO: Record<string, any> = {
   nome: '', cpf: '', telefone: '', email: '', tipo_contratacao: 'CLT', genero: '',
   cargo_id: '', area_id: '', data_admissao: '', data_nascimento: '', data_demissao: '',
   salario_base: '', valor_diaria: '', vale_transporte_diaria: '', adicional_mensal: '',
-  consumacao_mensal: '', dias_trabalho_semana: '',
+  consumacao_mensal: '', estimativa_mensal: '', tempo_casa_mensal: '', dias_trabalho_semana: '',
   chave_pix: '', tipo_chave_pix: '', observacoes: '', ativo: true,
 };
 
@@ -81,7 +81,8 @@ export function FuncionarioDialog({ open, onClose, onSalvo, cargos, areas, funci
       const payload = { ...form };
       ['cargo_id', 'area_id'].forEach((k) => { payload[k] = payload[k] ? Number(payload[k]) : null; });
       ['salario_base', 'valor_diaria', 'vale_transporte_diaria', 'adicional_mensal',
-       'consumacao_mensal', 'dias_trabalho_semana'].forEach((k) => {
+       'consumacao_mensal', 'estimativa_mensal', 'tempo_casa_mensal',
+       'dias_trabalho_semana'].forEach((k) => {
         payload[k] = payload[k] === '' || payload[k] == null ? null : Number(payload[k]);
       });
       if (editando) await api.put(`/api/rh/funcionarios/${funcionario!.id}`, payload);
@@ -284,6 +285,19 @@ export function FuncionarioDialog({ open, onClose, onSalvo, cargos, areas, funci
                     <Label className="text-xs">Consumação (R$/mês)</Label>
                     <Input type="number" step="0.01" value={form.consumacao_mensal}
                       onChange={(e) => set('consumacao_mensal', e.target.value)} placeholder="0,00" />
+                  </div>
+                  {/* Os dois manuais do CMO fixo. Ficam aqui, e não na tela do CMO, porque são da
+                      PESSOA e não do mês — mudam quando o RH decide, não todo fechamento. */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Estimativa (R$/mês)</Label>
+                    <Input type="number" step="0.01" value={form.estimativa_mensal}
+                      onChange={(e) => set('estimativa_mensal', e.target.value)} placeholder="0,00" />
+                    <p className="text-[11px] text-muted-foreground">Entra na base de INSS/FGTS, não na provisão.</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Tempo de casa (R$/mês)</Label>
+                    <Input type="number" step="0.01" value={form.tempo_casa_mensal}
+                      onChange={(e) => set('tempo_casa_mensal', e.target.value)} placeholder="0,00" />
                   </div>
                 </>
               )}

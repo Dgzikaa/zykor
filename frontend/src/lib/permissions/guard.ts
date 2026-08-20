@@ -106,6 +106,9 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   { prefix: '/api/rh/freelas', paths: ['/rh/freelas'] },
   { prefix: '/api/rh/ponto', paths: ['/rh/ponto'] },
   { prefix: '/api/rh/vagas', paths: ['/rh/recrutamento'] },
+  // CMO fixo: é a folha do mês, dado salarial da casa toda. Sem isto a rota ficava fail-open e
+  // qualquer usuário logado lia o salário de todo mundo.
+  { prefix: '/api/rh/cmo-fixo', paths: ['/rh/custo-mo'] },
   { prefix: '/api/rh/provisoes', paths: ['/ferramentas'] },
   // --- Analítico --- (/api/analitico/clientes/filtros-avancados é POST de LEITURA → fora do mapa)
   { prefix: '/api/campanhas-clube', paths: ['/analitico/clientes'] },

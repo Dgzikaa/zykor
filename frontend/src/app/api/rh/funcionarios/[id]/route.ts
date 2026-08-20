@@ -13,6 +13,7 @@ const CAMPOS_EDITAVEIS = [
   'nome', 'cpf', 'telefone', 'email', 'data_admissao', 'data_demissao', 'data_nascimento',
   'cargo_id', 'area_id', 'tipo_contratacao', 'genero', 'salario_base', 'valor_diaria',
   'vale_transporte_diaria', 'adicional_mensal', 'consumacao_mensal',
+  'estimativa_mensal', 'tempo_casa_mensal',
   'dias_trabalho_semana', 'chave_pix', 'tipo_chave_pix',
   'observacoes', 'foto_url', 'ativo', 'rg', 'ctps', 'data_fim_experiencia',
 ] as const;
@@ -150,6 +151,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       vale_transporte_diaria: payload.vale_transporte_diaria ?? atual.vale_transporte_diaria,
       tipo_contratacao: payload.tipo_contratacao ?? atual.tipo_contratacao,
       adicional_mensal: payload.adicional_mensal ?? atual.adicional_mensal,
+      estimativa_mensal: payload.estimativa_mensal ?? atual.estimativa_mensal,
+      tempo_casa_mensal: payload.tempo_casa_mensal ?? atual.tempo_casa_mensal,
       consumacao_mensal: payload.consumacao_mensal ?? atual.consumacao_mensal,
       cargo_id: payload.cargo_id ?? atual.cargo_id, area_id: payload.area_id ?? atual.area_id,
       vigencia_inicio: hoje, motivo_alteracao: body.motivo_alteracao || 'Alteração contratual',

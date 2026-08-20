@@ -8,6 +8,8 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Coins, Loader2 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { CmoFixoTab } from './CmoFixoTab';
 
 type Linha = { data: string; evento: string | null; freelas_custo: number; freelas_n: number; escalados_n: number; fixo_estimado: number; total: number };
 
@@ -61,6 +63,20 @@ export default function CustoMoPage() {
           </div>
         </div>
 
+        {/* Duas leituras do mesmo custo: o CMO FIXO é a folha do mês (o que substitui a planilha)
+            e o "por dia" é o caixa do dia a dia, com freela real. Abrem juntas porque o RH fecha o
+            mês na primeira e a operação confere o dia na segunda. */}
+        <Tabs defaultValue="fixo" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="fixo">CMO Fixo (mês)</TabsTrigger>
+            <TabsTrigger value="dia">Por dia · freelas + escalados</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="fixo">
+            <CmoFixoTab />
+          </TabsContent>
+
+          <TabsContent value="dia">
         {total && (
           <div className="grid grid-cols-3 gap-3 mb-4">
             <Kpi label="Freelas (real)" value={fmt(total.freelas)} cor="text-amber-600 dark:text-amber-400" />
@@ -99,6 +115,8 @@ export default function CustoMoPage() {
             )}
         </Card>
         <p className="text-[11px] text-muted-foreground mt-2">Fixo estimado = salário base ÷ 30 por funcionário escalado no dia (aproximação). Freelas = valor real das convocações confirmadas/comparecidas.</p>
+          </TabsContent>
+        </Tabs>
       </div>
     </ProtectedRoute>
   );
