@@ -267,6 +267,18 @@ interface OrcamentoPlanilhaRow {
 
 const num = (v: number | string | null | undefined): number => Number(v ?? 0) || 0;
 
+/**
+ * Chave normalizada (sem acento, maiúscula, sem espaço nas pontas) pra casar categoria.
+ * A ESTRUTURA referencia em MAIÚSCULO e o de-para às vezes grava em Título ('LOCACOES OPERACAO'
+ * vs 'Locações Operação') — sem normalizar dos dois lados, não casava e a linha mostrava 0.
+ *
+ * Vive no MÓDULO, e não dentro da função, porque estava declarada DEPOIS do primeiro uso: a
+ * montagem do de-para (linha ~354) chamava normKey antes do `const`, e isso é zona morta
+ * temporal — `ReferenceError: Cannot access 'L' before initialization` derrubando o render de
+ * /estrategico/orcamentacao e o Lucro Projetado do Planejamento Comercial (20/08/2026).
+ */
+const normKey = (s: string) => (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim();
+
 // ==================== SERVICE ====================
 
 export async function getOrcamentacaoCompleta(
@@ -387,7 +399,6 @@ export async function getOrcamentacaoCompleta(
   // Match case/acento-insensitive: a ESTRUTURA referencia em MAIÚSCULO mas o de-para
   // às vezes grava em Título (ex: 'LOCACOES OPERACAO' vs 'Locações Operação') → não
   // casava e mostrava 0. Normaliza dos 2 lados (vale pros 2 bares).
-  const normKey = (s: string) => (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim();
   const goldCatMap = new Map<string, number>();
   const goldBlocoMap = new Map<string, number>();
   // categoria_zykor distintas por (ano-mes-bloco_dre) — usado p/ "surfacing" automático:

@@ -36,7 +36,13 @@ export class ErrorBoundary extends Component<Props, State> {
     });
 
     // Reportar erro para serviços de monitoramento (se configurado)
-    if (typeof window !== 'undefined' && (window as any).Sentry) {
+    // Checa a FUNÇÃO, não só o objeto: com o bundle do Sentry bloqueado pelo CSP, `window.Sentry`
+    // existe pela metade e `captureException` vira undefined. O erro do handler estourava DENTRO
+    // do componentDidCatch e escondia o erro de verdade — foi o que enterrou um
+    // "Cannot access 'L' before initialization" atrás de "captureException is not a function"
+    // (20/08/2026).
+    if (typeof window !== 'undefined' && typeof (window as any).Sentry?.captureException === 'function') {
+      try {
       (window as any).Sentry.captureException(error, {
         contexts: {
           react: {
@@ -44,6 +50,7 @@ export class ErrorBoundary extends Component<Props, State> {
           },
         },
       });
+      } catch { /* monitoramento nunca pode derrubar o handler de erro */ }
     }
   }
 
@@ -147,7 +154,13 @@ export function useErrorHandler() {
   return (error: Error, errorInfo?: ErrorInfo) => {
     console.error('🚨 Erro capturado manualmente:', error, errorInfo);
     
-    if (typeof window !== 'undefined' && (window as any).Sentry) {
+    // Checa a FUNÇÃO, não só o objeto: com o bundle do Sentry bloqueado pelo CSP, `window.Sentry`
+    // existe pela metade e `captureException` vira undefined. O erro do handler estourava DENTRO
+    // do componentDidCatch e escondia o erro de verdade — foi o que enterrou um
+    // "Cannot access 'L' before initialization" atrás de "captureException is not a function"
+    // (20/08/2026).
+    if (typeof window !== 'undefined' && typeof (window as any).Sentry?.captureException === 'function') {
+      try {
       (window as any).Sentry.captureException(error, {
         contexts: errorInfo ? {
           react: {
@@ -155,6 +168,7 @@ export function useErrorHandler() {
           },
         } : undefined,
       });
+      } catch { /* monitoramento nunca pode derrubar o handler de erro */ }
     }
   };
 }
