@@ -98,8 +98,13 @@ const ALIAS_TO_CANONICAL: Record<string, string> = {
   ferramentas_escala: 'rh_escala',
   ferramentas_freelas: 'rh_freelas',
   ferramentas_ponto: 'rh_ponto',
-  ferramentas_recrutamento: 'rh_recrutamento',
-  ferramentas_custo_de_mo: 'rh_custo_de_mo',
+  // Ata Semanal, Alerta de RH, Recrutamento e Custo de MO fizeram o caminho de VOLTA pra
+  // Ferramentas (19/08/2026, seção "Em construção"): o canônico agora é `ferramentas_*` de novo,
+  // e quem tem o token `rh_*` no banco continua valendo por estes alias.
+  rh_ata_semanal: 'ferramentas_ata_semanal',
+  rh_alerta_de_rh: 'ferramentas_alerta_de_rh',
+  rh_recrutamento: 'ferramentas_recrutamento',
+  rh_custo_de_mo: 'ferramentas_custo_de_mo',
   // NPS
   ferramentas_nps_funcionarios: 'rh_nps_funcionarios',
   ferramentas_nps: 'rh_nps_funcionarios',

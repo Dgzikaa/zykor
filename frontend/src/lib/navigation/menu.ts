@@ -199,6 +199,15 @@ export const MENU_TREE: MenuSection[] = [
       // (as páginas de lá só re-exportam /crm/*, nada duplicado). Entra no menu agora pra
       // existir o módulo `ferramentas_crm`; ainda não está em uso — vai ser ativado depois.
       { icon: 'MessageCircle', label: 'CRM', href: '/ferramentas/crm', permission: 'ferramentas_crm', beta: true },
+      // Vieram do RH em 19/08/2026 (Rodrigo): telas que existem mas ainda NÃO estão prontas pra
+      // rotina. Ficam aqui até serem, pra seção RH mostrar só o que o time usa de verdade.
+      // Sair de RH muda o id do módulo (rh_* -> ferramentas_*) — os antigos viraram alias no
+      // resolver, então quem já tinha o grant continua entrando.
+      { header: 'Em construção' },
+      { icon: 'CalendarDays', label: 'Ata Semanal', href: '/rh/ata-semanal', permission: 'ferramentas_ata_semanal', beta: true },
+      { icon: 'ShieldAlert', label: 'Alerta de RH', href: '/rh/alertas', permission: 'ferramentas_alerta_de_rh', beta: true },
+      { icon: 'Briefcase', label: 'Recrutamento', href: '/rh/recrutamento', permission: 'ferramentas_recrutamento', beta: true },
+      { icon: 'Coins', label: 'Custo de MO', href: '/rh/custo-mo', permission: 'ferramentas_custo_de_mo', beta: true },
     ],
   },
   {
@@ -221,11 +230,6 @@ export const MENU_TREE: MenuSection[] = [
     // sem migrar os tokens junto.
     subItems: [
       { icon: 'Users', label: 'Funcionários', href: '/rh/funcionarios', permission: 'rh_funcionarios' },
-      // A mensagem de toda segunda, montada sozinha (objetivo 3 da ata de 13/08/2026).
-      { icon: 'CalendarDays', label: 'Ata Semanal', href: '/rh/ata-semanal', permission: 'rh_ata_semanal' },
-      // Os alertas do dossiê aplicados à base inteira — quem está sem contrato, sem exame,
-      // com experiência vencendo. Ninguém abre 68 fichas pra descobrir isso.
-      { icon: 'ShieldAlert', label: 'Alerta de RH', href: '/rh/alertas', permission: 'rh_alerta_de_rh' },
       // Saiu do perfil de cada pessoa: a pesquisa é anônima e agregada por setor,
       // então nunca houve resposta "daquele funcionário" pra mostrar lá.
       // Renomeada de "Pesquisa da Felicidade" para "Pesquisas" em 14/08/2026 (a Felicidade virou
@@ -237,8 +241,6 @@ export const MENU_TREE: MenuSection[] = [
       // /rh/escala continua existindo, mas órfã do menu = admin-only pelo guard.
       { icon: 'HandCoins', label: 'Freelas', href: '/rh/freelas', permission: 'rh_freelas' },
       { icon: 'Clock', label: 'Ponto', href: '/rh/ponto', permission: 'rh_ponto' },
-      { icon: 'Briefcase', label: 'Recrutamento', href: '/rh/recrutamento', permission: 'rh_recrutamento' },
-      { icon: 'Coins', label: 'Custo de MO', href: '/rh/custo-mo', permission: 'rh_custo_de_mo' },
       { icon: 'Star', label: 'NPS Funcionários', href: '/operacional/nps', permission: 'rh_nps_funcionarios' },
     ],
   },

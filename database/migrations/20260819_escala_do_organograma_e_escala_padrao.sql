@@ -205,3 +205,31 @@ grant execute on function operations.fn_escala_salvar_padrao(integer, date, date
 -- final de fn_escala_puxar_do_organograma, que tenta o de-para explícito e só cai no nome como
 -- rede de segurança — o caminho do bar novo.
 -- =============================================================================
+
+-- =============================================================================
+-- ADENDO 2 (19/08/2026): LIDERANÇA SE DERIVA, NÃO SE DECLARA.
+--
+-- Rodrigo: "líderes é quem tem pessoa embaixo... liderança continua sendo liderança pq ele vai
+-- identificar que tem gente embaixo, simples". Está certo — a chefia já está desenhada no
+-- organograma (hr.cadeiras.cadeira_chefe_id), não precisa ser repetida num de-para.
+--
+-- A ordem de decisão da função virou:
+--   1. de-para explícito do cargo (hr.cargos.funcao_escala_id) — continua ganhando, pra não
+--      remexer nos blocos que a operação já usa (ex.: o segurança que chefia o outro segurança
+--      segue no bloco Segurança, e não sai pra Liderança do nada);
+--   2. TEM CADEIRA EMBAIXO -> Liderança;
+--   3. função com o mesmo nome do cargo (o caminho do bar novo).
+--
+-- Na prática hoje nada muda nos dois bares (todo cargo já tem de-para) — o ganho é o cargo de
+-- chefia NOVO cair sozinho em Liderança em vez de virar um bloco de uma pessoa só na grade.
+--
+-- Conferido depois: rodar de novo nas duas casas devolve linhas_criadas 0 e funcoes_criadas 0
+-- (Ordinário 56 pessoas, Deboche 9) — segue idempotente.
+--
+-- MIGRAÇÃO DO ORDINÁRIO, no mesmo dia (o que o Rodrigo pediu: passado fica, futuro vem do
+-- organograma):
+--   1. 24-30/08 da planilha salvo como escala PADRÃO das pessoas -> 266 linhas (38 × 7);
+--   2. apagado tudo de 24/08 em diante -> 816 linhas (a planilha ia até 13/09);
+--   3. puxado 24-30/08 do organograma -> 392 linhas, 56 pessoas, 0 função nova.
+-- O histórico até 23/08 (9.457 linhas) continua intocado: é ele que alimenta os fixos do Plano
+-- Operacional e o Planejado × Realizado.
