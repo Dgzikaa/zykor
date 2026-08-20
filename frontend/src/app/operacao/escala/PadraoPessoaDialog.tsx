@@ -8,6 +8,7 @@ import {
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { Loader2 } from 'lucide-react';
+import { PRESETS, MARCADORES_RAPIDOS } from './turnos';
 
 /**
  * Escala PADRÃO de uma pessoa — o molde de uma semana normal dela.
@@ -25,6 +26,11 @@ import { Loader2 } from 'lucide-react';
  */
 
 const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+const HORAS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'));
+const MINUTOS = ['00', '15', '30', '45'];
+/** valor especial do select: some da lista e abre os dois seletores de hora */
+const OUTRO = '__outro__';
 
 type Dia = { dia_semana: number; entra: string | null; sai: string | null; marcador: string | null };
 
@@ -89,13 +95,13 @@ export function PadraoPessoaDialog({
 
   return (
     <Dialog open={!!pessoa} onOpenChange={(v) => { if (!v) onFechar(); }}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Escala padrão · {pessoa?.nome}</DialogTitle>
           <DialogDescription className="text-xs">
             A semana normal dela. Ao montar uma semana nova com &ldquo;Puxar do organograma&rdquo;,
-            é isto que entra — em vez de tudo FOLGA. Escreva o horário (<b>17:00-02:30</b>) ou um
-            marcador (<b>FOLGA</b>, <b>FÉRIAS</b>…). Vazio = sem padrão nesse dia.
+            é isto que entra — em vez de tudo FOLGA. Escolha o turno ou o marcador de cada dia;
+            <b>sem padrão</b> deixa o dia livre.
           </DialogDescription>
         </DialogHeader>
 
@@ -103,17 +109,51 @@ export function PadraoPessoaDialog({
           <div className="py-10 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" /></div>
         ) : (
           <div className="space-y-1.5">
-            {DIAS.map((d, i) => (
-              <div key={d} className="flex items-center gap-2">
-                <span className="w-20 text-xs text-muted-foreground">{d}</span>
-                <input
-                  value={textos[i]}
-                  onChange={(e) => setTextos(x => x.map((v, j) => (j === i ? e.target.value : v)))}
-                  placeholder="17:00-02:30 ou FOLGA"
-                  className="flex-1 h-9 px-2 text-sm rounded border border-[hsl(var(--border))] bg-transparent"
-                />
-              </div>
-            ))}
+            {DIAS.map((d, i) => {
+              const v = textos[i];
+              // valor fora da lista (ex.: 16:30-01:00) cai em "outro" e abre os seletores
+              const naLista = !v || PRESETS.includes(v) || MARCADORES_RAPIDOS.includes(v);
+              const [eh, em] = (/^(\d{2}):(\d{2})/.exec(v)?.slice(1) ?? ['17', '00']);
+              const [sh, sm] = (/-\s*(\d{2}):(\d{2})/.exec(v)?.slice(1) ?? ['02', '30']);
+              const trocar = (novo: string) => setTextos(x => x.map((y, j) => (j === i ? novo : y)));
+              return (
+                <div key={d} className="flex items-center gap-2 flex-wrap">
+                  <span className="w-16 text-xs text-muted-foreground shrink-0">{d}</span>
+                  <select
+                    value={naLista ? v : OUTRO}
+                    onChange={(e) => trocar(e.target.value === OUTRO ? `${eh}:${em}-${sh}:${sm}` : e.target.value)}
+                    className="flex-1 min-w-[150px] h-9 px-1 text-sm rounded border border-[hsl(var(--border))] bg-transparent"
+                  >
+                    <option value="">— sem padrão —</option>
+                    {PRESETS.map(t => <option key={t} value={t}>{t}</option>)}
+                    {MARCADORES_RAPIDOS.map(m => <option key={m} value={m}>{m}</option>)}
+                    <option value={OUTRO}>outro horário…</option>
+                  </select>
+                  {/* só quem foge dos turnos da casa monta hora a hora */}
+                  {!naLista && (
+                    <span className="inline-flex items-center gap-0.5 text-xs">
+                      <select value={eh} onChange={(e) => trocar(`${e.target.value}:${em}-${sh}:${sm}`)}
+                        className="h-9 px-1 rounded border border-[hsl(var(--border))] bg-transparent">
+                        {HORAS.map(h => <option key={h}>{h}</option>)}
+                      </select>:
+                      <select value={em} onChange={(e) => trocar(`${eh}:${e.target.value}-${sh}:${sm}`)}
+                        className="h-9 px-1 rounded border border-[hsl(var(--border))] bg-transparent">
+                        {MINUTOS.map(m => <option key={m}>{m}</option>)}
+                      </select>
+                      <span className="mx-0.5">–</span>
+                      <select value={sh} onChange={(e) => trocar(`${eh}:${em}-${e.target.value}:${sm}`)}
+                        className="h-9 px-1 rounded border border-[hsl(var(--border))] bg-transparent">
+                        {HORAS.map(h => <option key={h}>{h}</option>)}
+                      </select>:
+                      <select value={sm} onChange={(e) => trocar(`${eh}:${em}-${sh}:${e.target.value}`)}
+                        className="h-9 px-1 rounded border border-[hsl(var(--border))] bg-transparent">
+                        {MINUTOS.map(m => <option key={m}>{m}</option>)}
+                      </select>
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
