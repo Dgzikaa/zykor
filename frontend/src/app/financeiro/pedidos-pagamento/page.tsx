@@ -50,6 +50,8 @@ export default function PedidosPagamentoPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(false);
   const [podeAprovar, setPodeAprovar] = useState(false);
+  // Corrigir classificação de pedido JÁ lançado (perfil Administrativo, p.ex.) — não é aprovar.
+  const [podeCorrigir, setPodeCorrigir] = useState(false);
   const [tab, setTab] = useState<TabKey>('solicitado');
   const [soMeus, setSoMeus] = useState(false);
   const [soComprovante, setSoComprovante] = useState(false);
@@ -107,6 +109,7 @@ export default function PedidosPagamentoPage() {
       const freelaExtra = (resFreela.pedidos || []).filter((p: any) => !idsGeral.has(p.id));
       setPedidos([...geral, ...freelaExtra]);
       setPodeAprovar(!!res.pode_aprovar);
+      setPodeCorrigir(!!res.pode_corrigir);
     } catch (e: any) {
       if (!silent) showToast({ type: 'error', title: 'Erro ao carregar', message: e?.message });
     } finally {

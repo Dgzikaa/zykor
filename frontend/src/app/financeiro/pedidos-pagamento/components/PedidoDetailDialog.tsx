@@ -45,6 +45,8 @@ export function PedidoDetailDialog({
   const [competencias, setCompetencias] = useState<Competencia[]>([]);
   const [podeAprovar, setPodeAprovar] = useState(false);
   const [podeExcluir, setPodeExcluir] = useState(false);
+  // Corrigir classificação depois de lançado (perfil Administrativo) — só campos contábeis.
+  const [podeCorrigir, setPodeCorrigir] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
   const [marcandoPago, setMarcandoPago] = useState(false);
   const [copiado, setCopiado] = useState(false);
@@ -75,7 +77,15 @@ export function PedidoDetailDialog({
   const [novoFornDoc, setNovoFornDoc] = useState('');
   const [cadastrando, setCadastrando] = useState(false);
 
-  const editavel = pedido && (podeAprovar || ['rascunho', 'aguardando_aprovacao'].includes(pedido.status));
+  const emAprovacao = pedido && ['rascunho', 'aguardando_aprovacao'].includes(pedido.status);
+  const editavel = pedido && (podeAprovar || emAprovacao || podeCorrigir);
+  /**
+   * Pedido já lançado, e quem edita não é o financeiro: só os campos CONTÁBEIS abrem.
+   * Valor, vencimento, chave PIX e linha digitável ficam travados porque o pagamento já foi
+   * agendado no Inter com aqueles números — mudá-los aqui faria o Zykor discordar do banco.
+   * O servidor aplica a mesma regra (CAMPOS_CONTABEIS); isto é só pra tela não mentir.
+   */
+  const soContabeis = !!pedido && !podeAprovar && !emAprovacao && podeCorrigir;
   // Fluxo 2 etapas: aprovar (decisão) só p/ pendente; agendar (dispara CA+Inter) p/ aprovado/erro.
   const aprovavel = pedido && pedido.status === 'aguardando_aprovacao';
   const agendavel = pedido && ['aprovado', 'erro_ca', 'erro_inter'].includes(pedido.status);
@@ -92,6 +102,7 @@ export function PedidoDetailDialog({
       setCompetencias(res.competencias || []);
       setPodeAprovar(!!res.pode_aprovar);
       setPodeExcluir(!!res.pode_excluir);
+      setPodeCorrigir(!!res.pode_corrigir);
       setEdit({});
       setAprov({
         categoria_id: res.pedido?.categoria_id || '',
@@ -153,8 +164,12 @@ export function PedidoDetailDialog({
     try {
       const payload: any = { ...edit };
       if ('valor' in payload) payload.valor = Number(String(payload.valor).replace(',', '.'));
-      await api.put(`/api/financeiro/pedidos-pagamento/${pedido.id}`, payload);
-      showToast({ type: 'success', title: 'Alterações salvas' });
+      const r: any = await api.put(`/api/financeiro/pedidos-pagamento/${pedido.id}`, payload);
+      showToast({
+        type: r?.aviso ? 'warning' : 'success',
+        title: 'Alterações salvas',
+        message: r?.aviso,
+      });
       await carregar();
       onChange();
     } catch (e: any) {
@@ -421,11 +436,11 @@ export function PedidoDetailDialog({
               </div>
               <div>
                 <Label className="mb-1 block text-xs">Valor (R$)</Label>
-                <Input value={String(fld('valor'))} disabled={!editavel} onChange={(e) => setFld('valor', e.target.value)} />
+                <Input value={String(fld('valor'))} disabled={!editavel || soContabeis} onChange={(e) => setFld('valor', e.target.value)} />
               </div>
               <div>
                 <Label className="mb-1 block text-xs">Vencimento</Label>
-                <DateInputBR value={String(fld('data_vencimento') || '')} disabled={!editavel} onChange={(iso) => setFld('data_vencimento', iso)} />
+                <DateInputBR value={String(fld('data_vencimento') || '')} disabled={!editavel || soContabeis} onChange={(iso) => setFld('data_vencimento', iso)} />
               </div>
               <div>
                 <Label className="mb-1 block text-xs">Competência</Label>
@@ -435,23 +450,30 @@ export function PedidoDetailDialog({
               {pedido && isBoleto(pedido) ? (
                 <div>
                   <Label className="mb-1 block text-xs">Linha digitável</Label>
-                  <Input value={fld('linha_digitavel')} disabled={!editavel} onChange={(e) => setFld('linha_digitavel', e.target.value)} inputMode="numeric" />
+                  <Input value={fld('linha_digitavel')} disabled={!editavel || soContabeis} onChange={(e) => setFld('linha_digitavel', e.target.value)} inputMode="numeric" />
                 </div>
               ) : (
                 <div>
                   <Label className="mb-1 block text-xs">Chave PIX</Label>
-                  <Input value={fld('chave_pix')} disabled={!editavel} onChange={(e) => setFld('chave_pix', e.target.value)} />
+                  <Input value={fld('chave_pix')} disabled={!editavel || soContabeis} onChange={(e) => setFld('chave_pix', e.target.value)} />
                 </div>
               )}
               <div>
                 <Label className="mb-1 block text-xs">Beneficiário</Label>
-                <Input value={fld('beneficiario_nome')} disabled={!editavel} onChange={(e) => setFld('beneficiario_nome', e.target.value)} />
+                <Input value={fld('beneficiario_nome')} disabled={!editavel || soContabeis} onChange={(e) => setFld('beneficiario_nome', e.target.value)} />
               </div>
               <div>
                 <Label className="mb-1 block text-xs">CPF/CNPJ</Label>
-                <Input value={fld('cpf_cnpj')} disabled={!editavel} onChange={(e) => setFld('cpf_cnpj', e.target.value)} />
+                <Input value={fld('cpf_cnpj')} disabled={!editavel || soContabeis} onChange={(e) => setFld('cpf_cnpj', e.target.value)} />
               </div>
             </div>
+            {soContabeis && (
+              <div className="sm:col-span-2 rounded-md bg-muted/60 p-2.5 text-[11px] text-muted-foreground">
+                Você pode corrigir <b>descrição, competência, categoria, fornecedor e centro de custo</b>.
+                Valor, vencimento e dados de pagamento ficam travados porque o pagamento já foi
+                agendado no banco com esses números.
+              </div>
+            )}
             {editavel && Object.keys(edit).length > 0 && (
               <Button size="sm" variant="outline" onClick={salvarEdicao} disabled={salvandoEdit}>
                 {salvandoEdit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}

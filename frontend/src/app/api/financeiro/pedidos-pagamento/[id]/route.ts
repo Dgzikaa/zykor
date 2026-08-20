@@ -11,6 +11,7 @@ import {
   type PedidoStatus,
 } from '@/lib/financeiro/pedidos-pagamento';
 import { broadcastPedidoChange } from '@/lib/realtime/broadcastPedidos';
+import { negarSeNaoPode } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +37,25 @@ const CAMPOS_FINANCEIRO = [
   ...CAMPOS_SOLICITANTE,
   'centro_custo_id', 'centro_custo_nome',
   'conta_financeira_id', 'inter_credencial_id',
+];
+
+/**
+ * Campos CONTÁBEIS — os que dizem "como isso é classificado", não "quanto e pra quem se paga".
+ *
+ * Pedido do Isaías (20/08/2026): "tem como deixar a gente ter acesso para editar os boletos depois
+ * que lança?". Ele já tinha o direito de editar no perfil (Administrativo tem
+ * `...pedidos_de_pagamento:editar`); o que barrava era o STATUS — solicitante só editava enquanto
+ * o pedido estava em rascunho/aguardando aprovação.
+ *
+ * A liberação é destes campos e só destes. Valor, vencimento, chave PIX e linha digitável ficam
+ * de fora depois que o pedido sai da aprovação: nesse ponto o pagamento já foi agendado no Inter
+ * com aqueles números, e mudá-los aqui faria o registro do Zykor discordar do que saiu do banco —
+ * o erro mais caro possível, porque some sem deixar rastro.
+ */
+const CAMPOS_CONTABEIS = [
+  'descricao', 'observacao', 'data_competencia',
+  'categoria_id', 'categoria_nome', 'contaazul_pessoa_id',
+  'centro_custo_id', 'centro_custo_nome',
 ];
 
 // =====================================================
@@ -73,6 +93,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     competencias: competencias.data || [],
     pode_aprovar: podeAprovar(user),
     pode_excluir: user.role === 'admin',
+    // Corrigir a classificação de um pedido JÁ lançado (categoria, competência, fornecedor,
+    // centro de custo). Não é aprovar nem agendar — não move dinheiro.
+    pode_corrigir: !negarSeNaoPode(user, ['/financeiro/pedidos-pagamento'], 'editar'),
   });
 }
 
@@ -93,11 +116,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   const ehFinanceiro = podeAprovar(user);
   const ehDono = pedido.solicitante_id === user.auth_id;
-  if (!ehFinanceiro && !ehDono) {
+  // Quem tem o direito de EDITAR no módulo de pedidos (perfil Administrativo, p.ex.) corrige a
+  // classificação de qualquer pedido do bar, mesmo depois de lançado — só os campos contábeis.
+  const podeCorrigir = !negarSeNaoPode(user, ['/financeiro/pedidos-pagamento'], 'editar');
+  if (!ehFinanceiro && !ehDono && !podeCorrigir) {
     return permissionErrorResponse('Sem permissão para editar este pedido');
   }
-  // Solicitante só edita enquanto o pedido está pendente/rascunho.
-  if (!ehFinanceiro && !STATUS_EDITAVEL_SOLICITANTE.includes(pedido.status as PedidoStatus)) {
+  // Fora da janela de aprovação, quem não é financeiro fica restrito aos campos contábeis.
+  const soContabeis = !ehFinanceiro && !STATUS_EDITAVEL_SOLICITANTE.includes(pedido.status as PedidoStatus);
+  if (soContabeis && !podeCorrigir) {
     return permissionErrorResponse('Pedido já está em processamento e não pode mais ser editado por você');
   }
 
@@ -108,7 +135,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ success: false, error: 'JSON inválido' }, { status: 400 });
   }
 
-  const camposPermitidos = ehFinanceiro ? CAMPOS_FINANCEIRO : CAMPOS_SOLICITANTE;
+  const camposPermitidos = ehFinanceiro ? CAMPOS_FINANCEIRO : soContabeis ? CAMPOS_CONTABEIS : CAMPOS_SOLICITANTE;
   const updates: Record<string, unknown> = {};
   for (const campo of camposPermitidos) {
     if (campo in body && body[campo] !== (pedido as any)[campo]) {
@@ -157,7 +184,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   await broadcastPedidoChange(pedido.bar_id);
-  return NextResponse.json({ success: true, pedido: data, alterado: true });
+  /*
+    O lançamento no Conta Azul foi criado no AGENDAR e a API do CA não atualiza lançamento
+    [[feedback_contaazul_api_sem_delete_lancamento]]. Então corrigir a categoria aqui conserta o
+    Zykor e NÃO conserta o CA — e é o CA que alimenta a DRE. Sem este aviso a pessoa corrige,
+    vê certo na tela e segue achando que resolveu.
+  */
+  const jaFoiProCA = ['agendado', 'pago'].includes(String(pedido.status))
+    && ['categoria_id', 'categoria_nome', 'centro_custo_id', 'data_competencia'].some(c => c in updates);
+  return NextResponse.json({
+    success: true, pedido: data, alterado: true,
+    aviso: jaFoiProCA
+      ? 'Corrigido no Zykor. O lançamento JÁ foi criado no Conta Azul e não muda sozinho — ajuste a categoria por lá também.'
+      : undefined,
+  });
 }
 
 // =====================================================

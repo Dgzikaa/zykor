@@ -14,6 +14,7 @@ import {
 import { paginate } from '@/lib/supabase/paginate';
 import { broadcastPedidoChange } from '@/lib/realtime/broadcastPedidos';
 import { dispositivoDeUA } from '@/lib/dispositivo';
+import { negarSeNaoPode } from '@/lib/permissions/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -149,6 +150,9 @@ export async function GET(request: NextRequest) {
     pedidos,
     escopo,
     pode_aprovar: podeAprovar(user),
+    // Quem tem o direito de EDITAR no módulo corrige a classificação de pedido já lançado
+    // (só os campos contábeis — ver CAMPOS_CONTABEIS no PUT de [id]).
+    pode_corrigir: !negarSeNaoPode(user, ['/financeiro/pedidos-pagamento'], 'editar'),
   });
 }
 
