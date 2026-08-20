@@ -49,6 +49,12 @@ export async function GET(request: NextRequest) {
   const sp = new URL(request.url).searchParams;
   const tipo = ['semanal', 'mensal'].includes(sp.get('tipo') || '') ? sp.get('tipo')! : 'semanal';
   const janelas = Math.min(JANELAS_MAX, Math.max(3, Number(sp.get('janelas')) || JANELAS_PADRAO));
+  // Recorte por DATA (Rodrigo, 20/08/2026: "pra pegar os maiores do último mês, ou da última
+  // semana, ou do ano todo"). Uma janela entra quando FECHA dentro do intervalo — é a data em
+  // que a contagem aconteceu, e é assim que a operação fala do desvio ("o desvio do dia 17").
+  const dataOk = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  const de = dataOk(sp.get('de'));
+  const ate = dataOk(sp.get('ate'));
 
   const c = sb();
   const gold = (fn: string, args: any) => (c as any).schema('gold').rpc(fn, args);
@@ -59,12 +65,24 @@ export async function GET(request: NextRequest) {
 
   const ds: string[] = ((datasRaw || []) as any[]).map((d) => d.data_contagem);
   // cada ponto = intervalo ENTRE duas contagens; com 1 contagem só não há desvio pra calcular
-  const periodos = ds.slice(0, janelas + 1)
+  const todas = ds
     .map((fim, i, arr) => (i < arr.length - 1 ? { ini: arr[i + 1], fim } : null))
     .filter(Boolean) as { ini: string; fim: string }[];
 
+  const noIntervalo = (de || ate)
+    ? todas.filter((p) => (!de || p.fim >= de) && (!ate || p.fim <= ate))
+    : todas.slice(0, janelas);
+
+  /**
+   * Teto de janelas mesmo com data: cada uma custa ~1,2s de RPC, então "o ano todo" (52
+   * semanas) seria mais de um minuto. Corta nas mais RECENTES e AVISA — corte silencioso faria
+   * o total parecer menor do que é.
+   */
+  const periodos = noIntervalo.slice(0, JANELAS_MAX);
+  const truncado = noIntervalo.length > periodos.length ? noIntervalo.length - periodos.length : 0;
+
   if (!periodos.length) {
-    return NextResponse.json({ success: true, tipo, serie: [], ranking: [], areas: [], sem_dados: true });
+    return NextResponse.json({ success: true, tipo, serie: [], ranking: [], areas: [], sem_dados: true, truncado: 0 });
   }
 
   // Ignorados (olhinho) saem da conta — senão a análise contradiz a tela, que já os exclui.
@@ -143,7 +161,15 @@ export async function GET(request: NextRequest) {
         insumos: { perdas: r2(insumos.perdas), sobras: r2(insumos.sobras), liquido: r2(insumos.liquido), itens: insumos.itens },
         producoes: { perdas: r2(producoes.perdas), sobras: r2(producoes.sobras), liquido: r2(producoes.liquido), itens: producoes.itens },
         proteinas: { perdas: r2(proteinas.perdas), sobras: r2(proteinas.sobras), liquido: r2(proteinas.liquido), itens: proteinas.itens },
-        perda_total: r2(insumos.perdas + producoes.perdas + proteinas.perdas),
+        /**
+         * TOTAL = insumos + produções. Proteína NÃO entra: ela não é uma terceira origem, é uma
+         * LEITURA DIFERENTE dos mesmos insumos (VMarket × utilizado na produção, ancorado no
+         * estoque). Conferido no banco: os 8 itens de proteína de uma janela existem TODOS
+         * também como insumo, com valor diferente — o Filé mignon deu −1.333,73 como insumo e
+         * +97,87 como proteína na mesma semana. Somar os dois contava o mesmo quilo duas vezes
+         * e inflava o total (Gonza, 20/08/2026).
+         */
+        perda_total: r2(insumos.perdas + producoes.perdas),
         por_area: Object.fromEntries(Object.entries(porArea).map(([k, v]) => [k, r2(v)])),
       });
     }
@@ -152,10 +178,20 @@ export async function GET(request: NextRequest) {
   // do mais antigo pro mais novo — gráfico de evolução se lê da esquerda pra direita
   serie.sort((a, b) => a.fim.localeCompare(b.fim));
 
-  const ranking = [...rank.values()]
-    .filter((r) => r.perda > 0)
+  /**
+   * Top 30 POR ORIGEM, não top 30 geral. O corte global escondia as produções: os insumos são
+   * muito mais numerosos e ocupavam a lista inteira, então filtrar por "Produções" na tela
+   * peneirava uma lista que já não tinha nenhuma (Rodrigo, 20/08/2026: "de Produções acho que
+   * ele não puxou aqui"). A tela junta e ordena de novo pra ver "Todos".
+   */
+  const topDoGrupo = (g: 'insumo' | 'producao' | 'proteina') =>
+    [...rank.values()].filter((r) => r.grupo === g && r.perda > 0)
+      .sort((a, b) => b.perda - a.perda).slice(0, 30);
+
+  // 'proteina' vai junto mas a TELA a esconde em "Todos": listar as duas leituras do mesmo item
+  // lado a lado é o que fez o Filé mignon aparecer com dois valores diferentes.
+  const ranking = [...topDoGrupo('insumo'), ...topDoGrupo('producao'), ...topDoGrupo('proteina')]
     .sort((a, b) => b.perda - a.perda)
-    .slice(0, 30)
     .map((r) => ({
       ...r, perda: r2(r.perda), sobra: r2(r.sobra), ultima: r2(r.ultima),
       // perda média por janela em que apareceu — separa "muito de uma vez" de "sangramento"
@@ -171,8 +207,13 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     success: true, tipo, janelas: periodos.length, serie, ranking, areas,
+    // o intervalo REAL coberto — a tela escreve isso do lado do ranking
+    intervalo: serie.length ? { de: serie[0].ini, ate: serie[serie.length - 1].fim } : null,
+    truncado,
+    // total do período: insumos + produções (ver perda_total). Proteína sai à parte.
     total: {
       perdas: r2(serie.reduce((s, x) => s + x.perda_total, 0)),
+      proteinas: r2(serie.reduce((s, x) => s + x.proteinas.perdas, 0)),
       media_por_periodo: r2(serie.reduce((s, x) => s + x.perda_total, 0) / Math.max(1, serie.length)),
     },
   });

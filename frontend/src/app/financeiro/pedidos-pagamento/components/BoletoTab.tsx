@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -74,6 +74,32 @@ export function BoletoTab({
   // pro financeiro só conferir na aprovação (pedido do Gonza).
   const [catId, setCatId] = useState('');
   const [fornId, setFornId] = useState('');
+
+  /*
+    CASA O FORNECEDOR DO CONTA AZUL PELO CNPJ LIDO NO BOLETO.
+
+    O problema (David/financeiro, 20/08/2026): boleto chegando pra aprovar sem Fornecedor CA.
+    Conferi na trilha de auditoria: em 30 dias, 15 dos 265 boletos do Ordinário nasceram sem ele,
+    e em 4 deles quem subiu tinha o NOME do fornecedor preenchido — porque o leitor preenche
+    "quem recebe" (texto livre) e o Fornecedor CA é OUTRO campo, o que faz o formulário parecer
+    completo quando não está.
+
+    O leitor já extrai o CNPJ; a lista de fornecedores já traz o documento no `searchHint`. Casar
+    os dois resolve o caso comum sem depender de ninguém lembrar. Só preenche quando está VAZIO e
+    quando o CNPJ bate com UM único fornecedor — dois candidatos viram escolha humana, igual ao
+    de-para de nome em outras telas.
+  */
+  const cnpjBoleto = (d?.cpf_cnpj || '').replace(/\D/g, '');
+  useEffect(() => {
+    if (fornId || cnpjBoleto.length < 11) return;
+    const achados = fornecedores.filter((f) => (f.searchHint || '').replace(/\D/g, '') === cnpjBoleto);
+    if (achados.length !== 1) return;
+    setFornId(achados[0].value);
+    showToast({
+      type: 'success', title: 'Fornecedor identificado pelo CNPJ',
+      message: `${achados[0].label} — confira antes de criar.`,
+    });
+  }, [cnpjBoleto, fornId, fornecedores, showToast]);
 
   const ler = async (file: File) => {
     setArquivoNome(file.name);
@@ -223,6 +249,19 @@ export function BoletoTab({
       // Linha com nº de dígitos/DV errado (ex.: 46) → o Inter recusa na hora de pagar. Pega aqui.
       const n = String(d.linha_digitavel).replace(/\D/g, '').length;
       const ok = window.confirm(`A linha digitável parece inválida (${n} dígitos / dígito verificador não confere). O Inter vai recusar o pagamento. Confira e corrija o campo. Criar mesmo assim?`);
+      if (!ok) return;
+    }
+    if (!fornId) {
+      // O financeiro não tem como adivinhar: sem isso o boleto chega pra aprovar sem saber
+      // PRA QUEM pagar, e alguém tem que abrir o PDF de novo. Preencher o nome em "quem recebe"
+      // NÃO resolve — é texto livre, não é o cadastro do Conta Azul.
+      const ok = window.confirm(
+        `Sem o Fornecedor no Conta Azul.
+
+O nome em "quem recebe" é só texto — quem aprova precisa do fornecedor CADASTRADO para lançar o pagamento, e vai ter que caçar o seu boleto pra descobrir.
+
+Se o fornecedor ainda não existe no Conta Azul, siga assim e avise o financeiro. Criar mesmo assim?`,
+      );
       if (!ok) return;
     }
     setCriando(true);

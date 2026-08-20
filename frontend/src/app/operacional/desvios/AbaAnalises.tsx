@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useApiSWR } from '@/hooks/useApiSWR';
 import {
-  ChartCard, ChartGrid, GraficoBarraH, GraficoBarrasAgrupadas, GraficoDonut, GraficoLinha,
+  ChartCard, ChartGrid, GraficoBarraH, GraficoDonut, GraficoLinha,
   HeroRow, type Kpi,
 } from '@/components/graficos/Charts';
 import { Loader2, TrendingDown, Repeat, Boxes, ChefHat, Drumstick } from 'lucide-react';
@@ -27,26 +27,79 @@ const fmtDM = (iso: string) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` :
 const GRUPO_ICONE: Record<string, any> = { insumo: Boxes, producao: ChefHat, proteina: Drumstick };
 const GRUPO_LABEL: Record<string, string> = { insumo: 'Insumo', producao: 'Produção', proteina: 'Proteína' };
 
+/** hoje e "hoje menos N dias", no fuso de quem olha (toISOString erraria o dia à noite). */
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const diasAtras = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return ymd(d); };
+
+/**
+ * Recortes prontos (Rodrigo, 20/08/2026: "pra pegar os maiores do último mês, ou da última
+ * semana, ou do ano todo"). `dias: null` = sem filtro de data, usa a contagem de períodos.
+ */
+const RECORTES = [
+  { chave: 'ultima', rotulo: 'Última contagem', dias: 14 },
+  { chave: 'mes', rotulo: 'Último mês', dias: 31 },
+  { chave: 'tri', rotulo: '3 meses', dias: 92 },
+  { chave: 'sem', rotulo: '6 meses', dias: 184 },
+  { chave: 'ano', rotulo: 'Ano todo', dias: 365 },
+] as const;
+
 export function AbaAnalises() {
   const [tipo, setTipo] = useState<'semanal' | 'mensal'>('semanal');
-  const [janelas, setJanelas] = useState(12);
+  const [recorte, setRecorte] = useState<string>('tri');
   const [grupo, setGrupo] = useState<'todos' | 'insumo' | 'producao' | 'proteina'>('todos');
+  // Filtro por ÁREA no ranking: "as metas da galera vamos fazer por área" (Gonza, 20/08/2026).
+  const [areaSel, setAreaSel] = useState<string>('todas');
+  const [de, setDe] = useState('');
+  const [ate, setAte] = useState('');
+
+  const query = useMemo(() => {
+    if (recorte === 'custom' && (de || ate)) {
+      return `de=${de || '2000-01-01'}&ate=${ate || ymd(new Date())}`;
+    }
+    const r = RECORTES.find((x) => x.chave === recorte) || RECORTES[2];
+    return `de=${diasAtras(r.dias)}&ate=${ymd(new Date())}`;
+  }, [recorte, de, ate]);
 
   const { data, isLoading } = useApiSWR<any>(
-    `/api/operacional/desvios/analises?tipo=${tipo}&janelas=${janelas}`);
+    `/api/operacional/desvios/analises?tipo=${tipo}&${query}`);
 
-  const serie = useMemo(() => (data?.serie || []).map((s: any) => ({
-    ...s,
-    rotulo: fmtDM(s.fim),
-    insumos_perdas: s.insumos.perdas,
-    producoes_perdas: s.producoes.perdas,
-    proteinas_perdas: s.proteinas.perdas,
-  })), [data]);
+  /** Áreas presentes no período — viram as séries do gráfico de linha por área. */
+  const areasSeries = useMemo(
+    () => ((data?.areas || []) as any[]).map((a) => a.nome as string), [data]);
 
+  const serie = useMemo(() => (data?.serie || []).map((s: any) => {
+    const linha: any = {
+      ...s,
+      rotulo: fmtDM(s.fim),
+      insumos_perdas: s.insumos.perdas,
+      producoes_perdas: s.producoes.perdas,
+      proteinas_perdas: s.proteinas.perdas,
+    };
+    // área que não teve perda na janela entra como 0 — sem isso a linha corta no meio
+    for (const a of areasSeries) linha[`area_${a}`] = Number(s.por_area?.[a] || 0);
+    return linha;
+  }), [data, areasSeries]);
+
+  /**
+   * Proteína é OUTRA LEITURA dos mesmos insumos, não uma terceira origem — por isso fica fora
+   * de "Todos". Era o que fazia o Filé mignon aparecer duas vezes com valores diferentes
+   * (R$ 21.352 como insumo, R$ 6.809 como proteína). Em "Todos" vale a leitura de insumo;
+   * quem quer a de proteína filtra por Proteínas.
+   */
   const ranking = useMemo(() => {
     const base = (data?.ranking || []) as any[];
-    return grupo === 'todos' ? base : base.filter((r) => r.grupo === grupo);
-  }, [data, grupo]);
+    const porGrupo = grupo === 'todos'
+      ? base.filter((r) => r.grupo !== 'proteina')
+      : base.filter((r) => r.grupo === grupo);
+    return areaSel === 'todas' ? porGrupo : porGrupo.filter((r) => r.area === areaSel);
+  }, [data, grupo, areaSel]);
+
+  /** O intervalo REAL que a tela está somando — o ranking acumula exatamente isto. */
+  const intervaloTxt = useMemo(() => {
+    if (!data?.intervalo) return '';
+    const per = `${data.janelas} ${tipo === 'semanal' ? (data.janelas === 1 ? 'semana' : 'semanas') : (data.janelas === 1 ? 'mês' : 'meses')}`;
+    return `${fmtDM(data.intervalo.de)} a ${fmtDM(data.intervalo.ate)} · ${per}`;
+  }, [data, tipo]);
 
   const kpis: Kpi[] = useMemo(() => {
     if (!serie.length) return [];
@@ -60,10 +113,10 @@ export function AbaAnalises() {
         delta, invLower: true, icon: TrendingDown },
       { label: `Média por ${tipo === 'semanal' ? 'semana' : 'mês'}`, valor: fmtBRL(data?.total?.media_por_periodo || 0),
         sub: `${serie.length} períodos` },
-      { label: 'Perda acumulada', valor: fmtBRL(data?.total?.perdas || 0), sub: 'no intervalo analisado' },
+      { label: 'Perda acumulada', valor: fmtBRL(data?.total?.perdas || 0), sub: 'insumos + produções · não soma proteínas' },
       { label: 'Itens recorrentes', valor: String(recorrentes), sub: 'perdem na maioria dos períodos', icon: Repeat },
     ];
-  }, [serie, data, tipo]);
+  }, [serie, data, tipo, intervaloTxt]);
 
   if (isLoading) {
     return <div className="py-20 text-center"><Loader2 className="w-7 h-7 animate-spin mx-auto text-gray-400" /></div>;
@@ -89,57 +142,97 @@ export function AbaAnalises() {
             </button>
           ))}
         </div>
-        <select value={janelas} onChange={(e) => setJanelas(Number(e.target.value))}
-          className="h-8 rounded-md border border-[hsl(var(--border))] bg-transparent px-2 text-xs">
-          {[6, 12, 18, 26].map((j) => <option key={j} value={j}>últimos {j} períodos</option>)}
-        </select>
-        <span className="text-[11px] text-gray-400">
-          cada ponto = intervalo entre duas contagens · itens marcados com o olhinho ficam de fora
-        </span>
+        <div className="inline-flex rounded-lg border border-[hsl(var(--border))] overflow-hidden">
+          {RECORTES.map((r) => (
+            <button key={r.chave} onClick={() => setRecorte(r.chave)}
+              className={`px-2.5 py-1.5 text-xs font-medium transition ${
+                recorte === r.chave ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-[hsl(var(--muted))]'}`}>
+              {r.rotulo}
+            </button>
+          ))}
+          <button onClick={() => setRecorte('custom')}
+            className={`px-2.5 py-1.5 text-xs font-medium transition ${
+              recorte === 'custom' ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-[hsl(var(--muted))]'}`}>
+            Escolher datas
+          </button>
+        </div>
+
+        {recorte === 'custom' && (
+          <span className="inline-flex items-center gap-1.5">
+            <input type="date" value={de} onChange={(e) => setDe(e.target.value)}
+              className="h-8 rounded-md border border-[hsl(var(--border))] bg-transparent px-2 text-xs" />
+            <span className="text-[11px] text-gray-400">até</span>
+            <input type="date" value={ate} onChange={(e) => setAte(e.target.value)}
+              className="h-8 rounded-md border border-[hsl(var(--border))] bg-transparent px-2 text-xs" />
+          </span>
+        )}
       </div>
+
+      <p className="text-[11px] text-gray-400 -mt-1">
+        Cada ponto é o intervalo entre duas contagens {tipo === 'semanal' ? 'semanais' : 'mensais'} —
+        é assim que o desvio existe. Itens marcados com o olhinho ficam de fora.
+        {intervaloTxt && <> Período em tela: <b>{intervaloTxt}</b>.</>}
+      </p>
+
+      {data?.truncado > 0 && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-[12px]">
+          Mostrando os <b>{data.janelas}</b> períodos mais recentes do intervalo — outros{' '}
+          <b>{data.truncado}</b> ficaram de fora para a tela não demorar. Estreite as datas para vê-los.
+        </div>
+      )}
 
       <HeroRow kpis={kpis} cols={4} />
 
       <ChartGrid cols={2}>
-        <ChartCard titulo="Perda por período" subtitulo="Insumos, produções e proteínas — empilhados" span={2}>
-          <GraficoBarrasAgrupadas
+        {/* Duas linhas, uma pergunta cada: ORIGEM responde "de onde vem a perda" e ÁREA responde
+            "onde ela acontece". Empilhar as duas num gráfico só misturaria dois recortes do
+            MESMO total e a soma pareceria o dobro. */}
+        <ChartCard titulo="Evolução por origem"
+          subtitulo="insumos + produções somam o total · proteínas é outra leitura dos mesmos insumos (tracejada)" span={2}>
+          <GraficoLinha
             data={serie} xKey="rotulo" height={300} formatV={fmtBRL}
             series={[
               { key: 'insumos_perdas', nome: 'Insumos' },
               { key: 'producoes_perdas', nome: 'Produções' },
-              { key: 'proteinas_perdas', nome: 'Proteínas' },
+              { key: 'proteinas_perdas', nome: 'Proteínas (outra leitura)', dashed: true },
             ]}
           />
         </ChartCard>
 
-        <ChartCard titulo="Evolução por origem" subtitulo="a mesma perda, em linha — pra ver a tendência de cada uma">
-          <GraficoLinha
-            data={serie} xKey="rotulo" height={280} formatV={fmtBRL}
-            series={[
-              { key: 'insumos_perdas', nome: 'Insumos' },
-              { key: 'producoes_perdas', nome: 'Produções' },
-              { key: 'proteinas_perdas', nome: 'Proteínas' },
-            ]}
-          />
+        <ChartCard titulo="Evolução por área" subtitulo="a mesma perda, aberta por Comidas / Drinks / Salão / Alimentação" span={2}>
+          {areasSeries.length ? (
+            <GraficoLinha
+              data={serie} xKey="rotulo" height={300} formatV={fmtBRL}
+              series={areasSeries.map((a) => ({ key: `area_${a}`, nome: a }))}
+            />
+          ) : <div className="py-20 text-center text-xs text-gray-400">Sem perda por área no período.</div>}
         </ChartCard>
 
-        <ChartCard titulo="Onde a perda se concentra" subtitulo="por área, no intervalo analisado">
+        <ChartCard titulo="Onde a perda se concentra" subtitulo={`por área · ${intervaloTxt || 'intervalo analisado'}`}>
           {(data?.areas || []).length
             ? <GraficoDonut data={data.areas} nameKey="nome" valueKey="perda" height={280} formatV={fmtBRL}
                 centro={fmtBRL(data?.total?.perdas || 0)} />
             : <div className="py-16 text-center text-xs text-gray-400">Sem perda registrada no período.</div>}
         </ChartCard>
 
-        <ChartCard titulo="Maiores desvios acumulados" subtitulo="soma da perda em todos os períodos" span={2}
+        <ChartCard titulo="Maiores desvios acumulados" subtitulo={`soma da perda em ${intervaloTxt || 'todo o período'}`} span={2}
           right={
-            <div className="inline-flex rounded-lg border border-[hsl(var(--border))] overflow-hidden">
-              {(['todos', 'insumo', 'producao', 'proteina'] as const).map((g) => (
-                <button key={g} onClick={() => setGrupo(g)}
-                  className={`px-2.5 py-1 text-[11px] font-medium transition ${
-                    grupo === g ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-[hsl(var(--muted))]'}`}>
-                  {g === 'todos' ? 'Todos' : GRUPO_LABEL[g] + 's'}
-                </button>
-              ))}
+            <div className="flex items-center gap-1.5">
+              <div className="inline-flex rounded-lg border border-[hsl(var(--border))] overflow-hidden">
+                {(['todos', 'insumo', 'producao', 'proteina'] as const).map((g) => (
+                  <button key={g} onClick={() => setGrupo(g)}
+                    className={`px-2.5 py-1 text-[11px] font-medium transition ${
+                      grupo === g ? 'bg-indigo-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-[hsl(var(--muted))]'}`}>
+                    {g === 'todos' ? 'Todos' : GRUPO_LABEL[g] + 's'}
+                  </button>
+                ))}
+              </div>
+              {/* Área é o recorte das METAS da equipe — precisa filtrar aqui também. */}
+              <select value={areaSel} onChange={(e) => setAreaSel(e.target.value)}
+                className="h-[26px] rounded-md border border-[hsl(var(--border))] bg-transparent px-1.5 text-[11px]">
+                <option value="todas">Todas as áreas</option>
+                {areasSeries.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
             </div>
           }>
           {ranking.length ? (
@@ -153,10 +246,15 @@ export function AbaAnalises() {
       {/* Ranking em tabela — o gráfico mostra a ordem, a tabela responde "por que". */}
       <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] overflow-hidden">
         <div className="px-4 py-3 border-b border-[hsl(var(--border))]">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Ranking de desvios</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+            Ranking de desvios{intervaloTxt && <span className="font-normal text-gray-500"> · {intervaloTxt}</span>}
+          </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400">
             <b>Recorrente</b> = perdeu na maioria dos períodos. É o que vale investigar primeiro —
             um item que perdeu muito uma vez costuma ser erro de contagem; o que perde sempre é processo.
+            {grupo === 'proteina'
+              ? ' Proteínas usa outra conta (VMarket × utilizado na produção), por isso o mesmo item pode ter valor diferente da lista de insumos.'
+              : ' "Todos" não inclui Proteínas: seriam os MESMOS itens contados por outra régua.'}
           </p>
         </div>
         <div className="overflow-x-auto">
