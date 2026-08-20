@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     // novo", não "esconda o que já existe": cadeira ativa apontando pra cargo inativo aparecia
     // como "sem cargo" na caixa do organograma (caso do Edson, Chefe de Salão do Deboche).
     // A lista de OPÇÕES devolvida no fim filtra por ativo; o mapa de nomes não pode filtrar.
-    hr('cargos').select('id, nome, area_id, salario_min, salario_max, ativo').eq('bar_id', user.bar_id),
+    hr('cargos').select('id, nome, area_id, salario_min, salario_max, ativo, cargo_confianca').eq('bar_id', user.bar_id),
     hr('areas').select('id, nome, cor').eq('bar_id', user.bar_id).eq('ativo', true),
     // rosto (selfie do ponto, já que ninguém tem foto no cadastro) e selos de férias/atestado/cartões
     hr('v_funcionario_rosto').select('funcionario_id, foto_url').eq('bar_id', user.bar_id),

@@ -16,7 +16,8 @@ import type { Funcionario, Opcao } from '../page';
 const VAZIO: Record<string, any> = {
   nome: '', cpf: '', telefone: '', email: '', tipo_contratacao: 'CLT', genero: '',
   cargo_id: '', area_id: '', data_admissao: '', data_nascimento: '', data_demissao: '',
-  salario_base: '', valor_diaria: '', vale_transporte_diaria: '', dias_trabalho_semana: '',
+  salario_base: '', valor_diaria: '', vale_transporte_diaria: '', adicional_mensal: '',
+  consumacao_mensal: '', dias_trabalho_semana: '',
   chave_pix: '', tipo_chave_pix: '', observacoes: '', ativo: true,
 };
 
@@ -79,7 +80,8 @@ export function FuncionarioDialog({ open, onClose, onSalvo, cargos, areas, funci
     try {
       const payload = { ...form };
       ['cargo_id', 'area_id'].forEach((k) => { payload[k] = payload[k] ? Number(payload[k]) : null; });
-      ['salario_base', 'valor_diaria', 'vale_transporte_diaria', 'dias_trabalho_semana'].forEach((k) => {
+      ['salario_base', 'valor_diaria', 'vale_transporte_diaria', 'adicional_mensal',
+       'consumacao_mensal', 'dias_trabalho_semana'].forEach((k) => {
         payload[k] = payload[k] === '' || payload[k] == null ? null : Number(payload[k]);
       });
       if (editando) await api.put(`/api/rh/funcionarios/${funcionario!.id}`, payload);
@@ -261,6 +263,30 @@ export function FuncionarioDialog({ open, onClose, onSalvo, cargos, areas, funci
                   </p>
                 )}
               </div>
+              {/* O que compõe o custo da pessoa além do salário. Separados de propósito: o SALÁRIO
+                  tem encargo, o adicional não (Gonza, 19/08/2026) — somar tudo num campo só
+                  inflaria INSS/FGTS/provisão no cálculo do CMO fixo. */}
+              {!freela && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Vale-transporte (diária R$)</Label>
+                    <Input type="number" step="0.01" value={form.vale_transporte_diaria}
+                      onChange={(e) => set('vale_transporte_diaria', e.target.value)} placeholder="0,00" />
+                    <p className="text-[11px] text-muted-foreground">Por dia trabalhado — o mês sai dias × diária.</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Adicional (R$/mês)</Label>
+                    <Input type="number" step="0.01" value={form.adicional_mensal}
+                      onChange={(e) => set('adicional_mensal', e.target.value)} placeholder="0,00" />
+                    <p className="text-[11px] text-muted-foreground">Valor fixo sem encargo.</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Consumação (R$/mês)</Label>
+                    <Input type="number" step="0.01" value={form.consumacao_mensal}
+                      onChange={(e) => set('consumacao_mensal', e.target.value)} placeholder="0,00" />
+                  </div>
+                </>
+              )}
               <div className="space-y-1.5">
                 <Label className="text-xs">Dias de trabalho/semana</Label>
                 <Input type="number" value={form.dias_trabalho_semana} onChange={(e) => set('dias_trabalho_semana', e.target.value)} placeholder="Ex: 5" />

@@ -14,7 +14,8 @@ export const dynamic = 'force-dynamic';
 const CAMPOS_EDITAVEIS = [
   'nome', 'cpf', 'telefone', 'email', 'data_admissao', 'data_demissao', 'data_nascimento',
   'cargo_id', 'area_id', 'tipo_contratacao', 'genero', 'salario_base', 'valor_diaria',
-  'vale_transporte_diaria', 'dias_trabalho_semana', 'chave_pix', 'tipo_chave_pix',
+  'vale_transporte_diaria', 'adicional_mensal', 'consumacao_mensal',
+  'dias_trabalho_semana', 'chave_pix', 'tipo_chave_pix',
   'observacoes', 'foto_url', 'ativo', 'data_fim_experiencia',
 ] as const;
 

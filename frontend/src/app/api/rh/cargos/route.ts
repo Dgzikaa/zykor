@@ -136,7 +136,7 @@ export async function PUT(request: NextRequest) {
   if (!user.bar_id) return NextResponse.json({ error: 'Nenhum bar selecionado' }, { status: 400 });
   try {
     const body = await request.json();
-    const { id, nome, descricao, nivel, ativo, area_id, salario_min, salario_max } = body;
+    const { id, nome, descricao, nivel, ativo, area_id, salario_min, salario_max, cargo_confianca } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -161,6 +161,8 @@ export async function PUT(request: NextRequest) {
     // contratação, que é pior do que não sugerir nada.
     if (salario_min !== undefined) updateData.salario_min = num(salario_min);
     if (salario_max !== undefined) updateData.salario_max = num(salario_max);
+    // cargo de confiança não bate escala — a grade da Operação usa isso pra não cobrar horário
+    if (cargo_confianca !== undefined) updateData.cargo_confianca = !!cargo_confianca;
 
     const { data, error } = await hrDe(supabase)('cargos')
       .update(updateData)

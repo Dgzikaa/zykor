@@ -26,7 +26,7 @@ import { Loader2, Settings2, Plus } from 'lucide-react';
  * que está mudando a referência das outras cadeiras junto.
  */
 
-type Cargo = { id: number; nome: string; area_id: number | null; salario_min: number | null; salario_max: number | null };
+type Cargo = { id: number; nome: string; area_id: number | null; salario_min: number | null; salario_max: number | null; cargo_confianca?: boolean };
 type Opcao = { id: number; nome: string };
 type Cadeira = {
   id: string; codigo: string;
@@ -55,6 +55,7 @@ export function CadeiraDialog({ cadeira, cargos, areas, onClose, onSalvo, onReca
   const { selectedBar } = useBar();
   const [form, setForm] = useState({ codigo: '', cargo_id: '', area_id: '', salario_referencia: '', observacao: '', pausada: false });
   const [faixa, setFaixa] = useState({ salario_min: '', salario_max: '' });
+  const [confianca, setConfianca] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   // Só busca quando o diálogo abre: é conta sobre a folha e não tem por que pesar no quadro.
@@ -77,7 +78,8 @@ export function CadeiraDialog({ cadeira, cargos, areas, onClose, onSalvo, onReca
   // A faixa segue o cargo escolhido: trocar o cargo no seletor troca a faixa que está sendo editada.
   useEffect(() => {
     setFaixa({ salario_min: texto(cargo?.salario_min), salario_max: texto(cargo?.salario_max) });
-  }, [cargo?.id, cargo?.salario_min, cargo?.salario_max]);
+    setConfianca(!!cargo?.cargo_confianca);
+  }, [cargo?.id, cargo?.salario_min, cargo?.salario_max, cargo?.cargo_confianca]);
 
   /**
    * Criar cargo e área SEM sair daqui.
@@ -128,6 +130,7 @@ export function CadeiraDialog({ cadeira, cargos, areas, onClose, onSalvo, onReca
   const periodo = ref?.periodo ? `${MESES[ref.periodo.mes - 1]}/${ref.periodo.ano}` : null;
   const faixaMudou = cargo
     ? faixa.salario_min !== texto(cargo.salario_min) || faixa.salario_max !== texto(cargo.salario_max)
+      || confianca !== !!cargo.cargo_confianca
     : false;
 
   const salvar = async () => {
@@ -141,6 +144,7 @@ export function CadeiraDialog({ cadeira, cargos, areas, onClose, onSalvo, onReca
           id: cargo.id,
           salario_min: faixa.salario_min === '' ? null : Number(faixa.salario_min),
           salario_max: faixa.salario_max === '' ? null : Number(faixa.salario_max),
+          cargo_confianca: confianca,
         });
       }
       await api.post('/api/rh/organograma', {
@@ -248,6 +252,18 @@ export function CadeiraDialog({ cadeira, cargos, areas, onClose, onSalvo, onReca
                   {folha.max !== folha.min && ` a ${moeda(folha.max)}`} ({folha.n} pessoa{folha.n > 1 ? 's' : ''}).
                 </p>
               )}
+              {/* Confiança é do CARGO, não da pessoa: quem ocupa a cadeira não bate escala de
+                  horário — vive de marcador (ABRE/FECHA/FOLGA) na grade da Operação. */}
+              <label className="flex items-start gap-2 cursor-pointer pt-0.5">
+                <input type="checkbox" className="mt-0.5" checked={confianca}
+                  onChange={(e) => setConfianca(e.target.checked)} />
+                <span>
+                  <span className="text-[12px] font-medium">Cargo de confiança</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    Não bate escala: na grade entra como marcador, não como horário.
+                  </span>
+                </span>
+              </label>
               {faixaMudou && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-400">
                   A faixa é do cargo, não desta cadeira: salvar muda a referência de <strong>todas</strong> as

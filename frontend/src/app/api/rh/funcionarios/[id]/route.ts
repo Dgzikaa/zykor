@@ -12,7 +12,8 @@ export const dynamic = 'force-dynamic';
 const CAMPOS_EDITAVEIS = [
   'nome', 'cpf', 'telefone', 'email', 'data_admissao', 'data_demissao', 'data_nascimento',
   'cargo_id', 'area_id', 'tipo_contratacao', 'genero', 'salario_base', 'valor_diaria',
-  'vale_transporte_diaria', 'dias_trabalho_semana', 'chave_pix', 'tipo_chave_pix',
+  'vale_transporte_diaria', 'adicional_mensal', 'consumacao_mensal',
+  'dias_trabalho_semana', 'chave_pix', 'tipo_chave_pix',
   'observacoes', 'foto_url', 'ativo', 'rg', 'ctps', 'data_fim_experiencia',
 ] as const;
 
@@ -133,7 +134,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     (payload.salario_base !== undefined && payload.salario_base !== atual.salario_base) ||
     (payload.cargo_id !== undefined && payload.cargo_id !== atual.cargo_id) ||
     (payload.area_id !== undefined && payload.area_id !== atual.area_id) ||
-    (payload.tipo_contratacao !== undefined && payload.tipo_contratacao !== atual.tipo_contratacao);
+    (payload.tipo_contratacao !== undefined && payload.tipo_contratacao !== atual.tipo_contratacao) ||
+    // adicional e consumação também são remuneração: mudou, vira contrato novo, senão o
+    // histórico diria que a pessoa sempre ganhou o valor de hoje.
+    (payload.adicional_mensal !== undefined && payload.adicional_mensal !== atual.adicional_mensal) ||
+    (payload.consumacao_mensal !== undefined && payload.consumacao_mensal !== atual.consumacao_mensal) ||
+    (payload.vale_transporte_diaria !== undefined && payload.vale_transporte_diaria !== atual.vale_transporte_diaria);
   if (mudouContrato) {
     const hoje = new Date().toISOString().slice(0, 10);
     await (supabase as any).schema('hr').from('contratos_funcionario')
@@ -143,6 +149,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       salario_base: payload.salario_base ?? atual.salario_base,
       vale_transporte_diaria: payload.vale_transporte_diaria ?? atual.vale_transporte_diaria,
       tipo_contratacao: payload.tipo_contratacao ?? atual.tipo_contratacao,
+      adicional_mensal: payload.adicional_mensal ?? atual.adicional_mensal,
+      consumacao_mensal: payload.consumacao_mensal ?? atual.consumacao_mensal,
       cargo_id: payload.cargo_id ?? atual.cargo_id, area_id: payload.area_id ?? atual.area_id,
       vigencia_inicio: hoje, motivo_alteracao: body.motivo_alteracao || 'Alteração contratual',
     });
