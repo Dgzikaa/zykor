@@ -951,10 +951,17 @@ function FichaTab({ kind, lista, insumos, producoes, reloadLista, preSel, cmvMed
                         <Input value={chBusca} onChange={(e) => setChBusca(e.target.value)} placeholder="Buscar código ContaHub por número ou nome…" className="h-8 text-sm" />
                         {chBusca.trim() && (
                           <div className="mt-1 max-h-40 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700">
-                            {chOpcoesModal.length === 0 ? <div className="px-2 py-1.5 text-xs text-gray-400">Nada encontrado.</div>
+                            {chOpcoesModal.length === 0
+                              ? <div className="px-2 py-1.5 text-xs text-gray-400">
+                                  Nada encontrado. A busca cobre o que o ContaHub vendeu nos últimos 12 meses —
+                                  código mais antigo que isso não aparece.
+                                </div>
                               : chOpcoesModal.map((o: any) => (
                                 <button key={o.prd} onClick={() => addCh(Number(o.prd))} className="w-full text-left px-2 py-1 text-sm rounded hover:bg-gray-50 dark:hover:bg-gray-800/60">
-                                  <span className="font-mono text-xs">{o.prd}</span> · {o.prd_desc || '—'}{o.cod_interno && o.cod_interno !== selObj?.codigo && <span className="text-[10px] text-amber-500"> · hoje em {o.cod_interno}</span>}
+                                  <span className="font-mono text-xs">{o.prd}</span> · {o.prd_desc || '—'}
+                                  {o.cod_interno && o.cod_interno !== selObj?.codigo && <span className="text-[10px] text-amber-500"> · hoje em {o.cod_interno}</span>}
+                                  {/* sem ficha nenhuma ainda — é o caso que antes nem aparecia na busca */}
+                                  {o.mapeado === false && <span className="text-[10px] text-emerald-600 dark:text-emerald-400"> · livre</span>}
                                 </button>
                               ))}
                           </div>

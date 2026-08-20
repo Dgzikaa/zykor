@@ -82,8 +82,39 @@ export async function GET(request: NextRequest) {
       const pv = Number(r.preco_venda || 0);
       if (pv > 0) precoVendaMap[r.cod_interno] = Math.max(precoVendaMap[r.cod_interno] || 0, pv);
     });
-    // lista global de prds (p/ a busca do "adicionar código": mostra onde cada prd está mapeado hoje)
-    const prdsAll = chRows.map((r: any) => ({ prd: r.prd, prd_desc: r.prd_desc || null, preco_venda: Number(r.preco_venda) || null, cod_interno: r.cod_interno }));
+    /*
+      Lista da busca "adicionar codigo ContaHub".
+      Ate 20/08/2026 ela era SO o produto_contahub_map -- isto e, so achava codigo que JA estava
+      mapeado, justamente o que ninguem precisa procurar. O Isaias tentou vincular o 874
+      ([50%] Gin Melancita Tanqueray, que existe no ContaHub) e a tela dizia "nada encontrado".
+      Nao era caso isolado: 114 codigos vendidos no ultimo ano estavam invisiveis assim
+      (71 no Ordinario, 43 no Deboche), quase todos variacao de promocao ([50%], [DD], [PP], [HH]).
+
+      Agora a base e o que o ContaHub VENDEU (fn_prds_contahub, 365 dias), e o de-para so
+      enriquece com o cod_interno de quem ja esta mapeado. `mapeado:false` = codigo livre.
+    */
+    let prdsAll: any[] = chRows.map((r: any) => ({ prd: r.prd, prd_desc: r.prd_desc || null, preco_venda: Number(r.preco_venda) || null, cod_interno: r.cod_interno, mapeado: true }));
+    try {
+      const { data: vendidos } = await (supabase as any).schema('operations')
+        .rpc('fn_prds_contahub', { p_bar: barId, p_dias: 365 });
+      const jaTem = new Map<number, any>(prdsAll.map((r: any) => [Number(r.prd), r]));
+      for (const v of ((vendidos as any[]) || [])) {
+        const prd = Number(v.prd);
+        const existente = jaTem.get(prd);
+        if (existente) {
+          // o ContaHub RENOMEIA codigo (o 874 era [DD] e virou [50%]); vale a descricao da
+          // venda mais recente, nao a que ficou congelada no de-para
+          if (v.prd_desc) existente.prd_desc = v.prd_desc;
+          continue;
+        }
+        prdsAll.push({
+          prd, prd_desc: v.prd_desc || null,
+          preco_venda: v.preco_venda != null ? Number(v.preco_venda) : null,
+          cod_interno: null, mapeado: false,
+        });
+      }
+      prdsAll.sort((a, b) => Number(a.prd) - Number(b.prd));
+    } catch { /* sem o RPC a busca volta ao comportamento antigo (so mapeados) em vez de quebrar */ }
 
     // Códigos Yuzer por cod_interno — IDs (cods_yuzer) + detalhe p/ o painel de códigos (cods_yuzer_det)
     const yzMap: Record<string, string[]> = {};

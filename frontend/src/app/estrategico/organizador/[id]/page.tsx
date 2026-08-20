@@ -1159,7 +1159,7 @@ export default function OrganizadorEditPage() {
                         <Input
                           value={okr.epico}
                           onChange={(e) => updateOKR(index, 'epico', e.target.value)}
-                          className="h-7 text-xs font-semibold bg-white/80 dark:bg-gray-700"
+                          className="h-11 text-xs font-semibold bg-white/80 dark:bg-gray-700"
                         />
                       </div>
                       <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
@@ -1167,8 +1167,8 @@ export default function OrganizadorEditPage() {
                         <Textarea
                           value={okr.historia}
                           onChange={(e) => updateOKR(index, 'historia', e.target.value)}
-                          className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-8 min-h-0 resize-none"
-                          rows={1}
+                          className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-11 min-h-0 resize-none leading-4"
+                          rows={2}
                         />
                       </div>
                       <div className="px-1 py-1 border-r border-gray-200 dark:border-gray-700">
@@ -1176,7 +1176,7 @@ export default function OrganizadorEditPage() {
                         <Input
                           value={okr.responsavel}
                           onChange={(e) => updateOKR(index, 'responsavel', e.target.value)}
-                          className="h-7 text-[11px] text-center font-semibold bg-white/80 dark:bg-gray-700"
+                          className="h-11 text-[11px] text-center font-semibold bg-white/80 dark:bg-gray-700"
                         />
                       </div>
                       <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
@@ -1184,8 +1184,8 @@ export default function OrganizadorEditPage() {
                         <Textarea
                           value={okr.observacoes}
                           onChange={(e) => updateOKR(index, 'observacoes', e.target.value)}
-                          className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-8 min-h-0 resize-none"
-                          rows={1}
+                          className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-11 min-h-0 resize-none leading-4"
+                          rows={2}
                         />
                       </div>
                       <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
@@ -1194,8 +1194,8 @@ export default function OrganizadorEditPage() {
                           value={okr.andamento}
                           onChange={(e) => updateOKR(index, 'andamento', e.target.value)}
                           placeholder="Onde está hoje..."
-                          className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-8 min-h-0 resize-none"
-                          rows={1}
+                          className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-11 min-h-0 resize-none leading-4"
+                          rows={2}
                         />
                       </div>
                       <div className="px-1 py-1 border-r border-gray-200 dark:border-gray-700">
@@ -1341,8 +1341,8 @@ export default function OrganizadorEditPage() {
                                     <Textarea
                                       value={okr.epico}
                                       onChange={(e) => updateOKR(index, 'epico', e.target.value)}
-                                      className="text-xs font-semibold bg-white/80 dark:bg-gray-700 py-1.5 flex-1 h-8 min-h-0 resize-none"
-                                      rows={1}
+                                      className="text-xs font-semibold bg-white/80 dark:bg-gray-700 py-1.5 flex-1 h-11 min-h-0 resize-none leading-4"
+                                      rows={2}
                                     />
                                   </div>
                                   {okr.is_nsm && (
@@ -1356,8 +1356,8 @@ export default function OrganizadorEditPage() {
                                   <Textarea
                                     value={okr.historia}
                                     onChange={(e) => updateOKR(index, 'historia', e.target.value)}
-                                    className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-8 min-h-0 resize-none"
-                                    rows={1}
+                                    className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-11 min-h-0 resize-none leading-4"
+                                    rows={2}
                                   />
                                 </div>
                                 <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
@@ -1365,8 +1365,8 @@ export default function OrganizadorEditPage() {
                                   <Textarea
                                     value={okr.observacoes}
                                     onChange={(e) => updateOKR(index, 'observacoes', e.target.value)}
-                                    className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-8 min-h-0 resize-none"
-                                    rows={1}
+                                    className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-11 min-h-0 resize-none leading-4"
+                                    rows={2}
                                   />
                                 </div>
                                 <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
@@ -1375,8 +1375,8 @@ export default function OrganizadorEditPage() {
                                     value={okr.andamento}
                                     onChange={(e) => updateOKR(index, 'andamento', e.target.value)}
                                     placeholder="Onde está hoje..."
-                                    className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-8 min-h-0 resize-none"
-                                    rows={1}
+                                    className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-11 min-h-0 resize-none leading-4"
+                                    rows={2}
                                   />
                                 </div>
                                 <div className="px-1 py-1 border-r border-gray-200 dark:border-gray-700">
