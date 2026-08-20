@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { FormularioTab } from './FormularioTab';
 import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useApiSWR } from '@/hooks/useApiSWR';
@@ -53,12 +54,16 @@ export default function PesquisasPage() {
         <Tabs value={aba} onValueChange={setAba} className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="felicidade"><Smile className="w-4 h-4 mr-1.5" />Felicidade</TabsTrigger>
+            {/* Onde a pesquisa NASCE: gera o formulário da semana e o link do WhatsApp. A aba
+                Felicidade ao lado é a leitura histórica, que ainda vem da planilha. */}
+            <TabsTrigger value="formulario"><ClipboardList className="w-4 h-4 mr-1.5" />Formulário</TabsTrigger>
             <TabsTrigger value="calibracao"><Target className="w-4 h-4 mr-1.5" />Calibração</TabsTrigger>
             <TabsTrigger value="reconhecimentos"><Award className="w-4 h-4 mr-1.5" />Reconhecimentos</TabsTrigger>
           </TabsList>
 
           {/* a tela da felicidade inteira, com as abas internas dela */}
           <TabsContent value="felicidade"><PesquisaFelicidadePage /></TabsContent>
+          <TabsContent value="formulario"><FormularioTab /></TabsContent>
           <TabsContent value="calibracao"><PainelCalibracao /></TabsContent>
           <TabsContent value="reconhecimentos"><PainelReconhecimentos /></TabsContent>
         </Tabs>

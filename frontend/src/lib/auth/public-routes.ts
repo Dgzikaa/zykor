@@ -11,6 +11,7 @@ export const PUBLIC_ROUTES = [
   '/login',
   '/auth',                      // staff-login, success, callbacks
   '/usuarios/redefinir-senha',  // 1º acesso / recuperação — usuário sem sessão
+  '/pesquisa',                  // Pesquisa da Felicidade por link — quem responde não tem conta
 ] as const;
 
 /** True se a rota é pública (não exige sessão). Casa exato ou sub-rota (route + '/'). */

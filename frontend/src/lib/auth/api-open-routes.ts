@@ -13,6 +13,10 @@ const PREFIXO_ABERTO = [
   '/api/configuracoes/auth/', // login, logout, forgot-password, google, redefinir-senha
   '/api/emails/', // gatilhos de e-mail (transacional, server-side)
   '/api/portal/', // portal do funcionário por token
+  // Pesquisa da Felicidade por link: quem responde é o time, sem login. Diferente da rota
+  // antiga (removida em 13/08/2026, que era pública E escrevia no indicador), esta só aceita
+  // token de rodada ABERTA, grava em tabela própria de respostas e não devolve resultado.
+  '/api/pesquisa/',
   '/api/webhooks/', // receivers externos (instagram, whatsapp-assistente)
 ];
 

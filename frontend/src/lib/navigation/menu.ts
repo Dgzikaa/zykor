@@ -177,11 +177,6 @@ export const MENU_TREE: MenuSection[] = [
       { icon: 'BarChart3', label: 'Análises Avançadas', href: '/ferramentas/analises', permission: 'ferramentas_analises_avancadas' },
       { icon: 'ShoppingCart', label: 'Consulta de Vendas', href: '/ferramentas/vendas-produtos', permission: 'ferramentas_consulta_de_vendas' },
       { icon: 'Users', label: 'CMO - Mão de Obra', href: '/ferramentas/cmo', permission: 'ferramentas_cmo_mao_de_obra' },
-      // Veio de RH em 20/08/2026 ("não tamo usando" — Rodrigo). Fica ao lado do CMO porque as
-      // duas são custo de mão de obra. A mudança de seção TROCA o id do módulo
-      // (`rh_freelas` -> `ferramentas_freelas`, que é `gerarIdModulo('Ferramentas', 'Freelas')`);
-      // os 3 perfis que tinham o token antigo foram migrados na mesma leva.
-      { icon: 'HandCoins', label: 'Freelas', href: '/rh/freelas', permission: 'ferramentas_freelas' },
       { icon: 'Tag', label: 'Classificação de Grupos (Mix)', href: '/ferramentas/consumos-classificacao', permission: 'ferramentas_classificacao_de_grupos_mix' },
       { icon: 'AlertTriangle', label: 'Cancelamentos', href: '/ferramentas/cancelamentos', permission: 'ferramentas_cancelamentos' },
       { icon: 'PieChart', label: 'Mix & Margem', href: '/ferramentas/mix-categoria', permission: 'ferramentas_mix_margem' },
@@ -244,6 +239,10 @@ export const MENU_TREE: MenuSection[] = [
       // RH → Escala saiu do menu em 12/08/2026: não era usada. A escala de verdade (a que o
       // time mantém na planilha "ESCALA ORDI!") virou a seção Operação abaixo. A rota
       // /rh/escala continua existindo, mas órfã do menu = admin-only pelo guard.
+      // RH → Freelas saiu do menu em 20/08/2026, mesma história: não estava sendo usada
+      // (Rodrigo). Quem faz freela hoje é "Freelas (Semana)" em Ferramentas Financeiro
+      // (/operacional/freelas), montado pela operação e aprovado pelo financeiro.
+      // /rh/freelas continua existindo, órfã do menu = admin-only pelo guard.
       { icon: 'Clock', label: 'Ponto', href: '/rh/ponto', permission: 'rh_ponto' },
       { icon: 'Star', label: 'NPS Funcionários', href: '/operacional/nps', permission: 'rh_nps_funcionarios' },
     ],
