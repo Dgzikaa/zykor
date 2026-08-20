@@ -234,7 +234,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
     finally { setSalvandoOc(false); }
   };
   const addObservacao = async () => {
-    if (!novaObs.descricao.trim()) { showToast({ type: 'error', title: 'Escreva a observação' }); return; }
+    if (!novaObs.descricao.trim()) { showToast({ type: 'error', title: 'Escreva o BO' }); return; }
     setSalvandoObs(true);
     try {
       const r = await fetch(`/api/rh/funcionarios/${funcionarioId}/ocorrencias`, {
@@ -430,7 +430,7 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                   <TabsTrigger value="onboarding">Onboarding{onbItens.length > 0 && ` (${onbItens.filter((i) => i.concluido).length}/${onbItens.length})`}</TabsTrigger>
                   <TabsTrigger value="docs">Documentos ({docs.length})</TabsTrigger>
                   <TabsTrigger value="ocorr">Ocorrências ({ocorrencias.filter((o) => o.tipo !== 'observacao').length})</TabsTrigger>
-                  <TabsTrigger value="obs">Observações ({ocorrencias.filter((o) => o.tipo === 'observacao').length})</TabsTrigger>
+                  <TabsTrigger value="obs">Registro de BOs ({ocorrencias.filter((o) => o.tipo === 'observacao').length})</TabsTrigger>
                   <TabsTrigger value="treinos">Treinamentos ({treinos.length})</TabsTrigger>
                   <TabsTrigger value="calibracao"><Target className="w-3.5 h-3.5 mr-1" />Calibração ({calibracoes.length})</TabsTrigger>
                 </TabsList>
@@ -565,7 +565,10 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                 </div>
               </TabsContent>
 
-              {/* Observações — log de anotações datadas (separado das advertências) */}
+              {/* REGISTRO DE BOs — log de anotações datadas, separado das advertências.
+                  Renomeado de "Observações" a pedido do Gonza (20/08/2026): é como o time chama.
+                  O tipo gravado continua 'observacao' — mudar o valor no banco renomearia o
+                  histórico já registrado e quebraria quem lê por esse tipo. Rótulo é tela. */}
               <TabsContent value="obs" className="px-6 py-4">
                 {ocorrencias.filter((o) => o.tipo === 'observacao').length > 0 ? (
                   <div className="space-y-1.5 mb-3">
@@ -579,10 +582,10 @@ export function DossieDialog({ funcionarioId, onClose, onEditar }: {
                       </div>
                     ))}
                   </div>
-                ) : <div className="text-xs text-muted-foreground text-center py-6 mb-3 border border-dashed rounded-lg">Nenhuma observação registrada.</div>}
+                ) : <div className="text-xs text-muted-foreground text-center py-6 mb-3 border border-dashed rounded-lg">Nenhum BO registrado.</div>}
                 <div className="flex items-end gap-2 flex-wrap rounded-lg border bg-muted/20 p-3">
                   <label className="flex flex-col gap-1"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Data</span><Input type="date" value={novaObs.data_inicio} onChange={(e) => setNovaObs({ ...novaObs, data_inicio: e.target.value })} className="h-9 text-sm w-[160px]" /></label>
-                  <label className="flex flex-col gap-1 flex-1 min-w-[200px]"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">Observação</span><Input value={novaObs.descricao} onChange={(e) => setNovaObs({ ...novaObs, descricao: e.target.value })} placeholder="ex: pediu troca de turno; elogiado pelo cliente…" className="h-9 text-sm" /></label>
+                  <label className="flex flex-col gap-1 flex-1 min-w-[200px]"><span className="text-[10px] uppercase tracking-wide text-muted-foreground">BO</span><Input value={novaObs.descricao} onChange={(e) => setNovaObs({ ...novaObs, descricao: e.target.value })} placeholder="ex: saiu no meio do turno; quebrou taça; pediu troca de dia…" className="h-9 text-sm" /></label>
                   <Button size="sm" onClick={addObservacao} disabled={salvandoObs} className="h-9">{salvandoObs ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Plus className="w-4 h-4 mr-1.5" />}Adicionar</Button>
                 </div>
               </TabsContent>
