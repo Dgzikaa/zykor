@@ -54,6 +54,17 @@ export function BoletoTab({
   const [arquivoNome, setArquivoNome] = useState('');
   const [d, setD] = useState<DadosBoleto | null>(null);
   const [avisos, setAvisos] = useState<string[]>([]);
+  /**
+   * Boleto com a MESMA linha digitável já lançado e ainda vivo (a API ignora cancelado/recusado).
+   *
+   * Era só um toast — e toast some. Resultado: nos últimos 45 dias, 12 linhas digitáveis ficaram
+   * com 2 pedidos vivos ao mesmo tempo, e pelo menos duas foram PAGAS DUAS VEZES (Império Mineiro
+   * R$ 460,00 em 24 e 28/07; Girardi & Araújo R$ 202,44 em 15 e 16/07). Agora o aviso fica FIXO
+   * na tela e o envio pede confirmação explícita.
+   *
+   * Não bloqueia de vez de propósito: refazer um boleto que deu erro_inter é legítimo e acontece.
+   */
+  const [duplicado, setDuplicado] = useState<any>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [leitorOpen, setLeitorOpen] = useState(false);
   // Competência e observação NÃO vêm do boleto — quem sobe preenche.
@@ -176,6 +187,7 @@ export function BoletoTab({
     try {
       const r = await api.get(`/api/financeiro/boleto/identificar?linha=${dig}`);
       const dup = r?.duplicado;
+      setDuplicado(dup || null);
       if (dup) {
         showToast({
           type: 'warning', title: 'Esse boleto já foi lançado',
@@ -224,7 +236,7 @@ export function BoletoTab({
     setD((p) => (p ? { ...p, [campo]: campo === 'valor' ? Number(valor.replace(/[R$\s.]/g, '').replace(',', '.')) || null : valor } : p));
 
   const reset = () => {
-    setD(null); setArquivoNome(''); setAvisos([]); setCompetencia(''); setObservacao(''); setDescricao(null); setContaId('');
+    setD(null); setArquivoNome(''); setAvisos([]); setDuplicado(null); setCompetencia(''); setObservacao(''); setDescricao(null); setContaId('');
     setUsarRateio(false); setRateio([{ catId: '', valor: '' }, { catId: '', valor: '' }]);
     setCatId(''); setFornId('');
     ultimaIdentificada.current = ''; // bipar o MESMO boleto de novo tem que reavisar o duplicado
@@ -249,6 +261,18 @@ export function BoletoTab({
       // Linha com nº de dígitos/DV errado (ex.: 46) → o Inter recusa na hora de pagar. Pega aqui.
       const n = String(d.linha_digitavel).replace(/\D/g, '').length;
       const ok = window.confirm(`A linha digitável parece inválida (${n} dígitos / dígito verificador não confere). O Inter vai recusar o pagamento. Confira e corrija o campo. Criar mesmo assim?`);
+      if (!ok) return;
+    }
+    if (duplicado) {
+      const ok = window.confirm(
+        `JÁ EXISTE um pedido com esta MESMA linha digitável.
+
+${duplicado.descricao || 'pedido'} — ${fmtBRL(Number(duplicado.valor) || 0)}, status "${duplicado.status}".
+
+Se for a mesma cobrança, criar de novo faz o boleto ser PAGO DUAS VEZES. Só siga se o anterior deu erro e você está refazendo.
+
+Criar mesmo assim?`,
+      );
       if (!ok) return;
     }
     if (!fornId) {
@@ -387,6 +411,22 @@ Se o fornecedor ainda não existe no Conta Azul, siga assim e avise o financeiro
       {d && (
         <Card>
           <CardContent className="py-4 space-y-3">
+            {/* Duplicado fica FIXO e em vermelho: o toast antigo sumia e o boleto seguia em frente. */}
+            {duplicado && (
+              <div className="rounded-md border border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-400 p-3 text-xs flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <b>Este boleto já foi lançado.</b>{' '}
+                  {duplicado.descricao || 'pedido'} — {fmtBRL(Number(duplicado.valor) || 0)}, status{' '}
+                  <b>{duplicado.status}</b>
+                  {duplicado.data_vencimento ? `, vence ${String(duplicado.data_vencimento).split('-').reverse().join('/')}` : ''}.
+                  <div className="mt-1 text-red-600/90 dark:text-red-400/90">
+                    Mesma linha digitável. Criar de novo faz o boleto ser pago duas vezes — só siga se o
+                    anterior deu erro e você está refazendo.
+                  </div>
+                </div>
+              </div>
+            )}
             {avisos.length > 0 && (
               <div className="rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-500 p-2.5 text-xs flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
