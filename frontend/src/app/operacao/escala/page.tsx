@@ -15,6 +15,7 @@ import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Plus, X, Link2, Link
 
 type Funcao = { id: string; codigo: string; nome: string; entra_no_custo: boolean; ordem: number };
 type Celula = { id: string; entra: string | null; sai: string | null; horas: number | null; marcador: string | null; turno: string };
+type Elegivel = { id: number; nome: string };
 type Pessoa = {
   chave: string; funcao_id: string; slot: number; nome: string;
   /** vínculo com hr.funcionarios — nulo enquanto o de-para não for feito */
@@ -238,12 +239,19 @@ export default function EscalaPage() {
   const ate = iso(somaDias(segunda, 6));
   const datas = useMemo(() => Array.from({ length: 7 }, (_, i) => iso(somaDias(segunda, i))), [segunda]);
 
-  const { data, isLoading, mutate } = useApiSWR<{ funcoes: Funcao[]; pessoas: Pessoa[] }>(
+  const { data, isLoading, mutate } = useApiSWR<{
+    funcoes: Funcao[]; pessoas: Pessoa[]; elegiveis?: Elegivel[];
+    equipe_de?: string | null; sem_vinculo_ocultas?: number;
+  }>(
     `/api/operacao/escala?de=${de}&ate=${ate}`,
   );
 
   const funcoes = data?.funcoes || [];
   const pessoas = data?.pessoas || [];
+  const elegiveis = data?.elegiveis || [];
+  /** preenchido = o servidor restringiu a visão à árvore desta pessoa no organograma */
+  const equipeDe = data?.equipe_de || null;
+  const ocultasSemVinculo = data?.sem_vinculo_ocultas || 0;
 
   /** Interpreta o texto digitado: horário "15:00-01:00" ou marcador. */
   const salvar = useCallback(async (p: Pessoa, dataISO: string, txt: string) => {
@@ -299,20 +307,28 @@ export default function EscalaPage() {
    */
   const [addFuncao, setAddFuncao] = useState<string | null>(null);
   const [addNome, setAddNome] = useState('');
+  /** pessoa escolhida no organograma; '' = vai digitar o nome (freela, quem não tem cadeira) */
+  const [addFuncionario, setAddFuncionario] = useState<string>('');
+  /** veio trabalhar sem estar planejado — a linha nasce em branco e marcada como fora da escala */
+  const [addFora, setAddFora] = useState(false);
   const [ocupado, setOcupado] = useState(false);
 
   const adicionar = useCallback(async (funcaoId: string) => {
     const nome = addNome.trim();
-    if (!nome) return;
+    const fid = addFuncionario ? Number(addFuncionario) : null;
+    if (!fid && !nome) return;
     setOcupado(true);
     try {
-      await api.post('/api/operacao/escala/pessoa', { funcao_id: funcaoId, pessoa_nome: nome, de, ate });
-      setAddNome(''); setAddFuncao(null);
+      await api.post('/api/operacao/escala/pessoa', {
+        funcao_id: funcaoId, funcionario_id: fid, pessoa_nome: fid ? undefined : nome,
+        fora_escala: addFora, de, ate,
+      });
+      setAddNome(''); setAddFuncionario(''); setAddFora(false); setAddFuncao(null);
       await mutate();
     } catch (e: any) {
       showToast({ type: 'error', title: 'Não adicionou', message: e?.message });
     } finally { setOcupado(false); }
-  }, [addNome, de, ate, mutate, showToast]);
+  }, [addNome, addFuncionario, addFora, de, ate, mutate, showToast]);
 
   /** Remove só do PERÍODO — apagar o histórico destruiria o planejado × realizado passado. */
   const remover = useCallback(async (p: Pessoa) => {
@@ -338,8 +354,21 @@ export default function EscalaPage() {
           <Button variant="outline" size="sm" onClick={() => setSegunda(s => somaDias(s, 7))}><ChevronRight className="w-4 h-4" /></Button>
           <Button variant="ghost" size="sm" onClick={() => setSegunda(segundaDa(new Date()))}>hoje</Button>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {soLeitura && <BadgeSomenteLeitura />}
+          {/* A visão restrita precisa se anunciar: sem isto o líder ve 6 pessoas onde a casa
+              tem 30 e nao sabe se e a escala que esta furada ou a tela. */}
+          {equipeDe && (
+            <span className="text-[11px] rounded-full px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+              equipe de {equipeDe}
+            </span>
+          )}
+          {ocultasSemVinculo > 0 && (
+            <span className="text-[11px] rounded-full px-2 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+              title="Essas pessoas não estão ligadas ao cadastro do RH, então não dá pra saber de quem elas são. Peça o vínculo pro RH.">
+              {ocultasSemVinculo} fora da sua visão (sem vínculo com o RH)
+            </span>
+          )}
           {/* De-para com o RH: não virou tela própria porque é manutenção que se faz olhando
               a escala. O contador mostra o que falta sem precisar abrir. */}
           <Button variant="outline" size="sm" onClick={() => abrirVinculo()}
@@ -438,18 +467,43 @@ export default function EscalaPage() {
                       <tr key={'add' + f.id}>
                         <td className="px-3 py-1 sticky left-0 bg-[hsl(var(--card))]">
                           {addFuncao === f.id ? (
-                            <input
-                              value={addNome}
-                              onChange={(e) => setAddNome(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') adicionar(f.id);
-                                if (e.key === 'Escape') { setAddNome(''); setAddFuncao(null); }
-                              }}
-                              onBlur={() => { if (!addNome.trim()) setAddFuncao(null); }}
-                              ref={(el) => el?.focus()}
-                              placeholder="nome e Enter"
-                              className="w-full px-1.5 py-0.5 text-[11px] border border-blue-400 rounded bg-white dark:bg-gray-900"
-                            />
+                            /* A pessoa vem do ORGANOGRAMA — é o que tira o nome digitado do meio
+                               e acaba com o de-para. Quem não tem cadeira (freela) ainda entra
+                               pelo campo de texto que aparece ao escolher "outra pessoa". */
+                            <div className="flex flex-col gap-1 min-w-[190px]">
+                              <select
+                                value={addFuncionario}
+                                onChange={(e) => setAddFuncionario(e.target.value)}
+                                className="w-full px-1 py-0.5 text-[11px] border border-blue-400 rounded bg-white dark:bg-gray-900"
+                              >
+                                <option value="">— outra pessoa (digitar) —</option>
+                                {elegiveis.map(el => <option key={el.id} value={el.id}>{el.nome}</option>)}
+                              </select>
+                              {!addFuncionario && (
+                                <input
+                                  value={addNome}
+                                  onChange={(e) => setAddNome(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') adicionar(f.id); }}
+                                  ref={(el) => el?.focus()}
+                                  placeholder="nome (freela)"
+                                  className="w-full px-1.5 py-0.5 text-[11px] border border-blue-400 rounded bg-white dark:bg-gray-900"
+                                />
+                              )}
+                              <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                <input type="checkbox" checked={addFora} onChange={(e) => setAddFora(e.target.checked)} />
+                                veio por fora da escala
+                              </label>
+                              <div className="flex gap-1">
+                                <button onClick={() => adicionar(f.id)} disabled={ocupado || (!addFuncionario && !addNome.trim())}
+                                  className="text-[11px] px-1.5 py-0.5 rounded bg-blue-600 text-white disabled:opacity-40">
+                                  adicionar
+                                </button>
+                                <button onClick={() => { setAddNome(''); setAddFuncionario(''); setAddFora(false); setAddFuncao(null); }}
+                                  className="text-[11px] px-1.5 py-0.5 rounded border border-[hsl(var(--border))]">
+                                  cancelar
+                                </button>
+                              </div>
+                            </div>
                           ) : (
                             <button onClick={() => { setAddFuncao(f.id); setAddNome(''); }}
                               className="text-[11px] text-muted-foreground hover:text-blue-500 inline-flex items-center gap-1">

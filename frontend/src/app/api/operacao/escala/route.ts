@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
 import { paginate } from '@/lib/supabase/paginate';
+import { equipeDoUsuario } from '@/lib/rh/equipe';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,13 +35,31 @@ export async function GET(request: NextRequest) {
   if (!de || !ate) return NextResponse.json({ error: 'Informe de e ate (AAAA-MM-DD)' }, { status: 400 });
 
   const c = sb();
-  const [{ data: funcoes }, linhas] = await Promise.all([
+  const [{ data: funcoes }, todasLinhas, equipe] = await Promise.all([
     ops(c).from('operacao_funcao').select('*').eq('bar_id', user.bar_id).eq('ativo', true).order('ordem'),
     // um mês inteiro × ~49 pessoas passa de 1000 linhas — paginar (Supabase corta em silêncio)
     paginate<any>(() => ops(c).from('escala_dia')
       .select('*').eq('bar_id', user.bar_id).gte('data', de).lte('data', ate)
       .order('funcao_id').order('slot').order('data')),
+    equipeDoUsuario(c, user),
   ]);
+
+  /**
+   * ESCOPO POR LÍDER (19/08/2026): quem lidera gente vê só a sua árvore do organograma — a
+   * mesma regra do check-in do dia. RH, admin e quem não lidera ninguém seguem vendo a casa
+   * toda (ver equipeDoUsuario).
+   *
+   * Linha SEM vínculo com o RH não pode entrar na visão do líder: sem funcionario_id não há
+   * como saber de quem é. Elas não desaparecem em silêncio — vão contadas em
+   * `sem_vinculo_ocultas` pra tela dizer que existem e que é o de-para que resolve, senão o
+   * líder olha uma escala furada achando que é a escala.
+   */
+  const linhas = equipe.ids
+    ? todasLinhas.filter((l: any) => l.funcionario_id && equipe.ids!.has(l.funcionario_id))
+    : todasLinhas;
+  const semVinculoOcultas = equipe.ids
+    ? new Set(todasLinhas.filter((l: any) => !l.funcionario_id).map((l: any) => `${l.funcao_id}|${l.slot}`)).size
+    : 0;
 
   // agrupa por pessoa (função + slot é a identidade enquanto não houver funcionario_id)
   const pessoas = new Map<string, any>();
@@ -57,11 +76,39 @@ export async function GET(request: NextRequest) {
     };
   });
 
+  /**
+   * Quem esta pessoa PODE escalar. Sai do organograma (cadeira ocupada hoje), não de texto
+   * livre — é o que faz a escala espelhar o cadastro em vez de ter roster próprio. Restrito
+   * à árvore do líder pelo mesmo `equipe.ids` de cima.
+   *
+   * Freela não tem cadeira e por isso não entra aqui; a tela mantém a opção de digitar o nome
+   * pra esse caso (segurança freela, por exemplo).
+   */
+  const { data: ocupantes } = await (c as any).schema('hr')
+    .from('cadeira_ocupacao')
+    .select('funcionario_id, fim, cadeiras!inner(bar_id, ativa, cargo_id), funcionarios!inner(id, nome, ativo)')
+    .is('fim', null)
+    .eq('cadeiras.bar_id', user.bar_id)
+    .eq('cadeiras.ativa', true)
+    .eq('funcionarios.ativo', true);
+
+  const elegiveis = ((ocupantes || []) as any[])
+    .filter((o) => !equipe.ids || equipe.ids.has(o.funcionario_id))
+    .map((o) => ({ id: o.funcionario_id, nome: o.funcionarios?.nome as string }))
+    .filter((e) => !!e.nome)
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+
   const ordem = new Map<string, number>((funcoes || []).map((f: any, i: number) => [String(f.id), i]));
   const lista = [...pessoas.values()].sort((a, b) =>
     (ordem.get(a.funcao_id) ?? 99) - (ordem.get(b.funcao_id) ?? 99) || a.slot - b.slot);
 
-  return NextResponse.json({ funcoes: funcoes || [], pessoas: lista });
+  return NextResponse.json({
+    funcoes: funcoes || [], pessoas: lista,
+    // preenchido = a visão está restrita à equipe dessa pessoa
+    equipe_de: equipe.lider,
+    sem_vinculo_ocultas: semVinculoOcultas,
+    elegiveis,
+  });
 }
 
 // =====================================================

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
+import { equipeDoUsuario } from '@/lib/rh/equipe';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,17 +28,49 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => ({} as any));
   const funcaoId = String(body.funcao_id || '');
-  const nome = String(body.pessoa_nome || '').trim().toUpperCase();
   const de = String(body.de || '');
   const ate = String(body.ate || '');
-  if (!funcaoId || !nome || !/^\d{4}-\d{2}-\d{2}$/.test(de) || !/^\d{4}-\d{2}-\d{2}$/.test(ate)) {
-    return NextResponse.json({ error: 'Informe funcao_id, pessoa_nome, de e ate' }, { status: 400 });
+  /**
+   * `funcionario_id` é o caminho novo: a pessoa vem do CADASTRO (organograma), não digitada.
+   * `pessoa_nome` solto continua aceito porque a planilha ainda alimenta a escala e quem não
+   * tem cadastro (freela de segurança, por exemplo) precisa entrar de algum jeito.
+   */
+  const funcionarioId = Number(body.funcionario_id) || null;
+  /** linha criada pelo líder pra registrar quem veio SEM estar planejado */
+  const foraEscala = body.fora_escala === true;
+  let nome = String(body.pessoa_nome || '').trim().toUpperCase();
+
+  if (!funcaoId || !/^\d{4}-\d{2}-\d{2}$/.test(de) || !/^\d{4}-\d{2}-\d{2}$/.test(ate)) {
+    return NextResponse.json({ error: 'Informe funcao_id, de e ate' }, { status: 400 });
+  }
+  if (!nome && !funcionarioId) {
+    return NextResponse.json({ error: 'Informe a pessoa (funcionario_id ou pessoa_nome)' }, { status: 400 });
   }
 
   const c = sb();
   const { data: funcao } = await ops(c).from('operacao_funcao').select('id')
     .eq('bar_id', user.bar_id).eq('id', funcaoId).maybeSingle();
   if (!funcao) return NextResponse.json({ error: 'Função não encontrada neste bar' }, { status: 404 });
+
+  /**
+   * Líder só escala gente da PRÓPRIA árvore do organograma. Não é enfeite de tela: sem a
+   * checagem aqui, bastaria mandar outro funcionario_id na requisição. Quem não lidera
+   * ninguém (RH, admin) passa direto — é `equipe.ids = null`.
+   */
+  if (funcionarioId) {
+    const equipe = await equipeDoUsuario(c, user);
+    if (equipe.ids && !equipe.ids.has(funcionarioId)) {
+      return NextResponse.json(
+        { error: 'Essa pessoa não está na sua equipe do organograma — fale com o RH ou com a gerência.' },
+        { status: 403 },
+      );
+    }
+    const { data: f } = await (c as any).schema('hr').from('funcionarios')
+      .select('id, nome').eq('id', funcionarioId).eq('bar_id', user.bar_id).maybeSingle();
+    if (!f) return NextResponse.json({ error: 'Funcionário não encontrado neste bar' }, { status: 404 });
+    // o nome da escala passa a ser o do cadastro — é o que acaba com o de-para daqui pra frente
+    nome = String(f.nome || '').trim().toUpperCase();
+  }
 
   // próximo slot livre DA FUNÇÃO INTEIRA (não só do período) — reusar um slot de alguém que
   // saiu misturaria o histórico das duas pessoas na mesma linha.
@@ -50,7 +83,11 @@ export async function POST(request: NextRequest) {
   for (let d = new Date(de + 'T00:00:00Z'); d.toISOString().slice(0, 10) <= ate; d.setUTCDate(d.getUTCDate() + 1)) {
     dias.push({
       bar_id: user.bar_id, data: d.toISOString().slice(0, 10), funcao_id: funcaoId, slot,
-      pessoa_nome: nome, marcador: 'FOLGA', turno: 'unico', origem: 'zykor',
+      pessoa_nome: nome, funcionario_id: funcionarioId,
+      // fora da escala = veio sem estar planejado, então não nasce FOLGA: nasce em branco
+      // pro líder colocar o horário que a pessoa fez.
+      marcador: foraEscala ? null : 'FOLGA', turno: 'unico',
+      origem: foraEscala ? 'fora_escala' : 'zykor',
     });
   }
 
