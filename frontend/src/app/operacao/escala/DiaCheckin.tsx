@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useApiSWR } from '@/hooks/useApiSWR';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
-import { ChevronLeft, ChevronRight, Loader2, Search, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Search, Check, UserPlus } from 'lucide-react';
 
 /**
  * VISÃO DIA da Escala — quem está escalado hoje e o check do líder.
@@ -33,8 +33,9 @@ type Linha = {
   checkin_status: string | null; fora_escala: boolean;
   sugestao: 'ok' | 'ok_atraso' | 'falta' | null;
 };
+type Elegivel = { id: number; nome: string };
 type Resposta = {
-  data: string; linhas: Linha[]; equipe_de: string | null;
+  data: string; linhas: Linha[]; equipe_de: string | null; elegiveis?: Elegivel[];
   resumo: { escalados: number; marcados: number; pendentes: number; faltas: number };
 };
 
@@ -80,6 +81,28 @@ export function DiaCheckin({ soLeitura }: { soLeitura: boolean }) {
 
   const { data, isLoading, mutate } = useApiSWR<Resposta>(`/api/operacao/escala/dia?data=${dia}`);
   const linhas = useMemo(() => data?.linhas || [], [data]);
+  const elegiveis = data?.elegiveis || [];
+
+  /**
+   * "Veio e não estava escalado". A grade semanal não aceita mais nome digitado (a escala
+   * espelha o organograma), então é aqui que o líder registra quem apareceu — que é justamente
+   * o caso de escala não feita.
+   */
+  const [addAberto, setAddAberto] = useState(false);
+  const [addPessoa, setAddPessoa] = useState('');
+  const adicionar = async () => {
+    if (!addPessoa) return;
+    try {
+      const r = await api.post('/api/operacao/escala/dia', {
+        data: dia, acao: 'adicionar', funcionario_id: Number(addPessoa),
+      });
+      showToast({ type: 'success', title: 'Adicionado ao dia', message: `${r.adicionado} entrou como "fora da escala".` });
+      setAddPessoa(''); setAddAberto(false);
+      await mutate();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Não adicionou', message: e?.message });
+    }
+  };
 
   const trocarDia = (novo: string) => { setDia(novo); setEscolha({}); setAberta(null); };
 
@@ -157,6 +180,24 @@ export function DiaCheckin({ soLeitura }: { soLeitura: boolean }) {
           className="w-full h-10 pl-9 pr-3 text-sm rounded-lg border border-[hsl(var(--border))] bg-transparent"
         />
       </div>
+
+      {!soLeitura && (
+        addAberto ? (
+          <div className="flex items-center gap-2 flex-wrap rounded-lg border border-[hsl(var(--border))] p-2">
+            <select value={addPessoa} onChange={(e) => setAddPessoa(e.target.value)}
+              className="flex-1 min-w-[180px] h-10 px-2 text-sm rounded border border-[hsl(var(--border))] bg-transparent">
+              <option value="">quem veio?</option>
+              {elegiveis.map(el => <option key={el.id} value={el.id}>{el.nome}</option>)}
+            </select>
+            <Button onClick={adicionar} disabled={!addPessoa} className="h-10">Adicionar</Button>
+            <Button variant="ghost" onClick={() => { setAddAberto(false); setAddPessoa(''); }} className="h-10">Cancelar</Button>
+          </div>
+        ) : (
+          <Button variant="outline" onClick={() => setAddAberto(true)} className="h-10 w-full sm:w-auto">
+            <UserPlus className="w-4 h-4 mr-2" />Veio alguém fora da escala
+          </Button>
+        )
+      )}
 
       {isLoading ? (
         <div className="py-16 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></div>

@@ -53,9 +53,31 @@ export async function GET(request: NextRequest) {
       : null,
   }));
 
+  /**
+   * Quem o líder pode ADICIONAR no dia: a equipe dele (ou a casa toda) menos quem já está na
+   * lista. Serve pro caso que o Rodrigo levantou — "se tiver sem escala feita o líder pode
+   * adicionar e marcar que a pessoa foi". A grade semanal não aceita mais nome digitado, então
+   * este é o caminho pra registrar quem apareceu sem estar planejado.
+   */
+  const jaNoDia = new Set(comSugestao.map((l) => l.funcionario_id));
+  const { data: ocupantes } = await (c as any).schema('hr')
+    .from('cadeira_ocupacao')
+    .select('funcionario_id, fim, cadeiras!inner(bar_id, ativa), funcionarios!inner(id, nome, ativo)')
+    .is('fim', null)
+    .eq('cadeiras.bar_id', user.bar_id).eq('cadeiras.ativa', true)
+    .eq('funcionarios.ativo', true);
+
+  const elegiveis = ((ocupantes || []) as any[])
+    .filter((o) => !jaNoDia.has(o.funcionario_id))
+    .filter((o) => !equipe.ids || equipe.ids.has(o.funcionario_id))
+    .map((o) => ({ id: o.funcionario_id, nome: o.funcionarios?.nome as string }))
+    .filter((e) => !!e.nome)
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+
   return NextResponse.json({
     data,
     linhas: comSugestao,
+    elegiveis,
     equipe_de: equipe.lider,
     resumo: {
       escalados: comSugestao.length,
@@ -85,10 +107,54 @@ export async function POST(request: NextRequest) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
     return NextResponse.json({ error: 'data inválida (AAAA-MM-DD)' }, { status: 400 });
   }
-  if (!marcacoes.length) return NextResponse.json({ error: 'Nada para salvar' }, { status: 400 });
-
   const c = sb();
   const equipe = await equipeDoUsuario(c, user);
+
+  /**
+   * Adiciona alguém NO DIA que não estava escalado. A linha nasce com origem 'fora_escala',
+   * pra depois dar pra separar quem foi planejado de quem apareceu.
+   *
+   * A função da linha sai do CARGO da cadeira (hr.cargos.funcao_escala_id) — a mesma regra do
+   * "Puxar do organograma". Quem não tem cadeira nem aparece na lista de elegíveis.
+   */
+  if (body.acao === 'adicionar') {
+    const fid = Number(body.funcionario_id);
+    if (!fid) return NextResponse.json({ error: 'funcionario_id obrigatório' }, { status: 400 });
+    if (equipe.ids && !equipe.ids.has(fid)) {
+      return NextResponse.json({ error: 'Essa pessoa não está na sua equipe.' }, { status: 403 });
+    }
+    const ops = (c as any).schema('operations');
+    const { data: pessoa } = await (c as any).schema('hr').from('funcionarios')
+      .select('id, nome').eq('id', fid).eq('bar_id', user.bar_id).maybeSingle();
+    if (!pessoa) return NextResponse.json({ error: 'Funcionário não encontrado neste bar' }, { status: 404 });
+
+    const { data: cad } = await (c as any).schema('hr').from('cadeira_ocupacao')
+      .select('funcionario_id, cadeiras!inner(bar_id, ativa, cargos:cargo_id(funcao_escala_id))')
+      .is('fim', null).eq('funcionario_id', fid)
+      .eq('cadeiras.bar_id', user.bar_id).eq('cadeiras.ativa', true).maybeSingle();
+    const funcaoId = (cad as any)?.cadeiras?.cargos?.funcao_escala_id;
+    if (!funcaoId) {
+      return NextResponse.json(
+        { error: `${pessoa.nome} não tem cargo ligado a uma função da escala — ajuste no Organograma.` },
+        { status: 400 },
+      );
+    }
+
+    const { data: usados } = await ops.from('escala_dia').select('slot')
+      .eq('bar_id', user.bar_id).eq('funcao_id', funcaoId)
+      .order('slot', { ascending: false }).limit(1);
+    const slot = ((usados?.[0]?.slot as number) ?? 0) + 1;
+
+    const { error: errIns } = await ops.from('escala_dia').insert({
+      bar_id: user.bar_id, data, funcao_id: funcaoId, slot,
+      pessoa_nome: String(pessoa.nome).toUpperCase(), funcionario_id: fid,
+      turno: 'unico', origem: 'fora_escala',
+    });
+    if (errIns) return NextResponse.json({ error: errIns.message }, { status: 500 });
+    return NextResponse.json({ success: true, adicionado: pessoa.nome });
+  }
+
+  if (!marcacoes.length) return NextResponse.json({ error: 'Nada para salvar' }, { status: 400 });
 
   const erros: string[] = [];
   let gravados = 0;
