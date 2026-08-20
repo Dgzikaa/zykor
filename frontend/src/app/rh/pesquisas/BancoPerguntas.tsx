@@ -140,7 +140,7 @@ export function BancoPerguntas() {
 
               {novaEm === d.chave ? (
                 <div className="flex items-center gap-1.5">
-                  <Input autoFocus={false} className="h-8 text-[12px]" placeholder="Nova pergunta desta dimensão"
+                  <Input className="h-8 text-[12px]" placeholder="Nova pergunta desta dimensão"
                     value={novoTexto} onChange={(e) => setNovoTexto(e.target.value)} />
                   <Button size="sm" className="h-8 px-2" disabled={salvando} onClick={() => criar(d.chave)}>
                     <Check className="w-3.5 h-3.5" />
