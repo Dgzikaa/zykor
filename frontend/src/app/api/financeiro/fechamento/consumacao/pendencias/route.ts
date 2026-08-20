@@ -4,6 +4,7 @@ import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
 import { getFatorCmv } from '@/lib/config/getFatorCmv';
 import { criarLancamentoCA, resolveCategoriaId, resolveContaPadrao, getCAToken, brDate } from '@/lib/financeiro/contaazul-lancador';
+import { rebalancearSomaZeroDia } from '../route';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +37,10 @@ export const dynamic = 'force-dynamic';
  * Idempotência: a chave do ajuste carrega um contador (`chave#aj1`, `#aj2`…), e o delta é sempre
  * recalculado do log. Depois que o ajuste entra, o delta vira zero e nenhum outro nasce — o mesmo
  * princípio auto-idempotente do complemento de soma-zero.
+ *
+ * E TODO ajuste é seguido do reequilíbrio do dia (`rebalancearSomaZeroDia`). Mexer só na despesa
+ * deixaria o crédito de Ajuste CMV no valor antigo — o estorno viraria lucro inventado no DRE em
+ * vez de correção. Os dois passos são um só.
  */
 
 const LABEL: Record<string, string> = {
@@ -200,11 +205,30 @@ export async function POST(request: NextRequest) {
     resultados.push({ dia, chave, sinal, valor: Math.abs(delta), categoria: cat.nome, ok: r.ok, erro: r.erro });
   }
 
-  const erros = resultados.filter((r) => !r.ok).length;
+  /**
+   * REEQUILÍBRIO — não é opcional, faz parte da correção.
+   *
+   * O ajuste acima mexe só na categoria de DESPESA. A contrapartida `[CONSUMAÇÃO] AJUSTE CMV`
+   * espelha o TOTAL do dia e continua com o valor antigo, então sozinho o estorno não corrige:
+   * tira a despesa da linha de Comerciais e DEIXA o crédito no CMV — inventa lucro no DRE.
+   * Aqui o dia volta a fechar em zero, lendo só o que está de fato no Conta Azul.
+   *
+   * Roda por dia, DEPOIS de todos os ajustes daquele dia, e sobre o que realmente entrou: se um
+   * ajuste falhou, o reequilíbrio reflete o CA como ele está, não como deveria estar.
+   */
+  const diasTocados = Array.from(new Set(resultados.filter((r) => r.ok).map((r) => r.dia))).sort();
+  const reequilibrio: any[] = [];
+  for (const dia of diasTocados) {
+    const r = await rebalancearSomaZeroDia(barId, dia, user.email || 'zykor');
+    if (r) reequilibrio.push(r);
+  }
+
+  const erros = resultados.filter((r) => !r.ok).length + reequilibrio.filter((r) => !r.ok).length;
   return NextResponse.json({
     success: erros === 0,
     corrigidos: resultados.filter((r) => r.ok).length,
     erros,
     resultados,
+    reequilibrio,
   }, { status: erros ? 207 : 200 });
 }

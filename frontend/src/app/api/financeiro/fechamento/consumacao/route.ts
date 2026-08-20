@@ -130,6 +130,60 @@ function montarComplemento(desbalanco: number, jaFeitos: number, dia: string): I
   };
 }
 
+/**
+ * Reequilibra a soma-zero de um dia lendo APENAS o log — sem olhar a classificação de hoje.
+ *
+ * Existe por causa da correção de pendências (`fechamento/consumacao/pendencias`). Aquele fluxo
+ * mexe só nas 9 categorias de DESPESA; a contrapartida `[CONSUMAÇÃO] AJUSTE CMV`, que espelha o
+ * TOTAL do dia, fica com o valor antigo. Estornar R$ 2.160 de Artistas sem baixar o Ajuste CMV
+ * na mesma medida não corrige nada: tira a despesa de Comerciais e DEIXA o crédito no CMV, ou
+ * seja, INVENTA R$ 2.160 de lucro. O dia tem que voltar a fechar em zero.
+ *
+ * Por que não reusar `executarConsumacaoDia`: ela monta os itens da classificação de hoje e posta
+ * o que não estiver no log. Como a correção grava com chave `chave#ajN`, a chave-base continua
+ * "faltando" e a despesa entraria DE NOVO, dobrando o valor. Aqui só o log importa.
+ *
+ * Auto-idempotente pelo próprio valor, igual ao complemento original: depois que entra, o
+ * desbalanço vira zero e nenhum outro nasce.
+ */
+export async function rebalancearSomaZeroDia(barId: number, dia: string, criadoPor: string | null) {
+  const supabase = getLancadorAdmin();
+  const log = () => (supabase.schema('financial' as any) as any).from('lancamento_manual_ca_log');
+  const { data: jaLogs } = await log()
+    .select('chave, sinal, valor').eq('bar_id', barId).eq('tipo', TIPO).eq('competencia', dia);
+  const rows = (jaLogs as any[]) || [];
+  if (!rows.length) return null;
+
+  const soma = (sinal: SinalLanc) =>
+    rows.filter((r) => r.sinal === sinal).reduce((a, r) => a + Number(r.valor || 0), 0);
+  const desbalanco = round2(soma('DESPESA') - soma('RECEITA'));
+  const nCompl = rows.filter((r) => String(r.chave).startsWith('ajuste_cmv_compl')).length;
+  const compl = montarComplemento(desbalanco, nCompl, dia);
+  if (!compl) return null;
+
+  const tokenResult = await getCAToken(barId);
+  if ('error' in tokenResult) return { dia, desbalanco, ok: false, erro: tokenResult.error };
+  const conta = await resolveContaPadrao(barId);
+  if (!conta) return { dia, desbalanco, ok: false, erro: 'Nenhuma conta financeira ativa no Conta Azul' };
+  const cat = await resolveCategoriaId(barId, compl.categoria, compl.sinal);
+  if (!cat) return { dia, desbalanco, ok: false, erro: `Categoria "${compl.categoria}" (${compl.sinal}) não existe no Conta Azul deste bar.` };
+
+  const descricao = `Consumação ${compl.label}`;
+  const r = await criarLancamentoCA({
+    token: tokenResult.token, sinal: compl.sinal, competencia: dia, vencimento: dia, valor: compl.valor,
+    descricao, observacao: `${descricao} — reequilíbrio da soma-zero (Zykor)`,
+    categoriaId: cat.id, contaId: conta.id,
+  });
+  if (r.ok) {
+    await log().insert({
+      bar_id: barId, tipo: TIPO, competencia: dia, chave: compl.chave, sinal: compl.sinal, valor: compl.valor,
+      descricao, categoria_id: cat.id, categoria_nome: cat.nome, conta_id: conta.id, data_vencimento: dia,
+      ca_protocol_id: r.protocolId, ca_status: r.status, baixado: false, criado_por: criadoPor,
+    });
+  }
+  return { dia, desbalanco, sinal: compl.sinal, valor: compl.valor, ok: r.ok, erro: r.erro };
+}
+
 /** Executa (idempotente) os lançamentos de consumação de um dia. `chaves` (opcional) limita a categorias específicas. Sem auth — quem chama garante. */
 export async function executarConsumacaoDia(barId: number, dia: string, criadoPor: string | null, chaves?: string[]): Promise<{ status: number; body: any }> {
   const supabase = getLancadorAdmin();

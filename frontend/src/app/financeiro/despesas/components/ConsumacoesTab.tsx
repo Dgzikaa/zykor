@@ -92,6 +92,7 @@ export function ConsumacoesTab() {
     if (!window.confirm(
       `Lançar ${linhas.length} ajuste(s) no Conta Azul?\n\n` +
       `Estorno entra como RECEITA na mesma categoria (o CA não apaga lançamento).\n` +
+      `Cada dia tocado é reequilibrado no Ajuste CMV para continuar fechando em zero.\n\n` +
       `Isso NÃO pode ser desfeito pela API.`,
     )) return;
     setCorrigindo(true);
