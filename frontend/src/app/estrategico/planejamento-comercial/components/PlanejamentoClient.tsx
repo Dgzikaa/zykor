@@ -952,16 +952,6 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
 
                 <Button size="sm" onClick={abrirCadastro} className="h-8" leftIcon={<Calendar className="h-3.5 w-3.5" />}>Gerenciar dias do mês</Button>
                 <RecalcularMesButton barId={selectedBar?.id} mes={filtroMes} ano={filtroAno} />
-                <div className="ml-auto">
-                  <CalculadoraDistribuicao
-                    barId={selectedBar?.id}
-                    ano={filtroAno}
-                    mes={filtroMes}
-                    mesLabel={`${meses.find(m => m.value === filtroMes)?.label || ''} ${filtroAno}`}
-                    diasManuais={dados.filter(e => e.m1_manual).length}
-                    onAplicado={() => router.refresh()}
-                  />
-                </div>
               </div>
 
                 {/* Tabela Completa */}
@@ -1871,7 +1861,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                   linha e sem roubar largura. */}
               <div className="hidden md:block mt-3">
                 <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))] rounded-xl shadow-sm p-4">
-                  <div className="grid grid-cols-1 lg:grid-cols-[3fr_1fr] gap-x-8 gap-y-4 [&>div]:pt-0 [&>div]:border-t-0">
+                  <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr] gap-x-8 gap-y-4 [&>div]:pt-0 [&>div]:border-t-0">
                     <div className="pt-4 border-t border-[hsl(var(--border))]">
                       <h3 className="font-semibold text-[hsl(var(--foreground))] flex items-center gap-2 mb-3"><TrendingUp className="h-4 w-4" /> Estatísticas</h3>
                       {/* Em pé, os 3 grupos são colunas: empilhados (herança da sidebar de 256px)
@@ -1953,6 +1943,18 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                         </div>
                       </div>
                     )}
+
+                    {/* DISTRIBUIÇÃO DE METAS. Estava no cabeçalho e "ficou esquisito" (Rodrigo,
+                        20/08/2026) — e com razão: ali ela parecia um filtro da tabela. É uma ação
+                        sobre o MÊS INTEIRO, então mora com os totais que ela redistribui. */}
+                    <CalculadoraDistribuicao
+                      barId={selectedBar?.id}
+                      ano={filtroAno}
+                      mes={filtroMes}
+                      mesLabel={`${meses.find(m => m.value === filtroMes)?.label || ''} ${filtroAno}`}
+                      diasManuais={dados.filter(e => e.m1_manual).length}
+                      onAplicado={() => router.refresh()}
+                    />
                   </div>
                 </Card>
               </div>
