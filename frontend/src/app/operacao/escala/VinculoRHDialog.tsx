@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -33,8 +33,10 @@ type Resposta = {
   resumo: { total: number; vinculados: number; com_sugestao: number };
 };
 
-export function VinculoRHDialog({ open, onOpenChange, soLeitura, onSalvo }: {
+export function VinculoRHDialog({ open, onOpenChange, soLeitura, onSalvo, focarChave }: {
   open: boolean; onOpenChange: (v: boolean) => void; soLeitura: boolean; onSalvo: () => Promise<void>;
+  /** chave da pessoa a destacar/rolar até quando o dialog abre pelo aviso da linha da escala */
+  focarChave?: string | null;
 }) {
   const { showToast } = useToast();
   const { data, mutate } = useApiSWR<Resposta>(open ? '/api/operacao/escala/vinculo' : null);
@@ -43,6 +45,18 @@ export function VinculoRHDialog({ open, onOpenChange, soLeitura, onSalvo }: {
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => { if (!open) setEscolha({}); }, [open]);
+
+  /**
+   * Vindo do aviso da linha da escala, rola até a pessoa e destaca. A lista é longa (uma linha
+   * por pessoa de todas as funções); sem isso quem clicou no aviso de UMA pessoa cairia no topo
+   * e teria que procurar de novo — que é exatamente o atrito que o aviso veio tirar.
+   */
+  const refFoco = useRef<HTMLTableRowElement | null>(null);
+  useEffect(() => {
+    if (!open || !focarChave) return;
+    const t = setTimeout(() => refFoco.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120);
+    return () => clearTimeout(t);
+  }, [open, focarChave, data]);
 
   const pessoas = useMemo(() => data?.pessoas || [], [data]);
   const valorDe = (p: Pessoa) => (p.chave in escolha ? escolha[p.chave] : p.funcionario_id);
@@ -123,7 +137,9 @@ export function VinculoRHDialog({ open, onOpenChange, soLeitura, onSalvo }: {
               <tbody>
                 {pessoas.map(p => (
                   <tr key={p.chave}
-                    className={`border-b border-[hsl(var(--border))] ${mudou(p) ? 'bg-amber-50 dark:bg-amber-900/20' : ''}`}>
+                    ref={p.chave === focarChave ? refFoco : undefined}
+                    className={`border-b border-[hsl(var(--border))] ${mudou(p) ? 'bg-amber-50 dark:bg-amber-900/20' : ''}${
+                      p.chave === focarChave ? ' ring-2 ring-amber-400 ring-inset' : ''}`}>
                     <td className="py-1 text-muted-foreground whitespace-nowrap">{p.funcao_nome}</td>
                     <td className="py-1 whitespace-nowrap">
                       {p.nome}

@@ -11,7 +11,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { VinculoRHDialog } from './VinculoRHDialog';
-import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Plus, X, Link2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Plus, X, Link2, Link2Off } from 'lucide-react';
 
 type Funcao = { id: string; codigo: string; nome: string; entra_no_custo: boolean; ordem: number };
 type Celula = { id: string; entra: string | null; sai: string | null; horas: number | null; marcador: string | null; turno: string };
@@ -283,6 +283,9 @@ export default function EscalaPage() {
   const [editando, setEditando] = useState<{ pessoa: Pessoa; data: string; rect: DOMRect } | null>(null);
 
   const [vinculoAberto, setVinculoAberto] = useState(false);
+  /** pessoa que o dialog de vinculo deve destacar quando abre pelo aviso da linha */
+  const [vinculoFoco, setVinculoFoco] = useState<string | null>(null);
+  const abrirVinculo = (chave?: string) => { setVinculoFoco(chave ?? null); setVinculoAberto(true); };
   // quantas pessoas DESTA semana ainda não apontam pro RH — o número que o botão mostra
   const semVinculo = pessoas.filter(p => !p.funcionario_id).length;
 
@@ -339,7 +342,7 @@ export default function EscalaPage() {
           {soLeitura && <BadgeSomenteLeitura />}
           {/* De-para com o RH: não virou tela própria porque é manutenção que se faz olhando
               a escala. O contador mostra o que falta sem precisar abrir. */}
-          <Button variant="outline" size="sm" onClick={() => setVinculoAberto(true)}
+          <Button variant="outline" size="sm" onClick={() => abrirVinculo()}
             title="Ligar cada pessoa da escala ao cadastro do RH — traz gênero, dias por semana e ponto">
             <Link2 className="w-4 h-4 mr-1.5" />
             Vincular ao RH
@@ -402,6 +405,18 @@ export default function EscalaPage() {
                         <td className="px-3 py-1 sticky left-0 bg-[hsl(var(--card))] whitespace-nowrap">
                           <span className="inline-flex items-center gap-1.5">
                             {p.nome}
+                            {/* Sem vinculo com o RH essa pessoa nao tem ponto, nao entra no
+                                check-in do lider e nao vira ocorrencia. Antes isso so aparecia
+                                como um numero no botao do topo -- dava pra saber QUANTAS
+                                faltavam, nao QUEM. Agora o aviso fica na linha e abre o de-para
+                                ja destacando ela. */}
+                            {!p.funcionario_id && (
+                              <button onClick={() => abrirVinculo(p.chave)}
+                                title="Não está ligada ao cadastro do RH — clique para escolher a pessoa"
+                                className="text-amber-600 dark:text-amber-400 hover:text-amber-700">
+                                <Link2Off className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             {!soLeitura && (
                               <button onClick={() => remover(p)} disabled={ocupado}
                                 title="Tirar da escala desta semana"
@@ -453,7 +468,7 @@ export default function EscalaPage() {
         </CardContent></Card>
       )}
 
-      <VinculoRHDialog open={vinculoAberto} onOpenChange={setVinculoAberto}
+      <VinculoRHDialog open={vinculoAberto} onOpenChange={setVinculoAberto} focarChave={vinculoFoco}
         soLeitura={soLeitura} onSalvo={async () => { await mutate(); }} />
 
       {editando && (
