@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useBar } from '@/contexts/BarContext';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,45 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { formatCurrency } from '@/lib/utils';
+
+/**
+ * Campo de texto da grade do OVT que CRESCE com o conteudo.
+ *
+ * Antes era um <Textarea> de altura fixa: "Repensar proposta de valor dos dias que nao dependa do
+ * Artista" mostrava a primeira linha e cortava a segunda no meio. Aumentar a altura fixa nao
+ * resolve o problema, so muda onde ele corta -- na reuniao o pessoal escreve frase de qualquer
+ * tamanho e precisa LER o que escreveu.
+ *
+ * Comeca em 2 linhas (o normal de um Big Bet) e vai abrindo conforme digita. `useLayoutEffect`
+ * porque tem que medir antes da pintura: com `useEffect` a linha aparece com a altura errada e
+ * pula, e a grade inteira treme ao carregar.
+ */
+function CampoCresce({ value, onChange, placeholder, negrito, minLinhas = 2 }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; negrito?: boolean; minLinhas?: number;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const ajustar = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const minima = minLinhas * 16 + 10; // linha do text-xs (16px) + py-1 + borda
+    el.style.height = 'auto';
+    el.style.height = `${Math.max(el.scrollHeight, minima)}px`;
+  }, [minLinhas]);
+  useLayoutEffect(() => { ajustar(); }, [value, ajustar]);
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => { onChange(e.target.value); ajustar(); }}
+      rows={minLinhas}
+      className={`w-full resize-none overflow-hidden rounded-md border border-gray-300 dark:border-gray-600
+        bg-white/80 dark:bg-gray-700 px-2 py-1 text-xs leading-4 text-gray-900 dark:text-gray-100
+        placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+        ${negrito ? 'font-semibold' : ''}`}
+    />
+  );
+}
 
 interface OKR {
   id?: number;
@@ -462,41 +501,83 @@ export default function OrganizadorEditPage() {
     }
   }, [selectedBar?.id, isNovo, dataLoaded, params.id, toast]);
 
+  /** Corpo do save. Único lugar que decide o que vai pro banco — salvar à mão e o automático mandam o mesmo. */
+  const montarBody = useCallback(() => ({
+    ...organizador,
+    bar_id: selectedBar?.id,
+    // Descarta só a linha 100% vazia. Antes o filtro era `epico.trim() !== ''`, e quem
+    // preenchia Big Bet / OBS / Andamento sem preencher o Tema perdia a linha no save --
+    // no reload o esqueleto padrão voltava e parecia que "apagou tudo" (Gonza, 19/08/2026).
+    okrs: okrs.filter(o =>
+      [o.epico, o.historia, o.responsavel, o.observacoes, o.andamento]
+        .some(v => (v || '').trim() !== '')),
+  }), [organizador, okrs, selectedBar?.id]);
+
   const handleSalvar = async () => {
     if (!selectedBar) return;
-    
     setSaving(true);
     try {
-      const method = isNovo ? 'POST' : 'PUT';
-      const body = {
-        ...organizador,
-        bar_id: selectedBar.id,
-        // Descarta só a linha 100% vazia. Antes o filtro era `epico.trim() !== ''`, e quem
-        // preenchia Big Bet / OBS / Andamento sem preencher o Tema perdia a linha no save --
-        // no reload o esqueleto padrão voltava e parecia que "apagou tudo" (Gonza, 19/08/2026).
-        okrs: okrs.filter(o =>
-          [o.epico, o.historia, o.responsavel, o.observacoes, o.andamento]
-            .some(v => (v || '').trim() !== ''))
-      };
-
       const response = await fetch('/api/organizador', {
-        method,
+        method: isNovo ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(montarBody()),
       });
-
-      if (response.ok) {
-        toast({ title: 'Sucesso!', description: isNovo ? 'Organizador criado' : 'Alterações salvas' });
-        router.push('/estrategico/organizador');
-      } else {
-        throw new Error('Erro ao salvar');
-      }
+      if (!response.ok) throw new Error('Erro ao salvar');
+      toast({ title: 'Sucesso!', description: isNovo ? 'Organizador criado' : 'Alterações salvas' });
+      router.push('/estrategico/organizador');
     } catch (error) {
       toast({ title: 'Erro', description: 'Não foi possível salvar', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
   };
+
+  /*
+    AUTOSAVE — pedido do Rodrigo (20/08/2026): "a gente tá anotando as coisas e ele não salva
+    automático se não clicarmos em Salvar".
+
+    O OVT é preenchido AO VIVO na reunião, várias pessoas falando, e o botão Salvar leva de volta
+    pra listagem — ou seja, quem só queria registrar uma frase era obrigado a sair da tela. Perder
+    a anotação porque ninguém lembrou de clicar é o pior desfecho possível pra esta tela.
+
+    Só para OVT que JÁ EXISTE. Em OVT novo o método é POST e cada disparo criaria um registro
+    novo — o primeiro save de um OVT novo continua sendo no botão, de propósito.
+  */
+  const salvandoAuto = useRef(false);
+  // Snapshot do que já está no banco. O PUT é um REPLACE (apaga e reinsere todos os OKRs), então
+  // repetir save igual é caro à toa — e o primeiro efeito depois do carregamento é justamente o
+  // estado que VEIO do banco, não uma edição.
+  const ultimoSalvo = useRef<string | null>(null);
+  const [autoStatus, setAutoStatus] = useState<'idle' | 'salvando' | 'salvo' | 'erro'>('idle');
+
+  useEffect(() => {
+    if (isNovo || !selectedBar || !dataLoaded || loading) return;
+
+    const snapshot = JSON.stringify(montarBody());
+    if (ultimoSalvo.current === null) { ultimoSalvo.current = snapshot; return; }
+    if (ultimoSalvo.current === snapshot) return;
+
+    const t = setTimeout(async () => {
+      if (salvandoAuto.current) return;
+      salvandoAuto.current = true;
+      setAutoStatus('salvando');
+      try {
+        const r = await fetch('/api/organizador', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(montarBody()),
+        });
+        if (r.ok) ultimoSalvo.current = snapshot;
+        setAutoStatus(r.ok ? 'salvo' : 'erro');
+      } catch {
+        setAutoStatus('erro');
+      } finally {
+        salvandoAuto.current = false;
+      }
+    }, 1200); // pausa de digitação: não salva letra a letra, mas salva antes de trocar de campo
+
+    return () => clearTimeout(t);
+  }, [organizador, okrs, isNovo, selectedBar, dataLoaded, loading, montarBody]);
 
   const updateOrganizador = (field: keyof OrganizadorData, value: any) => {
     setOrganizador(prev => ({ ...prev, [field]: value }));
@@ -667,15 +748,31 @@ export default function OrganizadorEditPage() {
             <div className="h-4 w-px bg-gray-300 dark:bg-gray-600" />
             <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">{selectedBar?.nome}</span>
           </div>
-          <Button 
-            onClick={handleSalvar} 
-            disabled={saving} 
-            loading={saving}
-            className="bg-green-600 hover:bg-green-700 h-8 px-4"
-            leftIcon={<Save className="w-4 h-4" />}
-          >
-            {saving ? 'Salvando...' : 'Salvar'}
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Sinal do autosave. Sem ele ninguém confia que digitar bastou — e a dúvida faz a
+                pessoa clicar em Salvar, que leva embora da tela no meio da reunião. */}
+            {!isNovo && autoStatus !== 'idle' && (
+              <span className={`text-[11px] font-medium ${
+                autoStatus === 'salvando' ? 'text-gray-500 dark:text-gray-400'
+                : autoStatus === 'salvo' ? 'text-green-600 dark:text-green-400'
+                : 'text-red-600 dark:text-red-400'
+              }`}>
+                {autoStatus === 'salvando' ? 'Salvando…'
+                  : autoStatus === 'salvo' ? 'Salvo automaticamente'
+                  : 'Não salvou — clique em Salvar'}
+              </span>
+            )}
+            <Button
+              onClick={handleSalvar}
+              disabled={saving}
+              loading={saving}
+              className="bg-green-600 hover:bg-green-700 h-8 px-4"
+              leftIcon={<Save className="w-4 h-4" />}
+              title={isNovo ? 'Criar o OVT' : 'Salvar e voltar para a lista'}
+            >
+              {saving ? 'Salvando...' : isNovo ? 'Salvar' : 'Salvar e sair'}
+            </Button>
+          </div>
         </div>
 
         {/* Título Principal com Seletor de Semestre/Ano */}
@@ -1156,20 +1253,11 @@ export default function OrganizadorEditPage() {
                     >
                       <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
                         <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Objetivo</label>
-                        <Input
-                          value={okr.epico}
-                          onChange={(e) => updateOKR(index, 'epico', e.target.value)}
-                          className="h-11 text-xs font-semibold bg-white/80 dark:bg-gray-700"
-                        />
+                        <CampoCresce negrito value={okr.epico} onChange={(v) => updateOKR(index, 'epico', v)} />
                       </div>
                       <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
                         <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Big Bet</label>
-                        <Textarea
-                          value={okr.historia}
-                          onChange={(e) => updateOKR(index, 'historia', e.target.value)}
-                          className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-11 min-h-0 resize-none leading-4"
-                          rows={2}
-                        />
+                        <CampoCresce value={okr.historia} onChange={(v) => updateOKR(index, 'historia', v)} />
                       </div>
                       <div className="px-1 py-1 border-r border-gray-200 dark:border-gray-700">
                         <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Responsável</label>
@@ -1181,22 +1269,11 @@ export default function OrganizadorEditPage() {
                       </div>
                       <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
                         <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Observações</label>
-                        <Textarea
-                          value={okr.observacoes}
-                          onChange={(e) => updateOKR(index, 'observacoes', e.target.value)}
-                          className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-11 min-h-0 resize-none leading-4"
-                          rows={2}
-                        />
+                        <CampoCresce value={okr.observacoes} onChange={(v) => updateOKR(index, 'observacoes', v)} />
                       </div>
                       <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
                         <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Andamento</label>
-                        <Textarea
-                          value={okr.andamento}
-                          onChange={(e) => updateOKR(index, 'andamento', e.target.value)}
-                          placeholder="Onde está hoje..."
-                          className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-11 min-h-0 resize-none leading-4"
-                          rows={2}
-                        />
+                        <CampoCresce value={okr.andamento} onChange={(v) => updateOKR(index, 'andamento', v)} placeholder="Onde está hoje..." />
                       </div>
                       <div className="px-1 py-1 border-r border-gray-200 dark:border-gray-700">
                         <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Status</label>
@@ -1338,12 +1415,9 @@ export default function OrganizadorEditPage() {
                                     >
                                       <Star className={`w-4 h-4 ${okr.is_nsm ? 'fill-amber-400' : ''}`} />
                                     </button>
-                                    <Textarea
-                                      value={okr.epico}
-                                      onChange={(e) => updateOKR(index, 'epico', e.target.value)}
-                                      className="text-xs font-semibold bg-white/80 dark:bg-gray-700 py-1.5 flex-1 h-11 min-h-0 resize-none leading-4"
-                                      rows={2}
-                                    />
+                                    <div className="flex-1">
+                                      <CampoCresce negrito value={okr.epico} onChange={(v) => updateOKR(index, 'epico', v)} />
+                                    </div>
                                   </div>
                                   {okr.is_nsm && (
                                     <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
@@ -1353,31 +1427,15 @@ export default function OrganizadorEditPage() {
                                 </div>
                                 <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
                                   <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Big Bet</label>
-                                  <Textarea
-                                    value={okr.historia}
-                                    onChange={(e) => updateOKR(index, 'historia', e.target.value)}
-                                    className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-11 min-h-0 resize-none leading-4"
-                                    rows={2}
-                                  />
+                                  <CampoCresce value={okr.historia} onChange={(v) => updateOKR(index, 'historia', v)} />
                                 </div>
                                 <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
                                   <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">OBS</label>
-                                  <Textarea
-                                    value={okr.observacoes}
-                                    onChange={(e) => updateOKR(index, 'observacoes', e.target.value)}
-                                    className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-11 min-h-0 resize-none leading-4"
-                                    rows={2}
-                                  />
+                                  <CampoCresce value={okr.observacoes} onChange={(v) => updateOKR(index, 'observacoes', v)} />
                                 </div>
                                 <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
                                   <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Andamento</label>
-                                  <Textarea
-                                    value={okr.andamento}
-                                    onChange={(e) => updateOKR(index, 'andamento', e.target.value)}
-                                    placeholder="Onde está hoje..."
-                                    className="text-xs bg-white/80 dark:bg-gray-700 py-1.5 h-11 min-h-0 resize-none leading-4"
-                                    rows={2}
-                                  />
+                                  <CampoCresce value={okr.andamento} onChange={(v) => updateOKR(index, 'andamento', v)} placeholder="Onde está hoje..." />
                                 </div>
                                 <div className="px-1 py-1 border-r border-gray-200 dark:border-gray-700">
                                   <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Status</label>
