@@ -46,7 +46,9 @@ import {
   Pencil,
   Check,
   Music,
-  Plus
+  Plus,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import { PlanejamentoData } from '../services/planejamento-service';
 
@@ -285,6 +287,9 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
   const [filtroMes, setFiltroMes] = useState(serverMes);
   const [filtroAno, setFiltroAno] = useState(serverAno);
   const [linhaHighlight, setLinhaHighlight] = useState<number | null>(null);
+  // Título é a coluna mais larga (280px de 586px congelados). Recolher devolve espaço pros
+  // indicadores, que é o que a tabela existe pra mostrar.
+  const [tituloRecolhido, setTituloRecolhido] = useState(false);
   const [colunaHighlight, setColunaHighlight] = useState<string | null>(null);
   const [editandoReservas, setEditandoReservas] = useState<{id: number, campo: 'res_tot' | 'res_p'} | null>(null);
   const [valorReservaTemp, setValorReservaTemp] = useState<string>('');
@@ -908,13 +913,57 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
           </div>
         ) : (
           <div className="container mx-auto px-2 py-4 max-w-[98vw]">
-            <div className="flex gap-4">
+            {/* Sem sidebar: a tabela ocupa a largura toda. min-w-0 continua obrigatório —
+                sem ele o filho cresce até a largura da tabela e o sticky das colunas quebra. */}
+            <div className="flex flex-col">
               {/* min-w-0: sem isto o flex item cresce até a largura da tabela e o
                   scroll horizontal vaza pro <main>, fazendo o position:sticky das
                   colunas fixas (que gruda em .planejamento-container) nunca engatar.
                   NÃO usar `hidden md:block` aqui: escondia os cards mobile (filhos
                   md:hidden) e deixava o mobile em branco. Os filhos se auto-gateiam. */}
               <div className="flex-1 min-w-0">
+              {/* CONTROLES no CABEÇALHO (20/08/2026, Gonza: "tirar esse menu lateral dos
+                  controles, colocar os filtros em cima e as estatísticas embaixo, após a tabela").
+                  A sidebar de 256px comia largura justamente da tabela que a tela existe pra
+                  mostrar. Desktop-only: o mobile já tem os seus próprios controles acima. */}
+              <div className="hidden md:flex items-center gap-2 flex-wrap mb-2">
+                <div className="flex items-center gap-1.5">
+                  <Filter className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+                  <Select value={filtroMes.toString()} onValueChange={(value) => alterarPeriodo(parseInt(value), filtroAno)}>
+                    <SelectTrigger className="h-8 w-[130px] bg-[hsl(var(--background))]"><SelectValue /></SelectTrigger>
+                    <SelectContent>{meses.map(m => <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Select value={filtroAno.toString()} onValueChange={(value) => alterarPeriodo(filtroMes, parseInt(value))}>
+                    <SelectTrigger className="h-8 w-[86px] bg-[hsl(var(--background))]"><SelectValue /></SelectTrigger>
+                    <SelectContent>{anos.map(a => <SelectItem key={a} value={a.toString()}>{a}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+
+                <div className="h-5 w-px bg-[hsl(var(--border))]" />
+
+                <Button size="sm" variant="outline" onClick={expandirTodos} className="h-8" leftIcon={<Maximize2 className="h-3.5 w-3.5" />}>Expandir</Button>
+                <Button size="sm" variant="outline" onClick={recolherTodos} className="h-8" leftIcon={<Minimize2 className="h-3.5 w-3.5" />}>Recolher</Button>
+                <Button size="sm" variant="outline" onClick={() => setTituloRecolhido(v => !v)} className="h-8"
+                  leftIcon={tituloRecolhido ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}>
+                  {tituloRecolhido ? 'Mostrar Título' : 'Recolher Título'}
+                </Button>
+
+                <div className="h-5 w-px bg-[hsl(var(--border))]" />
+
+                <Button size="sm" onClick={abrirCadastro} className="h-8" leftIcon={<Calendar className="h-3.5 w-3.5" />}>Gerenciar dias do mês</Button>
+                <RecalcularMesButton barId={selectedBar?.id} mes={filtroMes} ano={filtroAno} />
+                <div className="ml-auto">
+                  <CalculadoraDistribuicao
+                    barId={selectedBar?.id}
+                    ano={filtroAno}
+                    mes={filtroMes}
+                    mesLabel={`${meses.find(m => m.value === filtroMes)?.label || ''} ${filtroAno}`}
+                    diasManuais={dados.filter(e => e.m1_manual).length}
+                    onAplicado={() => router.refresh()}
+                  />
+                </div>
+              </div>
+
                 {/* Tabela Completa */}
                 <div className="bg-[hsl(var(--background))] md:border md:border-[hsl(var(--border))] rounded-xl md:shadow-sm">
                   {/* MOBILE: seletor de mês/ano. A sidebar de Controles (que tem o seletor no
@@ -971,7 +1020,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                     {dados.length === 0 && <div className="text-center text-sm text-gray-400 py-8">Nenhum evento no período.</div>}
                   </div>
 
-                  <div ref={scrollContainerRef} className="planejamento-container overflow-auto max-h-[calc(100vh-120px)] hidden md:block">
+                  <div ref={scrollContainerRef} className="planejamento-container overflow-auto max-h-[calc(100vh-120px)] hidden md:block"
+                    style={{ ['--w-titulo' as string]: tituloRecolhido ? '34px' : '280px' } as React.CSSProperties}>
                   <table className="planejamento-table text-[10px] w-full" style={{borderCollapse: 'separate', borderSpacing: 0}}>
                     <thead className="bg-[hsl(var(--muted))]">
                       {/* Primeira linha - Grupos colapsáveis */}
@@ -1038,7 +1088,13 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                         {/* Colunas Fixas (5 primeiras: Data, Dia, Artista, Receita Real, Meta M1) */}
                         <th className="sticky-header-1 px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '48px', minWidth: '48px'}}>Data</th>
                         <th className="sticky-header-2 px-0.5 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px'}}>Dia</th>
-                        <th className="sticky-header-3 px-2 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '280px', minWidth: '280px'}}>Título</th>
+                        <th className="sticky-header-3 px-1 py-2 text-left text-[11px] font-semibold border-r border-[hsl(var(--border))] overflow-hidden"
+                          style={{ width: 'var(--w-titulo)', minWidth: 'var(--w-titulo)' }}>
+                          <button onClick={() => setTituloRecolhido(v => !v)} title={tituloRecolhido ? 'Mostrar Título' : 'Recolher a coluna Título'}
+                            className="flex items-center gap-1 hover:text-[hsl(var(--primary))] whitespace-nowrap">
+                            {tituloRecolhido ? <ChevronsRight className="h-3.5 w-3.5" /> : <><ChevronsLeft className="h-3.5 w-3.5" />Título</>}
+                          </button>
+                        </th>
                         {/* Artistas saiu das colunas fixas (15/08/2026): quem tocou vive no modal
                             do evento e no tooltip do Título. Eram 90px congelados de 676. */}
                         <th className="sticky-header-4 px-2 py-2 text-center text-[11px] font-semibold border-r border-[hsl(var(--border))]" style={{width: '110px', minWidth: '110px'}}>Receita Real</th>
@@ -1281,7 +1337,14 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                               </button>
                             </td>
                             <td className="sticky-col-2 px-0.5 py-1.5 text-center text-[11px] text-[hsl(var(--muted-foreground))] border-r border-[hsl(var(--border))]" style={{width: '38px', minWidth: '38px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}}>{evento.dia_semana?.substring(0, 3).toUpperCase()}</td>
-                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))]" style={{width: '280px', minWidth: '280px', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}} title={`Label: ${evento.evento_nome || 'Sem atração'}${(evento.artistas || []).length ? `\n🎵 ${(evento.artistas || []).join(', ')}` : ''}${evento.observacoes ? `\n📌 ${evento.observacoes}` : ''}`}>
+                            <td className="sticky-col-3 px-2 py-1.5 text-left text-[11px] border-r border-[hsl(var(--border))] overflow-hidden" style={{width: 'var(--w-titulo)', minWidth: 'var(--w-titulo)', backgroundColor: linhaHighlight === idx ? 'rgb(191, 219, 254)' : (evento.flag_urgente ? 'rgb(254, 226, 226)' : 'white')}} title={`Label: ${evento.evento_nome || 'Sem atração'}${(evento.artistas || []).length ? `\n🎵 ${(evento.artistas || []).join(', ')}` : ''}${evento.observacoes ? `\n📌 ${evento.observacoes}` : ''}`}>
+                              {/* Recolhida, a coluna vira 34px: mostrar o conteúdo cortado no meio
+                                  seria pior que não mostrar. Fica o 🚩 do urgente e o título no title. */}
+                              {tituloRecolhido ? (
+                                <span className="block text-center text-[10px]" title={evento.titulo || ''}>
+                                  {evento.flag_urgente ? '🚩' : '·'}
+                                </span>
+                              ) : (<>
                               <div className="flex items-start gap-1 min-w-0">
                                 {evento.flag_urgente && (
                                   <span title="Urgente (ex.: artista ainda não definido)" className="shrink-0 text-[10px] mt-0.5">🚩</span>
@@ -1313,6 +1376,7 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                                   className={`px-1 rounded text-[8px] font-bold leading-tight border ${evento.usa_sympla ? 'bg-amber-500 text-white border-amber-500' : 'bg-transparent text-gray-400 border-gray-300 dark:border-gray-600'}`}
                                 >SY</button>
                               </div>
+                              </>)}
                             </td>
                             <td
                               onClick={(e) => {
@@ -1732,8 +1796,8 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                         {/* Fixos: sempre visíveis. Colspan=3 cobre Data+Dia+Título; os `left`
                             acompanham os offsets do sticky-columns.css (Artistas saiu). */}
                         <td colSpan={3} className={`${tfCls} text-left border-r`} style={{ position: 'sticky', left: 0, zIndex: 30 }}>TOTAIS · {totaisAgregados.totalEventos} ev</td>
-                        <td className={`${tfCls} text-center text-green-700 dark:text-green-400 border-r`} style={{ position: 'sticky', left: 366, zIndex: 30 }} title="Soma da receita real">{formatarMoeda(totaisAgregados.realizado)}</td>
-                        <td className={`${tfCls} text-center border-r-2`} style={{ position: 'sticky', left: 476, zIndex: 30 }} title="Soma da meta M1">{formatarMoeda(totaisAgregados.metaM1)}</td>
+                        <td className={`${tfCls} text-center text-green-700 dark:text-green-400 border-r`} style={{ position: 'sticky', left: 'var(--sticky-4)', zIndex: 30 }} title="Soma da receita real">{formatarMoeda(totaisAgregados.realizado)}</td>
+                        <td className={`${tfCls} text-center border-r-2`} style={{ position: 'sticky', left: 'var(--sticky-5)', zIndex: 30 }} title="Soma da meta M1">{formatarMoeda(totaisAgregados.metaM1)}</td>
 
                         {/* CLIENTES (soma) */}
                         {gruposAbertos.clientes ? (
@@ -1802,67 +1866,17 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                 </div>
               </div>
 
-              {/* Sidebar */}
-              <div className="w-64 flex-shrink-0 hidden md:block">
-                <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))] rounded-xl shadow-sm p-4 sticky top-4">
-                  <div className="space-y-3">
-                    <div className="border-b border-[hsl(var(--border))] pb-3">
-                      <h3 className="font-semibold flex items-center gap-2">
-                        <Filter className="h-4 w-4" /> Controles
-                      </h3>
-                    </div>
-                    
-                    {/* Botões de Expandir/Recolher */}
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={expandirTodos}
-                        className="flex-1 h-8"
-                        leftIcon={<Maximize2 className="h-3.5 w-3.5" />}
-                      >
-                        Expandir
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={recolherTodos}
-                        className="flex-1 h-8"
-                        leftIcon={<Minimize2 className="h-3.5 w-3.5" />}
-                      >
-                        Recolher
-                      </Button>
-                    </div>
 
-                    {/* Gerenciar dias do mês: adicionar, editar (label/M1) e excluir dias */}
-                    <Button
-                      size="sm"
-                      onClick={abrirCadastro}
-                      className="w-full h-8"
-                      leftIcon={<Calendar className="h-3.5 w-3.5" />}
-                    >
-                      Gerenciar dias do mês
-                    </Button>
-
-                    {/* Recalcular custos do mês inteiro do Conta Azul (atalho pro cron 11:45) */}
-                    <RecalcularMesButton barId={selectedBar?.id} mes={filtroMes} ano={filtroAno} />
-
-                    <div>
-                      <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-3">Período</label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <Select value={filtroMes.toString()} onValueChange={(value) => alterarPeriodo(parseInt(value), filtroAno)}>
-                          <SelectTrigger className="bg-[hsl(var(--background))]"><SelectValue /></SelectTrigger>
-                          <SelectContent>{meses.map(m => <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>)}</SelectContent>
-                        </Select>
-                        <Select value={filtroAno.toString()} onValueChange={(value) => alterarPeriodo(filtroMes, parseInt(value))}>
-                          <SelectTrigger className="bg-[hsl(var(--background))]"><SelectValue /></SelectTrigger>
-                          <SelectContent>{anos.map(a => <SelectItem key={a} value={a.toString()}>{a}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+              {/* ESTATÍSTICAS depois da tabela — mesma informação da antiga sidebar, agora em
+                  linha e sem roubar largura. */}
+              <div className="hidden md:block mt-3">
+                <Card className="bg-[hsl(var(--card))] border-[hsl(var(--border))] rounded-xl shadow-sm p-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-[3fr_1fr] gap-x-8 gap-y-4 [&>div]:pt-0 [&>div]:border-t-0">
                     <div className="pt-4 border-t border-[hsl(var(--border))]">
                       <h3 className="font-semibold text-[hsl(var(--foreground))] flex items-center gap-2 mb-3"><TrendingUp className="h-4 w-4" /> Estatísticas</h3>
-                      <div className="space-y-3 text-xs">
+                      {/* Em pé, os 3 grupos são colunas: empilhados (herança da sidebar de 256px)
+                          jogariam a tabela pra cima e o resto pra 3 rolagens abaixo. */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-3 text-xs [&>div]:pt-0 [&>div]:border-t-0">
                          <div className="space-y-1.5">
                             <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Meta M1:</span> <span className="font-medium text-[hsl(var(--foreground))]">{formatarMoeda(totaisAgregados.metaM1)}</span></div>
                             <div className="flex justify-between"><span className="text-[hsl(var(--muted-foreground))]">Realizado:</span><span className={`font-medium ${totaisAgregados.realizado >= totaisAgregados.metaM1 ? 'text-green-600' : 'text-red-600'}`}>{formatarMoeda(totaisAgregados.realizado)}</span></div>
@@ -1939,14 +1953,6 @@ export function PlanejamentoClient({ initialData, serverMes, serverAno, lucroLiq
                         </div>
                       </div>
                     )}
-                    <CalculadoraDistribuicao
-                      barId={selectedBar?.id}
-                      ano={filtroAno}
-                      mes={filtroMes}
-                      mesLabel={`${meses.find(m => m.value === filtroMes)?.label || ''} ${filtroAno}`}
-                      diasManuais={dados.filter(e => e.m1_manual).length}
-                      onAplicado={() => router.refresh()}
-                    />
                   </div>
                 </Card>
               </div>

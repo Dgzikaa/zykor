@@ -35,6 +35,33 @@ export async function GET(request: NextRequest) {
   if (!de || !ate) return NextResponse.json({ error: 'Informe de e ate (AAAA-MM-DD)' }, { status: 400 });
 
   const c = sb();
+
+  /**
+   * SEMANA FUTURA JÁ NASCE PREENCHIDA (20/08/2026, Gonza: "pras escalas futuras, das semanas
+   * futuras, podemos deixar pré-setado a escala padrão de cada cadeira").
+   *
+   * Antes era preciso clicar "Puxar do organograma" em cada semana nova — quem abria setembro
+   * via uma grade vazia e concluía que o Zykor tinha perdido a escala. Agora, ao abrir um
+   * período INTEIRAMENTE no futuro e ainda sem nenhuma linha, o organograma é puxado na hora,
+   * com o padrão da cadeira.
+   *
+   * Só no futuro: puxar num período passado inventaria escala que nunca existiu, e o histórico
+   * é o que alimenta os fixos do Plano Operacional. É idempotente — quem já está na escala do
+   * período não é tocado.
+   */
+  const hojeISO = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  let preenchidaAgora = 0;
+  if (de > hojeISO) {
+    const { count } = await ops(c).from('escala_dia')
+      .select('id', { count: 'exact', head: true })
+      .eq('bar_id', user.bar_id).gte('data', de).lte('data', ate);
+    if (!count) {
+      const { data: puxado } = await ops(c)
+        .rpc('fn_escala_puxar_do_organograma', { p_bar: user.bar_id, p_de: de, p_ate: ate });
+      preenchidaAgora = Number((puxado as any)?.linhas_criadas || 0);
+    }
+  }
+
   const [{ data: funcoes }, todasLinhas, equipe] = await Promise.all([
     ops(c).from('operacao_funcao').select('*').eq('bar_id', user.bar_id).eq('ativo', true).order('ordem'),
     // um mês inteiro × ~49 pessoas passa de 1000 linhas — paginar (Supabase corta em silêncio)
@@ -108,6 +135,8 @@ export async function GET(request: NextRequest) {
     equipe_de: equipe.lider,
     sem_vinculo_ocultas: semVinculoOcultas,
     elegiveis,
+    // > 0 = a grade acabou de ser montada do organograma (semana futura vazia)
+    preenchida_do_organograma: preenchidaAgora,
   });
 }
 

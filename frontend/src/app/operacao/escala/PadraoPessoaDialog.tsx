@@ -99,9 +99,9 @@ export function PadraoPessoaDialog({
         <DialogHeader>
           <DialogTitle>Escala padrão · {pessoa?.nome}</DialogTitle>
           <DialogDescription className="text-xs">
-            A semana normal dela. Ao montar uma semana nova com &ldquo;Puxar do organograma&rdquo;,
-            é isto que entra — em vez de tudo FOLGA. Escolha o turno ou o marcador de cada dia;
-            <b>sem padrão</b> deixa o dia livre.
+            A semana normal da <b>cadeira</b> que ela ocupa. Toda semana futura já nasce com isto
+            — e quem sentar nessa cadeira depois herda o mesmo horário. Escolha o turno ou o
+            marcador de cada dia; <b>sem padrão</b> deixa o dia livre.
           </DialogDescription>
         </DialogHeader>
 

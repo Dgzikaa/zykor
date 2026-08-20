@@ -9,7 +9,7 @@ import { useBar } from '@/contexts/BarContext';
 import { corDoBar } from '@/lib/bar-theme';
 import { BarLogo } from '@/components/BarLogo';
 import { cn } from '@/lib/utils';
-import { ChevronRight, ChevronDown, Check, Home } from 'lucide-react';
+import { ChevronRight, ChevronDown, Check, Home, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { MENU_TREE, isMenuLeaf } from '@/lib/navigation/menu';
 import { getModuleIdForPath } from '@/lib/permissions/modules';
 import { iconFor } from '@/lib/navigation/menu-icons';
@@ -130,17 +130,44 @@ const defaultSidebarItems: SidebarItem[] = MENU_TREE.map(section => ({
 }));
 
 // Componente do item de menu (memoizado)
-const SidebarMenuItem = memo(({ item, isActive, isExpanded, onToggle, badges }: {
+const SidebarMenuItem = memo(({ item, isActive, isExpanded, onToggle, badges, recolhida }: {
   item: SidebarItem;
   isActive: boolean;
   isExpanded: boolean;
   onToggle: () => void;
   badges: any;
+  /** menu recolhido: só o ícone, com o nome no title (o texto não cabe em 60px) */
+  recolhida?: boolean;
 }) => {
   const pathname = usePathname();
   const Icon = item.icon;
   const hasSubItems = item.subItems && item.subItems.length > 0;
   const badge = badges[item.href || ''] || item.badge;
+
+  // Recolhido: só o ícone. Clicar abre o menu de novo (e a seção junto) — é o comportamento
+  // que o Gonza pediu ("igual o Banco do Brasil"): os tracinhos ficam, o resto some.
+  if (recolhida) {
+    const alvo = (
+      <div
+        style={isActive ? { boxShadow: 'inset 3px 0 0 0 var(--bar-accent)' } : undefined}
+        title={item.label}
+        className={cn(
+          'flex items-center justify-center h-9 w-9 mx-auto rounded-md transition-colors relative',
+          'hover:bg-[hsl(var(--muted))]', isActive && 'bg-[hsl(var(--muted))]',
+        )}
+      >
+        <Icon className="w-4 h-4" />
+        {badge && badge > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-0.5 text-[9px] leading-[14px] text-center font-semibold bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-full">
+            {badge}
+          </span>
+        )}
+      </div>
+    );
+    return hasSubItems
+      ? <button onClick={onToggle} className="w-full" title={item.label}>{alvo}</button>
+      : <Link href={item.href!} title={item.label}>{alvo}</Link>;
+  }
 
   const content = (
     <div
@@ -268,8 +295,25 @@ const SidebarMenuItem = memo(({ item, isActive, isExpanded, onToggle, badges }: 
 
 SidebarMenuItem.displayName = 'SidebarMenuItem';
 
+/** onde a preferência mora — o menu tem que voltar recolhido no próximo acesso */
+const CHAVE_RECOLHIDO = 'zykor.sidebar.recolhida';
+
 export function MinimalSidebar() {
   const pathname = usePathname();
+  // Pedido do Gonza (20/08/2026): poder esconder o menu pra sobrar largura nas telas de tabela.
+  // Começa aberta e lê a preferência no efeito — ler localStorage no primeiro render quebraria
+  // a hidratação (servidor não tem localStorage).
+  const [recolhida, setRecolhida] = useState(false);
+  useEffect(() => {
+    try { setRecolhida(localStorage.getItem(CHAVE_RECOLHIDO) === '1'); } catch { /* sem storage */ }
+  }, []);
+  const alternarRecolhida = useCallback(() => {
+    setRecolhida((v) => {
+      const novo = !v;
+      try { localStorage.setItem(CHAVE_RECOLHIDO, novo ? '1' : '0'); } catch { /* sem storage */ }
+      return novo;
+    });
+  }, []);
   const { hasPermission, loading: permissionsLoading } = usePermissions();
   const { badges } = useBadges();
   const { selectedBar } = useBar();
@@ -362,14 +406,26 @@ export function MinimalSidebar() {
 
   return (
     <aside
-      className="hidden lg:flex lg:flex-col w-64 bg-[hsl(var(--muted))] p-2"
+      className={cn(
+        'hidden lg:flex lg:flex-col bg-[hsl(var(--muted))] p-2 transition-[width] duration-200',
+        recolhida ? 'w-[60px]' : 'w-64',
+      )}
       style={{ ['--bar-accent' as string]: accent } as React.CSSProperties}
     >
       {/* Faixa de identidade do bar selecionado */}
       <div className="mx-2 mt-1 h-1 rounded-full" style={{ background: accent }} />
-      {/* Bar atual = seletor (identidade + troca rápida) + atalho pra Home */}
-      <div className="flex h-14 items-center gap-1 px-2">
-        <SidebarBarSwitcher />
+      {/* Bar atual = seletor (identidade + troca rápida) + atalho pra Home.
+          Recolhida, sobra só o botão de abrir: o seletor de bar não cabe em 60px. */}
+      <div className={cn('flex h-14 items-center gap-1 px-2', recolhida && 'flex-col h-auto py-2 gap-2 px-0')}>
+        {!recolhida && <SidebarBarSwitcher />}
+        <button
+          onClick={alternarRecolhida}
+          title={recolhida ? 'Abrir menu' : 'Recolher menu'}
+          aria-label={recolhida ? 'Abrir menu' : 'Recolher menu'}
+          className="flex-none rounded-md p-2 text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--background))] hover:text-[hsl(var(--foreground))]"
+        >
+          {recolhida ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+        </button>
         <Link
           href="/home"
           title="Início"
@@ -380,7 +436,7 @@ export function MinimalSidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+      <nav className={cn('flex-1 overflow-y-auto space-y-1', recolhida ? 'p-1' : 'p-3')}>
         {filteredItems.map((item) => {
           // Seção acende se a rota casa com o href DELA ou com o de algum sub-item.
           // Guarda contra href vazio (''+'/' = '/' casaria com tudo).
@@ -394,7 +450,10 @@ export function MinimalSidebar() {
               item={item}
               isActive={isActive}
               isExpanded={isExpanded}
-              onToggle={() => toggleItem(item.label)}
+              recolhida={recolhida}
+              // Recolhida, clicar numa seção ABRE o menu junto: sem isto o submenu expandia
+              // atrás de 60px de largura e ninguém via nada.
+              onToggle={() => { if (recolhida) alternarRecolhida(); toggleItem(item.label); }}
               badges={badges}
             />
           );

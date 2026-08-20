@@ -39,6 +39,9 @@ export async function POST(request: NextRequest) {
   /**
    * Padrão de UMA pessoa — o líder edita a da própria equipe. É o caso do "canetinha ao lado
    * do nome", e não é ação de bar inteiro, então não exige enxergar a casa toda.
+   *
+   * Grava na CADEIRA que a pessoa ocupa (Gonza, 20/08/2026: o padrão é "de cada cadeira") e
+   * também na tabela por pessoa, que continua cobrindo quem está na escala sem cadeira.
    */
   if (acao === 'salvar_pessoa') {
     const fid = Number(body.funcionario_id);
@@ -70,7 +73,31 @@ export async function POST(request: NextRequest) {
         .upsert(paraGravar, { onConflict: 'funcionario_id,dia_semana' });
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    return NextResponse.json({ success: true, gravados: paraGravar.length, apagados: paraApagar.length });
+
+    // Espelha na cadeira: é o molde da POSIÇÃO, então quem sentar nela depois já herda.
+    const { data: ocup } = await (c as any).schema('hr').from('cadeira_ocupacao')
+      .select('cadeira_id, cadeiras!inner(bar_id, ativa)')
+      .is('fim', null).eq('funcionario_id', fid)
+      .eq('cadeiras.bar_id', user.bar_id).eq('cadeiras.ativa', true).maybeSingle();
+    const cadeiraId = (ocup as any)?.cadeira_id;
+    if (cadeiraId) {
+      if (paraApagar.length) {
+        await ops.from('escala_padrao_cadeira').delete()
+          .eq('cadeira_id', cadeiraId).in('dia_semana', paraApagar);
+      }
+      if (paraGravar.length) {
+        await ops.from('escala_padrao_cadeira').upsert(
+          paraGravar.map((d: any) => ({
+            cadeira_id: cadeiraId, bar_id: user.bar_id, dia_semana: d.dia_semana,
+            entra: d.entra, sai: d.sai, marcador: d.marcador, atualizado_em: d.atualizado_em,
+          })), { onConflict: 'cadeira_id,dia_semana' });
+      }
+    }
+
+    return NextResponse.json({
+      success: true, gravados: paraGravar.length, apagados: paraApagar.length,
+      na_cadeira: !!cadeiraId,
+    });
   }
 
   // Daqui pra baixo são as ações de BAR INTEIRO: exigem período e visão da casa toda.
@@ -119,9 +146,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Essa pessoa não está na sua equipe.' }, { status: 403 });
   }
 
+  // Mostra o que o "Puxar do organograma" vai usar de verdade: o padrão da CADEIRA vem na
+  // frente; o da pessoa só aparece pra quem não ocupa cadeira.
+  const { data: ocup } = await (c as any).schema('hr').from('cadeira_ocupacao')
+    .select('cadeira_id, cadeiras!inner(bar_id, ativa)')
+    .is('fim', null).eq('funcionario_id', fid)
+    .eq('cadeiras.bar_id', user.bar_id).eq('cadeiras.ativa', true).maybeSingle();
+  const cadeiraId = (ocup as any)?.cadeira_id;
+
+  if (cadeiraId) {
+    const { data, error } = await (c as any).schema('operations')
+      .from('escala_padrao_cadeira').select('dia_semana, entra, sai, marcador')
+      .eq('cadeira_id', cadeiraId).order('dia_semana');
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if ((data || []).length) return NextResponse.json({ dias: data, origem: 'cadeira' });
+  }
+
   const { data, error } = await (c as any).schema('operations')
     .from('escala_padrao').select('dia_semana, entra, sai, marcador')
     .eq('funcionario_id', fid).order('dia_semana');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ dias: data || [] });
+  return NextResponse.json({ dias: data || [], origem: cadeiraId ? 'cadeira' : 'pessoa' });
 }

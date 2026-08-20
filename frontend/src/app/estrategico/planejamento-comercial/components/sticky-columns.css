@@ -17,8 +17,8 @@
 .sticky-col-1 { left: 0; }
 .sticky-col-2 { left: 48px; }
 .sticky-col-3 { left: 86px; }
-.sticky-col-4 { left: 366px; }  /* Receita Real */
-.sticky-col-5 { left: 476px; }  /* Meta M1 */
+.sticky-col-4 { left: var(--sticky-4); }  /* Receita Real */
+.sticky-col-5 { left: var(--sticky-5); }  /* Meta M1 */
 
 /* Cabeçalhos das colunas fixas: congelam nos DOIS eixos —
    vertical (top: 32px, logo abaixo da linha de grupos) e horizontal (left). */
@@ -36,8 +36,8 @@
 .sticky-header-1 { left: 0; }
 .sticky-header-2 { left: 48px; }
 .sticky-header-3 { left: 86px; }
-.sticky-header-4 { left: 366px; }
-.sticky-header-5 { left: 476px; }
+.sticky-header-4 { left: var(--sticky-4); }
+.sticky-header-5 { left: var(--sticky-5); }
 
 /* Canto superior-esquerdo (célula vazia da linha de grupos) fica pinado */
 .sticky-corner {
@@ -48,5 +48,15 @@
   background-color: hsl(var(--muted));
 }
 
+/* A largura do Título é VARIÁVEL porque a coluna recolhe (pedido do Gonza, 20/08/2026: "é a
+   que mais ocupa espaço"). Os offsets das colunas à direita são calculados a partir dela — com
+   os 366px/476px cravados que existiam antes, recolher o Título deixava um buraco de 246px
+   entre as colunas congeladas. */
 .planejamento-table { position: static; }
-.planejamento-container { overflow: auto; position: relative; }
+.planejamento-container {
+  overflow: auto;
+  position: relative;
+  --w-titulo: 280px;
+  --sticky-4: calc(86px + var(--w-titulo));
+  --sticky-5: calc(86px + var(--w-titulo) + 110px);
+}
