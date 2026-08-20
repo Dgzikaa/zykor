@@ -16,7 +16,7 @@ import {
   Loader2, History, Package, Clock, X, Scale, AlertTriangle, CalendarCheck, CheckCircle2, MessageSquare,
 } from 'lucide-react';
 import {
-  fmtDM, fmtData, fmtCrono, fmtBRL, fmtNum, fmtPeso, entradaPeso, AvisoUnidade, fmtPct, fmtTempo,
+  fmtDM, fmtData, fmtCrono, fmtBRL, fmtNum, fmtPeso, entradaPeso, AvisoUnidade, fmtPct, fmtTempo, desvioCor,
   getDeviceId, secaoDeCodigo, MOD_GERIR_EQUIPE, pf,
   type Secao, type FichaItem, type ActiveProd,
 } from './_shared';
@@ -964,21 +964,33 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
 
             {/* Insumos */}
             <div className="overflow-x-auto">
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                 <span className="text-xs text-gray-500 dark:text-gray-400">Informe o <b>usado</b> de cada insumo (obrigatório).</span>
                 <button type="button" onClick={() => preencherCalculado(sel)}
                   className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-md px-2 py-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">
                   <Scale className="w-3.5 h-3.5" />Preencher c/ o calculado
                 </button>
               </div>
+              {/*
+                No celular só ficam as 3 colunas de QUEM ESTÁ PRODUZINDO: o insumo, o quanto era pra
+                usar e o campo de lançar o usado. Planejado, Desvio e Custo real são leitura de
+                conferência — quem revisa faz isso sentado.
+
+                Não é preciosismo: são 6 colunas num aparelho de ~390px, e uma delas é um input de
+                digitar. Espremidas, o nome do insumo quebra letra a letra e o campo fica com ~50px.
+                É a tela usada DENTRO da cozinha, com o celular na mão.
+
+                O desvio não some — reaparece logo abaixo do input, que é onde ele importa na hora
+                (avisa que o valor lançado fugiu da ficha, no momento em que foi lançado).
+              */}
               <table className="w-full text-sm">
                 <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
                   <th className="text-left font-medium px-2 py-1.5">Insumo</th>
-                  <th className="text-right font-medium px-2 py-1.5">Planejado</th>
+                  <th className="text-right font-medium px-2 py-1.5 hidden md:table-cell">Planejado</th>
                   <th className="text-right font-medium px-2 py-1.5">Calculado</th>
                   <th className="text-right font-medium px-2 py-1.5 w-28">Usado *</th>
-                  <th className="text-right font-medium px-2 py-1.5">Desvio</th>
-                  <th className="text-right font-medium px-2 py-1.5">Custo real</th>
+                  <th className="text-right font-medium px-2 py-1.5 hidden md:table-cell">Desvio</th>
+                  <th className="text-right font-medium px-2 py-1.5 hidden md:table-cell">Custo real</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {sel.loadingItens ? <tr><td colSpan={6} className="px-2 py-6 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
@@ -995,22 +1007,28 @@ export function AbaExecutar({ fichas, responsaveis, secaoAtiva }: { fichas: any[
                         {l.it.nome_componente || l.it.componente_codigo || `#${l.it.id}`}
                         <span className="text-xs text-gray-400 ml-1">{uLbl}</span>
                       </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">{fmtNum(l.qtdPlan / uFat, 3)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-gray-500 hidden md:table-cell">{fmtNum(l.qtdPlan / uFat, 3)}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(l.qtdCalc / uFat, 3)}</td>
                       <td className="px-2 py-1.5 text-right">
                         {l.it.is_mestre
                           ? <span className="text-xs text-gray-400">via peso ↑</span>
                           : <Input type="text" inputMode="decimal" step="any" value={sel.qtdReal[l.it.id] ?? ''} onChange={e => patch(sel.localId, { qtdReal: { ...sel.qtdReal, [l.it.id]: e.target.value } })}
                               placeholder="obrigatório" className={`h-8 text-right text-sm ${errUsado(l) ? 'border-red-500 ring-1 ring-red-500' : ''}`} />}
+                        {/* Desvio de volta no celular, colado no campo que acabou de ser digitado. */}
+                        {l.desvio != null && (
+                          <div className={`md:hidden mt-0.5 text-[11px] tabular-nums ${desvioCor(l.desvio)}`}>
+                            desvio {l.desvio > 0 ? '+' : ''}{fmtPct(l.desvio * 100)}
+                          </div>
+                        )}
                       </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums">
+                      <td className="px-2 py-1.5 text-right tabular-nums hidden md:table-cell">
                         {l.desvio == null ? '—' : (
-                          <span className={Math.abs(l.desvio) < 0.05 ? 'text-emerald-600' : Math.abs(l.desvio) < 0.15 ? 'text-amber-600' : 'text-red-600'}>
+                          <span className={desvioCor(l.desvio)}>
                             {l.desvio > 0 ? '+' : ''}{fmtPct(l.desvio * 100)}
                           </span>
                         )}
                       </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtBRL(l.cReal)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums font-medium hidden md:table-cell">{fmtBRL(l.cReal)}</td>
                     </tr>
                   );
                 })}

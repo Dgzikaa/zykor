@@ -85,8 +85,10 @@ function PencilCell({ value, fmt, onSave, disabled, unidade }: { value: number |
 // valor REAL, e combina com min/max: sinal 'neg' + mín 1000 = perdas acima de R$ 1.000.
 type NumCond = { min: number | null; max: number | null; sinal?: 'neg' | 'pos' | null };
 const NUM_ABS = new Set(['desvio_qtd', 'desvio_rs']); // colunas filtradas pelo módulo
-function NumHeader({ label, title, cond, onChange, abs }: {
+function NumHeader({ label, title, cond, onChange, abs, className }: {
   label: string; title?: string; cond: NumCond; onChange: (c: NumCond) => void; abs?: boolean;
+  /** Usado para esconder a coluna no celular (`hidden md:table-cell`). */
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -113,7 +115,7 @@ function NumHeader({ label, title, cond, onChange, abs }: {
     onChange({ ...cond, [k]: n == null || Number.isNaN(n) ? null : n });
   };
   return (
-    <th className="text-right font-medium px-3 py-2" title={title}>
+    <th className={`text-right font-medium px-3 py-2 ${className || ''}`} title={title}>
       <button ref={btnRef} onClick={() => (open ? setOpen(false) : openMenu())}
         className={`inline-flex items-center gap-1 justify-end hover:text-gray-700 dark:hover:text-gray-200 ${active ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
         <span>{label}</span>
@@ -723,15 +725,22 @@ export default function DesviosPage() {
         <Card className="card-dark overflow-hidden"><CardContent className="p-0"><div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
+              {/*
+                No celular ficam só as 4 colunas de AÇÃO: insumo, o campo de desperdício e o desvio
+                que ele explica. As 7 colunas do balanço (estoque ini, compras, troca, saída teórica,
+                fim teórico, real e a área) são a memória de cálculo — leitura de conferência, feita
+                sentado. 11 colunas em ~390px dão 35px cada e a tabela vira ilegível justamente pra
+                quem está no salão lançando a perda.
+              */}
               <th className="text-left font-medium px-3 py-2">Insumo</th>
-              <th className="text-left font-medium px-3 py-2">Área</th>
-              <NumHeader label="Estoque ini" title="Contagem no início do período" cond={condOf('estoque_ini')} onChange={c => setNum('estoque_ini', c)} />
-              <NumHeader label="Compras" cond={condOf('compra')} onChange={c => setNum('compra', c)} />
-              <NumHeader label="Troca" title="Troca entre bares: + recebeu (entrada), − enviou (saída)" cond={condOf('troca')} onChange={c => setNum('troca', c)} />
-              <NumHeader label="Saída teórica" title="Vendas × ficha técnica (consumo esperado)" cond={condOf('saida_teorica')} onChange={c => setNum('saida_teorica', c)} />
+              <th className="text-left font-medium px-3 py-2 hidden md:table-cell">Área</th>
+              <NumHeader className="hidden md:table-cell" label="Estoque ini" title="Contagem no início do período" cond={condOf('estoque_ini')} onChange={c => setNum('estoque_ini', c)} />
+              <NumHeader className="hidden md:table-cell" label="Compras" cond={condOf('compra')} onChange={c => setNum('compra', c)} />
+              <NumHeader className="hidden md:table-cell" label="Troca" title="Troca entre bares: + recebeu (entrada), − enviou (saída)" cond={condOf('troca')} onChange={c => setNum('troca', c)} />
+              <NumHeader className="hidden md:table-cell" label="Saída teórica" title="Vendas × ficha técnica (consumo esperado)" cond={condOf('saida_teorica')} onChange={c => setNum('saida_teorica', c)} />
               <NumHeader label="Desperdício" title="Saída manual: lata que estourou, item que deu problema. Curva A: lança no diário (a semana soma). Não-curva-A: lança direto o desperdício da semana aqui." cond={condOf('desperdicio')} onChange={c => setNum('desperdicio', c)} />
-              <NumHeader label="Estoque fim teórico" title="ini + compras + produzido − saída teórica − desperdício" cond={condOf('estoque_fim_teorico')} onChange={c => setNum('estoque_fim_teorico', c)} />
-              <NumHeader label="Estoque real" title="Contagem do dia seguinte (estoque que sobrou de fato)" cond={condOf('estoque_fim_real')} onChange={c => setNum('estoque_fim_real', c)} />
+              <NumHeader className="hidden md:table-cell" label="Estoque fim teórico" title="ini + compras + produzido − saída teórica − desperdício" cond={condOf('estoque_fim_teorico')} onChange={c => setNum('estoque_fim_teorico', c)} />
+              <NumHeader className="hidden md:table-cell" label="Estoque real" title="Contagem do dia seguinte (estoque que sobrou de fato)" cond={condOf('estoque_fim_real')} onChange={c => setNum('estoque_fim_real', c)} />
               <NumHeader label="Desvio (qtd)" title="Estoque real − estoque fim teórico (negativo = faltou). Filtra pelo módulo." cond={condOf('desvio_qtd')} onChange={c => setNum('desvio_qtd', c)} abs />
               <NumHeader label="Desvio (R$)" title="Filtra pelo módulo (perda ou sobra)." cond={condOf('desvio_rs')} onChange={c => setNum('desvio_rs', c)} abs />
             </tr></thead>
@@ -748,14 +757,14 @@ export default function DesviosPage() {
                     {it.unidade && <span className="ml-1.5 text-[10px] text-gray-400" title="Quantidades desta linha estão nesta unidade de contagem">· {it.unidade}</span>}
                     {it.is_producao && <Badge variant="outline" className="ml-1.5 text-[10px] text-indigo-600 border-indigo-300">produção</Badge>}
                   </td>
-                  <td className="px-3 py-2"><Badge variant="outline">{it.area}</Badge></td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-500">{<EstoqueCell valor={it.estoque_ini} comp={it.composicao} tipo="ini" />}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-gray-500">{fmtQtd(it.compra)}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${it.troca ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-300'}`} title={it.troca ? (it.troca > 0 ? 'Recebeu por troca' : 'Enviou por troca') : undefined}>{it.troca ? `${it.troca > 0 ? '+' : ''}${fmtQtd(it.troca)}` : '—'}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{fmtQtd(it.saida_teorica)}</td>
+                  <td className="px-3 py-2 hidden md:table-cell"><Badge variant="outline">{it.area}</Badge></td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-500 hidden md:table-cell">{<EstoqueCell valor={it.estoque_ini} comp={it.composicao} tipo="ini" />}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-gray-500 hidden md:table-cell">{fmtQtd(it.compra)}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums hidden md:table-cell ${it.troca ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-300'}`} title={it.troca ? (it.troca > 0 ? 'Recebeu por troca' : 'Enviou por troca') : undefined}>{it.troca ? `${it.troca > 0 ? '+' : ''}${fmtQtd(it.troca)}` : '—'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums hidden md:table-cell">{fmtQtd(it.saida_teorica)}</td>
                   <td className="px-3 py-2 text-right"><PencilCell value={it.desperdicio} fmt={fmtQtd} unidade={it.unidade} disabled={!podeEditarDesperd(it)} onSave={(v) => salvar('desperdicio', it.insumo_codigo, { qtd: v })} /></td>
-                  <td className="px-3 py-2 text-right tabular-nums font-medium">{fmtQtd(it.estoque_fim_teorico)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums font-medium">{<EstoqueCell valor={it.estoque_fim_real} comp={it.composicao} tipo="fim" />}</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-medium hidden md:table-cell">{fmtQtd(it.estoque_fim_teorico)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-medium hidden md:table-cell">{<EstoqueCell valor={it.estoque_fim_real} comp={it.composicao} tipo="fim" />}</td>
                   <td className={`px-3 py-2 text-right tabular-nums ${it.desvio_qtd < 0 ? 'text-red-600 dark:text-red-400' : it.desvio_qtd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{`${it.desvio_qtd > 0 ? '+' : ''}${fmtQtd(it.desvio_qtd)}`}</td>
                   <td className={`px-3 py-2 text-right tabular-nums font-semibold ${it.desvio_rs < -10 ? 'text-red-600 dark:text-red-400' : it.desvio_rs > 10 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
                     {it.desvio_rs < -10 ? <TrendingDown className="w-3 h-3 inline mr-0.5" /> : it.desvio_rs > 10 ? <TrendingUp className="w-3 h-3 inline mr-0.5" /> : null}{fmtBRL(it.desvio_rs)}

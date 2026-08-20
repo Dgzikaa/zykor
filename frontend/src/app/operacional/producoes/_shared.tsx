@@ -77,6 +77,10 @@ export function AvisoUnidade({ valorBase, esperadoBase, base }: { valorBase: num
   );
 }
 export const fmtPct = (v: any, d = 1) => v == null ? '—' : `${Number(v).toLocaleString('pt-BR', { maximumFractionDigits: d })}%`;
+
+/** Cor do desvio (fração, não %): até 5% ok, até 15% atenção, acima disso erro. */
+export const desvioCor = (desvio: number) =>
+  Math.abs(desvio) < 0.05 ? 'text-emerald-600' : Math.abs(desvio) < 0.15 ? 'text-amber-600' : 'text-red-600';
 export const fmtTempo = (seg: any) => {
   const s = Math.max(0, Math.round(Number(seg) || 0));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;

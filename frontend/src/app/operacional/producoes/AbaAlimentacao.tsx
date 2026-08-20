@@ -493,10 +493,11 @@ export function AbaAlimentacao({ responsaveis, podeExcluir }: { responsaveis: an
               <thead className="text-xs text-gray-500 dark:text-gray-400 border-b"><tr>
                 <th className="text-left font-medium px-2 py-1.5">Data</th>
                 <th className="text-left font-medium px-2 py-1.5">Refeição</th>
-                <th className="text-left font-medium px-2 py-1.5">Responsável</th>
+                {/* Responsável e custo/pessoa saem do celular: 7 colunas em ~390px não cabem. */}
+                <th className="text-left font-medium px-2 py-1.5 hidden md:table-cell">Responsável</th>
                 <th className="text-right font-medium px-2 py-1.5">Pessoas</th>
                 <th className="text-right font-medium px-2 py-1.5">Custo</th>
-                <th className="text-right font-medium px-2 py-1.5">Custo/pessoa</th>
+                <th className="text-right font-medium px-2 py-1.5 hidden md:table-cell">Custo/pessoa</th>
                 <th className="px-2 py-1.5"></th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -508,10 +509,16 @@ export function AbaAlimentacao({ responsaveis, podeExcluir }: { responsaveis: an
                     <tr key={ref.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                       <td className="px-2 py-1.5 text-gray-900 dark:text-gray-100">{fmtDM(ref.data_refeicao)}</td>
                       <td className="px-2 py-1.5"><Badge variant="outline" className="text-[11px]">{tipoLabel(ref.tipo)}</Badge></td>
-                      <td className="px-2 py-1.5 text-gray-700 dark:text-gray-300">{ref.responsavel_nome || '—'}</td>
+                      <td className="px-2 py-1.5 text-gray-700 dark:text-gray-300 hidden md:table-cell">{ref.responsavel_nome || '—'}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-gray-600">{ref.num_pessoas || '—'}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtBRL(ref.custo_total)}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{cpp != null ? fmtBRL(cpp) : '—'}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums font-medium">
+                        {fmtBRL(ref.custo_total)}
+                        {/* No celular o custo/pessoa vira segunda linha em vez de sumir. */}
+                        {cpp != null && (
+                          <div className="md:hidden text-[11px] font-normal text-emerald-600 dark:text-emerald-400">{fmtBRL(cpp)}/pessoa</div>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400 hidden md:table-cell">{cpp != null ? fmtBRL(cpp) : '—'}</td>
                       <td className="px-2 py-1.5 text-right whitespace-nowrap">
                         <button onClick={() => abrirDetalhe(ref)} title="Ver insumos" className="p-1 text-gray-400 hover:text-indigo-600"><ListChecks className="w-4 h-4" /></button>
                         {podeExcluir && <button onClick={() => excluir(ref)} title="Excluir" className="p-1 text-gray-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
