@@ -36,6 +36,11 @@ import { formatCurrency } from '@/lib/utils';
 
 interface OKR {
   id?: number;
+  /**
+   * Na tela chama "Objetivo" (nas áreas, "Tema"). O campo segue `epico` porque é o nome da coluna
+   * em meta.organizador_okrs — renomear no banco só pra casar com o rótulo custaria migração e
+   * quebraria o histórico sem ganho nenhum.
+   */
   epico: string;
   historia: string;
   responsavel: string;
@@ -55,7 +60,7 @@ interface OKR {
 
 /**
  * Grids das tabelas de OKR. Colunas fixas para header e linhas baterem.
- * Gerais: Épico | Big Bet | Resp. | OBS | Andamento | Status | ⌫
+ * Gerais: Objetivo | Big Bet | Resp. | OBS | Andamento | Status | ⌫
  * Área:   Tema  | Big Bet | OBS | Andamento | Status | ⌫
  */
 const GRID_OKR_GERAL = 'lg:grid-cols-[1.5fr_2.2fr_0.8fr_2.4fr_2.4fr_1.1fr_0.5fr]';
@@ -269,7 +274,7 @@ const okrsPadraoDaArea = (areaKey: string): OKR[] =>
  * OVT NOVO nasce em BRANCO.
  *
  * `defaultOrganizador` / `defaultOKRs` são o OVT do ORDINÁRIO escrito no código (missão,
- * Bizus, posicionamento, metas, épicos). Até 19/08/2026 QUALQUER OVT novo nascia com esse
+ * Bizus, posicionamento, metas, objetivos). Até 19/08/2026 QUALQUER OVT novo nascia com esse
  * conteúdo — o Gonza criou o do Deboche e veio "igual do Ordi". Estes helpers mantêm só a
  * ESTRUTURA (7 Bizus, 3 Singularidades, 5 Problemas, as áreas) e zeram o conteúdo.
  */
@@ -1126,7 +1131,7 @@ export default function OrganizadorEditPage() {
               {/* Header da Tabela */}
               <div className={`hidden lg:grid ${GRID_OKR_GERAL} bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-300 dark:border-gray-600 text-[11px] font-bold text-gray-700 dark:text-gray-300`}>
                 <div className="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600 flex items-center gap-1">
-                  <Target className="w-3 h-3" />Épico
+                  <Target className="w-3 h-3" />Objetivo
                 </div>
                 <div className="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600">Big Bet</div>
                 <div className="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600 text-center">Resp.</div>
@@ -1150,7 +1155,7 @@ export default function OrganizadorEditPage() {
                       className={`grid grid-cols-1 ${GRID_OKR_GERAL} ${statusStyle.bg} ${index % 2 === 0 ? '' : 'bg-opacity-50'}`}
                     >
                       <div className="px-1.5 py-1 border-r border-gray-200 dark:border-gray-700">
-                        <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Épico</label>
+                        <label className="lg:hidden text-[10px] font-bold text-gray-500 mb-0.5 block">Objetivo</label>
                         <Input
                           value={okr.epico}
                           onChange={(e) => updateOKR(index, 'epico', e.target.value)}
