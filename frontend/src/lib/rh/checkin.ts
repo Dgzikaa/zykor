@@ -3,10 +3,10 @@ import type { AuthenticatedUser } from '@/middleware/auth';
 /**
  * Gravação do check-in do dia — uma pessoa, um dia.
  *
- * Vive aqui porque tem DOIS caminhos gravando o mesmo registro: a aba antiga do RH
- * (/api/rh/checkin, um POST por clique) e a visão Dia da Escala da Operação
- * (/api/operacao/escala/dia, que salva em lote quando o líder aperta Salvar). Duplicar a
- * regra da ocorrência nos dois era garantir que um dia elas divergiriam.
+ * Um caminho só: a visão Dia da Escala da Operação (/api/operacao/escala/dia), que salva em
+ * lote quando o líder aperta Salvar. A aba Check-ins do RH — que gravava o MESMO registro com
+ * um POST por clique, sobre a escala do Tangerino — foi removida em 19/08/2026. A regra da
+ * ocorrência fica aqui, e não dentro da rota, pra não voltar a existir duas cópias dela.
  */
 export const STATUS_CHECKIN = ['ok', 'ok_atraso', 'escala_errada', 'falta', 'atestado'] as const;
 export type StatusCheckin = (typeof STATUS_CHECKIN)[number];

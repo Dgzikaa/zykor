@@ -10,7 +10,7 @@ import { useBar } from '@/contexts/BarContext';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { useApiSWR } from '@/hooks/useApiSWR';
-import { Users, Loader2, Search, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp, LayoutGrid, List, Download, Network, ScrollText, UserMinus, UserCheck, BriefcaseBusiness } from 'lucide-react';
+import { Users, Loader2, Search, ChevronRight, AlertTriangle, LayoutDashboard, TrendingUp, LayoutGrid, List, Download, Network, ScrollText, UserMinus, BriefcaseBusiness } from 'lucide-react';
 import { FuncionarioDialog } from './_components/FuncionarioDialog';
 import { DossieDialog } from './_components/DossieDialog';
 import { DashboardRH } from './_components/DashboardRH';
@@ -18,7 +18,6 @@ import { IndicadoresRH } from './_components/IndicadoresRH';
 import { useModuloPermissao } from '@/hooks/useModuloPermissao';
 import { BadgeSomenteLeitura } from '@/components/permissions/BadgeSomenteLeitura';
 import { CartoesBadge, type Cartoes } from './_components/CartoesBadge';
-import { CheckinsTab } from './_components/CheckinsTab';
 import { HistoricoOcorrencias } from './_components/HistoricoOcorrencias';
 import { HistoricoDesligamentos } from './_components/HistoricoDesligamentos';
 import { Organograma } from './_components/Organograma';
@@ -33,6 +32,8 @@ export type Funcionario = {
   rg?: string | null; ctps?: string | null;
   tipo_desligamento?: string | null; motivo_desligamento?: string | null; gestor_id?: number | null;
   foto_url: string | null; ativo: boolean; portal_token?: string | null;
+  /** ocupa cadeira no organograma: cargo e área vêm de lá e não se editam no cadastro */
+  em_cadeira?: boolean; cadeira_cargo_nome?: string | null; cadeira_area_nome?: string | null;
   alertas?: { tipo: string; label: string; nivel: string }[];
   cartoes?: Cartoes;
 };
@@ -206,7 +207,6 @@ export default function FuncionariosPage() {
                 vê o quadro daquela empresa. "Administrativo" deixou de ser um conceito. */}
             <TabsTrigger value="organograma"><Network className="w-4 h-4 mr-1.5" />Organograma</TabsTrigger>
             <TabsTrigger value="visao"><LayoutDashboard className="w-4 h-4 mr-1.5" />Visão geral</TabsTrigger>
-            <TabsTrigger value="checkins"><UserCheck className="w-4 h-4 mr-1.5" />Check-ins</TabsTrigger>
             <TabsTrigger value="inativos"><Users className="w-4 h-4 mr-1.5" />Inativos</TabsTrigger>
             <TabsTrigger value="desligados"><UserMinus className="w-4 h-4 mr-1.5" />Histórico</TabsTrigger>
             <TabsTrigger value="ocorrencias"><ScrollText className="w-4 h-4 mr-1.5" />Ocorrências</TabsTrigger>
@@ -316,10 +316,6 @@ export default function FuncionariosPage() {
                 </table>
               </Card>
             )}
-          </TabsContent>
-
-          <TabsContent value="checkins">
-            <CheckinsTab />
           </TabsContent>
 
           <TabsContent value="organograma">

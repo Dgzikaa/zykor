@@ -55,7 +55,11 @@ export async function GET(request: NextRequest) {
     // area_id vem junto para a tela filtrar os cargos pela área escolhida
     // (cargo sem área — sócio, freela, gerência — aparece em qualquer uma).
     // salario_min/max é a FAIXA do cargo: a sugestão de quem contrata numa cadeira sem override.
-    hr('cargos').select('id, nome, area_id, salario_min, salario_max').eq('bar_id', user.bar_id).eq('ativo', true),
+    // TODOS os cargos, inclusive inativos. `ativo=false` quer dizer "não ofereça em cadastro
+    // novo", não "esconda o que já existe": cadeira ativa apontando pra cargo inativo aparecia
+    // como "sem cargo" na caixa do organograma (caso do Edson, Chefe de Salão do Deboche).
+    // A lista de OPÇÕES devolvida no fim filtra por ativo; o mapa de nomes não pode filtrar.
+    hr('cargos').select('id, nome, area_id, salario_min, salario_max, ativo').eq('bar_id', user.bar_id),
     hr('areas').select('id, nome, cor').eq('bar_id', user.bar_id).eq('ativo', true),
     // rosto (selfie do ponto, já que ninguém tem foto no cadastro) e selos de férias/atestado/cartões
     hr('v_funcionario_rosto').select('funcionario_id, foto_url').eq('bar_id', user.bar_id),
@@ -139,7 +143,8 @@ export async function GET(request: NextRequest) {
     cadeiras,
     sem_cadeira: semCadeira,
     pessoas,
-    cargos: cargosRes.data || [],
+    // só os ativos viram opção de escolha; o mapa de nomes acima usa todos
+    cargos: (cargosRes.data || []).filter((c: any) => c.ativo !== false),
     areas: areasRes.data || [],
   });
 }

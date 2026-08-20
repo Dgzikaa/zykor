@@ -183,16 +183,24 @@ export function FuncionarioDialog({ open, onClose, onSalvo, cargos, areas, funci
               </div>
               {/* Contratando: cargo e área são da CADEIRA e não se escolhem aqui — o servidor grava
                   os da cadeira de qualquer jeito, então um select editável só mentiria. */}
-              {contratando ? (
+              {/* Quem OCUPA CADEIRA tem cargo e área da cadeira — e o servidor ignora o que vier
+                  diferente. Editável aqui só mentiria (é o mesmo motivo já escrito no caso da
+                  contratação): trocar de cargo de verdade é mover a pessoa de cadeira. */}
+              {contratando || funcionario?.em_cadeira ? (
                 <div className="sm:col-span-2 grid grid-cols-2 gap-3 rounded-md border bg-muted/40 px-3 py-2">
                   <div>
                     <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Área (da cadeira)</div>
-                    <div className="text-sm font-medium">{cadeira!.area_nome || '—'}</div>
+                    <div className="text-sm font-medium">{(contratando ? cadeira?.area_nome : funcionario?.cadeira_area_nome) || '—'}</div>
                   </div>
                   <div>
                     <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Cargo (da cadeira)</div>
-                    <div className="text-sm font-medium">{cadeira!.cargo_nome || '—'}</div>
+                    <div className="text-sm font-medium">{(contratando ? cadeira?.cargo_nome : funcionario?.cadeira_cargo_nome) || '—'}</div>
                   </div>
+                  {!contratando && (
+                    <div className="col-span-2 text-[11px] text-muted-foreground">
+                      Vem do Organograma. Para trocar, mova a pessoa de cadeira (Transferir / Organograma).
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>

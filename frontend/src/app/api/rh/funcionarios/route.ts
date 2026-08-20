@@ -44,20 +44,33 @@ export async function GET(request: NextRequest) {
   const q = (sp.get('q') || sp.get('busca') || '').trim();
   if (q) query = query.or(`nome.ilike.%${q}%,cpf.ilike.%${q}%,email.ilike.%${q}%`);
 
-  const [{ data: funcs, error }, cargosRes, areasRes] = await Promise.all([
+  const [{ data: funcs, error }, cargosRes, areasRes, ocupRes] = await Promise.all([
     query.order('nome'),
     (supabase as any).schema('hr').from('cargos').select('id, nome').eq('bar_id', user.bar_id),
     (supabase as any).schema('hr').from('areas').select('id, nome').eq('bar_id', user.bar_id),
+    // quem OCUPA cadeira: pra tela mostrar cargo/área em leitura, já que quem manda é a cadeira
+    (supabase as any).schema('hr').from('cadeira_ocupacao')
+      .select('funcionario_id, cadeiras!inner(bar_id, ativa, cargo_id, area_id)')
+      .is('fim', null).eq('cadeiras.bar_id', user.bar_id).eq('cadeiras.ativa', true),
   ]);
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
   const cargoMap = new Map((cargosRes.data || []).map((c: any) => [c.id, c.nome]));
   const areaMap = new Map((areasRes.data || []).map((a: any) => [a.id, a.nome]));
-  const funcionarios = (funcs || []).map((f: any) => ({
-    ...f,
-    cargo_nome: f.cargo_id ? cargoMap.get(f.cargo_id) || null : null,
-    area_nome: f.area_id ? areaMap.get(f.area_id) || null : null,
-  }));
+  const emCadeira = new Map<number, any>(
+    ((ocupRes as any)?.data || []).map((o: any) => [o.funcionario_id, o.cadeiras]));
+  const funcionarios = (funcs || []).map((f: any) => {
+    const cad = emCadeira.get(f.id);
+    return {
+      ...f,
+      cargo_nome: f.cargo_id ? cargoMap.get(f.cargo_id) || null : null,
+      area_nome: f.area_id ? areaMap.get(f.area_id) || null : null,
+      // preenchido = o cargo vem da CADEIRA e não se edita no cadastro da pessoa
+      cadeira_cargo_nome: cad?.cargo_id ? cargoMap.get(cad.cargo_id) || null : null,
+      cadeira_area_nome: cad?.area_id ? areaMap.get(cad.area_id) || null : null,
+      em_cadeira: !!cad,
+    };
+  });
 
   // Alertas por funcionário (documento faltando/vencido, férias vencendo).
   const ids = funcionarios.map((f: any) => f.id);

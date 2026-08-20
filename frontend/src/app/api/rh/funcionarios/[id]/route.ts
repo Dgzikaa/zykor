@@ -97,6 +97,33 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     .select('*').eq('id', Number(id)).eq('bar_id', user.bar_id).maybeSingle();
   if (!atual) return NextResponse.json({ success: false, error: 'Funcionário não encontrado' }, { status: 404 });
 
+  /**
+   * QUEM OCUPA CADEIRA NÃO TROCA DE CARGO POR AQUI.
+   *
+   * O cargo e a área de quem está no organograma são da CADEIRA — mudar só no cadastro da
+   * pessoa fazia os dois divergirem em silêncio, e é a cadeira que manda na escala (via
+   * hr.cargos.funcao_escala_id), no organograma e no custo. O formulário já tratava isso na
+   * CONTRATAÇÃO ("um select editável só mentiria"); faltava na edição.
+   *
+   * Trocar de cargo de verdade = mover a pessoa de cadeira (Transferência / Organograma).
+   */
+  const { data: cadeiraAtual } = await (supabase as any).schema('hr').from('cadeira_ocupacao')
+    .select('cadeira_id, cadeiras!inner(cargo_id, area_id, ativa)')
+    .is('fim', null).eq('funcionario_id', Number(id))
+    .eq('cadeiras.ativa', true).maybeSingle();
+
+  let cargoIgnorado = false;
+  if (cadeiraAtual) {
+    const daCadeira = (cadeiraAtual as any).cadeiras;
+    if ((payload.cargo_id !== undefined && payload.cargo_id !== daCadeira?.cargo_id)
+      || (payload.area_id !== undefined && payload.area_id !== daCadeira?.area_id)) {
+      cargoIgnorado = true;
+    }
+    // o que vale é sempre o da cadeira
+    if (payload.cargo_id !== undefined) payload.cargo_id = daCadeira?.cargo_id ?? null;
+    if (payload.area_id !== undefined) payload.area_id = daCadeira?.area_id ?? null;
+  }
+
   const { data, error } = await (supabase as any).schema('hr').from('funcionarios')
     .update(payload).eq('id', Number(id)).eq('bar_id', user.bar_id).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -121,5 +148,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     });
   }
 
-  return NextResponse.json({ success: true, funcionario: data, data });
+  return NextResponse.json({
+    success: true, funcionario: data, data,
+    // a tela avisa em vez de deixar a pessoa achar que trocou o cargo
+    aviso: cargoIgnorado
+      ? 'Cargo e área vêm da cadeira do organograma e não foram alterados. Para trocar, mova a pessoa de cadeira.'
+      : undefined,
+  });
 }
