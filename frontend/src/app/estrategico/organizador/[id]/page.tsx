@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { api } from '@/lib/api-client';
 import { useBar } from '@/contexts/BarContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -513,20 +514,26 @@ export default function OrganizadorEditPage() {
         .some(v => (v || '').trim() !== '')),
   }), [organizador, okrs, selectedBar?.id]);
 
+  /**
+   * SALVAR PELO api-client, não por fetch cru.
+   *
+   * O `fetch` direto NÃO manda o header `x-selected-bar-id`, então o servidor caía no bar
+   * PADRÃO do usuário. Efeito real (20/08/2026, Gonza): no OVT do Deboche o GET lia
+   * `id=2&bar_id=4` e o PUT gravava com `id=2&bar_id=3` — 0 linhas, 406 do PostgREST, e a tela
+   * dizendo só "não foi possível salvar". Quem só trabalha no bar padrão nunca via o problema.
+   */
   const handleSalvar = async () => {
     if (!selectedBar) return;
     setSaving(true);
     try {
-      const response = await fetch('/api/organizador', {
-        method: isNovo ? 'POST' : 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(montarBody()),
-      });
-      if (!response.ok) throw new Error('Erro ao salvar');
+      const corpo = montarBody();
+      if (isNovo) await api.post('/api/organizador', corpo);
+      else await api.put('/api/organizador', corpo);
       toast({ title: 'Sucesso!', description: isNovo ? 'Organizador criado' : 'Alterações salvas' });
       router.push('/estrategico/organizador');
-    } catch (error) {
-      toast({ title: 'Erro', description: 'Não foi possível salvar', variant: 'destructive' });
+    } catch (error: any) {
+      // a mensagem do servidor entra no toast: "não foi possível salvar" sozinho não diz nada
+      toast({ title: 'Erro', description: error?.message || 'Não foi possível salvar', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -562,13 +569,10 @@ export default function OrganizadorEditPage() {
       salvandoAuto.current = true;
       setAutoStatus('salvando');
       try {
-        const r = await fetch('/api/organizador', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(montarBody()),
-        });
-        if (r.ok) ultimoSalvo.current = snapshot;
-        setAutoStatus(r.ok ? 'salvo' : 'erro');
+        // api-client também aqui: o autosave sofria do mesmo bar errado do Salvar
+        await api.put('/api/organizador', montarBody());
+        ultimoSalvo.current = snapshot;
+        setAutoStatus('salvo');
       } catch {
         setAutoStatus('erro');
       } finally {

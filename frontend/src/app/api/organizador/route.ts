@@ -202,17 +202,26 @@ export async function PUT(request: NextRequest) {
     // O período (ano/semestre) é editável na tela, então vai junto no update.
     // bar_id continua imutável — e o filtro por bar_id do USUÁRIO é o que impede
     // salvar por cima do OVT de outro bar mandando o id na mão.
+    // maybeSingle e NÃO single: com `single`, 0 linhas viram erro do PostgREST (406) que caía no
+    // catch genérico e devolvia "Erro ao atualizar organizador" — foi assim que um PUT batendo no
+    // bar errado passou por "não salva" sem ninguém saber o motivo (20/08/2026).
     const { data: organizador, error } = await supabase
       .from('organizador_visao')
       .update({ ...dados, updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('bar_id', user.bar_id)
       .select()
-      .single();
+      .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      console.error('PUT organizador — update falhou:', error);
+      return NextResponse.json({ error: `Não foi possível salvar: ${error.message}` }, { status: 500 });
+    }
     if (!organizador) {
-      return NextResponse.json({ error: 'Organizador não encontrado neste bar' }, { status: 404 });
+      return NextResponse.json(
+        { error: `Este OVT (#${id}) não é do bar selecionado (bar ${user.bar_id}). Troque de bar e tente de novo.` },
+        { status: 404 },
+      );
     }
 
     // Atualizar OKRs se fornecidos.
