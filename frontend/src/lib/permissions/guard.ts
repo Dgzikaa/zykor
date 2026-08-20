@@ -88,6 +88,14 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   { prefix: '/api/operacional/estoque-cadastro', paths: ['/operacional/estoque-historico'] },
   { prefix: '/api/operacional/estoque-historico', paths: ['/operacional/estoque-historico'] },
   { prefix: '/api/operacional/freelas', paths: ['/operacional/freelas'] },
+  // --- Operação ---
+  // Estavam FORA do mapa (fail-open): qualquer usuário autenticado escrevia na escala. Entrou
+  // junto com a visão Dia (/api/operacao/escala/dia), que grava check-in e, no caso de falta ou
+  // atestado, cria OCORRÊNCIA no dossiê da pessoa — isso não pode ficar sem dono.
+  // O prefixo cobre /escala, /escala/pessoa, /escala/dia e /escala/vinculo.
+  { prefix: '/api/operacao/escala', paths: ['/operacao/escala'] },
+  { prefix: '/api/operacao/plano', paths: ['/operacao/plano'] },
+  { prefix: '/api/operacao/parametros', paths: ['/operacao/plano'] },
   // Simulação de CMO: a tela /ferramentas/simulacao-cmo está fora do menu, mas é a mesma
   // ferramenta do CMO — o dono definiu que quem tem acesso a Ferramentas simula.
   { prefix: '/api/operacional/cmo-simulacao', paths: ['/ferramentas/cmo'] },

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
+import { salvarCheckin } from '@/lib/rh/checkin';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,8 +19,6 @@ export const dynamic = 'force-dynamic';
 
 // 'atestado' = ausência JUSTIFICADA (Gonza, 19/08/2026). Não é falta: gera ocorrência de tipo
 // 'atestado' no dossiê, não de tipo 'falta'.
-const STATUS = ['ok', 'ok_atraso', 'escala_errada', 'falta', 'atestado'] as const;
-type Status = (typeof STATUS)[number];
 
 /** GET ?data=YYYY-MM-DD -> escalados do dia com sugestão do ponto e o que já foi marcado. */
 export async function GET(request: NextRequest) {
@@ -92,9 +91,9 @@ export async function GET(request: NextRequest) {
 /**
  * POST -> marca o check-in. body: { funcionario_id, data, status, observacao? }
  *
- * FALTA cria ocorrência automaticamente (pedido explícito da ata). Se o líder corrigir depois para
- * outra coisa, a ocorrência criada é removida junto — senão a falta ficaria no histórico da pessoa
- * para sempre por causa de um clique errado.
+ * A regra (FALTA e ATESTADO viram ocorrência no dossiê; trocar o status desfaz a ocorrência
+ * anterior) mora em lib/rh/checkin.ts, porque a visão Dia da Escala da Operação grava o MESMO
+ * registro em lote — duplicar a regra aqui era garantir que um dia elas divergiriam.
  */
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
@@ -103,64 +102,13 @@ export async function POST(request: NextRequest) {
   if (!user.bar_id) return NextResponse.json({ success: false, error: 'Nenhum bar selecionado' }, { status: 400 });
 
   const body = await request.json().catch(() => ({}));
-  const funcionarioId = Number(body.funcionario_id);
-  const data = String(body.data || '').slice(0, 10);
-  const status = String(body.status || '') as Status;
-
-  if (!funcionarioId) return NextResponse.json({ success: false, error: 'funcionario_id obrigatório' }, { status: 400 });
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return NextResponse.json({ success: false, error: 'data inválida' }, { status: 400 });
-  if (!STATUS.includes(status)) return NextResponse.json({ success: false, error: 'status inválido' }, { status: 400 });
-
   const supabase = await getAdminClient();
-  const hr = (t: string) => (supabase as any).schema('hr').from(t);
-
-  const { data: pessoa } = await hr('funcionarios')
-    .select('id, nome').eq('id', funcionarioId).eq('bar_id', user.bar_id).maybeSingle();
-  if (!pessoa) return NextResponse.json({ success: false, error: 'Funcionário não encontrado neste bar' }, { status: 404 });
-
-  const { data: atual } = await hr('checkin')
-    .select('id, status, ocorrencia_id').eq('funcionario_id', funcionarioId).eq('data', data).maybeSingle();
-
-  let ocorrenciaId: string | null = atual?.ocorrencia_id ?? null;
-
-  // Falta e atestado geram ocorrência no dossiê; os outros status, não.
-  const TIPO_OCORRENCIA: Partial<Record<Status, { tipo: string; descricao: string }>> = {
-    falta: { tipo: 'falta', descricao: 'Falta registrada no check-in do dia' },
-    atestado: { tipo: 'atestado', descricao: 'Atestado registrado no check-in do dia' },
-  };
-  const alvo = TIPO_OCORRENCIA[status];
-
-  // Trocou pra um status que não gera ocorrência (ou gera OUTRA): a que ESTE check-in criou sai.
-  // Sem comparar o tipo, marcar falta e depois corrigir pra atestado deixava a FALTA no histórico.
-  if (atual?.ocorrencia_id && (!alvo || atual.status !== status)) {
-    await hr('funcionario_ocorrencias').delete().eq('id', atual.ocorrencia_id);
-    ocorrenciaId = null;
-  }
-
-  if (alvo && !ocorrenciaId) {
-    const { data: oc } = await hr('funcionario_ocorrencias').insert({
-      funcionario_id: funcionarioId,
-      bar_id: user.bar_id,
-      tipo: alvo.tipo,
-      data_inicio: data,
-      descricao: body.observacao || alvo.descricao,
-      colaborador_nome: pessoa.nome,
-      aplicado_por: user.email || 'app',
-    }).select('id').single();
-    ocorrenciaId = oc?.id ?? null;
-  }
-
-  const { data: reg, error } = await hr('checkin').upsert({
-    bar_id: user.bar_id,
-    funcionario_id: funcionarioId,
-    data,
-    status,
-    observacao: body.observacao || null,
-    ocorrencia_id: ocorrenciaId,
-    registrado_por: user.email || 'app',
-    atualizado_em: new Date().toISOString(),
-  }, { onConflict: 'funcionario_id,data' }).select().single();
-
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, checkin: reg });
+  const r = await salvarCheckin(supabase, user, {
+    funcionario_id: Number(body.funcionario_id),
+    data: String(body.data || ''),
+    status: String(body.status || ''),
+    observacao: body.observacao ?? null,
+  });
+  if (!r.ok) return NextResponse.json({ success: false, error: r.erro }, { status: r.status });
+  return NextResponse.json({ success: true, checkin: r.checkin });
 }

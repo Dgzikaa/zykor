@@ -11,6 +11,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { VinculoRHDialog } from './VinculoRHDialog';
+import { DiaCheckin } from './DiaCheckin';
 import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Plus, X, Link2, Link2Off } from 'lucide-react';
 
 type Funcao = { id: string; codigo: string; nome: string; entra_no_custo: boolean; ordem: number };
@@ -290,6 +291,10 @@ export default function EscalaPage() {
   /** Célula com o painel aberto — um por vez na página inteira. */
   const [editando, setEditando] = useState<{ pessoa: Pessoa; data: string; rect: DOMRect } | null>(null);
 
+  /** Semana = a grade de planejamento. Dia = quem está escalado hoje + o check do líder
+      (era a aba Check-ins do RH; veio pra cá porque a operação já vive nesta tela). */
+  const [aba, setAba] = useState<'semana' | 'dia'>('semana');
+
   const [vinculoAberto, setVinculoAberto] = useState(false);
   /** pessoa que o dialog de vinculo deve destacar quando abre pelo aviso da linha */
   const [vinculoFoco, setVinculoFoco] = useState<string | null>(null);
@@ -344,6 +349,16 @@ export default function EscalaPage() {
 
   return (
     <PageShell width="wide">
+      <div className="flex gap-1 rounded-lg border border-[hsl(var(--border))] p-1 w-fit">
+        {(['semana', 'dia'] as const).map(t => (
+          <button key={t} onClick={() => setAba(t)}
+            className={`px-3 h-8 rounded-md text-sm font-medium ${aba === t ? 'bg-blue-600 text-white' : 'text-muted-foreground hover:bg-muted'}`}>
+            {t === 'semana' ? 'Semana' : 'Dia · check-in'}
+          </button>
+        ))}
+      </div>
+
+      {aba === 'dia' ? <DiaCheckin soLeitura={soLeitura} /> : (<>
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setSegunda(s => somaDias(s, -7))}><ChevronLeft className="w-4 h-4" /></Button>
@@ -521,6 +536,7 @@ export default function EscalaPage() {
           </table>
         </CardContent></Card>
       )}
+      </>)}
 
       <VinculoRHDialog open={vinculoAberto} onOpenChange={setVinculoAberto} focarChave={vinculoFoco}
         soLeitura={soLeitura} onSalvo={async () => { await mutate(); }} />
