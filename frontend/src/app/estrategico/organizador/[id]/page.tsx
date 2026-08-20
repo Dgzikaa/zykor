@@ -1081,7 +1081,7 @@ export default function OrganizadorEditPage() {
                             value={value}
                             formato={(item as any).isCurrency ? 'moeda' : (item as any).isNumber ? 'numero' : 'texto'}
                             onChange={(v) => updateOrganizador(item.field as keyof OrganizadorData, v)}
-                            className={`${(item as any).isCurrency ? 'w-32 text-right' : 'w-20 text-center'} h-8 text-sm font-bold bg-gray-50 dark:bg-gray-700`}
+                            className={`${(item as any).isCurrency ? 'w-40 px-2 text-right tabular-nums' : 'w-20 text-center'} h-8 text-sm font-bold bg-gray-50 dark:bg-gray-700`}
                             placeholder={(item as any).isCurrency ? 'R$ 0,00' : '0'}
                           />
                           <span className="text-xs font-bold text-gray-600 dark:text-gray-400 w-4 text-left">{item.suffix || ''}</span>
@@ -1179,7 +1179,7 @@ export default function OrganizadorEditPage() {
                               value={value}
                               formato={(item as any).isCurrency ? 'moeda' : (item as any).isNumber ? 'numero' : 'texto'}
                               onChange={(v) => updateOrganizador(item.field as keyof OrganizadorData, v)}
-                              className={`${(item as any).isCurrency ? 'w-32' : 'w-20'} h-8 text-right text-xs font-semibold bg-gray-50 dark:bg-gray-700`}
+                              className={`${(item as any).isCurrency ? 'w-40 px-2 tabular-nums' : 'w-20'} h-8 text-right text-xs font-semibold bg-gray-50 dark:bg-gray-700`}
                               placeholder={(item as any).isCurrency ? 'R$ 0,00' : '0'}
                             />
                             <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400 w-3 text-left">{item.suffix || ''}</span>
