@@ -12,7 +12,8 @@ import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { VinculoRHDialog } from './VinculoRHDialog';
 import { DiaCheckin } from './DiaCheckin';
-import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Plus, X, Link2, Link2Off, Users, Bookmark } from 'lucide-react';
+import { PadraoPessoaDialog } from './PadraoPessoaDialog';
+import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Plus, X, Link2, Link2Off, Users, Bookmark, Pencil } from 'lucide-react';
 
 type Funcao = { id: string; codigo: string; nome: string; entra_no_custo: boolean; ordem: number };
 type Celula = { id: string; entra: string | null; sai: string | null; horas: number | null; marcador: string | null; turno: string };
@@ -81,6 +82,29 @@ const rotuloCurto = (dataISO: string) => {
   const dow = new Date(Date.UTC(a, m - 1, d)).getUTCDay();
   return `${DIA_CURTO[dow]} ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
 };
+
+/**
+ * Texto digitado -> o que vai pro banco. Um lugar só, porque a mesma gramática ("15:00-01:00"
+ * ou um marcador) vale pra célula da semana E pra escala padrão da pessoa — se divergirem,
+ * o mesmo texto passa a significar coisas diferentes em duas telas da mesma tela.
+ */
+export function parseTextoEscala(txt: string): { entra: string | null; sai: string | null; marcador: string | null; horas: number | null } {
+  const limpo = (txt || '').trim();
+  if (!limpo) return { entra: null, sai: null, marcador: null, horas: null };
+  const m = /^(\d{1,2}):?(\d{2})\s*[-–a]\s*(\d{1,2}):?(\d{2})$/.exec(limpo);
+  if (m) {
+    let dur = (Number(m[3]) * 60 + Number(m[4])) - (Number(m[1]) * 60 + Number(m[2]));
+    if (dur < 0) dur += 24 * 60; // virou o dia
+    return {
+      entra: `${m[1].padStart(2, '0')}:${m[2]}`,
+      sai: `${m[3].padStart(2, '0')}:${m[4]}`,
+      marcador: null,
+      horas: Math.round((dur / 60) * 100) / 100,
+    };
+  }
+  const up = limpo.toUpperCase();
+  return { entra: null, sai: null, marcador: MARCADORES.find(x => up.startsWith(x.slice(0, 4))) || up, horas: null };
+}
 
 /** Texto que a célula mostra: marcador, horário, ou vazio. */
 function textoDaCelula(cel: Celula | undefined): string {
@@ -261,26 +285,13 @@ export default function EscalaPage() {
       if (!limpo) {
         await api.patch('/api/operacao/escala', { data: dataISO, funcao_id: p.funcao_id, slot: p.slot, apagar: true });
       } else {
-        const m = /^(\d{1,2}):?(\d{2})\s*[-–a]\s*(\d{1,2}):?(\d{2})$/.exec(limpo);
-        if (m) {
-          const entra = `${m[1].padStart(2, '0')}:${m[2]}`;
-          const sai = `${m[3].padStart(2, '0')}:${m[4]}`;
-          // horas líquidas: a operação desconta 1h ou 2h de intervalo conforme o turno, e isso
-          // varia caso a caso na planilha — aqui grava a duração bruta e deixa o ajuste manual.
-          let dur = (Number(m[3]) * 60 + Number(m[4])) - (Number(m[1]) * 60 + Number(m[2]));
-          if (dur < 0) dur += 24 * 60; // virou o dia
-          await api.patch('/api/operacao/escala', {
-            data: dataISO, funcao_id: p.funcao_id, slot: p.slot, pessoa_nome: p.nome,
-            entra, sai, horas: Math.round((dur / 60) * 100) / 100,
-          });
-        } else {
-          const up = limpo.toUpperCase();
-          const marcador = MARCADORES.find(x => up.startsWith(x.slice(0, 4))) || up;
-          await api.patch('/api/operacao/escala', {
-            data: dataISO, funcao_id: p.funcao_id, slot: p.slot, pessoa_nome: p.nome,
-            entra: null, sai: null, horas: null, marcador,
-          });
-        }
+        // horas: grava a duração BRUTA e deixa o desconto de intervalo (1h ou 2h, varia por
+        // turno) pro ajuste manual, como a planilha sempre fez.
+        const v = parseTextoEscala(limpo);
+        await api.patch('/api/operacao/escala', {
+          data: dataISO, funcao_id: p.funcao_id, slot: p.slot, pessoa_nome: p.nome,
+          entra: v.entra, sai: v.sai, horas: v.horas, marcador: v.marcador,
+        });
       }
       await mutate();
     } catch (e: any) {
@@ -294,6 +305,9 @@ export default function EscalaPage() {
   /** Semana = a grade de planejamento. Dia = quem está escalado hoje + o check do líder
       (era a aba Check-ins do RH; veio pra cá porque a operação já vive nesta tela). */
   const [aba, setAba] = useState<'semana' | 'dia'>('semana');
+
+  /** pessoa com o editor de escala padrão aberto (a canetinha ao lado do nome) */
+  const [padraoDe, setPadraoDe] = useState<{ funcionario_id: number; nome: string } | null>(null);
 
   const [vinculoAberto, setVinculoAberto] = useState(false);
   /** pessoa que o dialog de vinculo deve destacar quando abre pelo aviso da linha */
@@ -493,6 +507,15 @@ export default function EscalaPage() {
                                 <Link2Off className="w-3.5 h-3.5" />
                               </button>
                             )}
+                            {/* Canetinha: molde da semana normal DESTA pessoa. Só faz sentido
+                                pra quem tem vínculo — o padrão é por funcionário, não por linha. */}
+                            {!soLeitura && p.funcionario_id && (
+                              <button onClick={() => setPadraoDe({ funcionario_id: p.funcionario_id!, nome: p.nome })}
+                                title="Editar a escala padrão desta pessoa"
+                                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-blue-600 transition-opacity">
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                            )}
                             {!soLeitura && (
                               <button onClick={() => remover(p)} disabled={ocupado}
                                 title="Tirar da escala desta semana"
@@ -569,6 +592,13 @@ export default function EscalaPage() {
         </CardContent></Card>
       )}
       </>)}
+
+      <PadraoPessoaDialog
+        pessoa={padraoDe}
+        parse={parseTextoEscala}
+        onFechar={() => setPadraoDe(null)}
+        onSalvo={async () => { await mutate(); }}
+      />
 
       <VinculoRHDialog open={vinculoAberto} onOpenChange={setVinculoAberto} focarChave={vinculoFoco}
         soLeitura={soLeitura} onSalvo={async () => { await mutate(); }} />

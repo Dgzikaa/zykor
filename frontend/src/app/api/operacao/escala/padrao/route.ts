@@ -32,12 +32,51 @@ export async function POST(request: NextRequest) {
   const acao = String(body.acao || '');
   const de = String(body.de || '');
   const ate = String(body.ate || '');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(de) || !/^\d{4}-\d{2}-\d{2}$/.test(ate)) {
-    return NextResponse.json({ error: 'Informe de e ate (AAAA-MM-DD)' }, { status: 400 });
-  }
 
   const c = sb();
   const equipe = await equipeDoUsuario(c, user);
+
+  /**
+   * Padrão de UMA pessoa — o líder edita a da própria equipe. É o caso do "canetinha ao lado
+   * do nome", e não é ação de bar inteiro, então não exige enxergar a casa toda.
+   */
+  if (acao === 'salvar_pessoa') {
+    const fid = Number(body.funcionario_id);
+    if (!fid) return NextResponse.json({ error: 'funcionario_id obrigatório' }, { status: 400 });
+    if (equipe.ids && !equipe.ids.has(fid)) {
+      return NextResponse.json({ error: 'Essa pessoa não está na sua equipe.' }, { status: 403 });
+    }
+    const dias = Array.isArray(body.dias) ? body.dias : [];
+    const ops = (c as any).schema('operations');
+
+    // dia sem nada = sem padrão: apaga a linha em vez de gravar tudo nulo, senão "sem padrão"
+    // e "padrão vazio" viram estados diferentes com o mesmo significado.
+    const paraApagar = dias.filter((d: any) => !d?.entra && !d?.marcador).map((d: any) => Number(d.dia_semana));
+    const paraGravar = dias
+      .filter((d: any) => d?.entra || d?.marcador)
+      .map((d: any) => ({
+        bar_id: user.bar_id, funcionario_id: fid, dia_semana: Number(d.dia_semana),
+        entra: d.entra || null, sai: d.sai || null, marcador: d.marcador || null,
+        atualizado_em: new Date().toISOString(),
+      }));
+
+    if (paraApagar.length) {
+      const { error } = await ops.from('escala_padrao').delete()
+        .eq('funcionario_id', fid).in('dia_semana', paraApagar);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (paraGravar.length) {
+      const { error } = await ops.from('escala_padrao')
+        .upsert(paraGravar, { onConflict: 'funcionario_id,dia_semana' });
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ success: true, gravados: paraGravar.length, apagados: paraApagar.length });
+  }
+
+  // Daqui pra baixo são as ações de BAR INTEIRO: exigem período e visão da casa toda.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(de) || !/^\d{4}-\d{2}-\d{2}$/.test(ate)) {
+    return NextResponse.json({ error: 'Informe de e ate (AAAA-MM-DD)' }, { status: 400 });
+  }
   if (equipe.ids) {
     return NextResponse.json(
       { error: 'Essa ação é da gerência: ela monta a escala do bar inteiro, não só da sua equipe.' },
@@ -59,5 +98,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, ...(data || {}) });
   }
 
-  return NextResponse.json({ error: 'ação inválida (use puxar ou salvar_padrao)' }, { status: 400 });
+  return NextResponse.json({ error: 'ação inválida (use puxar, salvar_padrao ou salvar_pessoa)' }, { status: 400 });
+}
+
+/**
+ * GET ?funcionario_id= — a escala padrão de UMA pessoa (os 7 dias da semana).
+ * Líder lê a da própria equipe; quem vê a casa toda lê de qualquer um.
+ */
+export async function GET(request: NextRequest) {
+  const user = await authenticateUser(request);
+  if (!user) return authErrorResponse('Usuário não autenticado');
+  if (!user.bar_id) return NextResponse.json({ error: 'Nenhum bar selecionado' }, { status: 400 });
+
+  const fid = Number(new URL(request.url).searchParams.get('funcionario_id'));
+  if (!fid) return NextResponse.json({ error: 'funcionario_id obrigatório' }, { status: 400 });
+
+  const c = sb();
+  const equipe = await equipeDoUsuario(c, user);
+  if (equipe.ids && !equipe.ids.has(fid)) {
+    return NextResponse.json({ error: 'Essa pessoa não está na sua equipe.' }, { status: 403 });
+  }
+
+  const { data, error } = await (c as any).schema('operations')
+    .from('escala_padrao').select('dia_semana, entra, sai, marcador')
+    .eq('funcionario_id', fid).order('dia_semana');
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ dias: data || [] });
 }
