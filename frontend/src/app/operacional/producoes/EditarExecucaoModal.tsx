@@ -5,8 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Save, Loader2, User, Clock, X, Scale, Package, Pencil } from 'lucide-react';
+import { Save, Loader2, User, Clock, X, Scale, Package, Pencil, CalendarDays } from 'lucide-react';
 import { entradaPeso, fmtBRL, fmtNum, fmtPeso, fmtPct, pf } from './_shared';
+
+/** hoje no fuso de quem está olhando — trava o seletor pra não aceitar data futura */
+const hojeLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 export function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose, onSaved }: {
   exec: any; fichas: any[]; responsaveis: any[]; barId: number; onClose: () => void; onSaved: () => void;
@@ -22,6 +28,15 @@ export function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose
   const [pesoMestre, setPesoMestre] = useState('');
   const [rendReal, setRendReal] = useState<string>('');  // em unidade amigável (kg/L) — preenchido ao carregar a ficha
   const [obs, setObs] = useState<string>(exec.observacao || '');
+  /**
+   * Data da produção. O histórico agrupa por `criado_em`, que é quando SALVARAM — e o time
+   * às vezes lança hoje uma produção de ontem (Isaías, 20/08/2026). Aqui dá pra corrigir.
+   * Vem do valor salvo, no fuso de quem olha (toISOString jogaria 21h pro dia seguinte).
+   */
+  const [dataProd, setDataProd] = useState<string>(() => {
+    const d = exec.criado_em ? new Date(exec.criado_em) : new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [qtdReal, setQtdReal] = useState<Record<number, string>>({}); // "Usado" por item da ficha (editável)
   const [tentou, setTentou] = useState(false); // já clicou em salvar → destaca "Usado" vazio
 
@@ -133,6 +148,7 @@ export function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose
         peso_mestre_real: pesoMestreBase || null,
         peso_bruto: mestreFc ? ((pf(pesoBruto) || 0) * ent.fator || null) : null,
         observacao: obs.trim() || null,
+        data_producao: dataProd || null,
         insumos: linhas,
       });
       if (!r.success) throw new Error(r.error);
@@ -156,6 +172,12 @@ export function EditarExecucaoModal({ exec, fichas, responsaveis, barId, onClose
         {loading ? <div className="py-10 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div> : (
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><CalendarDays className="w-3.5 h-3.5" />Data da produção</label>
+                <Input type="date" value={dataProd} max={hojeLocal()} onChange={e => setDataProd(e.target.value)}
+                  className="h-10 text-sm" />
+                <p className="text-[10px] text-gray-400 mt-0.5">Lançou hoje mas produziu ontem? Corrija aqui.</p>
+              </div>
               <div>
                 <label className="text-xs text-gray-500 flex items-center gap-1 mb-1"><User className="w-3.5 h-3.5" />Responsável</label>
                 <select value={resp ?? ''} onChange={e => setResp(e.target.value ? Number(e.target.value) : null)}

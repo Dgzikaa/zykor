@@ -295,6 +295,40 @@ export async function POST(request: NextRequest) {
 }
 
 /**
+ * DATA DA PRODUÇÃO — o histórico mostra e agrupa por `criado_em`, que é quando SALVARAM.
+ * Isaías (20/08/2026): "a galera às vezes salva com a data de hoje mas é a data de ontem".
+ * Então corrigir a data é mexer no criado_em — e junto em inicio/fim, deslocados os MESMOS
+ * dias, pra duração e a marca de "retroativo" continuarem coerentes.
+ *
+ * Fuso fixo -03:00: o Brasil não tem mais horário de verão desde 2019. Fazer isso com
+ * `toISOString()` (UTC) jogaria uma produção salva às 21h para o dia seguinte — o mesmo erro
+ * que já mordeu a visão Dia da Escala.
+ */
+const FUSO = '-03:00';
+
+/** 'YYYY-MM-DD' do instante, no fuso de quem produziu. */
+function diaLocal(iso: string): string {
+  const d = new Date(iso);
+  return new Date(d.getTime() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/** Mesmo horário do dia, em outra data. */
+function trocarDia(iso: string, novoDia: string): string {
+  const d = new Date(iso);
+  const hhmmss = new Date(d.getTime() - 3 * 3600 * 1000).toISOString().slice(11, 19);
+  return `${novoDia}T${hhmmss}${FUSO}`;
+}
+
+/** Soma dias mantendo o horário. */
+function somarDias(iso: string, dias: number): string {
+  const d = new Date(iso);
+  return new Date(d.getTime() + dias * 86400000).toISOString();
+}
+
+const diffDias = (de: string, para: string) =>
+  Math.round((Date.parse(`${para}T12:00:00${FUSO}`) - Date.parse(`${de}T12:00:00${FUSO}`)) / 86400000);
+
+/**
  * PUT — edita uma execução existente (permissão 'editar' no módulo Controle de Produção). Recomputa custo/aderência a partir das
  * linhas enviadas (mesma lógica do POST) e substitui os insumos. Usado pelo modal de edição
  * rápida do histórico pra corrigir lançamento errado (ex.: peso mestre em unidade trocada)
@@ -318,7 +352,7 @@ export async function PUT(request: NextRequest) {
   // confirma que a execução é do bar (o antes/depois da edição fica no trigger de auditoria)
   const { data: alvo } = await (supabase as any)
     .schema('operations').from('producao_execucao')
-    .select('id').eq('id', execId).eq('bar_id', barId).maybeSingle();
+    .select('id, criado_em, inicio, fim').eq('id', execId).eq('bar_id', barId).maybeSingle();
   if (!alvo) return NextResponse.json({ success: false, error: 'Execução não encontrada neste bar' }, { status: 404 });
 
   const { linhas, custoPlanejado, custoReal, aderenciaPct } = computarExecucao(Array.isArray(body.insumos) ? body.insumos : []);
@@ -332,6 +366,26 @@ export async function PUT(request: NextRequest) {
   if ('peso_mestre_real' in body) patch.peso_mestre_real = body.peso_mestre_real != null ? Number(body.peso_mestre_real) : null;
   if ('peso_bruto' in body) patch.peso_bruto = body.peso_bruto != null ? Number(body.peso_bruto) : null;
   if ('observacao' in body) patch.observacao = body.observacao ? String(body.observacao) : null;
+  /**
+   * Correção da data. Só entra se vier uma data DIFERENTE da atual — assim salvar a edição sem
+   * mexer na data não reescreve timestamp nenhum.
+   */
+  const novoDia = typeof body.data_producao === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.data_producao)
+    ? body.data_producao : null;
+  if (novoDia && alvo.criado_em) {
+    const diaAtual = diaLocal(alvo.criado_em);
+    if (novoDia !== diaAtual) {
+      const dias = diffDias(diaAtual, novoDia);
+      // trava de sanidade: data no futuro é erro de digitação, não correção
+      if (novoDia > diaLocal(new Date().toISOString())) {
+        return NextResponse.json({ success: false, error: 'A data da produção não pode ser no futuro.' }, { status: 400 });
+      }
+      patch.criado_em = trocarDia(alvo.criado_em, novoDia);
+      if (alvo.inicio) patch.inicio = somarDias(alvo.inicio, dias);
+      if (alvo.fim) patch.fim = somarDias(alvo.fim, dias);
+    }
+  }
+
   patch.custo_planejado = round(custoPlanejado, 4);
   patch.custo_real = round(custoReal, 4);
   patch.aderencia_pct = aderenciaPct;
