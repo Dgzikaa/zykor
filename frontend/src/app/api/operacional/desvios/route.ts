@@ -2,28 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
+// A regra de área virou lib: a tela de Análises soma pelas MESMAS palavras (20/08/2026).
+import { areaDe } from '@/lib/operacional/desvios-area';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 const sb = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-
-const DRINK_NAOALC = new Set(['i0298', 'i0085', 'i0328', 'i0191', 'i0563']);
-function areaDe(categoria: string | null, cod: string | null): string {
-  const c = (categoria || '').toUpperCase();
-  if (cod && DRINK_NAOALC.has((cod || '').toLowerCase())) return 'Drinks';
-  if (/\(F\)/.test(c)) return 'Alimentação';
-  if (/\(C\)/.test(c) || c.includes('PÃES') || c.includes('PAES') || c.includes('FEIJOADA')) return 'Comidas';
-  if (/\(S\)/.test(c) || c.includes('MERCADO (S)')) return 'Salão';
-  // 'DESTILADO' (sem S) casa singular + plural + 'BAR - DESTILADO' (Deboche usa singular)
-  if (/\(B\)/.test(c) || ['DESTILADO', 'IMPÉRIO', 'IMPERIO', 'POLPAS', 'PRÉ-BATCH', 'PRE-BATCH', 'OUTROS'].some((k) => c.includes(k))) return 'Drinks';
-  if (['ARTESANAL', 'LATA', 'LONG NECK', 'RETORNÁVEIS', 'RETORNAVEIS', 'VINHOS'].some((k) => c.includes(k))) return 'Salão';
-  if (c.includes('ALCÓOLICOS') || c.includes('ALCOOLICOS')) return 'Salão';
-  // fornecedor de bebida cadastrado como categoria (ex.: AMBEV/HEINEKEN) → Salão, não Comidas
-  if (['AMBEV', 'HEINEKEN', 'KIRIN', 'CERVEJ', 'CHOPP'].some((k) => c.includes(k))) return 'Salão';
-  // categoria prefixada 'BAR - …' (armazém/hortifruti/mercado do bar) é insumo de drink, não comida
-  if (c.startsWith('BAR')) return 'Drinks';
-  return 'Comidas';
-}
 
 const fmtRS = (v: number) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 

@@ -14,7 +14,8 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useBar } from '@/contexts/BarContext';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick, Pencil, Check, X, RefreshCw, Filter, Eye, EyeOff, Download } from 'lucide-react';
+import { Scale, Loader2, Search, CalendarDays, AlertTriangle, TrendingUp, TrendingDown, Boxes, ChefHat, Drumstick, Pencil, Check, X, RefreshCw, Filter, Eye, EyeOff, Download, LineChart } from 'lucide-react';
+import { AbaAnalises } from './AbaAnalises';
 
 // célula com lápis (padrão Orçamentação): mostra valor + lápis no hover; clica → input com ✓/✕; salva e recalcula.
 // kg/L têm sub-unidade prática (g/ml). O desperdício quase sempre é pequeno (ex.: 32 g),
@@ -651,6 +652,8 @@ export default function DesviosPage() {
             <TabsTrigger value="insumos"><Boxes className="w-4 h-4 mr-1.5" />Insumos</TabsTrigger>
             <TabsTrigger value="producoes"><ChefHat className="w-4 h-4 mr-1.5" />Produções</TabsTrigger>
             <TabsTrigger value="proteinas"><Drumstick className="w-4 h-4 mr-1.5" />Proteínas</TabsTrigger>
+            {/* Análises: a evolução no tempo. As três abas acima são o retrato de UMA janela. */}
+            <TabsTrigger value="analises"><LineChart className="w-4 h-4 mr-1.5" />Análises</TabsTrigger>
           </TabsList>
 
           {/* Busca + ordem da lista */}
@@ -874,6 +877,10 @@ export default function DesviosPage() {
                 </tbody>
               </table>
             </div></CardContent></Card>
+          </TabsContent>
+
+          <TabsContent value="analises" className="mt-0">
+            <AbaAnalises />
           </TabsContent>
         </Tabs>
     </PageShell>
