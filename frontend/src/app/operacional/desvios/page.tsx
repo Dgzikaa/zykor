@@ -579,11 +579,12 @@ export default function DesviosPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button onClick={exportarCSV} disabled={!rowsAtivas.length}
+            {/* Em Análises não há "aba atual em CSV" pra exportar — a tela é gráfico e ranking. */}
+            {aba !== 'analises' && <button onClick={exportarCSV} disabled={!rowsAtivas.length}
               title="Baixa a aba atual em CSV (Excel), com os filtros que estão aplicados na tela"
               className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50">
               <Download className="w-4 h-4" />Exportar CSV
-            </button>
+            </button>}
             <button onClick={sincronizarEstoque} disabled={sincronizando || !barId}
               title="Puxa a contagem da planilha (últimos 14 dias) e recarrega os desvios"
               className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50">
@@ -592,7 +593,10 @@ export default function DesviosPage() {
           </div>
         </div>
 
-        {/* Tipo + Período */}
+        {/* Tipo + Período — some em Análises, que tem os PRÓPRIOS recortes (semana/mês + intervalo).
+            Deixar os dois na tela fazia parecer que o seletor de cima mandava no gráfico, e não
+            manda: o de cima escolhe UMA janela, o de lá escolhe uma série (Rodrigo, 20/08/2026). */}
+        {aba !== 'analises' && (
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex gap-1">
             {TIPOS.map(t => (
@@ -640,7 +644,8 @@ export default function DesviosPage() {
             </>
           )}
         </div>
-        {andamento && (
+        )}
+        {aba !== 'analises' && andamento && (
           <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/15 px-3 py-2 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
             <span>Prévia da <b>semana em andamento</b> ({ddmm(andamentoWin?.ini || ini || '')} → {ddmm(andamentoWin?.fim || fim || '')}): considera só itens de <b>Curva A</b> (contados todo dia). O fechamento completo entra na contagem de segunda-feira.</span>
@@ -656,7 +661,9 @@ export default function DesviosPage() {
             <TabsTrigger value="analises"><LineChart className="w-4 h-4 mr-1.5" />Análises</TabsTrigger>
           </TabsList>
 
-          {/* Busca + ordem da lista */}
+          {/* Busca, "só perdas/só sobras", ordem e chips filtram LINHA DE LISTA. Em Análises não
+              existe lista pra filtrar — ficavam boiando na tela, sem efeito nenhum. */}
+          {aba !== 'analises' && (<>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -717,6 +724,7 @@ export default function DesviosPage() {
               </button>
             )}
           </div>
+          </>)}
 
           {/* ===== INSUMOS (VMarket → ContaHub, estoque âncora) ===== */}
           <TabsContent value="insumos" className="space-y-4 mt-3">
