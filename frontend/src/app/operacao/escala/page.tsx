@@ -12,7 +12,7 @@ import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api-client';
 import { VinculoRHDialog } from './VinculoRHDialog';
 import { DiaCheckin } from './DiaCheckin';
-import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Plus, X, Link2, Link2Off } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, CalendarRange, Plus, X, Link2, Link2Off, Users, Bookmark } from 'lucide-react';
 
 type Funcao = { id: string; codigo: string; nome: string; entra_no_custo: boolean; ordem: number };
 type Celula = { id: string; entra: string | null; sai: string | null; horas: number | null; marcador: string | null; turno: string };
@@ -335,6 +335,27 @@ export default function EscalaPage() {
     } finally { setOcupado(false); }
   }, [addNome, addFuncionario, addFora, de, ate, mutate, showToast]);
 
+  /**
+   * Ações de bar inteiro. Só quem enxerga a casa toda (gerência/RH/admin) — o servidor barra
+   * líder de área com 403, então o botão escondido aqui é conveniência, não a trava.
+   */
+  const acaoDeBar = useCallback(async (acao: 'puxar' | 'salvar_padrao') => {
+    setOcupado(true);
+    try {
+      const r = await api.post('/api/operacao/escala/padrao', { acao, de, ate });
+      showToast({
+        type: 'success',
+        title: acao === 'puxar' ? 'Escala puxada do organograma' : 'Semana salva como padrão',
+        message: acao === 'puxar'
+          ? `${r.pessoas_do_organograma ?? 0} pessoas · ${r.linhas_criadas ?? 0} dias criados${r.funcoes_criadas ? ` · ${r.funcoes_criadas} funções novas` : ''}`
+          : `${r.linhas_gravadas ?? 0} dias viraram molde`,
+      });
+      await mutate();
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Não deu', message: e?.message });
+    } finally { setOcupado(false); }
+  }, [de, ate, mutate, showToast]);
+
   /** Remove só do PERÍODO — apagar o histórico destruiria o planejado × realizado passado. */
   const remover = useCallback(async (p: Pessoa) => {
     if (!window.confirm(`Tirar ${p.nome} da escala desta semana (${de.slice(8)}/${de.slice(5, 7)} a ${ate.slice(8)}/${ate.slice(5, 7)})?\n\nO histórico das semanas anteriores não é afetado.`)) return;
@@ -386,6 +407,17 @@ export default function EscalaPage() {
           )}
           {/* De-para com o RH: não virou tela própria porque é manutenção que se faz olhando
               a escala. O contador mostra o que falta sem precisar abrir. */}
+          {/* Só aparece pra quem vê a casa toda: as duas ações montam a escala do bar inteiro. */}
+          {!soLeitura && !equipeDe && (<>
+            <Button variant="outline" size="sm" onClick={() => acaoDeBar('puxar')} disabled={ocupado}
+              title="Traz as pessoas do organograma pra esta semana, usando a escala padrão de cada uma. Não mexe em quem já está na escala.">
+              <Users className="w-4 h-4 mr-1.5" />Puxar do organograma
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => acaoDeBar('salvar_padrao')} disabled={ocupado}
+              title="Guarda esta semana como a escala padrão de cada pessoa — é o molde das próximas.">
+              <Bookmark className="w-4 h-4 mr-1.5" />Salvar como padrão
+            </Button>
+          </>)}
           <Button variant="outline" size="sm" onClick={() => abrirVinculo()}
             title="Ligar cada pessoa da escala ao cadastro do RH — traz gênero, dias por semana e ponto">
             <Link2 className="w-4 h-4 mr-1.5" />
