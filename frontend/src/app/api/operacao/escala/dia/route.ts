@@ -43,9 +43,48 @@ export async function GET(request: NextRequest) {
   const todas = (linhas || []) as any[];
   const lista = equipe.ids ? todas.filter((l) => equipe.ids!.has(l.funcionario_id)) : todas;
 
+  /**
+   * QUEM É O LÍDER DIRETO de cada pessoa — pra tela agrupar o dia por líder (pedido do Rodrigo,
+   * 20/08/2026: no Ordinário são 56 pessoas e a lista corrida não se lê).
+   *
+   * Sai do organograma, do mesmo jeito que o escopo de visão: a cadeira da pessoa aponta a
+   * cadeira do chefe, e o líder é quem ocupa essa cadeira. Cadeira de chefia VAGA não inventa
+   * líder — a pessoa cai em "Sem líder direto", que é a verdade e ainda serve de alerta.
+   */
+  const { data: ocupacoes } = await (c as any).schema('hr').from('cadeira_ocupacao')
+    .select('funcionario_id, cadeira_id, cadeiras!inner(id, bar_id, ativa, cadeira_chefe_id)')
+    .is('fim', null).eq('cadeiras.bar_id', user.bar_id).eq('cadeiras.ativa', true);
+
+  const ocupanteDaCadeira = new Map<string, number>();
+  const chefeDaPessoa = new Map<number, string | null>();
+  for (const o of ((ocupacoes || []) as any[])) {
+    ocupanteDaCadeira.set(String(o.cadeira_id), o.funcionario_id);
+    chefeDaPessoa.set(o.funcionario_id, o.cadeiras?.cadeira_chefe_id ?? null);
+  }
+
+  const idsLideres = new Set<number>();
+  for (const [, cadeiraChefe] of chefeDaPessoa) {
+    const id = cadeiraChefe ? ocupanteDaCadeira.get(String(cadeiraChefe)) : undefined;
+    if (id) idsLideres.add(id);
+  }
+  const nomeDoLider = new Map<number, string>();
+  if (idsLideres.size) {
+    const { data: nomes } = await (c as any).schema('hr').from('funcionarios')
+      .select('id, nome').in('id', [...idsLideres]);
+    for (const n of ((nomes || []) as any[])) nomeDoLider.set(n.id, n.nome);
+  }
+  const liderDe = (fid: number) => {
+    const cadeiraChefe = chefeDaPessoa.get(fid);
+    const idChefe = cadeiraChefe ? ocupanteDaCadeira.get(String(cadeiraChefe)) : undefined;
+    // o topo do organograma não tem chefe: fica no próprio grupo, não em "sem líder"
+    if (!idChefe) return { lider_id: null as number | null, lider_nome: null as string | null };
+    return { lider_id: idChefe, lider_nome: nomeDoLider.get(idChefe) ?? null };
+  };
+
   // sugestão: o que o ponto diz, traduzido para as opções que o líder tem. Quem não bate ponto
   // (PJ, liderança) não gera sugestão — some do ponto seria falta, e não é.
   const comSugestao = lista.map((l) => ({
+    ...liderDe(l.funcionario_id),
     ...l,
     sugestao: l.ponto_situacao === 'ok' ? 'ok'
       : l.ponto_situacao === 'atraso' ? 'ok_atraso'

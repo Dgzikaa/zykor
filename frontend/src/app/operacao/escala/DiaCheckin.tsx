@@ -32,6 +32,8 @@ type Linha = {
   entrada: string | null; ponto_situacao: string | null; atraso_min: number | null;
   checkin_status: string | null; fora_escala: boolean;
   sugestao: 'ok' | 'ok_atraso' | 'falta' | null;
+  /** líder direto, do organograma — é por ele que a lista do dia se separa */
+  lider_id: number | null; lider_nome: string | null;
 };
 type Elegivel = { id: number; nome: string };
 type Resposta = {
@@ -127,6 +129,29 @@ export function DiaCheckin({ soLeitura }: { soLeitura: boolean }) {
     return !q ? linhas : linhas.filter(l => semAcento(l.nome).includes(q) || semAcento(l.funcao_nome || '').includes(q));
   }, [linhas, busca]);
 
+  /**
+   * AGRUPADO POR LÍDER DIRETO — a mesma divisão que decide quem enxerga quem (Rodrigo,
+   * 20/08/2026: "tem como deixar separado por líder? na mesma separação de pra quem aparece").
+   *
+   * No Ordinário são 56 pessoas num dia: a lista corrida não se lê, e o líder tem que caçar a
+   * gente dele no meio da casa toda. Quem não tem chefe na cadeira cai em "Sem líder direto",
+   * que além de honesto serve de alerta de cadeira de chefia vaga.
+   *
+   * Grupos ordenados pelo maior primeiro; "Sem líder direto" sempre por último.
+   */
+  const grupos = useMemo(() => {
+    const mapa = new Map<string, { nome: string; itens: Linha[] }>();
+    for (const l of visiveis) {
+      const chave = l.lider_nome || '__sem__';
+      const g = mapa.get(chave) ?? { nome: l.lider_nome || 'Sem líder direto', itens: [] };
+      g.itens.push(l);
+      mapa.set(chave, g);
+    }
+    return [...mapa.entries()]
+      .sort((a, b) => (a[0] === '__sem__' ? 1 : b[0] === '__sem__' ? -1 : b[1].itens.length - a[1].itens.length))
+      .map(([chave, g]) => ({ chave, ...g }));
+  }, [visiveis]);
+
   const salvar = async () => {
     if (!pendentes.length) return;
     setSalvando(true);
@@ -207,8 +232,24 @@ export function DiaCheckin({ soLeitura }: { soLeitura: boolean }) {
           <span className="text-xs">Monte a escala na aba Semana — ou adicione quem veio marcando &ldquo;por fora da escala&rdquo;.</span>
         </div>
       ) : (
-        <div className="rounded-lg border border-[hsl(var(--border))] divide-y divide-[hsl(var(--border))]">
-          {visiveis.map(l => {
+        <div className="space-y-3">
+        {grupos.map(grupo => {
+          const faltamNoGrupo = grupo.itens.filter(l => !statusDe(l)).length;
+          return (
+          <div key={grupo.chave} className="rounded-lg border border-[hsl(var(--border))] overflow-hidden">
+            {/* Cabeçalho do líder: nome + quantos ainda faltam marcar naquele time. É o número
+                que o líder procura — "acabei o meu?" */}
+            <div className="flex items-center justify-between gap-2 px-3 py-2 bg-[hsl(var(--muted))]">
+              <span className="text-[11px] font-semibold uppercase tracking-wide truncate">{grupo.nome}</span>
+              <span className="text-[11px] text-muted-foreground shrink-0">
+                {grupo.itens.length} pessoa{grupo.itens.length === 1 ? '' : 's'}
+                {faltamNoGrupo > 0
+                  ? <> · <b className="text-amber-600 dark:text-amber-400">{faltamNoGrupo} a marcar</b></>
+                  : <> · <b className="text-emerald-600 dark:text-emerald-400">tudo marcado</b></>}
+              </span>
+            </div>
+            <div className="divide-y divide-[hsl(var(--border))]">
+          {grupo.itens.map(l => {
             const st = statusDe(l);
             const mudou = st && st !== l.checkin_status;
             return (
@@ -257,8 +298,12 @@ export function DiaCheckin({ soLeitura }: { soLeitura: boolean }) {
               </div>
             );
           })}
+            </div>
+          </div>
+          );
+        })}
           {!visiveis.length && (
-            <div className="py-8 text-center text-xs text-muted-foreground">Ninguém com esse nome.</div>
+            <div className="py-8 text-center text-xs text-muted-foreground border border-dashed rounded-lg">Ninguém com esse nome.</div>
           )}
           {/* respiro pra última pessoa da lista não nascer embaixo da barra de Salvar */}
           {!soLeitura && !!pendentes.length && <div className="h-16" aria-hidden />}

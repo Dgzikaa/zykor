@@ -186,11 +186,15 @@ export default function PesquisaPublicaPage({ params }: { params: Promise<{ toke
                 <span>0 · de jeito nenhum</span><span>10 · com certeza</span>
               </div>
             </div>
-            <div className="rounded-2xl bg-white/10 backdrop-blur p-4">
-              <label className="text-[11px] uppercase tracking-wide text-white/50">{dados.sugestao}</label>
-              <textarea rows={4} value={comentario} onChange={(e) => setComentario(e.target.value)}
+            {/* Mesma tipografia da pergunta de cima: as duas SÃO perguntas, e a segunda em
+                rótulo miúdo parecia legenda de campo (Rodrigo, 20/08/2026). */}
+            <div className="rounded-2xl bg-white/10 backdrop-blur p-4 space-y-3">
+              <label htmlFor="sugestao" className="block text-white font-medium leading-snug">
+                {dados.sugestao}
+              </label>
+              <textarea id="sugestao" rows={4} value={comentario} onChange={(e) => setComentario(e.target.value)}
                 placeholder="Opcional"
-                className="mt-1 w-full rounded-lg bg-white/10 text-white px-3 py-2 text-sm border border-white/20 placeholder:text-white/40" />
+                className="w-full rounded-lg bg-white/10 text-white px-3 py-2 text-sm border border-white/20 placeholder:text-white/40" />
             </div>
           </>
         )}
