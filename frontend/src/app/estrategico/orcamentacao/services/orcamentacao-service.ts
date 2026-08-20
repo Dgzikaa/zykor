@@ -290,7 +290,7 @@ export async function getOrcamentacaoCompleta(
   const dataInicio = `${primeiro.ano}-${String(primeiro.mes).padStart(2, '0')}-01`;
   const dataFim = `${ultimo.ano}-${String(ultimo.mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
 
-  const [planilhaResult, goldResult, eventosResult, manuaisResult, consumacaoResult, planComResult] = await Promise.all([
+  const [planilhaResult, goldResult, eventosResult, manuaisResult, consumacaoResult, planComResult, deParaResult] = await Promise.all([
     supabase
       .from('orcamento_planilha')
       .select('ano, mes, categoria_nome, valor_planejado, valor_projetado, valor_realizado_manual')
@@ -325,6 +325,13 @@ export async function getOrcamentacaoCompleta(
       .select('data_evento, m1_r, faturamento_total_consolidado')
       .eq('bar_id', barId)
       .gte('data_evento', dataInicio).lte('data_evento', dataFim).eq('ativo', true),
+    // De-para categoria -> bloco/tipo. Precisa vir do MAPA, não só do gold: categoria sem
+    // lançamento nenhum no mês não existe no gold, e era assim que a linha sumia (ver
+    // `surfacePorBloco`). E é aqui que mora o `tipo_zykor`, que decide o SINAL.
+    (supabase as unknown as { schema: (s: string) => SupabaseClient }).schema('meta')
+      .from('categoria_zykor_map')
+      .select('categoria_zykor, bloco_dre, tipo_zykor, ignorar, bar_id')
+      .or(`bar_id.eq.${barId},bar_id.is.null`),
   ]);
 
   const dadosPlanilha = (planilhaResult.data || []) as OrcamentoPlanilhaRow[];
@@ -333,6 +340,23 @@ export async function getOrcamentacaoCompleta(
   const dadosManuais = ((manuaisResult as { data?: unknown }).data || []) as Array<{ valor: number | string; categoria: string | null; categoria_macro: string | null; data_competencia: string }>;
   const dadosConsumacao = ((consumacaoResult as { data?: unknown }).data || []) as Array<{ data: string; valor: number | string }>;
   const planComercial = ((planComResult as { data?: unknown }).data || []) as Array<{ data_evento: string; m1_r: number | null; faturamento_total_consolidado: number | null }>;
+  const deParaRows = ((deParaResult as { data?: unknown }).data || []) as Array<{ categoria_zykor: string | null; bloco_dre: string | null; tipo_zykor: string | null; ignorar: boolean | null; bar_id: number | null }>;
+  /**
+   * normKey(categoria_zykor) -> { nome, bloco, tipo }.
+   * Linha do bar vence a global (bar_id null) — mesma precedência do de-para em toda parte.
+   */
+  const dePara = new Map<string, { nome: string; bloco: string; tipo: 'receita' | 'despesa' }>();
+  deParaRows
+    .slice()
+    .sort((a, b) => (a.bar_id == null ? 0 : 1) - (b.bar_id == null ? 0 : 1))
+    .forEach(r => {
+      if (!r.categoria_zykor || !r.bloco_dre || r.ignorar) return;
+      dePara.set(normKey(r.categoria_zykor), {
+        nome: r.categoria_zykor,
+        bloco: r.bloco_dre,
+        tipo: r.tipo_zykor === 'despesa' ? 'despesa' : 'receita',
+      });
+    });
 
   // Consumação Artistas: soma mensal por (ano-mes).
   const consumacaoMesMap = new Map<string, number>();
@@ -489,7 +513,7 @@ export async function getOrcamentacaoCompleta(
       // Monta uma subcategoria-folha (sem filhos) a partir da definição.
       //   orcOnly -> digitado na tela (valor_realizado_manual); só na orçamentação, não vai pra DRE.
       //   demais  -> Conta Azul (gold) + ajustes da DRE Manual (receita soma; despesa subtrai).
-      const montarSub = (s: SubFixa): SubcategoriaOrcamento => {
+      const montarSub = (s: SubFixa, tipoSub?: 'receita' | 'despesa'): SubcategoriaOrcamento => {
         const nomeBar = s.nomePorBar?.[barId] ?? s.nome; // caso isolado por bar (ex: Deboche -> Administrativo Local)
         const prow = planilha(nomeBar);
         let plan = num(prow?.valor_planejado);
@@ -529,7 +553,18 @@ export async function getOrcamentacaoCompleta(
         } else {
           const goldVal = (s.gold || []).reduce((sum, g) => sum + goldCat(g), 0);
           const manualVal = manualCat(s.manualKey || nomeBar);
-          real = bloco.tipo === 'receita' ? goldVal + manualVal : goldVal - manualVal;
+          /*
+            O SINAL é do de-para, não do bloco.
+            "Não Operacionais" é um bloco de RECEITA, mas guarda linha de despesa dentro —
+            Consumação Sócios e Despesas Financeiras são gasto. Somar tudo como receita fazia
+            o consumo dos sócios ENTRAR POSITIVO e inflar o Lucro Líquido (Rodrigo, 20/08/2026).
+            `meta.categoria_zykor_map.tipo_zykor` já dizia 'despesa'; ninguém estava lendo.
+          */
+          const tipoLinha = tipoSub ?? dePara.get(normKey(nomeBar))?.tipo ?? bloco.tipo;
+          const sinal = tipoLinha === 'receita' ? 1 : -1;
+          real = bloco.tipo === 'receita'
+            ? sinal * (goldVal + manualVal)
+            : goldVal - manualVal;
           realizadoFonte = 'ca';
           goldCategorias = s.gold?.length ? nomesParaDrill(s.gold) : s.gold;
         }
@@ -540,7 +575,7 @@ export async function getOrcamentacaoCompleta(
       const subcategorias = bloco.subs.map(s => {
         // Linha-pai com filhos (ex.: CMO Fixo): soma dos filhos; UI expande pra ver o detalhe.
         if (s.filhos && s.filhos.length) {
-          const filhos = s.filhos.map(montarSub);
+          const filhos = s.filhos.map(f => montarSub(f));
           return {
             nome: s.nome,
             planejado: filhos.reduce((a, f) => a + f.planejado, 0),
@@ -565,10 +600,36 @@ export async function getOrcamentacaoCompleta(
           const arr = s.filhos?.length ? s.filhos.flatMap(f => f.gold || []) : (s.gold || []);
           arr.forEach(g => cobertas.add(normKey(g)));
         });
-        const inner = goldZykorPorBloco.get(`${ano}-${mes}-${bloco.nome}`);
-        inner?.forEach((nomeOrig, nk) => {
+
+        /*
+          CANDIDATAS A LINHA EXTRA — de DUAS fontes, não só do gold.
+
+          O bug (Rodrigo, 20/08/2026 — "Receitas Financeiras do Deboche não tá salvando"): esta
+          varredura só percorria o GOLD. Categoria sem lançamento no Conta Azul naquele mês não
+          existe no gold, então a linha simplesmente não era montada — e o valor projetado que o
+          sócio acabara de digitar sumia da tela no reload. O POST tinha gravado certo em
+          meta.orcamento_planilha; quem descartava era a leitura. Parecia "não salvou", que é o
+          pior jeito de um dado se perder: sem erro nenhum.
+
+          Agora entra também toda categoria do de-para deste bloco que TENHA valor digitado no
+          mês. Assim planejado/projetado sustentam a linha sozinhos, sem depender do realizado.
+        */
+        const candidatas = new Map<string, { nome: string; tipo?: 'receita' | 'despesa' }>();
+        goldZykorPorBloco.get(`${ano}-${mes}-${bloco.nome}`)?.forEach((nomeOrig, nk) => {
+          candidatas.set(nk, { nome: nomeOrig, tipo: dePara.get(nk)?.tipo });
+        });
+        dePara.forEach((d, nk) => {
+          if (d.bloco !== bloco.nome || candidatas.has(nk)) return;
+          const prow = planilhaMap.get(`${ano}-${mes}-${d.nome}`);
+          const temValor = num(prow?.valor_planejado) !== 0
+            || num(prow?.valor_projetado) !== 0
+            || num(prow?.valor_realizado_manual) !== 0;
+          if (temValor) candidatas.set(nk, { nome: d.nome, tipo: d.tipo });
+        });
+
+        candidatas.forEach((c, nk) => {
           if (cobertas.has(nk)) return;
-          const extra = montarSub({ nome: nomeOrig, gold: [nomeOrig] });
+          const extra = montarSub({ nome: c.nome, gold: [c.nome] }, c.tipo);
           if (extra.realizado !== 0 || extra.planejado !== 0 || extra.projecao !== 0) subcategorias.push(extra);
         });
       }
