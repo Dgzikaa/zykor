@@ -8,7 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuthenticatedUser } from '@/middleware/auth';
 import { userHasModule } from '@/lib/permissions/resolver';
 
-export type PedidoTipo = 'reembolso' | 'fornecedor' | 'avulso' | 'adiantamento' | 'freela' | 'cartao';
+export type PedidoTipo = 'reembolso' | 'fornecedor' | 'avulso' | 'adiantamento' | 'freela' | 'cartao' | 'atracao';
 
 export type PedidoStatus =
   | 'rascunho'
@@ -24,7 +24,7 @@ export type PedidoStatus =
   | 'rejeitado'
   | 'cancelado';
 
-export const TIPOS_VALIDOS: PedidoTipo[] = ['reembolso', 'fornecedor', 'avulso', 'adiantamento', 'freela', 'cartao'];
+export const TIPOS_VALIDOS: PedidoTipo[] = ['reembolso', 'fornecedor', 'avulso', 'adiantamento', 'freela', 'cartao', 'atracao'];
 
 /** Status em que o solicitante ainda pode editar/cancelar o próprio pedido. */
 export const STATUS_EDITAVEL_SOLICITANTE: PedidoStatus[] = ['rascunho', 'aguardando_aprovacao'];

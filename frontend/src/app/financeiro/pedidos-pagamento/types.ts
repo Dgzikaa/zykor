@@ -1,4 +1,4 @@
-export type PedidoTipo = 'reembolso' | 'fornecedor' | 'avulso' | 'adiantamento' | 'freela' | 'cartao';
+export type PedidoTipo = 'reembolso' | 'fornecedor' | 'avulso' | 'adiantamento' | 'freela' | 'cartao' | 'atracao';
 
 export type PedidoStatus =
   | 'rascunho'
@@ -104,6 +104,7 @@ export const TIPO_LABEL: Record<PedidoTipo, string> = {
   adiantamento: 'Adiantamento/Vale',
   freela: 'Freela',
   cartao: 'Cartão',
+  atracao: 'Cachê de atração',
 };
 
 export const STATUS_LABEL: Record<PedidoStatus, string> = {

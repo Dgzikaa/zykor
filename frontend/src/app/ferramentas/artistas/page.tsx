@@ -9,6 +9,7 @@ import { usePageTitle } from '@/contexts/PageTitleContext';
 import ArtistasTab from './ArtistasTab';
 import LabelsTab from './LabelsTab';
 import InsightsTab from './InsightsTab';
+import CachesTab from './CachesTab';
 
 export default function FerramentasArtistasPage() {
   const { selectedBar } = useBar();
@@ -34,6 +35,8 @@ export default function FerramentasArtistasPage() {
                   ? <>ROI, retorno e <b>lift</b> por artista. Cada noite conta pro <b>principal</b> dela (maior cachê) — apoio não herda o público.</>
                   : aba === 'labels'
                   ? <>Como cada <b>label</b> (noite recorrente) evolui semana a semana e quais <b>artistas</b> rendem mais em cada uma.</>
+                  : aba === 'caches'
+                  ? <>A <b>negociação</b> de cada artista vira o cachê da noite sozinha. Confirmou, o pagamento sobe pro <b>financeiro</b>.</>
                   : <>Leitura rápida de <b>cada dia da semana</b> e do <b>momentum de cada artista</b> — pra dar previsibilidade e embasar manter/renovar.</>}
               </p>
             </div>
@@ -50,10 +53,12 @@ export default function FerramentasArtistasPage() {
           <TabsList className="dark:bg-gray-800">
             <TabsTrigger value="artistas" className="dark:data-[state=active]:bg-gray-900 dark:text-gray-300 dark:data-[state=active]:text-white">Artistas</TabsTrigger>
             <TabsTrigger value="labels" className="dark:data-[state=active]:bg-gray-900 dark:text-gray-300 dark:data-[state=active]:text-white">Labels</TabsTrigger>
+            <TabsTrigger value="caches" className="dark:data-[state=active]:bg-gray-900 dark:text-gray-300 dark:data-[state=active]:text-white">Cachês</TabsTrigger>
             <TabsTrigger value="insights" className="dark:data-[state=active]:bg-gray-900 dark:text-gray-300 dark:data-[state=active]:text-white">Insights</TabsTrigger>
           </TabsList>
           <TabsContent value="artistas"><ArtistasTab barId={barId} periodo={periodo} /></TabsContent>
           <TabsContent value="labels"><LabelsTab barId={barId} periodo={periodo} /></TabsContent>
+          <TabsContent value="caches"><CachesTab barId={barId} /></TabsContent>
           <TabsContent value="insights"><InsightsTab barId={barId} periodo={periodo} /></TabsContent>
         </Tabs>
       </div>

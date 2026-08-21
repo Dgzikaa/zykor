@@ -13,13 +13,19 @@ function getBarId(request: NextRequest): number | null {
 }
 
 // GET — cadastro de artistas do bar (operations.bar_artistas), pro combobox do modal.
+// ?negociacao=1 traz junto o acordo e os dados de pagamento (tela de Cachês) — o combobox
+// continua recebendo só nome/tipo, que é o payload leve que ele usa em toda edição de evento.
 export async function GET(request: NextRequest) {
   const barId = getBarId(request);
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id é obrigatório' }, { status: 400 });
+  const comNegociacao = new URL(request.url).searchParams.get('negociacao') === '1';
+  const campos = comNegociacao
+    ? 'id, nome, tipo, tipo_acordo, cachet_combinado, percentual_sociedade, base_calculo, favorecido_nome, chave_pix, tipo_chave, cpf_cnpj'
+    : 'id, nome, tipo';
   const { data, error } = await (supabase as any)
     .schema('operations')
     .from('bar_artistas')
-    .select('id, nome, tipo')
+    .select(campos)
     .eq('bar_id', barId)
     .eq('ativo', true)
     .order('nome', { ascending: true });

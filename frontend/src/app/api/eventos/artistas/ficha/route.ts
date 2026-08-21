@@ -5,7 +5,7 @@ import { createServiceRoleClient } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
 const supabase = createServiceRoleClient();
-const CAMPOS = 'id, nome, tipo, tipo_acordo, cachet_combinado, percentual_sociedade, duracao_combinada_min, horario_padrao, contato, anotacoes';
+const CAMPOS = 'id, nome, tipo, tipo_acordo, cachet_combinado, percentual_sociedade, base_calculo, duracao_combinada_min, horario_padrao, contato, anotacoes, favorecido_nome, chave_pix, tipo_chave, cpf_cnpj, contaazul_pessoa_id';
 
 function getBarId(request: NextRequest): number | null {
   const h = request.headers.get('x-selected-bar-id');
@@ -35,7 +35,8 @@ export async function GET(request: NextRequest) {
 }
 
 // PUT — atualiza a ficha. body: { artista_id, tipo_acordo?, cachet_combinado?, percentual_sociedade?,
-//        duracao_combinada_min?, horario_padrao?, contato?, anotacoes? }
+//        base_calculo?, duracao_combinada_min?, horario_padrao?, contato?, anotacoes?,
+//        favorecido_nome?, chave_pix?, tipo_chave?, cpf_cnpj?, contaazul_pessoa_id? }
 export async function PUT(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
@@ -49,6 +50,14 @@ export async function PUT(request: NextRequest) {
   if ('tipo_acordo' in body) patch.tipo_acordo = String(body.tipo_acordo || '').trim() || null;
   if ('cachet_combinado' in body) patch.cachet_combinado = parseNum(body.cachet_combinado);
   if ('percentual_sociedade' in body) patch.percentual_sociedade = parseNum(body.percentual_sociedade);
+  // base do %: sobre o que ele incide. 'total' (real_r) | 'entrada' (couvert/bilheteria) | 'bar'
+  if ('base_calculo' in body) patch.base_calculo = String(body.base_calculo || '').trim() || null;
+  // dados de pagamento — é o que vira PIX no Inter e conta a pagar no CA quando o cachê sobe
+  if ('favorecido_nome' in body) patch.favorecido_nome = String(body.favorecido_nome || '').trim() || null;
+  if ('chave_pix' in body) patch.chave_pix = String(body.chave_pix || '').trim() || null;
+  if ('tipo_chave' in body) patch.tipo_chave = String(body.tipo_chave || '').trim() || null;
+  if ('cpf_cnpj' in body) patch.cpf_cnpj = String(body.cpf_cnpj || '').trim() || null;
+  if ('contaazul_pessoa_id' in body) patch.contaazul_pessoa_id = String(body.contaazul_pessoa_id || '').trim() || null;
   if ('duracao_combinada_min' in body) patch.duracao_combinada_min = parseDur(body.duracao_combinada_min);
   if ('horario_padrao' in body) patch.horario_padrao = parseTime(body.horario_padrao);
   if ('contato' in body) patch.contato = String(body.contato || '').trim() || null;

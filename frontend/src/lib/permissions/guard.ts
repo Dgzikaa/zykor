@@ -178,6 +178,11 @@ const ROTA_MODULOS: Array<{ prefix: string; paths: string[] }> = [
   { prefix: '/api/contahub/stockout', paths: ['/ferramentas/stockout'] },
   { prefix: '/api/grupos-classificacao', paths: ['/ferramentas/consumos-classificacao'] },
   { prefix: '/api/artistas', paths: ['/analitico/atracoes'] },
+  // COMPARTILHADAS com Ferramentas › Artistas & Labels: a aba Cachês mora lá (negociação do
+  // artista + confirmar o pagamento). Sem estas duas linhas o prefixo curto acima mandaria, e
+  // quem cuida da programação sem acesso a /analitico/atracoes tomaria 403 no próprio botão.
+  { prefix: '/api/artistas/caches', paths: ['/ferramentas/artistas', '/analitico/atracoes'] },
+  { prefix: '/api/eventos/artistas/ficha', paths: ['/ferramentas/artistas', '/analitico/atracoes'] },
   { prefix: '/api/analitico/clientes/perfil-consumo', paths: ['/ferramentas/crm'] },
   // --- Análises avançadas / IA (Ferramentas › Análises Avançadas) ---
   { prefix: '/api/agente', paths: ['/ferramentas/analises'] },
