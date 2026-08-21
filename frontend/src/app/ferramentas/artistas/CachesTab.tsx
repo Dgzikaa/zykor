@@ -233,8 +233,16 @@ export default function CachesTab({ barId }: { barId?: number }) {
                             onChange={(e) => setSel((s) => ({ ...s, [chave]: e.target.checked }))}
                             className="h-4 w-4 shrink-0 disabled:opacity-30" aria-label={`Selecionar ${a.nome}`} />
                           <span className="text-sm font-medium min-w-[140px]">{a.nome}</span>
-                          <span className="text-[11px] text-gray-500 flex-1 min-w-[180px]">
-                            {a.lancado ? (a.formula || a.negociacao) : (a.formula || a.motivo || a.negociacao)}
+                          {/* A negociação é DO ARTISTA, não da noite: numa mesma data um pode ser
+                              "8.000 ou 15%" e o outro cachê fixo. Por isso o acordo dele aparece
+                              na linha dele, antes da conta que ele gerou. */}
+                          <span className="flex-1 min-w-[200px] text-[11px] leading-tight">
+                            <span className={a.tem_negociacao
+                              ? 'inline-block rounded bg-muted px-1.5 py-0.5 text-gray-600 dark:text-gray-300'
+                              : 'italic text-gray-400'}>
+                              {a.negociacao}
+                            </span>
+                            {a.formula && <span className="block text-gray-500 mt-0.5">{a.formula}</span>}
                           </span>
 
                           {a.lancado ? (
@@ -304,7 +312,7 @@ export default function CachesTab({ barId }: { barId?: number }) {
 /* ------------------------------------------------------------------ */
 
 type Ficha = {
-  id: number; nome: string; tipo: string;
+  id: number; nome: string; tipo: string; shows?: number; ultimo?: string | null;
   tipo_acordo: TipoAcordo | null; cachet_combinado: number | null;
   percentual_sociedade: number | null; base_calculo: BaseCalculo | null;
   favorecido_nome: string | null; chave_pix: string | null;
@@ -328,15 +336,17 @@ function PainelNegociacoes({ barId, onSalvo }: { barId: number; onSalvo: () => v
   }, [showToast]);
   useEffect(() => { carregar(); }, [carregar, barId]);
 
+  const [soSemAcordo, setSoSemAcordo] = useState(false);
   const lista = useMemo(() => {
-    const arr = artistas || [];
+    let arr = artistas || [];
     const t = q.trim().toLowerCase();
-    const filtrada = t ? arr.filter((a) => a.nome.toLowerCase().includes(t)) : arr;
-    // Quem já tem acordo primeiro: a lista tem 200 nomes e o que interessa é ver e conferir
-    // os que estão configurados, não rolar até achar.
-    return [...filtrada].sort((a, b) =>
-      Number(Boolean(b.tipo_acordo)) - Number(Boolean(a.tipo_acordo)) || a.nome.localeCompare(b.nome));
-  }, [artistas, q]);
+    if (t) arr = arr.filter((a) => a.nome.toLowerCase().includes(t));
+    if (soSemAcordo) arr = arr.filter((a) => !a.tipo_acordo);
+    // A ordem vem da API (mais shows primeiro, igual à /analitico/atracoes) e fica: quem toca
+    // toda semana é com quem existe negociação pra manter. Reordenar por "já tem acordo"
+    // esconderia justamente o residente que ainda falta cadastrar.
+    return arr;
+  }, [artistas, q, soSemAcordo]);
 
   return (
     <Card>
@@ -345,12 +355,25 @@ function PainelNegociacoes({ barId, onSalvo }: { barId: number; onSalvo: () => v
           <div className="text-sm font-semibold flex items-center gap-1.5">
             <Handshake className="h-4 w-4 text-violet-500" />Negociação por artista
           </div>
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar artista…"
-            className="h-8 w-[220px]" />
+          <div className="flex items-center gap-2">
+            <label className="text-[11px] text-gray-500 inline-flex items-center gap-1 cursor-pointer">
+              <input type="checkbox" checked={soSemAcordo} onChange={(e) => setSoSemAcordo(e.target.checked)}
+                className="h-3.5 w-3.5" />sem negociação
+            </label>
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar artista…"
+              className="h-8 w-[200px]" />
+          </div>
         </div>
         <p className="text-[11px] text-gray-500">
-          &quot;Breno — 15% do fat&quot; vira <b>% do faturamento</b> 15. &quot;Doze — 8.000 ou 15% do fat&quot; vira
-          <b> fixo ou %, o que for maior</b> com 8.000 e 15.
+          Um artista, uma negociação — &quot;Breno — 15% do fat&quot; vira <b>% do faturamento</b> 15;
+          &quot;Doze — 8.000 ou 15% do fat&quot; vira <b>fixo ou %, o que for maior</b> com 8.000 e 15.
+          A lista é a de <b>quem já tocou</b> (mais shows primeiro), a mesma da Visão do artista —
+          não o cadastro cru, que tem &quot;a definir&quot;, &quot;a confirmar&quot; e combos do tagging.
+          Se o mesmo artista aparecer com dois nomes (ex.: <i>Doze</i> e <i>Doze por Oito</i>),
+          unifique antes — senão viram duas negociações pra uma banda só:{' '}
+          <a href="/analitico/atracoes/normalizar" className="text-violet-600 hover:underline">
+            normalizar artistas
+          </a>.
         </p>
 
         {artistas === null ? (
@@ -360,6 +383,9 @@ function PainelNegociacoes({ barId, onSalvo }: { barId: number; onSalvo: () => v
             {lista.map((a) => (
               <div key={a.id} className="py-1.5 flex items-center gap-2">
                 <span className="text-sm min-w-[150px] truncate">{a.nome}</span>
+                <span className="text-[10px] text-gray-400 tabular-nums w-[62px] shrink-0">
+                  {a.shows ? `${a.shows} show${a.shows === 1 ? '' : 's'}` : ''}
+                </span>
                 <span className={`text-[11px] flex-1 ${a.tipo_acordo ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400 italic'}`}>
                   {resumoNegociacao(a)}
                 </span>

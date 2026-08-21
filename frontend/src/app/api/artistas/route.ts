@@ -19,13 +19,47 @@ export async function GET(request: NextRequest) {
   const barId = getBarId(request);
   if (!barId) return NextResponse.json({ success: false, error: 'bar_id é obrigatório' }, { status: 400 });
   const comNegociacao = new URL(request.url).searchParams.get('negociacao') === '1';
-  const campos = comNegociacao
-    ? 'id, nome, tipo, tipo_acordo, cachet_combinado, percentual_sociedade, base_calculo, favorecido_nome, chave_pix, tipo_chave, cpf_cnpj'
-    : 'id, nome, tipo';
-  const { data, error } = await (supabase as any)
-    .schema('operations')
+  const ops = (supabase as any).schema('operations');
+
+  if (comNegociacao) {
+    // Aqui a lista é a de QUEM JÁ TOCOU (fn_artista_lista, a mesma da /analitico/atracoes), não o
+    // cadastro cru. O cadastro tem 202 linhas porque o tagging cria nome livre: "A CONFIRMAR",
+    // "a definir", "Afrika a cofirmar", "Benzadeus + Diggo", "Oitavas de Copa"... Isso serve pro
+    // combobox (onde você está justamente digitando um nome novo), mas numa tela de NEGOCIAÇÃO
+    // vira ruído: não se negocia cachê com "a definir".
+    const { data: tocaram, error: errL } = await ops.rpc('fn_artista_lista', {
+      p_bar: barId, p_ini: null, p_fim: null, p_dow: null,
+    });
+    if (errL) return NextResponse.json({ success: false, error: errL.message }, { status: 500 });
+
+    const lista = (tocaram || []) as any[];
+    if (!lista.length) return NextResponse.json({ success: true, artistas: [] });
+
+    const { data: fichas, error: errF } = await ops.from('bar_artistas')
+      .select('id, nome, tipo, tipo_acordo, cachet_combinado, percentual_sociedade, base_calculo, favorecido_nome, chave_pix, tipo_chave, cpf_cnpj')
+      .eq('bar_id', barId)
+      .in('id', lista.map((a) => a.artista_id));
+    if (errF) return NextResponse.json({ success: false, error: errF.message }, { status: 500 });
+    const fichaPor = new Map<number, any>(((fichas || []) as any[]).map((f) => [f.id, f]));
+
+    // A ordem da RPC (mais shows primeiro) é a ordem certa: quem toca toda semana é com quem
+    // existe negociação pra manter.
+    return NextResponse.json({
+      success: true,
+      artistas: lista.map((a) => ({
+        ...(fichaPor.get(a.artista_id) || { id: a.artista_id, nome: a.nome, tipo: a.tipo }),
+        id: a.artista_id,
+        nome: a.nome,
+        tipo: a.tipo,
+        shows: Number(a.shows) || 0,
+        ultimo: a.ultimo,
+      })),
+    });
+  }
+
+  const { data, error } = await ops
     .from('bar_artistas')
-    .select(campos)
+    .select('id, nome, tipo')
     .eq('bar_id', barId)
     .eq('ativo', true)
     .order('nome', { ascending: true });
