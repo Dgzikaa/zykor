@@ -110,17 +110,75 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   }
   // Fornecedor = TITULAR do cartão (de-para por cartao_final). Se não veio no body, resolve pelo mapa.
+  let titularConhecido: string | null = null;
   if (!pessoa_id && Number.isFinite(barId) && linha.cartao_final) {
     const { data: map } = await fin(supabase)
       .from('cartao_fornecedor_map')
       .select('contaazul_pessoa_id').eq('bar_id', barId).eq('cartao_final', linha.cartao_final).maybeSingle();
     if (map?.contaazul_pessoa_id) pessoa_id = map.contaazul_pessoa_id;
+    else {
+      /*
+        AUTO-CURA DO VÍNCULO EM OUTRO BAR.
+
+        O cartão é físico: o titular é a MESMA PESSOA em qualquer bar — só o id dela no Conta Azul
+        muda, porque cada bar tem o próprio CA. O de-para, porém, é por bar, e só era preenchido
+        quando alguém clicava em "vincular". Resultado: quem lançava uma despesa de cartão
+        escolhendo um bar onde ninguém tinha vinculado ainda batia em "vincule o titular" — foi o
+        que o financeiro pegou no Escritório Central com o cartão ••2322 (20/08/2026). Naquele dia
+        faltavam 15 vínculos: 6 no Escritório Central, 5 na Prefeitura e 4 no Primo Pobre.
+
+        Aqui, em vez de mandar o operador ir vincular à mão, resolvemos: pega o nome do titular de
+        qualquer bar que já tenha esse cartão, acha a mesma pessoa no CA do bar de destino (1º +
+        último nome, igual à propagação da tela) e GRAVA o vínculo — o próximo lançamento já acha
+        direto.
+      */
+      const { data: outro } = await fin(supabase)
+        .from('cartao_fornecedor_map')
+        .select('nome').eq('cartao_final', linha.cartao_final)
+        .not('nome', 'is', null).order('bar_id').limit(20);
+      // o nome mais COMPLETO vence: alguns vínculos antigos guardaram o nome truncado do extrato
+      const nomeTitular = ((outro as any[]) || [])
+        .map((r) => String(r.nome || ''))
+        .sort((a, b) => b.length - a.length)[0] || null;
+      titularConhecido = nomeTitular;
+
+      if (nomeTitular) {
+        const norm = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
+        const toks = norm(nomeTitular).split(/\s+/).filter(Boolean);
+        const primeiro = toks[0] || '';
+        const ultimo = toks.length > 1 ? toks[toks.length - 1] : '';
+        if (primeiro) {
+          const { data: cands } = await (supabase.schema('bronze' as any) as any)
+            .from('bronze_contaazul_pessoas')
+            .select('contaazul_id, nome').eq('bar_id', barId).eq('ativo', true)
+            .ilike('nome', `${primeiro}%`).limit(50);
+          const hit = ((cands as any[]) || [])
+            .filter((c) => !ultimo || norm(String(c.nome)).endsWith(ultimo))
+            .sort((a, b) => String(a.nome).length - String(b.nome).length)[0];
+          if (hit?.contaazul_id) {
+            pessoa_id = hit.contaazul_id;
+            await fin(supabase).from('cartao_fornecedor_map').upsert(
+              { bar_id: barId, cartao_final: linha.cartao_final, contaazul_pessoa_id: hit.contaazul_id, nome: hit.nome },
+              { onConflict: 'bar_id,cartao_final' },
+            );
+          }
+        }
+      }
+    }
   }
 
   const faltando: string[] = [];
   if (!Number.isFinite(barId)) faltando.push('bar');
   if (!categoria_id) faltando.push('categoria');
-  if (!pessoa_id) faltando.push(`fornecedor (titular) do cartão${linha.cartao_final ? ` ••${linha.cartao_final}` : ''} — vincule o titular na seção "Fornecedor por cartão"`);
+  if (!pessoa_id) {
+    // Chegou aqui = nem o mapa do bar nem a busca por nome acharam. Dizer QUEM é o titular e o que
+    // falta é o que separa "erro que se resolve em 10s" de "erro que vira mensagem no WhatsApp".
+    faltando.push(
+      titularConhecido
+        ? `fornecedor (titular) do cartão ••${linha.cartao_final}: "${titularConhecido}" não está cadastrado no Conta Azul deste bar. Cadastre-o lá (ou vincule à mão na seção "Fornecedor por cartão")`
+        : `fornecedor (titular) do cartão${linha.cartao_final ? ` ••${linha.cartao_final}` : ''} — vincule o titular na seção "Fornecedor por cartão"`,
+    );
+  }
   if (!conta_financeira_id) {
     faltando.push(
       barSemPagadora
