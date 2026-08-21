@@ -3,10 +3,14 @@
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
 import { useApiSWR } from '@/hooks/useApiSWR';
 import { api } from '@/lib/api-client';
-import { Loader2, Link2, Copy, MessageCircle, Lock, LockOpen, Plus, Users, ListChecks } from 'lucide-react';
+import {
+  Loader2, Link2, Copy, MessageCircle, Lock, LockOpen, Plus, Users, ListChecks,
+  Lightbulb, ClipboardCheck, History, Pencil,
+} from 'lucide-react';
 import { DIMENSOES, type TipoPesquisa } from '@/lib/rh/pesquisa-felicidade';
 import { BancoPerguntas } from './BancoPerguntas';
 
@@ -112,7 +116,7 @@ export function PesquisaTab({ tipo }: { tipo: TipoPesquisa }) {
         <Card className="py-14 text-center text-sm text-muted-foreground rounded-2xl">
           Nenhuma pesquisa criada ainda. O botão acima gera a primeira.
         </Card>
-      ) : rodadas.map((r) => (
+      ) : rodadas.map((r, i) => (
         <Card key={r.id} className="rounded-2xl p-4 space-y-3">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2">
@@ -234,14 +238,156 @@ export function PesquisaTab({ tipo }: { tipo: TipoPesquisa }) {
                 {r.resultado.comentarios.length} sugestão(ões)
               </summary>
               <ul className="mt-2 space-y-1.5">
-                {r.resultado.comentarios.map((c: string, i: number) => (
-                  <li key={i} className="rounded-lg bg-muted/40 px-2.5 py-1.5">{c}</li>
+                {r.resultado.comentarios.map((c: string, k: number) => (
+                  <li key={k} className="rounded-lg bg-muted/40 px-2.5 py-1.5">{c}</li>
                 ))}
               </ul>
             </details>
           )}
+
+          {/* A rodada anterior está logo abaixo na lista, mas a lista é ordenada por referência
+              desc — passar a vizinha permite mostrar o plano do mês passado JUNTO da pesquisa
+              nova, que é o momento em que ele precisa ser revisitado. */}
+          {tipo === 'marca_empregadora' && (
+            <AnaliseMarca rodada={r} anterior={rodadas[i + 1]} rotulo={t.periodo} onSalvo={mutate} />
+          )}
         </Card>
       ))}
+    </div>
+  );
+}
+
+/**
+ * A leitura da rodada de Marca Empregadora (21/08/2026, Rodrigo).
+ *
+ * A pesquisa devolve um monte de resposta aberta ("a janta", "o uniforme", "o intervalo"). O RH
+ * compila isso em 3-4 temas e senta com a liderança pra montar o plano de ação. O que faltava era
+ * o plano ficar GRAVADO na rodada — porque o valor está em revisitar: quando sai a pesquisa do mês
+ * seguinte, dá pra olhar o que foi prometido e ver se o mesmo pedido voltou.
+ *
+ * Por isso a rodada aberta mostra, no topo, o plano da rodada anterior.
+ */
+function AnaliseMarca({ rodada, anterior, rotulo, onSalvo }: {
+  rodada: any;
+  anterior?: any;
+  rotulo: (d: string) => string;
+  onSalvo: () => void | Promise<any>;
+}) {
+  const { showToast } = useToast();
+  const [editando, setEditando] = useState(false);
+  const [sug, setSug] = useState<string>(rodada.sugestoes_equipe || '');
+  const [plano, setPlano] = useState<string>(rodada.plano_acao || '');
+  const [salvando, setSalvando] = useState(false);
+
+  const temConteudo = Boolean(rodada.sugestoes_equipe || rodada.plano_acao);
+  const anteriorTem = Boolean(anterior && (anterior.sugestoes_equipe || anterior.plano_acao));
+
+  const abrirEdicao = () => {
+    setSug(rodada.sugestoes_equipe || '');
+    setPlano(rodada.plano_acao || '');
+    setEditando(true);
+  };
+
+  const salvar = async () => {
+    setSalvando(true);
+    try {
+      await api.post('/api/rh/pesquisa-felicidade/rodadas', {
+        acao: 'analise', rodada_id: rodada.id, sugestoes_equipe: sug, plano_acao: plano,
+      });
+      await onSalvo();
+      setEditando(false);
+      showToast({ type: 'success', title: 'Registrado', message: 'Vai aparecer na próxima rodada pra revisitar.' });
+    } catch (e: any) {
+      showToast({ type: 'error', title: 'Não salvou', message: e?.message });
+    } finally { setSalvando(false); }
+  };
+
+  return (
+    <div className="space-y-2 pt-1">
+      {/* Revisitar o mês passado: só na rodada em aberto, que é quando a conversa acontece. */}
+      {rodada.aberta && anteriorTem && (
+        <div className="rounded-xl border border-dashed px-3 py-2.5 space-y-1.5 bg-muted/30">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <History className="w-3.5 h-3.5" />Revisitar — {rotulo(anterior.referencia)}
+          </div>
+          {anterior.sugestoes_equipe && (
+            <div className="text-[12px]">
+              <span className="text-muted-foreground">Pediram: </span>
+              <span className="whitespace-pre-wrap">{anterior.sugestoes_equipe}</span>
+            </div>
+          )}
+          {anterior.plano_acao && (
+            <div className="text-[12px]">
+              <span className="text-muted-foreground">Combinamos: </span>
+              <span className="whitespace-pre-wrap">{anterior.plano_acao}</span>
+            </div>
+          )}
+          <div className="text-[10px] text-muted-foreground/80">
+            Rodou? O que voltar a aparecer nesta rodada é o que não foi resolvido.
+          </div>
+        </div>
+      )}
+
+      {editando ? (
+        <div className="rounded-xl border px-3 py-3 space-y-2.5">
+          <div>
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+              <Lightbulb className="w-3.5 h-3.5" />Principais sugestões da equipe
+            </label>
+            <Textarea rows={4} value={sug} onChange={(e) => setSug(e.target.value)}
+              placeholder={'O que mais apareceu nas respostas, compilado. Ex.:\n1. Local e cardápio da janta\n2. Falta de uniforme\n3. Intervalo'} />
+          </div>
+          <div>
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+              <ClipboardCheck className="w-3.5 h-3.5" />Plano de ação da liderança
+            </label>
+            <Textarea rows={4} value={plano} onChange={(e) => setPlano(e.target.value)}
+              placeholder={'O que ficou combinado com as lideranças. Ex.:\n1. Reformular o local da janta e montar cardápio novo\n2. Mandar fazer uniforme pra quem precisa'} />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={() => setEditando(false)} disabled={salvando}>Cancelar</Button>
+            <Button size="sm" onClick={salvar} disabled={salvando}>
+              {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar'}
+            </Button>
+          </div>
+        </div>
+      ) : temConteudo ? (
+        <div className="rounded-xl border px-3 py-2.5 space-y-2">
+          {rodada.sugestoes_equipe && (
+            <div>
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <Lightbulb className="w-3.5 h-3.5" />Principais sugestões da equipe
+              </div>
+              <div className="text-[13px] whitespace-pre-wrap mt-0.5">{rodada.sugestoes_equipe}</div>
+            </div>
+          )}
+          {rodada.plano_acao && (
+            <div>
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <ClipboardCheck className="w-3.5 h-3.5" />Plano de ação da liderança
+              </div>
+              <div className="text-[13px] whitespace-pre-wrap mt-0.5">{rodada.plano_acao}</div>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-2 pt-0.5">
+            <span className="text-[10px] text-muted-foreground/80">
+              {rodada.analise_por ? `Registrado por ${rodada.analise_por}` : ''}
+              {rodada.analise_em ? ` · ${new Date(rodada.analise_em).toLocaleDateString('pt-BR')}` : ''}
+            </span>
+            <Button size="sm" variant="ghost" onClick={abrirEdicao}>
+              <Pencil className="w-3.5 h-3.5 mr-1.5" />Editar
+            </Button>
+          </div>
+        </div>
+      ) : rodada.aberta ? (
+        <p className="text-[11px] text-muted-foreground">
+          Encerre a pesquisa pra registrar as principais sugestões da equipe e o plano de ação da liderança.
+        </p>
+      ) : (
+        <Button size="sm" variant="outline" onClick={abrirEdicao}>
+          <ClipboardCheck className="w-4 h-4 mr-1.5" />Registrar sugestões e plano de ação
+        </Button>
+      )}
     </div>
   );
 }

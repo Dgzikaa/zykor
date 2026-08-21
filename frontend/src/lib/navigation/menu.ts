@@ -244,7 +244,10 @@ export const MENU_TREE: MenuSection[] = [
       // (/operacional/freelas), montado pela operação e aprovado pelo financeiro.
       // /rh/freelas continua existindo, órfã do menu = admin-only pelo guard.
       { icon: 'Clock', label: 'Ponto', href: '/rh/ponto', permission: 'rh_ponto' },
-      { icon: 'Star', label: 'NPS Funcionários', href: '/operacional/nps', permission: 'rh_nps_funcionarios' },
+      // RH → NPS Funcionários saiu do menu em 21/08/2026 (Rodrigo): a aba "Pesquisa da
+      // Felicidade" daquela tela é a mesma leitura que hoje vive em RH → Pesquisas → Análises,
+      // e o NPS de cliente já tem lugar próprio. /operacional/nps continua existindo, órfã do
+      // menu = admin-only pelo guard.
     ],
   },
   {

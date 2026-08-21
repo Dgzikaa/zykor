@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
   const hr = (t: string) => (supabase as any).schema('hr').from(t);
 
   const { data: rodadas, error } = await hr('pesquisa_rodada')
-    .select('id, token, referencia, aberta, tipo, criada_em, criada_por, fechada_em')
+    .select('id, token, referencia, aberta, tipo, criada_em, criada_por, fechada_em, sugestoes_equipe, plano_acao, analise_por, analise_em')
     .eq('bar_id', user.bar_id).eq('tipo', tipo)
     .order('referencia', { ascending: false }).limit(30);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -160,7 +160,12 @@ export async function GET(request: NextRequest) {
   });
 }
 
-/** POST — cria a rodada. body: { tipo?, referencia? } | { acao: 'fechar'|'reabrir', rodada_id } */
+/**
+ * POST — cria a rodada.
+ * body: { tipo?, referencia? }
+ *     | { acao: 'fechar'|'reabrir', rodada_id }
+ *     | { acao: 'analise', rodada_id, sugestoes_equipe?, plano_acao? }
+ */
 export async function POST(request: NextRequest) {
   const user = await authenticateUser(request);
   if (!user) return authErrorResponse('Usuário não autenticado');
@@ -170,6 +175,26 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({} as any));
   const supabase = await getAdminClient();
   const hr = (t: string) => (supabase as any).schema('hr').from(t);
+
+  // A leitura da rodada: o RH compila as principais sugestões e registra o plano de ação que
+  // combinou com a liderança. Fica gravado na rodada pra ser revisitado na pesquisa seguinte
+  // ("o que pediram no mês passado, o que prometemos, rodou?").
+  if (body.acao === 'analise') {
+    const texto = (v: any) => {
+      const t = typeof v === 'string' ? v.trim() : '';
+      return t ? t.slice(0, 8000) : null;
+    };
+    const { error } = await hr('pesquisa_rodada')
+      .update({
+        sugestoes_equipe: texto(body.sugestoes_equipe),
+        plano_acao: texto(body.plano_acao),
+        analise_por: user.nome || user.email || null,
+        analise_em: new Date().toISOString(),
+      })
+      .eq('id', String(body.rodada_id)).eq('bar_id', user.bar_id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
+  }
 
   if (body.acao === 'fechar' || body.acao === 'reabrir') {
     const { error } = await hr('pesquisa_rodada')
