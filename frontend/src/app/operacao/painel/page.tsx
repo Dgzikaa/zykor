@@ -7,10 +7,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePageTitle } from '@/contexts/PageTitleContext';
 import { useApiSWR } from '@/hooks/useApiSWR';
-import { AREAS, CORES, corNota, corFelicidade, fmtTempo, type AreaOperacional } from '@/lib/operacao/painel-lider';
+import { AREAS, CORES, corNota, corFelicidade, corGoogle, fmtTempo, type AreaOperacional } from '@/lib/operacao/painel-lider';
 import {
   Smile, Timer, PackageX, Users, MessageSquareQuote, ArrowUpRight, ArrowDownRight,
-  Minus, ExternalLink, AlertTriangle,
+  Minus, ExternalLink, AlertTriangle, Star,
 } from 'lucide-react';
 
 /**
@@ -153,6 +153,30 @@ export default function PainelLiderPage() {
               />
             )}
 
+            {/* Google. Atendimento e Cozinha têm nota própria (o Google pergunta serviço e comida);
+                as outras recebem a nota geral da casa, marcada como tal. */}
+            {data.google && (
+              <CardIndicador
+                icone={<Star className="h-4 w-4 text-yellow-500" />}
+                titulo={data.google.rotulo}
+                link={data.google.link}
+                valor={data.google.nota != null ? data.google.nota.toFixed(2).replace('.', ',') : '—'}
+                sufixo={data.google.nota != null ? '★' : ''}
+                cor={CORES[corGoogle(data.google.nota)]}
+                delta={data.google.delta}
+                deltaBomSeSobe
+                rodape={<>
+                  {data.google.n} avaliaç{data.google.n === 1 ? 'ão' : 'ões'}
+                  {!data.google.da_area && <span className="text-amber-600 dark:text-amber-400"> · nota da casa, não da área</span>}
+                  {data.google.negativos > 0 && (
+                    <span className="block text-rose-600 dark:text-rose-400">
+                      {data.google.negativos} avaliação(ões) com ≤ 3★ na casa
+                    </span>
+                  )}
+                </>}
+              />
+            )}
+
             {/* Felicidade da equipe da área */}
             {data.felicidade && (
               <CardIndicador
@@ -184,7 +208,9 @@ export default function PainelLiderPage() {
         <p className="text-[11px] text-gray-400">
           Todo indicador aqui é um recorte da tela onde ele mora inteiro — se um número divergir do
           detalhe, é bug, não metodologia diferente. <b>Ambiente, música e custo-benefício</b> ficam
-          fora de propósito: são da casa, não de uma área.
+          fora de propósito: são da casa, não de uma área. No <b>Google</b>, só Atendimento e Cozinha
+          têm nota própria (o Google pergunta serviço e comida) — nas outras áreas o card mostra a
+          nota geral da casa e avisa que é geral.
         </p>
       </div>
     </ProtectedRoute>

@@ -73,6 +73,28 @@ export const STOCKOUT_DA_AREA: Partial<Record<AreaOperacional, 'bebida' | 'comid
 /** Atraso de pedido no ContaHub só existe pro bar hoje (atrasinho_bar / atrasao_bar). */
 export const TEM_ATRASO_PEDIDO: AreaOperacional[] = ['Bar'];
 
+/**
+ * Dimensão do Google que pertence a cada área. O Google JÁ coleta nota por dimensão
+ * (`rating_service` / `rating_food` / `rating_atmosphere`), então não há inferência nenhuma aqui —
+ * é a nota que o cliente deu naquele campo. Cobertura no bar 3 (90 dias): 1.989 notas de serviço e
+ * 1.899 de comida em 2.124 reviews.
+ *
+ * `ambiente` NÃO entra: é da casa, não de uma área — mesma régua do NPS. E Bar, Cumins e Fila não
+ * têm dimensão própria no Google; pra elas a tela mostra a nota geral da casa, dizendo que é geral.
+ */
+export const GOOGLE_DA_AREA: Partial<Record<AreaOperacional, { campo: 'atendimento' | 'comida'; rotulo: string }>> = {
+  Atendimento: { campo: 'atendimento', rotulo: 'Google · atendimento' },
+  Cozinha: { campo: 'comida', rotulo: 'Google · comida' },
+};
+
+/** Régua do Google (1 a 5). O padrão da casa é ~4,9, então 4,5 já é sinal amarelo. */
+export function corGoogle(nota: number | null | undefined): 'bom' | 'atencao' | 'ruim' | 'vazio' {
+  if (nota == null) return 'vazio';
+  if (nota >= 4.7) return 'bom';
+  if (nota >= 4.3) return 'atencao';
+  return 'ruim';
+}
+
 /** Régua do NPS por nota média (escala 1-5 do Falae). 3 é o meio; quem gostou dá 4 ou 5. */
 export function corNota(nota: number | null | undefined): 'bom' | 'atencao' | 'ruim' | 'vazio' {
   if (nota == null) return 'vazio';

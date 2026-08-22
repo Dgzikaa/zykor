@@ -4,7 +4,7 @@ import { authenticateUser, authErrorResponse } from '@/middleware/auth';
 import { negarPorRota } from '@/lib/permissions/guard';
 import { dimensaoDe } from '@/lib/analytics/nps-dimensoes';
 import {
-  AREAS, NPS_DA_AREA, SETOR_FELICIDADE, TEMPO_DA_AREA, TEM_ATRASO_PEDIDO,
+  AREAS, NPS_DA_AREA, SETOR_FELICIDADE, TEMPO_DA_AREA, TEM_ATRASO_PEDIDO, GOOGLE_DA_AREA,
   type AreaOperacional,
 } from '@/lib/operacao/painel-lider';
 
@@ -89,19 +89,20 @@ export async function GET(request: NextRequest) {
   const de = addDias(ate, -dias);
   const deAnt = addDias(ate, -dias * 2);
 
-  const [nps, tempo, stockout, felicidade, equipe] = await Promise.all([
+  const [nps, tempo, stockout, felicidade, equipe, google] = await Promise.all([
     blocoNps(supabase, user.bar_id, area, de, ate, deAnt),
     blocoTempo(supabase, user.bar_id, area, de, ate, deAnt),
     blocoStockout(supabase, user.bar_id, area, de),
     blocoFelicidade(supabase, user.bar_id, area),
     blocoEquipe(supabase, user.bar_id, area),
+    blocoGoogle(supabase, user.bar_id, area, de, ate, deAnt),
   ]);
 
   return NextResponse.json({
     success: true,
     area, areas: AREAS, pode_trocar: podeTrocar, sou: eu?.nome ?? null,
     periodo: { de, ate, dias },
-    nps, tempo, stockout, felicidade, equipe,
+    nps, tempo, stockout, felicidade, equipe, google,
   });
 }
 
@@ -214,6 +215,43 @@ async function blocoFelicidade(supabase: any, barId: number, area: AreaOperacion
     data: ultima.data_pesquisa,
     setor: String(ultima.setor),
     link: '/rh/pesquisas',
+  };
+}
+
+/**
+ * Avaliação do Google. Atendimento e Cozinha têm nota PRÓPRIA (o Google pergunta serviço e comida);
+ * as outras áreas não têm dimensão dela no Google, então recebem a nota GERAL da casa, marcada
+ * como tal — melhor um contexto honesto do que atribuir a nota de outra frente a alguém.
+ */
+async function blocoGoogle(supabase: any, barId: number, area: AreaOperacional, de: string, ate: string, deAnt: string) {
+  const gold = supabase.schema('gold');
+  const [{ data: atual }, { data: ant }] = await Promise.all([
+    gold.rpc('fn_google_avaliacao', { p_bar: barId, p_ini: de, p_fim: ate }),
+    gold.rpc('fn_google_avaliacao', { p_bar: barId, p_ini: deAnt, p_fim: de }),
+  ]);
+  const a = (atual || [])[0]; const b = (ant || [])[0];
+  if (!a || !Number(a.reviews)) return null;
+
+  const cfg = GOOGLE_DA_AREA[area];
+  const notaDe = (r: any) => !r ? null
+    : cfg ? (cfg.campo === 'atendimento' ? r.nota_atendimento : r.nota_comida)
+    : r.geral;
+  const nDe = (r: any) => !r ? 0
+    : cfg ? Number(cfg.campo === 'atendimento' ? r.n_atendimento : r.n_comida)
+    : Number(r.reviews);
+
+  const nota = notaDe(a) != null ? Number(notaDe(a)) : null;
+  const notaAnt = notaDe(b) != null ? Number(notaDe(b)) : null;
+  return {
+    rotulo: cfg ? cfg.rotulo : 'Google · geral da casa',
+    da_area: Boolean(cfg),
+    nota, n: nDe(a),
+    delta: nota != null && notaAnt != null ? Math.round((nota - notaAnt) * 100) / 100 : null,
+    // O que a liderança precisa ler: 3 estrelas ou menos. É da casa inteira (o Google não separa
+    // review ruim por dimensão), então a tela diz isso.
+    negativos: Number(a.negativos) || 0,
+    reviews_casa: Number(a.reviews) || 0,
+    link: '/ferramentas/google-reviews',
   };
 }
 
