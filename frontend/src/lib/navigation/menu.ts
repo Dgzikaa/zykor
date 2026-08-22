@@ -254,7 +254,7 @@ export const MENU_TREE: MenuSection[] = [
     icon: 'CalendarRange',
     label: 'Operação',
     // Sem página raiz — a seção aponta pro primeiro item, mesmo padrão de RH e Produção - CMV.
-    href: '/operacao/plano',
+    href: '/operacao/painel',
     permission: 'operacao',
     beta: true,
     // Substitui as duas planilhas que hoje são a fonte da verdade da operação do Ordinário:
@@ -265,6 +265,10 @@ export const MENU_TREE: MenuSection[] = [
     // `operacao_plano_operacional` e `operacao_escala`. Mexer nos labels muda o id e
     // derruba o grant de quem já tiver o módulo.
     subItems: [
+      // Painel do Líder (Mafê, 22/08/2026): cada liderança vê os indicadores da PRÓPRIA área,
+      // resolvida pela cadeira do organograma. Primeiro item da seção porque é a tela de abrir o
+      // dia — as outras são de planejar.
+      { icon: 'Target', label: 'Painel do Líder', href: '/operacao/painel', permission: 'operacao_painel_do_lider' },
       { icon: 'ClipboardList', label: 'Plano Operacional', href: '/operacao/plano', permission: 'operacao_plano_operacional' },
       { icon: 'CalendarRange', label: 'Escala', href: '/operacao/escala', permission: 'operacao_escala' },
       { icon: 'Scale', label: 'Planejado × Realizado', href: '/operacao/comparativo', permission: 'operacao_planejado_realizado' },
