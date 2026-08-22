@@ -29,12 +29,18 @@ export async function GET(request: NextRequest) {
       if (codigo) {
         const { data, error } = await silver.rpc('fn_consumo_producao_por_produto', { p_bar_id: barId, p_codigo: codigo, p_ini: ini, p_fim: fim });
         if (error) throw error;
-        return NextResponse.json({ success: true, breakdown: (data || []).map((p: any) => ({ produto_cod: p.produto_cod, produto_nome: p.produto_nome, qtd_venda: p.qtd_venda, por_produto: p.por_produto, qtd: p.qtd })) });
+        // direta = o que está na ficha do produto VENDIDO; o resto atravessa outro preparo.
+        // Ex.: Moscow Mule -> 30 ml diretos de xarope + 17,5 ml pela Espuma de Gengibre.
+        return NextResponse.json({ success: true, breakdown: (data || []).map((p: any) => ({
+          produto_cod: p.produto_cod, produto_nome: p.produto_nome, qtd_venda: p.qtd_venda,
+          por_produto: p.por_produto, por_produto_direta: p.por_produto_direta,
+          qtd: p.qtd, qtd_direta: p.qtd_direta,
+        })) });
       }
       const { data, error } = await silver.rpc('fn_consumo_producao_periodo', { p_bar_id: barId, p_ini: ini, p_fim: fim });
       if (error) throw error;
       // produções não têm seção no silver — classifica drink/comida pelo prefixo do código (pd = Drinks/Bar, pc = Cozinha)
-      return NextResponse.json({ success: true, rows: (data || []).map((r: any) => ({ codigo: r.producao_cod, nome: r.producao_nome, categoria: String(r.producao_cod || '').toLowerCase().startsWith('pd') ? 'Drink' : 'Comida', qtd: r.qtd_base, unidade: r.unidade, dias: r.dias })) });
+      return NextResponse.json({ success: true, rows: (data || []).map((r: any) => ({ codigo: r.producao_cod, nome: r.producao_nome, categoria: String(r.producao_cod || '').toLowerCase().startsWith('pd') ? 'Drink' : 'Comida', qtd: r.qtd_base, qtd_direta: r.qtd_base_direta, unidade: r.unidade, dias: r.dias })) });
     }
 
     if (aba === 'geral') {

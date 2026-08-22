@@ -157,11 +157,17 @@ export default function SaidasPage() {
 
   const exportCsv = () => {
     if (!view.length) return;
+    // CSV: na aba Produções o recorte vai junto, senão quem exporta perde a informação nova.
     const head = aba === 'geral'
       ? ['Tipo', 'Codigo', 'Nome', 'Categoria', 'Saida', 'Unidade', 'Faturamento', 'Dias']
+      : aba === 'producao'
+      ? ['Codigo', 'Nome', 'Categoria', 'Saida', 'Saida direta', 'Saida indireta', 'Unidade', 'Dias']
       : ['Codigo', 'Nome', 'Categoria', 'Saida', 'Unidade', 'Dias'];
     const linhas = view.map((i: any) => (aba === 'geral'
       ? [i.tipo, i.codigo, i.nome || '', i.categoria || '', i.qtd ?? '', i.unidade ?? '', i.valor ?? '', i.dias ?? '']
+      : aba === 'producao'
+      ? [i.codigo, i.nome || '', i.categoria || '', i.qtd ?? '', i.qtd_direta ?? '',
+         (Number(i.qtd || 0) - Number(i.qtd_direta || 0)).toFixed(2), i.unidade ?? '', i.dias ?? '']
       : [i.codigo, i.nome || '', i.categoria || '', i.qtd ?? '', i.unidade ?? '', i.dias ?? ''])
       .map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';'));
     const csv = '﻿' + [head.join(';'), ...linhas].join('\n');
@@ -295,6 +301,9 @@ export default function SaidasPage() {
                   <th className="text-left font-medium px-3 py-2">{aba === 'insumo' ? 'Insumo' : aba === 'producao' ? 'Produção' : 'Item'}</th>
                   <th className="text-left font-medium px-3 py-2">Categoria</th>
                   <th className="text-right font-medium px-3 py-2">Saída</th>
+                  {/* Gonza (22/08): na aba de Produções, separar saída direta da indireta. */}
+                  {aba === 'producao' && <th className="text-right font-medium px-3 py-2" title="O que está escrito na ficha do PRODUTO VENDIDO">Direta</th>}
+                  {aba === 'producao' && <th className="text-right font-medium px-3 py-2" title="O que a venda puxa ATRAVESSANDO outro preparo (espuma, refrigerante, pré-batch, recheio)">Indireta</th>}
                   {aba === 'geral' && <th className="text-right font-medium px-3 py-2">Faturamento</th>}
                   <th className="text-right font-medium px-3 py-2">Dias</th>
                 </tr></thead>
@@ -317,6 +326,18 @@ export default function SaidasPage() {
                             </div>
                           )}
                         </td>
+                        {aba === 'producao' && (
+                          <td className="px-3 py-2 text-right tabular-nums text-gray-600 dark:text-gray-300">
+                            {Number(i.qtd_direta) > 0 ? fmtQtdUnidade(i.qtd_direta, i.unidade) : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                          </td>
+                        )}
+                        {aba === 'producao' && (
+                          <td className="px-3 py-2 text-right tabular-nums text-gray-600 dark:text-gray-300">
+                            {Number(i.qtd) - Number(i.qtd_direta || 0) > 0.005
+                              ? fmtQtdUnidade(Number(i.qtd) - Number(i.qtd_direta || 0), i.unidade)
+                              : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                          </td>
+                        )}
                         {aba === 'geral' && <td className="px-3 py-2 text-right tabular-nums text-blue-600 dark:text-blue-400">{i.tipo === 'finalizacao' ? fmtBRL(i.valor) : '—'}</td>}
                         <td className="px-3 py-2 text-right tabular-nums text-gray-500">{i.dias}</td>
                       </tr>
@@ -359,7 +380,8 @@ export default function SaidasPage() {
                                   <thead className="text-gray-400"><tr>
                                     <th className="text-left font-medium py-1">Produto</th>
                                     <th className="text-right font-medium py-1 w-24">Qtd vendida</th>
-                                    {aba === 'producao' && <th className="text-right font-medium py-1 w-28">Por produto</th>}
+                                    {aba === 'producao' && <th className="text-right font-medium py-1 w-28" title="Por unidade vendida: o que vai direto na ficha do produto">Direta / un</th>}
+                                    {aba === 'producao' && <th className="text-right font-medium py-1 w-28" title="Por unidade vendida: o que chega atravessando outro preparo">Indireta / un</th>}
                                     <th className="text-right font-medium py-1 w-32">Saída</th>
                                   </tr></thead>
                                   <tbody>
@@ -367,7 +389,8 @@ export default function SaidasPage() {
                                       <tr key={p.produto_cod} className="border-t border-gray-100 dark:border-gray-800/60">
                                         <td className="py-1 text-gray-700 dark:text-gray-200">{p.produto_nome || p.produto_cod} <span className="text-gray-400 font-mono">· {p.produto_cod}</span></td>
                                         <td className="py-1 text-right tabular-nums">{fmtNum(p.qtd_venda)}</td>
-                                        {aba === 'producao' && <td className="py-1 text-right tabular-nums text-gray-500">{fmtQtdUnidade(p.por_produto, abertoUnidade)}</td>}
+                                        {aba === 'producao' && <td className="py-1 text-right tabular-nums text-gray-500">{Number(p.por_produto_direta) > 0 ? fmtQtdUnidade(p.por_produto_direta, abertoUnidade) : '—'}</td>}
+                                        {aba === 'producao' && <td className="py-1 text-right tabular-nums text-gray-500">{Number(p.por_produto) - Number(p.por_produto_direta || 0) > 0.005 ? fmtQtdUnidade(Number(p.por_produto) - Number(p.por_produto_direta || 0), abertoUnidade) : '—'}</td>}
                                         <td className="py-1 text-right tabular-nums font-medium">{fmtQtdUnidade(p.qtd, abertoUnidade)}</td>
                                       </tr>
                                     ))}

@@ -55,3 +55,28 @@ select pe.bar_id, (pe.inicio at time zone 'America/Sao_Paulo')::date dia, pb.cod
 
 `operations._desvio_antes_20260822` guarda o desvio das produções (20/07–17/08, os 2 bares) ANTES
 da mudança, pra comparar. Pode ser dropada depois que o time validar.
+
+---
+
+# Saídas → aba Produções: direta × indireta (22/08/2026)
+
+Gonza: *"aqui nas Saídas, na aba de Produções, ficaria separado uma coluna de saída direta e outra
+de indireta. Então ficaria no Moscow Mule, saída direta 30ml e indireta 17,5ml"*.
+
+- `silver.producao_por_produto` (view) ganhou **`qtd_por_produto_direta`** = o recorte de nível 0,
+  o que está escrito na ficha do produto VENDIDO.
+- `silver.fn_consumo_producao_periodo` devolve `qtd_base` + `qtd_base_direta`.
+- `silver.fn_consumo_producao_por_produto` devolve `por_produto_direta` / `qtd_direta`.
+
+Validado no Xarope de Gengibre (bar 3, 10–16/08):
+
+| produto | direta/un | indireta/un |
+|---|---:|---:|
+| Moscow Mule | 30 ml | 17,5 ml (pela Espuma) |
+| Maria Bonita | 0 | 63,64 ml (100 % pelo Refrigerante) |
+| Arlequim / Penicillin | 15 ml | 0 |
+
+**Por que a lista passou a calcular AO VIVO** em vez de ler `silver.consumo_producao_dia`: o total e
+a parte direta precisam sair da mesma passada, senão dá pra um ficar defasado do outro. Conferido
+antes de trocar — matview × ao vivo, 80 códigos, **0 divergências**, 227 ms. A matview continua
+existindo para quem já a consome.
