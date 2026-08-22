@@ -10,7 +10,7 @@ import { useApiSWR } from '@/hooks/useApiSWR';
 import { AREAS, CORES, corNota, corFelicidade, corGoogle, fmtTempo, type AreaOperacional } from '@/lib/operacao/painel-lider';
 import {
   Smile, Timer, PackageX, Users, MessageSquareQuote, ArrowUpRight, ArrowDownRight,
-  Minus, ExternalLink, AlertTriangle, Star,
+  Minus, ExternalLink, AlertTriangle, Star, Wallet,
 } from 'lucide-react';
 
 /**
@@ -24,6 +24,16 @@ import {
  */
 
 const PERIODOS = [7, 30, 90];
+
+const fmtBRL = (v: number) =>
+  (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+/** "2026-07" -> "jul/26". A folha é por competência, então o card mostra o MÊS, não a janela. */
+const mesExtenso = (m: string) => {
+  const [a, mm] = String(m || '').split('-');
+  return mm ? `${MESES[Number(mm) - 1]}/${a.slice(2)}` : '—';
+};
 
 export default function PainelLiderPage() {
   const { setPageTitle } = usePageTitle();
@@ -191,6 +201,29 @@ export default function PainelLiderPage() {
               />
             )}
 
+            {/* Folha da área — PAGO ao time fixo, por competência. Não é CMO (sem encargos e sem
+                freela) e o rótulo diz isso, senão vira número certo com nome errado. */}
+            {data.folha && (
+              <CardIndicador
+                icone={<Wallet className="h-4 w-4 text-emerald-600" />}
+                titulo="Folha da área"
+                link={data.folha.link}
+                valor={fmtBRL(data.folha.total)}
+                cor={CORES.vazio}
+                delta={data.folha.delta}
+                deltaBomSeSobe={false}
+                deltaFmt={(v: number) => fmtBRL(Math.abs(v))}
+                rodape={<>
+                  {mesExtenso(data.folha.mes)} · {data.folha.pessoas} pessoa(s) · pago, sem encargos nem freela
+                  {data.folha.rescisao > 0 && (
+                    <span className="block text-amber-600 dark:text-amber-400">
+                      + {fmtBRL(data.folha.rescisao)} de rescisão (fora do total)
+                    </span>
+                  )}
+                </>}
+              />
+            )}
+
             {/* Time da área */}
             {data.equipe && (
               <CardIndicador
@@ -210,7 +243,9 @@ export default function PainelLiderPage() {
           detalhe, é bug, não metodologia diferente. <b>Ambiente, música e custo-benefício</b> ficam
           fora de propósito: são da casa, não de uma área. No <b>Google</b>, só Atendimento e Cozinha
           têm nota própria (o Google pergunta serviço e comida) — nas outras áreas o card mostra a
-          nota geral da casa e avisa que é geral.
+          nota geral da casa e avisa que é geral. A <b>Folha da área</b> é o que foi <b>pago</b> ao time
+          fixo naquela competência — não é CMO: não tem encargos nem provisões, e freela não entra
+          (a convocação guarda função, não área).
         </p>
       </div>
     </ProtectedRoute>

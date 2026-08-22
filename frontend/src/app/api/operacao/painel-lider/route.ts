@@ -89,20 +89,21 @@ export async function GET(request: NextRequest) {
   const de = addDias(ate, -dias);
   const deAnt = addDias(ate, -dias * 2);
 
-  const [nps, tempo, stockout, felicidade, equipe, google] = await Promise.all([
+  const [nps, tempo, stockout, felicidade, equipe, google, folha] = await Promise.all([
     blocoNps(supabase, user.bar_id, area, de, ate, deAnt),
     blocoTempo(supabase, user.bar_id, area, de, ate, deAnt),
     blocoStockout(supabase, user.bar_id, area, de),
     blocoFelicidade(supabase, user.bar_id, area),
     blocoEquipe(supabase, user.bar_id, area),
     blocoGoogle(supabase, user.bar_id, area, de, ate, deAnt),
+    blocoFolha(supabase, user.bar_id, area),
   ]);
 
   return NextResponse.json({
     success: true,
     area, areas: AREAS, pode_trocar: podeTrocar, sou: eu?.nome ?? null,
     periodo: { de, ate, dias },
-    nps, tempo, stockout, felicidade, equipe, google,
+    nps, tempo, stockout, felicidade, equipe, google, folha,
   });
 }
 
@@ -252,6 +253,60 @@ async function blocoGoogle(supabase: any, barId: number, area: AreaOperacional, 
     negativos: Number(a.negativos) || 0,
     reviews_casa: Number(a.reviews) || 0,
     link: '/ferramentas/google-reviews',
+  };
+}
+
+/**
+ * Folha da área — o que foi PAGO ao time fixo, por competência.
+ *
+ * Chama-se "Folha da área" e NÃO "CMO" de propósito (combinado com o Rodrigo, 22/08): CMO tem
+ * definição contábil e inclui encargos e provisões, que hoje só existiriam em `hr.folha_pagamento`
+ * — parada em jan/fev com valores idênticos. Aqui é `hr.v_funcionario_salario`, que é pagamento
+ * de verdade. Rotular de CMO seria dar nome errado a um número certo.
+ *
+ * Freela NÃO entra: `hr.freela_convocacao` guarda `funcao`, não área, e chutar o de-para
+ * colocaria custo na conta da liderança errada. Fica dito na tela em vez de estimado.
+ *
+ * Mensal, não pela janela do seletor: folha é por competência; somar "últimos 30 dias" de folha
+ * daria um número que não existe em lugar nenhum.
+ */
+async function blocoFolha(supabase: any, barId: number, area: AreaOperacional) {
+  const hr = (t: string) => supabase.schema('hr').from(t);
+  const { data: areas } = await hr('areas').select('id, nome').eq('bar_id', barId);
+  const a = ((areas || []) as any[]).find((x) => String(x.nome).trim() === area);
+  if (!a) return null;
+
+  const { data: pessoas } = await hr('funcionarios').select('id').eq('bar_id', barId).eq('area_id', a.id);
+  const ids = ((pessoas || []) as any[]).map((p) => p.id);
+  if (!ids.length) return null;
+
+  const { data: pagos } = await hr('v_funcionario_salario')
+    .select('funcionario_id, data_competencia, valor_pago, tipo')
+    .eq('bar_id', barId).in('funcionario_id', ids)
+    .order('data_competencia', { ascending: false }).limit(600);
+
+  const linhas = (pagos || []) as any[];
+  if (!linhas.length) return null;
+  const mesDe = (d: string) => String(d || '').slice(0, 7);
+  const meses = [...new Set(linhas.map((r) => mesDe(r.data_competencia)))].sort().reverse();
+  const mes = meses[0]; const mesAnt = meses[1];
+  if (!mes) return null;
+
+  // Rescisão fica FORA do total e aparece à parte: é evento único e, somada, faria a área
+  // parecer mais cara todo mês em que alguém saiu.
+  const somaDe = (m: string | undefined, tipos: string[]) => !m ? null : linhas
+    .filter((r) => mesDe(r.data_competencia) === m && tipos.includes(String(r.tipo)))
+    .reduce((s, r) => s + num(r.valor_pago), 0);
+
+  const total = somaDe(mes, ['salario', 'adiantamento']) || 0;
+  const anterior = somaDe(mesAnt, ['salario', 'adiantamento']);
+  const rescisao = somaDe(mes, ['rescisao']) || 0;
+  const quantos = new Set(linhas.filter((r) => mesDe(r.data_competencia) === mes).map((r) => r.funcionario_id)).size;
+
+  return {
+    mes, total: r2(total), pessoas: quantos, rescisao: r2(rescisao),
+    delta: anterior != null && anterior > 0 ? r2(total - anterior) : null,
+    link: '/rh/custo-mo',
   };
 }
 
