@@ -35,7 +35,11 @@ function calcular(it: any) {
   // só o papel dele, que é cobrir a VARIAÇÃO entre semanas. Tem que bater com o `calcular` da
   // rota: os dois números aparecem na mesma tela.
   const k = 1 + (Number(it.fator_perda_pct) || 0) / 100;
-  const mediaAj = it.media6 * k;
+  // Lead: o estoque é a contagem de SEGUNDA, mas a produção acontece dias depois. Sem cobrir essa
+  // defasagem, os dias entre contagem e produção comem o estoque que o plano contou como
+  // disponível — foi o que zerou o xarope de gengibre em 17/08 mesmo seguindo a sugestão.
+  const janela = (7 + Math.max(0, Number(it.dias_ate_produzir) || 0)) / 7;
+  const mediaAj = it.media6 * janela * k;
   const margem = it.desvpad * zDe(it.nivel_servico) * k; // folga de segurança do PR
   const pr = mediaAj + margem; // média já vem ponderada do servidor
   const gap = pr - it.estoque;
@@ -51,7 +55,7 @@ function calcular(it: any) {
 // os números congelados na conta que os gerou.
 function parcelasFrozen(it: any) {
   const k = 1 + (Number(it.fator_perda_pct) || 0) / 100;
-  const mediaAj = it.media6 * k;
+  const mediaAj = it.media6 * ((7 + Math.max(0, Number(it.dias_ate_produzir) || 0)) / 7) * k;
   const margem = it.pr - mediaAj;
   const gap = it.pr - it.estoque;
   const extra = gap < 0 ? 0 : mediaAj * ((it.semanas_receita || 1) - 1);
@@ -138,7 +142,7 @@ export default function PlanoProducaoPage() {
   const patchItem = (id: number, patch: any) => setItens((prev) => prev.map((i) => i.producao_id === id ? { ...i, ...patch } : i));
 
   // ---- salvamentos ----
-  const salvarConfig = async (it: any, campo: 'nivel_servico' | 'semanas_receita' | 'fator_perda_pct', valor: number) => {
+  const salvarConfig = async (it: any, campo: 'nivel_servico' | 'semanas_receita' | 'fator_perda_pct' | 'dias_ate_produzir', valor: number) => {
     patchItem(it.producao_id, { [campo]: valor });
     await api.post('/api/operacional/plano-producao', { action: 'config', producao_id: it.producao_id, producao_cod: it.codigo, [campo]: valor });
   };
@@ -348,6 +352,10 @@ export default function PlanoProducaoPage() {
                   um VIÉS (o bar gasta mais do que a ficha diz, toda semana). Enfiar a perda no NS
                   faz o número certo pelo motivo errado e esconde a perda do Desvio. */}
               <th className="text-center font-medium px-2 py-2" title="% que o bar consome ACIMA da ficha, toda semana (over-pour, batch refeito, sobra descartada). Multiplica a demanda: PR = (média + margem) × (1 + perda). Deixe 0 quando o consumo real bate com a ficha. O número medido no histórico aparece embaixo — clique nele para aplicar.">Perda %</th>
+              {/* Mafê (22/08/2026): "a planilha calcula de segunda a domingo, mas o cronograma de
+                  produção do bar inicia na quarta". O estoque é a contagem de SEGUNDA; se a produção
+                  só acontece na quinta, 3 dias de consumo somem antes de produzir. */}
+              <th className="text-center font-medium px-2 py-2" title="Dias entre a contagem de segunda e o dia em que a produção acontece de fato. O PR passa a cobrir a defasagem + a semana, senão esses dias comem o estoque que o plano contou como disponível. 0 = produz no dia da contagem. O medido no histórico aparece embaixo — clique para aplicar.">Dias p/ produzir</th>
               <th className="text-center font-medium px-2 py-2" title="Quantas semanas de receita produzir de uma vez">Qtde x Semanas</th>
               <th className="text-right font-medium px-2 py-2" title="Ponto de Ressuprimento = média + desvio × fator de serviço">PR</th>
               <th className="text-right font-medium px-2 py-2" title="Última contagem (início da semana planejada)">Estoque Atual</th>
@@ -406,6 +414,21 @@ export default function PlanoProducaoPage() {
                         title={`Nas últimas 8 semanas o consumo real do estoque ficou ${it.perda_medida_pct}% acima do teórico. Clique para aplicar.`}
                         className="block mx-auto text-[10px] text-amber-600 dark:text-amber-400 hover:underline disabled:no-underline disabled:text-gray-400">
                         medido {it.perda_medida_pct}%
+                      </button>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 text-center whitespace-nowrap">
+                    <input disabled={encerrado} type="number" min={0} max={14} step={1}
+                      value={it.dias_ate_produzir ?? 0}
+                      onChange={e => patchItem(it.producao_id, { dias_ate_produzir: Number(e.target.value) })}
+                      onBlur={e => salvarConfig(it, 'dias_ate_produzir', Number(e.target.value))}
+                      className="w-10 bg-transparent text-xs text-center outline-none rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 disabled:cursor-default px-1" />
+                    {it.lead_medido != null && it.lead_medido !== (it.dias_ate_produzir ?? 0) && (
+                      <button disabled={encerrado || soLeitura}
+                        onClick={() => { patchItem(it.producao_id, { dias_ate_produzir: it.lead_medido }); salvarConfig(it, 'dias_ate_produzir', it.lead_medido); }}
+                        title={`No histórico, a primeira produção da semana cai em média ${it.lead_medido} dia(s) depois da contagem de segunda. Clique para aplicar.`}
+                        className="block mx-auto text-[10px] text-amber-600 dark:text-amber-400 hover:underline disabled:no-underline disabled:text-gray-400">
+                        medido {it.lead_medido}d
                       </button>
                     )}
                   </td>
@@ -489,13 +512,21 @@ export default function PlanoProducaoPage() {
                             <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap">{comUni(it.media6, it.unidade)}</td>
                             <td className="py-0.5 pl-2 text-gray-400">média das 6 últimas semanas (as mais recentes pesam mais)</td>
                           </tr>
+                          {(it.dias_ate_produzir ?? 0) > 0 && (
+                            <tr>
+                              <td className="py-0.5 text-gray-400">+</td>
+                              <td className="py-0.5">Some antes de você produzir</td>
+                              <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap text-sky-600 dark:text-sky-400">{comUni(it.media6 * ((it.dias_ate_produzir || 0) / 7), it.unidade)}</td>
+                              <td className="py-0.5 pl-2 text-gray-400">a contagem é de segunda e você produz {it.dias_ate_produzir} dia(s) depois</td>
+                            </tr>
+                          )}
                           {/* A linha da perda só existe quando há perda — o caso normal é 0 e a
                               conta continua a de sempre, com uma linha a menos pra ler. */}
                           {(it.fator_perda_pct ?? 0) > 0 && (
                             <tr>
                               <td className="py-0.5 text-gray-400">+</td>
                               <td className="py-0.5">Perda que a ficha não vê</td>
-                              <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap text-amber-600 dark:text-amber-400">{comUni((it.mediaAj ?? it.media6) - it.media6, it.unidade)}</td>
+                              <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap text-amber-600 dark:text-amber-400">{comUni(it.media6 * ((7 + (it.dias_ate_produzir || 0)) / 7) * ((it.fator_perda_pct || 0) / 100), it.unidade)}</td>
                               <td className="py-0.5 pl-2 text-gray-400">o bar consome {it.fator_perda_pct}% acima da ficha (over-pour, batch refeito, sobra)</td>
                             </tr>
                           )}

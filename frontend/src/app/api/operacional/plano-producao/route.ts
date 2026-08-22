@@ -26,10 +26,15 @@ const zDe = (nivel: number) => NIVEL_Z[nivel] ?? 1.645;
  * também nas semanas de pico. Não mexe no Nível de Serviço de propósito: NS é variância, perda
  * é viés, e misturar os dois esconde a perda do Desvio.
  */
-function calcular(media6: number, desvpad: number, estoque: number, rendContagem: number, nivel: number, semanas: number, perda = 0) {
+function calcular(media6: number, desvpad: number, estoque: number, rendContagem: number, nivel: number, semanas: number, perda = 0, lead = 0) {
   const k = 1 + (Number(perda) || 0) / 100;
-  const mediaAj = media6 * k;
-  const pr = (media6 + desvpad * zDe(nivel)) * k;
+  // Lead time: o estoque vem da contagem de SEGUNDA, mas a produção acontece dias depois. O PR
+  // tem que cobrir a defasagem + o ciclo, senão os dias entre contagem e produção comem o estoque
+  // que o plano contou como disponível. O desvpad fica na escala semanal de propósito (ver a
+  // migration 20260822_plano_producao_lead_time).
+  const janela = (7 + Math.max(0, Number(lead) || 0)) / 7;
+  const mediaAj = media6 * janela * k;
+  const pr = (media6 * janela + desvpad * zDe(nivel)) * k;
   const gap = pr - estoque;
   const ae = gap < 0 ? gap : gap + mediaAj * ((semanas || 1) - 1); // semanas extras repõem a Média6s, não o PR cheio
   const naoProduzir = ae <= 0;
@@ -56,7 +61,7 @@ async function montarItensLive(barId: number, semanaIni: string) {
   const gold = (sb() as any).schema('gold');
   const [{ data }, { data: cfgs }] = await Promise.all([
     gold.rpc('fn_plano_producao', { p_bar: barId, p_semana: semanaIni }),
-    ops().from('producao_plano_config').select('producao_id, nivel_servico, semanas_receita, fator_perda_pct').eq('bar_id', barId),
+    ops().from('producao_plano_config').select('producao_id, nivel_servico, semanas_receita, fator_perda_pct, dias_ate_produzir').eq('bar_id', barId),
   ]);
   const cfgMap = new Map((cfgs || []).map((c: any) => [Number(c.producao_id), c]));
   return ((data || []) as any[]).map((r) => {
@@ -69,16 +74,60 @@ async function montarItensLive(barId: number, semanaIni: string) {
     const nivel = cfg ? Number(cfg.nivel_servico) : 95;
     const semanas = cfg ? Number(cfg.semanas_receita) : 1;
     const perda = cfg ? num(cfg.fator_perda_pct) : 0;
-    const c = calcular(media6, desvpad, num(r.estoque_atual), rendContagem, nivel, semanas, perda);
+    const lead = cfg ? num(cfg.dias_ate_produzir) : 0;
+    const c = calcular(media6, desvpad, num(r.estoque_atual), rendContagem, nivel, semanas, perda, lead);
     return {
       producao_id: Number(r.producao_id), codigo: r.producao_cod, nome: r.producao_nome,
       unidade: r.unidade, curva_a: r.curva_a === true, controle_producao: r.controle_producao === true,
       rendimento: num(r.rendimento), fator, rend_contagem: rendContagem,
       estoque: num(r.estoque_atual), media6: r2(media6), desvpad: r2(desvpad), saidas, semanas: r.semanas || [],
-      nivel_servico: nivel, semanas_receita: semanas, fator_perda_pct: perda,
+      nivel_servico: nivel, semanas_receita: semanas, fator_perda_pct: perda, dias_ate_produzir: lead,
       pr: c.pr, sugestao_qtd: c.sugestaoQtd, sugestao_receitas: c.receitas, nao_produzir: c.naoProduzir,
     };
   });
+}
+
+/**
+ * Lead MEDIDO: quantos dias, na prática, separam a contagem de segunda da PRIMEIRA produção da
+ * semana. É o primeiro dia que importa — é ele que o estoque contado precisa alcançar; o que vier
+ * depois já é reposição de um estoque recém-feito.
+ *
+ * Usa `inicio` (quando a produção ACONTECEU), nunca `criado_em` (quando lançaram): produção
+ * lançada retroativa cairia na semana errada e inventaria um lead que não existe.
+ *
+ * Mediana, não média: uma semana em que produziram no domingo não pode puxar o item inteiro.
+ */
+async function leadMedido(barId: number, semanaIni: string): Promise<Map<number, number>> {
+  const out = new Map<number, number>();
+  const { data } = await ops().from('producao_execucao')
+    .select('producao_id, inicio')
+    .eq('bar_id', barId).eq('status', 'finalizada')
+    .gte('inicio', `${addDias(semanaIni, -70)}T00:00:00`)
+    .lt('inicio', `${addDias(semanaIni, 7)}T00:00:00`);
+
+  // por produção → por semana → menor dia-da-semana visto
+  const porProd = new Map<number, Map<string, number>>();
+  for (const r of (data || []) as any[]) {
+    if (!r.producao_id || !r.inicio) continue;
+    // dia local (BRT) sem new Date() no formato ISO — o fuso jogaria produção da madrugada pro dia anterior
+    const local = new Date(r.inicio).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    const [y, m, d] = local.split('-').map(Number);
+    const dow = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; // 0 = segunda
+    const semana = addDias(local, -dow);
+    const porSemana = porProd.get(Number(r.producao_id)) || new Map<string, number>();
+    const atual = porSemana.get(semana);
+    if (atual == null || dow < atual) porSemana.set(semana, dow);
+    porProd.set(Number(r.producao_id), porSemana);
+  }
+
+  for (const [prodId, porSemana] of porProd) {
+    const dias = [...porSemana.values()].sort((a, b) => a - b);
+    if (dias.length < 2) continue;               // 1 semana só não é padrão, é acaso
+    const meio = Math.floor(dias.length / 2);
+    const mediana = dias.length % 2 ? dias[meio] : Math.round((dias[meio - 1] + dias[meio]) / 2);
+    if (mediana > 0) out.set(prodId, mediana);
+  }
+  return out;
 }
 
 /**
@@ -146,7 +195,7 @@ const snapToItem = (s: any) => ({
   rend_contagem: num(s.rend_contagem), estoque: num(s.estoque),
   media6: num(s.media6), desvpad: num(s.desvpad), saidas: s.saidas || [], semanas: s.semanas_datas || [],
   nivel_servico: s.nivel_servico ?? 95, semanas_receita: num(s.semanas_receita) || 1,
-  fator_perda_pct: num(s.fator_perda_pct),
+  fator_perda_pct: num(s.fator_perda_pct), dias_ate_produzir: num(s.dias_ate_produzir),
   pr: num(s.ponto_ressupr), sugestao_qtd: num(s.sugestao_qtd), sugestao_receitas: s.sugestao_receitas ?? 0,
   nao_produzir: (s.sugestao_receitas ?? 0) <= 0, consumo: num(s.consumo), frozen: true,
   decisao: { decidido_receitas: s.decidido_receitas, decidido_qtd: s.decidido_qtd, dia_producao: s.dia_producao, seguiu_sugestao: s.seguiu_sugestao, motivo_override: s.motivo_override },
@@ -304,8 +353,11 @@ export async function GET(request: NextRequest) {
     for (const it of itens) it.dias = [];
   }
 
-  const medida = await perdaMedida(barId, semanaSel);
-  for (const it of itens) it.perda_medida_pct = medida.get(String(it.codigo || '').toUpperCase()) ?? null;
+  const [medida, leads] = await Promise.all([perdaMedida(barId, semanaSel), leadMedido(barId, semanaSel)]);
+  for (const it of itens) {
+    it.perda_medida_pct = medida.get(String(it.codigo || '').toUpperCase()) ?? null;
+    it.lead_medido = leads.get(Number(it.producao_id)) ?? null;
+  }
 
   return NextResponse.json({
     success: true,
@@ -336,6 +388,9 @@ export async function POST(request: NextRequest) {
       const patch: any = { bar_id: barId, producao_id: producaoId, producao_cod: body.producao_cod ?? null, atualizado_em: new Date().toISOString(), atualizado_por: quem };
       if (body.nivel_servico != null) patch.nivel_servico = Number(body.nivel_servico);
       if (body.semanas_receita != null) patch.semanas_receita = Number(body.semanas_receita);
+      if (body.dias_ate_produzir != null) {
+        patch.dias_ate_produzir = Math.min(14, Math.max(0, Math.round(Number(body.dias_ate_produzir) || 0)));
+      }
       if (body.fator_perda_pct != null) {
         // clamp defensivo: o check do banco recusa fora de 0..300 e o erro sairia cru na tela
         patch.fator_perda_pct = Math.min(300, Math.max(0, Number(body.fator_perda_pct) || 0));
@@ -376,6 +431,7 @@ export async function POST(request: NextRequest) {
         media6: body.media6 ?? null, desvpad: body.desvpad ?? null,
         nivel_servico: body.nivel_servico ?? null, fator_servico: body.nivel_servico != null ? zDe(Number(body.nivel_servico)) : null,
         fator_perda_pct: body.fator_perda_pct ?? null,
+        dias_ate_produzir: body.dias_ate_produzir ?? null,
         ponto_ressupr: body.ponto_ressupr ?? null, estoque: body.estoque ?? null,
         sugestao_qtd: body.sugestao_qtd ?? null, sugestao_receitas: body.sugestao_receitas ?? null,
         decidido_receitas: body.decidido_receitas != null ? Number(body.decidido_receitas) : null,
@@ -407,6 +463,7 @@ export async function POST(request: NextRequest) {
         media6: body.media6 ?? null, desvpad: body.desvpad ?? null,
         nivel_servico: body.nivel_servico ?? null, fator_servico: body.nivel_servico != null ? zDe(Number(body.nivel_servico)) : null,
         fator_perda_pct: body.fator_perda_pct ?? null,
+        dias_ate_produzir: body.dias_ate_produzir ?? null,
         ponto_ressupr: body.ponto_ressupr ?? null, estoque: body.estoque ?? null,
         sugestao_qtd: body.sugestao_qtd ?? null, sugestao_receitas: body.sugestao_receitas ?? null,
         decidido_receitas: totalRec, decidido_qtd: r2(totalRec * rend),
@@ -443,7 +500,7 @@ export async function POST(request: NextRequest) {
         return {
           plano_id: planoId, producao_id: it.producao_id, producao_cod: it.codigo, producao_nome: it.nome,
           media6: it.media6, desvpad: it.desvpad, nivel_servico: it.nivel_servico, fator_servico: zDe(it.nivel_servico),
-          fator_perda_pct: it.fator_perda_pct ?? 0,
+          fator_perda_pct: it.fator_perda_pct ?? 0, dias_ate_produzir: it.dias_ate_produzir ?? 0,
           ponto_ressupr: it.pr, estoque: it.estoque, sugestao_qtd: it.sugestao_qtd, sugestao_receitas: it.sugestao_receitas,
           decidido_receitas: decididoRec, decidido_qtd: r2(decididoRec * it.rend_contagem),
           seguiu_sugestao: decididoRec === it.sugestao_receitas, motivo_override: d?.motivo_override ?? null,
