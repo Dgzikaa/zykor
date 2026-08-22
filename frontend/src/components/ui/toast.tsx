@@ -27,7 +27,9 @@ interface ToastContextValue {
   removeToast: (id: string) => void;
 }
 
-const ToastContext = createContext<ToastContextValue | undefined>(undefined);
+// Exportado pro `@/hooks/use-toast` conseguir delegar pra cá com fallback seguro (useContext
+// direto) em vez de estourar fora do provider.
+export const ToastContext = createContext<ToastContextValue | undefined>(undefined);
 
 export const useToast = () => {
   const context = useContext(ToastContext);
@@ -85,8 +87,11 @@ const ToastContainer: React.FC<ToastContainerProps> = ({
 }) => {
   if (toasts.length === 0) return null;
 
+  // z acima do Dialog (z-50): toast disparado com modal aberto ficava PINTADO ATRÁS do backdrop e
+  // a pessoa jurava que não salvou. Mesma família do bug da barra de Salvar do check-in coberta
+  // pela BottomNavigation.
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col-reverse gap-3 max-w-md pointer-events-none">
+    <div className="fixed bottom-4 right-4 z-[100] flex flex-col-reverse gap-3 max-w-md pointer-events-none">
       {toasts.map(toast => (
         <div key={toast.id} className="pointer-events-auto">
           <ToastItem toast={toast} onRemove={removeToast} />

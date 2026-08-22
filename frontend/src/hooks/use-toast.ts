@@ -1,63 +1,52 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useCallback, useContext } from 'react';
+import { ToastContext } from '@/components/ui/toast';
 
-interface Toast {
-  id: string;
+/**
+ * ATENÇÃO — este hook era um TOAST FANTASMA até 22/08/2026.
+ *
+ * Ele guardava as mensagens num `useState` local e **devolvia** o array; nenhum componente
+ * renderizava esse array. Resultado: as 75 telas que importam daqui chamavam `toast({...})`,
+ * nada aparecia, e só sobrava um `console.log`. Reportado pela operação do Ordinário via Mafê:
+ * *"me pediram se tem como colocar uma mensagem de confirmação depois que os registros de
+ * desperdício são lançados, pq eles nunca sabem se salvou ou não"* — a tela de Desperdício já
+ * chamava `toast({ title: 'Registro salvo' })` desde sempre; era o hook que engolia.
+ *
+ * Agora delega pro ToastProvider de verdade (montado no layout raiz), mantendo esta assinatura
+ * — assim as 75 telas passam a mostrar toast sem precisar tocar em nenhuma delas.
+ *
+ * Também saiu daqui o `new Notification(...)`: pedia permissão de notificação do navegador a cada
+ * toast, o que é intrusivo e, negado uma vez, silenciava tudo de novo.
+ */
+
+interface ToastInput {
   title: string;
   description?: string;
   variant?: 'default' | 'destructive';
 }
 
-let toastCount = 0;
+/** "Gerando exportação..." não é sucesso, é andamento — não merece o ✓ verde. */
+const ehAndamento = (titulo: string) => /(\.\.\.|…)\s*$/.test(titulo);
 
 export function useToast() {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const ctx = useContext(ToastContext);
 
-  // useCallback com deps vazias: setToasts é estável e toastCount é de módulo.
-  // Referência estável evita loops em useEffect/useCallback que dependem de `toast`
-  // (era a causa de telas "carregando eternamente", ex.: cma-semanal).
-  const toast = useCallback(({
-    title,
-    description,
-    variant = 'default',
-  }: Omit<Toast, 'id'>) => {
-    const id = (++toastCount).toString();
-    const newToast: Toast = { id, title, description, variant };
-
-    setToasts(prev => [...prev, newToast]);
-
-    // Auto remove after 5 seconds
-    setTimeout(() => {
-      setToasts(prev => prev.filter((t: Toast) => t.id !== id));
-    }, 5000);
-
-    // Show browser notification
-    if ('Notification' in window) {
-      if (Notification.permission === 'granted') {
-        new Notification(title, { body: description });
-      } else if (Notification.permission !== 'denied') {
-        Notification.requestPermission().then(permission => {
-          if (permission === 'granted') {
-            new Notification(title, { body: description });
-          }
-        });
-      }
+  const toast = useCallback(({ title, description, variant = 'default' }: ToastInput) => {
+    if (!ctx) {
+      // Fora do provider (ex.: error boundary) não dá pra mostrar — mas engolir calado foi o bug
+      // que isto conserta, então pelo menos registra.
+      console.warn(`[toast sem provider] ${title}${description ? ': ' + description : ''}`);
+      return;
     }
+    ctx.showToast({
+      type: variant === 'destructive' ? 'error' : ehAndamento(title) ? 'info' : 'success',
+      title,
+      message: description,
+    });
+  }, [ctx]);
 
-    // Console log for development
-    console.log(
-      `[${variant.toUpperCase()}] ${title}${description ? ': ' + description : ''}`
-    );
-  }, []);
+  const dismiss = useCallback((toastId: string) => { ctx?.removeToast(toastId); }, [ctx]);
 
-  const dismiss = useCallback((toastId: string) => {
-    setToasts(prev => prev.filter((t: Toast) => t.id !== toastId));
-  }, []);
-
-  return {
-    toast,
-    dismiss,
-    toasts,
-  };
+  return { toast, dismiss, toasts: ctx?.toasts ?? [] };
 }
