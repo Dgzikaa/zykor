@@ -57,6 +57,10 @@
       "schedule": "40 12,18 * * *"
     },
     {
+      "path": "/api/cron/operacao-watchdog",
+      "schedule": "0 13 * * *"
+    },
+    {
       "path": "/api/financeiro/inter/boleto/reconciliar",
       "schedule": "0 15,21 * * *"
     },
