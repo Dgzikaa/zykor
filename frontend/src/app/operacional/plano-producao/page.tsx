@@ -331,15 +331,19 @@ export default function PlanoProducaoPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
               <th className="text-left font-medium px-2 py-2">Produção</th>
-              <th className="text-right font-medium px-2 py-2" title="Uso indireto da última semana (clique p/ abrir as 6 semanas)">Uso Indireto</th>
-              <th className="text-right font-medium px-2 py-2" title="Média ponderada do uso indireto das últimas 6 semanas — peso maior para a semana mais recente; semana em branco fica fora. Clique no valor para ver as semanas.">Média 6s</th>
+              <th className="text-right font-medium px-2 py-2" title="Tudo que a VENDA da semana puxou deste preparo — o que vai direto na ficha do drink/prato E o que passa por dentro de outro preparo (espuma, refrigerante, pré-batch). Não é a saída direta. Clique p/ abrir as 6 semanas.">Uso Indireto</th>
+              <th className="text-right font-medium px-2 py-2" title="Média ponderada do uso indireto das últimas 6 semanas — peso maior para a semana mais recente; semana em branco fica fora. Já inclui o que foi para dentro de outros preparos. Clique no valor para ver as semanas.">Média 6s</th>
               <th className="text-right font-medium px-2 py-2" title="Desvio padrão amostral das 6 semanas">Desv. padrão</th>
               <th className="text-center font-medium px-2 py-2" title="Define o fator de segurança do Ponto de Ressuprimento">Nível de Serviço</th>
               <th className="text-center font-medium px-2 py-2" title="Quantas semanas de receita produzir de uma vez">Qtde x Semanas</th>
               <th className="text-right font-medium px-2 py-2" title="Ponto de Ressuprimento = média + desvio × fator de serviço">PR</th>
               <th className="text-right font-medium px-2 py-2" title="Última contagem (início da semana planejada)">Estoque Atual</th>
               <th className="text-right font-medium px-2 py-2" title="Estoque ÷ ritmo diário (÷6)">Dias de Estoque</th>
-              <th className="text-right font-medium px-2 py-2" title="Aviso (não muda a sugestão): quanto deste preparo a produção planejada dos pais vai consumir">Qtde p/ pais</th>
+              {/* Isaías/Mafê (21/08/2026) somaram esta coluna EM CIMA do Uso Indireto e concluíram que
+                  a sugestão estava 10 L curta. Não está: o valor daqui é um RECORTE de dentro do Uso
+                  Indireto, não uma demanda a mais. Por isso o rótulo diz "dentro disso" e o título
+                  abre com a frase que evita a soma. */}
+              <th className="text-right font-medium px-2 py-2" title="JÁ ESTÁ DENTRO do Uso Indireto — não somar. É só o recorte de quanto deste preparo vai virar outro preparo (espuma, refrigerante, pré-batch) na produção planejada da semana. Serve de aviso: fica vermelho com ⚠ quando estoque + plano não cobrem.">Dentro disso: p/ outras produções</th>
               <th className="text-right font-medium px-2 py-2">Sugestão</th>
               {planejando && <th className="text-right font-medium px-2 py-2" title="O que foi decidido na reunião (receitas)">Decidido</th>}
               {planejando && <th className="text-center font-medium px-2 py-2">Dia</th>}
@@ -386,7 +390,7 @@ export default function PlanoProducaoPage() {
                   <td className={`px-2 py-2 text-right tabular-nums whitespace-nowrap ${(it.diasEstoque ?? 99) < 3 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'}`}>{it.diasEstoque == null ? '—' : `${fmtN(it.diasEstoque)}d`}</td>
                   <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
                     {it.consumo > 0
-                      ? <span className={it.falta > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'} title={it.falta > 0 ? `Faltam ${comUni(it.falta, it.unidade)} p/ cobrir a produção planejada dos pais` : 'Coberto pelo estoque + plano'}>{comUni(it.consumo, it.unidade)}{it.falta > 0 ? ' ⚠' : ''}</span>
+                      ? <span className={it.falta > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'} title={it.falta > 0 ? `Já incluso no Uso Indireto (não somar). Faltam ${comUni(it.falta, it.unidade)} p/ cobrir a produção planejada dos pais.` : 'Já incluso no Uso Indireto (não somar). Coberto pelo estoque + plano.'}>{comUni(it.consumo, it.unidade)}{it.falta > 0 ? ' ⚠' : ''}</span>
                       : <span className="text-gray-300 dark:text-gray-600">—</span>}
                   </td>
                   {/* A dúvida nasce OLHANDO a sugestão ("por que produzir 4 receitas?"), então é ela
@@ -501,7 +505,8 @@ export default function PlanoProducaoPage() {
                       {it.consumo > 0 && (
                         <div className="mt-2.5 pt-2 border-t border-dashed border-gray-200 dark:border-gray-700">
                           <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200 mb-1">
-                            Além disso, a produção planejada da semana vai consumir {comUni(it.consumo, it.unidade)} deste preparo
+                            Dentro do uso acima, {comUni(it.consumo, it.unidade)} deste preparo não vai pro
+                            drink/prato direto — vira outro preparo na produção planejada da semana
                           </div>
                           {it.consumoDet.length > 0 && <table className="w-full text-[11px]">
                             <tbody className="text-gray-600 dark:text-gray-300">
@@ -515,7 +520,7 @@ export default function PlanoProducaoPage() {
                                 </tr>
                               ))}
                               <tr className="border-t border-gray-200 dark:border-gray-700">
-                                <td className="py-0.5 font-medium text-gray-800 dark:text-gray-100" colSpan={2}>Total pros pais</td>
+                                <td className="py-0.5 font-medium text-gray-800 dark:text-gray-100" colSpan={2}>Total p/ outras produções</td>
                                 <td className="py-0.5 pl-2 text-right tabular-nums font-semibold whitespace-nowrap">{comUni(it.consumo, it.unidade)}</td>
                               </tr>
                             </tbody>
@@ -541,7 +546,7 @@ export default function PlanoProducaoPage() {
             </tbody>
           </table>
         </div></CardContent></Card>
-        <p className="text-[11px] text-gray-400">Saída = uso indireto (vendas explodidas pela ficha técnica, inclusive preparo-dentro-de-preparo); recalcula com a ficha atual nas 6 semanas. O ponto azul liga/desliga a produção no Controle de Produção. Ao <b>encerrar</b>, os itens com dia definido viram a calendarização que aparece na tela Executar do dia.</p>
+        <p className="text-[11px] text-gray-400"><b className="text-gray-500 dark:text-gray-300">Uso Indireto já é o total:</b> as vendas explodidas pela ficha técnica, <b>incluindo</b> o que passa por dentro de outro preparo (espuma, refrigerante, pré-batch). A coluna <b>&ldquo;Dentro disso: p/ outras produções&rdquo;</b> é um recorte desse mesmo total — <b>não somar as duas</b>, senão a quantidade sai inflada. Recalcula com a ficha atual nas 6 semanas. O ponto azul liga/desliga a produção no Controle de Produção. Ao <b>encerrar</b>, os itens com dia definido viram a calendarização que aparece na tela Executar do dia.</p>
 
         {/* Modal: distribuir a produção em vários dias (qtd por dia) */}
         {diaModal && (
