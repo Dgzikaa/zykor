@@ -20,13 +20,28 @@ const NIVEL_Z: Record<number, number> = {
 const zDe = (nivel: number) => NIVEL_Z[nivel] ?? 1.645;
 
 /**
+ * Dias entre a contagem (segunda) e a produção, quando o item não tem ajuste próprio.
+ * 2 = a produção sai em média na quarta (Gonza, 22/08). Errar o dia em ±1 custa 1/7 da demanda
+ * semanal, dentro da folga de segurança; o lead 0 de antes errava 2/7 e comia a folga inteira —
+ * foi o que zerou o xarope de gengibre mesmo seguindo a sugestão.
+ */
+const LEAD_PADRAO = 2;
+
+/**
  * `perda` = % de perda sistemática sobre a demanda teórica (ver migration 20260822).
  * Escala a demanda inteira — média E margem de segurança — o que é o mesmo que
  * `(media + desv×z) × (1+p)`: se o bar gasta 36% a mais do que a ficha diz, gasta 36% a mais
  * também nas semanas de pico. Não mexe no Nível de Serviço de propósito: NS é variância, perda
  * é viés, e misturar os dois esconde a perda do Desvio.
  */
-function calcular(media6: number, desvpad: number, estoque: number, rendContagem: number, nivel: number, semanas: number, perda = 0, lead = 0) {
+/**
+ * `consumoPais` = quanto os LOTES PLANEJADOS dos pais vão consumir deste preparo nesta semana.
+ * Entra somando, não como aviso: é a metade "necessário para as produções" da conta do Gonza
+ * — `uso direto + necessário nos pais planejados + indireto só dos pais SEM plano`. As duas
+ * primeiras parcelas vêm daqui; a terceira já vem embutida em `media6`, que a rota monta a
+ * partir de `saidas_base` (a explosão que NÃO atravessa produção planejada).
+ */
+function calcular(media6: number, desvpad: number, estoque: number, rendContagem: number, nivel: number, semanas: number, perda = 0, lead = LEAD_PADRAO, consumoPais = 0) {
   const k = 1 + (Number(perda) || 0) / 100;
   // Lead time: o estoque vem da contagem de SEGUNDA, mas a produção acontece dias depois. O PR
   // tem que cobrir a defasagem + o ciclo, senão os dias entre contagem e produção comem o estoque
@@ -35,7 +50,7 @@ function calcular(media6: number, desvpad: number, estoque: number, rendContagem
   const janela = (7 + Math.max(0, Number(lead) || 0)) / 7;
   const mediaAj = media6 * janela * k;
   const pr = (media6 * janela + desvpad * zDe(nivel)) * k;
-  const gap = pr - estoque;
+  const gap = pr + Math.max(0, Number(consumoPais) || 0) - estoque;
   const ae = gap < 0 ? gap : gap + mediaAj * ((semanas || 1) - 1); // semanas extras repõem a Média6s, não o PR cheio
   const naoProduzir = ae <= 0;
   const receitas = !naoProduzir && rendContagem > 0 ? Math.ceil(ae / rendContagem) : 0;
@@ -65,27 +80,36 @@ async function montarItensLive(barId: number, semanaIni: string) {
   ]);
   const cfgMap = new Map((cfgs || []).map((c: any) => [Number(c.producao_id), c]));
   return ((data || []) as any[]).map((r) => {
+    // `saidas` = TOTAL (o que a venda puxa por qualquer caminho) — só leitura.
+    // `saidas_base` = o que dimensiona: direto + indireto que NÃO atravessa produção planejada.
+    //   Quando o pai está no plano, a necessidade do filho vem do lote dele (cascata), não das
+    //   vendas passadas — senão o plano manda fazer recheio de coxinha sem fazer coxinha.
     const saidas = (r.saidas || []).map(num);
+    const saidasBase = (r.saidas_base || r.saidas || []).map(num);
     // Recorte pedido pelo Gonza (22/08): quanto da saída é o que está escrito na ficha do produto
     // VENDIDO (nível 0) e quanto atravessa outro preparo. Não muda conta nenhuma — a média, o PR e
     // a sugestão seguem no TOTAL; isto é leitura.
     const saidasDiretas = (r.saidas_diretas || []).map(num);
-    const media6 = mediaPonderada(saidas);
-    const desvpad = desvioPadrao(saidas);
+    const media6 = mediaPonderada(saidasBase);
+    const desvpad = desvioPadrao(saidasBase);
     const fator = num(r.fator_contagem) || 1;
     const rendContagem = r2(num(r.rendimento) / fator);
     const cfg = cfgMap.get(Number(r.producao_id)) as any;
     const nivel = cfg ? Number(cfg.nivel_servico) : 95;
     const semanas = cfg ? Number(cfg.semanas_receita) : 1;
     const perda = cfg ? num(cfg.fator_perda_pct) : 0;
-    const lead = cfg ? num(cfg.dias_ate_produzir) : 0;
+    const lead = cfg ? num(cfg.dias_ate_produzir) : LEAD_PADRAO;
     const c = calcular(media6, desvpad, num(r.estoque_atual), rendContagem, nivel, semanas, perda, lead);
     return {
       producao_id: Number(r.producao_id), codigo: r.producao_cod, nome: r.producao_nome,
       unidade: r.unidade, curva_a: r.curva_a === true, controle_producao: r.controle_producao === true,
       rendimento: num(r.rendimento), fator, rend_contagem: rendContagem,
-      estoque: num(r.estoque_atual), media6: r2(media6), desvpad: r2(desvpad), saidas, saidas_diretas: saidasDiretas,
-      media6_direta: r2(mediaPonderada(saidasDiretas)), semanas: r.semanas || [],
+      estoque: num(r.estoque_atual), media6: r2(media6), desvpad: r2(desvpad),
+      saidas, saidas_diretas: saidasDiretas, saidas_base: saidasBase,
+      media6_direta: r2(mediaPonderada(saidasDiretas)),
+      media6_indireta: r2(mediaPonderada(saidas.map((v: number, i: number) => Math.max(0, v - (saidasDiretas[i] || 0))))),
+      media6_total: r2(mediaPonderada(saidas)),
+      semanas: r.semanas || [],
       nivel_servico: nivel, semanas_receita: semanas, fator_perda_pct: perda, dias_ate_produzir: lead,
       pr: c.pr, sugestao_qtd: c.sugestaoQtd, sugestao_receitas: c.receitas, nao_produzir: c.naoProduzir,
     };
@@ -184,13 +208,28 @@ async function fetchBom(itens: any[]) {
     .filter((f) => ids.has(Number(f.producao_id)) && ids.has(Number(f.producao_ref)))
     .map((f) => ({ pai: Number(f.producao_id), filho: Number(f.producao_ref), qtd_receita: r2(num(f.quantidade) / (Number(idFator.get(Number(f.producao_ref))) || 1)) }));
 }
+/**
+ * Consumo que os LOTES dos pais puxam de cada filho. ITERA até convergir: uma passada só resolve
+ * 1 nível, e Croquete → Massa Croquete → Carne de panela tem 2 — a Carne sairia zerada porque a
+ * sugestão da Massa nasce 0 (uso direto zero) enquanto o consumo dela não estiver calculado.
+ * Tem que bater com o `consumoMap` da tela: os dois números aparecem no mesmo lugar.
+ */
 function calcConsumo(itens: any[], bom: any[], decBy: Map<number, any>) {
-  const rec = new Map<number, number>(itens.map((it) => {
+  const receitasDe = (it: any, consumo: number) => {
     const d = decBy.get(it.producao_id);
-    return [it.producao_id, d?.decidido_receitas != null ? Number(d.decidido_receitas) : it.sugestao_receitas];
-  }));
-  const m = new Map<number, number>();
-  bom.forEach((b) => { const q = rec.get(b.pai) || 0; if (q > 0) m.set(b.filho, (m.get(b.filho) || 0) + q * b.qtd_receita); });
+    if (d?.decidido_receitas != null) return Number(d.decidido_receitas);
+    return calcular(it.media6, it.desvpad, it.estoque, it.rend_contagem, it.nivel_servico,
+      it.semanas_receita, it.fator_perda_pct, it.dias_ate_produzir, consumo).receitas;
+  };
+  let m = new Map<number, number>();
+  for (let volta = 0; volta < 6; volta++) {
+    const rec = new Map<number, number>(itens.map((it) => [it.producao_id, receitasDe(it, m.get(it.producao_id) || 0)]));
+    const prox = new Map<number, number>();
+    bom.forEach((b) => { const q = rec.get(b.pai) || 0; if (q > 0) prox.set(b.filho, (prox.get(b.filho) || 0) + q * b.qtd_receita); });
+    const igual = prox.size === m.size && [...prox].every(([k, v]) => Math.abs((m.get(k) || 0) - v) < 0.0001);
+    m = prox;
+    if (igual) break;
+  }
   return m;
 }
 // linha de snapshot (operations.producao_plano_item) → item da tela
@@ -199,7 +238,8 @@ const snapToItem = (s: any) => ({
   unidade: s.unidade, curva_a: s.curva_a === true, controle_producao: true,
   rend_contagem: num(s.rend_contagem), estoque: num(s.estoque),
   media6: num(s.media6), desvpad: num(s.desvpad), saidas: s.saidas || [], saidas_diretas: s.saidas_diretas || [],
-  media6_direta: num(s.media6_direta), semanas: s.semanas_datas || [],
+  media6_direta: num(s.media6_direta), media6_indireta: num(s.media6_indireta), media6_total: num(s.media6_total),
+  semanas: s.semanas_datas || [],
   nivel_servico: s.nivel_servico ?? 95, semanas_receita: num(s.semanas_receita) || 1,
   fator_perda_pct: num(s.fator_perda_pct), dias_ate_produzir: num(s.dias_ate_produzir),
   pr: num(s.ponto_ressupr), sugestao_qtd: num(s.sugestao_qtd), sugestao_receitas: s.sugestao_receitas ?? 0,
@@ -502,18 +542,25 @@ export async function POST(request: NextRequest) {
       const consumo = calcConsumo(live, bom, decBy);
       const rows = live.filter((it) => areaDe(it.codigo) === plano.area).map((it) => {
         const d = decBy.get(it.producao_id) as any;
-        const decididoRec = d?.decidido_receitas != null ? Number(d.decidido_receitas) : it.sugestao_receitas;
+        // Recalcula a sugestão COM o consumo dos pais planejados: o `it` veio de montarItensLive,
+        // que roda antes do bom existir. Sem isto o snapshot congelaria um número diferente do
+        // que a reunião viu na tela.
+        const cp = consumo.get(it.producao_id) || 0;
+        const rec = calcular(it.media6, it.desvpad, it.estoque, it.rend_contagem, it.nivel_servico,
+          it.semanas_receita, it.fator_perda_pct, it.dias_ate_produzir, cp);
+        const decididoRec = d?.decidido_receitas != null ? Number(d.decidido_receitas) : rec.receitas;
         return {
           plano_id: planoId, producao_id: it.producao_id, producao_cod: it.codigo, producao_nome: it.nome,
           media6: it.media6, desvpad: it.desvpad, nivel_servico: it.nivel_servico, fator_servico: zDe(it.nivel_servico),
           fator_perda_pct: it.fator_perda_pct ?? 0, dias_ate_produzir: it.dias_ate_produzir ?? 0,
-          ponto_ressupr: it.pr, estoque: it.estoque, sugestao_qtd: it.sugestao_qtd, sugestao_receitas: it.sugestao_receitas,
+          ponto_ressupr: rec.pr, estoque: it.estoque, sugestao_qtd: rec.sugestaoQtd, sugestao_receitas: rec.receitas,
           decidido_receitas: decididoRec, decidido_qtd: r2(decididoRec * it.rend_contagem),
-          seguiu_sugestao: decididoRec === it.sugestao_receitas, motivo_override: d?.motivo_override ?? null,
+          seguiu_sugestao: decididoRec === rec.receitas, motivo_override: d?.motivo_override ?? null,
           dia_producao: d?.dia_producao ?? null,
           unidade: it.unidade, rend_contagem: it.rend_contagem, semanas_receita: it.semanas_receita, curva_a: it.curva_a,
           consumo: r2(consumo.get(it.producao_id) || 0), saidas: it.saidas, semanas_datas: it.semanas,
           saidas_diretas: it.saidas_diretas, media6_direta: it.media6_direta,
+          media6_indireta: it.media6_indireta, media6_total: it.media6_total,
           atualizado_em: new Date().toISOString(),
         };
       });

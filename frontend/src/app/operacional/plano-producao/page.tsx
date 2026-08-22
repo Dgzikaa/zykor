@@ -28,7 +28,16 @@ const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 // Ponto de Ressuprimento + Sugestão (fórmulas exatas da planilha do sócio).
 // Devolve também as PARCELAS (margem/gap/extra/ae) — são elas que a explicação
 // "por que essa quantidade" mostra linha a linha p/ a cozinha.
-function calcular(it: any) {
+/**
+ * A conta do Gonza (22/08): `uso direto + necessário nos pais PLANEJADOS + indireto só dos pais
+ * SEM plano`. As duas pontas chegam por caminhos diferentes:
+ *  - `it.media6` já vem da explosão que NÃO atravessa produção planejada (direto + indireto de
+ *    pai sem plano) — o servidor monta a partir de `saidas_base`;
+ *  - `consumoPais` é o que os lotes decididos dos pais vão consumir NESTA semana, e passou de
+ *    aviso a parcela da conta. É isso que impede o plano de mandar fazer recheio de coxinha
+ *    quando a coxinha não vai ser produzida.
+ */
+function calcular(it: any, consumoPais = 0) {
   // Fator de perda: a demanda do plano é TEÓRICA (vendas × ficha). Preparo com perda sistemática
   // (over-pour, batch refeito, sobra descartada) consome mais que isso e o PR fica curto TODA
   // semana. `k` escala a demanda inteira — média e margem — mantendo o Nível de Serviço fazendo
@@ -42,22 +51,30 @@ function calcular(it: any) {
   const mediaAj = it.media6 * janela * k;
   const margem = it.desvpad * zDe(it.nivel_servico) * k; // folga de segurança do PR
   const pr = mediaAj + margem; // média já vem ponderada do servidor
-  const gap = pr - it.estoque;
+  const cp = Math.max(0, Number(consumoPais) || 0);
+  const gap = pr + cp - it.estoque;
   const extra = gap < 0 ? 0 : mediaAj * ((it.semanas_receita || 1) - 1); // cada semana extra repõe a Média6s (não o PR cheio)
   const ae = gap + extra;
   const naoProduzir = ae <= 0;
   const receitas = !naoProduzir && it.rend_contagem > 0 ? Math.ceil(ae / it.rend_contagem) : 0;
   const sugestaoQtd = receitas * it.rend_contagem;
   const diasEstoque = it.media6 > 0 ? it.estoque / (it.media6 / 6) : null; // ÷6, igual à planilha
-  return { pr, mediaAj, margem, gap, extra, ae, naoProduzir, receitas, sugestaoQtd, diasEstoque };
+  return { pr, mediaAj, margem, gap, extra, ae, naoProduzir, receitas, sugestaoQtd, diasEstoque, consumoPais: cp };
 }
 // Mesmas parcelas p/ a semana ENCERRADA (snapshot): não recalcula nada, só reabre
 // os números congelados na conta que os gerou.
+/**
+ * Tem pai PLANEJADO puxando este preparo? Deriva do próprio número: `media6` é a base (que não
+ * atravessa produção planejada) e `media6_total` é tudo. Se o total é maior, a diferença está
+ * vindo por dentro de alguém que está no plano — e é de lá que a necessidade sai.
+ */
+const temPaiPlanejado = (it: any) => ((Number(it.media6_total) || Number(it.media6) || 0) - (Number(it.media6) || 0)) > 0.005;
+
 function parcelasFrozen(it: any) {
   const k = 1 + (Number(it.fator_perda_pct) || 0) / 100;
   const mediaAj = it.media6 * ((7 + Math.max(0, Number(it.dias_ate_produzir) || 0)) / 7) * k;
   const margem = it.pr - mediaAj;
-  const gap = it.pr - it.estoque;
+  const gap = it.pr + (Number(it.consumo) || 0) - it.estoque;
   const extra = gap < 0 ? 0 : mediaAj * ((it.semanas_receita || 1) - 1);
   return { mediaAj, margem, gap, extra, ae: gap + extra };
 }
@@ -210,30 +227,46 @@ export default function PlanoProducaoPage() {
     } finally { setSalvando(false); }
   };
 
-  // Cascata de demanda dependente ("massa baseada na sugestão da porção"):
-  // consumo planejado de cada preparo = Σ (receitas planejadas do pai × qtd do filho por receita).
-  // Receitas do pai = o que foi decidido (senão a sugestão). Um nível por vez — recalcula
-  // ao vivo conforme as decisões mudam, então a cadeia croquete→massa→carne converge na reunião.
-  // Guarda também o DETALHE (quais produções-pai puxam este preparo, e quanto cada uma),
-  // que é o que permite achar ficha técnica errada olhando a explicação da sugestão.
+  // Cascata de demanda dependente: consumo de cada preparo = Σ (receitas planejadas do pai × qtd
+  // do filho por receita). Receitas do pai = o que foi decidido; senão a sugestão DELE, que por
+  // sua vez já inclui o consumo dos avós.
+  //
+  // ITERA ATÉ CONVERGIR (Gonza, 22/08). Uma passada só resolvia 1 nível: em Croquete → Massa
+  // Croquete → Carne de panela, a sugestão da Massa nasce 0 (uso direto zero) e, com ela em 0, a
+  // Carne de panela também sairia 0 — a produção inteira sumiria do plano. A cada volta a
+  // sugestão do pai já carrega o consumo calculado na volta anterior, então a demanda desce um
+  // nível por iteração. 6 voltas = a profundidade máxima da ficha (o mesmo lvl<6 da explosão).
   const consumoMap = useMemo(() => {
-    const m = new Map<number, number>();
-    const det = new Map<number, { pai: string; receitas: number; qtd_receita: number; total: number }[]>();
     const nomeById = new Map<number, string>(itens.map((it) => [it.producao_id, it.nome]));
-    const recById = new Map<number, number>(itens.map((it) => {
+    const bom = (res?.bom || []) as any[];
+    const decOu = (it: any, consumo: number) => {
       const dec = it.decisao?.decidido_receitas;
-      const base = it.frozen ? it.sugestao_receitas : calcular(it).receitas;
-      return [it.producao_id, dec != null ? Number(dec) : base];
-    }));
-    (res?.bom || []).forEach((b: any) => {
-      const rec = recById.get(b.pai) || 0;
-      if (rec <= 0) return;
-      const total = rec * b.qtd_receita;
-      m.set(b.filho, (m.get(b.filho) || 0) + total);
-      const arr = det.get(b.filho) || [];
-      arr.push({ pai: nomeById.get(b.pai) || `#${b.pai}`, receitas: rec, qtd_receita: b.qtd_receita, total });
-      det.set(b.filho, arr);
-    });
+      if (dec != null) return Number(dec);
+      return it.frozen ? it.sugestao_receitas : calcular(it, consumo).receitas;
+    };
+
+    let m = new Map<number, number>();
+    let det = new Map<number, { pai: string; receitas: number; qtd_receita: number; total: number }[]>();
+    for (let volta = 0; volta < 6; volta++) {
+      const recById = new Map<number, number>(
+        itens.map((it) => [it.producao_id, decOu(it, m.get(it.producao_id) || 0)]),
+      );
+      const proximo = new Map<number, number>();
+      const proximoDet = new Map<number, { pai: string; receitas: number; qtd_receita: number; total: number }[]>();
+      bom.forEach((b: any) => {
+        const rec = recById.get(b.pai) || 0;
+        if (rec <= 0) return;
+        const total = rec * b.qtd_receita;
+        proximo.set(b.filho, (proximo.get(b.filho) || 0) + total);
+        const arr = proximoDet.get(b.filho) || [];
+        arr.push({ pai: nomeById.get(b.pai) || `#${b.pai}`, receitas: rec, qtd_receita: b.qtd_receita, total });
+        proximoDet.set(b.filho, arr);
+      });
+      // convergiu quando nenhum filho mudou de necessidade
+      const igual = proximo.size === m.size && [...proximo].every(([k, v]) => Math.abs((m.get(k) || 0) - v) < 0.0001);
+      m = proximo; det = proximoDet;
+      if (igual) break;
+    }
     return { total: m, detalhe: det };
   }, [itens, res]);
 
@@ -243,10 +276,10 @@ export default function PlanoProducaoPage() {
     return itens
       .map((it) => {
         // semana congelada (encerrada): usa os valores do snapshot, não recalcula
-        const calc = it.frozen
-          ? { pr: it.pr, ...parcelasFrozen(it), naoProduzir: it.nao_produzir, receitas: it.sugestao_receitas, sugestaoQtd: it.sugestao_qtd, diasEstoque: it.media6 > 0 ? it.estoque / (it.media6 / 6) : null }
-          : calcular(it);
         const consumo = it.frozen ? (it.consumo || 0) : (consumoMap.total.get(it.producao_id) || 0);
+        const calc = it.frozen
+          ? { pr: it.pr, ...parcelasFrozen(it), naoProduzir: it.nao_produzir, receitas: it.sugestao_receitas, sugestaoQtd: it.sugestao_qtd, diasEstoque: it.media6 > 0 ? it.estoque / (it.media6 / 6) : null, consumoPais: consumo }
+          : calcular(it, consumo);
         const consumoDet = consumoMap.detalhe.get(it.producao_id) || [];
         const planejadoQtd = it.decisao?.decidido_receitas != null ? Number(it.decisao.decidido_receitas) * it.rend_contagem : calc.sugestaoQtd;
         const falta = consumo > 0 ? Math.max(0, consumo - (it.estoque + planejadoQtd)) : 0; // não cobre a produção dos pais
@@ -344,7 +377,10 @@ export default function PlanoProducaoPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
               <th className="text-left font-medium px-2 py-2">Produção</th>
-              <th className="text-right font-medium px-2 py-2" title="Tudo que a VENDA da semana puxou deste preparo — o que vai direto na ficha do drink/prato E o que passa por dentro de outro preparo (espuma, refrigerante, pré-batch). O número menor embaixo é só a parte DIRETA. Clique p/ abrir as 6 semanas.">Uso Indireto</th>
+              {/* Gonza (22/08): "o que eu acho legal é ter separado as duas colunas — uso direto e
+                  uso indireto — e deixa a coluna de necessário para produção de outras produções". */}
+              <th className="text-right font-medium px-2 py-2" title="O que está escrito na ficha do PRODUTO VENDIDO. Ex.: Moscow Mule pede 30 ml de xarope. Clique p/ abrir as 6 semanas.">Uso direto</th>
+              <th className="text-right font-medium px-2 py-2" title="O que a venda puxa ATRAVESSANDO outro preparo (espuma, refrigerante, pré-batch, recheio). Só dimensiona o plano quando o preparo do meio NÃO está no Controle de Produção — se estiver, a necessidade vem do lote dele, na coluna ao lado.">Uso indireto</th>
               <th className="text-right font-medium px-2 py-2" title="Média ponderada do uso indireto das últimas 6 semanas — peso maior para a semana mais recente; semana em branco fica fora. Já inclui o que foi para dentro de outros preparos. Clique no valor para ver as semanas.">Média 6s</th>
               <th className="text-right font-medium px-2 py-2" title="Desvio padrão amostral das 6 semanas">Desv. padrão</th>
               <th className="text-center font-medium px-2 py-2" title="Define o fator de segurança do Ponto de Ressuprimento">Nível de Serviço</th>
@@ -364,7 +400,7 @@ export default function PlanoProducaoPage() {
                   a sugestão estava 10 L curta. Não está: o valor daqui é um RECORTE de dentro do Uso
                   Indireto, não uma demanda a mais. Por isso o rótulo diz "dentro disso" e o título
                   abre com a frase que evita a soma. */}
-              <th className="text-right font-medium px-2 py-2" title="JÁ ESTÁ DENTRO do Uso Indireto — não somar. É só o recorte de quanto deste preparo vai virar outro preparo (espuma, refrigerante, pré-batch) na produção planejada da semana. Serve de aviso: fica vermelho com ⚠ quando estoque + plano não cobrem.">Dentro disso: p/ outras produções</th>
+              <th className="text-right font-medium px-2 py-2" title="Quanto os LOTES PLANEJADOS dos pais vão consumir deste preparo nesta semana. Entra SOMANDO na sugestão. É o que faz o recheio de coxinha só ser produzido quando a coxinha for produzida.">Necessário p/ produções</th>
               <th className="text-right font-medium px-2 py-2">Sugestão</th>
               {planejando && <th className="text-right font-medium px-2 py-2" title="O que foi decidido na reunião (receitas)">Decidido</th>}
               {planejando && <th className="text-center font-medium px-2 py-2">Dia</th>}
@@ -377,6 +413,7 @@ export default function PlanoProducaoPage() {
                 const override = decidido != null && Number(decidido) !== it.receitas;
                 const ultima = it.saidas?.length ? it.saidas[it.saidas.length - 1] : null;
                 const ultimaDireta = it.saidas_diretas?.length ? it.saidas_diretas[it.saidas_diretas.length - 1] : null;
+                const ultimaIndireta = Math.max(0, (ultima ?? 0) - (ultimaDireta ?? 0));
                 const expandido = aberto === it.producao_id;
                 return (
                 <Fragment key={it.producao_id}>
@@ -393,12 +430,17 @@ export default function PlanoProducaoPage() {
                       DIRETA". O de cima é o total (é ele que dimensiona); o de baixo é só a parte
                       escrita na ficha do produto vendido. Só aparece quando as duas divergem. */}
                   <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
-                    {comUni(ultima, it.unidade)}
-                    {ultimaDireta != null && ultima != null && Math.abs(ultima - ultimaDireta) > 0.005 && (
-                      <span className="block text-[10px] text-gray-400" title="Parte que vai DIRETO na ficha do produto vendido — o resto atravessa outro preparo">
-                        direta {comUni(ultimaDireta, it.unidade)}
-                      </span>
-                    )}
+                    {ultimaDireta != null && ultimaDireta > 0
+                      ? comUni(ultimaDireta, it.unidade)
+                      : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                  </td>
+                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
+                    {ultimaIndireta > 0
+                      ? <span title={temPaiPlanejado(it) ? 'Vem de preparo que ESTÁ no plano — não dimensiona aqui, a necessidade está na coluna "Necessário p/ produções"' : 'Vem de preparo fora do plano — este valor dimensiona a produção'}
+                          className={temPaiPlanejado(it) ? 'text-gray-400' : ''}>
+                          {comUni(ultimaIndireta, it.unidade)}
+                        </span>
+                      : <span className="text-gray-300 dark:text-gray-600">—</span>}
                   </td>
                   <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
                     <button onClick={() => setAberto(expandido ? null : it.producao_id)} className="inline-flex items-center gap-1 hover:text-violet-600 dark:hover:text-violet-400" title="Ver as 6 semanas que formam a média">
@@ -454,7 +496,10 @@ export default function PlanoProducaoPage() {
                   <td className={`px-2 py-2 text-right tabular-nums whitespace-nowrap ${(it.diasEstoque ?? 99) < 3 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'}`}>{it.diasEstoque == null ? '—' : `${fmtN(it.diasEstoque)}d`}</td>
                   <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
                     {it.consumo > 0
-                      ? <span className={it.falta > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'} title={it.falta > 0 ? `Já incluso no Uso Indireto (não somar). Faltam ${comUni(it.falta, it.unidade)} p/ cobrir a produção planejada dos pais.` : 'Já incluso no Uso Indireto (não somar). Coberto pelo estoque + plano.'}>{comUni(it.consumo, it.unidade)}{it.falta > 0 ? ' ⚠' : ''}</span>
+                      ? <span className="text-indigo-600 dark:text-indigo-400 font-medium"
+                          title={`Os lotes planejados de ${it.consumoDet?.map((d: any) => d.pai).join(', ') || 'outros preparos'} vão consumir isto. JÁ SOMADO na sugestão.`}>
+                          {comUni(it.consumo, it.unidade)}
+                        </span>
                       : <span className="text-gray-300 dark:text-gray-600">—</span>}
                   </td>
                   {/* A dúvida nasce OLHANDO a sugestão ("por que produzir 4 receitas?"), então é ela
@@ -561,6 +606,14 @@ export default function PlanoProducaoPage() {
                             <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap">{comUni(it.margem ?? 0, it.unidade)}</td>
                             <td className="py-0.5 pl-2 text-gray-400">porque tem semana que sai bem mais — cobre {it.nivel_servico}% das semanas</td>
                           </tr>
+                          {(it.consumoPais ?? 0) > 0 && (
+                            <tr>
+                              <td className="py-0.5 text-gray-400">+</td>
+                              <td className="py-0.5">Necessário p/ outras produções</td>
+                              <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap text-indigo-600 dark:text-indigo-400">{comUni(it.consumoPais, it.unidade)}</td>
+                              <td className="py-0.5 pl-2 text-gray-400">os lotes de {it.consumoDet?.map((d: any) => d.pai).join(', ') || 'outros preparos'} planejados pra esta semana</td>
+                            </tr>
+                          )}
                           <tr className="border-t border-gray-200 dark:border-gray-700">
                             <td className="py-0.5 text-gray-400">=</td>
                             <td className="py-0.5 font-medium text-gray-800 dark:text-gray-100">Quanto precisa ter pra semana</td>
@@ -596,13 +649,13 @@ export default function PlanoProducaoPage() {
                         </tbody>
                       </table>
 
-                      {/* Consumo dos pais: NÃO entra na conta acima (é aviso), então fica separado —
-                          senão parece parcela e a soma não fecha. */}
+                      {/* Consumo dos pais PASSOU A SOMAR (Gonza, 22/08) — não é mais aviso. Fica
+                          detalhado aqui embaixo porque a conta de cima já mostra a parcela; o que
+                          falta é QUAIS pais e quanto cada um puxa. */}
                       {it.consumo > 0 && (
                         <div className="mt-2.5 pt-2 border-t border-dashed border-gray-200 dark:border-gray-700">
                           <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200 mb-1">
-                            Dentro do uso acima, {comUni(it.consumo, it.unidade)} deste preparo não vai pro
-                            drink/prato direto — vira outro preparo na produção planejada da semana
+                            Os lotes planejados dos pais vão consumir {comUni(it.consumo, it.unidade)} deste preparo
                           </div>
                           {it.consumoDet.length > 0 && <table className="w-full text-[11px]">
                             <tbody className="text-gray-600 dark:text-gray-300">
@@ -622,9 +675,8 @@ export default function PlanoProducaoPage() {
                             </tbody>
                           </table>}
                           <p className={`mt-1.5 text-[10px] ${it.falta > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-400'}`}>
-                            {it.falta > 0
-                              ? <>Isso <b>não cabe</b> no estoque + o que está planejado: faltam <b>{comUni(it.falta, it.unidade)}</b>. Aumente as receitas no &ldquo;Decidido&rdquo;.</>
-                              : <>Está coberto pelo estoque + o que já foi planejado. Este aviso <b>não muda</b> a sugestão acima. Quantidade estranha em alguma linha costuma ser <b>ficha técnica errada</b>.</>}
+                            Isso <b>já está somado</b> na sugestão acima. Quantidade estranha em alguma
+                            linha costuma ser <b>ficha técnica errada</b>.
                           </p>
                         </div>
                       )}
@@ -642,7 +694,7 @@ export default function PlanoProducaoPage() {
             </tbody>
           </table>
         </div></CardContent></Card>
-        <p className="text-[11px] text-gray-400"><b className="text-gray-500 dark:text-gray-300">Uso Indireto já é o total:</b> as vendas explodidas pela ficha técnica, <b>incluindo</b> o que passa por dentro de outro preparo (espuma, refrigerante, pré-batch). A coluna <b>&ldquo;Dentro disso: p/ outras produções&rdquo;</b> é um recorte desse mesmo total — <b>não somar as duas</b>, senão a quantidade sai inflada. Recalcula com a ficha atual nas 6 semanas. O ponto azul liga/desliga a produção no Controle de Produção. Ao <b>encerrar</b>, os itens com dia definido viram a calendarização que aparece na tela Executar do dia.</p>
+        <p className="text-[11px] text-gray-400"><b className="text-gray-500 dark:text-gray-300">Como a sugestão é montada:</b> <b>uso direto</b> + <b>necessário p/ produções</b> (os lotes planejados dos pais) + <b>uso indireto</b>, mas só a parte que vem de preparo que <b>não está</b> no Controle de Produção. Se o pai está no plano, a necessidade do filho vem do lote dele — é isso que impede o plano de mandar fazer recheio de coxinha quando a coxinha não vai ser produzida. O PR ainda cobre <b>a semana + 2 dias</b>, porque a contagem é de segunda e a produção sai em média na quarta. Recalcula com a ficha atual nas 6 semanas. O ponto azul liga/desliga a produção no Controle de Produção. Ao <b>encerrar</b>, os itens com dia definido viram a calendarização que aparece na tela Executar do dia.</p>
 
         {/* Modal: distribuir a produção em vários dias (qtd por dia) */}
         {diaModal && (
