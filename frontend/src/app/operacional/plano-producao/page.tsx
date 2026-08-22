@@ -344,7 +344,7 @@ export default function PlanoProducaoPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 text-xs uppercase"><tr>
               <th className="text-left font-medium px-2 py-2">Produção</th>
-              <th className="text-right font-medium px-2 py-2" title="Tudo que a VENDA da semana puxou deste preparo — o que vai direto na ficha do drink/prato E o que passa por dentro de outro preparo (espuma, refrigerante, pré-batch). Não é a saída direta. Clique p/ abrir as 6 semanas.">Uso Indireto</th>
+              <th className="text-right font-medium px-2 py-2" title="Tudo que a VENDA da semana puxou deste preparo — o que vai direto na ficha do drink/prato E o que passa por dentro de outro preparo (espuma, refrigerante, pré-batch). O número menor embaixo é só a parte DIRETA. Clique p/ abrir as 6 semanas.">Uso Indireto</th>
               <th className="text-right font-medium px-2 py-2" title="Média ponderada do uso indireto das últimas 6 semanas — peso maior para a semana mais recente; semana em branco fica fora. Já inclui o que foi para dentro de outros preparos. Clique no valor para ver as semanas.">Média 6s</th>
               <th className="text-right font-medium px-2 py-2" title="Desvio padrão amostral das 6 semanas">Desv. padrão</th>
               <th className="text-center font-medium px-2 py-2" title="Define o fator de segurança do Ponto de Ressuprimento">Nível de Serviço</th>
@@ -376,6 +376,7 @@ export default function PlanoProducaoPage() {
                 const decidido = it.decisao?.decidido_receitas;
                 const override = decidido != null && Number(decidido) !== it.receitas;
                 const ultima = it.saidas?.length ? it.saidas[it.saidas.length - 1] : null;
+                const ultimaDireta = it.saidas_diretas?.length ? it.saidas_diretas[it.saidas_diretas.length - 1] : null;
                 const expandido = aberto === it.producao_id;
                 return (
                 <Fragment key={it.producao_id}>
@@ -388,7 +389,17 @@ export default function PlanoProducaoPage() {
                     {it.codigo && <span className="block text-[11px] text-gray-500 dark:text-gray-400 font-mono pl-4">{it.codigo}</span>}
                     <span className="block text-[11px] text-gray-400 pl-4">rende {comUni(it.rend_contagem, it.unidade)}/receita</span>
                   </td>
-                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{comUni(ultima, it.unidade)}</td>
+                  {/* Gonza (22/08): "preciso saber separadamente o quanto eu preciso para a saída
+                      DIRETA". O de cima é o total (é ele que dimensiona); o de baixo é só a parte
+                      escrita na ficha do produto vendido. Só aparece quando as duas divergem. */}
+                  <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
+                    {comUni(ultima, it.unidade)}
+                    {ultimaDireta != null && ultima != null && Math.abs(ultima - ultimaDireta) > 0.005 && (
+                      <span className="block text-[10px] text-gray-400" title="Parte que vai DIRETO na ficha do produto vendido — o resto atravessa outro preparo">
+                        direta {comUni(ultimaDireta, it.unidade)}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
                     <button onClick={() => setAberto(expandido ? null : it.producao_id)} className="inline-flex items-center gap-1 hover:text-violet-600 dark:hover:text-violet-400" title="Ver as 6 semanas que formam a média">
                       {expandido ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}{comUni(it.media6, it.unidade)}
@@ -495,6 +506,20 @@ export default function PlanoProducaoPage() {
                       })}
                       <span className="text-gray-600 dark:text-gray-300">= média <b>{comUni(it.media6, it.unidade)}</b></span>
                     </div>
+
+                    {/* A quebra direto × via preparo, semana a semana. */}
+                    {it.media6_direta != null && Math.abs(it.media6 - it.media6_direta) > 0.005 && (
+                      <div className="mt-1.5 ml-4 text-[11px] text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span>
+                          Desse uso, <b className="text-gray-700 dark:text-gray-200">{comUni(it.media6_direta, it.unidade)}</b> por
+                          semana vai <b>direto</b> na ficha do produto vendido
+                        </span>
+                        <span>
+                          e <b className="text-gray-700 dark:text-gray-200">{comUni(it.media6 - it.media6_direta, it.unidade)}</b> atravessa
+                          outro preparo (espuma, refrigerante, pré-batch)
+                        </span>
+                      </div>
+                    )}
 
                     {/* POR QUE ESSA SUGESTÃO — espelho do Planejamento de Compras. Os números já
                         existiam espalhados nas colunas; aqui viram a CONTA, com o nome de cada

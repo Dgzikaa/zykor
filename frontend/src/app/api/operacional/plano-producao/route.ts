@@ -66,6 +66,10 @@ async function montarItensLive(barId: number, semanaIni: string) {
   const cfgMap = new Map((cfgs || []).map((c: any) => [Number(c.producao_id), c]));
   return ((data || []) as any[]).map((r) => {
     const saidas = (r.saidas || []).map(num);
+    // Recorte pedido pelo Gonza (22/08): quanto da saída é o que está escrito na ficha do produto
+    // VENDIDO (nível 0) e quanto atravessa outro preparo. Não muda conta nenhuma — a média, o PR e
+    // a sugestão seguem no TOTAL; isto é leitura.
+    const saidasDiretas = (r.saidas_diretas || []).map(num);
     const media6 = mediaPonderada(saidas);
     const desvpad = desvioPadrao(saidas);
     const fator = num(r.fator_contagem) || 1;
@@ -80,7 +84,8 @@ async function montarItensLive(barId: number, semanaIni: string) {
       producao_id: Number(r.producao_id), codigo: r.producao_cod, nome: r.producao_nome,
       unidade: r.unidade, curva_a: r.curva_a === true, controle_producao: r.controle_producao === true,
       rendimento: num(r.rendimento), fator, rend_contagem: rendContagem,
-      estoque: num(r.estoque_atual), media6: r2(media6), desvpad: r2(desvpad), saidas, semanas: r.semanas || [],
+      estoque: num(r.estoque_atual), media6: r2(media6), desvpad: r2(desvpad), saidas, saidas_diretas: saidasDiretas,
+      media6_direta: r2(mediaPonderada(saidasDiretas)), semanas: r.semanas || [],
       nivel_servico: nivel, semanas_receita: semanas, fator_perda_pct: perda, dias_ate_produzir: lead,
       pr: c.pr, sugestao_qtd: c.sugestaoQtd, sugestao_receitas: c.receitas, nao_produzir: c.naoProduzir,
     };
@@ -193,7 +198,8 @@ const snapToItem = (s: any) => ({
   producao_id: Number(s.producao_id), codigo: s.producao_cod, nome: s.producao_nome,
   unidade: s.unidade, curva_a: s.curva_a === true, controle_producao: true,
   rend_contagem: num(s.rend_contagem), estoque: num(s.estoque),
-  media6: num(s.media6), desvpad: num(s.desvpad), saidas: s.saidas || [], semanas: s.semanas_datas || [],
+  media6: num(s.media6), desvpad: num(s.desvpad), saidas: s.saidas || [], saidas_diretas: s.saidas_diretas || [],
+  media6_direta: num(s.media6_direta), semanas: s.semanas_datas || [],
   nivel_servico: s.nivel_servico ?? 95, semanas_receita: num(s.semanas_receita) || 1,
   fator_perda_pct: num(s.fator_perda_pct), dias_ate_produzir: num(s.dias_ate_produzir),
   pr: num(s.ponto_ressupr), sugestao_qtd: num(s.sugestao_qtd), sugestao_receitas: s.sugestao_receitas ?? 0,
@@ -507,6 +513,7 @@ export async function POST(request: NextRequest) {
           dia_producao: d?.dia_producao ?? null,
           unidade: it.unidade, rend_contagem: it.rend_contagem, semanas_receita: it.semanas_receita, curva_a: it.curva_a,
           consumo: r2(consumo.get(it.producao_id) || 0), saidas: it.saidas, semanas_datas: it.semanas,
+          saidas_diretas: it.saidas_diretas, media6_direta: it.media6_direta,
           atualizado_em: new Date().toISOString(),
         };
       });
