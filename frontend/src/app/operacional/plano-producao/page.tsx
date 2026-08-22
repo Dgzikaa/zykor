@@ -29,24 +29,33 @@ const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 // Devolve também as PARCELAS (margem/gap/extra/ae) — são elas que a explicação
 // "por que essa quantidade" mostra linha a linha p/ a cozinha.
 function calcular(it: any) {
-  const margem = it.desvpad * zDe(it.nivel_servico); // folga de segurança do PR
-  const pr = it.media6 + margem; // média já vem ponderada do servidor
+  // Fator de perda: a demanda do plano é TEÓRICA (vendas × ficha). Preparo com perda sistemática
+  // (over-pour, batch refeito, sobra descartada) consome mais que isso e o PR fica curto TODA
+  // semana. `k` escala a demanda inteira — média e margem — mantendo o Nível de Serviço fazendo
+  // só o papel dele, que é cobrir a VARIAÇÃO entre semanas. Tem que bater com o `calcular` da
+  // rota: os dois números aparecem na mesma tela.
+  const k = 1 + (Number(it.fator_perda_pct) || 0) / 100;
+  const mediaAj = it.media6 * k;
+  const margem = it.desvpad * zDe(it.nivel_servico) * k; // folga de segurança do PR
+  const pr = mediaAj + margem; // média já vem ponderada do servidor
   const gap = pr - it.estoque;
-  const extra = gap < 0 ? 0 : it.media6 * ((it.semanas_receita || 1) - 1); // cada semana extra repõe a Média6s (não o PR cheio)
+  const extra = gap < 0 ? 0 : mediaAj * ((it.semanas_receita || 1) - 1); // cada semana extra repõe a Média6s (não o PR cheio)
   const ae = gap + extra;
   const naoProduzir = ae <= 0;
   const receitas = !naoProduzir && it.rend_contagem > 0 ? Math.ceil(ae / it.rend_contagem) : 0;
   const sugestaoQtd = receitas * it.rend_contagem;
   const diasEstoque = it.media6 > 0 ? it.estoque / (it.media6 / 6) : null; // ÷6, igual à planilha
-  return { pr, margem, gap, extra, ae, naoProduzir, receitas, sugestaoQtd, diasEstoque };
+  return { pr, mediaAj, margem, gap, extra, ae, naoProduzir, receitas, sugestaoQtd, diasEstoque };
 }
 // Mesmas parcelas p/ a semana ENCERRADA (snapshot): não recalcula nada, só reabre
 // os números congelados na conta que os gerou.
 function parcelasFrozen(it: any) {
-  const margem = it.pr - it.media6;
+  const k = 1 + (Number(it.fator_perda_pct) || 0) / 100;
+  const mediaAj = it.media6 * k;
+  const margem = it.pr - mediaAj;
   const gap = it.pr - it.estoque;
-  const extra = gap < 0 ? 0 : it.media6 * ((it.semanas_receita || 1) - 1);
-  return { margem, gap, extra, ae: gap + extra };
+  const extra = gap < 0 ? 0 : mediaAj * ((it.semanas_receita || 1) - 1);
+  return { mediaAj, margem, gap, extra, ae: gap + extra };
 }
 
 export default function PlanoProducaoPage() {
@@ -129,7 +138,7 @@ export default function PlanoProducaoPage() {
   const patchItem = (id: number, patch: any) => setItens((prev) => prev.map((i) => i.producao_id === id ? { ...i, ...patch } : i));
 
   // ---- salvamentos ----
-  const salvarConfig = async (it: any, campo: 'nivel_servico' | 'semanas_receita', valor: number) => {
+  const salvarConfig = async (it: any, campo: 'nivel_servico' | 'semanas_receita' | 'fator_perda_pct', valor: number) => {
     patchItem(it.producao_id, { [campo]: valor });
     await api.post('/api/operacional/plano-producao', { action: 'config', producao_id: it.producao_id, producao_cod: it.codigo, [campo]: valor });
   };
@@ -335,6 +344,10 @@ export default function PlanoProducaoPage() {
               <th className="text-right font-medium px-2 py-2" title="Média ponderada do uso indireto das últimas 6 semanas — peso maior para a semana mais recente; semana em branco fica fora. Já inclui o que foi para dentro de outros preparos. Clique no valor para ver as semanas.">Média 6s</th>
               <th className="text-right font-medium px-2 py-2" title="Desvio padrão amostral das 6 semanas">Desv. padrão</th>
               <th className="text-center font-medium px-2 py-2" title="Define o fator de segurança do Ponto de Ressuprimento">Nível de Serviço</th>
+              {/* Perda sistemática ≠ Nível de Serviço. O NS cobre a VARIAÇÃO entre semanas; a perda é
+                  um VIÉS (o bar gasta mais do que a ficha diz, toda semana). Enfiar a perda no NS
+                  faz o número certo pelo motivo errado e esconde a perda do Desvio. */}
+              <th className="text-center font-medium px-2 py-2" title="% que o bar consome ACIMA da ficha, toda semana (over-pour, batch refeito, sobra descartada). Multiplica a demanda: PR = (média + margem) × (1 + perda). Deixe 0 quando o consumo real bate com a ficha. O número medido no histórico aparece embaixo — clique nele para aplicar.">Perda %</th>
               <th className="text-center font-medium px-2 py-2" title="Quantas semanas de receita produzir de uma vez">Qtde x Semanas</th>
               <th className="text-right font-medium px-2 py-2" title="Ponto de Ressuprimento = média + desvio × fator de serviço">PR</th>
               <th className="text-right font-medium px-2 py-2" title="Última contagem (início da semana planejada)">Estoque Atual</th>
@@ -378,6 +391,23 @@ export default function PlanoProducaoPage() {
                     <select disabled={encerrado} value={it.nivel_servico} onChange={e => salvarConfig(it, 'nivel_servico', Number(e.target.value))} className="bg-transparent text-xs outline-none cursor-pointer disabled:cursor-default rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 px-1">
                       {NIVEIS.map(n => <option key={n} value={n} className="text-gray-900">{n}%</option>)}
                     </select>
+                  </td>
+                  <td className="px-2 py-2 text-center whitespace-nowrap">
+                    <input disabled={encerrado} type="number" min={0} max={300} step={1}
+                      value={it.fator_perda_pct ?? 0}
+                      onChange={e => patchItem(it.producao_id, { fator_perda_pct: Number(e.target.value) })}
+                      onBlur={e => salvarConfig(it, 'fator_perda_pct', Number(e.target.value))}
+                      className="w-12 bg-transparent text-xs text-center outline-none rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 disabled:cursor-default px-1" />
+                    {/* A sugestão só aparece quando diverge do que está aplicado — senão vira ruído
+                        em ~80 linhas que já estão certas. */}
+                    {it.perda_medida_pct != null && Math.abs(it.perda_medida_pct - (it.fator_perda_pct ?? 0)) >= 5 && (
+                      <button disabled={encerrado || soLeitura}
+                        onClick={() => { patchItem(it.producao_id, { fator_perda_pct: it.perda_medida_pct }); salvarConfig(it, 'fator_perda_pct', it.perda_medida_pct); }}
+                        title={`Nas últimas 8 semanas o consumo real do estoque ficou ${it.perda_medida_pct}% acima do teórico. Clique para aplicar.`}
+                        className="block mx-auto text-[10px] text-amber-600 dark:text-amber-400 hover:underline disabled:no-underline disabled:text-gray-400">
+                        medido {it.perda_medida_pct}%
+                      </button>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-center">
                     <input disabled={encerrado} type="number" min={0} step={0.5} value={it.semanas_receita}
@@ -459,6 +489,16 @@ export default function PlanoProducaoPage() {
                             <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap">{comUni(it.media6, it.unidade)}</td>
                             <td className="py-0.5 pl-2 text-gray-400">média das 6 últimas semanas (as mais recentes pesam mais)</td>
                           </tr>
+                          {/* A linha da perda só existe quando há perda — o caso normal é 0 e a
+                              conta continua a de sempre, com uma linha a menos pra ler. */}
+                          {(it.fator_perda_pct ?? 0) > 0 && (
+                            <tr>
+                              <td className="py-0.5 text-gray-400">+</td>
+                              <td className="py-0.5">Perda que a ficha não vê</td>
+                              <td className="py-0.5 text-right tabular-nums font-medium whitespace-nowrap text-amber-600 dark:text-amber-400">{comUni((it.mediaAj ?? it.media6) - it.media6, it.unidade)}</td>
+                              <td className="py-0.5 pl-2 text-gray-400">o bar consome {it.fator_perda_pct}% acima da ficha (over-pour, batch refeito, sobra)</td>
+                            </tr>
+                          )}
                           <tr>
                             <td className="py-0.5 text-gray-400">+</td>
                             <td className="py-0.5">Folga de segurança</td>

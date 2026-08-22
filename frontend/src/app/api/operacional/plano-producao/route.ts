@@ -19,10 +19,19 @@ const NIVEL_Z: Record<number, number> = {
 };
 const zDe = (nivel: number) => NIVEL_Z[nivel] ?? 1.645;
 
-function calcular(media6: number, desvpad: number, estoque: number, rendContagem: number, nivel: number, semanas: number) {
-  const pr = media6 + desvpad * zDe(nivel);
+/**
+ * `perda` = % de perda sistemática sobre a demanda teórica (ver migration 20260822).
+ * Escala a demanda inteira — média E margem de segurança — o que é o mesmo que
+ * `(media + desv×z) × (1+p)`: se o bar gasta 36% a mais do que a ficha diz, gasta 36% a mais
+ * também nas semanas de pico. Não mexe no Nível de Serviço de propósito: NS é variância, perda
+ * é viés, e misturar os dois esconde a perda do Desvio.
+ */
+function calcular(media6: number, desvpad: number, estoque: number, rendContagem: number, nivel: number, semanas: number, perda = 0) {
+  const k = 1 + (Number(perda) || 0) / 100;
+  const mediaAj = media6 * k;
+  const pr = (media6 + desvpad * zDe(nivel)) * k;
   const gap = pr - estoque;
-  const ae = gap < 0 ? gap : gap + media6 * ((semanas || 1) - 1); // semanas extras repõem a Média6s, não o PR cheio
+  const ae = gap < 0 ? gap : gap + mediaAj * ((semanas || 1) - 1); // semanas extras repõem a Média6s, não o PR cheio
   const naoProduzir = ae <= 0;
   const receitas = !naoProduzir && rendContagem > 0 ? Math.ceil(ae / rendContagem) : 0;
   return { pr: r2(pr), naoProduzir, receitas, sugestaoQtd: r2(receitas * rendContagem) };
@@ -47,7 +56,7 @@ async function montarItensLive(barId: number, semanaIni: string) {
   const gold = (sb() as any).schema('gold');
   const [{ data }, { data: cfgs }] = await Promise.all([
     gold.rpc('fn_plano_producao', { p_bar: barId, p_semana: semanaIni }),
-    ops().from('producao_plano_config').select('producao_id, nivel_servico, semanas_receita').eq('bar_id', barId),
+    ops().from('producao_plano_config').select('producao_id, nivel_servico, semanas_receita, fator_perda_pct').eq('bar_id', barId),
   ]);
   const cfgMap = new Map((cfgs || []).map((c: any) => [Number(c.producao_id), c]));
   return ((data || []) as any[]).map((r) => {
@@ -59,16 +68,56 @@ async function montarItensLive(barId: number, semanaIni: string) {
     const cfg = cfgMap.get(Number(r.producao_id)) as any;
     const nivel = cfg ? Number(cfg.nivel_servico) : 95;
     const semanas = cfg ? Number(cfg.semanas_receita) : 1;
-    const c = calcular(media6, desvpad, num(r.estoque_atual), rendContagem, nivel, semanas);
+    const perda = cfg ? num(cfg.fator_perda_pct) : 0;
+    const c = calcular(media6, desvpad, num(r.estoque_atual), rendContagem, nivel, semanas, perda);
     return {
       producao_id: Number(r.producao_id), codigo: r.producao_cod, nome: r.producao_nome,
       unidade: r.unidade, curva_a: r.curva_a === true, controle_producao: r.controle_producao === true,
       rendimento: num(r.rendimento), fator, rend_contagem: rendContagem,
       estoque: num(r.estoque_atual), media6: r2(media6), desvpad: r2(desvpad), saidas, semanas: r.semanas || [],
-      nivel_servico: nivel, semanas_receita: semanas,
+      nivel_servico: nivel, semanas_receita: semanas, fator_perda_pct: perda,
       pr: c.pr, sugestao_qtd: c.sugestaoQtd, sugestao_receitas: c.receitas, nao_produzir: c.naoProduzir,
     };
   });
+}
+
+/**
+ * Perda MEDIDA de cada produção: compara a demanda teórica com o consumo real de estoque numa
+ * janela longa. É o número que a tela oferece pra preencher o "Perda %" — sem ele o campo vira
+ * chute, e chute em ponto de ressuprimento é como o bar fica sem.
+ *
+ *   consumo_real = estoque_inicial + produzido − estoque_final     (o que sumiu do estoque)
+ *   perda %      = (consumo_real − saída_teórica) / saída_teórica
+ *
+ * Janela longa (8 semanas) de propósito: semana a semana o número pula, porque a contagem é uma
+ * foto de segunda e a produção pode cair do outro lado da fronteira. No agregado isso se anula.
+ * `fn_desvios` usa a data de INÍCIO da produção (não a de lançamento) — produção lançada
+ * retroativa entra na semana certa.
+ */
+async function perdaMedida(barId: number, semanaIni: string): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  try {
+    const ini = addDias(semanaIni, -56);
+    const { data } = await (sb() as any).schema('gold')
+      .rpc('fn_desvios', { p_bar: barId, p_ini: ini, p_fim: semanaIni });
+    for (const r of (data || []) as any[]) {
+      if (r.is_producao !== true) continue;
+      const teorica = num(r.saida_teorica);
+      const real = num(r.estoque_ini) + num(r.produzido) - num(r.estoque_fim_real);
+      // Base pequena dá percentual selvagem: "Chá de Louro" com 0,12 L teóricos acusa 567% só
+      // porque a contagem arredondou meio litro. Abaixo de 1 (na unidade de contagem) não mede.
+      if (teorica < 1 || real <= 0) continue;
+      const pct = ((real - teorica) / teorica) * 100;
+      // Negativo = consumiu MENOS que o teórico. Não sugere nada: ou a ficha está folgada, ou
+      // faltou registrar produção — e produção não registrada PUXA o real pra baixo. É por isso
+      // que só o lado positivo é confiável: ele é um PISO da perda, não uma estimativa central.
+      if (pct <= 0) continue;
+      out.set(String(r.insumo_codigo).toUpperCase(), Math.round(Math.min(300, pct)));
+    }
+  } catch {
+    // medir é um plus: se a RPC falhar, a tela mostra o campo sem sugestão em vez de quebrar
+  }
+  return out;
 }
 
 // BOM pai→filho (qtd do filho na un. contagem por receita do pai)
@@ -97,6 +146,7 @@ const snapToItem = (s: any) => ({
   rend_contagem: num(s.rend_contagem), estoque: num(s.estoque),
   media6: num(s.media6), desvpad: num(s.desvpad), saidas: s.saidas || [], semanas: s.semanas_datas || [],
   nivel_servico: s.nivel_servico ?? 95, semanas_receita: num(s.semanas_receita) || 1,
+  fator_perda_pct: num(s.fator_perda_pct),
   pr: num(s.ponto_ressupr), sugestao_qtd: num(s.sugestao_qtd), sugestao_receitas: s.sugestao_receitas ?? 0,
   nao_produzir: (s.sugestao_receitas ?? 0) <= 0, consumo: num(s.consumo), frozen: true,
   decisao: { decidido_receitas: s.decidido_receitas, decidido_qtd: s.decidido_qtd, dia_producao: s.dia_producao, seguiu_sugestao: s.seguiu_sugestao, motivo_override: s.motivo_override },
@@ -254,6 +304,9 @@ export async function GET(request: NextRequest) {
     for (const it of itens) it.dias = [];
   }
 
+  const medida = await perdaMedida(barId, semanaSel);
+  for (const it of itens) it.perda_medida_pct = medida.get(String(it.codigo || '').toUpperCase()) ?? null;
+
   return NextResponse.json({
     success: true,
     semana, semana_sel: semanaSel, semana_ativa: latest, semanas_disponiveis: semanasDisponiveis,
@@ -283,6 +336,10 @@ export async function POST(request: NextRequest) {
       const patch: any = { bar_id: barId, producao_id: producaoId, producao_cod: body.producao_cod ?? null, atualizado_em: new Date().toISOString(), atualizado_por: quem };
       if (body.nivel_servico != null) patch.nivel_servico = Number(body.nivel_servico);
       if (body.semanas_receita != null) patch.semanas_receita = Number(body.semanas_receita);
+      if (body.fator_perda_pct != null) {
+        // clamp defensivo: o check do banco recusa fora de 0..300 e o erro sairia cru na tela
+        patch.fator_perda_pct = Math.min(300, Math.max(0, Number(body.fator_perda_pct) || 0));
+      }
       const { error } = await ops().from('producao_plano_config').upsert(patch, { onConflict: 'bar_id,producao_id' });
       if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
       return NextResponse.json({ success: true });
@@ -318,6 +375,7 @@ export async function POST(request: NextRequest) {
         producao_cod: body.producao_cod ?? null, producao_nome: body.producao_nome ?? null,
         media6: body.media6 ?? null, desvpad: body.desvpad ?? null,
         nivel_servico: body.nivel_servico ?? null, fator_servico: body.nivel_servico != null ? zDe(Number(body.nivel_servico)) : null,
+        fator_perda_pct: body.fator_perda_pct ?? null,
         ponto_ressupr: body.ponto_ressupr ?? null, estoque: body.estoque ?? null,
         sugestao_qtd: body.sugestao_qtd ?? null, sugestao_receitas: body.sugestao_receitas ?? null,
         decidido_receitas: body.decidido_receitas != null ? Number(body.decidido_receitas) : null,
@@ -348,6 +406,7 @@ export async function POST(request: NextRequest) {
         producao_cod: body.producao_cod ?? null, producao_nome: body.producao_nome ?? null,
         media6: body.media6 ?? null, desvpad: body.desvpad ?? null,
         nivel_servico: body.nivel_servico ?? null, fator_servico: body.nivel_servico != null ? zDe(Number(body.nivel_servico)) : null,
+        fator_perda_pct: body.fator_perda_pct ?? null,
         ponto_ressupr: body.ponto_ressupr ?? null, estoque: body.estoque ?? null,
         sugestao_qtd: body.sugestao_qtd ?? null, sugestao_receitas: body.sugestao_receitas ?? null,
         decidido_receitas: totalRec, decidido_qtd: r2(totalRec * rend),
@@ -384,6 +443,7 @@ export async function POST(request: NextRequest) {
         return {
           plano_id: planoId, producao_id: it.producao_id, producao_cod: it.codigo, producao_nome: it.nome,
           media6: it.media6, desvpad: it.desvpad, nivel_servico: it.nivel_servico, fator_servico: zDe(it.nivel_servico),
+          fator_perda_pct: it.fator_perda_pct ?? 0,
           ponto_ressupr: it.pr, estoque: it.estoque, sugestao_qtd: it.sugestao_qtd, sugestao_receitas: it.sugestao_receitas,
           decidido_receitas: decididoRec, decidido_qtd: r2(decididoRec * it.rend_contagem),
           seguiu_sugestao: decididoRec === it.sugestao_receitas, motivo_override: d?.motivo_override ?? null,
