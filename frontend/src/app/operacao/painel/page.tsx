@@ -10,7 +10,7 @@ import { useApiSWR } from '@/hooks/useApiSWR';
 import { AREAS, CORES, corNota, corFelicidade, corGoogle, fmtTempo, type AreaOperacional } from '@/lib/operacao/painel-lider';
 import {
   Smile, Timer, PackageX, Users, MessageSquareQuote, ArrowUpRight, ArrowDownRight,
-  Minus, ExternalLink, AlertTriangle, Star, Wallet,
+  Minus, ExternalLink, AlertTriangle, Star, Wallet, GlassWater,
 } from 'lucide-react';
 
 /**
@@ -99,6 +99,24 @@ export default function PainelLiderPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* Porta de entrada do aprofundamento da área. Hoje só o Bar tem tela própria; quando
+                Cozinha tiver a dela, entra aqui do mesmo jeito. */}
+            {data.area === 'Bar' && (
+              <Link
+                href="/operacao/drinks"
+                className="rounded-xl border border-purple-200 dark:border-purple-900/60 bg-purple-50/60 dark:bg-purple-950/20 p-4 flex flex-col justify-center hover:border-purple-400 dark:hover:border-purple-700 transition-colors"
+              >
+                <div className="flex items-center gap-2 text-sm font-semibold text-purple-700 dark:text-purple-300">
+                  <GlassWater className="h-4 w-4" /> Painel de Drinks
+                  <ExternalLink className="h-3.5 w-3.5 ml-auto opacity-60" />
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1.5 leading-snug">
+                  Faturamento, mix, margem e tempo de saída drink a drink — com a classificação em
+                  destaques, alto giro, oportunidades e baixa performance.
+                </p>
+              </Link>
+            )}
+
             {/* NPS da área — o que o cliente disse sobre o que ELA entrega */}
             {data.nps && (
               <CardIndicador

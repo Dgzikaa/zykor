@@ -269,6 +269,10 @@ export const MENU_TREE: MenuSection[] = [
       // resolvida pela cadeira do organograma. Primeiro item da seção porque é a tela de abrir o
       // dia — as outras são de planejar.
       { icon: 'Target', label: 'Painel do Líder', href: '/operacao/painel', permission: 'operacao_painel_do_lider' },
+      // Painel de Drinks (Mafê, 22/08/2026): o aprofundamento da área Bar — faturamento, mix,
+      // margem e classificação drink a drink. Item próprio no menu porque é a tela de trabalho da
+      // Chefe de Bar, não um detalhe do painel geral.
+      { icon: 'GlassWater', label: 'Painel de Drinks', href: '/operacao/drinks', permission: 'operacao_painel_de_drinks' },
       { icon: 'ClipboardList', label: 'Plano Operacional', href: '/operacao/plano', permission: 'operacao_plano_operacional' },
       { icon: 'CalendarRange', label: 'Escala', href: '/operacao/escala', permission: 'operacao_escala' },
       { icon: 'Scale', label: 'Planejado × Realizado', href: '/operacao/comparativo', permission: 'operacao_planejado_realizado' },
